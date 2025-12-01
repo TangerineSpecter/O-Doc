@@ -1,4 +1,4 @@
-# 小橘文档 (LittleOrange Docs) 🍊
+# 小橘文档 (O-Doc) 🍊
 
 [![版本](https://img.shields.io/badge/version-0.0.1-blue.svg)](https://github.com/your-username/o-doc)
 [![React](https://img.shields.io/badge/React-19.x-61dafb.svg?logo=react)](https://react.dev/)
