@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { ChevronLeft } from 'lucide-react';
 
 // --- Global Styles & Fonts ---
 const GLOBAL_STYLES = `
@@ -30,7 +31,7 @@ const GLOBAL_STYLES = `
     color: #94a3b8; /* Slate 400 */
   }
 
-  /* Headings (H2-H6 only, H1 is reserved for Main Title) */
+  /* Headings */
   .markdown-body h2, .markdown-body h3, .markdown-body h4 {
     position: relative;
     margin-top: 2.5em;
@@ -41,6 +42,9 @@ const GLOBAL_STYLES = `
     color: #0f172a; /* Slate 900 */
     scroll-margin-top: 100px;
   }
+  /* 嵌入模式下的微调 */
+  .embedded-mode .markdown-body h2 { margin-top: 1.5em; }
+
   .dark .markdown-body h2, .dark .markdown-body h3, .dark .markdown-body h4 {
     color: #f8fafc;
   }
@@ -114,21 +118,21 @@ const GLOBAL_STYLES = `
   }
   .markdown-body ul li::marker { color: #94a3b8; }
 
-  /* Images - Enhanced Display Effect */
+  /* Images */
   .markdown-body img {
     display: block;
     margin: 2.5rem auto;
     max-width: 100%;
-    border-radius: 0.75rem; /* Rounded corners */
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Elegant shadow */
-    transition: transform 0.3s ease; /* Hover effect */
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s ease;
   }
   .markdown-body img:hover {
     transform: scale(1.01);
   }
   .dark .markdown-body img {
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-    opacity: 0.9; /* Slightly dim in dark mode for comfort */
+    opacity: 0.9;
   }
   .dark .markdown-body img:hover {
     opacity: 1;
@@ -223,7 +227,7 @@ const GLOBAL_STYLES = `
   .markdown-body tr:hover td { background-color: #f8fafc; }
   .dark .markdown-body tr:hover td { background-color: #1e293b; }
 
-  /* Custom Tag Style - Inline */
+  /* Custom Tag Style */
   .md-tag-inline {
     display: inline-flex;
     align-items: center;
@@ -232,9 +236,9 @@ const GLOBAL_STYLES = `
     border-radius: 0.25rem;
     font-size: 0.85em;
     font-weight: 500;
-    color: #4f46e5; /* Indigo 600 */
-    background-color: #eef2ff; /* Indigo 50 */
-    border: 1px solid #e0e7ff; /* Indigo 100 */
+    color: #4f46e5;
+    background-color: #eef2ff;
+    border: 1px solid #e0e7ff;
     cursor: default;
     transition: all 0.2s;
   }
@@ -352,7 +356,7 @@ const GLOBAL_STYLES = `
   }
 `;
 
-// --- Utils ---
+// --- Utils (这些就是之前报错缺失的函数) ---
 const loadScript = (src) => {
   return new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
@@ -384,9 +388,6 @@ const Icons = {
   Moon: (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
   ),
-  Terminal: (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-  ),
   Tag: (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
   ),
@@ -401,9 +402,6 @@ const Icons = {
   ),
   ArrowUp: (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m18 15-6-6-6 6"/></svg>
-  ),
-  ArrowLeft: (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
   )
 };
 
@@ -440,12 +438,12 @@ const TableOfContents = ({ headers, activeId }) => {
   );
 };
 
-// --- Note Content (Title separated) ---
 const NOTE_TITLE = "深度算法分析：从 DFS 到图论的演进";
 const NOTE_CATEGORY = "算法与数据结构";
 const NOTE_DATE = "2025/11/14";
 
-const sampleMarkdown = `
+export default function Article({ onBack, isEmbedded = false, scrollContainerId = null }) {
+  const [markdown, setMarkdown] = useState(`
 > “细节不是细节，它们构成了设计。” —— Charles Eames
 
 本笔记整理了 **DFS** 的核心概念与代码模板，包含数学公式推导与复杂度分析。
@@ -574,10 +572,7 @@ graph TD
 | 邻接矩阵 | $O(V^2)$ | $O(1)$ 查询 | 高 |
 | 邻接表 | $O(V+E)$ | $O(Degree)$ 查询 | 变动 |
 | 边列表 | $O(E)$ | $O(E)$ 查询 | 低 |
-`;
-
-export default function App() {
-  const [markdown, setMarkdown] = useState(sampleMarkdown);
+`);
   const [htmlContent, setHtmlContent] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [headers, setHeaders] = useState([]);
@@ -701,9 +696,18 @@ export default function App() {
 
   // Scroll Handler for Spy and BackToTop
   useEffect(() => {
+    // 确定监听对象：如果是嵌入模式，监听传入的容器ID；否则监听 window
+    const scrollTarget = scrollContainerId ? document.getElementById(scrollContainerId) : window;
+    if (scrollContainerId && !scrollTarget) return;
+
     const handleScroll = () => {
+      // 获取滚动距离：兼容 window 和 element
+      const scrollTop = scrollContainerId ? scrollTarget.scrollTop : window.scrollY;
+      const scrollHeight = scrollContainerId ? scrollTarget.scrollHeight : document.documentElement.scrollHeight;
+      const clientHeight = scrollContainerId ? scrollTarget.clientHeight : window.innerHeight;
+
       // Back to Top Logic
-      if (window.scrollY > 300) {
+      if (scrollTop > 300) {
         setShowScrollTop(true);
       } else {
         setShowScrollTop(false);
@@ -711,11 +715,13 @@ export default function App() {
 
       // Scroll Spy Logic
       if (headers.length === 0) return;
-      const threshold = 120; 
-      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 50) {
+      
+      if (clientHeight + scrollTop >= scrollHeight - 50) {
         setActiveHeader(headers[headers.length - 1].slug);
         return;
       }
+      
+      const threshold = 150; 
       let currentActiveId = '';
       for (let i = 0; i < headers.length; i++) {
         const el = document.getElementById(headers[i].slug);
@@ -724,44 +730,60 @@ export default function App() {
       }
       if (currentActiveId) setActiveHeader(currentActiveId);
     };
-    window.addEventListener('scroll', handleScroll, { passive: true });
+
+    scrollTarget.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [headers]);
+    return () => scrollTarget.removeEventListener('scroll', handleScroll);
+  }, [headers, scrollContainerId, isEmbedded]);
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
   
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (scrollContainerId) {
+      const container = document.getElementById(scrollContainerId);
+      if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
-  const goBack = () => {
-    console.log("Go back clicked");
-    // In a real app: history.back() or navigate(-1)
-  };
-
-  if (!resourcesLoaded) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#020617] text-slate-500">Loading resources...</div>;
+  if (!resourcesLoaded) return <div className="min-h-full flex items-center justify-center bg-gray-50 dark:bg-[#020617] text-slate-500 py-20">Loading resources...</div>;
 
   return (
     <>
       <style>{GLOBAL_STYLES}</style>
-      <div className="bg-gray-50 dark:bg-[#020617] transition-colors duration-300 min-h-screen flex flex-col selection:bg-blue-100 selection:text-blue-900 dark:selection:bg-blue-900/30 dark:selection:text-blue-200">
-        <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-          <div className="absolute inset-0 bg-grid"></div>
-          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-50/50 rounded-full blur-[100px] dark:hidden"></div>
-          <div className="absolute top-[20%] right-[-10%] w-[40%] h-[40%] bg-indigo-50/50 rounded-full blur-[100px] dark:hidden"></div>
-          <div className="hidden dark:block absolute top-0 -left-4 w-96 h-96 bg-purple-500/10 rounded-full blur-[100px]"></div>
-          <div className="hidden dark:block absolute bottom-0 -right-4 w-96 h-96 bg-sky-500/10 rounded-full blur-[100px]"></div>
-        </div>
+      <div className={`bg-gray-50 dark:bg-[#020617] transition-colors duration-300 flex flex-col selection:bg-blue-100 selection:text-blue-900 dark:selection:bg-blue-900/30 dark:selection:text-blue-200 ${isEmbedded ? '' : 'min-h-screen'}`}>
+        
+        {/* 背景装饰：仅在非嵌入模式(独立页面)显示 */}
+        {!isEmbedded && (
+          <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+            <div className="absolute inset-0 bg-grid"></div>
+            <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-50/50 rounded-full blur-[100px] dark:hidden"></div>
+            <div className="absolute top-[20%] right-[-10%] w-[40%] h-[40%] bg-indigo-50/50 rounded-full blur-[100px] dark:hidden"></div>
+            <div className="hidden dark:block absolute top-0 -left-4 w-96 h-96 bg-purple-500/10 rounded-full blur-[100px]"></div>
+            <div className="hidden dark:block absolute bottom-0 -right-4 w-96 h-96 bg-sky-500/10 rounded-full blur-[100px]"></div>
+          </div>
+        )}
 
-        <main className="relative z-10 flex-grow pt-28 pb-16 px-4 sm:px-6 lg:px-8">
+        <main className={`relative z-10 flex-grow px-4 sm:px-6 lg:px-8 ${isEmbedded ? 'pt-8 pb-10' : 'pt-28 pb-16'}`}>
           <div className="relative max-w-5xl mx-auto w-full">
             
+            {/* 嵌入模式下的“返回文集”按钮 */}
+            {isEmbedded && onBack && (
+              <div className="mb-6 flex items-center">
+                <button 
+                  onClick={onBack}
+                  className="group flex items-center gap-1 text-sm text-slate-500 hover:text-orange-600 transition-colors pl-1 pr-3 py-1.5 rounded-lg hover:bg-orange-50"
+                >
+                  <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+                  <span className="font-medium">返回文集目录</span>
+                </button>
+              </div>
+            )}
+
             <div className="bg-white dark:bg-[#0b1120] rounded-2xl p-8 sm:p-14 shadow-paper dark:shadow-none ring-1 ring-slate-900/5 dark:ring-slate-800 transition-all duration-300">
               
-              {/* NOTE HEADER */}
               <header className="mb-10 pb-8 border-b border-slate-100 dark:border-slate-800">
-                {/* Category & Tags */}
                 <div className="flex flex-wrap items-center gap-3 mb-6">
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/30">
                     {NOTE_CATEGORY}
@@ -774,12 +796,10 @@ export default function App() {
                   ))}
                 </div>
 
-                {/* Main Title */}
                 <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight mb-6">
                   {NOTE_TITLE}
                 </h1>
 
-                {/* Meta Info */}
                 <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500 dark:text-slate-400 font-medium">
                   <div className="flex items-center gap-2">
                     <Icons.FileText className="w-4 h-4 text-slate-400" />
@@ -803,7 +823,6 @@ export default function App() {
                 <p className="text-sm text-slate-400 dark:text-slate-600 font-medium">END OF CONTENT</p>
             </div>
 
-            {/* TOC: Absolute Right */}
             <TableOfContents headers={headers} activeId={activeHeader} />
           </div>
         </main>
@@ -811,7 +830,7 @@ export default function App() {
         {/* Back to Top Button */}
         <button 
             onClick={scrollToTop}
-            className={`fixed bottom-8 right-8 p-3 rounded-full bg-white dark:bg-slate-800 shadow-lg shadow-slate-200/50 dark:shadow-black/50 border border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-300 transition-all duration-300 z-50 hover:-translate-y-1 ${showScrollTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
+            className={`fixed bottom-8 right-8 p-3 rounded-full bg-white dark:bg-slate-800 shadow-lg shadow-slate-200/50 dark:shadow-black/50 border border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-300 transition-all duration-300 z-[100] hover:-translate-y-1 ${showScrollTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
             title="回到顶部"
         >
             <Icons.ArrowUp className="w-5 h-5" />
