@@ -1,55 +1,43 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 
-// --- Global Styles & Fonts ---
+// --- 依赖库 ---
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm'; 
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import rehypeRaw from 'rehype-raw'; 
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import mermaid from 'mermaid';
+import 'katex/dist/katex.min.css';
+
+// --- 样式定义 (不可删除：这是文章排版的灵魂) ---
 const GLOBAL_STYLES = `
-  /* Fonts */
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
 
-  /* Base */
-  html {
-    scroll-behavior: smooth;
-    scroll-padding-top: 100px; 
-  }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter', -apple-system, "Noto Sans SC", sans-serif; }
 
-  body {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
-  }
-
-  /* ---------------------------------------------------------
-     Markdown Typography - Enhanced Style
-     --------------------------------------------------------- */
+  /* * [重要] Markdown Body 核心样式
+   * 作用：对抗 Tailwind 的样式重置，恢复标题大小、列表圆点等 
+   */
   .markdown-body {
     line-height: 1.85;
     font-size: 1rem;
-    color: #334155; /* Slate 700 */
+    color: #334155;
   }
-  .dark .markdown-body {
-    color: #94a3b8; /* Slate 400 */
-  }
+  .dark .markdown-body { color: #94a3b8; }
 
-  /* Headings */
-  .markdown-body h2, .markdown-body h3, .markdown-body h4 {
-    position: relative;
-    margin-top: 2.5em;
-    margin-bottom: 1em;
+  /* 标题样式恢复 */
+  .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+    color: #0f172a;
     font-weight: 700;
-    line-height: 1.3;
-    letter-spacing: -0.015em;
-    color: #0f172a; /* Slate 900 */
     scroll-margin-top: 100px;
   }
-  /* 嵌入模式下的微调 */
-  .embedded-mode .markdown-body h2 { margin-top: 1.5em; }
-
-  .dark .markdown-body h2, .dark .markdown-body h3, .dark .markdown-body h4 {
-    color: #f8fafc;
-  }
+  .dark .markdown-body h1, .dark .markdown-body h2, .dark .markdown-body h3 { color: #f8fafc; }
 
   .markdown-body h2 {
+    margin-top: 2.5em; margin-bottom: 1em;
     font-size: 1.65em;
     padding-bottom: 0.3em;
     border-bottom: 1px solid #f1f5f9;
@@ -57,27 +45,19 @@ const GLOBAL_STYLES = `
   .dark .markdown-body h2 { border-color: #1e293b; }
 
   .markdown-body h3 {
+    margin-top: 2em; margin-bottom: 0.8em;
     font-size: 1.35em;
     font-weight: 600;
   }
 
-  .markdown-body p { margin-bottom: 1.6em; text-align: justify; }
+  /* 列表样式恢复 (否则没有圆点) */
+  .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1.5em; }
+  .markdown-body ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1.5em; }
+  .markdown-body li { margin-bottom: 0.4em; }
+  .markdown-body ul.contains-task-list { list-style-type: none; padding-left: 0; }
+  .markdown-body li.task-list-item { display: flex; align-items: flex-start; margin-left: 0; }
 
-  /* Links */
-  .markdown-body a {
-    color: #0ea5e9; /* Sky 500 */
-    text-decoration: none;
-    font-weight: 600;
-    border-bottom: 1px solid transparent;
-    transition: all 0.2s;
-  }
-  .markdown-body a:hover {
-    color: #0284c7;
-    border-bottom-color: #0284c7;
-  }
-  .dark .markdown-body a { color: #38bdf8; }
-
-  /* Blockquote */
+  /* 引用块美化 (紫色渐变效果) */
   .markdown-body blockquote {
     position: relative;
     margin: 2rem 0;
@@ -96,339 +76,105 @@ const GLOBAL_STYLES = `
     color: #ddd6fe;
   }
   .markdown-body blockquote::after {
-    content: "”";
-    position: absolute;
-    top: 0;
-    right: 1rem;
-    font-size: 4rem;
-    line-height: 1;
-    color: rgba(139, 92, 246, 0.1);
-    font-family: serif;
-    pointer-events: none;
+    content: "”"; position: absolute; top: 0; right: 1rem;
+    font-size: 4rem; line-height: 1; color: rgba(139, 92, 246, 0.1);
+    font-family: serif; pointer-events: none;
   }
 
-  /* Lists */
-  .markdown-body ul, .markdown-body ol {
-    padding-left: 1.5em;
-    margin-bottom: 1.5em;
-  }
-  .markdown-body li {
-    margin-bottom: 0.4em;
-    padding-left: 0.25em;
-  }
-  .markdown-body ul li::marker { color: #94a3b8; }
-
-  /* Images */
+  /* 图片阴影 */
   .markdown-body img {
-    display: block;
-    margin: 2.5rem auto;
-    max-width: 100%;
+    display: block; margin: 2.5rem auto; max-width: 100%;
     border-radius: 0.75rem;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    transition: transform 0.3s ease;
-  }
-  .markdown-body img:hover {
-    transform: scale(1.01);
-  }
-  .dark .markdown-body img {
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-    opacity: 0.9;
-  }
-  .dark .markdown-body img:hover {
-    opacity: 1;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
   }
 
-  /* Code Blocks */
-  .code-block-wrapper {
-    margin: 1.5rem 0;
-    border-radius: 0.75rem;
-    overflow: hidden;
-    background: #1e293b;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    border: 1px solid #334155;
-  }
-  
-  .code-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.75rem 1rem;
-    background: #0f172a;
-    border-bottom: 1px solid #334155;
-  }
-  
-  .code-lang {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: #94a3b8;
-    font-weight: 600;
-    text-transform: uppercase;
-  }
-
-  /* Prism Overrides */
-  pre[class*="language-"] {
-    margin: 0 !important;
-    padding: 1.25rem !important;
-    background: transparent !important;
-    text-shadow: none !important;
-  }
-  code[class*="language-"], pre[class*="language-"] {
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.9em !important;
-    line-height: 1.6 !important;
-  }
-  
-  /* Inline Code */
-  :not(pre) > code {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85em;
-    font-weight: 600;
-    padding: 0.2rem 0.375rem;
-    margin: 0 0.1rem;
-    border-radius: 0.375rem;
-    background-color: #fdf2f8; /* Pink 50 */
-    color: #db2777; /* Pink 600 */
-    border: 1px solid #fbcfe8; /* Pink 200 */
-  }
-  .dark :not(pre) > code {
-    background-color: rgba(219, 39, 119, 0.15);
-    color: #f472b6;
-    border-color: rgba(219, 39, 119, 0.3);
-  }
-
-  /* Tables */
-  .table-wrapper {
-    overflow-x: auto;
-    border-radius: 0.5rem;
-    border: 1px solid #e2e8f0;
-    margin-bottom: 2em;
-    background: white;
-  }
-  .dark .table-wrapper { border-color: #334155; background: transparent; }
-  .markdown-body table { width: 100%; border-collapse: collapse; }
-  .markdown-body th {
-    background-color: #f8fafc;
-    font-weight: 600;
-    padding: 0.75rem 1rem;
-    font-size: 0.875rem;
-    color: #475569;
-    text-align: left;
-    border-bottom: 1px solid #e2e8f0;
-  }
-  .dark .markdown-body th { background-color: #1e293b; color: #cbd5e1; border-color: #334155; }
-  .markdown-body td {
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid #e2e8f0;
-    font-size: 0.875rem;
-    color: #334155;
-  }
-  .dark .markdown-body td { border-color: #334155; color: #94a3b8; }
-  .markdown-body tr:last-child td { border-bottom: none; }
-  .markdown-body tr:hover td { background-color: #f8fafc; }
-  .dark .markdown-body tr:hover td { background-color: #1e293b; }
-
-  /* Custom Tag Style */
-  .md-tag-inline {
-    display: inline-flex;
-    align-items: center;
-    padding: 0 0.4em;
-    margin: 0 0.2em;
-    border-radius: 0.25rem;
-    font-size: 0.85em;
-    font-weight: 500;
-    color: #4f46e5;
-    background-color: #eef2ff;
-    border: 1px solid #e0e7ff;
-    cursor: default;
-    transition: all 0.2s;
-  }
-  .md-tag-inline:hover {
-    background-color: #e0e7ff;
-    color: #4338ca;
-  }
-  .dark .md-tag-inline { 
-    color: #818cf8; 
-    background-color: rgba(99, 102, 241, 0.15);
-    border-color: rgba(99, 102, 241, 0.3);
-  }
-
-  /* Custom Syntax Styles */
-  .custom-underline-red {
-    text-decoration: underline;
-    text-decoration-color: #ef4444; 
-    text-decoration-thickness: 2px;
-    text-underline-offset: 4px;
-    text-decoration-skip-ink: none;
-  }
-  .custom-underline-wavy {
-    text-decoration: underline;
-    text-decoration-style: wavy;
-    text-decoration-color: #0ea5e9; 
-    text-decoration-thickness: 2px;
-    text-underline-offset: 4px;
-    text-decoration-skip-ink: none;
-  }
-  .custom-watercolor {
-    background: linear-gradient(120deg, #fef08a 0%, #fde047 100%);
-    padding: 0.1em 0.3em;
-    border-radius: 0.2em;
-    box-decoration-break: clone;
-    -webkit-box-decoration-break: clone;
-    color: #854d0e;
-  }
-  .dark .custom-watercolor {
-    background: linear-gradient(120deg, #ca8a04 0%, #a16207 100%);
-    color: #fefce8;
-  }
-
-  /* Mermaid */
-  .mermaid {
-    display: flex;
+  /* * [关键修复] 数学公式居中 
+   * 仅针对块级公式 (.katex-display)，不影响行内文本 
+   */
+  .katex-display {
+    display: flex !important; 
     justify-content: center;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.75rem;
-    padding: 2rem;
-    margin: 2rem 0;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    width: 100%;
+    margin: 1.5em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
-  .dark .mermaid { background: #1e293b; border-color: #334155; box-shadow: none; }
   
-  /* Scrollbar */
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  /* 自定义内联标签 */
+  .md-tag-inline {
+    display: inline-flex; align-items: center; padding: 0 0.4em; margin: 0 0.2em;
+    border-radius: 0.25rem; font-size: 0.85em; font-weight: 500;
+    color: #4f46e5; background-color: #eef2ff; border: 1px solid #e0e7ff;
+  }
+  .dark .md-tag-inline { color: #818cf8; background-color: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.3); }
 
-  /* Grid Background */
-  .bg-grid {
-    background-size: 40px 40px;
-    background-image: linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px),
-                      linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px);
-    mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
-  }
-  .dark .bg-grid {
-    background-image: linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
-                      linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
-  }
-
-  /* Task List Styles */
-  .markdown-body input[type="checkbox"] {
-    appearance: none;
-    -webkit-appearance: none;
-    background-color: transparent;
-    margin: 0;
-    width: 1.15em;
-    height: 1.15em;
-    border: 1.5px solid #cbd5e1;
-    border-radius: 0.35em;
-    display: inline-grid;
-    place-content: center;
-    margin-right: 0.6em;
-    transform: translateY(0.2em);
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-  .dark .markdown-body input[type="checkbox"] { border-color: #475569; }
-  .markdown-body input[type="checkbox"]::before {
-    content: "";
-    width: 0.65em;
-    height: 0.65em;
-    transform: scale(0);
-    transition: 120ms transform ease-in-out;
-    box-shadow: inset 1em 1em #3b82f6;
-    transform-origin: center;
-    clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
-  }
-  .markdown-body input[type="checkbox"]:checked {
-    border-color: #3b82f6;
-    background-color: #eff6ff;
-  }
-  .dark .markdown-body input[type="checkbox"]:checked {
-    background-color: rgba(59, 130, 246, 0.1);
-  }
-  .markdown-body input[type="checkbox"]:checked::before {
-    transform: scale(1);
-  }
-  .markdown-body li:has(input[type="checkbox"]) {
-    list-style: none;
-    margin-left: -1.2em;
-    display: flex;
-    align-items: flex-start;
-  }
+  /* 高亮特效 */
+  .custom-underline-red { text-decoration: underline; text-decoration-color: #ef4444; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  .custom-underline-wavy { text-decoration: underline; text-decoration-style: wavy; text-decoration-color: #0ea5e9; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  .custom-watercolor { background: linear-gradient(120deg, #fef08a 0%, #fde047 100%); padding: 0.1em 0.3em; border-radius: 0.2em; color: #854d0e; }
+  
+  /* 表格样式 */
+  .table-wrapper { overflow-x: auto; margin-bottom: 2em; border-radius: 0.5rem; border: 1px solid #e2e8f0; }
+  .markdown-body table { width: 100%; border-collapse: collapse; }
+  .markdown-body th { background: #f8fafc; padding: 0.75rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
+  .markdown-body td { padding: 0.75rem; border-bottom: 1px solid #e2e8f0; }
+  
+  /* Mermaid 容器 */
+  .mermaid { display: flex; justify-content: center; padding: 2rem; background: transparent; }
 `;
 
-// --- Utils (这些就是之前报错缺失的函数) ---
-const loadScript = (src) => {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-    const script = document.createElement('script');
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-};
-
-const loadStylesheet = (href) => {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`link[href="${href}"]`)) { resolve(); return; }
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = href;
-    link.onload = resolve;
-    link.onerror = reject;
-    document.head.appendChild(link);
-  });
-};
-
-// --- Components ---
+// --- Components (图标) ---
 const Icons = {
-  Sun: (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
-  ),
-  Moon: (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-  ),
-  Tag: (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
-  ),
-  Clock: (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-  ),
-  Calendar: (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-  ),
-  FileText: (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
-  ),
-  ArrowUp: (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m18 15-6-6-6 6"/></svg>
-  )
+  Tag: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>,
+  Clock: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  Calendar: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  FileText: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>,
+  ArrowUp: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m18 15-6-6-6 6"/></svg>,
+  Copy: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>,
+  ArrowLeft: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
 };
 
-const TableOfContents = ({ headers, activeId }) => {
-  if (!headers || headers.length === 0) return null;
+// --- Mermaid 组件 ---
+const MermaidChart = ({ chart, isDarkMode }) => {
+  const [svg, setSvg] = useState('');
 
+  useEffect(() => {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: isDarkMode ? 'dark' : 'default',
+      securityLevel: 'loose',
+      fontFamily: 'Inter, sans-serif'
+    });
+
+    const render = async () => {
+      try {
+        const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+        const { svg } = await mermaid.render(id, chart);
+        setSvg(svg);
+      } catch (error) {
+        setSvg('<div class="text-red-500 text-sm p-4 bg-red-50 rounded">Mermaid Render Error</div>');
+      }
+    };
+    render();
+  }, [chart, isDarkMode]);
+
+  return <div className="mermaid my-6" dangerouslySetInnerHTML={{ __html: svg }} />;
+};
+
+// --- 目录组件 ---
+const TableOfContents = ({ headers, activeId }) => {
+  if (!headers?.length) return null;
   return (
     <div className="hidden xl:block absolute left-full top-0 ml-10 h-full w-64">
       <div className="sticky top-32">
         <h5 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-          目录
+          <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> 目录
         </h5>
         <ul className="space-y-1 relative border-l border-slate-200 dark:border-slate-700">
-          {headers.map((header, index) => (
-            <li key={index}>
-              <a 
-                href={`#${header.slug}`}
-                className={`block text-sm py-1.5 border-l-2 transition-all duration-200 truncate ${
-                  header.level > 2 ? 'pl-6 text-xs' : 'pl-4'
-                } ${
-                  activeId === header.slug 
-                    ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-medium bg-gradient-to-r from-sky-50/50 to-transparent dark:from-sky-900/10' 
-                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600'
-                }`}
-              >
-                {header.text}
+          {headers.map((h, i) => (
+            <li key={i}>
+              <a href={`#${h.slug}`} className={`block text-sm py-1.5 border-l-2 transition-all truncate ${h.level > 2 ? 'pl-6 text-xs' : 'pl-4'} ${activeId === h.slug ? 'border-sky-500 text-sky-600 font-medium bg-gradient-to-r from-sky-50/50 to-transparent' : 'border-transparent text-slate-500 hover:text-slate-900'}`}>
+                {h.text}
               </a>
             </li>
           ))}
@@ -438,12 +184,11 @@ const TableOfContents = ({ headers, activeId }) => {
   );
 };
 
+// --- 示例数据 ---
 const NOTE_TITLE = "深度算法分析：从 DFS 到图论的演进";
 const NOTE_CATEGORY = "算法与数据结构";
 const NOTE_DATE = "2025/11/14";
-
-export default function Article({ onBack, isEmbedded = false, scrollContainerId = null }) {
-  const [markdown, setMarkdown] = useState(`
+const sampleMarkdown = `
 > “细节不是细节，它们构成了设计。” —— Charles Eames
 
 本笔记整理了 **DFS** 的核心概念与代码模板，包含数学公式推导与复杂度分析。
@@ -557,11 +302,11 @@ $$ T(V, E) = \\Theta(V^2) $$
 
 \`\`\`mermaid
 graph TD
-    A[Start Node] --> B{Visited?}
-    B -- No --> C[Mark Visited]
-    B -- Yes --> D[Return]
-    C --> E[Process Node]
-    E --> F[Iterate Neighbors]
+    A["Start Node"] --> B{"Visited?"}
+    B -- No --> C["Mark Visited"]
+    B -- Yes --> D["Return"]
+    C --> E["Process Node"]
+    E --> F["Iterate Neighbors"]
     F --> A
 \`\`\`
 
@@ -572,228 +317,150 @@ graph TD
 | 邻接矩阵 | $O(V^2)$ | $O(1)$ 查询 | 高 |
 | 邻接表 | $O(V+E)$ | $O(Degree)$ 查询 | 变动 |
 | 边列表 | $O(E)$ | $O(E)$ 查询 | 低 |
-`);
-  const [htmlContent, setHtmlContent] = useState("");
+`;
+
+export default function Article({ isEmbedded, scrollContainerId, onBack }) {
+  const [markdown] = useState(sampleMarkdown);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [headers, setHeaders] = useState([]);
   const [activeHeader, setActiveHeader] = useState("");
-  const [extractedTags, setExtractedTags] = useState([]); 
+  const [tags, setTags] = useState([]); 
   const [stats, setStats] = useState({ wordCount: 0, readTime: 0 });
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  const contentRef = useRef(null);
-  const [resourcesLoaded, setResourcesLoaded] = useState(false);
 
+  // 1. 预处理
+  const contentWithSyntax = useMemo(() => {
+    let text = markdown;
+    const foundTags = [];
+    text = text.replace(/(\s|^)#([\w\u4e00-\u9fa5]+)/g, (m, p, t) => { 
+        foundTags.push(t); 
+        return `${p}<span class="md-tag-inline">#${t}</span>`; 
+    });
+    text = text.replace(/\+\+(.*?)\+\+/g, '<span class="custom-underline-red">$1</span>')
+               .replace(/\^\^(.*?)\^\^/g, '<span class="custom-underline-wavy">$1</span>')
+               .replace(/==(.*?)==/g, '<span class="custom-watercolor">$1</span>');
+    setTimeout(() => setTags([...new Set(foundTags)]), 0);
+    return text;
+  }, [markdown]);
+
+  // 2. 统计 & 标题
   useEffect(() => {
-    const loadResources = async () => {
-      try {
-        await Promise.all([
-          loadScript('https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js'),
-          loadStylesheet('https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css'),
-          loadScript('https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js'),
-          loadStylesheet('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css'),
-          loadScript('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js'),
-          loadScript('https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js')
-        ]);
-        await Promise.all([
-          loadScript('https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js'),
-          loadScript('https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js'),
-          loadScript('https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js'),
-          loadScript('https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js'),
-          loadScript('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js')
-        ]);
-        setResourcesLoaded(true);
-      } catch (err) { console.error(err); }
-    };
-    loadResources();
-  }, []);
+    const textContent = markdown.replace(/[#*`>~-]/g, ''); 
+    setStats({ 
+        wordCount: textContent.trim().length, 
+        readTime: Math.ceil(textContent.trim().length / 400) 
+    });
 
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDarkMode);
-    if (resourcesLoaded && window.mermaid) {
-        try {
-            window.mermaid.initialize({ startOnLoad: false, theme: isDarkMode ? 'dark' : 'default', securityLevel: 'loose', fontFamily: 'Inter, sans-serif' });
-        } catch(e) {}
-    }
-  }, [isDarkMode, resourcesLoaded, htmlContent]);
-
-  useEffect(() => {
-    const handleCopyClick = (e) => {
-      const copyBtn = e.target.closest('.copy-btn');
-      if (!copyBtn) return;
-      const codeElement = copyBtn.closest('.code-block-wrapper')?.querySelector('pre code');
-      if (!codeElement) return;
-      const textArea = document.createElement("textarea");
-      textArea.value = codeElement.innerText;
-      document.body.appendChild(textArea);
-      textArea.select();
-      try {
-        document.execCommand('copy');
-        const originalIconHtml = copyBtn.innerHTML;
-        copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-400"><polyline points="20 6 9 17 4 12"/></svg>`;
-        setTimeout(() => { copyBtn.innerHTML = originalIconHtml; }, 2000);
-      } catch (err) { console.error('Failed to copy', err); } 
-      finally { document.body.removeChild(textArea); }
-    };
-    document.addEventListener('click', handleCopyClick);
-    return () => document.removeEventListener('click', handleCopyClick);
-  }, []);
-
-  useEffect(() => {
-    if (!resourcesLoaded || !window.marked) return;
-    
-    // Stats calculation
-    const textContent = markdown.replace(/[#*`>~-]/g, ''); // Crude cleanup
-    const wordCount = textContent.trim().length;
-    const readTime = Math.ceil(wordCount / 400); // Avg reading speed
-    setStats({ wordCount, readTime });
-
-    const renderer = new window.marked.Renderer();
-    const tempHeaders = [];
-    renderer.heading = function (text, level, raw) {
-      const anchorText = raw || text || '';
-      const slug = String(anchorText).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-');
-      // Only capture H2 and H3 for TOC, leave title (H1) logic to outside
-      if (level > 1) {
-          tempHeaders.push({ text: String(text), level, slug });
+    const lines = markdown.split('\n');
+    const h = [];
+    lines.forEach(line => {
+      const match = line.match(/^(#{2,6})\s+(.*)$/);
+      if (match) {
+        h.push({ 
+            text: match[2].replace(/[*_~`]/g, ''), 
+            level: match[1].length, 
+            slug: match[2].toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-') 
+        });
       }
-      return `<h${level} id="${slug}">${text}</h${level}>`;
-    };
-    renderer.code = function (code, language) {
-      if (language === 'mermaid') return `<div class="mermaid">${code}</div>`;
-      return `<div class="code-block-wrapper"><div class="code-header"><div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-[#ff5f56] shadow-sm"></div><div class="w-3 h-3 rounded-full bg-[#ffbd2e] shadow-sm"></div><div class="w-3 h-3 rounded-full bg-[#27c93f] shadow-sm"></div></div><div class="flex items-center gap-3"><span class="code-lang">${language || 'text'}</span><button class="copy-btn p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white transition-colors" title="Copy code"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button></div></div><pre><code class="language-${language}">${code}</code></pre></div>`;
-    };
-    renderer.table = function (header, body) { return `<div class="table-wrapper"><table><thead>${header}</thead><tbody>${body}</tbody></table></div>`; };
-    
-    const parseCustomSyntax = (text) => {
-      let parsed = String(text);
-      const tags = [];
-      parsed = parsed.replace(/(\s|^)#([\w\u4e00-\u9fa5]+)/g, (match, prefix, tag) => { tags.push(tag); return `${prefix}<span class="md-tag-inline">#${tag}</span>`; });
-      setExtractedTags([...new Set(tags)]);
-      parsed = parsed.replace(/\+\+(.*?)\+\+/g, '<span class="custom-underline-red">$1</span>');
-      parsed = parsed.replace(/\^\^(.*?)\^\^/g, '<span class="custom-underline-wavy">$1</span>');
-      parsed = parsed.replace(/==(.*?)==/g, '<span class="custom-watercolor">$1</span>');
-      return parsed;
-    };
-    window.marked.setOptions({ renderer, gfm: true, breaks: true, headerIds: false });
-    try {
-      const processed = parseCustomSyntax(markdown);
-      // Remove 'disabled' to make checkboxes clickable
-      let rawHtml = window.marked.parse(processed);
-      rawHtml = rawHtml.replace(/<input checked="" disabled="" type="checkbox">/g, '<input checked="" type="checkbox">')
-                       .replace(/<input disabled="" type="checkbox">/g, '<input type="checkbox">');
-      
-      setHeaders(tempHeaders);
-      setHtmlContent(rawHtml);
-    } catch (error) { console.error(error); }
-  }, [markdown, resourcesLoaded]);
+    });
+    setHeaders(h);
+  }, [markdown]);
 
+  // 3. 滚动监听
   useEffect(() => {
-    if (!contentRef.current || !resourcesLoaded) return;
-    if (window.Prism) window.Prism.highlightAllUnder(contentRef.current);
-    if (window.renderMathInElement) window.renderMathInElement(contentRef.current, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }], throwOnError: false });
-    if (window.mermaid) window.mermaid.init(undefined, document.querySelectorAll('.mermaid'));
-  }, [htmlContent, resourcesLoaded]);
-
-  // Scroll Handler for Spy and BackToTop
-  useEffect(() => {
-    // 确定监听对象：如果是嵌入模式，监听传入的容器ID；否则监听 window
-    const scrollTarget = scrollContainerId ? document.getElementById(scrollContainerId) : window;
-    if (scrollContainerId && !scrollTarget) return;
-
+    const target = scrollContainerId ? document.getElementById(scrollContainerId) : window;
     const handleScroll = () => {
-      // 获取滚动距离：兼容 window 和 element
-      const scrollTop = scrollContainerId ? scrollTarget.scrollTop : window.scrollY;
-      const scrollHeight = scrollContainerId ? scrollTarget.scrollHeight : document.documentElement.scrollHeight;
-      const clientHeight = scrollContainerId ? scrollTarget.clientHeight : window.innerHeight;
-
-      // Back to Top Logic
-      if (scrollTop > 300) {
-        setShowScrollTop(true);
-      } else {
-        setShowScrollTop(false);
-      }
-
-      // Scroll Spy Logic
       if (headers.length === 0) return;
-      
-      if (clientHeight + scrollTop >= scrollHeight - 50) {
-        setActiveHeader(headers[headers.length - 1].slug);
-        return;
+      for (const header of headers) {
+        const el = document.getElementById(header.slug);
+        if (el && el.getBoundingClientRect().top < 150) {
+          setActiveHeader(header.slug);
+        }
       }
-      
-      const threshold = 150; 
-      let currentActiveId = '';
-      for (let i = 0; i < headers.length; i++) {
-        const el = document.getElementById(headers[i].slug);
-        if (el && el.getBoundingClientRect().top <= threshold) currentActiveId = headers[i].slug;
-        else break;
-      }
-      if (currentActiveId) setActiveHeader(currentActiveId);
     };
+    target?.addEventListener('scroll', handleScroll, { passive: true });
+    return () => target?.removeEventListener('scroll', handleScroll);
+  }, [headers, scrollContainerId]);
 
-    scrollTarget.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
-    return () => scrollTarget.removeEventListener('scroll', handleScroll);
-  }, [headers, scrollContainerId, isEmbedded]);
+  // --- 关键组件配置 ---
+  const components = useMemo(() => ({
+    code({ node, inline, className, children, ...props }) {
+      const match = /language-(\w+)/.exec(className || '');
+      const lang = match ? match[1] : '';
+      const codeStr = String(children).replace(/\n$/, '');
 
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
-  
-  const scrollToTop = () => {
-    if (scrollContainerId) {
-      const container = document.getElementById(scrollContainerId);
-      if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  if (!resourcesLoaded) return <div className="min-h-full flex items-center justify-center bg-gray-50 dark:bg-[#020617] text-slate-500 py-20">Loading resources...</div>;
+      // 1. Mermaid 图表
+      if (!inline && lang === 'mermaid') {
+        return <MermaidChart chart={codeStr} isDarkMode={isDarkMode} />;
+      }
+      
+      // 2. 代码块 (SyntaxHighlighter)
+      if (!inline && match) {
+        return (
+          <div className="code-block-wrapper my-6 rounded-xl overflow-hidden bg-[#1e293b] shadow-lg border border-slate-700">
+             <div className="flex items-center justify-between px-4 py-2 bg-[#0f172a] border-b border-slate-700">
+                <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-[#ff5f56]"/><div className="w-3 h-3 rounded-full bg-[#ffbd2e]"/><div className="w-3 h-3 rounded-full bg-[#27c93f]"/></div>
+                <div className="flex items-center gap-3">
+                    <span className="text-xs font-mono text-slate-400 uppercase">{lang}</span>
+                    <button onClick={() => navigator.clipboard.writeText(codeStr)} className="text-slate-400 hover:text-white"><Icons.Copy/></button>
+                </div>
+             </div>
+             <SyntaxHighlighter style={tomorrow} language={lang} PreTag="div" customStyle={{ margin:0, background:'transparent' }} {...props}>{codeStr}</SyntaxHighlighter>
+          </div>
+        );
+      }
+      
+      // 3. 行内代码样式 (粉色胶囊)
+      return (
+        <code className="bg-pink-50 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] dark:bg-pink-900/20 dark:text-pink-300 dark:border-pink-800" {...props}>
+          {children}
+        </code>
+      );
+    },
+    // 修复 Checkbox
+    input: ({ node, ...props }) => {
+        if (props.type === 'checkbox') {
+            return (
+                <input 
+                    type="checkbox" 
+                    defaultChecked={props.checked} 
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 mr-2 cursor-pointer mt-1"
+                />
+            );
+        }
+        return <input {...props} />;
+    },
+    h2: ({children}) => <h2 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h2>,
+    h3: ({children}) => <h3 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h3>,
+    table: ({children}) => <div className="table-wrapper"><table>{children}</table></div>
+  }), [isDarkMode]);
 
   return (
     <>
       <style>{GLOBAL_STYLES}</style>
-      <div className={`bg-gray-50 dark:bg-[#020617] transition-colors duration-300 flex flex-col selection:bg-blue-100 selection:text-blue-900 dark:selection:bg-blue-900/30 dark:selection:text-blue-200 ${isEmbedded ? '' : 'min-h-screen'}`}>
+      
+      <div className={`min-h-screen bg-gray-50 dark:bg-[#020617] transition-colors duration-300 ${isEmbedded ? '!bg-transparent !min-h-full' : ''}`}>
+        {!isEmbedded && <div className="fixed inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />}
         
-        {/* 背景装饰：仅在非嵌入模式(独立页面)显示 */}
-        {!isEmbedded && (
-          <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-            <div className="absolute inset-0 bg-grid"></div>
-            <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-50/50 rounded-full blur-[100px] dark:hidden"></div>
-            <div className="absolute top-[20%] right-[-10%] w-[40%] h-[40%] bg-indigo-50/50 rounded-full blur-[100px] dark:hidden"></div>
-            <div className="hidden dark:block absolute top-0 -left-4 w-96 h-96 bg-purple-500/10 rounded-full blur-[100px]"></div>
-            <div className="hidden dark:block absolute bottom-0 -right-4 w-96 h-96 bg-sky-500/10 rounded-full blur-[100px]"></div>
-          </div>
-        )}
-
-        <main className={`relative z-10 flex-grow px-4 sm:px-6 lg:px-8 ${isEmbedded ? 'pt-8 pb-10' : 'pt-28 pb-16'}`}>
-          <div className="relative max-w-5xl mx-auto w-full">
+        <main className={`relative z-10 max-w-5xl mx-auto px-4 ${isEmbedded ? 'py-6' : 'py-20'}`}>
+          <div className="bg-white dark:bg-[#0b1120] rounded-2xl p-8 sm:p-14 shadow-xl ring-1 ring-slate-900/5">
             
-            {/* 嵌入模式下的“返回文集”按钮 */}
-            {isEmbedded && onBack && (
-              <div className="mb-6 flex items-center">
-                <button 
-                  onClick={onBack}
-                  className="group flex items-center gap-1 text-sm text-slate-500 hover:text-orange-600 transition-colors pl-1 pr-3 py-1.5 rounded-lg hover:bg-orange-50"
-                >
-                  <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-                  <span className="font-medium">返回文集目录</span>
-                </button>
-              </div>
-            )}
-
-            <div className="bg-white dark:bg-[#0b1120] rounded-2xl p-8 sm:p-14 shadow-paper dark:shadow-none ring-1 ring-slate-900/5 dark:ring-slate-800 transition-all duration-300">
-              
-              <header className="mb-10 pb-8 border-b border-slate-100 dark:border-slate-800">
+            <header className="mb-10 pb-8 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex flex-wrap items-center gap-3 mb-6">
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/30">
                     {NOTE_CATEGORY}
                   </span>
-                  {extractedTags.map(tag => (
+                  {tags.map(tag => (
                     <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/20 transition-colors cursor-default">
                         <Icons.Tag className="w-3 h-3 mr-1 opacity-50" />
                         {tag}
                     </span>
                   ))}
+                  
+                  {/* 返回按钮 */}
+                  <button onClick={onBack} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                      <Icons.ArrowLeft className="w-4 h-4"/>
+                      Back
+                  </button>
                 </div>
 
                 <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight mb-6">
@@ -801,39 +468,29 @@ graph TD
                 </h1>
 
                 <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500 dark:text-slate-400 font-medium">
-                  <div className="flex items-center gap-2">
-                    <Icons.FileText className="w-4 h-4 text-slate-400" />
-                    <span>{stats.wordCount} 字</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Icons.Clock className="w-4 h-4 text-slate-400" />
-                    <span>{stats.readTime} 分钟阅读</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Icons.Calendar className="w-4 h-4 text-slate-400" />
-                    <span>{NOTE_DATE}</span>
-                  </div>
+                  <div className="flex items-center gap-2"><Icons.FileText className="w-4 h-4 text-slate-400" /><span>{stats.wordCount} 字</span></div>
+                  <div className="flex items-center gap-2"><Icons.Clock className="w-4 h-4 text-slate-400" /><span>{stats.readTime} 分钟阅读</span></div>
+                  <div className="flex items-center gap-2"><Icons.Calendar className="w-4 h-4 text-slate-400" /><span>{NOTE_DATE}</span></div>
                 </div>
               </header>
 
-              <article ref={contentRef} className="markdown-body" dangerouslySetInnerHTML={{ __html: htmlContent }} />
-            </div>
-            
-            <div className="mt-12 flex justify-center">
-                <p className="text-sm text-slate-400 dark:text-slate-600 font-medium">END OF CONTENT</p>
-            </div>
+            <article className={`markdown-body ${isDarkMode ? 'dark' : ''}`}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex, rehypeRaw]} 
+                components={components}
+              >
+                {contentWithSyntax}
+              </ReactMarkdown>
+            </article>
 
-            <TableOfContents headers={headers} activeId={activeHeader} />
           </div>
+          
+          <TableOfContents headers={headers} activeId={activeHeader} />
         </main>
 
-        {/* Back to Top Button */}
-        <button 
-            onClick={scrollToTop}
-            className={`fixed bottom-8 right-8 p-3 rounded-full bg-white dark:bg-slate-800 shadow-lg shadow-slate-200/50 dark:shadow-black/50 border border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-300 transition-all duration-300 z-[100] hover:-translate-y-1 ${showScrollTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
-            title="回到顶部"
-        >
-            <Icons.ArrowUp className="w-5 h-5" />
+        <button onClick={() => window.scrollTo({top:0, behavior:'smooth'})} className="fixed bottom-8 right-8 p-3 bg-white shadow-lg rounded-full border border-slate-100 text-slate-600 hover:-translate-y-1 transition-transform z-50">
+           <Icons.ArrowUp className="w-5 h-5"/>
         </button>
       </div>
     </>
