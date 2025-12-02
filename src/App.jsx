@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { 
-  Search, 
-  Bell, 
-  ChevronDown, 
-  BookOpen, 
-  FileText, 
-  Cpu, 
-  Layers, 
-  Zap, 
-  Globe, 
+import {
+  Search,
+  Bell,
+  ChevronDown,
+  BookOpen,
+  FileText,
+  Cpu,
+  Layers,
+  Zap,
+  Globe,
   Filter,
   ArrowUpDown,
   ArrowUp,
@@ -214,7 +214,7 @@ const initialCollectionsData = [
       { title: "服务器初始化配置脚本", date: "11-15" },
     ]
   },
-   {
+  {
     id: 13,
     title: "微服务架构设计",
     count: 67,
@@ -266,7 +266,7 @@ function User({ className }) {
   // Simple wrapper for the user icon to avoid conflict with the component name
   return (
     <div className={className}>
-       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-user"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-user"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
     </div>
   )
 }
@@ -275,7 +275,7 @@ export default function LittleOrangeDocs() {
   const [collections, setCollections] = useState(initialCollectionsData);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef(null);
-  
+
   // Search Navigation State
   const [searchIndex, setSearchIndex] = useState(0);
 
@@ -297,7 +297,7 @@ export default function LittleOrangeDocs() {
     iconId: "book",
     permission: "public" // public | private
   });
-  
+
   // 1. Process ALL Collections based on Filter/Sort first
   const processedAllCollections = useMemo(() => {
     let result = [...collections]; // Use state here
@@ -357,21 +357,21 @@ export default function LittleOrangeDocs() {
   // Safety Check: Auto-load if content doesn't fill screen (Fix for large screens/no scrollbar)
   useEffect(() => {
     if (hasMore && !isLoadingMore) {
-       const timer = setTimeout(() => {
-         const documentHeight = document.documentElement.scrollHeight;
-         const windowHeight = window.innerHeight;
-         
-         // If content is shorter than window + buffer, trigger load
-         if (documentHeight <= windowHeight + 100) {
-           console.log("Auto-loading more content to fill screen...");
-           setIsLoadingMore(true);
-           setTimeout(() => {
-             setVisibleCount(prev => prev + 6);
-             setIsLoadingMore(false);
-           }, 500);
-         }
-       }, 500); // Wait for render/animation
-       return () => clearTimeout(timer);
+      const timer = setTimeout(() => {
+        const documentHeight = document.documentElement.scrollHeight;
+        const windowHeight = window.innerHeight;
+
+        // If content is shorter than window + buffer, trigger load
+        if (documentHeight <= windowHeight + 100) {
+          console.log("Auto-loading more content to fill screen...");
+          setIsLoadingMore(true);
+          setTimeout(() => {
+            setVisibleCount(prev => prev + 6);
+            setIsLoadingMore(false);
+          }, 500);
+        }
+      }, 500); // Wait for render/animation
+      return () => clearTimeout(timer);
     }
   }, [visibleCollections.length, hasMore, isLoadingMore]);
 
@@ -383,7 +383,7 @@ export default function LittleOrangeDocs() {
         e.preventDefault();
         setIsSearchOpen((prev) => !prev);
       }
-      
+
       if (!isSearchOpen) return;
 
       // Esc Close
@@ -424,7 +424,7 @@ export default function LittleOrangeDocs() {
     if (!newCollectionData.title) return; // Simple validation
 
     const selectedIcon = availableIcons.find(i => i.id === newCollectionData.iconId);
-    
+
     // Clone icon element to inject classes if needed, or just use as is
     // Here we construct a similar icon element structure as mock data
     const iconElement = React.cloneElement(selectedIcon.icon, {
@@ -449,157 +449,154 @@ export default function LittleOrangeDocs() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-orange-100 selection:text-orange-900" onClick={() => { setIsFilterOpen(false); setIsSortOpen(false); }}>
-      
+
       {/* Create Collection Modal */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
-           {/* Backdrop */}
-           <div 
-             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-             onClick={() => setIsCreateModalOpen(false)}
-           ></div>
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => setIsCreateModalOpen(false)}
+          ></div>
 
-           {/* Modal Dialog */}
-           <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-2 duration-200">
-             
-             {/* Header */}
-             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                <h3 className="text-lg font-bold text-slate-800">新建文集</h3>
-                <button 
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="p-1 rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors"
-                >
-                   <X className="w-5 h-5" />
-                </button>
-             </div>
+          {/* Modal Dialog */}
+          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-2 duration-200">
 
-             {/* Body */}
-             <div className="p-6 space-y-5">
-                
-                {/* Name Input */}
-                <div className="space-y-1.5">
-                   <label className="text-sm font-semibold text-slate-700">文集名称 <span className="text-red-500">*</span></label>
-                   <input 
-                     type="text" 
-                     placeholder="例如：产品需求文档" 
-                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
-                     value={newCollectionData.title}
-                     onChange={(e) => setNewCollectionData({...newCollectionData, title: e.target.value})}
-                     autoFocus
-                   />
-                </div>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+              <h3 className="text-lg font-bold text-slate-800">新建文集</h3>
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                className="p-1 rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-                {/* Description Input */}
-                <div className="space-y-1.5">
-                   <label className="text-sm font-semibold text-slate-700">简介说明</label>
-                   <textarea 
-                     placeholder="简要描述该文集的用途..." 
-                     rows={3}
-                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm resize-none"
-                     value={newCollectionData.description}
-                     onChange={(e) => setNewCollectionData({...newCollectionData, description: e.target.value})}
-                   />
-                </div>
+            {/* Body */}
+            <div className="p-6 space-y-5">
 
-                {/* Icon Selection - Horizontal Scroll */}
-                <div className="space-y-2">
-                   <label className="text-sm font-semibold text-slate-700">选择图标</label>
-                   {/* Scroll Container */}
-                   <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent -mx-1 px-1">
-                      {availableIcons.map((item) => (
-                        <button 
-                          key={item.id}
-                          onClick={() => setNewCollectionData({...newCollectionData, iconId: item.id})}
-                          className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border transition-all ${
-                            newCollectionData.iconId === item.id 
-                            ? 'bg-orange-50 border-orange-500 text-orange-600 ring-2 ring-orange-200' 
-                            : 'bg-white border-slate-200 text-slate-400 hover:border-orange-300 hover:text-slate-600'
-                          }`}
-                        >
-                           {React.cloneElement(item.icon, { className: "w-5 h-5" })}
-                        </button>
-                      ))}
-                   </div>
-                </div>
+              {/* Name Input */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-slate-700">文集名称 <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  placeholder="例如：产品需求文档"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+                  value={newCollectionData.title}
+                  onChange={(e) => setNewCollectionData({ ...newCollectionData, title: e.target.value })}
+                  autoFocus
+                />
+              </div>
 
-                {/* Permission Selection */}
-                <div className="space-y-2">
-                   <label className="text-sm font-semibold text-slate-700">访问权限</label>
-                   <div className="grid grid-cols-2 gap-3">
-                      <div 
-                        onClick={() => setNewCollectionData({...newCollectionData, permission: 'public'})}
-                        className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${
-                          newCollectionData.permission === 'public'
-                          ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500'
-                          : 'bg-white border-slate-200 hover:border-slate-300'
+              {/* Description Input */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-slate-700">简介说明</label>
+                <textarea
+                  placeholder="简要描述该文集的用途..."
+                  rows={3}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm resize-none"
+                  value={newCollectionData.description}
+                  onChange={(e) => setNewCollectionData({ ...newCollectionData, description: e.target.value })}
+                />
+              </div>
+
+              {/* Icon Selection - Horizontal Scroll */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">选择图标</label>
+                {/* Scroll Container */}
+                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent -mx-1 px-1">
+                  {availableIcons.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setNewCollectionData({ ...newCollectionData, iconId: item.id })}
+                      className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border transition-all ${newCollectionData.iconId === item.id
+                        ? 'bg-orange-50 border-orange-500 text-orange-600 ring-2 ring-orange-200'
+                        : 'bg-white border-slate-200 text-slate-400 hover:border-orange-300 hover:text-slate-600'
                         }`}
-                      >
-                         <div className={`p-2 rounded-full ${newCollectionData.permission === 'public' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
-                           <Globe className="w-4 h-4" />
-                         </div>
-                         <div>
-                            <div className="text-sm font-medium text-slate-800">公开文集</div>
-                            <div className="text-xs text-slate-500">所有访客可见</div>
-                         </div>
-                      </div>
-
-                      <div 
-                        onClick={() => setNewCollectionData({...newCollectionData, permission: 'private'})}
-                        className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${
-                          newCollectionData.permission === 'private'
-                          ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500'
-                          : 'bg-white border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                         <div className={`p-2 rounded-full ${newCollectionData.permission === 'private' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
-                           <Lock className="w-4 h-4" />
-                         </div>
-                         <div>
-                            <div className="text-sm font-medium text-slate-800">私密文集</div>
-                            <div className="text-xs text-slate-500">仅团队成员可见</div>
-                         </div>
-                      </div>
-                   </div>
+                    >
+                      {React.cloneElement(item.icon, { className: "w-5 h-5" })}
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-             </div>
+              {/* Permission Selection */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">访问权限</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div
+                    onClick={() => setNewCollectionData({ ...newCollectionData, permission: 'public' })}
+                    className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${newCollectionData.permission === 'public'
+                      ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                      }`}
+                  >
+                    <div className={`p-2 rounded-full ${newCollectionData.permission === 'public' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                      <Globe className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-slate-800">公开文集</div>
+                      <div className="text-xs text-slate-500">所有访客可见</div>
+                    </div>
+                  </div>
 
-             {/* Footer */}
-             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-                <button 
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
-                >
-                  取消
-                </button>
-                <button 
-                  onClick={handleCreateCollection}
-                  disabled={!newCollectionData.title}
-                  className="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 active:bg-orange-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  立即创建
-                </button>
-             </div>
+                  <div
+                    onClick={() => setNewCollectionData({ ...newCollectionData, permission: 'private' })}
+                    className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${newCollectionData.permission === 'private'
+                      ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                      }`}
+                  >
+                    <div className={`p-2 rounded-full ${newCollectionData.permission === 'private' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-slate-800">私密文集</div>
+                      <div className="text-xs text-slate-500">仅团队成员可见</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-           </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateCollection}
+                disabled={!newCollectionData.title}
+                className="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 active:bg-orange-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                立即创建
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
 
       {/* Search Modal */}
       {isSearchOpen && (
         <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4 animate-in fade-in duration-200">
-          <div 
+          <div
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             onClick={() => setIsSearchOpen(false)}
           ></div>
-          
+
           <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/5 overflow-hidden flex flex-col animate-in zoom-in-95 slide-in-from-bottom-2 duration-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center border-b border-slate-100 px-4 py-4 gap-3">
               <Search className="w-5 h-5 text-slate-400" />
-              <input 
+              <input
                 ref={searchInputRef}
-                type="text" 
-                placeholder="搜索文档、API、或跳转到..." 
+                type="text"
+                placeholder="搜索文档、API、或跳转到..."
                 className="flex-1 text-lg bg-transparent border-none outline-none text-slate-800 placeholder:text-slate-400 h-8"
               />
               <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-mono">ESC</span>
@@ -608,13 +605,12 @@ export default function LittleOrangeDocs() {
             <div className="max-h-[60vh] overflow-y-auto p-2">
               <div className="space-y-1">
                 {searchSuggestions.map((item, index) => (
-                  <div 
+                  <div
                     key={item.id}
                     onClick={() => { console.log(item.title); setIsSearchOpen(false); }}
                     onMouseEnter={() => setSearchIndex(index)}
-                    className={`flex items-center justify-between px-3 py-3 rounded-lg cursor-pointer transition-colors ${
-                      index === searchIndex ? 'bg-orange-50' : 'hover:bg-slate-50'
-                    }`}
+                    className={`flex items-center justify-between px-3 py-3 rounded-lg cursor-pointer transition-colors ${index === searchIndex ? 'bg-orange-50' : 'hover:bg-slate-50'
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-4 h-4 ${index === searchIndex ? 'text-orange-500' : 'text-slate-400'}`}>
@@ -638,11 +634,11 @@ export default function LittleOrangeDocs() {
             </div>
 
             <div className="bg-slate-50 border-t border-slate-100 px-4 py-2 flex justify-between items-center text-xs text-slate-500">
-               <div className="flex gap-4">
-                 <span className="flex items-center gap-1"><ArrowUpDown className="w-3 h-3" /> 选择</span>
-                 <span className="flex items-center gap-1"><CornerDownLeft className="w-3 h-3" /> 打开</span>
-               </div>
-               <div>小橘文档 Search v2.1</div>
+              <div className="flex gap-4">
+                <span className="flex items-center gap-1"><ArrowUpDown className="w-3 h-3" /> 选择</span>
+                <span className="flex items-center gap-1"><CornerDownLeft className="w-3 h-3" /> 打开</span>
+              </div>
+              <div>小橘文档 Search v2.1</div>
             </div>
           </div>
         </div>
@@ -652,7 +648,7 @@ export default function LittleOrangeDocs() {
       <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            
+
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-500 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-orange-500/30">
                 <BookOpen size={18} strokeWidth={3} />
@@ -663,7 +659,7 @@ export default function LittleOrangeDocs() {
             </div>
 
             <div className="flex items-center gap-4 sm:gap-6">
-              <div 
+              <div
                 className="hidden md:flex relative group cursor-pointer"
                 onClick={() => setIsSearchOpen(true)}
               >
@@ -680,7 +676,7 @@ export default function LittleOrangeDocs() {
                 </div>
               </div>
 
-              <button 
+              <button
                 className="md:hidden p-2 text-slate-500 hover:text-slate-700"
                 onClick={() => setIsSearchOpen(true)}
               >
@@ -692,7 +688,7 @@ export default function LittleOrangeDocs() {
                   <Bell className="w-5 h-5" />
                   <span className="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
                 </button>
-                
+
                 {/* User Dropdown with FIXED Hover Gap */}
                 <div className="relative group z-50">
                   {/* Trigger */}
@@ -737,10 +733,10 @@ export default function LittleOrangeDocs() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        
+
         {/* Filter Bar with Functionality */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-white p-3 rounded-xl shadow-sm border border-slate-100">
-          
+
           <div className="relative">
             <button className="flex items-center gap-2 text-slate-700 font-semibold text-base hover:text-orange-600 transition-colors pl-2">
               所有文集 ({processedAllCollections.length})
@@ -750,41 +746,41 @@ export default function LittleOrangeDocs() {
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <div className="relative flex-grow sm:flex-grow-0">
-               <input 
-                 type="text" 
-                 placeholder="筛选文集..." 
-                 className="pl-3 pr-8 py-1 bg-slate-50 border border-slate-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 w-full sm:w-40"
-               />
-               <Search className="w-3 h-3 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="筛选文集..."
+                className="pl-3 pr-8 py-1 bg-slate-50 border border-slate-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 w-full sm:w-40"
+              />
+              <Search className="w-3 h-3 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
             </div>
-            
+
             <div className="h-5 w-px bg-slate-200 hidden sm:block mx-1"></div>
 
             {/* Filter Button */}
             <div className="relative">
-              <button 
+              <button
                 className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs transition-colors ${filterType !== 'all' ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'text-slate-600 hover:bg-slate-100'}`}
                 onClick={(e) => { e.stopPropagation(); setIsFilterOpen(!isFilterOpen); setIsSortOpen(false); }}
               >
                 <Filter className="w-3.5 h-3.5" />
                 <span>{filterType === 'all' ? '筛选' : filterType === 'top' ? '仅置顶' : '筛选'}</span>
               </button>
-              
+
               {isFilterOpen && (
                 <div className="absolute right-0 top-full mt-2 w-32 bg-white rounded-lg shadow-xl border border-slate-100 z-20 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                  <button 
-                    onClick={() => setFilterType('all')} 
+                  <button
+                    onClick={() => setFilterType('all')}
                     className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center"
                   >
                     全部
-                    {filterType === 'all' && <Check className="w-3 h-3 text-orange-500"/>}
+                    {filterType === 'all' && <Check className="w-3 h-3 text-orange-500" />}
                   </button>
-                  <button 
-                    onClick={() => setFilterType('top')} 
+                  <button
+                    onClick={() => setFilterType('top')}
                     className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center"
                   >
                     只看置顶
-                    {filterType === 'top' && <Check className="w-3 h-3 text-orange-500"/>}
+                    {filterType === 'top' && <Check className="w-3 h-3 text-orange-500" />}
                   </button>
                 </div>
               )}
@@ -792,7 +788,7 @@ export default function LittleOrangeDocs() {
 
             {/* Sort Button */}
             <div className="relative">
-              <button 
+              <button
                 className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs transition-colors ${sortType !== 'default' ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'text-slate-600 hover:bg-slate-100'}`}
                 onClick={(e) => { e.stopPropagation(); setIsSortOpen(!isSortOpen); setIsFilterOpen(false); }}
               >
@@ -802,35 +798,35 @@ export default function LittleOrangeDocs() {
 
               {isSortOpen && (
                 <div className="absolute right-0 top-full mt-2 w-32 bg-white rounded-lg shadow-xl border border-slate-100 z-20 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                  <button 
-                    onClick={() => setSortType('default')} 
+                  <button
+                    onClick={() => setSortType('default')}
                     className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center"
                   >
                     默认排序
-                    {sortType === 'default' && <Check className="w-3 h-3 text-orange-500"/>}
+                    {sortType === 'default' && <Check className="w-3 h-3 text-orange-500" />}
                   </button>
-                  <button 
-                    onClick={() => setSortType('count')} 
+                  <button
+                    onClick={() => setSortType('count')}
                     className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center"
                   >
                     按数量 (多→少)
-                    {sortType === 'count' && <Check className="w-3 h-3 text-orange-500"/>}
+                    {sortType === 'count' && <Check className="w-3 h-3 text-orange-500" />}
                   </button>
-                  <button 
-                    onClick={() => setSortType('az')} 
+                  <button
+                    onClick={() => setSortType('az')}
                     className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center"
                   >
                     按名称 (A-Z)
-                    {sortType === 'az' && <Check className="w-3 h-3 text-orange-500"/>}
+                    {sortType === 'az' && <Check className="w-3 h-3 text-orange-500" />}
                   </button>
                 </div>
               )}
             </div>
 
-             {/* New Collection Button */}
-             <div className="h-5 w-px bg-slate-200 hidden sm:block mx-1"></div>
-            
-            <button 
+            {/* New Collection Button */}
+            <div className="h-5 w-px bg-slate-200 hidden sm:block mx-1"></div>
+
+            <button
               onClick={() => setIsCreateModalOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-xs font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95"
             >
@@ -845,8 +841,8 @@ export default function LittleOrangeDocs() {
         {/* Grid Content */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {visibleCollections.map((item) => (
-            <div 
-              key={item.id} 
+            <div
+              key={item.id}
               className="group bg-white rounded-xl border border-slate-200 hover:border-orange-200 hover:shadow-lg hover:shadow-orange-500/5 transition-all duration-300 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500"
             >
               {/* Card Header */}
@@ -861,15 +857,15 @@ export default function LittleOrangeDocs() {
                         {item.title}
                       </h3>
                       {item.isTop && (
-                         <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-50 border border-red-100 text-[10px] font-bold text-red-600 leading-none">
-                            <ArrowUp className="w-2.5 h-2.5" strokeWidth={3} />
-                            置顶
-                         </span>
+                        <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-50 border border-red-100 text-[10px] font-bold text-red-600 leading-none">
+                          <ArrowUp className="w-2.5 h-2.5" strokeWidth={3} />
+                          置顶
+                        </span>
                       )}
                       {item.permission === 'private' && (
-                         <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-medium text-slate-500 leading-none">
-                            <Lock className="w-2.5 h-2.5" />
-                         </span>
+                        <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-medium text-slate-500 leading-none">
+                          <Lock className="w-2.5 h-2.5" />
+                        </span>
                       )}
                     </div>
                   </div>
@@ -877,7 +873,7 @@ export default function LittleOrangeDocs() {
                     {item.count}
                   </span>
                 </div>
-                
+
                 <p className="text-slate-500 text-xs line-clamp-2 leading-relaxed mb-2 h-8">
                   {item.description}
                 </p>
@@ -888,8 +884,8 @@ export default function LittleOrangeDocs() {
                 {item.articles.length > 0 ? (
                   <ul className="space-y-0.5">
                     {item.articles.map((article, idx) => (
-                      <li 
-                        key={idx} 
+                      <li
+                        key={idx}
                         className="group/item flex items-center justify-between py-1.5 px-2 rounded hover:bg-white hover:shadow-sm transition-all cursor-pointer"
                       >
                         <div className="flex items-center gap-2 overflow-hidden">
@@ -905,20 +901,20 @@ export default function LittleOrangeDocs() {
                     ))}
                   </ul>
                 ) : (
-                   <div className="h-full flex flex-col items-center justify-center text-slate-400 py-4 gap-2">
-                      <div className="bg-white p-2 rounded-full border border-dashed border-slate-300">
-                         <Plus className="w-4 h-4 text-slate-300" />
-                      </div>
-                      <span className="text-[10px]">暂无文档，点击创建</span>
-                   </div>
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 py-4 gap-2">
+                    <div className="bg-white p-2 rounded-full border border-dashed border-slate-300">
+                      <Plus className="w-4 h-4 text-slate-300" />
+                    </div>
+                    <span className="text-[10px]">暂无文档，点击创建</span>
+                  </div>
                 )}
               </div>
 
               {/* Card Footer */}
               <div className="bg-white border-t border-slate-50 h-0 group-hover:h-8 transition-all duration-300 overflow-hidden flex items-center justify-center">
-                 <button className="text-[10px] font-medium text-orange-600 hover:text-orange-700 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity delay-75">
-                    查看全部 <ChevronDown className="w-2.5 h-2.5 -rotate-90" />
-                 </button>
+                <button className="text-[10px] font-medium text-orange-600 hover:text-orange-700 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity delay-75">
+                  查看全部 <ChevronDown className="w-2.5 h-2.5 -rotate-90" />
+                </button>
               </div>
 
             </div>
@@ -926,16 +922,16 @@ export default function LittleOrangeDocs() {
 
           {visibleCollections.length === 0 && (
             <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400">
-               <div className="bg-slate-50 p-4 rounded-full mb-3">
-                 <Search className="w-6 h-6" />
-               </div>
-               <p>没有找到符合条件的文集</p>
-               <button 
-                 onClick={() => { setFilterType('all'); setSortType('default'); }}
-                 className="mt-2 text-xs text-orange-500 hover:underline"
-               >
-                 清除筛选
-               </button>
+              <div className="bg-slate-50 p-4 rounded-full mb-3">
+                <Search className="w-6 h-6" />
+              </div>
+              <p>没有找到符合条件的文集</p>
+              <button
+                onClick={() => { setFilterType('all'); setSortType('default'); }}
+                className="mt-2 text-xs text-orange-500 hover:underline"
+              >
+                清除筛选
+              </button>
             </div>
           )}
         </div>
@@ -943,19 +939,19 @@ export default function LittleOrangeDocs() {
         {/* Infinite Scroll Footer */}
         <div className="mt-8 flex justify-center pb-8">
           {isLoadingMore ? (
-             // Loading State
-             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full shadow-sm text-xs text-slate-600">
-               <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-               <span>正在加载更多...</span>
-             </div>
+            // Loading State
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full shadow-sm text-xs text-slate-600">
+              <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+              <span>正在加载更多...</span>
+            </div>
           ) : hasMore ? (
-             // Idle State (visible but not active unless scrolled)
-             <span className="text-xs text-slate-300">向下滚动加载更多</span>
+            // Idle State (visible but not active unless scrolled)
+            <span className="text-xs text-slate-300">向下滚动加载更多</span>
           ) : visibleCollections.length > 0 ? (
-             // End State
-             <div className="text-xs text-slate-400 font-medium bg-slate-100/50 px-4 py-1.5 rounded-full">
-               — 已经到底了，暂无更多内容 —
-             </div>
+            // End State
+            <div className="text-xs text-slate-400 font-medium bg-slate-100/50 px-4 py-1.5 rounded-full">
+              — 已经到底了，暂无更多内容 —
+            </div>
           ) : null}
         </div>
 
