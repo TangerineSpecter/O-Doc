@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Layout from './layout/Layout';
 import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';
+import ArticleDetail from './views/Article';
 
 export default function App() {
   // 简单的路由状态管理
