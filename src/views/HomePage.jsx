@@ -7,98 +7,7 @@ import {
     X, Check, Search
 } from 'lucide-react';
 
-// --- Mock Data with IDs ---
-const initialCollectionsData = [
-    {
-        id: 1,
-        coll_id: "col_deploy_001",
-        title: "小橘部署指南",
-        count: 42,
-        icon: <Cpu className="w-4 h-4 text-orange-500" />,
-        isTop: true,
-        description: "全面介绍小橘文档私有化部署、Docker容器化及集群配置方案。",
-        articles: [
-            { article_id: "art_dep_101", title: "服务器环境依赖检查清单", date: "11-24" },
-            { article_id: "art_dep_102", title: "Docker Compose 一键部署", date: "11-20" },
-            { article_id: "art_dep_103", title: "Nginx 反向代理配置详解", date: "11-18" },
-            { article_id: "art_dep_104", title: "数据库迁移与备份策略", date: "11-15" },
-        ]
-    },
-    {
-        id: 2,
-        coll_id: "col_api_002",
-        title: "API 接口开发手册",
-        count: 128,
-        icon: <Zap className="w-4 h-4 text-orange-500" />,
-        isTop: true,
-        description: "后端接口定义、鉴权机制（OAuth2.0）、以及错误码字典查询。",
-        articles: [
-            { article_id: "art_api_201", title: "认证鉴权：Access Token 获取", date: "12-01" },
-            { article_id: "art_api_202", title: "通用返回结构与分页说明", date: "11-30" },
-            { article_id: "art_api_203", title: "用户模块接口定义 (v2.0)", date: "11-28" },
-            { article_id: "art_api_204", title: "Webhook 回调事件配置", date: "11-25" },
-        ]
-    },
-    {
-        id: 3,
-        coll_id: "col_ui_003",
-        title: "前端组件库样式规范",
-        count: 35,
-        icon: <Layers className="w-4 h-4 text-orange-500" />,
-        isTop: false,
-        description: "基于 Tailwind CSS 的设计系统，包含色彩、排版及核心组件。",
-        articles: [
-            { article_id: "art_ui_301", title: "Color Palette：品牌色与辅助色", date: "10-15" },
-            { article_id: "art_ui_302", title: "Button 按钮组件交互状态", date: "09-22" },
-            { article_id: "art_ui_303", title: "Form 表单验证与错误提示", date: "09-20" },
-            { article_id: "art_ui_304", title: "Dark Mode 暗黑模式适配指南", date: "09-18" },
-        ]
-    },
-    {
-        id: 4,
-        coll_id: "col_log_004",
-        title: "产品更新日志 (Changelog)",
-        count: 12,
-        icon: <Globe className="w-4 h-4 text-blue-500" />,
-        isTop: false,
-        description: "记录小橘文档从 v1.0 到最新版本的所有迭代细节与修复。",
-        articles: [
-            { article_id: "art_log_401", title: "v2.1.0：新增AI智能搜索功能", date: "12-02" },
-            { article_id: "art_log_402", title: "v2.0.5：修复移动端表格显示异常", date: "11-28" },
-            { article_id: "art_log_403", title: "v2.0.0：全新UI架构重构发布", date: "11-01" },
-            { article_id: "art_log_404", title: "v1.9.8：支持 Markdown 扩展语法", date: "10-24" },
-        ]
-    },
-    // 为了篇幅，其他Mock数据结构相同，只需确保加上 coll_id 和 article_id
-    {
-        id: 5,
-        coll_id: "col_ent_005",
-        title: "企业版专属功能",
-        count: 8,
-        icon: <BookOpen className="w-4 h-4 text-purple-500" />,
-        isTop: false,
-        description: "针对企业客户的高级功能，如SSO单点登录、审计日志及水印。",
-        articles: [
-            { article_id: "art_ent_501", title: "配置 LDAP/AD 域账号同步", date: "08-05" },
-            { article_id: "art_ent_502", title: "开启文档水印与防复制策略", date: "07-22" }
-        ]
-    },
-    {
-        id: 13,
-        coll_id: "col_ms_013",
-        title: "微服务架构设计",
-        count: 67,
-        icon: <Server className="w-4 h-4 text-violet-500" />,
-        isTop: false,
-        description: "Spring Cloud Alibaba 全家桶使用指南及服务治理策略。",
-        articles: [
-            { article_id: "art_ms_1301", title: "Nacos 服务注册与配置中心", date: "10-30" },
-            { article_id: "art_ms_1302", title: "Sentinel 熔断降级限流实战", date: "10-25" },
-        ]
-    }
-];
-
-// Expanded Icons for Selection
+// --- Expanded Icons for Selection ---
 const availableIcons = [
     { id: 'book', icon: <BookOpen />, color: "text-blue-500" },
     { id: 'code', icon: <Code />, color: "text-sky-500" },
@@ -121,6 +30,158 @@ const availableIcons = [
     { id: 'pentool', icon: <PenTool />, color: "text-purple-600" },
     { id: 'archive', icon: <Archive />, color: "text-amber-600" },
 ];
+
+// --- 1. 手动精选数据 ---
+const manualData = [
+    {
+        id: 1,
+        coll_id: "col_deploy_001",
+        title: "小橘部署指南",
+        count: 42,
+        icon: <Cpu className="w-4 h-4 text-orange-500" />,
+        isTop: true,
+        permission: 'public',
+        description: "全面介绍小橘文档私有化部署、Docker容器化及集群配置方案。",
+        articles: [
+            { article_id: "art_dep_101", title: "服务器环境依赖检查清单", date: "11-24" },
+            { article_id: "art_dep_102", title: "Docker Compose 一键部署", date: "11-20" },
+            { article_id: "art_dep_103", title: "Nginx 反向代理配置详解", date: "11-18" },
+        ]
+    },
+    {
+        id: 2,
+        coll_id: "col_api_002",
+        title: "API 接口开发手册",
+        count: 128,
+        icon: <Zap className="w-4 h-4 text-orange-500" />,
+        isTop: true,
+        permission: 'public',
+        description: "后端接口定义、鉴权机制（OAuth2.0）、以及错误码字典查询。",
+        articles: [
+            { article_id: "art_api_201", title: "认证鉴权：Access Token 获取", date: "12-01" },
+            { article_id: "art_api_202", title: "通用返回结构与分页说明", date: "11-30" },
+            { article_id: "art_api_203", title: "用户模块接口定义 (v2.0)", date: "11-28" },
+        ]
+    },
+    {
+        id: 3,
+        coll_id: "col_ui_003",
+        title: "前端组件库样式规范",
+        count: 35,
+        icon: <Layers className="w-4 h-4 text-orange-500" />,
+        isTop: false,
+        permission: 'public',
+        description: "基于 Tailwind CSS 的设计系统，包含色彩、排版及核心组件。",
+        articles: [
+            { article_id: "art_ui_301", title: "Color Palette：品牌色与辅助色", date: "10-15" },
+            { article_id: "art_ui_302", title: "Button 按钮组件交互状态", date: "09-22" },
+            { article_id: "art_ui_303", title: "Form 表单验证与错误提示", date: "09-20" },
+        ]
+    },
+    {
+        id: 4,
+        coll_id: "col_log_004",
+        title: "产品更新日志 (Changelog)",
+        count: 12,
+        icon: <Globe className="w-4 h-4 text-blue-500" />,
+        isTop: false,
+        permission: 'public',
+        description: "记录小橘文档从 v1.0 到最新版本的所有迭代细节与修复。",
+        articles: [
+            { article_id: "art_log_401", title: "v2.1.0：新增AI智能搜索功能", date: "12-02" },
+            { article_id: "art_log_402", title: "v2.0.5：修复移动端表格显示异常", date: "11-28" },
+            { article_id: "art_log_403", title: "v2.0.0：全新UI架构重构发布", date: "11-01" },
+        ]
+    },
+    {
+        id: 5,
+        coll_id: "col_ent_005",
+        title: "企业版专属功能",
+        count: 8,
+        icon: <BookOpen className="w-4 h-4 text-purple-500" />,
+        isTop: false,
+        permission: 'private',
+        description: "针对企业客户的高级功能，如SSO单点登录、审计日志及水印。",
+        articles: [
+            { article_id: "art_ent_501", title: "配置 LDAP/AD 域账号同步", date: "08-05" },
+            { article_id: "art_ent_502", title: "开启文档水印与防复制策略", date: "07-22" }
+        ]
+    },
+    {
+        id: 6,
+        coll_id: "col_ms_013",
+        title: "微服务架构设计",
+        count: 67,
+        icon: <Server className="w-4 h-4 text-violet-500" />,
+        isTop: false,
+        permission: 'public',
+        description: "Spring Cloud Alibaba 全家桶使用指南及服务治理策略。",
+        articles: [
+            { article_id: "art_ms_1301", title: "Nacos 服务注册与配置中心", date: "10-30" },
+            { article_id: "art_ms_1302", title: "Sentinel 熔断降级限流实战", date: "10-25" },
+        ]
+    },
+    {
+        id: 7,
+        coll_id: "col_db_007",
+        title: "数据库运维手册",
+        count: 45,
+        icon: <Database className="w-4 h-4 text-indigo-500" />,
+        isTop: false,
+        permission: 'private',
+        description: "MySQL 高可用集群搭建、Redis 缓存策略及数据备份恢复流程。",
+        articles: [
+            { article_id: "art_db_701", title: "MySQL 8.0 主从复制搭建", date: "10-12" },
+            { article_id: "art_db_702", title: "Redis Cluster 集群扩容方案", date: "10-08" },
+        ]
+    },
+    {
+        id: 8,
+        coll_id: "col_sec_008",
+        title: "安全合规与审计",
+        count: 19,
+        icon: <Shield className="w-4 h-4 text-teal-500" />,
+        isTop: true,
+        permission: 'private',
+        description: "网络安全策略、渗透测试报告及GDPR合规性检查清单。",
+        articles: [
+            { article_id: "art_sec_801", title: "Web应用防火墙(WAF)规则配置", date: "11-05" },
+            { article_id: "art_sec_802", title: "定期漏洞扫描执行报告", date: "11-01" },
+        ]
+    }
+];
+
+// --- 2. 自动生成大量数据 (用于测试滚动加载) ---
+const generatedData = Array.from({ length: 32 }).map((_, index) => {
+    const id = index + 20;
+    const iconObj = availableIcons[index % availableIcons.length]; // 循环使用图标
+    const categories = ['运维', '产品', '研发', '测试', '设计', '市场'];
+    const category = categories[index % categories.length];
+    
+    // 随机生成一些文章
+    const articlesCount = Math.floor(Math.random() * 4); // 0-3 articles
+    const articles = Array.from({ length: articlesCount }).map((_, i) => ({
+        article_id: `art_gen_${id}_${i}`,
+        title: `${category}相关文档 - 进阶教程 ${i + 1}`,
+        date: `12-${10 + i}`
+    }));
+
+    return {
+        id: id,
+        coll_id: `col_gen_${id}`,
+        title: `${category}中心 - 项目文档集 ${id}`,
+        count: Math.floor(Math.random() * 100) + 1,
+        icon: React.cloneElement(iconObj.icon, { className: `w-4 h-4 ${iconObj.color}` }),
+        isTop: Math.random() > 0.9, // 10% chance top
+        permission: Math.random() > 0.8 ? 'private' : 'public', // 20% chance private
+        description: `这是自动生成的第 ${index + 1} 个测试数据，用于验证页面无限滚动加载效果是否流畅。包含${category}相关的详细资料。`,
+        articles: articles
+    };
+});
+
+// 合并数据
+const initialCollectionsData = [...manualData, ...generatedData];
+
 
 // 接收 onNavigate 属性
 export default function HomePage({ onNavigate }) {
@@ -168,13 +229,18 @@ export default function HomePage({ onNavigate }) {
         setVisibleCount(12);
     }, [filterType, sortType]);
 
+    // 滚动监听逻辑
     const handleScroll = useCallback(() => {
         if (isLoadingMore || !hasMore) return;
+        
         const scrollTop = window.scrollY || document.documentElement.scrollTop;
         const windowHeight = window.innerHeight;
         const documentHeight = document.documentElement.scrollHeight;
+        
+        // 当滚动条距离底部小于 100px 时触发加载
         if (scrollTop + windowHeight >= documentHeight - 100) {
             setIsLoadingMore(true);
+            // 模拟网络请求延迟 800ms
             setTimeout(() => {
                 setVisibleCount(prev => prev + 6);
                 setIsLoadingMore(false);
@@ -196,7 +262,7 @@ export default function HomePage({ onNavigate }) {
 
         const newItem = {
             id: Date.now(),
-            coll_id: `col_new_${Date.now()}`, // Generate simple ID
+            coll_id: `col_new_${Date.now()}`, 
             title: newCollectionData.title,
             count: 0,
             icon: iconElement,
@@ -323,7 +389,6 @@ export default function HomePage({ onNavigate }) {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <h3
-                                                // 点击标题 -> 跳转到文集
                                                 onClick={() => onNavigate('article', { collId: item.coll_id, title: item.title })}
                                                 className="font-bold text-slate-800 text-base leading-tight group-hover:text-orange-600 transition-colors cursor-pointer"
                                             >
@@ -344,7 +409,6 @@ export default function HomePage({ onNavigate }) {
                                     <ul className="space-y-0.5">
                                         {item.articles.map((article, idx) => (
                                             <li key={idx}
-                                                // 点击文章 -> 跳转到对应文章
                                                 onClick={() => onNavigate('article', { collId: item.coll_id, articleId: article.article_id, title: item.title, articleTitle: article.title })}
                                                 className="group/item flex items-center justify-between py-1.5 px-2 rounded hover:bg-white hover:shadow-sm transition-all cursor-pointer"
                                             >
@@ -367,7 +431,6 @@ export default function HomePage({ onNavigate }) {
                             {/* Card Footer */}
                             <div className="bg-white border-t border-slate-50 h-0 group-hover:h-8 transition-all duration-300 overflow-hidden flex items-center justify-center">
                                 <button
-                                    // 点击查看全部 -> 跳转到文集
                                     onClick={() => onNavigate('article', { collId: item.coll_id, title: item.title })}
                                     className="text-[10px] font-medium text-orange-600 hover:text-orange-700 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity delay-75"
                                 >

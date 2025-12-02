@@ -10,7 +10,8 @@ import {
     CornerDownLeft,
     ArrowUpDown,
     Clock,
-    FileText
+    FileText,
+    Leaf // 确保引入了 Leaf 图标
 } from 'lucide-react';
 
 // Search Suggestion Data (Layout specific data)
@@ -21,7 +22,7 @@ const searchSuggestions = [
     { id: 'sug-2', type: 'suggest', title: "偏好设置", subtitle: "设置", icon: <Settings className="w-4 h-4" /> },
 ];
 
-export default function Layout({ children }) {
+export default function Layout({ children, onNavigate }) {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const searchInputRef = useRef(null);
     const [searchIndex, setSearchIndex] = useState(0);
@@ -140,13 +141,46 @@ export default function Layout({ children }) {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-16">
 
+                        {/* Logo Section */}
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-500 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-orange-500/30">
-                                <BookOpen size={18} strokeWidth={3} />
+                            {/* Logo Icon */}
+                            <div onClick={() => onNavigate && onNavigate('home')} className="w-9 h-9 rounded-xl flex items-center justify-center bg-orange-50 border border-orange-100/50 shadow-[0_2px_8px_-2px_rgba(249,115,22,0.3)] p-0.5 overflow-hidden relative group hover:shadow-[0_4px_12px_-2px_rgba(249,115,22,0.4)] transition-shadow duration-300 cursor-pointer">
+                                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full relative z-10 transition-transform duration-300 group-hover:scale-105">
+                                    <path d="M12 3.5V6.5" stroke="#9a3412" strokeWidth="1.5" strokeLinecap="round" />
+                                    <circle cx="12" cy="14" r="8.5" className="fill-orange-500" />
+                                    <ellipse cx="9" cy="11" rx="2.5" ry="1.5" className="fill-white/50" transform="rotate(-20 9 11)" />
+                                    <path d="M12 6.5C12 6.5 10 1 5 3C1 5 4 10 12 6.5Z" className="fill-lime-500" />
+                                </svg>
+                                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-orange-100/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-0"></div>
                             </div>
-                            <span className="text-xl font-bold tracking-tight text-slate-900">
-                                小橘<span className="text-orange-600">文档</span>
-                            </span>
+
+                            {/* Text & Version Badge */}
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-xl font-bold tracking-tight text-slate-900">
+                                    小橘<span className="text-orange-600">文档</span>
+                                </span>
+
+                                {/* 最终版版本号设计：温润发光玉石标签 */}
+                                <button
+                                    className="group flex items-center gap-1.5 px-2 py-0.5 ml-1 
+                                    bg-lime-50  /* 内部极淡嫩绿 */
+                                    border border-lime-200 /* 柔和边框 */
+                                    text-lime-800 /* 深色文字 */
+                                    rounded-[4px] /* 微方角 */
+                                    shadow-[0_0_8px_rgba(132,204,22,0.2)] /* 基础光晕 */
+                                    hover:bg-lime-100 /* 悬浮颜色加深 */
+                                    hover:shadow-[0_0_15px_rgba(132,204,22,0.4)] /* 悬浮光晕增强 */
+                                    hover:border-lime-300 hover:-translate-y-0.5 
+                                    transition-all duration-300 cursor-pointer"
+                                    onClick={() => console.log("Open Changelog")}
+                                    title="点击查看更新日志"
+                                >
+                                    <Leaf className="w-3 h-3 text-lime-600 fill-lime-200/50 group-hover:fill-lime-500 group-hover:text-lime-700 group-hover:rotate-12 transition-all duration-300" />
+                                    <span className="text-[11px] font-bold tracking-wide font-mono">
+                                        v0.2.1
+                                    </span>
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex items-center gap-4 sm:gap-6">
@@ -180,7 +214,7 @@ export default function Layout({ children }) {
                                     <span className="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
                                 </button>
 
-                                {/* User Dropdown with FIXED Hover Gap */}
+                                {/* User Dropdown */}
                                 <div className="relative group z-50">
                                     {/* Trigger */}
                                     <div className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1.5 rounded-full pr-3 transition-colors">
