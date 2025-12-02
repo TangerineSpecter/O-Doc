@@ -25,11 +25,27 @@ import {
   Code,
   Terminal,
   Activity,
-  User
+  Plus,
+  X,
+  Lock,
+  Unlock,
+  // New Icons for Selection
+  Cloud,
+  Folder,
+  Briefcase,
+  Layout,
+  Box,
+  Hexagon,
+  Command,
+  Target,
+  Grid,
+  HardDrive,
+  PenTool,
+  Archive
 } from 'lucide-react';
 
-// Mock Data for Document Collections - Expanded
-const allCollectionsData = [
+// Mock Data for Document Collections - Moved to Initial State
+const initialCollectionsData = [
   {
     id: 1,
     title: "小橘部署指南",
@@ -114,7 +130,6 @@ const allCollectionsData = [
       { title: "维护者列表及联系方式", date: "05-01" },
     ]
   },
-  // Added New Data
   {
     id: 7,
     title: "运维监控与告警",
@@ -223,9 +238,41 @@ const searchSuggestions = [
   { id: 'sug-2', type: 'suggest', title: "偏好设置", subtitle: "设置", icon: <Settings className="w-4 h-4" /> },
 ];
 
+// Expanded Icons for Selection (20 Icons)
+const availableIcons = [
+  { id: 'book', icon: <BookOpen />, color: "text-blue-500" },
+  { id: 'code', icon: <Code />, color: "text-sky-500" },
+  { id: 'server', icon: <Server />, color: "text-violet-500" },
+  { id: 'database', icon: <Database />, color: "text-indigo-500" },
+  { id: 'shield', icon: <Shield />, color: "text-teal-500" },
+  { id: 'zap', icon: <Zap />, color: "text-orange-500" },
+  { id: 'cloud', icon: <Cloud />, color: "text-cyan-500" },
+  { id: 'folder', icon: <Folder />, color: "text-yellow-500" },
+  { id: 'briefcase', icon: <Briefcase />, color: "text-amber-700" },
+  { id: 'layout', icon: <Layout />, color: "text-pink-500" },
+  { id: 'box', icon: <Box />, color: "text-fuchsia-500" },
+  { id: 'terminal', icon: <Terminal />, color: "text-slate-700" },
+  { id: 'activity', icon: <Activity />, color: "text-rose-500" },
+  { id: 'hexagon', icon: <Hexagon />, color: "text-lime-600" },
+  { id: 'command', icon: <Command />, color: "text-gray-500" },
+  { id: 'target', icon: <Target />, color: "text-red-600" },
+  { id: 'grid', icon: <Grid />, color: "text-emerald-500" },
+  { id: 'harddrive', icon: <HardDrive />, color: "text-slate-500" },
+  { id: 'pentool', icon: <PenTool />, color: "text-purple-600" },
+  { id: 'archive', icon: <Archive />, color: "text-amber-600" },
+];
 
+function User({ className }) {
+  // Simple wrapper for the user icon to avoid conflict with the component name
+  return (
+    <div className={className}>
+       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-user"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </div>
+  )
+}
 
 export default function LittleOrangeDocs() {
+  const [collections, setCollections] = useState(initialCollectionsData);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef(null);
   
@@ -239,12 +286,21 @@ export default function LittleOrangeDocs() {
   const [isSortOpen, setIsSortOpen] = useState(false);
 
   // Pagination & Scroll State
-  const [visibleCount, setVisibleCount] = useState(12); // CHANGED: Initial load 12 items to ensure scrollbar on desktop
+  const [visibleCount, setVisibleCount] = useState(12);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Create Modal State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newCollectionData, setNewCollectionData] = useState({
+    title: "",
+    description: "",
+    iconId: "book",
+    permission: "public" // public | private
+  });
   
   // 1. Process ALL Collections based on Filter/Sort first
   const processedAllCollections = useMemo(() => {
-    let result = [...allCollectionsData];
+    let result = [...collections]; // Use state here
 
     // Filter
     if (filterType === 'top') {
@@ -259,7 +315,7 @@ export default function LittleOrangeDocs() {
     }
 
     return result;
-  }, [filterType, sortType]);
+  }, [filterType, sortType, collections]);
 
   // 2. Derive VISIBLE collections based on visibleCount
   const visibleCollections = useMemo(() => {
@@ -363,9 +419,172 @@ export default function LittleOrangeDocs() {
     }
   }, [isSearchOpen]);
 
+  // Handle Create Collection
+  const handleCreateCollection = () => {
+    if (!newCollectionData.title) return; // Simple validation
+
+    const selectedIcon = availableIcons.find(i => i.id === newCollectionData.iconId);
+    
+    // Clone icon element to inject classes if needed, or just use as is
+    // Here we construct a similar icon element structure as mock data
+    const iconElement = React.cloneElement(selectedIcon.icon, {
+      className: `w-4 h-4 ${selectedIcon.color}`
+    });
+
+    const newItem = {
+      id: Date.now(),
+      title: newCollectionData.title,
+      count: 0,
+      icon: iconElement,
+      isTop: false,
+      description: newCollectionData.description || "暂无简介",
+      articles: [],
+      permission: newCollectionData.permission
+    };
+
+    setCollections([newItem, ...collections]);
+    setIsCreateModalOpen(false);
+    setNewCollectionData({ title: "", description: "", iconId: "book", permission: "public" });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-orange-100 selection:text-orange-900" onClick={() => { setIsFilterOpen(false); setIsSortOpen(false); }}>
       
+      {/* Create Collection Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
+           {/* Backdrop */}
+           <div 
+             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+             onClick={() => setIsCreateModalOpen(false)}
+           ></div>
+
+           {/* Modal Dialog */}
+           <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-2 duration-200">
+             
+             {/* Header */}
+             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <h3 className="text-lg font-bold text-slate-800">新建文集</h3>
+                <button 
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="p-1 rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors"
+                >
+                   <X className="w-5 h-5" />
+                </button>
+             </div>
+
+             {/* Body */}
+             <div className="p-6 space-y-5">
+                
+                {/* Name Input */}
+                <div className="space-y-1.5">
+                   <label className="text-sm font-semibold text-slate-700">文集名称 <span className="text-red-500">*</span></label>
+                   <input 
+                     type="text" 
+                     placeholder="例如：产品需求文档" 
+                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+                     value={newCollectionData.title}
+                     onChange={(e) => setNewCollectionData({...newCollectionData, title: e.target.value})}
+                     autoFocus
+                   />
+                </div>
+
+                {/* Description Input */}
+                <div className="space-y-1.5">
+                   <label className="text-sm font-semibold text-slate-700">简介说明</label>
+                   <textarea 
+                     placeholder="简要描述该文集的用途..." 
+                     rows={3}
+                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm resize-none"
+                     value={newCollectionData.description}
+                     onChange={(e) => setNewCollectionData({...newCollectionData, description: e.target.value})}
+                   />
+                </div>
+
+                {/* Icon Selection - Horizontal Scroll */}
+                <div className="space-y-2">
+                   <label className="text-sm font-semibold text-slate-700">选择图标</label>
+                   {/* Scroll Container */}
+                   <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent -mx-1 px-1">
+                      {availableIcons.map((item) => (
+                        <button 
+                          key={item.id}
+                          onClick={() => setNewCollectionData({...newCollectionData, iconId: item.id})}
+                          className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border transition-all ${
+                            newCollectionData.iconId === item.id 
+                            ? 'bg-orange-50 border-orange-500 text-orange-600 ring-2 ring-orange-200' 
+                            : 'bg-white border-slate-200 text-slate-400 hover:border-orange-300 hover:text-slate-600'
+                          }`}
+                        >
+                           {React.cloneElement(item.icon, { className: "w-5 h-5" })}
+                        </button>
+                      ))}
+                   </div>
+                </div>
+
+                {/* Permission Selection */}
+                <div className="space-y-2">
+                   <label className="text-sm font-semibold text-slate-700">访问权限</label>
+                   <div className="grid grid-cols-2 gap-3">
+                      <div 
+                        onClick={() => setNewCollectionData({...newCollectionData, permission: 'public'})}
+                        className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${
+                          newCollectionData.permission === 'public'
+                          ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500'
+                          : 'bg-white border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                         <div className={`p-2 rounded-full ${newCollectionData.permission === 'public' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                           <Globe className="w-4 h-4" />
+                         </div>
+                         <div>
+                            <div className="text-sm font-medium text-slate-800">公开文集</div>
+                            <div className="text-xs text-slate-500">所有访客可见</div>
+                         </div>
+                      </div>
+
+                      <div 
+                        onClick={() => setNewCollectionData({...newCollectionData, permission: 'private'})}
+                        className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${
+                          newCollectionData.permission === 'private'
+                          ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500'
+                          : 'bg-white border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                         <div className={`p-2 rounded-full ${newCollectionData.permission === 'private' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                           <Lock className="w-4 h-4" />
+                         </div>
+                         <div>
+                            <div className="text-sm font-medium text-slate-800">私密文集</div>
+                            <div className="text-xs text-slate-500">仅团队成员可见</div>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+
+             </div>
+
+             {/* Footer */}
+             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <button 
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={handleCreateCollection}
+                  disabled={!newCollectionData.title}
+                  className="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 active:bg-orange-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  立即创建
+                </button>
+             </div>
+
+           </div>
+        </div>
+      )}
+
       {/* Search Modal */}
       {isSearchOpen && (
         <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4 animate-in fade-in duration-200">
@@ -608,6 +827,18 @@ export default function LittleOrangeDocs() {
               )}
             </div>
 
+             {/* New Collection Button */}
+             <div className="h-5 w-px bg-slate-200 hidden sm:block mx-1"></div>
+            
+            <button 
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-xs font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" strokeWidth={3} />
+              <span className="hidden sm:inline">新建文集</span>
+              <span className="sm:hidden">新建</span>
+            </button>
+
           </div>
         </div>
 
@@ -635,6 +866,11 @@ export default function LittleOrangeDocs() {
                             置顶
                          </span>
                       )}
+                      {item.permission === 'private' && (
+                         <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-medium text-slate-500 leading-none">
+                            <Lock className="w-2.5 h-2.5" />
+                         </span>
+                      )}
                     </div>
                   </div>
                   <span className="bg-slate-50 text-slate-400 text-[10px] font-semibold px-1.5 py-0.5 rounded min-w-[1.5rem] text-center">
@@ -649,24 +885,33 @@ export default function LittleOrangeDocs() {
 
               {/* Article List */}
               <div className="flex-1 bg-slate-50/30 border-t border-slate-100 p-1">
-                <ul className="space-y-0.5">
-                  {item.articles.map((article, idx) => (
-                    <li 
-                      key={idx} 
-                      className="group/item flex items-center justify-between py-1.5 px-2 rounded hover:bg-white hover:shadow-sm transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <FileText className="w-3 h-3 text-slate-300 group-hover/item:text-orange-500 flex-shrink-0" />
-                        <span className="text-xs text-slate-600 truncate group-hover/item:text-slate-900 transition-colors">
-                          {article.title}
+                {item.articles.length > 0 ? (
+                  <ul className="space-y-0.5">
+                    {item.articles.map((article, idx) => (
+                      <li 
+                        key={idx} 
+                        className="group/item flex items-center justify-between py-1.5 px-2 rounded hover:bg-white hover:shadow-sm transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <FileText className="w-3 h-3 text-slate-300 group-hover/item:text-orange-500 flex-shrink-0" />
+                          <span className="text-xs text-slate-600 truncate group-hover/item:text-slate-900 transition-colors">
+                            {article.title}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-300 font-mono whitespace-nowrap pl-2">
+                          {article.date}
                         </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                   <div className="h-full flex flex-col items-center justify-center text-slate-400 py-4 gap-2">
+                      <div className="bg-white p-2 rounded-full border border-dashed border-slate-300">
+                         <Plus className="w-4 h-4 text-slate-300" />
                       </div>
-                      <span className="text-[10px] text-slate-300 font-mono whitespace-nowrap pl-2">
-                        {article.date}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                      <span className="text-[10px]">暂无文档，点击创建</span>
+                   </div>
+                )}
               </div>
 
               {/* Card Footer */}
@@ -720,7 +965,7 @@ export default function LittleOrangeDocs() {
         <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-orange-50/50 to-transparent"></div>
         <div className="absolute right-0 top-20 w-96 h-96 bg-blue-100/30 rounded-full blur-3xl"></div>
         <div className="absolute left-10 top-40 w-72 h-72 bg-orange-100/30 rounded-full blur-3xl"></div>
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.15) 1px, transparent 0)', backgroundSize: '20px 20px' }}></div>
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10"></div>
         <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '24px 24px', maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)' }}></div>
       </div>
 
