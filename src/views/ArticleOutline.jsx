@@ -281,18 +281,14 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
         </div>
 
         <div className="p-3 border-t border-slate-100 text-xs text-slate-400 flex justify-between items-center flex-shrink-0 bg-white">
-          <span>v2.4.0</span>
-          <button onClick={() => onNavigate && onNavigate('home')} className="hover:text-orange-600 flex items-center gap-1">
-             <Home size={10} /> 首页
-          </button>
+          {/* 暂无内容 */}
         </div>
       </aside>
 
       {/* 右侧主内容区 */}
       <main 
         id="right-content-window" 
-        className="flex-1 bg-white/50 relative overflow-y-auto scroll-smooth"
-      >
+className="flex-1 bg-white/50 relative overflow-y-auto overflow-x-hidden scroll-smooth"      >
         <div className="md:hidden sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 h-12 flex items-center">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="mr-3 text-slate-600">
                 <Menu size={20} />

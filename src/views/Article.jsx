@@ -86,19 +86,21 @@ const MermaidChart = ({ chart }) => {
   }, [chart]);
 
   return (
-    // [修复] 加上 w-full 让容器铺满，但 flex justify-center 让里面的 SVG 居中
-    // 这样边框就是 100% 宽，但图是居中的
     <div className="my-8 w-full bg-white border border-slate-200 rounded-xl shadow-sm p-6 overflow-x-auto flex justify-center">
         <div dangerouslySetInnerHTML={{ __html: svg }} />
     </div>
   );
 };
 
-// --- TOC ---
-const TableOfContents = ({ headers, activeId }) => {
+// --- TOC (修改了 margin) ---
+const TableOfContents = ({ headers, activeId, isEmbedded }) => {
   if (!headers?.length) return null;
+  
+  const visibilityClass = isEmbedded ? 'hidden 2xl:block' : 'hidden xl:block';
+
   return (
-    <div className="hidden xl:block absolute left-full top-0 ml-10 h-full w-64">
+    // [修改 1] ml-4: 让目录离文章更近一点 (原 ml-10)
+    <div className={`${visibilityClass} absolute left-full top-0 ml-4 h-full w-64`}>
       <div className="sticky top-32">
         <h5 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> 目录
@@ -365,9 +367,9 @@ export default function Article({ isEmbedded, scrollContainerId, onBack }) {
       );
     },
 
-    // C. 引用块
+    // C. 引用块，引用块高度：min-h-[60px]
     blockquote: ({ children }) => (
-      <blockquote className="not-prose relative my-8 pl-6 pt-4 border-l-4 border-violet-500 bg-gradient-to-r from-violet-50 to-transparent rounded-r-lg text-violet-800 italic flex items-center min-h-[80px]">
+      <blockquote className="not-prose relative my-8 pl-6 pt-4 border-l-4 border-violet-500 bg-gradient-to-r from-violet-50 to-transparent rounded-r-lg text-violet-800 italic flex items-center min-h-[60px]">
         <div className="absolute top-0 right-4 text-6xl text-violet-500/10 font-serif leading-none select-none">”</div>
         <div className="relative z-10 w-full">{children}</div>
       </blockquote>
@@ -394,7 +396,11 @@ export default function Article({ isEmbedded, scrollContainerId, onBack }) {
       
       <div className={`min-h-screen bg-white transition-colors duration-300 ${isEmbedded ? '!bg-transparent !min-h-full' : ''}`}>
         
-        <main className={`relative z-10 max-w-5xl mx-auto px-4 ${isEmbedded ? 'py-6' : 'py-20'}`}>
+        {/* [修改 2] 这里是控制整体布局的关键 */}
+        {/* max-w-5xl mx-auto: 在小屏幕上保持 5xl 宽度并居中 */}
+        {/* xl:mx-0: 在超大屏上(显示目录时)取消居中 */}
+        {/* xl:ml-12: 在超大屏上增加左边距，实现整体左移效果 */}
+        <main className={`relative z-10 max-w-5xl mx-auto xl:mx-0 xl:ml-28 px-4 ${isEmbedded ? 'py-6' : 'py-20'}`}>
           <div className="bg-white rounded-2xl p-8 sm:p-14 shadow-none ring-1 ring-slate-900/5">
             
             {/* Header */}
@@ -412,7 +418,7 @@ export default function Article({ isEmbedded, scrollContainerId, onBack }) {
                   
                   <button onClick={onBack} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
                       <Icons.ArrowLeft className="w-4 h-4"/>
-                      Back
+                      返回文集
                   </button>
                 </div>
 
@@ -428,7 +434,6 @@ export default function Article({ isEmbedded, scrollContainerId, onBack }) {
               </header>
 
             {/* Markdown Render */}
-            {/* [修复] 指定超链接颜色 #0ea5e9 */}
             <article className="max-w-none prose prose-slate prose-lg prose-p:[&:has(>.katex:only-child)]:text-center prose-a:text-[#0ea5e9] prose-a:no-underline hover:prose-a:underline">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
@@ -441,7 +446,11 @@ export default function Article({ isEmbedded, scrollContainerId, onBack }) {
 
           </div>
           
-          <TableOfContents headers={headers} activeId={activeHeader} />
+          <TableOfContents 
+            headers={headers} 
+            activeId={activeHeader} 
+            isEmbedded={isEmbedded} 
+          />
         </main>
 
         <button onClick={() => window.scrollTo({top:0, behavior:'smooth'})} className="fixed bottom-8 right-8 p-3 bg-white shadow-lg rounded-full border border-slate-100 text-slate-600 hover:-translate-y-1 transition-transform z-50">
