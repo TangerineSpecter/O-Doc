@@ -10,8 +10,21 @@
 
 ## 📸 软件界面
 
+> 首页展示
 <div align="center">
   <img src="src/doc/image.png" alt="小橘文档界面预览" width="80%" />
+  <p><em>小橘文档 - 现代化知识管理界面</em></p>
+</div>
+
+> 文集目录
+<div align="center">
+  <img src="src/doc/image-1.png" alt="小橘文档界面预览" width="80%" />
+  <p><em>小橘文档 - 现代化知识管理界面</em></p>
+</div>
+
+> 文章详情展示
+<div align="center">
+  <img src="src/doc/image-2.png" alt="小橘文档界面预览" width="80%" />
   <p><em>小橘文档 - 现代化知识管理界面</em></p>
 </div>
 
