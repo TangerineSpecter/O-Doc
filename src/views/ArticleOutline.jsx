@@ -287,9 +287,9 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
               <div className="w-12 h-12 bg-white rounded-xl border border-orange-100 shadow-sm flex items-center justify-center text-orange-500 flex-shrink-0">
                 <BookOpen size={24} strokeWidth={2.5} />
               </div>
-              <div>
+              <div className="md:max-w-xl"> 
                 <h1 className="text-2xl font-bold text-slate-800 tracking-tight mb-1">{title || '小橘文档 · 知识库'}</h1>
-                <p className="text-slate-500 text-sm mb-3">记录产品部署、开发指南与最佳实践。</p>
+                <p className="text-slate-500 text-sm mb-3">记录产品部署、开发指南与最佳实践。记录产品部署、开发指南与最佳实践。记录产品部署、开发指南与最佳实践。记录产品部署、开发指南与最佳实践。记录产品部署、开发指南与最佳实践。记录产品部署、开发指南与最佳实践。</p>
                 <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-600 shadow-sm">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                   共 {allDocs.length} 篇文档
