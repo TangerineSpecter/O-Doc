@@ -7,6 +7,8 @@ import LoginPage from './views/LoginPage';
 import EditorPage from './views/EditorPage';
 import ResourcesPage from './views/ResourcesPage';
 import StatisticsPage from './views/StatisticsPage';
+import CategoriesPage from './views/CategoriesPage';
+import TagsPage from './views/TagsPage';
 
 
 
@@ -113,6 +115,16 @@ function AppWithRouter() {
       <Route path="/stats" element={
         <Layout onNavigate={handleNavigate}>
           <StatisticsPage />
+        </Layout>
+      } />
+      <Route path="/tags" element={
+        <Layout onNavigate={handleNavigate}>
+          <TagsPage />
+        </Layout>
+      } />
+      <Route path="/categories" element={
+        <Layout onNavigate={handleNavigate}>
+          <CategoriesPage />
         </Layout>
       } />
     </Routes>

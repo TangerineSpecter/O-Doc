@@ -1,127 +1,41 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
     FileText, Database, Clock, Layers, Hash, Calendar, 
-    TrendingUp, BarChart2, MousePointer, BookOpen, Download 
+    MousePointer, BookOpen, Download 
 } from 'lucide-react';
+// 1. 引入 Recharts 组件
+import { 
+    LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area 
+} from 'recharts';
 
-// --- 1. 轻量级图表组件 (SVG实现) ---
-
-// 24小时双曲线图 (访问量 vs 阅读时长)
-const DualLineChart = ({ data }) => {
-    const width = 100;
-    const height = 50;
-    const padding = 2;
-    
-    // 数据归一化辅助函数
-    const normalize = (val, max, min) => {
-        return height - padding - ((val - min) / (max - min)) * (height - 2 * padding);
-    };
-
-    const maxVisits = Math.max(...data.map(d => d.visits));
-    const minVisits = Math.min(...data.map(d => d.visits));
-    const maxDuration = Math.max(...data.map(d => d.duration));
-    const minDuration = Math.min(...data.map(d => d.duration));
-
-    // 生成路径点
-    const pointsVisits = data.map((d, i) => 
-        `${(i / (data.length - 1)) * width},${normalize(d.visits, maxVisits, minVisits)}`
-    ).join(' ');
-
-    const pointsDuration = data.map((d, i) => 
-        `${(i / (data.length - 1)) * width},${normalize(d.duration, maxDuration, minDuration)}`
-    ).join(' ');
-
-    return (
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
-            {/* 网格线 (辅助) */}
-            <line x1="0" y1={height/2} x2={width} y2={height/2} stroke="#f1f5f9" strokeWidth="0.5" strokeDasharray="2 2" />
-            
-            {/* 曲线 1: 访问次数 (橙色) */}
-            <polyline 
-                points={pointsVisits} 
-                fill="none" 
-                stroke="#f97316" 
-                strokeWidth="1.5" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                className="drop-shadow-sm"
-            />
-            {/* 曲线 2: 阅读时长 (蓝色) */}
-            <polyline 
-                points={pointsDuration} 
-                fill="none" 
-                stroke="#3b82f6" 
-                strokeWidth="1.5" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                strokeDasharray="3 1" // 虚线区分
-                className="drop-shadow-sm opacity-60"
-            />
-
-            {/* Hover 点 (仅示意) */}
-            {data.map((d, i) => i % 4 === 0 && (
-                <circle key={i} cx={(i / (data.length - 1)) * width} cy={normalize(d.visits, maxVisits, minVisits)} r="1.5" fill="white" stroke="#f97316" strokeWidth="1" />
-            ))}
-        </svg>
-    );
-};
-
-// 简单的柱状图 (周发布统计)
-const BarChart = ({ data, color = "#10b981" }) => {
-    const max = Math.max(...data.map(d => d.count));
-    
-    return (
-        <div className="flex justify-between items-end h-full gap-2 px-2">
-            {data.map((item, index) => (
-                <div key={index} className="flex flex-col items-center gap-1 flex-1 group">
-                    <div className="relative w-full bg-slate-100 rounded-t-sm h-full flex items-end overflow-hidden">
-                        <div 
-                            className="w-full rounded-t-sm transition-all duration-500 group-hover:opacity-80 relative"
-                            style={{ 
-                                height: `${(item.count / max) * 100}%`,
-                                backgroundColor: color
-                            }}
-                        >
-                             {/* Tooltip */}
-                             <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-0.5 px-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                                {item.count} 篇
-                            </div>
-                        </div>
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-medium">{item.day}</span>
-                </div>
-            ))}
-        </div>
-    );
-};
-
-// --- 2. 模拟数据 ---
+// --- 模拟数据 ---
 
 // 0-24h 趋势数据
 const HOURLY_DATA = Array.from({ length: 24 }).map((_, i) => ({
-    hour: i,
-    visits: Math.floor(Math.random() * 300) + 50 + (i > 9 && i < 22 ? 200 : 0), // 白天高
-    duration: Math.floor(Math.random() * 5000) + 1000 + (i > 19 ? 3000 : 0), // 晚上阅读时间长
+    hour: `${i.toString().padStart(2, '0')}:00`,
+    visits: Math.floor(Math.random() * 300) + 50 + (i > 9 && i < 22 ? 200 : 0), // 访问量
+    duration: Math.floor(Math.random() * 60) + 10 + (i > 19 ? 40 : 0), // 阅读时长(分钟)
 }));
 
 // 周发布数据
 const WEEKLY_PUBLISH = [
-    { day: 'Mon', count: 12 },
-    { day: 'Tue', count: 18 },
-    { day: 'Wed', count: 25 },
-    { day: 'Thu', count: 22 },
-    { day: 'Fri', count: 15 },
-    { day: 'Sat', count: 8 },
-    { day: 'Sun', count: 5 },
+    { day: '周一', count: 12 },
+    { day: '周二', count: 18 },
+    { day: '周三', count: 25 },
+    { day: '周四', count: 22 },
+    { day: '周五', count: 15 },
+    { day: '周六', count: 8 },
+    { day: '周日', count: 5 },
 ];
 
-// 分类数据
+// 分类数据 (用于饼图)
 const CATEGORY_STATS = [
-    { name: '研发', count: 145, color: 'bg-blue-500' },
-    { name: '产品', count: 89, color: 'bg-orange-500' },
-    { name: '设计', count: 64, color: 'bg-pink-500' },
-    { name: '运维', count: 42, color: 'bg-emerald-500' },
-    { name: '其他', count: 28, color: 'bg-slate-400' },
+    { name: '研发', value: 145, color: '#3b82f6' }, // blue-500
+    { name: '产品', value: 89, color: '#f97316' },  // orange-500
+    { name: '设计', value: 64, color: '#ec4899' },  // pink-500
+    { name: '运维', value: 42, color: '#10b981' },  // emerald-500
+    { name: '其他', value: 28, color: '#94a3b8' },  // slate-400
 ];
 
 // 标签数据
@@ -134,22 +48,42 @@ const TAG_STATS = [
     { name: '微服务', count: 19 },
 ];
 
-// 排行榜数据
 const TOP_VISITS = [
-    { id: 1, title: 'Docker 容器化最佳实践', value: '12,405 次' },
-    { id: 2, title: 'React Hooks 深度解析', value: '8,932 次' },
-    { id: 3, title: 'Nginx 反向代理配置', value: '6,721 次' },
-    { id: 4, title: 'MySQL 索引优化指南', value: '5,432 次' },
-    { id: 5, title: 'Spring Boot 3.0 新特性', value: '4,120 次' },
+    { id: 1, title: 'Docker 容器化最佳实践', value: '12,405' },
+    { id: 2, title: 'React Hooks 深度解析', value: '8,932' },
+    { id: 3, title: 'Nginx 反向代理配置', value: '6,721' },
+    { id: 4, title: 'MySQL 索引优化指南', value: '5,432' },
+    { id: 5, title: 'Spring Boot 3.0 新特性', value: '4,120' },
 ];
 
 const TOP_DURATION = [
-    { id: 1, title: '分布式系统架构设计', value: '892 小时' },
-    { id: 2, title: 'JavaScript 高级程序设计笔记', value: '645 小时' },
-    { id: 3, title: 'Linux 内核源码分析', value: '520 小时' },
-    { id: 4, title: 'Kubernetes 集群搭建实战', value: '480 小时' },
-    { id: 5, title: '算法导论 - 动态规划', value: '415 小时' },
+    { id: 1, title: '分布式系统架构设计', value: '892h' },
+    { id: 2, title: 'JavaScript 高级程序设计笔记', value: '645h' },
+    { id: 3, title: 'Linux 内核源码分析', value: '520h' },
+    { id: 4, title: 'Kubernetes 集群搭建实战', value: '480h' },
+    { id: 5, title: '算法导论 - 动态规划', value: '415h' },
 ];
+
+// --- 自定义 Tooltip 组件 (为了匹配 UI 风格) ---
+const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="bg-white p-3 border border-slate-100 shadow-lg rounded-xl text-xs">
+                <p className="font-bold text-slate-700 mb-2">{label}</p>
+                {payload.map((entry, index) => (
+                    <div key={index} className="flex items-center gap-2 mb-1 last:mb-0">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></div>
+                        <span className="text-slate-500">{entry.name}:</span>
+                        <span className="font-mono font-bold text-slate-700">
+                            {entry.value} {entry.unit}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+    return null;
+};
 
 export default function StatisticsPage() {
     return (
@@ -191,7 +125,7 @@ export default function StatisticsPage() {
                     </div>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
-                            <TrendingUp className="w-5 h-5" />
+                            <Calendar className="w-5 h-5" />
                         </div>
                         <span className="text-slate-500 text-xs font-medium">累计创作字数</span>
                     </div>
@@ -230,82 +164,168 @@ export default function StatisticsPage() {
             {/* --- 2. 核心图表区 --- */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                 
-                {/* 2.1 用户行为透视 (24小时分布) - 占据 2/3 宽度 */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
+                {/* 2.1 用户行为透视 (Recharts 双轴图表) */}
+                <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-[380px]">
                     <div className="flex justify-between items-start mb-6">
                         <div>
                             <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                 <Clock className="w-4 h-4 text-orange-500" />
                                 用户阅读行为透视 (24h)
                             </h3>
-                            <p className="text-xs text-slate-400 mt-1">每个小时的 <span className="text-orange-500 font-medium">访问次数</span> 与 <span className="text-blue-500 font-medium">阅读时长</span> 分布对比</p>
-                        </div>
-                        <div className="flex items-center gap-3 text-[10px] font-medium">
-                            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-500"></span>访问次</span>
-                            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500"></span>时长</span>
                         </div>
                     </div>
                     
-                    <div className="flex-1 w-full min-h-[220px]">
-                        <DualLineChart data={HOURLY_DATA} />
-                    </div>
-                    
-                    {/* X轴 Label */}
-                    <div className="flex justify-between text-[10px] text-slate-300 mt-2 font-mono px-1">
-                        <span>00:00</span>
-                        <span>04:00</span>
-                        <span>08:00</span>
-                        <span>12:00</span>
-                        <span>16:00</span>
-                        <span>20:00</span>
-                        <span>23:59</span>
+                    <div className="flex-1 w-full text-xs">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={HOURLY_DATA} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis 
+                                    dataKey="hour" 
+                                    tick={{ fill: '#94a3b8', fontSize: 10 }} 
+                                    axisLine={false} 
+                                    tickLine={false}
+                                    interval={3} // 每隔3个显示一个
+                                />
+                                {/* 左轴：访问次数 */}
+                                <YAxis 
+                                    yAxisId="left" 
+                                    tick={{ fill: '#f97316', fontSize: 10 }} 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    label={{ value: '次数', angle: -90, position: 'insideLeft', fill: '#fdba74', fontSize: 10 }}
+                                />
+                                {/* 右轴：阅读时长 */}
+                                <YAxis 
+                                    yAxisId="right" 
+                                    orientation="right" 
+                                    tick={{ fill: '#3b82f6', fontSize: 10 }} 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    label={{ value: '时长(分)', angle: 90, position: 'insideRight', fill: '#93c5fd', fontSize: 10 }}
+                                />
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend 
+                                    iconType="circle" 
+                                    iconSize={8}
+                                    wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
+                                />
+                                {/* 曲线配置 */}
+                                <Line 
+                                    yAxisId="left" 
+                                    type="monotone" 
+                                    dataKey="visits" 
+                                    name="访问次数" 
+                                    stroke="#f97316" 
+                                    strokeWidth={2} 
+                                    dot={false} 
+                                    activeDot={{ r: 4, strokeWidth: 0 }}
+                                    unit="次"
+                                />
+                                <Line 
+                                    yAxisId="right" 
+                                    type="monotone" 
+                                    dataKey="duration" 
+                                    name="平均阅读时长" 
+                                    stroke="#3b82f6" 
+                                    strokeWidth={2} 
+                                    strokeDasharray="4 4" 
+                                    dot={false} 
+                                    activeDot={{ r: 4, strokeWidth: 0 }}
+                                    unit="分"
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
 
-                {/* 2.2 创作习惯 (周发布统计) - 占据 1/3 宽度 */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
-                    <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-1">
+                {/* 2.2 创作习惯 (Recharts 柱状图) */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-[380px]">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-2">
                         <Calendar className="w-4 h-4 text-emerald-500" />
                         创作习惯分析
                     </h3>
-                    <p className="text-xs text-slate-400 mb-6">统计每周各天的发文数量分布</p>
+                    <p className="text-xs text-slate-400 mb-6">每周各天发文分布</p>
                     
-                    <div className="flex-1 w-full min-h-[180px]">
-                        <BarChart data={WEEKLY_PUBLISH} color="#10b981" />
+                    <div className="flex-1 w-full text-xs">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={WEEKLY_PUBLISH} barSize={20}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis 
+                                    dataKey="day" 
+                                    tick={{ fill: '#94a3b8', fontSize: 10 }} 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                />
+                                <YAxis hide />
+                                <Tooltip 
+                                    cursor={{ fill: '#f1f5f9' }} 
+                                    content={<CustomTooltip />} 
+                                />
+                                <Bar 
+                                    dataKey="count" 
+                                    name="发文数" 
+                                    fill="#10b981" 
+                                    radius={[4, 4, 0, 0]} 
+                                    unit="篇"
+                                >
+                                    {/* 渐变色填充 */}
+                                    {WEEKLY_PUBLISH.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#10b981' : '#34d399'} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
             </div>
 
-            {/* --- 3. 内容结构分析 (分类 & 标签) --- */}
+            {/* --- 3. 内容结构分析 (分类饼图 & 标签云) --- */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                {/* 3.1 分类统计 */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                    <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-6">
+                {/* 3.1 分类统计 (Recharts 饼图) */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-[320px] flex flex-col">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4">
                         <Layers className="w-4 h-4 text-purple-500" />
                         分类内容占比
                     </h3>
-                    <div className="space-y-4">
-                        {CATEGORY_STATS.map((cat, idx) => (
-                            <div key={idx} className="flex items-center gap-3 text-sm">
-                                <span className="w-16 text-slate-600 truncate">{cat.name}</span>
-                                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className={`h-full ${cat.color} rounded-full`} style={{ width: `${(cat.count / 145) * 100}%` }}></div>
-                                </div>
-                                <span className="w-12 text-right font-mono text-slate-500">{cat.count}</span>
-                            </div>
-                        ))}
+                    <div className="flex-1 flex items-center">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={CATEGORY_STATS}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {CATEGORY_STATS.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
+                                    ))}
+                                </Pie>
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend 
+                                    layout="vertical" 
+                                    verticalAlign="middle" 
+                                    align="right"
+                                    iconType="circle"
+                                    iconSize={8}
+                                    wrapperStyle={{ fontSize: '11px', color: '#64748b' }}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
 
-                {/* 3.2 标签云统计 */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                {/* 3.2 标签云统计 (保持 CSS 实现，因为标签云不适合标准图表) */}
+                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-[320px] overflow-y-auto custom-scrollbar">
                     <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-6">
                         <Hash className="w-4 h-4 text-indigo-500" />
                         热门标签分布
                     </h3>
                     <div className="flex flex-wrap gap-3">
                         {TAG_STATS.map((tag, idx) => (
-                            <div key={idx} className="flex items-center justify-between px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg min-w-[100px]">
+                            <div key={idx} className="flex items-center justify-between px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg min-w-[100px] hover:border-indigo-200 transition-colors cursor-default">
                                 <span className="text-sm text-slate-600">{tag.name}</span>
                                 <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded ml-2">{tag.count}</span>
                             </div>
@@ -363,6 +383,13 @@ export default function StatisticsPage() {
             <div className="text-center text-xs text-slate-300 pb-8">
                 Data updated automatically · Server Time: 2025-11-20 14:30
             </div>
+
+            {/* 内联样式修复 scrollbar */}
+            <style>{`
+                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 20px; }
+            `}</style>
 
         </div>
     );

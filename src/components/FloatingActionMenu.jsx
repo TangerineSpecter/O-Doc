@@ -31,6 +31,10 @@ export default function FloatingActionMenu() {
         navigate('/resources');
     } else if (item.id === 'stats') { // <--- 添加跳转逻辑
         navigate('/stats');
+    } else if (item.id === 'tags') { // <--- 添加跳转逻辑
+        navigate('/tags');
+    } else if (item.id === 'categories') { // <--- 添加跳转逻辑
+        navigate('/categories');
     }
 
     // 其他功能暂留空或仅 console.log
