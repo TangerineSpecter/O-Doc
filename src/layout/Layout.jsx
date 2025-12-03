@@ -146,10 +146,9 @@ export default function Layout({ children, onNavigate }) {
                         <div className="flex items-center gap-3">
                             {/* Logo Icon */}
                             <div onClick={() => onNavigate && onNavigate('home')} className="w-9 h-9 rounded-xl flex items-center justify-center bg-orange-50 border border-orange-100/50 shadow-[0_2px_8px_-2px_rgba(249,115,22,0.3)] p-0.5 overflow-hidden relative group hover:shadow-[0_4px_12px_-2px_rgba(249,115,22,0.4)] transition-shadow duration-300 cursor-pointer">
-                                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full relative z-10 transition-transform duration-300 group-hover:scale-105">
+                                <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8">
                                     <path d="M12 3.5V6.5" stroke="#9a3412" strokeWidth="1.5" strokeLinecap="round" />
                                     <circle cx="12" cy="14" r="8.5" className="fill-orange-500" />
-                                    <ellipse cx="9" cy="11" rx="2.5" ry="1.5" className="fill-white/50" transform="rotate(-20 9 11)" />
                                     <path d="M12 6.5C12 6.5 10 1 5 3C1 5 4 10 12 6.5Z" className="fill-lime-500" />
                                 </svg>
                                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-orange-100/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-0"></div>
@@ -232,7 +231,11 @@ export default function Layout({ children, onNavigate }) {
                                                 <p className="text-sm font-semibold text-slate-800">未登录</p>
                                                 <p className="text-xs text-slate-500">请登录以保存进度</p>
                                             </div>
-                                            <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors text-left">
+                                            {/* 修改这里：添加 onClick 事件 */}
+                                            <button
+                                                onClick={() => onNavigate && onNavigate('login')}
+                                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors text-left"
+                                            >
                                                 <LogIn className="w-4 h-4" />
                                                 立即登录 / 注册
                                             </button>

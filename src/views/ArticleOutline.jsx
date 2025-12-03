@@ -5,10 +5,13 @@ import {
   ChevronDown,
   Search,
   Home,
-  Menu
+  Menu,
+  Plus, // 新增 Plus 图标
+  FileText, // 新增 FileText
+  X // 新增 X 关闭图标
 } from 'lucide-react';
 // 确保 Article.jsx 在同一目录下，如果路径不同请修改这里
-import Article from './Article'; 
+import Article from './Article';
 
 // --- 1. 补回丢失的数据定义 (docData) ---
 const docData = [
@@ -105,13 +108,17 @@ const allDocs = flattenDocs(docData);
 
 // --- 组件定义 ---
 export default function ArticleOutline({ onNavigate, collId, title, articleId }) {
-  
+
   // 3. 状态初始化：优先使用传入的 articleId
-  const [activeDocId, setActiveDocId] = useState(articleId || null); 
-  
+  const [activeDocId, setActiveDocId] = useState(articleId || null);
+
   const [expandedIds, setExpandedIds] = useState(['2', '2-1']);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // --- 新增状态：创建文档模态框 ---
+  const [isCreateDocModalOpen, setIsCreateDocModalOpen] = useState(false);
+  const [newDocTitle, setNewDocTitle] = useState("");
 
   // 4. 监听 articleId 变化，解决"点击文章只显示大纲"的问题
   useEffect(() => {
@@ -132,8 +139,17 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
     if (window.innerWidth < 768) setIsSidebarOpen(false);
     // 切换时让右侧滚动条复位
     const mainContainer = document.getElementById('right-content-window');
-    if(mainContainer) mainContainer.scrollTo({ top: 0, behavior: 'smooth' });
+    if (mainContainer) mainContainer.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // --- 新增函数：处理新建文档 ---
+  const handleCreateDoc = () => {
+    if (!newDocTitle) return;
+    alert(`新建文档 "${newDocTitle}" 成功！(此处为演示，需后端API支持)`);
+    setIsCreateDocModalOpen(false);
+    setNewDocTitle("");
+  };
+  // ---------------------------
 
   // --- 侧边栏 Item 渲染 ---
   const renderSidebarItem = (item, level = 0) => {
@@ -248,22 +264,50 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
 
   return (
     <div className="flex h-[calc(100vh-64px)] bg-[#F9FAFB] text-slate-800 font-sans overflow-hidden">
+      {/* --- 新增：创建文档 Modal --- */}
+      {isCreateDocModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsCreateDocModalOpen(false)}></div>
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-slate-800">新建文档</h3>
+              <button onClick={() => setIsCreateDocModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-1">文档标题</label>
+              <input
+                type="text"
+                value={newDocTitle}
+                onChange={(e) => setNewDocTitle(e.target.value)}
+                placeholder="请输入文档标题..."
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-sm"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setIsCreateDocModalOpen(false)} className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
+              <button onClick={handleCreateDoc} disabled={!newDocTitle} className="px-3 py-1.5 text-sm text-white bg-orange-500 hover:bg-orange-600 rounded-lg disabled:opacity-50">确定创建</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 侧边栏 */}
-      <aside 
+      <aside
         className={`
           w-72 bg-white flex flex-col border-r border-slate-200 flex-shrink-0 h-full
           ${isSidebarOpen ? 'block' : 'hidden md:flex'} 
         `}
       >
-        <div 
-          onClick={() => setActiveDocId(null)} 
+        <div
+          onClick={() => setActiveDocId(null)}
           className="h-14 flex items-center px-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors flex-shrink-0"
         >
           <BookOpen size={16} className="text-orange-500 mr-2" />
           <span className="font-bold text-slate-700 text-sm truncate">{title || '文档目录'}</span>
         </div>
 
-        <div className="p-3 flex-shrink-0">
+        <div className="p-3 flex-shrink-0 space-y-2">
           <div className="relative">
             <input
               type="text"
@@ -274,10 +318,18 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
             />
             <Search size={12} className="absolute left-2.5 top-2 text-slate-400" />
           </div>
+
+          <button
+            onClick={() => setIsCreateDocModalOpen(true)}
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 bg-white border border-dashed border-slate-300 rounded-md text-xs text-slate-500 hover:text-orange-600 hover:border-orange-300 hover:bg-orange-50 transition-all"
+          >
+            <Plus size={12} />
+            <span>新建文档</span>
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar py-2">
-           {docData.map(item => renderSidebarItem(item))}
+          {docData.map(item => renderSidebarItem(item))}
         </div>
 
         <div className="p-3 border-t border-slate-100 text-xs text-slate-400 flex justify-between items-center flex-shrink-0 bg-white">
@@ -286,31 +338,31 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
       </aside>
 
       {/* 右侧主内容区 */}
-      <main 
-        id="right-content-window" 
-className="flex-1 bg-white/50 relative overflow-y-auto overflow-x-hidden scroll-smooth"      >
+      <main
+        id="right-content-window"
+        className="flex-1 bg-white/50 relative overflow-y-auto overflow-x-hidden scroll-smooth"      >
         <div className="md:hidden sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 h-12 flex items-center">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="mr-3 text-slate-600">
-                <Menu size={20} />
-            </button>
-            <span className="font-bold text-slate-700">{activeDocId ? '文章详情' : '目录大纲'}</span>
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="mr-3 text-slate-600">
+            <Menu size={20} />
+          </button>
+          <span className="font-bold text-slate-700">{activeDocId ? '文章详情' : '目录大纲'}</span>
         </div>
 
         {/* 核心判断逻辑 */}
         {activeDocId ? (
-            // --- 修改这里 ---
-            <div className="min-h-full bg-white">
-                <Article 
-                  // 1. 传递返回回调
-                  onBack={() => setActiveDocId(null)} 
-                  // 2. 标记为嵌入模式，Article 内部会调整 padding
-                  isEmbedded={true} 
-                  // 3. 告诉 Article 滚动的容器是谁，以便监听滚动事件显示"回到顶部"按钮
-                  scrollContainerId="right-content-window"
-                />
-            </div>
+          // --- 修改这里 ---
+          <div className="min-h-full bg-white">
+            <Article
+              // 1. 传递返回回调
+              onBack={() => setActiveDocId(null)}
+              // 2. 标记为嵌入模式，Article 内部会调整 padding
+              isEmbedded={true}
+              // 3. 告诉 Article 滚动的容器是谁，以便监听滚动事件显示"回到顶部"按钮
+              scrollContainerId="right-content-window"
+            />
+          </div>
         ) : (
-            renderHomeContent()
+          renderHomeContent()
         )}
 
       </main>
