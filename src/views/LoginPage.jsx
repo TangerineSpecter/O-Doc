@@ -1,6 +1,41 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Leaf, Mail, Lock, ArrowRight, Github } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Leaf } from 'lucide-react';
+
+// --- 背景装饰组件：漂浮的橘子切片 ---
+const FloatingCitrus = ({ className, size = 200, rotation = 0, delay = 0 }) => (
+    <div
+        className={`absolute pointer-events-none opacity-10 select-none ${className}`}
+        style={{
+            animation: `float 6s ease-in-out infinite`,
+            animationDelay: `${delay}s`
+        }}
+    >
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 100 100"
+            fill="none"
+            style={{ transform: `rotate(${rotation}deg)` }}
+        >
+            <circle cx="50" cy="50" r="48" fill="#FDBA74" /> {/* 果皮 */}
+            <circle cx="50" cy="50" r="42" fill="#FFF7ED" /> {/* 白瓤 */}
+            <circle cx="50" cy="50" r="40" fill="#FB923C" /> {/* 果肉底色 */}
+
+            {/* 果肉瓣 */}
+            <g stroke="#FFF7ED" strokeWidth="2">
+                <line x1="50" y1="50" x2="50" y2="10" />
+                <line x1="50" y1="50" x2="90" y2="50" />
+                <line x1="50" y1="50" x2="50" y2="90" />
+                <line x1="50" y1="50" x2="10" y2="50" />
+                <line x1="50" y1="50" x2="22" y2="22" />
+                <line x1="50" y1="50" x2="78" y2="22" />
+                <line x1="50" y1="50" x2="78" y2="78" />
+                <line x1="50" y1="50" x2="22" y2="78" />
+            </g>
+        </svg>
+    </div>
+);
 
 export default function LoginPage() {
     const navigate = useNavigate();
@@ -19,11 +54,21 @@ export default function LoginPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-            {/* 背景装饰 */}
+
+            {/* --- 背景装饰层 --- */}
+
+            {/* 1. 原版渐变背景元素 (恢复) */}
             <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-orange-100/40 to-transparent pointer-events-none"></div>
             <div className="absolute -left-20 top-20 w-72 h-72 bg-orange-200/20 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute -right-20 bottom-20 w-96 h-96 bg-blue-200/20 rounded-full blur-3xl pointer-events-none"></div>
 
+            {/* 2. 新版漂浮装饰元素 (保留) */}
+            <FloatingCitrus className="-top-10 -left-10 text-orange-400 opacity-20" size={260} rotation={-15} delay={0} />
+            <FloatingCitrus className="bottom-10 -right-10 text-orange-300 opacity-20" size={180} rotation={30} delay={2} />
+            <Leaf className="absolute top-1/4 right-20 w-12 h-12 text-lime-500/20 rotate-45 animate-pulse pointer-events-none" />
+            <Leaf className="absolute bottom-1/4 left-10 w-8 h-8 text-lime-600/10 -rotate-12 animate-pulse delay-700 pointer-events-none" />
+
+            {/* --- 主内容区 --- */}
             <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
                 <div className="flex justify-center mb-6 cursor-pointer" onClick={() => navigate('/')}>
                     <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-orange-50 border border-orange-100 shadow-md">
@@ -95,9 +140,9 @@ export default function LoginPage() {
                                     id="remember-me"
                                     name="remember-me"
                                     type="checkbox"
-                                    className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                                    className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded cursor-pointer"
                                 />
-                                <label htmlFor="remember-me" className="ml-2 block text-sm text-slate-600">
+                                <label htmlFor="remember-me" className="ml-2 block text-sm text-slate-600 cursor-pointer select-none">
                                     记住我
                                 </label>
                             </div>
@@ -125,34 +170,6 @@ export default function LoginPage() {
                             </button>
                         </div>
                     </form>
-
-                    {/* 暂不支持此方法登录 */}
-                    {/* <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-slate-500">或者通过以下方式登录</span>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <div>
-                <a href="#" className="w-full inline-flex justify-center py-2.5 px-4 border border-slate-200 rounded-lg shadow-sm bg-white text-sm font-medium text-slate-500 hover:bg-slate-50 transition-colors">
-                  <Github className="h-5 w-5 text-slate-900" />
-                </a>
-              </div>
-              <div>
-                <a href="#" className="w-full inline-flex justify-center py-2.5 px-4 border border-slate-200 rounded-lg shadow-sm bg-white text-sm font-medium text-slate-500 hover:bg-slate-50 transition-colors">
-                  <span className="sr-only">Google</span>
-                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                     <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .533 5.333.533 12S5.867 24 12.48 24c3.44 0 6.1-1.133 8.253-3.293 2.187-2.187 2.853-5.32 2.853-7.787 0-.76-.08-1.48-.213-2l-10.893.013z"/>
-                   </svg>
-                </a>
-              </div>
-            </div>
-          </div> */}
                 </div>
 
                 <p className="mt-6 text-center text-sm text-slate-500">
@@ -162,6 +179,15 @@ export default function LoginPage() {
                     </a>
                 </p>
             </div>
+
+            {/* CSS 动画注入 */}
+            <style>{`
+                @keyframes float {
+                    0% { transform: translateY(0px) rotate(0deg); }
+                    50% { transform: translateY(-20px) rotate(5deg); }
+                    100% { transform: translateY(0px) rotate(0deg); }
+                }
+            `}</style>
         </div>
     );
 }
