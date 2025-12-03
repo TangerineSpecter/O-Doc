@@ -1,39 +1,85 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import Layout from './layout/Layout';
 import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';
 
-export default function App() {
-  // 简单的路由状态管理
-  // view: 'home' | 'article'
-  const [currentView, setCurrentView] = useState('home');
+// HomePage的路由包装组件
+function HomeRoute() {
+  const navigate = useNavigate();
   
-  // 路由参数，用于存储传递的 coll_id, article_id 等
-  const [viewParams, setViewParams] = useState({});
+  const handleNavigate = (viewName, params = {}) => {
+    window.scrollTo(0, 0);
+    
+    if (viewName === 'article') {
+      const { collId, articleId } = params;
+      if (articleId) {
+        navigate(`/article/${collId}/${articleId}`);
+      } else {
+        navigate(`/article/${collId}`);
+      }
+    }
+  };
+  
+  return <HomePage onNavigate={handleNavigate} />;
+}
 
-  /**
-   * 导航函数
-   * @param {string} viewName - 目标页面名称 ('home' 或 'article')
-   * @param {object} params - 传递的参数 (例如 { collId: 1, articleId: 101 })
-   */
+// 文章页面组件，用于接收路由参数
+function ArticleRoute() {
+  const params = useParams();
+  const navigate = useNavigate();
+  
+  const handleNavigate = (viewName, params = {}) => {
+    window.scrollTo(0, 0);
+    
+    if (viewName === 'home') {
+      navigate('/');
+    }
+  };
+  
+  return (
+    <ArticleOutline 
+      onNavigate={handleNavigate} 
+      collId={params.collId} 
+      articleId={params.articleId} 
+    />
+  );
+}
+
+// 带有路由上下文的布局组件
+function AppWithRouter() {
+  const navigate = useNavigate();
+  
   const handleNavigate = (viewName, params = {}) => {
     window.scrollTo(0, 0); // 切换页面时滚动到顶部
-    setViewParams(params);
-    setCurrentView(viewName);
+    
+    if (viewName === 'home') {
+      navigate('/');
+    } else if (viewName === 'article') {
+      const { collId, articleId } = params;
+      if (articleId) {
+        navigate(`/article/${collId}/${articleId}`);
+      } else {
+        navigate(`/article/${collId}`);
+      }
+    }
   };
-
+  
   return (
     <Layout onNavigate={handleNavigate}>
-      {currentView === 'home' && (
-        <HomePage onNavigate={handleNavigate} />
-      )}
-      
-      {currentView === 'article' && (
-        <ArticleOutline 
-          onNavigate={handleNavigate} 
-          {...viewParams} 
-        />
-      )}
+      <Routes>
+        <Route path="/" element={<HomeRoute />} />
+        <Route path="/article/:collId" element={<ArticleRoute />} />
+        <Route path="/article/:collId/:articleId" element={<ArticleRoute />} />
+      </Routes>
     </Layout>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppWithRouter />
+    </BrowserRouter>
   );
 }
