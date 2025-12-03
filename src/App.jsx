@@ -37,6 +37,13 @@ function ArticleRoute() {
 
     if (viewName === 'home') {
       navigate('/');
+    } else if (viewName === 'article') {
+      const { collId, articleId } = params;
+      if (articleId) {
+        navigate(`/article/${collId}/${articleId}`);
+      } else {
+        navigate(`/article/${collId}`);
+      }
     } else if (viewName === 'login') { // 新增
       navigate('/login');
     }

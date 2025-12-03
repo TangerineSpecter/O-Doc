@@ -17,76 +17,83 @@ import Article from './Article';
 const docData = [
   {
     id: '1',
+    article_id: 'simple-run',
     title: '简易运行',
     date: '2025-11-18',
     type: 'doc'
   },
   {
     id: '2',
+    article_id: 'deployment-guide',
     title: '部署指南',
     date: '2022-06-24',
     type: 'doc',
     children: [
       {
         id: '2-1',
+        article_id: 'docker-deployment',
         title: 'Docker 部署 MrDoc (推荐)',
         date: '2023-02-24',
         type: 'doc',
         children: [
-          { id: '2-1-1', title: 'Docker 镜像部署', date: '2025-05-22', type: 'doc' },
-          { id: '2-1-2', title: 'Docker Compose 部署', date: '2025-03-11', type: 'doc' },
-          { id: '2-1-3', title: '管理 Docker 容器', date: '2025-09-06', type: 'doc' },
+          { id: '2-1-1', article_id: 'docker-image-deployment', title: 'Docker 镜像部署', date: '2025-05-22', type: 'doc' },
+          { id: '2-1-2', article_id: 'docker-compose-deployment', title: 'Docker Compose 部署', date: '2025-03-11', type: 'doc' },
+          { id: '2-1-3', article_id: 'docker-container-management', title: '管理 Docker 容器', date: '2025-09-06', type: 'doc' },
         ]
       },
       {
         id: '2-2',
+        article_id: 'linux-deployment',
         title: 'Linux 部署 MrDoc',
         date: '2022-01-07',
         type: 'doc',
         children: [
-          { id: '2-2-1', title: '使用 Nginx + uWSGI 部署 MrDoc', date: '2022-07-06', type: 'doc' },
-          { id: '2-2-2', title: '一键部署脚本 (已停止维护)', date: '2025-11-03', type: 'doc' },
-          { id: '2-2-3', title: '宝塔面板「Python 项目管理器1.9」部署', date: '2024-07-06', type: 'doc' },
-          { id: '2-2-4', title: '官方 Docker 镜像部署', date: '2024-08-20', type: 'doc' },
+          { id: '2-2-1', article_id: 'nginx-uwsgi-deployment', title: '使用 Nginx + uWSGI 部署 MrDoc', date: '2022-07-06', type: 'doc' },
+          { id: '2-2-2', article_id: 'one-click-deployment', title: '一键部署脚本 (已停止维护)', date: '2025-11-03', type: 'doc' },
+          { id: '2-2-3', article_id: 'baota-panel-deployment', title: '宝塔面板「Python 项目管理器1.9」部署', date: '2024-07-06', type: 'doc' },
+          { id: '2-2-4', article_id: 'official-docker-image', title: '官方 Docker 镜像部署', date: '2024-08-20', type: 'doc' },
         ]
       },
       {
         id: '2-3',
+        article_id: 'windows-deployment',
         title: 'Windows 部署 MrDoc',
         date: '2023-03-19',
         type: 'doc',
         children: [
-          { id: '2-3-1', title: '使用 Waitress 部署', date: '2024-01-18', type: 'doc' },
-          { id: '2-3-2', title: 'Windows 部署面板', date: '2022-11-23', type: 'doc' },
+          { id: '2-3-1', article_id: 'waitress-deployment', title: '使用 Waitress 部署', date: '2024-01-18', type: 'doc' },
+          { id: '2-3-2', article_id: 'windows-deployment-panel', title: 'Windows 部署面板', date: '2022-11-23', type: 'doc' },
         ]
       },
       {
         id: '2-4',
+        article_id: 'nas-deployment',
         title: 'NAS 部署',
         date: '2025-07-31',
         type: 'doc',
         children: [
-          { id: '2-4-1', title: '极空间 NAS 部署', date: '2025-08-07', type: 'doc' },
+          { id: '2-4-1', article_id: 'geekspace-nas-deployment', title: '极空间 NAS 部署', date: '2025-08-07', type: 'doc' },
         ]
       },
-      { id: '2-5', title: '更新升级说明', date: '2025-09-02', type: 'doc' },
-      { id: '2-6', title: '系统依赖库说明', date: '2024-03-05', type: 'doc' },
-      { id: '2-7', title: '原生部署转 Docker 部署', date: '2025-03-14', type: 'doc' },
+      { id: '2-5', article_id: 'update-upgrade-guide', title: '更新升级说明', date: '2025-09-02', type: 'doc' },
+      { id: '2-6', article_id: 'system-dependencies', title: '系统依赖库说明', date: '2024-03-05', type: 'doc' },
+      { id: '2-7', article_id: 'native-to-docker', title: '原生部署转 Docker 部署', date: '2025-03-14', type: 'doc' },
     ]
   },
   {
     id: '3',
+    article_id: 'configuration-guide',
     title: '配置指南',
     date: '2025-07-31',
     type: 'doc',
     children: [
-      { id: '3-1', title: '配置文件说明', date: '2022-01-15', type: 'doc' },
-      { id: '3-2', title: '自定义数据库配置', date: '2025-11-24', type: 'doc' },
-      { id: '3-3', title: '文集生成 PDF 文件的配置', date: '2022-11-23', type: 'doc' },
-      { id: '3-4', title: '全文搜索配置', date: '2020-12-06', type: 'doc' },
-      { id: '3-5', title: 'Docker 下使用 MySQL 数据库', date: '2023-05-13', type: 'doc' },
-      { id: '3-6', title: 'MySQL 数据库支持 emoji 的配置', date: '2025-03-14', type: 'doc' },
-      { id: '3-7', title: '使用 Nginx 托管静态文件资源', date: '2023-04-23', type: 'doc' },
+      { id: '3-1', article_id: 'configuration-file', title: '配置文件说明', date: '2022-01-15', type: 'doc' },
+      { id: '3-2', article_id: 'custom-database-config', title: '自定义数据库配置', date: '2025-11-24', type: 'doc' },
+      { id: '3-3', article_id: 'pdf-generation-config', title: '文集生成 PDF 文件的配置', date: '2022-11-23', type: 'doc' },
+      { id: '3-4', article_id: 'full-text-search', title: '全文搜索配置', date: '2020-12-06', type: 'doc' },
+      { id: '3-5', article_id: 'docker-mysql-config', title: 'Docker 下使用 MySQL 数据库', date: '2023-05-13', type: 'doc' },
+      { id: '3-6', article_id: 'mysql-emoji-support', title: 'MySQL 数据库支持 emoji 的配置', date: '2025-03-14', type: 'doc' },
+      { id: '3-7', article_id: 'nginx-static-files', title: '使用 Nginx 托管静态文件资源', date: '2023-04-23', type: 'doc' },
     ]
   }
 ];
@@ -106,11 +113,54 @@ const flattenDocs = (data) => {
 
 const allDocs = flattenDocs(docData);
 
+// --- 搜索过滤函数 ---
+const filterDocs = (docs, searchTerm) => {
+  if (!searchTerm.trim()) return docs;
+  
+  const filtered = [];
+  
+  const search = (doc) => {
+    // 检查当前文档是否匹配搜索词
+    const matches = doc.title.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // 递归检查子文档
+    const matchedChildren = [];
+    if (doc.children && doc.children.length > 0) {
+      for (const child of doc.children) {
+        const matchedChild = search(child);
+        if (matchedChild) {
+          matchedChildren.push(matchedChild);
+        }
+      }
+    }
+    
+    // 如果当前文档匹配或有匹配的子文档，则保留该文档
+    if (matches || matchedChildren.length > 0) {
+      return {
+        ...doc,
+        children: matchedChildren
+      };
+    }
+    
+    return null;
+  };
+  
+  // 遍历所有根文档
+  for (const doc of docs) {
+    const matchedDoc = search(doc);
+    if (matchedDoc) {
+      filtered.push(matchedDoc);
+    }
+  }
+  
+  return filtered;
+};
+
 // --- 组件定义 ---
 export default function ArticleOutline({ onNavigate, collId, title, articleId }) {
 
-  // 3. 状态初始化：优先使用传入的 articleId
-  const [activeDocId, setActiveDocId] = useState(articleId || null);
+  // 状态初始化：直接使用传入的 articleId (article_id)
+  const [activeDocId, setActiveDocId] = useState(articleId);
 
   const [expandedIds, setExpandedIds] = useState(['2', '2-1']);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -120,7 +170,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
   const [isCreateDocModalOpen, setIsCreateDocModalOpen] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState("");
 
-  // 4. 监听 articleId 变化，解决"点击文章只显示大纲"的问题
+  // 监听 articleId 变化，直接更新 activeDocId
   useEffect(() => {
     if (articleId) {
       setActiveDocId(articleId);
@@ -135,11 +185,19 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
   };
 
   const handleSelectDoc = (docId) => {
-    setActiveDocId(docId);
-    if (window.innerWidth < 768) setIsSidebarOpen(false);
-    // 切换时让右侧滚动条复位
-    const mainContainer = document.getElementById('right-content-window');
-    if (mainContainer) mainContainer.scrollTo({ top: 0, behavior: 'smooth' });
+    // 查找对应的文档对象以获取article_id
+    const selectedDoc = allDocs.find(doc => doc.id === docId);
+    if (selectedDoc && selectedDoc.article_id) {
+      setActiveDocId(selectedDoc.article_id);
+      if (window.innerWidth < 768) setIsSidebarOpen(false);
+      // 切换时让右侧滚动条复位
+      const mainContainer = document.getElementById('right-content-window');
+      if (mainContainer) mainContainer.scrollTo({ top: 0, behavior: 'smooth' });
+      // 更新路由地址
+      if (onNavigate) {
+        onNavigate('article', { collId, articleId: selectedDoc.article_id });
+      }
+    }
   };
 
   // --- 新增函数：处理新建文档 ---
@@ -155,7 +213,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
   const renderSidebarItem = (item, level = 0) => {
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedIds.includes(item.id);
-    const isActive = activeDocId === item.id;
+    const isActive = activeDocId === item.article_id;
     const paddingLeft = 12 + level * 16;
 
     return (
@@ -300,7 +358,13 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
         `}
       >
         <div
-          onClick={() => setActiveDocId(null)}
+          onClick={() => {
+            setActiveDocId(null);
+            // 更新路由地址到文集首页
+            if (onNavigate) {
+              onNavigate('article', { collId });
+            }
+          }}
           className="h-14 flex items-center px-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors flex-shrink-0"
         >
           <BookOpen size={16} className="text-orange-500 mr-2" />
@@ -314,9 +378,17 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
               placeholder="搜索目录..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 text-xs py-1.5 pl-8 pr-3 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 transition-all text-slate-600"
+              className="w-full bg-slate-50 border border-slate-200 text-xs py-1.5 pl-8 pr-8 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 transition-all text-slate-600"
             />
             <Search size={12} className="absolute left-2.5 top-2 text-slate-400" />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
 
           <button
@@ -329,7 +401,16 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar py-2">
-          {docData.map(item => renderSidebarItem(item))}
+          {/* 搜索过滤逻辑 */}
+          {searchQuery ? (
+            // 搜索结果
+            <div>
+              {filterDocs(docData, searchQuery).map(item => renderSidebarItem(item))}
+            </div>
+          ) : (
+            // 完整目录
+            docData.map(item => renderSidebarItem(item))
+          )}
         </div>
 
         <div className="p-3 border-t border-slate-100 text-xs text-slate-400 flex justify-between items-center flex-shrink-0 bg-white">
@@ -354,7 +435,13 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
           <div className="min-h-full bg-white">
             <Article
               // 1. 传递返回回调
-              onBack={() => setActiveDocId(null)}
+              onBack={() => {
+                setActiveDocId(null);
+                // 更新路由地址到文集首页
+                if (onNavigate) {
+                  onNavigate('article', { collId });
+                }
+              }}
               // 2. 标记为嵌入模式，Article 内部会调整 padding
               isEmbedded={true}
               // 3. 告诉 Article 滚动的容器是谁，以便监听滚动事件显示"回到顶部"按钮
