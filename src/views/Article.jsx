@@ -2,13 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 
 // --- 依赖库 ---
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm'; 
+import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import rehypeRaw from 'rehype-raw'; 
+import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 // Mac 终端风格高亮
-import { tomorrow as darkTheme } from 'react-syntax-highlighter/dist/esm/styles/prism'; 
+import { tomorrow as darkTheme } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
 
@@ -18,15 +18,15 @@ const CUSTOM_STYLES = `
   .prose :where(code):not(:where([class~="not-prose"] *))::before { content: none !important; }
   .prose :where(code):not(:where([class~="not-prose"] *))::after { content: none !important; }
 
-  /* 3. KaTeX 公式滚动条 */
-  .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.5em 0; }
-  
-  /* 4. 自定义高亮特效 */
+  /* 2. 确保公式过长时可以内部滚动，而不是撑开页面 */
+  .katex-display { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+
+  /* 3. 自定义高亮特效 */
   .custom-underline-red { text-decoration: underline; text-decoration-color: #FF5582A6; text-decoration-thickness: 7px; text-underline-offset: -3px; }
   .custom-underline-wavy { text-decoration: underline; text-decoration-style: wavy; text-decoration-color: #0ea5e9; text-decoration-thickness: 2px; text-underline-offset: 4px; }
   .custom-watercolor { background: linear-gradient(120deg, #fef08a 0%, #fde047 100%); padding: 0.1em 0.3em; border-radius: 0.2em; color: #854d0e; }
 
-  /* 5. 内联标签 */
+  /* 4. 内联标签 */
   .md-tag-inline {
     display: inline-flex; align-items: center; padding: 0 0.4em; margin: 0 0.2em;
     border-radius: 0.25rem; font-size: 0.85em; font-weight: 500;
@@ -36,87 +36,86 @@ const CUSTOM_STYLES = `
 
 // --- Icons ---
 const Icons = {
-  Tag: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>,
-  Clock: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-  Calendar: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
-  FileText: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>,
-  ArrowUp: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m18 15-6-6-6 6"/></svg>,
-  Copy: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>,
-  Check: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400" {...props}><polyline points="20 6 9 17 4 12"/></svg>,
-  ArrowLeft: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+    Tag: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" /><path d="M7 7h.01" /></svg>,
+    Clock: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
+    Calendar: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
+    FileText: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><line x1="10" y1="9" x2="8" y2="9" /></svg>,
+    ArrowUp: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m18 15-6-6-6 6" /></svg>,
+    Copy: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>,
+    Check: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400" {...props}><polyline points="20 6 9 17 4 12" /></svg>,
+    ArrowLeft: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></svg>
 };
 
 // --- Copy Button ---
 const CopyButton = ({ text }) => {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <button onClick={handleCopy} className="text-slate-400 hover:text-white transition-colors p-1" title="Copy code">
-      {copied ? <Icons.Check /> : <Icons.Copy />}
-    </button>
-  );
+    const [copied, setCopied] = useState(false);
+    const handleCopy = () => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+    return (
+        <button onClick={handleCopy} className="text-slate-400 hover:text-white transition-colors p-1" title="Copy code">
+            {copied ? <Icons.Check /> : <Icons.Copy />}
+        </button>
+    );
 };
 
 // --- Mermaid Component ---
 const MermaidChart = ({ chart }) => {
-  const [svg, setSvg] = useState('');
+    const [svg, setSvg] = useState('');
 
-  useEffect(() => {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'neutral', 
-      securityLevel: 'loose',
-      fontFamily: 'Inter, sans-serif'
-    });
+    useEffect(() => {
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'neutral',
+            securityLevel: 'loose',
+            fontFamily: 'Inter, sans-serif'
+        });
 
-    const render = async () => {
-      try {
-        const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
-        const { svg } = await mermaid.render(id, chart);
-        setSvg(svg);
-      } catch (error) {
-        setSvg('<div class="text-red-500 text-sm p-4 bg-red-50 rounded">Mermaid Render Error</div>');
-      }
-    };
-    render();
-  }, [chart]);
+        const render = async () => {
+            try {
+                const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
+                const { svg } = await mermaid.render(id, chart);
+                setSvg(svg);
+            } catch (error) {
+                setSvg('<div class="text-red-500 text-sm p-4 bg-red-50 rounded">Mermaid Render Error</div>');
+            }
+        };
+        render();
+    }, [chart]);
 
-  return (
-    <div className="my-8 w-full bg-white border border-slate-200 rounded-xl shadow-sm p-6 overflow-x-auto flex justify-center">
-        <div dangerouslySetInnerHTML={{ __html: svg }} />
-    </div>
-  );
+    return (
+        <div className="my-8 w-full bg-white border border-slate-200 rounded-xl shadow-sm p-6 overflow-x-auto flex justify-center">
+            <div dangerouslySetInnerHTML={{ __html: svg }} />
+        </div>
+    );
 };
 
-// --- TOC (修改了 margin) ---
+// --- TOC ---
 const TableOfContents = ({ headers, activeId, isEmbedded }) => {
-  if (!headers?.length) return null;
-  
-  const visibilityClass = isEmbedded ? 'hidden 2xl:block' : 'hidden xl:block';
+    if (!headers?.length) return null;
 
-  return (
-    // [修改 1] ml-4: 让目录离文章更近一点 (原 ml-10)
-    <div className={`${visibilityClass} absolute left-full top-0 ml-4 h-full w-64`}>
-      <div className="sticky top-32">
-        <h5 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> 目录
-        </h5>
-        <ul className="space-y-1 relative border-l border-slate-200">
-          {headers.map((h, i) => (
-            <li key={i}>
-              <a href={`#${h.slug}`} className={`block text-sm py-1.5 border-l-2 transition-all truncate ${h.level > 2 ? 'pl-6 text-xs' : 'pl-4'} ${activeId === h.slug ? 'border-[#0ea5e9] text-[#0ea5e9] font-medium bg-sky-50/30' : 'border-transparent text-slate-500 hover:text-slate-900'}`}>
-                {h.text}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
+    const visibilityClass = isEmbedded ? 'hidden 2xl:block' : 'hidden xl:block';
+
+    return (
+        <div className={`${visibilityClass} absolute left-full top-0 ml-4 h-full w-64`}>
+            <div className="sticky top-32">
+                <h5 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> 目录
+                </h5>
+                <ul className="space-y-1 relative border-l border-slate-200">
+                    {headers.map((h, i) => (
+                        <li key={i}>
+                            <a href={`#${h.slug}`} className={`block text-sm py-1.5 border-l-2 transition-all truncate ${h.level > 2 ? 'pl-6 text-xs' : 'pl-4'} ${activeId === h.slug ? 'border-[#0ea5e9] text-[#0ea5e9] font-medium bg-sky-50/30' : 'border-transparent text-slate-500 hover:text-slate-900'}`}>
+                                {h.text}
+                            </a>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </div>
+    );
 };
 
 // --- Data (保持不变) ---
@@ -166,7 +165,7 @@ const sampleMarkdown = `
 
 这里展示一张关于算法数据结构的概念图：
 
-![算法概念图](https://images.unsplash.com/photo-1558494949-ef526b0042a0?auto=format&fit=crop&w=1200&q=80)
+![算法概念图](https://img.shetu66.com/2022/11/03/1667459511305837.jpg)
 *图1: 现代数据中心与算法可视化*
 
 ---
@@ -255,208 +254,243 @@ graph TD
 `;
 
 export default function Article({ isEmbedded, scrollContainerId, onBack }) {
-  const [markdown] = useState(sampleMarkdown);
-  const [headers, setHeaders] = useState([]);
-  const [activeHeader, setActiveHeader] = useState("");
-  const [tags, setTags] = useState([]); 
-  const [stats, setStats] = useState({ wordCount: 0, readTime: 0 });
+    const [markdown] = useState(sampleMarkdown);
+    const [headers, setHeaders] = useState([]);
+    const [activeHeader, setActiveHeader] = useState("");
+    const [tags, setTags] = useState([]);
+    const [stats, setStats] = useState({ wordCount: 0, readTime: 0 });
 
-  // 1. 预处理
-  const contentWithSyntax = useMemo(() => {
-    let text = markdown;
-    const foundTags = [];
-    text = text.replace(/(\s|^)#([\w\u4e00-\u9fa5]+)/g, (m, p, t) => { 
-        foundTags.push(t); 
-        return `${p}<span class="md-tag-inline">#${t}</span>`; 
-    });
-    text = text.replace(/\+\+(.*?)\+\+/g, '<span class="custom-underline-red">$1</span>')
-               .replace(/\^\^(.*?)\^\^/g, '<span class="custom-underline-wavy">$1</span>')
-               .replace(/==(.*?)==/g, '<span class="custom-watercolor">$1</span>');
-    setTimeout(() => setTags([...new Set(foundTags)]), 0);
-    return text;
-  }, [markdown]);
-
-  // 2. 统计
-  useEffect(() => {
-    const textContent = markdown.replace(/[#*`>~-]/g, ''); 
-    setStats({ 
-        wordCount: textContent.trim().length, 
-        readTime: Math.ceil(textContent.trim().length / 400) 
-    });
-
-    const lines = markdown.split('\n');
-    const h = [];
-    lines.forEach(line => {
-      const match = line.match(/^(#{2,6})\s+(.*)$/);
-      if (match) {
-        h.push({ 
-            text: match[2].replace(/[*_~`]/g, ''), 
-            level: match[1].length, 
-            slug: match[2].toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-') 
+    // 1. 预处理
+    const contentWithSyntax = useMemo(() => {
+        let text = markdown;
+        const foundTags = [];
+        text = text.replace(/(\s|^)#([\w\u4e00-\u9fa5]+)/g, (m, p, t) => {
+            foundTags.push(t);
+            return `${p}<span class="md-tag-inline">#${t}</span>`;
         });
-      }
-    });
-    setHeaders(h);
-  }, [markdown]);
+        text = text.replace(/\+\+(.*?)\+\+/g, '<span class="custom-underline-red">$1</span>')
+            .replace(/\^\^(.*?)\^\^/g, '<span class="custom-underline-wavy">$1</span>')
+            .replace(/==(.*?)==/g, '<span class="custom-watercolor">$1</span>');
+        setTimeout(() => setTags([...new Set(foundTags)]), 0);
+        return text;
+    }, [markdown]);
 
-  // 3. 滚动
-  useEffect(() => {
-    const target = scrollContainerId ? document.getElementById(scrollContainerId) : window;
-    const handleScroll = () => {
-      if (headers.length === 0) return;
-      for (const header of headers) {
-        const el = document.getElementById(header.slug);
-        if (el && el.getBoundingClientRect().top < 150) {
-          setActiveHeader(header.slug);
+    // 2. 统计
+    useEffect(() => {
+        const textContent = markdown.replace(/[#*`>~-]/g, '');
+        setStats({
+            wordCount: textContent.trim().length,
+            readTime: Math.ceil(textContent.trim().length / 400)
+        });
+
+        const lines = markdown.split('\n');
+        const h = [];
+        lines.forEach(line => {
+            const match = line.match(/^(#{2,6})\s+(.*)$/);
+            if (match) {
+                h.push({
+                    text: match[2].replace(/[*_~`]/g, ''),
+                    level: match[1].length,
+                    slug: match[2].toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')
+                });
+            }
+        });
+        setHeaders(h);
+    }, [markdown]);
+
+    // 3. 滚动监听 (维持原状，用于更新目录高亮)
+    useEffect(() => {
+        const target = scrollContainerId ? document.getElementById(scrollContainerId) : window;
+        const handleScroll = () => {
+            if (headers.length === 0) return;
+            for (const header of headers) {
+                const el = document.getElementById(header.slug);
+                if (el && el.getBoundingClientRect().top < 150) {
+                    setActiveHeader(header.slug);
+                }
+            }
+        };
+        target?.addEventListener('scroll', handleScroll, { passive: true });
+        return () => target?.removeEventListener('scroll', handleScroll);
+    }, [headers, scrollContainerId]);
+
+    // --- 修复：滚动到顶部逻辑 ---
+    const handleScrollToTop = () => {
+        // 优先检查是否有指定的滚动容器 ID
+        if (scrollContainerId) {
+            const container = document.getElementById(scrollContainerId);
+            if (container) {
+                container.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
         }
-      }
+        // 否则回退到默认的 window 滚动
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
-    target?.addEventListener('scroll', handleScroll, { passive: true });
-    return () => target?.removeEventListener('scroll', handleScroll);
-  }, [headers, scrollContainerId]);
 
-  // --- Components ---
-  const components = useMemo(() => ({
-    // 0. 拦截 pre
-    pre: ({children}) => <div className="not-prose">{children}</div>,
+    // --- Components ---
+    const components = useMemo(() => ({
+        // 0. 拦截 pre
+        pre: ({ children }) => <div className="not-prose">{children}</div>,
 
-    // A. P标签 (公式居中)
-    p: ({ children }) => {
-      const hasBlockMath = React.Children.toArray(children).some(child => {
-        return React.isValidElement(child) && 
-               child.props && 
-               (child.props.className?.includes('katex-display') || child.type === 'span' && child.props.className?.includes('katex-display'));
-      });
-      if (hasBlockMath) {
-        return <div className="flex justify-center w-full my-6 overflow-x-auto">{children}</div>;
-      }
-      return <p className="mb-4 leading-7 text-justify">{children}</p>;
-    },
+        // A. P标签 (公式居中)
+        p: ({ children }) => {
+            const childrenArray = React.Children.toArray(children);
 
-    // B. 代码块
-    code({ node, inline, className, children, ...props }) {
-      const match = /language-(\w+)/.exec(className || '');
-      const lang = match ? match[1] : '';
-      const codeStr = String(children).replace(/\n$/, '');
+            // 1. 过滤掉无意义的换行符或空格 (ReactMarkdown 有时会产生纯空格的文本节点)
+            const validChildren = childrenArray.filter(child => {
+                // 如果是字符串，且去掉空白后为空，则视为无效节点
+                if (typeof child === 'string') {
+                    return child.trim().length > 0;
+                }
+                return true; // 其他 React 元素视为有效
+            });
 
-      if (!inline && lang === 'mermaid') {
-        return <MermaidChart chart={codeStr} />;
-      }
-      
-      if (!inline && match) {
-        return (
-          //代码块字号大小：text-[15px]
-          <div className="code-block-wrapper my-6 rounded-xl overflow-hidden bg-[#1e293b] shadow-2xl border border-slate-700/50 text-[15px]">
-             <div className="flex items-center justify-between px-4 py-2 bg-[#0f172a] border-b border-slate-700/50">
-                <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-[#ff5f56]"/><div className="w-3 h-3 rounded-full bg-[#ffbd2e]"/><div className="w-3 h-3 rounded-full bg-[#27c93f]"/></div>
-                <div className="flex items-center gap-3">
-                    <span className="text-xs font-mono text-slate-400 uppercase">{lang}</span>
-                    <CopyButton text={codeStr} />
-                </div>
-             </div>
-             <SyntaxHighlighter style={darkTheme} language={lang} PreTag="div" customStyle={{ margin:0, background:'transparent' }} {...props}>{codeStr}</SyntaxHighlighter>
-          </div>
-        );
-      }
-      
-      // 行内代码
-      return (
-        <code className="bg-pink-50 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] mx-1 break-words" {...props}>
-          {children}
-        </code>
-      );
-    },
+            // 2. 检查有效节点是否全部都是公式
+            // 只要发现有一个有效节点 不是公式，就说明这是普通段落
+            const isMathBlock = validChildren.length > 0 && validChildren.every(child => {
+                // 检查是否为 React 元素且包含 katex 类名
+                return React.isValidElement(child) &&
+                    child.props?.className?.includes('katex');
+            });
 
-    // C. 引用块，引用块高度：min-h-[60px]
-    blockquote: ({ children }) => (
-      <blockquote className="not-prose relative my-8 pl-6 pt-4 border-l-4 border-violet-500 bg-gradient-to-r from-violet-50 to-transparent rounded-r-lg text-violet-800 italic flex items-center min-h-[60px]">
-        <div className="absolute top-0 right-4 text-6xl text-violet-500/10 font-serif leading-none select-none">”</div>
-        <div className="relative z-10 w-full">{children}</div>
-      </blockquote>
-    ),
+            if (isMathBlock) {
+                // 【块级公式】：因为段落里只有公式，没有杂文字，所以居中显示
+                return (
+                    <div className="flex justify-center w-full my-6 overflow-x-auto">
+                        {children}
+                    </div>
+                );
+            }
 
-    // D. Checkbox
-    input: ({ node, ...props }) => {
-      if (props.type === 'checkbox') return <input type="checkbox" defaultChecked={props.checked} className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded cursor-pointer" />;
-      return <input {...props} />;
-    },
+            // 【普通段落】：包含文字混合公式，保持两端对齐
+            return <p className="mb-4 leading-7 text-justify">{children}</p>;
+        },
 
-    h2: ({children}) => <h2 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h2>,
-    h3: ({children}) => <h3 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h3>,
-    
-    table: ({children}) => <div className="overflow-x-auto my-8 border border-gray-200 rounded-lg"><table className="w-full text-sm text-left my-0">{children}</table></div>,
-    th: ({children}) => <th className="bg-gray-50 px-4 py-3 font-semibold text-gray-700 border-b border-gray-200">{children}</th>,
-    td: ({children}) => <td className="px-4 py-3 border-b border-gray-100 text-gray-600">{children}</td>
+        // B. 代码块
+        code({ node, inline, className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || '');
+            const lang = match ? match[1] : '';
+            const codeStr = String(children).replace(/\n$/, '');
 
-  }), []);
+            if (!inline && lang === 'mermaid') {
+                return <MermaidChart chart={codeStr} />;
+            }
 
-  return (
-    <>
-      <style>{CUSTOM_STYLES}</style>
-      
-      <div className={`min-h-screen bg-white transition-colors duration-300 ${isEmbedded ? '!bg-transparent !min-h-full' : ''}`}>
-        
-        {/* [修改 2] 这里是控制整体布局的关键 */}
-        {/* max-w-5xl mx-auto: 在小屏幕上保持 5xl 宽度并居中 */}
-        {/* xl:mx-0: 在超大屏上(显示目录时)取消居中 */}
-        {/* xl:ml-12: 在超大屏上增加左边距，实现整体左移效果 */}
-        <main className={`relative z-10 max-w-5xl mx-auto xl:mx-0 xl:ml-28 px-4 ${isEmbedded ? 'py-6' : 'py-20'}`}>
-          <div className="bg-white rounded-2xl p-8 sm:p-14 shadow-none ring-1 ring-slate-900/5">
-            
-            {/* Header */}
-            <header className="mb-10 pb-8 border-b border-slate-100">
-                <div className="flex flex-wrap items-center gap-3 mb-6">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/30">
-                    {NOTE_CATEGORY}
-                  </span>
-                  {tags.map(tag => (
-                    <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
-                        <Icons.Tag className="w-3 h-3 mr-1 opacity-50" />
-                        {tag}
-                    </span>
-                  ))}
-                  
-                  <button onClick={onBack} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                      <Icons.ArrowLeft className="w-4 h-4"/>
-                      返回文集
-                  </button>
-                </div>
+            if (!inline && match) {
+                return (
+                    <div className="code-block-wrapper my-6 rounded-xl overflow-hidden bg-[#1e293b] shadow-2xl border border-slate-700/50 text-[15px]">
+                        <div className="flex items-center justify-between px-4 py-2 bg-[#0f172a] border-b border-slate-700/50">
+                            <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-[#ff5f56]" /><div className="w-3 h-3 rounded-full bg-[#ffbd2e]" /><div className="w-3 h-3 rounded-full bg-[#27c93f]" /></div>
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs font-mono text-slate-400 uppercase">{lang}</span>
+                                <CopyButton text={codeStr} />
+                            </div>
+                        </div>
+                        <SyntaxHighlighter style={darkTheme} language={lang} PreTag="div" customStyle={{ margin: 0, background: 'transparent' }} {...props}>{codeStr}</SyntaxHighlighter>
+                    </div>
+                );
+            }
 
-                <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight mb-6">
-                  {NOTE_TITLE}
-                </h1>
+            // 行内代码
+            return (
+                <code className="bg-pink-50 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] mx-1 break-words" {...props}>
+                    {children}
+                </code>
+            );
+        },
 
-                <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500 font-medium">
-                  <div className="flex items-center gap-2"><Icons.FileText className="w-4 h-4 text-slate-400" /><span>{stats.wordCount} 字</span></div>
-                  <div className="flex items-center gap-2"><Icons.Clock className="w-4 h-4 text-slate-400" /><span>{stats.readTime} 分钟阅读</span></div>
-                  <div className="flex items-center gap-2"><Icons.Calendar className="w-4 h-4 text-slate-400" /><span>{NOTE_DATE}</span></div>
-                </div>
-              </header>
+        // C. 引用块
+        blockquote: ({ children }) => (
+            <blockquote className="not-prose relative my-8 pl-6 pt-4 border-l-4 border-violet-500 bg-gradient-to-r from-violet-50 to-transparent rounded-r-lg text-violet-800 italic flex items-center min-h-[60px]">
+                <div className="absolute top-0 right-4 text-6xl text-violet-500/10 font-serif leading-none select-none">”</div>
+                <div className="relative z-10 w-full">{children}</div>
+            </blockquote>
+        ),
 
-            {/* Markdown Render */}
-            <article className="max-w-none prose prose-slate prose-lg prose-p:[&:has(>.katex:only-child)]:text-center prose-a:text-[#0ea5e9] prose-a:no-underline hover:prose-a:underline">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeKatex, rehypeRaw]} 
-                components={components}
-              >
-                {contentWithSyntax}
-              </ReactMarkdown>
-            </article>
+        // D. Checkbox
+        input: ({ node, ...props }) => {
+            if (props.type === 'checkbox') return <input type="checkbox" defaultChecked={props.checked} className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded cursor-pointer" />;
+            return <input {...props} />;
+        },
 
-          </div>
-          
-          <TableOfContents 
-            headers={headers} 
-            activeId={activeHeader} 
-            isEmbedded={isEmbedded} 
-          />
-        </main>
+        h2: ({ children }) => <h2 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h2>,
+        h3: ({ children }) => <h3 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h3>,
 
-        <button onClick={() => window.scrollTo({top:0, behavior:'smooth'})} className="fixed bottom-8 right-8 p-3 bg-white shadow-lg rounded-full border border-slate-100 text-slate-600 hover:-translate-y-1 transition-transform z-50">
-           <Icons.ArrowUp className="w-5 h-5"/>
-        </button>
-      </div>
-    </>
-  );
+        table: ({ children }) => <div className="overflow-x-auto my-8 border border-gray-200 rounded-lg"><table className="w-full text-sm text-left my-0">{children}</table></div>,
+        th: ({ children }) => <th className="bg-gray-50 px-4 py-3 font-semibold text-gray-700 border-b border-gray-200">{children}</th>,
+        td: ({ children }) => <td className="px-4 py-3 border-b border-gray-100 text-gray-600">{children}</td>
+
+    }), []);
+
+    return (
+        <>
+            <style>{CUSTOM_STYLES}</style>
+
+            <div className={`min-h-screen bg-white transition-colors duration-300 ${isEmbedded ? '!bg-transparent !min-h-full' : ''}`}>
+
+                <main className={`relative z-10 max-w-5xl mx-auto xl:mx-0 xl:ml-28 px-4 ${isEmbedded ? 'py-6' : 'py-20'}`}>
+                    <div className="bg-white rounded-2xl p-8 sm:p-14 shadow-none ring-1 ring-slate-900/5">
+
+                        {/* Header */}
+                        <header className="mb-10 pb-8 border-b border-slate-100">
+                            <div className="flex flex-wrap items-center gap-3 mb-6">
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/30">
+                                    {NOTE_CATEGORY}
+                                </span>
+                                {tags.map(tag => (
+                                    <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                        <Icons.Tag className="w-3 h-3 mr-1 opacity-50" />
+                                        {tag}
+                                    </span>
+                                ))}
+
+                                <button onClick={onBack} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                                    <Icons.ArrowLeft className="w-4 h-4" />
+                                    返回文集
+                                </button>
+                            </div>
+
+                            <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight mb-6">
+                                {NOTE_TITLE}
+                            </h1>
+
+                            <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500 font-medium">
+                                <div className="flex items-center gap-2"><Icons.FileText className="w-4 h-4 text-slate-400" /><span>{stats.wordCount} 字</span></div>
+                                <div className="flex items-center gap-2"><Icons.Clock className="w-4 h-4 text-slate-400" /><span>{stats.readTime} 分钟阅读</span></div>
+                                <div className="flex items-center gap-2"><Icons.Calendar className="w-4 h-4 text-slate-400" /><span>{NOTE_DATE}</span></div>
+                            </div>
+                        </header>
+
+                        {/* Markdown Render */}
+                        <article className="max-w-none prose prose-slate prose-lg prose-p:[&:has(>.katex:only-child)]:text-center prose-a:text-[#0ea5e9] prose-a:no-underline hover:prose-a:underline">
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm, remarkMath]}
+                                rehypePlugins={[rehypeKatex, rehypeRaw]}
+                                components={components}
+                            >
+                                {contentWithSyntax}
+                            </ReactMarkdown>
+                        </article>
+
+                    </div>
+
+                    <TableOfContents
+                        headers={headers}
+                        activeId={activeHeader}
+                        isEmbedded={isEmbedded}
+                    />
+                </main>
+
+                {/* 修复后的按钮：绑定了 handleScrollToTop */}
+                <button
+                    onClick={handleScrollToTop}
+                    className="fixed bottom-8 right-8 p-3 bg-white shadow-lg rounded-full border border-slate-100 text-slate-600 hover:-translate-y-1 transition-transform z-50"
+                    title="返回顶部"
+                >
+                    <Icons.ArrowUp className="w-5 h-5" />
+                </button>
+            </div>
+        </>
+    );
 }

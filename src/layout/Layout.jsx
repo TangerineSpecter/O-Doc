@@ -13,6 +13,7 @@ import {
     FileText,
     Leaf // 确保引入了 Leaf 图标
 } from 'lucide-react';
+import packageJson from '../../package.json';
 
 // Search Suggestion Data (Layout specific data)
 const searchSuggestions = [
@@ -177,7 +178,7 @@ export default function Layout({ children, onNavigate }) {
                                 >
                                     <Leaf className="w-3 h-3 text-lime-600 fill-lime-200/50 group-hover:fill-lime-500 group-hover:text-lime-700 group-hover:rotate-12 transition-all duration-300" />
                                     <span className="text-[11px] font-bold tracking-wide font-mono">
-                                        v0.2.2
+                                        v{packageJson.version}
                                     </span>
                                 </button>
                             </div>
