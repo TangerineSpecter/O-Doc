@@ -11,10 +11,11 @@ import {
     ArrowUpDown,
     Clock,
     FileText,
-    Leaf // 确保引入了 Leaf 图标
+    Leaf,
+    ArrowUpCircle 
 } from 'lucide-react';
+// 保留原始引用，本地环境可以正常解析
 import packageJson from '../../package.json';
-import FloatingDock from '../components/FloatingActionMenu';
 
 // Search Suggestion Data (Layout specific data)
 const searchSuggestions = [
@@ -24,15 +25,68 @@ const searchSuggestions = [
     { id: 'sug-2', type: 'suggest', title: "偏好设置", subtitle: "设置", icon: <Settings className="w-4 h-4" /> },
 ];
 
+// --- 辅助函数：语义化版本比较 ---
+// 返回 1: remote > local (需要更新)
+// 返回 -1: remote < local (本地较新)
+// 返回 0: 相等
+const compareVersions = (remoteVersion, localVersion) => {
+    // 移除可能存在的 'v' 前缀
+    const v1 = remoteVersion.replace(/^v/, '').split('.').map(Number);
+    const v2 = localVersion.replace(/^v/, '').split('.').map(Number);
+    
+    const len = Math.max(v1.length, v2.length);
+    
+    for (let i = 0; i < len; i++) {
+        const num1 = v1[i] || 0;
+        const num2 = v2[i] || 0;
+        
+        if (num1 > num2) return 1;  // 远程版本更大
+        if (num1 < num2) return -1; // 本地版本更大
+    }
+    return 0;
+};
+
 export default function Layout({ children, onNavigate }) {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const searchInputRef = useRef(null);
     const [searchIndex, setSearchIndex] = useState(0);
 
+    // --- 版本检查状态 ---
+    const [hasNewVersion, setHasNewVersion] = useState(false);
+    const [latestVersionStr, setLatestVersionStr] = useState('');
+
+    // --- 检测 GitHub 更新 ---
+    useEffect(() => {
+        const checkUpdate = async () => {
+            try {
+                const response = await fetch('https://api.github.com/repos/TangerineSpecter/O-Doc/tags');
+                if (response.ok) {
+                    const tags = await response.json();
+                    if (tags.length > 0) {
+                        const latestTag = tags[0].name; // e.g., "v0.2.4"
+                        const currentVer = packageJson.version; // e.g., "0.2.5"
+
+                        // 修复：使用版本比较函数，仅当 远程 > 本地 时才提示
+                        if (compareVersions(latestTag, currentVer) === 1) {
+                            setHasNewVersion(true);
+                            setLatestVersionStr(latestTag);
+                        } else {
+                            // 本地版本 >= 远程版本，不提示更新
+                            setHasNewVersion(false);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn("检查更新失败:", error);
+            }
+        };
+
+        checkUpdate();
+    }, []);
+
     // Keyboard Navigation for Search
     useEffect(() => {
         const handleKeyDown = (e) => {
-            // Command/Ctrl + K Toggle
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
                 setIsSearchOpen((prev) => !prev);
@@ -40,12 +94,10 @@ export default function Layout({ children, onNavigate }) {
 
             if (!isSearchOpen) return;
 
-            // Esc Close
             if (e.key === 'Escape') {
                 setIsSearchOpen(false);
             }
 
-            // Arrow Navigation
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 setSearchIndex(prev => (prev + 1) % searchSuggestions.length);
@@ -57,7 +109,7 @@ export default function Layout({ children, onNavigate }) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 console.log("Selected:", searchSuggestions[searchIndex].title);
-                setIsSearchOpen(false); // Close on selection
+                setIsSearchOpen(false); 
             }
         };
 
@@ -68,10 +120,15 @@ export default function Layout({ children, onNavigate }) {
     // Focus Input on Open
     useEffect(() => {
         if (isSearchOpen) {
-            setSearchIndex(0); // Reset selection
+            setSearchIndex(0); 
             setTimeout(() => searchInputRef.current?.focus(), 50);
         }
     }, [isSearchOpen]);
+
+    // --- 版本号点击跳转 ---
+    const handleVersionClick = () => {
+        window.open('https://github.com/TangerineSpecter/O-Doc', '_blank');
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-orange-100 selection:text-orange-900">
@@ -161,25 +218,37 @@ export default function Layout({ children, onNavigate }) {
                                     小橘<span className="text-orange-600">文档</span>
                                 </span>
 
-                                {/* 最终版版本号设计：温润发光玉石标签 */}
+                                {/* 版本号展示区域 */}
                                 <button
-                                    className="group flex items-center gap-1.5 px-2 py-0.5 ml-1 
-                                    bg-lime-50  /* 内部极淡嫩绿 */
-                                    border border-lime-200 /* 柔和边框 */
-                                    text-lime-800 /* 深色文字 */
-                                    rounded-[4px] /* 微方角 */
-                                    shadow-[0_0_8px_rgba(132,204,22,0.2)] /* 基础光晕 */
-                                    hover:bg-lime-100 /* 悬浮颜色加深 */
-                                    hover:shadow-[0_0_15px_rgba(132,204,22,0.4)] /* 悬浮光晕增强 */
-                                    hover:border-lime-300 hover:-translate-y-0.5 
-                                    transition-all duration-300 cursor-pointer"
-                                    onClick={() => console.log("Open Changelog")}
-                                    title="点击查看更新日志"
+                                    className={`group flex items-center gap-1.5 px-2 py-0.5 ml-1 
+                                    rounded-[4px] shadow-[0_0_8px_rgba(132,204,22,0.2)] 
+                                    hover:shadow-[0_0_15px_rgba(132,204,22,0.4)] hover:-translate-y-0.5 
+                                    transition-all duration-300 cursor-pointer relative overflow-hidden
+                                    ${hasNewVersion 
+                                        ? 'bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-300' 
+                                        : 'bg-lime-50 border border-lime-200 text-lime-800 hover:bg-lime-100 hover:border-lime-300'
+                                    }`}
+                                    onClick={handleVersionClick}
+                                    title={hasNewVersion ? `发现新版本 ${latestVersionStr}，点击前往更新` : "点击前往 GitHub 仓库"}
                                 >
-                                    <Leaf className="w-3 h-3 text-lime-600 fill-lime-200/50 group-hover:fill-lime-500 group-hover:text-lime-700 group-hover:rotate-12 transition-all duration-300" />
-                                    <span className="text-[11px] font-bold tracking-wide font-mono">
+                                    {/* 图标动态切换：有更新显示箭头，无更新显示叶子 */}
+                                    {hasNewVersion ? (
+                                        <ArrowUpCircle className="w-3 h-3 text-orange-500 animate-bounce" />
+                                    ) : (
+                                        <Leaf className="w-3 h-3 text-lime-600 fill-lime-200/50 group-hover:fill-lime-500 group-hover:text-lime-700 group-hover:rotate-12 transition-all duration-300" />
+                                    )}
+                                    
+                                    <span className="text-[11px] font-bold tracking-wide font-mono relative z-10">
                                         v{packageJson.version}
                                     </span>
+
+                                    {/* 有更新时显示的红点提示 */}
+                                    {hasNewVersion && (
+                                        <span className="absolute top-0 right-0 -mt-0.5 -mr-0.5 flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                        </span>
+                                    )}
                                 </button>
                             </div>
                         </div>
@@ -258,11 +327,8 @@ export default function Layout({ children, onNavigate }) {
                 </div>
             </nav>
 
-            {/* 2. 子页面内容 */}
+            {/* Main Content Rendered Here */}
             {children}
-
-            {/* 3. 在这里插入 Floating Dock */}
-            <FloatingDock />
 
             {/* Background Effects */}
             <div className="fixed inset-0 pointer-events-none z-[-1] opacity-40">
