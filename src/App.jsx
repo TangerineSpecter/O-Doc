@@ -5,6 +5,9 @@ import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';
 import LoginPage from './views/LoginPage';
 import EditorPage from './views/EditorPage';
+import ResourcesPage from './views/ResourcesPage';
+import StatisticsPage from './views/StatisticsPage';
+
 
 
 // HomePage的路由包装组件
@@ -102,6 +105,16 @@ function AppWithRouter() {
       {/* 新增编辑器路由 - 不使用 Layout，提供全屏体验 */}
       <Route path="/editor" element={<EditorPage />} />
       <Route path="/editor/:docId" element={<EditorPage />} />
+      <Route path="/resources" element={
+        <Layout onNavigate={handleNavigate}>
+          <ResourcesPage />
+        </Layout>
+      } />
+      <Route path="/stats" element={
+        <Layout onNavigate={handleNavigate}>
+          <StatisticsPage />
+        </Layout>
+      } />
     </Routes>
   );
 }
