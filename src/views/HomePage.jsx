@@ -157,7 +157,7 @@ const generatedData = Array.from({ length: 32 }).map((_, index) => {
     const iconObj = availableIcons[index % availableIcons.length]; // 循环使用图标
     const categories = ['运维', '产品', '研发', '测试', '设计', '市场'];
     const category = categories[index % categories.length];
-    
+
     // 随机生成一些文章
     const articlesCount = Math.floor(Math.random() * 4); // 0-3 articles
     const articles = Array.from({ length: articlesCount }).map((_, i) => ({
@@ -232,11 +232,11 @@ export default function HomePage({ onNavigate }) {
     // 滚动监听逻辑
     const handleScroll = useCallback(() => {
         if (isLoadingMore || !hasMore) return;
-        
+
         const scrollTop = window.scrollY || document.documentElement.scrollTop;
         const windowHeight = window.innerHeight;
         const documentHeight = document.documentElement.scrollHeight;
-        
+
         // 当滚动条距离底部小于 100px 时触发加载
         if (scrollTop + windowHeight >= documentHeight - 100) {
             setIsLoadingMore(true);
@@ -262,7 +262,7 @@ export default function HomePage({ onNavigate }) {
 
         const newItem = {
             id: Date.now(),
-            coll_id: `col_new_${Date.now()}`, 
+            coll_id: `col_new_${Date.now()}`,
             title: newCollectionData.title,
             count: 0,
             icon: iconElement,
@@ -294,11 +294,34 @@ export default function HomePage({ onNavigate }) {
                         <div className="p-6 space-y-5">
                             <div className="space-y-1.5">
                                 <label className="text-sm font-semibold text-slate-700">文集名称 <span className="text-red-500">*</span></label>
-                                <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm" value={newCollectionData.title} onChange={(e) => setNewCollectionData({ ...newCollectionData, title: e.target.value })} autoFocus />
+                                <input
+                                    type="text"
+                                    placeholder='请输入文集名称，最多 20 个字'
+                                    maxLength="20"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+                                    value={newCollectionData.title}
+                                    onChange={(e) => setNewCollectionData({ ...newCollectionData, title: e.target.value })}
+                                    autoFocus
+                                />
+                                {/* 超出时变红，同时避免显示超过20的数字 */}
+                                <span className={`text-xs ${newCollectionData.title.length > 20 ? 'text-red-500' : 'text-slate-500'}`}>
+                                    {Math.min(newCollectionData.title.length, 20)}/20 字
+                                </span>
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-sm font-semibold text-slate-700">简介说明</label>
-                                <textarea rows={3} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm resize-none" value={newCollectionData.description} onChange={(e) => setNewCollectionData({ ...newCollectionData, description: e.target.value })} />
+                                <textarea
+                                    rows={3}
+                                    placeholder='请在此处输入文集的简介说明，最多支持 100 个字。'
+                                    maxLength="100"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm resize-none"
+                                    value={newCollectionData.description}
+                                    onChange={(e) => setNewCollectionData({ ...newCollectionData, description: e.target.value })}
+                                />
+                                {/* 超出时文字变红 */}
+                                <span className={`text-xs ${newCollectionData.description.length > 100 ? 'text-red-500' : 'text-slate-500'}`}>
+                                    {Math.min(newCollectionData.description.length, 100)}/100 字
+                                </span>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">选择图标</label>
