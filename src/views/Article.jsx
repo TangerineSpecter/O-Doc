@@ -118,11 +118,15 @@ const TableOfContents = ({ headers, activeId, isEmbedded }) => {
     );
 };
 
-// --- Data (保持不变) ---
-const NOTE_TITLE = "深度算法分析：从 DFS 到图论的演进";
-const NOTE_CATEGORY = "算法与数据结构";
-const NOTE_DATE = "2025/11/14";
-const sampleMarkdown = `
+// --- Data (JSON 格式) ---
+const DEFAULT_ARTICLE_DATA = {
+    article_id: "note_001",
+    title: "深度算法分析：从 DFS 到图论的演进",
+    category: "算法与数据结构",
+    date: "2025/11/14",
+    // 顶部标签作为配置数据
+    tags: ["算法基础", "图论", "回溯搜索", "Python"],
+    content: `
 > “细节不是细节，它们构成了设计。” —— Charles Eames
 
 本笔记整理了 **DFS** 的核心概念与代码模板，包含数学公式推导与复杂度分析。
@@ -251,33 +255,30 @@ graph TD
 | 邻接矩阵 | $O(V^2)$ | $O(1)$ 查询 | 高 |
 | 邻接表 | $O(V+E)$ | $O(Degree)$ 查询 | 变动 |
 | 边列表 | $O(E)$ | $O(E)$ 查询 | 低 |
-`;
+`
+};
 
 // content: 外部传入的 markdown 内容
 export default function Article({ isEmbedded, scrollContainerId, onBack, content }) {
-    // 如果没有传入 content，则使用 sampleMarkdown
-    const displayMarkdown = content !== undefined ? content : sampleMarkdown;
+    // 如果没有传入 content，则使用默认文章数据的 content
+    const displayMarkdown = content !== undefined ? content : DEFAULT_ARTICLE_DATA.content;
     
     const [headers, setHeaders] = useState([]);
     const [activeHeader, setActiveHeader] = useState("");
-    const [tags, setTags] = useState([]);
     const [stats, setStats] = useState({ wordCount: 0, readTime: 0 });
+    const [showScrollTop, setShowScrollTop] = useState(false);
 
     // 1. 预处理
     const contentWithSyntax = useMemo(() => {
         let text = displayMarkdown || ""; // 防空
-        const foundTags = [];
-        // 匹配标签
+        // 匹配标签（仅用于内容内标签的样式化，不再提取到顶部显示）
         text = text.replace(/(\s|^)#([\w\u4e00-\u9fa5]+)/g, (m, p, t) => {
-            foundTags.push(t);
             return `${p}<span class="md-tag-inline">#${t}</span>`;
         });
         // 匹配自定义语法
         text = text.replace(/\+\+(.*?)\+\+/g, '<span class="custom-underline-red">$1</span>')
             .replace(/\^\^(.*?)\^\^/g, '<span class="custom-underline-wavy">$1</span>')
             .replace(/==(.*?)==/g, '<span class="custom-watercolor">$1</span>');
-            
-        setTimeout(() => setTags([...new Set(foundTags)]), 0);
         return text;
     }, [displayMarkdown]);
 
@@ -307,8 +308,20 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
 
     // 3. 滚动监听 (维持原状，用于更新目录高亮)
     useEffect(() => {
+        // 获取滚动容器：如果有 ID 则获取元素，否则默认是 window
         const target = scrollContainerId ? document.getElementById(scrollContainerId) : window;
+        
         const handleScroll = () => {
+            // A. 获取当前的滚动距离
+            // 注意：window 和 element 的获取方式不同
+            const currentScrollTop = scrollContainerId 
+                ? target.scrollTop 
+                : (window.pageYOffset || document.documentElement.scrollTop);
+
+            // B. 设置显隐阈值 (例如滚动超过 300px 显示)
+            setShowScrollTop(currentScrollTop > 300);
+
+            // C. 原有的目录高亮逻辑 (保持不变)
             if (headers.length === 0) return;
             for (const header of headers) {
                 const el = document.getElementById(header.slug);
@@ -317,7 +330,13 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
                 }
             }
         };
+
+        // 监听滚动
         target?.addEventListener('scroll', handleScroll, { passive: true });
+        
+        // 初始化时也检查一次（防止刷新后在中间位置不显示）
+        handleScroll();
+
         return () => target?.removeEventListener('scroll', handleScroll);
     }, [headers, scrollContainerId]);
 
@@ -438,9 +457,10 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
                         <header className="mb-10 pb-8 border-b border-slate-100">
                             <div className="flex flex-wrap items-center gap-3 mb-6">
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/30">
-                                    {NOTE_CATEGORY}
+                                    {DEFAULT_ARTICLE_DATA.category}
                                 </span>
-                                {tags.map(tag => (
+                                {/* 只显示文章配置的 tags */}
+                                {DEFAULT_ARTICLE_DATA.tags.map(tag => (
                                     <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
                                         <Icons.Tag className="w-3 h-3 mr-1 opacity-50" />
                                         {tag}
@@ -456,13 +476,13 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
                             </div>
 
                             <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight mb-6">
-                                {NOTE_TITLE}
+                                {DEFAULT_ARTICLE_DATA.title}
                             </h1>
 
                             <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500 font-medium">
                                 <div className="flex items-center gap-2"><Icons.FileText className="w-4 h-4 text-slate-400" /><span>{stats.wordCount} 字</span></div>
                                 <div className="flex items-center gap-2"><Icons.Clock className="w-4 h-4 text-slate-400" /><span>{stats.readTime} 分钟阅读</span></div>
-                                <div className="flex items-center gap-2"><Icons.Calendar className="w-4 h-4 text-slate-400" /><span>{NOTE_DATE}</span></div>
+                                <div className="flex items-center gap-2"><Icons.Calendar className="w-4 h-4 text-slate-400" /><span>{DEFAULT_ARTICLE_DATA.date}</span></div>
                             </div>
                         </header>
 
@@ -489,10 +509,16 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
                 {/* 修复后的按钮：绑定了 handleScrollToTop */}
                 <button
                     onClick={handleScrollToTop}
-                    className="fixed bottom-8 right-8 p-3 bg-white shadow-lg rounded-full border border-slate-100 text-slate-600 hover:-translate-y-1 transition-transform z-50"
+                    className={`
+                        fixed bottom-44 right-10 p-3 
+                        bg-white shadow-[0_4px_12px_rgba(0,0,0,0.08)] rounded-full border border-slate-100 
+                        text-slate-400 hover:text-orange-600 hover:border-orange-200 hover:-translate-y-1 hover:shadow-lg 
+                        transition-all duration-500 ease-in-out z-40 group
+                        ${showScrollTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}
+                    `}
                     title="返回顶部"
                 >
-                    <Icons.ArrowUp className="w-5 h-5" />
+                    <Icons.ArrowUp className="w-5 h-5 group-hover:animate-bounce" />
                 </button>
             </div>
         </>

@@ -14,6 +14,7 @@ import {
     Leaf // 确保引入了 Leaf 图标
 } from 'lucide-react';
 import packageJson from '../../package.json';
+import FloatingDock from '../components/FloatingActionMenu';
 
 // Search Suggestion Data (Layout specific data)
 const searchSuggestions = [
@@ -257,8 +258,11 @@ export default function Layout({ children, onNavigate }) {
                 </div>
             </nav>
 
-            {/* Main Content Rendered Here */}
+            {/* 2. 子页面内容 */}
             {children}
+
+            {/* 3. 在这里插入 Floating Dock */}
+            <FloatingDock />
 
             {/* Background Effects */}
             <div className="fixed inset-0 pointer-events-none z-[-1] opacity-40">
