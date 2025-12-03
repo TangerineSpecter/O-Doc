@@ -1,6 +1,6 @@
 # 小橘文档 (O-Doc) 🍊
 
-[![版本](https://img.shields.io/badge/version-0.2.5-blue.svg)](https://github.com/your-username/o-doc)
+[![版本](https://img.shields.io/badge/version-0.2.6-blue.svg)](https://github.com/your-username/o-doc)
 [![React](https://img.shields.io/badge/React-19.x-61dafb.svg?logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-7.x-646cff.svg?logo=vite)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-3.x-06b6d4.svg?logo=tailwindcss)](https://tailwindcss.com/)
