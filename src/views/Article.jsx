@@ -118,15 +118,11 @@ const TableOfContents = ({ headers, activeId, isEmbedded }) => {
     );
 };
 
-// --- Data (重构为 JSON 格式对象，并包含配置的 tags) ---
-const DEFAULT_ARTICLE_DATA = {
-    article_id: "note_001",
-    title: "深度算法分析：从 DFS 到图论的演进",
-    category: "算法与数据结构",
-    date: "2025/11/14",
-    // 顶部标签作为配置数据
-    tags: ["算法基础", "图论", "回溯搜索", "Python"],
-    content: `
+// --- Data (保持不变) ---
+const NOTE_TITLE = "深度算法分析：从 DFS 到图论的演进";
+const NOTE_CATEGORY = "算法与数据结构";
+const NOTE_DATE = "2025/11/14";
+const sampleMarkdown = `
 > “细节不是细节，它们构成了设计。” —— Charles Eames
 
 本笔记整理了 **DFS** 的核心概念与代码模板，包含数学公式推导与复杂度分析。
@@ -185,7 +181,11 @@ const DEFAULT_ARTICLE_DATA = {
 
 ---
 
-## 5. 代码模板
+## 5. 知识点标签
+
+#算法 #DFS #图论 #笔记
+
+## 6. 代码模板
 
 以下是通用的 Python 递归模板，注意 \`visited\` 数组的使用。
 
@@ -219,18 +219,18 @@ dfs(graph, '0')
 python dfs_test.py --verbose
 \`\`\`
 
-## 6. 数学推导
+## 7. 数学推导
 
 时间复杂度取决于节点数 $V$ 和边数 $E$。
 在邻接表表示中，复杂度为：
 
-$$ T(V, E) = \\Theta(V + E) $$
+$$T(V, E) = \\Theta(V + E)$$
 
 如果使用邻接矩阵，复杂度则上升为：
 
-$$ T(V, E) = \\Theta(V^2) $$
+$$T(V, E) = \\Theta(V^2)$$
 
-## 7. 流程可视化
+## 8. 流程可视化
 
 算法执行过程如下：
 
@@ -244,67 +244,53 @@ graph TD
     F --> A
 \`\`\`
 
-## 8. 复杂度对比表
+## 9. 复杂度对比表
 
 | 数据结构 | 空间复杂度 | 时间复杂度 (平均) | 稳定性 |
 | :--- | :---: | :---: | :---: |
 | 邻接矩阵 | $O(V^2)$ | $O(1)$ 查询 | 高 |
 | 邻接表 | $O(V+E)$ | $O(Degree)$ 查询 | 变动 |
 | 边列表 | $O(E)$ | $O(E)$ 查询 | 低 |
-`
-};
+`;
 
-/**
- * Article Component
- * @param {object} props
- * @param {object} props.data - 文章数据对象 { title, category, date, content, tags }
- */
-export default function Article({
-    data = DEFAULT_ARTICLE_DATA,
-    isEmbedded,
-    scrollContainerId,
-    onBack
-}) {
-    // 解构所有数据，包括配置的 tags
-    const { title, category, date, content, tags: articleTags } = data;
-
-    const [markdown] = useState(content);
+// content: 外部传入的 markdown 内容
+export default function Article({ isEmbedded, scrollContainerId, onBack, content }) {
+    // 如果没有传入 content，则使用 sampleMarkdown
+    const displayMarkdown = content !== undefined ? content : sampleMarkdown;
+    
     const [headers, setHeaders] = useState([]);
     const [activeHeader, setActiveHeader] = useState("");
-    // 移除 [tags, setTags] 状态，因为标签来自配置
-
+    const [tags, setTags] = useState([]);
     const [stats, setStats] = useState({ wordCount: 0, readTime: 0 });
 
-    // 1. 预处理 (仅处理高亮和内联标签样式)
+    // 1. 预处理
     const contentWithSyntax = useMemo(() => {
-        let text = markdown;
-
-        // 替换内联标签为 HTML 样式 (不进行提取或设置状态)
+        let text = displayMarkdown || ""; // 防空
+        const foundTags = [];
+        // 匹配标签
         text = text.replace(/(\s|^)#([\w\u4e00-\u9fa5]+)/g, (m, p, t) => {
+            foundTags.push(t);
             return `${p}<span class="md-tag-inline">#${t}</span>`;
         });
-
-        // 替换自定义高亮
+        // 匹配自定义语法
         text = text.replace(/\+\+(.*?)\+\+/g, '<span class="custom-underline-red">$1</span>')
             .replace(/\^\^(.*?)\^\^/g, '<span class="custom-underline-wavy">$1</span>')
             .replace(/==(.*?)==/g, '<span class="custom-watercolor">$1</span>');
-
+            
+        setTimeout(() => setTags([...new Set(foundTags)]), 0);
         return text;
-    }, [markdown]);
+    }, [displayMarkdown]);
 
-    // 2. 统计 (只计算字数、阅读时长和目录)
+    // 2. 统计
     useEffect(() => {
-        // --- A. 字数与阅读时长统计 ---
-        const cleanTextContent = markdown.replace(/[#*`>~-]/g, '').trim();
-        const wordCount = cleanTextContent.length;
-
+        const safeText = displayMarkdown || "";
+        const textContent = safeText.replace(/[#*`>~-]/g, '');
         setStats({
-            wordCount: wordCount,
-            readTime: Math.ceil(wordCount / 400)
+            wordCount: textContent.trim().length,
+            readTime: Math.ceil(textContent.trim().length / 400)
         });
 
-        // --- B. 目录 (Headers) 提取 ---
-        const lines = markdown.split('\n');
+        const lines = safeText.split('\n');
         const h = [];
         lines.forEach(line => {
             const match = line.match(/^(#{2,6})\s+(.*)$/);
@@ -317,10 +303,9 @@ export default function Article({
             }
         });
         setHeaders(h);
+    }, [displayMarkdown]);
 
-    }, [markdown]);
-
-    // 3. 滚动监听
+    // 3. 滚动监听 (维持原状，用于更新目录高亮)
     useEffect(() => {
         const target = scrollContainerId ? document.getElementById(scrollContainerId) : window;
         const handleScroll = () => {
@@ -336,8 +321,9 @@ export default function Article({
         return () => target?.removeEventListener('scroll', handleScroll);
     }, [headers, scrollContainerId]);
 
-    // --- 滚动到顶部逻辑 ---
+    // --- 修复：滚动到顶部逻辑 ---
     const handleScrollToTop = () => {
+        // 优先检查是否有指定的滚动容器 ID
         if (scrollContainerId) {
             const container = document.getElementById(scrollContainerId);
             if (container) {
@@ -345,24 +331,33 @@ export default function Article({
                 return;
             }
         }
+        // 否则回退到默认的 window 滚动
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // --- Components (保持不变) ---
+    // --- Components ---
     const components = useMemo(() => ({
-        // ... (保持不变)
+        // 0. 拦截 pre
         pre: ({ children }) => <div className="not-prose">{children}</div>,
+
+        // A. P标签 (公式居中)
         p: ({ children }) => {
             const childrenArray = React.Children.toArray(children);
+
+            // 1. 过滤掉无意义的换行符或空格
             const validChildren = childrenArray.filter(child => {
                 if (typeof child === 'string') {
                     return child.trim().length > 0;
                 }
-                return true;
+                return true; 
             });
+
+            // 2. 检查有效节点是否全部都是公式
             const isMathBlock = validChildren.length > 0 && validChildren.every(child => {
-                return React.isValidElement(child) && child.props?.className?.includes('katex');
+                return React.isValidElement(child) &&
+                    child.props?.className?.includes('katex');
             });
+
             if (isMathBlock) {
                 return (
                     <div className="flex justify-center w-full my-6 overflow-x-auto">
@@ -372,6 +367,8 @@ export default function Article({
             }
             return <p className="mb-4 leading-7 text-justify">{children}</p>;
         },
+
+        // B. 代码块
         code({ node, inline, className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '');
             const lang = match ? match[1] : '';
@@ -395,27 +392,37 @@ export default function Article({
                     </div>
                 );
             }
+
+            // 行内代码
             return (
                 <code className="bg-pink-50 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] mx-1 break-words" {...props}>
                     {children}
                 </code>
             );
         },
+
+        // C. 引用块
         blockquote: ({ children }) => (
-            <blockquote className="not-prose relative my-8 pl-6 pt-4 border-l-4 border-violet-500 bg-gradient-to-r from-violet-50 to-transparent rounded-r-lg text-violet-800 italic flex items-center min-h-[60px]">
+            <blockquote className="not-prose relative my-8 pl-6 pr-10 pt-4 border-l-4 border-violet-500 bg-gradient-to-r from-violet-50 to-transparent rounded-r-lg text-violet-800 italic flex items-center min-h-[60px]">
                 <div className="absolute top-0 right-4 text-6xl text-violet-500/10 font-serif leading-none select-none">”</div>
                 <div className="relative z-10 w-full">{children}</div>
             </blockquote>
         ),
+
+        // D. Checkbox
         input: ({ node, ...props }) => {
             if (props.type === 'checkbox') return <input type="checkbox" defaultChecked={props.checked} className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded cursor-pointer" />;
             return <input {...props} />;
         },
+
         h2: ({ children }) => <h2 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h2>,
         h3: ({ children }) => <h3 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h3>,
+        h4: ({ children }) => <h4 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h4>,
+        h5: ({ children }) => <h5 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h5>,
         table: ({ children }) => <div className="overflow-x-auto my-8 border border-gray-200 rounded-lg"><table className="w-full text-sm text-left my-0">{children}</table></div>,
         th: ({ children }) => <th className="bg-gray-50 px-4 py-3 font-semibold text-gray-700 border-b border-gray-200">{children}</th>,
         td: ({ children }) => <td className="px-4 py-3 border-b border-gray-100 text-gray-600">{children}</td>
+
     }), []);
 
     return (
@@ -430,33 +437,32 @@ export default function Article({
                         {/* Header */}
                         <header className="mb-10 pb-8 border-b border-slate-100">
                             <div className="flex flex-wrap items-center gap-3 mb-6">
-                                {/* 顶部大标签 (category) */}
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/30">
-                                    {category}
+                                    {NOTE_CATEGORY}
                                 </span>
-                                {/* 配置的 tags 数组 */}
-                                {articleTags.map(tag => (
+                                {tags.map(tag => (
                                     <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
                                         <Icons.Tag className="w-3 h-3 mr-1 opacity-50" />
                                         {tag}
                                     </span>
                                 ))}
 
-                                <button onClick={onBack} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                                    <Icons.ArrowLeft className="w-4 h-4" />
-                                    返回文集
-                                </button>
+                                {onBack && (
+                                    <button onClick={onBack} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                                        <Icons.ArrowLeft className="w-4 h-4" />
+                                        返回文集
+                                    </button>
+                                )}
                             </div>
 
                             <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight mb-6">
-                                {title}
+                                {NOTE_TITLE}
                             </h1>
 
                             <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500 font-medium">
-                                {/* 统计数据显示 */}
                                 <div className="flex items-center gap-2"><Icons.FileText className="w-4 h-4 text-slate-400" /><span>{stats.wordCount} 字</span></div>
                                 <div className="flex items-center gap-2"><Icons.Clock className="w-4 h-4 text-slate-400" /><span>{stats.readTime} 分钟阅读</span></div>
-                                <div className="flex items-center gap-2"><Icons.Calendar className="w-4 h-4 text-slate-400" /><span>{date}</span></div>
+                                <div className="flex items-center gap-2"><Icons.Calendar className="w-4 h-4 text-slate-400" /><span>{NOTE_DATE}</span></div>
                             </div>
                         </header>
 
@@ -480,6 +486,7 @@ export default function Article({
                     />
                 </main>
 
+                {/* 修复后的按钮：绑定了 handleScrollToTop */}
                 <button
                     onClick={handleScrollToTop}
                     className="fixed bottom-8 right-8 p-3 bg-white shadow-lg rounded-full border border-slate-100 text-slate-600 hover:-translate-y-1 transition-transform z-50"

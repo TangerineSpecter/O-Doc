@@ -3,7 +3,9 @@ import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-rout
 import Layout from './layout/Layout';
 import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';
-import LoginPage from './views/LoginPage'; // 新增引入
+import LoginPage from './views/LoginPage';
+import EditorPage from './views/EditorPage';
+
 
 // HomePage的路由包装组件
 function HomeRoute() {
@@ -97,6 +99,9 @@ function AppWithRouter() {
         </Layout>
       } />
       <Route path="/login" element={<LoginPage />} /> {/* 新增路由：登录页不使用Layout */}
+      {/* 新增编辑器路由 - 不使用 Layout，提供全屏体验 */}
+      <Route path="/editor" element={<EditorPage />} />
+      <Route path="/editor/:docId" element={<EditorPage />} />
     </Routes>
   );
 }
