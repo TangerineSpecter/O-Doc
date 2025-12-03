@@ -400,7 +400,7 @@ export default function HomePage({ onNavigate }) {
                                     </div>
                                     <span className="bg-slate-50 text-slate-400 text-[10px] font-semibold px-1.5 py-0.5 rounded min-w-[1.5rem] text-center">{item.count}</span>
                                 </div>
-                                <p className="text-slate-500 text-xs line-clamp-2 leading-relaxed mb-2 h-8">{item.description}</p>
+                                <p className="text-slate-500 text-xs line-clamp-2 leading-relaxed mb-2">{item.description}</p>
                             </div>
 
                             {/* Article List */}
