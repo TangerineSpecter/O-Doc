@@ -4,7 +4,7 @@
 [![React](https://img.shields.io/badge/React-19.x-61dafb.svg?logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-7.x-646cff.svg?logo=vite)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-3.x-06b6d4.svg?logo=tailwindcss)](https://tailwindcss.com/)
-[![许可证](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![许可证](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](frontend_vue/LICENSE)
 
 一个现代化的知识管理与文档展示平台，基于 React + Vite + Tailwind CSS 构建，专为团队知识记录、文档管理和信息共享而设计。
 
@@ -12,19 +12,19 @@
 
 > 首页展示
 <div align="center">
-  <img src="src/doc/image.png" alt="小橘文档界面预览" width="80%" />
+  <img src="frontend_vue/src/doc/image.png" alt="小橘文档界面预览" width="80%" />
   <p><em>小橘文档 - 现代化知识管理界面</em></p>
 </div>
 
 > 文集目录
 <div align="center">
-  <img src="src/doc/image-1.png" alt="小橘文档界面预览" width="80%" />
+  <img src="frontend_vue/src/doc/image-1.png" alt="小橘文档界面预览" width="80%" />
   <p><em>小橘文档 - 现代化知识管理界面</em></p>
 </div>
 
 > 文章详情展示
 <div align="center">
-  <img src="src/doc/image-2.png" alt="小橘文档界面预览" width="80%" />
+  <img src="frontend_vue/src/doc/image-2.png" alt="小橘文档界面预览" width="80%" />
   <p><em>小橘文档 - 现代化知识管理界面</em></p>
 </div>
 
@@ -152,7 +152,7 @@ src/
 
 ## 📄 许可证
 
-Apache License 2.0 - 详见 [LICENSE](LICENSE) 文件
+Apache License 2.0 - 详见 [LICENSE](frontend_vue/LICENSE) 文件
 
 ---
 
