@@ -73,15 +73,11 @@ WSGI_APPLICATION = 'o_doc.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-# 测试接口：http://127.0.0.1:8000/user/test
+# 使用SQLite数据库，无需额外安装
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('MYSQL_DATABASE', 'db_todo_list'),
-        'USER': os.environ.get('MYSQL_USER', 'orange'),
-        'PASSWORD': os.environ.get('MYSQL_PASSWORD', 'JwvQD2of0Uj1dgNtPfPJ'),
-        'HOST': os.environ.get('MYSQL_HOST', 'localhost'),
-        'PORT': os.environ.get('MYSQL_PORT', '3306'),
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',  # 数据库文件将保存在项目根目录
     }
 }
 

@@ -50,4 +50,10 @@ if [ -d "$PROJECT_ROOT/dist/assets" ]; then
     echo "已将 assets 文件夹复制到 $STATIC_DIR"
 fi
 
+# 将 favicon.svg 复制到 static 文件夹下
+if [ -f "$PROJECT_ROOT/dist/favicon.svg" ]; then
+    cp "$PROJECT_ROOT/dist/favicon.svg" "$STATIC_DIR"
+    echo "已将 favicon.svg 复制到 $STATIC_DIR"
+fi
+
 echo "文件复制完成，更新操作已完成"

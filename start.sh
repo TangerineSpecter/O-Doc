@@ -12,7 +12,7 @@ python manage.py collectstatic --noinput
 # 启动 Gunicorn 服务器
 # exec 命令会用后面的命令替换掉当前的 shell 进程
 # 这样做是 Docker 推荐的最佳实践，可以正确地处理信号
-# --bind 0.0.0.0:12088 表示监听所有网络接口的 12088 端口
+# --bind 0.0.0.0:11800 表示监听所有网络接口的11800端口
 # o_doc.wsgi 是你的项目的 WSGI 应用程序入口
 echo "开始启动服务..."
-exec gunicorn --bind 0.0.0.0:11808 o_doc.wsgi:application
+exec gunicorn --bind 0.0.0.0:11800 o_doc.wsgi:application

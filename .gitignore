@@ -13,6 +13,15 @@ dist-ssr
 *.local
 package-lock.json
 
+# Python compiled cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build outputs (generated files)
+templates/index.html
+static/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

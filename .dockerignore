@@ -1,0 +1,26 @@
+# 忽略前端源码目录
+frontend_vue/
+
+# 忽略版本控制目录
+.git/
+.gitignore
+
+# 忽略依赖和构建目录
+.vite/
+node_modules/
+dist/
+
+# 忽略临时文件
+*.log
+*.tmp
+.tmp/
+
+# 忽略IDE配置
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 忽略操作系统文件
+.DS_Store
+Thumbs.db
