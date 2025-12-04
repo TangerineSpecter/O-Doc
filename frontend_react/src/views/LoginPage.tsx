@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Leaf } from 'lucide-react';
+import { login } from '../api/user';
 
 // 1. 定义子组件的 Props 类型
 interface FloatingCitrusProps {
@@ -50,14 +51,25 @@ export default function LoginPage() {
     const [formData, setFormData] = useState({ email: '', password: '' });
 
     // 4. 给表单提交事件加类型
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
-        // 模拟登录请求
-        setTimeout(() => {
+
+        try {
+            // 这里的 res 已经是后端返回的 data 部分了（因为拦截器处理过）
+            const res = await login(formData);
+            console.log('登录成功:', res);
+
+            // 保存 token
+            localStorage.setItem('token', res.token);
+
+            navigate('/');
+        } catch (error) {
+            console.error('登录失败');
+            // 这里可以加一个 Toast 提示错误
+        } finally {
             setIsLoading(false);
-            navigate('/'); // 登录成功跳转首页
-        }, 800);
+        }
     };
 
     return (

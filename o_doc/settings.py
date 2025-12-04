@@ -27,7 +27,7 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 # Application definition
-DEFAULT_PORT = "11808"
+DEFAULT_PORT = "11800"
 
 INSTALLED_APPS = [
     'django.contrib.contenttypes',

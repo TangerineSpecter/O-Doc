@@ -112,7 +112,7 @@ cd ..
 python manage.py migrate  # 创建数据库表
 python manage.py runserver
 ```
-后端服务运行在 http://localhost:8000
+后端服务运行在 http://localhost:11800
 
 #### 启动前端开发服务器
 ```bash
@@ -130,7 +130,7 @@ cd frontend_react
 cd ..
 python manage.py runserver
 ```
-访问 http://localhost:8000 查看完整应用
+访问 http://localhost:11800 查看完整应用
 
 ### 代码检查
 ```bash
@@ -146,7 +146,7 @@ cd ..
 docker build -t o-doc .
 
 # 运行 Docker 容器
-docker run -p 8000:8000 o-doc
+docker run -p 8000:11800 o-doc
 ```
 访问 http://localhost:8000 查看应用
 
@@ -219,7 +219,7 @@ python manage.py runserver
 docker build -t o-doc .
 
 # 运行容器
-docker run -d -p 8000:8000 --name o-doc-container o-doc
+docker run -d -p 8000:11800 --name o-doc-container o-doc
 
 # 查看日志
 docker logs -f o-doc-container
