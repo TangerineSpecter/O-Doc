@@ -12,10 +12,12 @@ import {
     Clock,
     FileText,
     Leaf,
-    ArrowUpCircle 
+    ArrowUpCircle
 } from 'lucide-react';
 // 保留原始引用，本地环境可以正常解析
 import packageJson from '../../package.json';
+import FloatingActionMenu from '../components/FloatingActionMenu';
+
 
 // Search Suggestion Data (Layout specific data)
 const searchSuggestions = [
@@ -33,13 +35,13 @@ const compareVersions = (remoteVersion, localVersion) => {
     // 移除可能存在的 'v' 前缀
     const v1 = remoteVersion.replace(/^v/, '').split('.').map(Number);
     const v2 = localVersion.replace(/^v/, '').split('.').map(Number);
-    
+
     const len = Math.max(v1.length, v2.length);
-    
+
     for (let i = 0; i < len; i++) {
         const num1 = v1[i] || 0;
         const num2 = v2[i] || 0;
-        
+
         if (num1 > num2) return 1;  // 远程版本更大
         if (num1 < num2) return -1; // 本地版本更大
     }
@@ -109,7 +111,7 @@ export default function Layout({ children, onNavigate }) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 console.log("Selected:", searchSuggestions[searchIndex].title);
-                setIsSearchOpen(false); 
+                setIsSearchOpen(false);
             }
         };
 
@@ -120,7 +122,7 @@ export default function Layout({ children, onNavigate }) {
     // Focus Input on Open
     useEffect(() => {
         if (isSearchOpen) {
-            setSearchIndex(0); 
+            setSearchIndex(0);
             setTimeout(() => searchInputRef.current?.focus(), 50);
         }
     }, [isSearchOpen]);
@@ -224,10 +226,10 @@ export default function Layout({ children, onNavigate }) {
                                     rounded-[4px] shadow-[0_0_8px_rgba(132,204,22,0.2)] 
                                     hover:shadow-[0_0_15px_rgba(132,204,22,0.4)] hover:-translate-y-0.5 
                                     transition-all duration-300 cursor-pointer relative overflow-hidden
-                                    ${hasNewVersion 
-                                        ? 'bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-300' 
-                                        : 'bg-lime-50 border border-lime-200 text-lime-800 hover:bg-lime-100 hover:border-lime-300'
-                                    }`}
+                                    ${hasNewVersion
+                                            ? 'bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-300'
+                                            : 'bg-lime-50 border border-lime-200 text-lime-800 hover:bg-lime-100 hover:border-lime-300'
+                                        }`}
                                     onClick={handleVersionClick}
                                     title={hasNewVersion ? `发现新版本 ${latestVersionStr}，点击前往更新` : "点击前往 GitHub 仓库"}
                                 >
@@ -237,7 +239,7 @@ export default function Layout({ children, onNavigate }) {
                                     ) : (
                                         <Leaf className="w-3 h-3 text-lime-600 fill-lime-200/50 group-hover:fill-lime-500 group-hover:text-lime-700 group-hover:rotate-12 transition-all duration-300" />
                                     )}
-                                    
+
                                     <span className="text-[11px] font-bold tracking-wide font-mono relative z-10">
                                         v{packageJson.version}
                                     </span>
@@ -327,8 +329,12 @@ export default function Layout({ children, onNavigate }) {
                 </div>
             </nav>
 
-            {/* Main Content Rendered Here */}
+            {/* 2. 子页面内容 */}
             {children}
+
+            {/* 3. 在这里插入 Floating Dock */}
+            <FloatingActionMenu />
+
 
             {/* Background Effects */}
             <div className="fixed inset-0 pointer-events-none z-[-1] opacity-40">
