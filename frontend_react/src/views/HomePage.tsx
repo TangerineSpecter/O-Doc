@@ -2,13 +2,45 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     ChevronDown, BookOpen, FileText, Cpu, Layers, Zap, Globe, Filter,
     ArrowUpDown, ArrowUp, Lock, Cloud, Folder, Briefcase, Layout, Box,
-    Hexagon, Command, Target, Grid, HardDrive, PenTool, Archive, User,
-    Activity, Database, Shield, Smartphone, Code, Terminal, Server, Plus,
+    Hexagon, Command, Target, Grid, HardDrive, PenTool, Archive,
+    Activity, Database, Shield, Code, Terminal, Server, Plus,
     X, Check, Search
 } from 'lucide-react';
 
+// 1. 定义数据接口
+interface ArticleSummary {
+    article_id: string;
+    title: string;
+    date: string;
+}
+
+interface Collection {
+    id: number;
+    coll_id: string;
+    title: string;
+    count: number;
+    icon: React.ReactNode; // 存储组件实例
+    isTop: boolean;
+    permission: 'public' | 'private'; // 联合类型，限制只能是这两个字符串
+    description: string;
+    articles: ArticleSummary[];
+}
+
+// 2. 定义 HomePage 的 Props 接口
+interface HomePageProps {
+    onNavigate: (viewName: string, params?: any) => void;
+}
+
 // --- Expanded Icons for Selection ---
-const availableIcons = [
+// 这里给数组加个类型断言，或者定义 IconItem 接口
+interface IconItem {
+    id: string;
+    icon: React.ReactElement<any>;
+    color: string;
+}
+
+// --- Expanded Icons for Selection ---
+const availableIcons: IconItem[] = [
     { id: 'book', icon: <BookOpen />, color: "text-blue-500" },
     { id: 'code', icon: <Code />, color: "text-sky-500" },
     { id: 'server', icon: <Server />, color: "text-violet-500" },
@@ -32,7 +64,7 @@ const availableIcons = [
 ];
 
 // --- 1. 手动精选数据 ---
-const manualData = [
+const manualData: Collection[] = [
     {
         id: 1,
         coll_id: "col_deploy_001",
@@ -184,7 +216,7 @@ const initialCollectionsData = [...manualData, ...generatedData];
 
 
 // 接收 onNavigate 属性
-export default function HomePage({ onNavigate }) {
+export default function HomePage({ onNavigate }: HomePageProps) {
     const [collections, setCollections] = useState(initialCollectionsData);
 
     // Filter & Sort State
@@ -255,7 +287,14 @@ export default function HomePage({ onNavigate }) {
 
     const handleCreateCollection = () => {
         if (!newCollectionData.title) return;
-        const selectedIcon = availableIcons.find(i => i.id === newCollectionData.iconId);
+
+        // 1. 查找图标
+        const foundIcon = availableIcons.find(i => i.id === newCollectionData.iconId);
+
+        // 2. 解决 "可能为未定义"：如果找不到，就默认用第一个图标（兜底）
+        const selectedIcon = foundIcon || availableIcons[0];
+
+        // 3. 这里的 cloneElement 现在应该不会报错了，因为我们在接口里定义了 ReactElement<any>
         const iconElement = React.cloneElement(selectedIcon.icon, {
             className: `w-4 h-4 ${selectedIcon.color}`
         });
@@ -297,7 +336,7 @@ export default function HomePage({ onNavigate }) {
                                 <input
                                     type="text"
                                     placeholder='请输入文集名称，最多 20 个字'
-                                    maxLength="20"
+                                    maxLength={20}
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
                                     value={newCollectionData.title}
                                     onChange={(e) => setNewCollectionData({ ...newCollectionData, title: e.target.value })}
@@ -313,7 +352,7 @@ export default function HomePage({ onNavigate }) {
                                 <textarea
                                     rows={3}
                                     placeholder='请在此处输入文集的简介说明，最多支持 100 个字。'
-                                    maxLength="100"
+                                    maxLength={100}
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm resize-none"
                                     value={newCollectionData.description}
                                     onChange={(e) => setNewCollectionData({ ...newCollectionData, description: e.target.value })}
@@ -349,7 +388,7 @@ export default function HomePage({ onNavigate }) {
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            
+
                 {/* Filter Bar */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-white p-3 rounded-xl shadow-sm border border-slate-100">
                     <div className="relative">

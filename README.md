@@ -7,7 +7,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-3.x-06b6d4.svg?logo=tailwindcss)](https://tailwindcss.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-3.x-003b57.svg?logo=sqlite)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-26.0+-2496ed.svg?logo=docker)](https://www.docker.com/)
-[![许可证](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](frontend_vue/LICENSE)
+[![许可证](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](frontend_react/LICENSE)
 
 一个现代化的知识管理与文档展示平台，基于 Django 5 + React + Vite + Tailwind CSS 构建的一体化项目，专为团队知识记录、文档管理和信息共享而设计，支持 Docker 容器化部署。
 
@@ -15,19 +15,19 @@
 
 > 首页展示
 <div align="center">
-  <img src="frontend_vue/src/doc/image.png" alt="小橘文档界面预览" width="80%" />
+  <img src="frontend_react/src/doc/image.png" alt="小橘文档界面预览" width="80%" />
   <p><em>小橘文档 - 现代化知识管理界面</em></p>
 </div>
 
 > 文集目录
 <div align="center">
-  <img src="frontend_vue/src/doc/image-1.png" alt="小橘文档界面预览" width="80%" />
+  <img src="frontend_react/src/doc/image-1.png" alt="小橘文档界面预览" width="80%" />
   <p><em>小橘文档 - 现代化知识管理界面</em></p>
 </div>
 
 > 文章详情展示
 <div align="center">
-  <img src="frontend_vue/src/doc/image-2.png" alt="小橘文档界面预览" width="80%" />
+  <img src="frontend_react/src/doc/image-2.png" alt="小橘文档界面预览" width="80%" />
   <p><em>小橘文档 - 现代化知识管理界面</em></p>
 </div>
 
@@ -47,10 +47,13 @@
 
 ### 前端框架
 - **React 19** - 最新的 React 版本，提供卓越的开发体验
+- **TypeScript** - 静态类型检查，提升代码质量与开发效率
 - **Vite** - 下一代前端构建工具，极速的开发服务器
 
 ### 样式与UI
 - **Tailwind CSS** - 实用优先的 CSS 框架，快速构建现代化界面
+- **Tailwind Merge** - 智能合并 Tailwind CSS 类名
+- **Class Variance Authority** - 用于构建变体组件的工具
 - **Lucide React** - 美观的图标库，提供丰富的图标选择
 
 ### 文档处理
@@ -58,14 +61,22 @@
 - **Mermaid** - 支持多种图表类型的可视化库
 - **KaTeX** - 高性能的数学公式渲染引擎
 - **React Syntax Highlighter** - 代码高亮显示组件
+- **Rehype Raw** - 支持在 Markdown 中使用原始 HTML
+- **Remark GFM** - 支持 GitHub Flavored Markdown
 
 ### 路由与导航
-- **React Router DOM** - 声明式的路由管理库
+- **React Router DOM 7** - 声明式的路由管理库
+
+### 数据处理与可视化
+- **Axios** - 强大的 HTTP 客户端，用于 API 请求
+- **Day.js** - 轻量级的日期时间处理库
+- **Recharts** - 基于 React 的图表库，用于数据可视化
 
 ### 开发工具
 - **ESLint** - 代码质量检查与格式化
 - **PostCSS** - CSS 后处理工具链
 - **Autoprefixer** - 自动添加 CSS 浏览器前缀
+- **TypeScript ESLint** - TypeScript 代码质量检查
 - **Docker** - 容器化部署工具
 
 ### 构建与部署
@@ -75,8 +86,8 @@
 ## 🚀 快速开始
 
 ### 环境要求
-- Python 3.10+
-- Node.js 20.19+ 或 22.12+
+- Python 3.11+
+- Node.js 22.12+
 - npm 或 yarn 包管理器
 - Docker (可选，用于容器化部署)
 
@@ -89,7 +100,7 @@ pip install -r requirements.txt
 
 #### 前端依赖
 ```bash
-cd frontend_vue
+cd frontend_react
 npm install
 cd ..
 ```
@@ -105,7 +116,7 @@ python manage.py runserver
 
 #### 启动前端开发服务器
 ```bash
-cd frontend_vue
+cd frontend_react
 npm run dev
 ```
 前端开发服务器运行在 http://localhost:5173
@@ -114,7 +125,7 @@ npm run dev
 
 #### 构建前端并集成到后端
 ```bash
-cd frontend_vue
+cd frontend_react
 ./update.sh  # 构建前端并将产物复制到 Django 目录
 cd ..
 python manage.py runserver
@@ -124,7 +135,7 @@ python manage.py runserver
 ### 代码检查
 ```bash
 # 前端代码检查
-cd frontend_vue
+cd frontend_react
 npm run lint
 cd ..
 ```
@@ -141,49 +152,8 @@ docker run -p 8000:8000 o-doc
 
 ## 📁 项目结构
 
-### 一体化项目结构
-```
-O-Doc/
-├── frontend_vue/        # 前端项目目录
-│   ├── src/             # 前端源代码
-│   │   ├── App.jsx      # 主应用组件
-│   │   ├── main.jsx     # 应用入口文件
-│   │   ├── layout/      # 布局组件
-│   │   ├── views/       # 页面视图
-│   │   └── doc/         # 文档内容
-│   ├── vite.config.js   # Vite 配置文件
-│   ├── update.sh        # 前端构建与集成脚本
-│   └── package.json     # 前端依赖配置
-├── o_doc/               # Django 项目目录
-│   ├── settings.py      # Django 配置文件
-│   ├── urls.py          # URL 路由配置
-│   └── wsgi.py          # WSGI 入口文件
-├── templates/           # Django 模板目录
-│   └── index.html       # 前端构建后的入口模板
-├── static/              # Django 静态资源目录
-│   └── assets/          # 前端构建后的静态资源
-├── requirements.txt     # 后端依赖配置
-├── manage.py            # Django 管理脚本
-├── Dockerfile           # Docker 构建文件
-└── start.sh             # 项目启动脚本
-```
-
-### 前端项目结构
-```
-frontend_vue/src/
-├── App.jsx              # 主应用组件
-├── main.jsx             # 应用入口文件
-├── index.css            # 全局样式文件
-├── assets/              # 静态资源目录
-├── layout/              # 布局组件
-│   └── Layout.jsx       # 主布局组件
-├── views/               # 页面视图
-│   ├── HomePage.jsx     # 首页组件
-│   ├── Article.jsx      # 文章详情组件
-│   └── ArticleOutline.jsx  # 文章大纲组件
-└── doc/                 # 文档内容目录
-    └── frontend_doc/    # 前端文档
-```
+项目的详细结构信息请参考独立文档：
+- **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - 完整的项目结构说明
 
 ## ✨ 核心功能
 
@@ -231,7 +201,7 @@ frontend_vue/src/
 ```bash
 # 安装依赖
 pip install -r requirements.txt
-cd frontend_vue
+cd frontend_react
 npm install
 
 # 构建前端并集成
@@ -273,7 +243,7 @@ docker logs -f o-doc-container
 
 ## 📄 许可证
 
-Apache License 2.0 - 详见 [LICENSE](frontend_vue/LICENSE) 文件
+Apache License 2.0 - 详见 [LICENSE](frontend_react/LICENSE) 文件
 
 ---
 

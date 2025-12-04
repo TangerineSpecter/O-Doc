@@ -1,12 +1,11 @@
-import React from 'react';
-import { 
-    FileText, Database, Clock, Layers, Hash, Calendar, 
-    MousePointer, BookOpen, Download 
+import {
+    FileText, Database, Clock, Layers, Hash, Calendar,
+    MousePointer, BookOpen, Download
 } from 'lucide-react';
 // 1. 引入 Recharts 组件
-import { 
+import {
     LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area 
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 
 // --- 模拟数据 ---
@@ -64,8 +63,14 @@ const TOP_DURATION = [
     { id: 5, title: '算法导论 - 动态规划', value: '415h' },
 ];
 
+interface CustomTooltipProps {
+    active?: boolean;
+    payload?: any[];
+    label?: string;
+}
+
 // --- 自定义 Tooltip 组件 (为了匹配 UI 风格) ---
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
         return (
             <div className="bg-white p-3 border border-slate-100 shadow-lg rounded-xl text-xs">
@@ -88,7 +93,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function StatisticsPage() {
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            
+
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
                 <div>
@@ -163,7 +168,7 @@ export default function StatisticsPage() {
 
             {/* --- 2. 核心图表区 --- */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                
+
                 {/* 2.1 用户行为透视 (Recharts 双轴图表) */}
                 <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-[380px]">
                     <div className="flex justify-between items-start mb-6">
@@ -174,62 +179,62 @@ export default function StatisticsPage() {
                             </h3>
                         </div>
                     </div>
-                    
+
                     <div className="flex-1 w-full text-xs">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={HOURLY_DATA} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis 
-                                    dataKey="hour" 
-                                    tick={{ fill: '#94a3b8', fontSize: 10 }} 
-                                    axisLine={false} 
+                                <XAxis
+                                    dataKey="hour"
+                                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                                    axisLine={false}
                                     tickLine={false}
                                     interval={3} // 每隔3个显示一个
                                 />
                                 {/* 左轴：访问次数 */}
-                                <YAxis 
-                                    yAxisId="left" 
-                                    tick={{ fill: '#f97316', fontSize: 10 }} 
-                                    axisLine={false} 
-                                    tickLine={false} 
+                                <YAxis
+                                    yAxisId="left"
+                                    tick={{ fill: '#f97316', fontSize: 10 }}
+                                    axisLine={false}
+                                    tickLine={false}
                                     label={{ value: '次数', angle: -90, position: 'insideLeft', fill: '#fdba74', fontSize: 10 }}
                                 />
                                 {/* 右轴：阅读时长 */}
-                                <YAxis 
-                                    yAxisId="right" 
-                                    orientation="right" 
-                                    tick={{ fill: '#3b82f6', fontSize: 10 }} 
-                                    axisLine={false} 
-                                    tickLine={false} 
+                                <YAxis
+                                    yAxisId="right"
+                                    orientation="right"
+                                    tick={{ fill: '#3b82f6', fontSize: 10 }}
+                                    axisLine={false}
+                                    tickLine={false}
                                     label={{ value: '时长(分)', angle: 90, position: 'insideRight', fill: '#93c5fd', fontSize: 10 }}
                                 />
                                 <Tooltip content={<CustomTooltip />} />
-                                <Legend 
-                                    iconType="circle" 
+                                <Legend
+                                    iconType="circle"
                                     iconSize={8}
                                     wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
                                 />
                                 {/* 曲线配置 */}
-                                <Line 
-                                    yAxisId="left" 
-                                    type="monotone" 
-                                    dataKey="visits" 
-                                    name="访问次数" 
-                                    stroke="#f97316" 
-                                    strokeWidth={2} 
-                                    dot={false} 
+                                <Line
+                                    yAxisId="left"
+                                    type="monotone"
+                                    dataKey="visits"
+                                    name="访问次数"
+                                    stroke="#f97316"
+                                    strokeWidth={2}
+                                    dot={false}
                                     activeDot={{ r: 4, strokeWidth: 0 }}
                                     unit="次"
                                 />
-                                <Line 
-                                    yAxisId="right" 
-                                    type="monotone" 
-                                    dataKey="duration" 
-                                    name="平均阅读时长" 
-                                    stroke="#3b82f6" 
-                                    strokeWidth={2} 
-                                    strokeDasharray="4 4" 
-                                    dot={false} 
+                                <Line
+                                    yAxisId="right"
+                                    type="monotone"
+                                    dataKey="duration"
+                                    name="平均阅读时长"
+                                    stroke="#3b82f6"
+                                    strokeWidth={2}
+                                    strokeDasharray="4 4"
+                                    dot={false}
                                     activeDot={{ r: 4, strokeWidth: 0 }}
                                     unit="分"
                                 />
@@ -245,31 +250,31 @@ export default function StatisticsPage() {
                         创作习惯分析
                     </h3>
                     <p className="text-xs text-slate-400 mb-6">每周各天发文分布</p>
-                    
+
                     <div className="flex-1 w-full text-xs">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={WEEKLY_PUBLISH} barSize={20}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis 
-                                    dataKey="day" 
-                                    tick={{ fill: '#94a3b8', fontSize: 10 }} 
-                                    axisLine={false} 
-                                    tickLine={false} 
+                                <XAxis
+                                    dataKey="day"
+                                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                                    axisLine={false}
+                                    tickLine={false}
                                 />
                                 <YAxis hide />
-                                <Tooltip 
-                                    cursor={{ fill: '#f1f5f9' }} 
-                                    content={<CustomTooltip />} 
+                                <Tooltip
+                                    cursor={{ fill: '#f1f5f9' }}
+                                    content={<CustomTooltip />}
                                 />
-                                <Bar 
-                                    dataKey="count" 
-                                    name="发文数" 
-                                    fill="#10b981" 
-                                    radius={[4, 4, 0, 0]} 
+                                <Bar
+                                    dataKey="count"
+                                    name="发文数"
+                                    fill="#10b981"
+                                    radius={[4, 4, 0, 0]}
                                     unit="篇"
                                 >
                                     {/* 渐变色填充 */}
-                                    {WEEKLY_PUBLISH.map((entry, index) => (
+                                    {WEEKLY_PUBLISH.map((_, index) => (
                                         <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#10b981' : '#34d399'} />
                                     ))}
                                 </Bar>
@@ -304,9 +309,9 @@ export default function StatisticsPage() {
                                     ))}
                                 </Pie>
                                 <Tooltip content={<CustomTooltip />} />
-                                <Legend 
-                                    layout="vertical" 
-                                    verticalAlign="middle" 
+                                <Legend
+                                    layout="vertical"
+                                    verticalAlign="middle"
                                     align="right"
                                     iconType="circle"
                                     iconSize={8}
@@ -336,7 +341,7 @@ export default function StatisticsPage() {
 
             {/* --- 4. 深度榜单 (Top Rankings) --- */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                
+
                 {/* 4.1 访问次数排行榜 */}
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">

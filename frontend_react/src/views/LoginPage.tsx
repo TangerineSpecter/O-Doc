@@ -2,10 +2,18 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Leaf } from 'lucide-react';
 
-// --- 背景装饰组件：漂浮的橘子切片 ---
-const FloatingCitrus = ({ className, size = 200, rotation = 0, delay = 0 }) => (
+// 1. 定义子组件的 Props 类型
+interface FloatingCitrusProps {
+    className?: string; // 可选
+    size?: number;      // 可选
+    rotation?: number;  // 可选
+    delay?: number;     // 可选
+}
+
+// 2. 给子组件加上类型注解
+const FloatingCitrus = ({ className, size = 200, rotation = 0, delay = 0 }: FloatingCitrusProps) => (
     <div
-        className={`absolute pointer-events-none opacity-10 select-none ${className}`}
+        className={`absolute pointer-events-none opacity-10 select-none ${className || ''}`}
         style={{
             animation: `float 6s ease-in-out infinite`,
             animationDelay: `${delay}s`
@@ -18,11 +26,9 @@ const FloatingCitrus = ({ className, size = 200, rotation = 0, delay = 0 }) => (
             fill="none"
             style={{ transform: `rotate(${rotation}deg)` }}
         >
-            <circle cx="50" cy="50" r="48" fill="#FDBA74" /> {/* 果皮 */}
-            <circle cx="50" cy="50" r="42" fill="#FFF7ED" /> {/* 白瓤 */}
-            <circle cx="50" cy="50" r="40" fill="#FB923C" /> {/* 果肉底色 */}
-
-            {/* 果肉瓣 */}
+            <circle cx="50" cy="50" r="48" fill="#FDBA74" />
+            <circle cx="50" cy="50" r="42" fill="#FFF7ED" />
+            <circle cx="50" cy="50" r="40" fill="#FB923C" />
             <g stroke="#FFF7ED" strokeWidth="2">
                 <line x1="50" y1="50" x2="50" y2="10" />
                 <line x1="50" y1="50" x2="90" y2="50" />
@@ -40,9 +46,11 @@ const FloatingCitrus = ({ className, size = 200, rotation = 0, delay = 0 }) => (
 export default function LoginPage() {
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
+    // 3. 这里的 formData 不需要显式定义接口，TS 会自动推断为 { email: string, password: string }
     const [formData, setFormData] = useState({ email: '', password: '' });
 
-    const handleLogin = (e) => {
+    // 4. 给表单提交事件加类型
+    const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         // 模拟登录请求
@@ -54,21 +62,17 @@ export default function LoginPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-
-            {/* --- 背景装饰层 --- */}
-
-            {/* 1. 原版渐变背景元素 (恢复) */}
+            {/* 背景装饰层 */}
             <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-orange-100/40 to-transparent pointer-events-none"></div>
             <div className="absolute -left-20 top-20 w-72 h-72 bg-orange-200/20 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute -right-20 bottom-20 w-96 h-96 bg-blue-200/20 rounded-full blur-3xl pointer-events-none"></div>
 
-            {/* 2. 新版漂浮装饰元素 (保留) */}
             <FloatingCitrus className="-top-10 -left-10 text-orange-400 opacity-20" size={260} rotation={-15} delay={0} />
             <FloatingCitrus className="bottom-10 -right-10 text-orange-300 opacity-20" size={180} rotation={30} delay={2} />
             <Leaf className="absolute top-1/4 right-20 w-12 h-12 text-lime-500/20 rotate-45 animate-pulse pointer-events-none" />
             <Leaf className="absolute bottom-1/4 left-10 w-8 h-8 text-lime-600/10 -rotate-12 animate-pulse delay-700 pointer-events-none" />
 
-            {/* --- 主内容区 --- */}
+            {/* 主内容区 */}
             <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
                 <div className="flex justify-center mb-6 cursor-pointer" onClick={() => navigate('/')}>
                     <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-orange-50 border border-orange-100 shadow-md">
@@ -180,7 +184,6 @@ export default function LoginPage() {
                 </p>
             </div>
 
-            {/* CSS 动画注入 */}
             <style>{`
                 @keyframes float {
                     0% { transform: translateY(0px) rotate(0deg); }

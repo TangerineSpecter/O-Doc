@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BookOpen,
   ChevronRight,
@@ -7,14 +7,24 @@ import {
   Home,
   Menu,
   Plus, // 新增 Plus 图标
-  FileText, // 新增 FileText
   X // 新增 X 关闭图标
 } from 'lucide-react';
 // 确保 Article.jsx 在同一目录下，如果路径不同请修改这里
 import Article from './Article';
 
+// 1. 定义文档数据结构接口
+interface DocItem {
+  id: string;
+  article_id: string;
+  title: string;
+  date: string;
+  type: string;
+  children?: DocItem[]; // 递归定义：子节点也是 DocItem 数组
+  parent?: DocItem | null; // 扁平化时会用到
+}
+
 // --- 1. 补回丢失的数据定义 (docData) ---
-const docData = [
+const docData: DocItem[] = [
   {
     id: '1',
     article_id: 'simple-run',
@@ -99,9 +109,9 @@ const docData = [
 ];
 
 // --- 2. 补回辅助函数 (flattenDocs) ---
-const flattenDocs = (data) => {
-  let flat = [];
-  const recurse = (items, parent = null) => {
+const flattenDocs = (data: DocItem[]) => {
+  let flat: DocItem[] = [];
+  const recurse = (items: DocItem[], parent?: DocItem | null) => {
     items.forEach(item => {
       flat.push({ ...item, parent });
       if (item.children) recurse(item.children, item);
@@ -111,29 +121,37 @@ const flattenDocs = (data) => {
   return flat;
 };
 
+// 4. Props 接口
+interface ArticleOutlineProps {
+  onNavigate?: (viewName: string, params?: any) => void;
+  collId?: string;
+  title?: string;
+  articleId?: string;
+}
+
 const allDocs = flattenDocs(docData);
 
 // --- 搜索过滤函数 ---
-const filterDocs = (docs, searchTerm) => {
+const filterDocs = (docs: DocItem[], searchTerm: string) => {
   if (!searchTerm.trim()) return docs;
-  
-  const filtered = [];
-  
-  const search = (doc) => {
+
+  const filtered: DocItem[] = [];
+
+  const search = (doc: DocItem): DocItem | null => {
     // 检查当前文档是否匹配搜索词
     const matches = doc.title.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     // 递归检查子文档
     const matchedChildren = [];
     if (doc.children && doc.children.length > 0) {
       for (const child of doc.children) {
-        const matchedChild = search(child);
+        const matchedChild: DocItem | null = search(child);
         if (matchedChild) {
           matchedChildren.push(matchedChild);
         }
       }
     }
-    
+
     // 如果当前文档匹配或有匹配的子文档，则保留该文档
     if (matches || matchedChildren.length > 0) {
       return {
@@ -141,10 +159,10 @@ const filterDocs = (docs, searchTerm) => {
         children: matchedChildren
       };
     }
-    
+
     return null;
   };
-  
+
   // 遍历所有根文档
   for (const doc of docs) {
     const matchedDoc = search(doc);
@@ -152,15 +170,15 @@ const filterDocs = (docs, searchTerm) => {
       filtered.push(matchedDoc);
     }
   }
-  
+
   return filtered;
 };
 
 // --- 组件定义 ---
-export default function ArticleOutline({ onNavigate, collId, title, articleId }) {
+export default function ArticleOutline({ onNavigate, collId, title, articleId }: ArticleOutlineProps) {
 
   // 状态初始化：直接使用传入的 articleId (article_id)
-  const [activeDocId, setActiveDocId] = useState(articleId);
+  const [activeDocId, setActiveDocId] = useState<string | undefined>(articleId);
 
   const [expandedIds, setExpandedIds] = useState(['2', '2-1']);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -177,14 +195,14 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
     }
   }, [articleId]);
 
-  const toggleExpand = (e, id) => {
+  const toggleExpand = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setExpandedIds(prev =>
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
   };
 
-  const handleSelectDoc = (docId) => {
+  const handleSelectDoc = (docId: string) => {
     // 查找对应的文档对象以获取article_id
     const selectedDoc = allDocs.find(doc => doc.id === docId);
     if (selectedDoc && selectedDoc.article_id) {
@@ -210,7 +228,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
   // ---------------------------
 
   // --- 侧边栏 Item 渲染 ---
-  const renderSidebarItem = (item, level = 0) => {
+  const renderSidebarItem = (item: DocItem, level = 0) => {
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedIds.includes(item.id);
     const isActive = activeDocId === item.article_id;
@@ -241,7 +259,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
 
         {hasChildren && isExpanded && (
           <div>
-            {item.children.map(child => renderSidebarItem(child, level + 1))}
+            {item.children?.map(child => renderSidebarItem(child, level + 1))}
           </div>
         )}
       </div>
@@ -250,7 +268,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
 
   // --- 默认显示的大纲页面 (Home Content) ---
   const renderHomeContent = () => {
-    const renderRow = (item, level = 0) => {
+    const renderRow = (item: DocItem, level = 0) => {
       const paddingLeft = level * 32;
       const isTopLevel = level === 0;
 
@@ -287,7 +305,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
               <div className="w-12 h-12 bg-white rounded-xl border border-orange-100 shadow-sm flex items-center justify-center text-orange-500 flex-shrink-0">
                 <BookOpen size={24} strokeWidth={2.5} />
               </div>
-              <div className="md:max-w-xl"> 
+              <div className="md:max-w-xl">
                 <h1 className="text-2xl font-bold text-slate-800 tracking-tight mb-1">{title || '小橘文档 · 知识库'}</h1>
                 <p className="text-slate-500 text-sm mb-3">记录产品部署、开发指南与最佳实践。记录产品部署、开发指南与最佳实践。记录产品部署、开发指南与最佳实践。记录产品部署、开发指南与最佳实践。记录产品部署、开发指南与最佳实践。记录产品部署、开发指南与最佳实践。</p>
                 <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-600 shadow-sm">
@@ -359,7 +377,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
       >
         <div
           onClick={() => {
-            setActiveDocId(null);
+            setActiveDocId(undefined);
             // 更新路由地址到文集首页
             if (onNavigate) {
               onNavigate('article', { collId });
@@ -436,7 +454,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId })
             <Article
               // 1. 传递返回回调
               onBack={() => {
-                setActiveDocId(null);
+                setActiveDocId(undefined);
                 // 更新路由地址到文集首页
                 if (onNavigate) {
                   onNavigate('article', { collId });

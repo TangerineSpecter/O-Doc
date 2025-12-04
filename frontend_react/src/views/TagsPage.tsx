@@ -1,9 +1,30 @@
 import React, { useState, useMemo } from 'react';
-import { 
-    Tag, Hash, Search, FileText, Clock, ChevronRight, 
+import {
+    Tag, Hash, Search, FileText, Clock, ChevronRight,
     Filter, BookOpen, Plus, MoreHorizontal, LayoutGrid, List,
     Edit, Trash, X, Save, AlertTriangle
 } from 'lucide-react';
+
+interface TagItem {
+    id: string;
+    name: string;
+    count: number;
+    themeId: string;
+}
+
+interface ArticleItem {
+    id: string;
+    title: string;
+    desc: string;
+    date: string;
+    readTime: number;
+    collection: string;
+}
+
+interface TagFormData {
+    name: string;
+    themeId: string;
+}
 
 // --- 1. 颜色主题配置 (与分类页保持一致) ---
 const COLOR_THEMES = [
@@ -19,24 +40,24 @@ const COLOR_THEMES = [
 ];
 
 // --- 2. 初始模拟数据 (使用 themeId) ---
-const INITIAL_TAGS = [
+const INITIAL_TAGS: TagItem[] = [
     { id: 'react', name: 'React', count: 45, themeId: 'blue' },
     { id: 'vue', name: 'Vue.js', count: 32, themeId: 'emerald' },
     { id: 'tailwind', name: 'Tailwind CSS', count: 28, themeId: 'cyan' },
     { id: 'docker', name: 'Docker', count: 15, themeId: 'sky' },
     { id: 'deploy', name: '自动化部署', count: 12, themeId: 'orange' },
     { id: 'backend', name: '后端架构', count: 38, themeId: 'violet' },
-    { id: 'db', name: 'Database', count: 24, themeId: 'slate' }, 
-    { id: 'api', name: 'RESTful API', count: 19, themeId: 'pink' }, 
+    { id: 'db', name: 'Database', count: 24, themeId: 'slate' },
+    { id: 'api', name: 'RESTful API', count: 19, themeId: 'pink' },
     { id: 'perf', name: '性能优化', count: 9, themeId: 'amber' },
     { id: 'linux', name: 'Linux', count: 42, themeId: 'slate' },
 ];
 
 // 生成一些模拟文章
-const generateArticles = (tagId, tags) => {
+const generateArticles = (tagId: string, tags: TagItem[]): ArticleItem[] => {
     const collections = ['小橘部署指南', 'API 开发手册', '微服务架构设计', '前端组件库', '最佳实践'];
     const tagName = tags.find(t => t.id === tagId)?.name || '技术';
-    
+
     return Array.from({ length: Math.floor(Math.random() * 8) + 4 }).map((_, i) => ({
         id: `art-${tagId}-${i}`,
         title: `${tagId === 'all' ? '技术' : tagName} 相关技术深度解析 - 第 ${i + 1} 部分`,
@@ -48,19 +69,19 @@ const generateArticles = (tagId, tags) => {
 };
 
 export default function TagsPage() {
-    const [tags, setTags] = useState(INITIAL_TAGS);
+    const [tags, setTags] = useState<TagItem[]>(INITIAL_TAGS);
     const [selectedTagId, setSelectedTagId] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState('list');
 
     // --- Modal State (Create/Edit) ---
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingTag, setEditingTag] = useState(null); 
-    const [formData, setFormData] = useState({ name: '', themeId: 'blue' });
+    const [editingTag, setEditingTag] = useState<TagItem | null>(null);
+    const [formData, setFormData] = useState<TagFormData>({ name: '', themeId: 'blue' });
 
     // --- Delete Modal State ---
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [tagToDelete, setTagToDelete] = useState(null);
+    const [tagToDelete, setTagToDelete] = useState<string | null>(null);
 
     // --- Actions ---
     const handleOpenCreate = () => {
@@ -69,14 +90,14 @@ export default function TagsPage() {
         setIsModalOpen(true);
     };
 
-    const handleOpenEdit = (tag) => {
+    const handleOpenEdit = (tag: TagItem) => {
         setEditingTag(tag);
         setFormData({ name: tag.name, themeId: tag.themeId || 'slate' });
         setIsModalOpen(true);
     };
 
     // 触发删除确认弹窗
-    const handleDeleteTag = (tagId) => {
+    const handleDeleteTag = (tagId: string) => {
         setTagToDelete(tagId);
         setIsDeleteModalOpen(true);
     };
@@ -91,7 +112,7 @@ export default function TagsPage() {
         setTagToDelete(null);
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.name.trim()) return;
 
@@ -100,7 +121,7 @@ export default function TagsPage() {
             setTags(prev => prev.map(t => t.id === editingTag.id ? { ...t, ...formData } : t));
         } else {
             // Create
-            const newTag = {
+            const newTag: TagItem = {
                 id: `tag-${Date.now()}`,
                 count: 0,
                 ...formData
@@ -111,7 +132,7 @@ export default function TagsPage() {
     };
 
     // --- Helpers ---
-    const getThemeStyles = (themeId) => COLOR_THEMES.find(t => t.id === themeId) || COLOR_THEMES[0];
+    const getThemeStyles = (themeId: string | undefined) => COLOR_THEMES.find(t => t.id === themeId) || COLOR_THEMES[0];
 
     // --- Derived State ---
     const filteredTags = useMemo(() => {
@@ -132,7 +153,7 @@ export default function TagsPage() {
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24">
-            
+
             {/* Delete Confirmation Modal (NEW) */}
             {isDeleteModalOpen && (
                 <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -152,13 +173,13 @@ export default function TagsPage() {
                                 确定要删除该标签吗？删除后，已关联该标签的文章将自动移除此标签关联。
                             </p>
                             <div className="flex justify-end gap-3">
-                                <button 
+                                <button
                                     onClick={() => setIsDeleteModalOpen(false)}
                                     className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                                 >
                                     取消
                                 </button>
-                                <button 
+                                <button
                                     onClick={confirmDelete}
                                     className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm"
                                 >
@@ -183,15 +204,15 @@ export default function TagsPage() {
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        
+
                         <form onSubmit={handleSubmit} className="p-6 space-y-5">
                             {/* Name */}
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1.5">标签名称 <span className="text-red-500">*</span></label>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     value={formData.name}
-                                    onChange={e => setFormData({...formData, name: e.target.value})}
+                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                                     placeholder="例如：React"
                                     autoFocus
@@ -206,11 +227,11 @@ export default function TagsPage() {
                                         <button
                                             key={theme.id}
                                             type="button"
-                                            onClick={() => setFormData({...formData, themeId: theme.id})}
+                                            onClick={() => setFormData({ ...formData, themeId: theme.id })}
                                             className={`
                                                 flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all
-                                                ${formData.themeId === theme.id 
-                                                    ? `${theme.bg} ${theme.text} ${theme.border} ring-1 ring-offset-1 ring-${theme.text.split('-')[1]}-500` 
+                                                ${formData.themeId === theme.id
+                                                    ? `${theme.bg} ${theme.text} ${theme.border} ring-1 ring-offset-1 ring-${theme.text.split('-')[1]}-500`
                                                     : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}
                                             `}
                                         >
@@ -222,14 +243,14 @@ export default function TagsPage() {
                             </div>
 
                             <div className="flex justify-end gap-3 pt-2">
-                                <button 
+                                <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
                                     className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                                 >
                                     取消
                                 </button>
-                                <button 
+                                <button
                                     type="submit"
                                     disabled={!formData.name.trim()}
                                     className="px-4 py-2 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -256,15 +277,15 @@ export default function TagsPage() {
                 <div className="flex gap-3">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input 
-                            type="text" 
-                            placeholder="搜索标签..." 
+                        <input
+                            type="text"
+                            placeholder="搜索标签..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all w-64 shadow-sm"
                         />
                     </div>
-                    <button 
+                    <button
                         onClick={handleOpenCreate}
                         className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm"
                     >
@@ -274,10 +295,10 @@ export default function TagsPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-                
+
                 {/* --- Left Sidebar: Tags Cloud --- */}
                 <div className="lg:col-span-1 sticky top-[90px] h-[calc(100vh-140px)] flex flex-col gap-4">
-                    
+
                     {/* Tag Stats Widget */}
                     <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-4 text-white shadow-lg relative overflow-hidden shrink-0">
                         <Hash className="absolute -right-4 -bottom-4 w-20 h-20 text-white opacity-10" />
@@ -298,15 +319,15 @@ export default function TagsPage() {
                             </h3>
                             <span className="text-xs text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">{filteredTags.length}</span>
                         </div>
-                        
+
                         <div className="space-y-1 px-1 pb-2">
                             {/* 'All' Tag */}
                             <button
                                 onClick={() => setSelectedTagId('all')}
                                 className={`
                                     w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all
-                                    ${selectedTagId === 'all' 
-                                        ? 'bg-slate-800 text-white shadow-md' 
+                                    ${selectedTagId === 'all'
+                                        ? 'bg-slate-800 text-white shadow-md'
                                         : 'text-slate-600 hover:bg-slate-50'}
                                 `}
                             >
@@ -325,15 +346,15 @@ export default function TagsPage() {
                             {filteredTags.map(tag => {
                                 const isSelected = selectedTagId === tag.id;
                                 const theme = getThemeStyles(tag.themeId);
-                                
+
                                 return (
                                     <button
                                         key={tag.id}
                                         onClick={() => setSelectedTagId(tag.id)}
                                         className={`
                                             w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all group
-                                            ${isSelected 
-                                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' 
+                                            ${isSelected
+                                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
                                                 : 'text-slate-600 hover:bg-slate-50'}
                                         `}
                                     >
@@ -353,7 +374,7 @@ export default function TagsPage() {
 
                 {/* --- Right Content: Article List --- */}
                 <div className="lg:col-span-3">
-                    
+
                     {/* List Header */}
                     <div className="flex items-center justify-between mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                         <div className="flex items-center gap-2">
@@ -368,20 +389,20 @@ export default function TagsPage() {
                             <span className="text-sm text-slate-500">
                                 筛选出 <strong>{displayArticles.length}</strong> 篇文章
                             </span>
-                            
+
                             {/* Edit/Delete Actions */}
-                            {selectedTagId !== 'all' && (
+                            {selectedTagId !== 'all' && activeTag && (
                                 <div className="flex items-center gap-1 ml-2 pl-3 border-l border-slate-200">
-                                    <button 
+                                    <button
                                         onClick={() => handleOpenEdit(activeTag)}
-                                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors" 
+                                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
                                         title="编辑标签"
                                     >
                                         <Edit className="w-3.5 h-3.5" />
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => handleDeleteTag(activeTag.id)}
-                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" 
+                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                         title="删除标签"
                                     >
                                         <Trash className="w-3.5 h-3.5" />
@@ -389,16 +410,16 @@ export default function TagsPage() {
                                 </div>
                             )}
                         </div>
-                        
+
                         <div className="flex items-center gap-2">
                             <div className="flex bg-slate-100 p-1 rounded-lg">
-                                <button 
+                                <button
                                     onClick={() => setViewMode('list')}
                                     className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
                                     <List className="w-4 h-4" />
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => setViewMode('grid')}
                                     className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
@@ -415,7 +436,7 @@ export default function TagsPage() {
                     {/* Articles Grid/List */}
                     <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
                         {displayArticles.map((article) => (
-                            <div 
+                            <div
                                 key={article.id}
                                 className="group bg-white rounded-2xl p-5 border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all duration-300 cursor-pointer relative overflow-hidden"
                             >

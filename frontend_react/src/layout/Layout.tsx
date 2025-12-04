@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import {
     Search,
     Bell,
@@ -18,6 +18,11 @@ import {
 import packageJson from '../../package.json';
 import FloatingActionMenu from '../components/FloatingActionMenu';
 
+// 1. 定义 Layout 的 Props 接口
+interface LayoutProps {
+    children: ReactNode; // children 是 React 组件的标准类型
+    onNavigate?: (viewName: string, params?: any) => void; // 定义回调函数的形状
+}
 
 // Search Suggestion Data (Layout specific data)
 const searchSuggestions = [
@@ -31,7 +36,7 @@ const searchSuggestions = [
 // 返回 1: remote > local (需要更新)
 // 返回 -1: remote < local (本地较新)
 // 返回 0: 相等
-const compareVersions = (remoteVersion, localVersion) => {
+const compareVersions = (remoteVersion: string, localVersion: string) => {
     // 移除可能存在的 'v' 前缀
     const v1 = remoteVersion.replace(/^v/, '').split('.').map(Number);
     const v2 = localVersion.replace(/^v/, '').split('.').map(Number);
@@ -48,9 +53,9 @@ const compareVersions = (remoteVersion, localVersion) => {
     return 0;
 };
 
-export default function Layout({ children, onNavigate }) {
+export default function Layout({ children, onNavigate }: LayoutProps) {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const searchInputRef = useRef(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
     const [searchIndex, setSearchIndex] = useState(0);
 
     // --- 版本检查状态 ---
@@ -88,7 +93,7 @@ export default function Layout({ children, onNavigate }) {
 
     // Keyboard Navigation for Search
     useEffect(() => {
-        const handleKeyDown = (e) => {
+        const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
                 setIsSearchOpen((prev) => !prev);

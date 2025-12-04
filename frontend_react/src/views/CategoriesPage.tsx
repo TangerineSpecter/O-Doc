@@ -1,13 +1,30 @@
 import React, { useState, useMemo } from 'react';
-import { 
-    Folder, FolderOpen, Search, FileText, Clock, ChevronRight, 
-    Filter, BookOpen, Plus, MoreHorizontal, LayoutGrid, List, Layers,
-    Server, PenTool, Globe, Users, Database, Box, Calendar, Edit, Trash,
-    X, Check, Inbox, Save, AlertCircle, AlertTriangle
+import {
+    Folder, FolderOpen, Search, FileText, Clock,
+    Plus, MoreHorizontal, LayoutGrid, List, Layers,
+    Server, PenTool, Globe, Users, Database, Box, Edit, Trash,
+    X, Inbox, Save, AlertTriangle
 } from 'lucide-react';
 
+interface CategoryItem {
+    id: string;
+    name: string;
+    count: number;
+    description: string;
+    iconKey: string;
+    themeId: string;
+    isSystem?: boolean;
+}
+
+interface CategoryFormData {
+    name: string;
+    description: string;
+    themeId: string;
+    iconKey: string;
+}
+
 // --- 1. 图标映射池 (用于新建/编辑时选择) ---
-const ICON_MAP = {
+const ICON_MAP: Record<string, React.ReactElement<{ className?: string }>> = {
     Layers: <Layers className="w-5 h-5" />,
     Server: <Server className="w-5 h-5" />,
     Database: <Database className="w-5 h-5" />,
@@ -30,56 +47,56 @@ const COLOR_THEMES = [
 ];
 
 // --- 3. 初始数据 ---
-const INITIAL_CATEGORIES = [
-    { 
-        id: 'all', 
-        name: '全部分类', 
-        count: 383, 
-        description: '浏览知识库所有文档', 
-        iconKey: 'Layers', 
-        themeId: 'slate',
-        isSystem: true 
-    },
-    { 
-        id: 'uncategorized', 
-        name: '未分类', 
-        count: 12, 
-        description: '暂未关联任何分类的文档', 
-        iconKey: 'Box', 
+const INITIAL_CATEGORIES: CategoryItem[] = [
+    {
+        id: 'all',
+        name: '全部分类',
+        count: 383,
+        description: '浏览知识库所有文档',
+        iconKey: 'Layers',
         themeId: 'slate',
         isSystem: true
     },
-    { 
-        id: 'tech', 
-        name: '技术研发', 
-        count: 128, 
-        description: '后端架构、前端开发及代码规范', 
-        iconKey: 'Server', 
-        themeId: 'blue' 
+    {
+        id: 'uncategorized',
+        name: '未分类',
+        count: 12,
+        description: '暂未关联任何分类的文档',
+        iconKey: 'Box',
+        themeId: 'slate',
+        isSystem: true
     },
-    { 
-        id: 'product', 
-        name: '产品设计', 
-        count: 64, 
-        description: 'PRD文档、UI设计稿及交互规范', 
-        iconKey: 'PenTool', 
-        themeId: 'pink' 
+    {
+        id: 'tech',
+        name: '技术研发',
+        count: 128,
+        description: '后端架构、前端开发及代码规范',
+        iconKey: 'Server',
+        themeId: 'blue'
     },
-    { 
-        id: 'ops', 
-        name: '运维部署', 
-        count: 42, 
-        description: '服务器配置、Docker及CI/CD', 
-        iconKey: 'Database', 
-        themeId: 'emerald' 
+    {
+        id: 'product',
+        name: '产品设计',
+        count: 64,
+        description: 'PRD文档、UI设计稿及交互规范',
+        iconKey: 'PenTool',
+        themeId: 'pink'
     },
-    { 
-        id: 'marketing', 
-        name: '市场运营', 
-        count: 35, 
-        description: '活动策划、SEO及数据分析', 
-        iconKey: 'Globe', 
-        themeId: 'orange' 
+    {
+        id: 'ops',
+        name: '运维部署',
+        count: 42,
+        description: '服务器配置、Docker及CI/CD',
+        iconKey: 'Database',
+        themeId: 'emerald'
+    },
+    {
+        id: 'marketing',
+        name: '市场运营',
+        count: 35,
+        description: '活动策划、SEO及数据分析',
+        iconKey: 'Globe',
+        themeId: 'orange'
     },
 ];
 
@@ -87,10 +104,10 @@ const INITIAL_CATEGORIES = [
 const TAG_POOL = ['基础', '进阶', '最佳实践', 'React', 'Vue', 'Docker', 'API', '设计规范', '运维', '数据库'];
 
 // 生成模拟文章
-const generateArticles = (catId, categories) => {
+const generateArticles = (catId: string, categories: CategoryItem[]) => {
     const category = categories.find(c => c.id === catId);
     const catName = category ? category.name : '未知';
-    
+
     return Array.from({ length: Math.floor(Math.random() * 6) + 4 }).map((_, i) => {
         const tagCount = Math.floor(Math.random() * 3) + 1; // 减少标签数量，避免卡片过挤
         const shuffled = [...TAG_POOL].sort(() => 0.5 - Math.random());
@@ -108,7 +125,7 @@ const generateArticles = (catId, categories) => {
 };
 
 // 颜色辅助函数
-const getTagStyle = (tag) => {
+const getTagStyle = (tag: string) => {
     let hash = 0;
     for (let i = 0; i < tag.length; i++) { hash = tag.charCodeAt(i) + ((hash << 5) - hash); }
     const palettes = [
@@ -123,7 +140,13 @@ const getTagStyle = (tag) => {
 };
 
 // --- 组件：标签列表 ---
-const TagList = ({ tags, limit = 2, justify = "start" }) => { // limit 默认为 2，适合卡片
+interface TagListProps {
+    tags: string[];
+    limit?: number;
+    justify?: "start" | "end";
+}
+
+const TagList = ({ tags, limit = 2, justify = "start" }: TagListProps) => { // limit 默认为 2，适合卡片
     const displayTags = tags.slice(0, limit);
     const remaining = tags.length - limit;
     return (
@@ -141,20 +164,20 @@ const TagList = ({ tags, limit = 2, justify = "start" }) => { // limit 默认为
 };
 
 export default function CategoriesPage() {
-    const [categories, setCategories] = useState(INITIAL_CATEGORIES);
+    const [categories, setCategories] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
     const [selectedCatId, setSelectedCatId] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState('grid');
-    const [activeMenuId, setActiveMenuId] = useState(null);
+    const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
     // --- Modal State ---
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingCategory, setEditingCategory] = useState(null); // null = create mode
-    const [formData, setFormData] = useState({ name: '', description: '', themeId: 'blue', iconKey: 'Folder' });
+    const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null); // null = create mode
+    const [formData, setFormData] = useState<CategoryFormData>({ name: '', description: '', themeId: 'blue', iconKey: 'Folder' });
 
     // --- Delete Modal State ---
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [categoryToDelete, setCategoryToDelete] = useState(null);
+    const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
 
     // --- Actions ---
     const handleOpenCreate = () => {
@@ -163,19 +186,19 @@ export default function CategoriesPage() {
         setIsModalOpen(true);
     };
 
-    const handleOpenEdit = (category) => {
+    const handleOpenEdit = (category: CategoryItem) => {
         setEditingCategory(category);
-        setFormData({ 
-            name: category.name, 
-            description: category.description, 
-            themeId: category.themeId, 
-            iconKey: category.iconKey 
+        setFormData({
+            name: category.name,
+            description: category.description,
+            themeId: category.themeId,
+            iconKey: category.iconKey
         });
         setIsModalOpen(true);
     };
 
     // 触发删除确认弹窗
-    const handleDeleteCategory = (catId) => {
+    const handleDeleteCategory = (catId: string) => {
         setCategoryToDelete(catId);
         setIsDeleteModalOpen(true);
     };
@@ -190,7 +213,7 @@ export default function CategoriesPage() {
         setCategoryToDelete(null);
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.name.trim()) return;
 
@@ -199,7 +222,7 @@ export default function CategoriesPage() {
             setCategories(prev => prev.map(c => c.id === editingCategory.id ? { ...c, ...formData } : c));
         } else {
             // Create
-            const newCat = {
+            const newCat: CategoryItem = {
                 id: `cat-${Date.now()}`,
                 count: 0,
                 isSystem: false,
@@ -226,23 +249,23 @@ export default function CategoriesPage() {
     const activeCategory = categories.find(c => c.id === selectedCatId) || categories[0];
 
     // Helper to get theme styles
-    const getThemeStyles = (themeId) => COLOR_THEMES.find(t => t.id === themeId) || COLOR_THEMES[0];
+    const getThemeStyles = (themeId: string) => COLOR_THEMES.find(t => t.id === themeId) || COLOR_THEMES[0];
 
     // Helper to get icon
-    const getCategoryIcon = (cat) => {
+    const getCategoryIcon = (cat: CategoryItem) => {
         if (cat.id === 'uncategorized') return <Inbox className="w-5 h-5" />;
         return ICON_MAP[cat.iconKey] || <Folder className="w-5 h-5" />;
     };
 
     // Article Menu Actions
-    const handleMenuClick = (e, articleId) => {
+    const handleMenuClick = (e: React.MouseEvent, articleId: string) => {
         e.stopPropagation();
         setActiveMenuId(activeMenuId === articleId ? null : articleId);
     };
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24">
-            
+
             {/* Delete Confirmation Modal (NEW) */}
             {isDeleteModalOpen && (
                 <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -262,13 +285,13 @@ export default function CategoriesPage() {
                                 确定要删除该分类吗？删除后，该分类下的文章将自动归入 <span className="font-bold text-slate-800">未分类</span> 状态。
                             </p>
                             <div className="flex justify-end gap-3">
-                                <button 
+                                <button
                                     onClick={() => setIsDeleteModalOpen(false)}
                                     className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                                 >
                                     取消
                                 </button>
-                                <button 
+                                <button
                                     onClick={confirmDelete}
                                     className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm"
                                 >
@@ -293,15 +316,15 @@ export default function CategoriesPage() {
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        
+
                         <form onSubmit={handleSubmit} className="p-6 space-y-5">
                             {/* Name */}
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1.5">分类名称 <span className="text-red-500">*</span></label>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     value={formData.name}
-                                    onChange={e => setFormData({...formData, name: e.target.value})}
+                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                                     placeholder="例如：技术文档"
                                     autoFocus
@@ -311,9 +334,9 @@ export default function CategoriesPage() {
                             {/* Description */}
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1.5">描述说明</label>
-                                <textarea 
+                                <textarea
                                     value={formData.description}
-                                    onChange={e => setFormData({...formData, description: e.target.value})}
+                                    onChange={e => setFormData({ ...formData, description: e.target.value })}
                                     rows={3}
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all resize-none"
                                     placeholder="简要描述该分类下的内容..."
@@ -328,12 +351,11 @@ export default function CategoriesPage() {
                                         <button
                                             key={key}
                                             type="button"
-                                            onClick={() => setFormData({...formData, iconKey: key})}
-                                            className={`p-2 rounded-lg border transition-all flex-shrink-0 ${
-                                                formData.iconKey === key 
-                                                ? 'bg-orange-50 border-orange-500 text-orange-600 ring-1 ring-orange-500' 
+                                            onClick={() => setFormData({ ...formData, iconKey: key })}
+                                            className={`p-2 rounded-lg border transition-all flex-shrink-0 ${formData.iconKey === key
+                                                ? 'bg-orange-50 border-orange-500 text-orange-600 ring-1 ring-orange-500'
                                                 : 'bg-white border-slate-200 text-slate-400 hover:border-orange-200 hover:text-slate-600'
-                                            }`}
+                                                }`}
                                         >
                                             {React.cloneElement(ICON_MAP[key], { className: "w-5 h-5" })}
                                         </button>
@@ -349,11 +371,11 @@ export default function CategoriesPage() {
                                         <button
                                             key={theme.id}
                                             type="button"
-                                            onClick={() => setFormData({...formData, themeId: theme.id})}
+                                            onClick={() => setFormData({ ...formData, themeId: theme.id })}
                                             className={`
                                                 flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all
-                                                ${formData.themeId === theme.id 
-                                                    ? `${theme.bg} ${theme.text} ${theme.border} ring-1 ring-offset-1 ring-${theme.text.split('-')[1]}-500` 
+                                                ${formData.themeId === theme.id
+                                                    ? `${theme.bg} ${theme.text} ${theme.border} ring-1 ring-offset-1 ring-${theme.text.split('-')[1]}-500`
                                                     : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}
                                             `}
                                         >
@@ -366,14 +388,14 @@ export default function CategoriesPage() {
                             </div>
 
                             <div className="flex justify-end gap-3 pt-2">
-                                <button 
+                                <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
                                     className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                                 >
                                     取消
                                 </button>
-                                <button 
+                                <button
                                     type="submit"
                                     disabled={!formData.name.trim()}
                                     className="px-4 py-2 text-sm text-white bg-orange-600 hover:bg-orange-700 rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -388,7 +410,7 @@ export default function CategoriesPage() {
             )}
 
             {/* Menu Click Overlay */}
-            {activeMenuId && ( <div className="fixed inset-0 z-40" onClick={() => setActiveMenuId(null)}></div> )}
+            {activeMenuId && (<div className="fixed inset-0 z-40" onClick={() => setActiveMenuId(null)}></div>)}
 
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
@@ -403,15 +425,15 @@ export default function CategoriesPage() {
                 <div className="flex gap-3">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input 
-                            type="text" 
-                            placeholder="搜索分类..." 
+                        <input
+                            type="text"
+                            placeholder="搜索分类..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all w-64 shadow-sm"
                         />
                     </div>
-                    <button 
+                    <button
                         onClick={handleOpenCreate}
                         className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors shadow-sm"
                     >
@@ -426,15 +448,15 @@ export default function CategoriesPage() {
                     {filteredCategories.map((cat) => {
                         const isSelected = selectedCatId === cat.id;
                         const theme = getThemeStyles(cat.themeId);
-                        
+
                         return (
                             <button
                                 key={cat.id}
                                 onClick={() => setSelectedCatId(cat.id)}
                                 className={`
                                     flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-300 flex-shrink-0
-                                    ${isSelected 
-                                        ? 'bg-white border-orange-500 ring-1 ring-orange-500/20 shadow-md' 
+                                    ${isSelected
+                                        ? 'bg-white border-orange-500 ring-1 ring-orange-500/20 shadow-md'
                                         : 'bg-white border-slate-200 hover:border-orange-200 hover:shadow-sm'}
                                 `}
                             >
@@ -455,7 +477,7 @@ export default function CategoriesPage() {
 
             {/* --- Section 2: Content List --- */}
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-[500px]">
-                
+
                 {/* List Toolbar & Category Details */}
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-4">
                     <div className="flex-1">
@@ -470,16 +492,16 @@ export default function CategoriesPage() {
                             {/* Edit/Delete Actions (Only for non-system categories) */}
                             {!activeCategory.isSystem && (
                                 <div className="flex items-center gap-1 ml-2 pl-3 border-l border-slate-200">
-                                    <button 
+                                    <button
                                         onClick={() => handleOpenEdit(activeCategory)}
-                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" 
+                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                                         title="编辑分类"
                                     >
                                         <Edit className="w-3.5 h-3.5" />
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => handleDeleteCategory(activeCategory.id)}
-                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" 
+                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                         title="删除分类"
                                     >
                                         <Trash className="w-3.5 h-3.5" />
@@ -491,20 +513,20 @@ export default function CategoriesPage() {
                             {activeCategory.description || "暂无描述"}
                         </p>
                     </div>
-                    
+
                     <div className="flex items-center gap-3 self-end">
                         <span className="text-xs text-slate-400 font-medium hidden sm:inline-block">
                             共 {displayArticles.length} 篇
                         </span>
                         <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
                         <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
-                            <button 
+                            <button
                                 onClick={() => setViewMode('list')}
                                 className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                             >
                                 <List className="w-4 h-4" />
                             </button>
-                            <button 
+                            <button
                                 onClick={() => setViewMode('grid')}
                                 className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                             >
@@ -519,7 +541,7 @@ export default function CategoriesPage() {
                     // Grid View
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                         {displayArticles.map((article) => (
-                            <div 
+                            <div
                                 key={article.id}
                                 className="group bg-white rounded-xl p-4 border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all duration-300 cursor-pointer flex flex-col h-full relative"
                             >
@@ -534,7 +556,7 @@ export default function CategoriesPage() {
                                         </h3>
                                     </div>
                                     <div className="relative shrink-0">
-                                        <button 
+                                        <button
                                             onClick={(e) => handleMenuClick(e, article.id)}
                                             className="p-1 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
                                         >
@@ -542,8 +564,8 @@ export default function CategoriesPage() {
                                         </button>
                                         {activeMenuId === article.id && (
                                             <div className="absolute right-0 top-full mt-1 w-24 bg-white border border-slate-200 rounded-lg shadow-xl z-50 py-1 animate-in fade-in zoom-in-95 duration-200">
-                                                <button onClick={(e) => {e.stopPropagation(); setActiveMenuId(null)}} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-2"><Edit className="w-3 h-3" /> 编辑</button>
-                                                <button onClick={(e) => {e.stopPropagation(); setActiveMenuId(null)}} className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"><Trash className="w-3 h-3" /> 删除</button>
+                                                <button onClick={(e) => { e.stopPropagation(); setActiveMenuId(null) }} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-2"><Edit className="w-3 h-3" /> 编辑</button>
+                                                <button onClick={(e) => { e.stopPropagation(); setActiveMenuId(null) }} className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"><Trash className="w-3 h-3" /> 删除</button>
                                             </div>
                                         )}
                                     </div>
@@ -559,7 +581,7 @@ export default function CategoriesPage() {
                                         <span>{article.date}</span>
                                         <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {article.readTime} 分钟</span>
                                     </div>
-                                    
+
                                     {/* Right: Tags */}
                                     <TagList tags={article.tags} limit={1} justify="end" />
                                 </div>
@@ -570,7 +592,7 @@ export default function CategoriesPage() {
                     // List View
                     <div className="flex flex-col gap-3">
                         {displayArticles.map((article) => (
-                            <div 
+                            <div
                                 key={article.id}
                                 className="group bg-white rounded-xl p-4 border border-slate-200 hover:border-orange-300 hover:shadow-sm transition-all duration-200 cursor-pointer flex items-center gap-4 relative"
                             >
@@ -597,8 +619,8 @@ export default function CategoriesPage() {
                                     <button onClick={(e) => handleMenuClick(e, article.id)} className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors"><MoreHorizontal className="w-4 h-4" /></button>
                                     {activeMenuId === article.id && (
                                         <div className="absolute right-0 top-full mt-1 w-24 bg-white border border-slate-200 rounded-lg shadow-xl z-50 py-1 animate-in fade-in zoom-in-95 duration-200">
-                                            <button onClick={(e) => {e.stopPropagation(); setActiveMenuId(null)}} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-2"><Edit className="w-3 h-3" /> 编辑</button>
-                                            <button onClick={(e) => {e.stopPropagation(); setActiveMenuId(null)}} className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"><Trash className="w-3 h-3" /> 删除</button>
+                                            <button onClick={(e) => { e.stopPropagation(); setActiveMenuId(null) }} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-2"><Edit className="w-3 h-3" /> 编辑</button>
+                                            <button onClick={(e) => { e.stopPropagation(); setActiveMenuId(null) }} className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"><Trash className="w-3 h-3" /> 删除</button>
                                         </div>
                                     )}
                                 </div>
@@ -612,8 +634,8 @@ export default function CategoriesPage() {
                     <div className="flex flex-col items-center justify-center py-24 text-slate-400 bg-white rounded-3xl border border-dashed border-slate-200">
                         <FolderOpen className="w-12 h-12 text-slate-200 mb-3" />
                         <p className="text-sm font-medium">该分类下暂无文档</p>
-                        <button 
-                            onClick={handleOpenCreate} 
+                        <button
+                            onClick={handleOpenCreate}
                             className="mt-4 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-xs rounded-lg hover:border-orange-300 hover:text-orange-600 transition-colors shadow-sm"
                         >
                             创建新文档

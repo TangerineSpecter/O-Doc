@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, ReactNode } from 'react';
 
 // --- 依赖库 ---
 import ReactMarkdown from 'react-markdown';
@@ -11,6 +11,26 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow as darkTheme } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
+
+// 定义 Article 组件接收的参数类型
+interface ArticleProps {
+    isEmbedded?: boolean;        // 可选，布尔值
+    scrollContainerId?: string;  // 可选，字符串
+    onBack?: () => void;         // 可选，函数
+    content?: string;            // 可选，字符串
+    // 如果你后面要把 title, tags 等传进来，也加在这里
+    title?: string;
+    category?: string;
+    tags?: string[];
+    date?: string;
+}
+
+interface HeaderItem {
+    text: string;
+    level: number;
+    slug: string;
+}
+
 
 // --- 强制样式 ---
 const CUSTOM_STYLES = `
@@ -36,18 +56,18 @@ const CUSTOM_STYLES = `
 
 // --- Icons ---
 const Icons = {
-    Tag: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" /><path d="M7 7h.01" /></svg>,
-    Clock: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
-    Calendar: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
-    FileText: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><line x1="10" y1="9" x2="8" y2="9" /></svg>,
-    ArrowUp: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m18 15-6-6-6 6" /></svg>,
-    Copy: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>,
-    Check: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400" {...props}><polyline points="20 6 9 17 4 12" /></svg>,
-    ArrowLeft: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></svg>
+    Tag: (props: React.SVGProps<SVGSVGElement>) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" /><path d="M7 7h.01" /></svg>,
+    Clock: (props: React.SVGProps<SVGSVGElement>) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
+    Calendar: (props: React.SVGProps<SVGSVGElement>) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
+    FileText: (props: React.SVGProps<SVGSVGElement>) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><line x1="10" y1="9" x2="8" y2="9" /></svg>,
+    ArrowUp: (props: React.SVGProps<SVGSVGElement>) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m18 15-6-6-6 6" /></svg>,
+    Copy: (props: React.SVGProps<SVGSVGElement>) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>,
+    Check: (props: React.SVGProps<SVGSVGElement>) => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400" {...props}><polyline points="20 6 9 17 4 12" /></svg>,
+    ArrowLeft: (props: React.SVGProps<SVGSVGElement>) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></svg>
 };
 
 // --- Copy Button ---
-const CopyButton = ({ text }) => {
+const CopyButton = ({ text }: { text: string }) => {
     const [copied, setCopied] = useState(false);
     const handleCopy = () => {
         navigator.clipboard.writeText(text);
@@ -62,7 +82,7 @@ const CopyButton = ({ text }) => {
 };
 
 // --- Mermaid Component ---
-const MermaidChart = ({ chart }) => {
+const MermaidChart = ({ chart }: { chart: string }) => {
     const [svg, setSvg] = useState('');
 
     useEffect(() => {
@@ -93,7 +113,7 @@ const MermaidChart = ({ chart }) => {
 };
 
 // --- TOC ---
-const TableOfContents = ({ headers, activeId, isEmbedded }) => {
+const TableOfContents = ({ headers, activeId, isEmbedded }: { headers: HeaderItem[], activeId: string, isEmbedded: boolean }) => {
     if (!headers?.length) return null;
 
     const visibilityClass = isEmbedded ? 'hidden 2xl:block' : 'hidden xl:block';
@@ -259,20 +279,25 @@ graph TD
 };
 
 // content: 外部传入的 markdown 内容
-export default function Article({ isEmbedded, scrollContainerId, onBack, content }) {
+export default function Article({
+    isEmbedded,
+    scrollContainerId,
+    onBack,
+    content
+}: ArticleProps) {
     // 如果没有传入 content，则使用默认文章数据的 content
     const displayMarkdown = content !== undefined ? content : DEFAULT_ARTICLE_DATA.content;
-    
-    const [headers, setHeaders] = useState([]);
-    const [activeHeader, setActiveHeader] = useState("");
+
+    const [headers, setHeaders] = useState<HeaderItem[]>([]); const [activeHeader, setActiveHeader] = useState("");
     const [stats, setStats] = useState({ wordCount: 0, readTime: 0 });
     const [showScrollTop, setShowScrollTop] = useState(false);
 
     // 1. 预处理
     const contentWithSyntax = useMemo(() => {
+
         let text = displayMarkdown || ""; // 防空
         // 匹配标签（仅用于内容内标签的样式化，不再提取到顶部显示）
-        text = text.replace(/(\s|^)#([\w\u4e00-\u9fa5]+)/g, (m, p, t) => {
+        text = text.replace(/(\s|^)#([\w\u4e00-\u9fa5]+)/g, (_, p, t) => {
             return `${p}<span class="md-tag-inline">#${t}</span>`;
         });
         // 匹配自定义语法
@@ -292,30 +317,30 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
         });
 
         const lines = safeText.split('\n');
-        const h = [];
+        const headerItems: HeaderItem[] = [];
         lines.forEach(line => {
             const match = line.match(/^(#{2,6})\s+(.*)$/);
             if (match) {
-                h.push({
+                headerItems.push({
                     text: match[2].replace(/[*_~`]/g, ''),
                     level: match[1].length,
                     slug: match[2].toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')
                 });
             }
         });
-        setHeaders(h);
+        setHeaders(headerItems);
     }, [displayMarkdown]);
 
     // 3. 滚动监听 (维持原状，用于更新目录高亮)
     useEffect(() => {
         // 获取滚动容器：如果有 ID 则获取元素，否则默认是 window
         const target = scrollContainerId ? document.getElementById(scrollContainerId) : window;
-        
+
         const handleScroll = () => {
             // A. 获取当前的滚动距离
             // 注意：window 和 element 的获取方式不同
-            const currentScrollTop = scrollContainerId 
-                ? target.scrollTop 
+            const currentScrollTop = scrollContainerId
+                ? (target as HTMLElement).scrollTop
                 : (window.pageYOffset || document.documentElement.scrollTop);
 
             // B. 设置显隐阈值 (例如滚动超过 300px 显示)
@@ -333,7 +358,7 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
 
         // 监听滚动
         target?.addEventListener('scroll', handleScroll, { passive: true });
-        
+
         // 初始化时也检查一次（防止刷新后在中间位置不显示）
         handleScroll();
 
@@ -357,10 +382,11 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
     // --- Components ---
     const components = useMemo(() => ({
         // 0. 拦截 pre
-        pre: ({ children }) => <div className="not-prose">{children}</div>,
+        pre: (props: any) => <div className="not-prose">{props.children}</div>,
 
         // A. P标签 (公式居中)
-        p: ({ children }) => {
+        p: (props: any) => {
+            const { children } = props;
             const childrenArray = React.Children.toArray(children);
 
             // 1. 过滤掉无意义的换行符或空格
@@ -368,13 +394,17 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
                 if (typeof child === 'string') {
                     return child.trim().length > 0;
                 }
-                return true; 
+                return true;
             });
 
             // 2. 检查有效节点是否全部都是公式
             const isMathBlock = validChildren.length > 0 && validChildren.every(child => {
-                return React.isValidElement(child) &&
-                    child.props?.className?.includes('katex');
+                if (React.isValidElement(child)) {
+                    // 只有 ReactElement 才有 props 属性
+                    const element = child as React.ReactElement<{ className?: string }>;
+                    return element.props.className?.includes('katex');
+                }
+                return false;
             });
 
             if (isMathBlock) {
@@ -388,7 +418,8 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
         },
 
         // B. 代码块
-        code({ node, inline, className, children, ...props }) {
+        code(props: any) {
+            const { node, inline, className, children, ...rest } = props;
             const match = /language-(\w+)/.exec(className || '');
             const lang = match ? match[1] : '';
             const codeStr = String(children).replace(/\n$/, '');
@@ -407,7 +438,16 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
                                 <CopyButton text={codeStr} />
                             </div>
                         </div>
-                        <SyntaxHighlighter style={darkTheme} language={lang} PreTag="div" customStyle={{ margin: 0, background: 'transparent' }} {...props}>{codeStr}</SyntaxHighlighter>
+                        {/* 这里 SyntaxHighlighter 的 style 可能还需要 ignore 或者在 .d.ts 声明 */}
+                        <SyntaxHighlighter
+                            style={darkTheme}
+                            language={lang}
+                            PreTag="div"
+                            customStyle={{ margin: 0, background: 'transparent' }}
+                            {...rest}
+                        >
+                            {codeStr}
+                        </SyntaxHighlighter>
                     </div>
                 );
             }
@@ -421,7 +461,7 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
         },
 
         // C. 引用块
-        blockquote: ({ children }) => (
+        blockquote: ({ children }: { children: ReactNode }) => (
             <blockquote className="not-prose relative my-8 pl-6 pr-10 pt-4 border-l-4 border-violet-500 bg-gradient-to-r from-violet-50 to-transparent rounded-r-lg text-violet-800 italic flex items-center min-h-[60px]">
                 <div className="absolute top-0 right-4 text-6xl text-violet-500/10 font-serif leading-none select-none">”</div>
                 <div className="relative z-10 w-full">{children}</div>
@@ -429,18 +469,18 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
         ),
 
         // D. Checkbox
-        input: ({ node, ...props }) => {
+        input: (props: any) => {
             if (props.type === 'checkbox') return <input type="checkbox" defaultChecked={props.checked} className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded cursor-pointer" />;
             return <input {...props} />;
         },
 
-        h2: ({ children }) => <h2 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h2>,
-        h3: ({ children }) => <h3 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h3>,
-        h4: ({ children }) => <h4 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h4>,
-        h5: ({ children }) => <h5 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h5>,
-        table: ({ children }) => <div className="overflow-x-auto my-8 border border-gray-200 rounded-lg"><table className="w-full text-sm text-left my-0">{children}</table></div>,
-        th: ({ children }) => <th className="bg-gray-50 px-4 py-3 font-semibold text-gray-700 border-b border-gray-200">{children}</th>,
-        td: ({ children }) => <td className="px-4 py-3 border-b border-gray-100 text-gray-600">{children}</td>
+        h2: ({ children }: { children: ReactNode }) => <h2 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h2>,
+        h3: ({ children }: { children: ReactNode }) => <h3 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h3>,
+        h4: ({ children }: { children: ReactNode }) => <h4 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h4>,
+        h5: ({ children }: { children: ReactNode }) => <h5 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h5>,
+        table: ({ children }: { children: ReactNode }) => <div className="overflow-x-auto my-8 border border-gray-200 rounded-lg"><table className="w-full text-sm text-left my-0">{children}</table></div>,
+        th: ({ children }: { children: ReactNode }) => <th className="bg-gray-50 px-4 py-3 font-semibold text-gray-700 border-b border-gray-200">{children}</th>,
+        td: ({ children }: { children: ReactNode }) => <td className="px-4 py-3 border-b border-gray-100 text-gray-600">{children}</td>
 
     }), []);
 
@@ -491,7 +531,7 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm, remarkMath]}
                                 rehypePlugins={[rehypeKatex, rehypeRaw]}
-                                components={components}
+                                components={components as any}
                             >
                                 {contentWithSyntax}
                             </ReactMarkdown>
@@ -502,7 +542,7 @@ export default function Article({ isEmbedded, scrollContainerId, onBack, content
                     <TableOfContents
                         headers={headers}
                         activeId={activeHeader}
-                        isEmbedded={isEmbedded}
+                        isEmbedded={isEmbedded ?? false}
                     />
                 </main>
 

@@ -1,16 +1,38 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { 
-    Search, Filter, Download, Trash2, FileText, 
-    Image as ImageIcon, Music, Video, Box, FileCode, File, 
+import {
+    Search, Filter, Download, Trash2, FileText,
+    Image as ImageIcon, Music, Video, Box, FileCode, File,
     HardDrive, Cloud, CheckCircle2, Link2Off, X, Loader2, AlertTriangle,
-    Link as LinkIcon, BookOpen
+    BookOpen
 } from 'lucide-react';
 
+interface ArticleSource {
+    id: string;
+    title: string;
+}
+
+interface ResourceItem {
+    id: string;
+    name: string;
+    type: string;
+    size: string;
+    date: string;
+    linked: boolean;
+    sourceArticle: ArticleSource | null;
+}
+
+interface SelectionBox {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+}
+
 // --- 1. 模拟数据生成 (增加 sourceArticle 字段) ---
-const generateMockResources = (count) => {
+const generateMockResources = (count: number): ResourceItem[] => {
     const types = ['doc', 'image', 'video', 'audio', 'code', 'archive', 'design'];
     const names = [
-        '需求说明书', 'UI设计稿', '演示视频', '接口文档', '数据库备份', 
+        '需求说明书', 'UI设计稿', '演示视频', '接口文档', '数据库备份',
         'Logo源文件', '会议记录', '宣传物料', '测试报告', '架构图'
     ];
     // 模拟一些文章来源
@@ -18,13 +40,13 @@ const generateMockResources = (count) => {
         '小橘文档部署指南 v2.0', 'React 组件库设计规范', '后端 API 接口鉴权说明',
         '2025 年度产品规划', 'Q4 运营活动复盘', null, null, null // null 表示未关联
     ];
-    
+
     return Array.from({ length: count }).map((_, i) => {
         const type = types[i % types.length];
         const nameIdx = i % names.length;
         const ext = type === 'doc' ? 'pdf' : type === 'image' ? 'png' : type === 'code' ? 'js' : 'file';
         const sourceTitle = articles[i % articles.length];
-        
+
         return {
             id: `res-${i}`,
             name: `${names[nameIdx]}_v${(i % 5) + 1}.${ext}`,
@@ -40,7 +62,14 @@ const generateMockResources = (count) => {
 const ALL_MOCK_DATA = generateMockResources(200);
 const PAGE_SIZE = 24;
 
-const TYPE_CONFIG = {
+interface TypeConfigItem {
+    label: string;
+    // 修复关键点：指定 ReactElement 接受 className 属性
+    icon: React.ReactElement<{ className?: string }>;
+    color: string;
+}
+
+const TYPE_CONFIG: Record<string, TypeConfigItem> = {
     all: { label: '全部', icon: <HardDrive />, color: 'text-slate-500 bg-slate-100' },
     image: { label: '图片', icon: <ImageIcon />, color: 'text-purple-600 bg-purple-50' },
     doc: { label: '文档', icon: <FileText />, color: 'text-blue-600 bg-blue-50' },
@@ -51,19 +80,22 @@ const TYPE_CONFIG = {
     design: { label: '设计', icon: <File />, color: 'text-pink-600 bg-pink-50' },
 };
 
-const getFileIcon = (type) => (TYPE_CONFIG[type] || TYPE_CONFIG.design).icon;
-const getFileStyle = (type) => (TYPE_CONFIG[type] || TYPE_CONFIG.design).color;
+// 修复关键点：显式声明返回类型
+const getFileIcon = (type: string): React.ReactElement<{ className?: string }> =>
+    (TYPE_CONFIG[type] || TYPE_CONFIG.design).icon;
+
+const getFileStyle = (type: string) => (TYPE_CONFIG[type] || TYPE_CONFIG.design).color;
 
 export default function ResourcesPage() {
     const [activeTab, setActiveTab] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [showUnlinkedOnly, setShowUnlinkedOnly] = useState(false);
-    
-    const [visibleData, setVisibleData] = useState([]);
+
+    const [visibleData, setVisibleData] = useState<ResourceItem[]>([]);
     const [page, setPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [hasMore, setHasMore] = useState(true);
-    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     // --- Delete Modal State ---
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -71,13 +103,13 @@ export default function ResourcesPage() {
     // Refs
     const isLoadingRef = useRef(false);
     const filterVersion = useRef(0);
-    const gridContainerRef = useRef(null); 
+    const gridContainerRef = useRef<HTMLDivElement>(null);
 
     // --- Drag Selection Refs ---
-    const dragStartRef = useRef(null); 
+    const dragStartRef = useRef<{ x: number, y: number } | null>(null);
     const isDraggingRef = useRef(false);
-    const initialSelectionRef = useRef(new Set()); 
-    const [dragSelectionBox, setDragSelectionBox] = useState(null); 
+    const initialSelectionRef = useRef<Set<string>>(new Set());
+    const [dragSelectionBox, setDragSelectionBox] = useState<SelectionBox | null>(null);
 
     // ... Data Loading Logic ...
     const allFilteredData = useMemo(() => {
@@ -91,12 +123,12 @@ export default function ResourcesPage() {
 
     useEffect(() => {
         filterVersion.current += 1;
-        isLoadingRef.current = true; 
+        isLoadingRef.current = true;
         setIsLoading(true);
         setPage(1);
         setHasMore(true);
         setSelectedIds(new Set());
-        setVisibleData([]); 
+        setVisibleData([]);
 
         const currentVersion = filterVersion.current;
         const timer = setTimeout(() => {
@@ -146,8 +178,8 @@ export default function ResourcesPage() {
     }, [loadMore]);
 
     // --- Drag Selection Handlers ---
-    
-    const handleMouseMove = useCallback((e) => {
+
+    const handleMouseMove = useCallback((e: MouseEvent) => {
         if (!isDraggingRef.current || !dragStartRef.current) return;
 
         const currentX = e.clientX;
@@ -179,15 +211,15 @@ export default function ResourcesPage() {
             const id = card.getAttribute('data-id');
 
             const isIntersecting = !(
-                rect.right < selectRect.left || 
-                rect.left > selectRect.right || 
-                rect.bottom < selectRect.top || 
+                rect.right < selectRect.left ||
+                rect.left > selectRect.right ||
+                rect.bottom < selectRect.top ||
                 rect.top > selectRect.bottom
             );
 
-            if (isIntersecting) {
+            if (isIntersecting && id) {
                 newSelectedIds.add(id);
-            } else if (!initialSelectionRef.current.has(id)) {
+            } else if (id && !initialSelectionRef.current.has(id)) {
                 newSelectedIds.delete(id);
             }
         });
@@ -204,13 +236,14 @@ export default function ResourcesPage() {
         document.body.style.userSelect = '';
     }, [handleMouseMove]);
 
-    const handleMouseDown = (e) => {
+    const handleMouseDown = (e: React.MouseEvent) => {
         // 绑定在全宽容器上，忽略卡片内部点击
-        if (e.button !== 0 || e.target.closest('.resource-card') || e.target.closest('button')) return;
+        const target = e.target as HTMLElement;
+        if (e.button !== 0 || target.closest('.resource-card') || target.closest('button')) return;
 
         isDraggingRef.current = true;
         dragStartRef.current = { x: e.clientX, y: e.clientY };
-        
+
         const isAdditive = e.shiftKey || e.ctrlKey || e.metaKey;
         if (!isAdditive) {
             setSelectedIds(new Set());
@@ -230,7 +263,7 @@ export default function ResourcesPage() {
 
     // --- End Drag Selection Logic ---
 
-    const toggleSelection = (e, id) => {
+    const toggleSelection = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         const newSet = new Set(selectedIds);
         if (newSet.has(id)) newSet.delete(id);
@@ -263,20 +296,20 @@ export default function ResourcesPage() {
         setSelectedIds(new Set());
     };
 
-    const handleSingleDownload = (e, file) => {
+    const handleSingleDownload = (e: React.MouseEvent, file: ResourceItem) => {
         e.stopPropagation();
         alert(`开始下载文件: ${file.name}`);
     };
 
     return (
-        <div 
+        <div
             className="w-full min-h-[calc(100vh-80px)] select-none" // 最外层全宽容器
             onMouseDown={handleMouseDown}
         >
-            
+
             {/* 1. 拖拽选框 UI */}
             {dragSelectionBox && (
-                <div 
+                <div
                     className="fixed border border-blue-500 bg-blue-500/10 z-50 pointer-events-none"
                     style={{
                         left: dragSelectionBox.left,
@@ -333,16 +366,16 @@ export default function ResourcesPage() {
 
             {/* Main Content (Centered) */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24 relative">
-                
+
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                    <div onMouseDown={e => e.stopPropagation()}> 
+                    <div onMouseDown={e => e.stopPropagation()}>
                         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                             资源库 <span className="text-orange-500">.</span>
                         </h1>
                         <p className="text-slate-500 text-sm mt-1">集中管理您的项目附件、媒体文件与设计素材。</p>
                     </div>
-                    
+
                     <div className="flex items-center gap-4 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm select-text" onMouseDown={e => e.stopPropagation()}>
                         <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
                             <Cloud className="w-5 h-5" />
@@ -405,8 +438,8 @@ export default function ResourcesPage() {
                         {visibleData.map((file) => {
                             const isSelected = selectedIds.has(file.id);
                             return (
-                                <div 
-                                    key={file.id} 
+                                <div
+                                    key={file.id}
                                     data-id={file.id}
                                     onClick={(e) => toggleSelection(e, file.id)}
                                     className={`resource-card group relative bg-white rounded-xl border transition-all duration-200 cursor-pointer flex flex-col select-none ${isSelected ? 'border-orange-500 ring-1 ring-orange-500 bg-orange-50/5 shadow-md' : 'border-slate-200 hover:border-orange-300 hover:shadow-md'}`}
@@ -418,7 +451,7 @@ export default function ResourcesPage() {
                                     </div>
                                     <div className="absolute top-2 right-2 z-20" onClick={(e) => e.stopPropagation()}>
                                         {!file.linked && !isSelected ? (
-                                                <div className="px-1.5 py-0.5 bg-red-100/90 text-red-600 text-[10px] font-bold rounded backdrop-blur-sm">未关联</div>
+                                            <div className="px-1.5 py-0.5 bg-red-100/90 text-red-600 text-[10px] font-bold rounded backdrop-blur-sm">未关联</div>
                                         ) : (
                                             <button onClick={(e) => handleSingleDownload(e, file)} className="p-1 rounded-md bg-white/90 text-slate-400 hover:text-blue-600 hover:bg-blue-50 shadow-sm border border-slate-200 opacity-0 group-hover:opacity-100 transition-all" title="下载文件">
                                                 <Download className="w-3.5 h-3.5" />
@@ -426,6 +459,7 @@ export default function ResourcesPage() {
                                         )}
                                     </div>
                                     <div className="aspect-[16/10] bg-slate-50/50 border-b border-slate-100/50 flex items-center justify-center relative">
+                                        {/* 修复关键点：使用 cloneElement 动态注入 className */}
                                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 duration-300 ${getFileStyle(file.type)}`}>
                                             {React.cloneElement(getFileIcon(file.type), { className: "w-5 h-5" })}
                                         </div>
@@ -438,7 +472,7 @@ export default function ResourcesPage() {
                                         </div>
                                         {/* 2. 来源笔记样式 */}
                                         {file.sourceArticle && (
-                                            <div className="mt-2 pt-2 border-t border-slate-50 flex items-center gap-1.5 text-[10px] text-slate-400 group/source" onClick={(e) => { e.stopPropagation(); console.log('Go to article', file.sourceArticle.id) }}>
+                                            <div className="mt-2 pt-2 border-t border-slate-50 flex items-center gap-1.5 text-[10px] text-slate-400 group/source" onClick={(e) => { e.stopPropagation(); console.log('Go to article', file.sourceArticle?.id) }}>
                                                 <BookOpen className="w-3 h-3 text-slate-300 group-hover/source:text-orange-400 transition-colors" />
                                                 <span className="truncate group-hover/source:text-orange-600 group-hover/source:underline cursor-pointer transition-colors" title={file.sourceArticle.title}>{file.sourceArticle.title}</span>
                                             </div>
@@ -452,7 +486,7 @@ export default function ResourcesPage() {
                     <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
                         <Filter className="w-8 h-8 text-slate-300 mb-2 opacity-50" />
                         <p className="text-sm">暂无符合条件的资源</p>
-                        <button onClick={() => {setActiveTab('all'); setSearchQuery(''); setShowUnlinkedOnly(false);}} className="mt-2 text-xs text-orange-500 hover:underline">重置所有筛选</button>
+                        <button onClick={() => { setActiveTab('all'); setSearchQuery(''); setShowUnlinkedOnly(false); }} className="mt-2 text-xs text-orange-500 hover:underline">重置所有筛选</button>
                     </div>
                 )}
 

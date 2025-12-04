@@ -9,8 +9,25 @@ import {
     X, Tag, Folder, Plus, ChevronDown
 } from 'lucide-react';
 
+// 定义分类接口
+interface Category {
+    id: string;
+    name: string;
+    color: string;
+}
+
+// 定义命令接口
+interface CommandItem {
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+    value: string;
+    desc: string;
+    cursorOffset?: number;
+}
+
 // ... (COMMANDS 和 CATEGORIES 配置保持不变) ...
-const COMMANDS = [
+const COMMANDS: CommandItem[] = [
     { id: 'text', label: '文本', icon: <Type size={18} />, value: '', desc: '开始像往常一样输入' },
     { id: 'h1', label: '标题 1', icon: <Heading1 size={18} />, value: '# ', desc: '一级大标题' },
     { id: 'h2', label: '标题 2', icon: <Heading2 size={18} />, value: '## ', desc: '二级中标题' },
@@ -27,7 +44,7 @@ const COMMANDS = [
     { id: 'table', label: '表格', icon: <TableIcon size={18} />, value: '\n| 表头1 | 表头2 |\n| --- | --- |\n| 内容1 | 内容2 |\n', desc: '插入简单的表格' },
 ];
 
-const CATEGORIES = [
+const CATEGORIES: Category[] = [
     { id: 'algo', name: '算法与数据结构', color: 'bg-blue-600' },
     { id: 'backend', name: '后端研发', color: 'bg-violet-600' },
     { id: 'frontend', name: '前端开发', color: 'bg-pink-600' },
@@ -37,21 +54,21 @@ const CATEGORIES = [
 
 export default function EditorPage() {
     const navigate = useNavigate();
-    const textareaRef = useRef(null);
-    const menuRef = useRef(null);
-    
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+
     // --- 文档状态 ---
     const [title, setTitle] = useState("未命名文档");
     const [category, setCategory] = useState(CATEGORIES[0]);
     const [tags, setTags] = useState(['笔记', 'Draft']);
     const [tagInput, setTagInput] = useState('');
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
-    
+
     // 获取今日日期并格式化
-    const todayStr = new Date().toLocaleDateString('zh-CN', { 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit' 
+    const todayStr = new Date().toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
     }).replace(/\//g, '-');
 
     const [content, setContent] = useState(`> 💡 **提示**: 布局与预览细节优化完毕！
@@ -74,8 +91,8 @@ export default function EditorPage() {
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [slashIndex, setSlashIndex] = useState(-1);
 
-    const filteredCommands = COMMANDS.filter(cmd => 
-        cmd.label.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const filteredCommands = COMMANDS.filter(cmd =>
+        cmd.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
         cmd.id.includes(searchQuery.toLowerCase())
     );
 
@@ -94,12 +111,12 @@ export default function EditorPage() {
     const getCaretCoordinates = () => {
         const textarea = textareaRef.current;
         if (!textarea) return { top: 0, left: 0 };
-        
+
         const { selectionStart } = textarea;
         const div = document.createElement('div');
         const style = window.getComputedStyle(textarea);
         Array.from(style).forEach(prop => {
-            div.style[prop] = style.getPropertyValue(prop);
+            div.style[prop as any] = style.getPropertyValue(prop);
         });
         div.style.position = 'absolute';
         div.style.visibility = 'hidden';
@@ -107,30 +124,30 @@ export default function EditorPage() {
         div.style.top = '0';
         div.style.left = '0';
         div.style.width = style.width;
-        
+
         const textContent = textarea.value.substring(0, selectionStart);
         div.textContent = textContent;
-        
+
         const span = document.createElement('span');
         span.textContent = '|';
         div.appendChild(span);
-        
+
         document.body.appendChild(div);
-        
+
         const { offsetLeft, offsetTop } = span;
         const rect = textarea.getBoundingClientRect(); // 相对于视口
-        
+
         document.body.removeChild(div);
-        
+
         return {
-            top: rect.top + offsetTop - textarea.scrollTop + 30, 
+            top: rect.top + offsetTop - textarea.scrollTop + 30,
             left: rect.left + offsetLeft - textarea.scrollLeft
         };
     };
 
     // --- 交互逻辑 ---
 
-    const handleAddTag = (e) => {
+    const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter' && tagInput.trim()) {
             e.preventDefault();
             if (!tags.includes(tagInput.trim())) {
@@ -140,11 +157,11 @@ export default function EditorPage() {
         }
     };
 
-    const handleRemoveTag = (tagToRemove) => {
+    const handleRemoveTag = (tagToRemove: string) => {
         setTags(tags.filter(tag => tag !== tagToRemove));
     };
 
-    const handleChange = (e) => {
+    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newValue = e.target.value;
         const newCursorPos = e.target.selectionStart;
         setContent(newValue);
@@ -178,12 +195,12 @@ export default function EditorPage() {
         }
     };
 
-    const togglePreview = (e) => {
+    const togglePreview = (e?: React.MouseEvent) => {
         if (e) e.preventDefault();
         setIsPreviewMode(prev => !prev);
     };
 
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         // 全局快捷键拦截 Cmd+E / Ctrl+E
         if ((e.metaKey || e.ctrlKey) && e.code === 'KeyE') {
             e.preventDefault();
@@ -208,13 +225,13 @@ export default function EditorPage() {
         }
     };
 
-    const executeCommand = (command) => {
+    const executeCommand = (command: CommandItem) => {
         const textarea = textareaRef.current;
         if (!textarea) return;
 
         const beforeSlash = content.substring(0, slashIndex);
         const afterCursor = content.substring(textarea.selectionEnd);
-        
+
         const insertValue = command.value;
         const newContent = beforeSlash + insertValue + afterCursor;
         setContent(newContent);
@@ -244,7 +261,7 @@ export default function EditorPage() {
     };
 
     useEffect(() => {
-        const handleGlobalKeyDown = (e) => {
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.code === 'KeyE') {
                 e.preventDefault();
                 togglePreview();
@@ -256,7 +273,7 @@ export default function EditorPage() {
 
     return (
         <div className="h-screen flex flex-col bg-slate-50 font-sans overflow-hidden">
-            
+
             {/* Header (保持不变) */}
             <header className="h-14 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 z-40 flex-shrink-0 relative">
                 <div className="flex items-center gap-4 flex-1">
@@ -267,37 +284,37 @@ export default function EditorPage() {
                         <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
                             <Edit3 className="w-4 h-4 text-slate-300 group-hover:text-orange-400 transition-colors" />
                         </div>
-                        <input 
-                            type="text" 
-                            value={title} 
+                        <input
+                            type="text"
+                            value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             className="w-full pl-9 pr-4 py-1.5 bg-transparent border border-transparent hover:border-slate-200 focus:border-orange-500/50 rounded-md text-slate-800 font-bold text-lg outline-none transition-all placeholder:text-slate-300"
                             placeholder="请输入文档标题..."
                         />
                     </div>
                 </div>
-                
+
                 <div className="flex items-center gap-2 sm:gap-3">
                     <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-md border border-slate-200/60">
-                         <span className={`w-2 h-2 rounded-full ${isSaving ? 'bg-orange-400 animate-pulse' : 'bg-green-400'}`}></span>
-                         <span className="text-xs text-slate-500 font-medium">{isSaving ? '保存中...' : '已保存'}</span>
+                        <span className={`w-2 h-2 rounded-full ${isSaving ? 'bg-orange-400 animate-pulse' : 'bg-green-400'}`}></span>
+                        <span className="text-xs text-slate-500 font-medium">{isSaving ? '保存中...' : '已保存'}</span>
                     </div>
 
-                    <button 
+                    <button
                         onClick={togglePreview}
                         className={`
                             flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all select-none
-                            ${isPreviewMode 
-                                ? 'bg-orange-50 text-orange-600 border border-orange-200 shadow-sm' 
+                            ${isPreviewMode
+                                ? 'bg-orange-50 text-orange-600 border border-orange-200 shadow-sm'
                                 : 'text-slate-600 hover:bg-slate-100 border border-transparent'}
                         `}
                         title="快捷键 Cmd+E"
                     >
-                        {isPreviewMode ? <Eye className="w-4 h-4"/> : <Type className="w-4 h-4"/>}
+                        {isPreviewMode ? <Eye className="w-4 h-4" /> : <Type className="w-4 h-4" />}
                         <span className="hidden sm:inline">{isPreviewMode ? '预览模式' : '编辑模式'}</span>
                     </button>
 
-                    <button 
+                    <button
                         onClick={handleSave}
                         disabled={isSaving}
                         className="flex items-center gap-2 px-4 py-1.5 bg-slate-900 hover:bg-slate-800 active:bg-black text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
@@ -314,18 +331,18 @@ export default function EditorPage() {
 
             {/* Main Content Area */}
             <div className="flex-1 relative w-full overflow-hidden">
-                
+
                 {/* --- 编辑模式 (Fixed Layout) --- */}
                 <div className={`absolute inset-0 p-4 sm:p-6 lg:px-8 flex flex-col items-center transition-opacity duration-200 ${isPreviewMode ? 'opacity-0 pointer-events-none z-0' : 'opacity-100 z-10'}`}>
-                    
+
                     {/* “白纸”容器 */}
                     <div className="w-full max-w-5xl h-full bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
-                        
+
                         {/* Meta Data Bar */}
                         <div className="px-6 sm:px-12 pt-6 pb-2 flex flex-col sm:flex-row sm:items-center gap-4 border-b border-transparent shrink-0">
                             {/* Category */}
                             <div className="relative z-20">
-                                <button 
+                                <button
                                     onClick={() => setIsCategoryOpen(!isCategoryOpen)}
                                     className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-medium transition-colors border border-slate-200"
                                 >
@@ -363,8 +380,8 @@ export default function EditorPage() {
                                 ))}
                                 <div className="relative flex items-center">
                                     <Plus className="w-3 h-3 text-slate-400 absolute left-2 pointer-events-none" />
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         value={tagInput}
                                         onChange={e => setTagInput(e.target.value)}
                                         onKeyDown={handleAddTag}
@@ -389,11 +406,11 @@ export default function EditorPage() {
 
                         {/* Slash Menu ... (同上，保持不变) */}
                         {showMenu && (
-                            <div 
+                            <div
                                 className="fixed z-50 w-64 bg-white rounded-xl shadow-2xl ring-1 ring-slate-900/5 overflow-hidden animate-in fade-in zoom-in-95 duration-75 flex flex-col max-h-72"
-                                style={{ 
-                                    top: menuPosition.top, 
-                                    left: Math.min(menuPosition.left, window.innerWidth - 280) 
+                                style={{
+                                    top: menuPosition.top,
+                                    left: Math.min(menuPosition.left, window.innerWidth - 280)
                                 }}
                             >
                                 <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
@@ -416,39 +433,39 @@ export default function EditorPage() {
                                                     <div className={`text-sm font-medium ${idx === selectedIndex ? 'text-slate-900' : 'text-slate-700'}`}>{cmd.label}</div>
                                                     <div className="text-xs text-slate-400 truncate">{cmd.desc}</div>
                                                 </div>
-                                                {idx === selectedIndex && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mr-1"/>}
+                                                {idx === selectedIndex && <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mr-1" />}
                                             </button>
                                         ))
                                     ) : (
-                                        <div className="px-4 py-8 flex flex-col items-center justify-center text-slate-400"><X size={20} className="mb-2 opacity-50"/><span className="text-xs">未找到命令</span></div>
+                                        <div className="px-4 py-8 flex flex-col items-center justify-center text-slate-400"><X size={20} className="mb-2 opacity-50" /><span className="text-xs">未找到命令</span></div>
                                     )}
                                 </div>
                             </div>
                         )}
-                        
+
                         <div className="h-8 border-t border-slate-50 flex items-center justify-center text-[10px] text-slate-400 bg-white shrink-0">
-                             Markdown 编辑模式 · 字数 {content.length}
+                            Markdown 编辑模式 · 字数 {content.length}
                         </div>
                     </div>
                 </div>
 
                 {/* --- 预览模式 --- */}
-                <div 
+                <div
                     id="preview-scroll-container"
                     className={`absolute inset-0 overflow-y-auto bg-slate-50 transition-opacity duration-200 ${isPreviewMode ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none z-0'}`}
                 >
                     <div className="max-w-5xl mx-auto py-8 sm:px-6 lg:px-8 min-h-full">
                         {/* 重点修改：这里不再手动渲染 Header，而是直接将属性传给 Article 组件 */}
                         {/* Article 组件内部会渲染美观的头部 */}
-                        
+
                         {/* 注意：我们在 Article.jsx 中已经做了修改，
                             如果不传入 children 或 contentWithSyntax 逻辑不变，
                             它会使用传入的 title, category, tags, date 等 props 来渲染头部。
                         */}
-                        
-                        <Article 
-                            isEmbedded={true} 
-                            content={content} 
+
+                        <Article
+                            isEmbedded={true}
+                            content={content}
                             scrollContainerId="preview-scroll-container"
                             // 传递动态属性
                             title={title}

@@ -1,5 +1,5 @@
 # 忽略前端源码目录
-frontend_vue/
+frontend_react/
 
 # 忽略版本控制目录
 .git/
