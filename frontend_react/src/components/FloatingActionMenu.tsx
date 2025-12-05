@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Tag, FolderOpen, PenTool, BarChart2, Library, Leaf } from 'lucide-react';
 
+// --- 右下角 导航菜单组件 ---
+
 interface MenuItem {
   id: string;
   label: string;

@@ -7,6 +7,7 @@ import {
     X, Check, Search
 } from 'lucide-react';
 import { createAnthology, CreateAnthologyParams } from '../api/anthology';
+import { useToast } from '../components/ToastProvider';
 
 // 1. 定义数据接口
 interface ArticleSummary {
@@ -219,6 +220,7 @@ const initialCollectionsData = [...manualData, ...generatedData];
 // 接收 onNavigate 属性
 export default function HomePage({ onNavigate }: HomePageProps) {
     const [collections, setCollections] = useState(initialCollectionsData);
+    const toast = useToast();
 
     // Filter & Sort State
     const [filterType, setFilterType] = useState('all');
@@ -233,14 +235,14 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     // Create Modal State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     // 定义新文集数据的类型
-interface NewCollectionData {
-    title: string;
-    description: string;
-    iconId: string;
-    permission: 'public' | 'private';
-}
+    interface NewCollectionData {
+        title: string;
+        description: string;
+        iconId: string;
+        permission: 'public' | 'private';
+    }
 
-const [newCollectionData, setNewCollectionData] = useState<NewCollectionData>({
+    const [newCollectionData, setNewCollectionData] = useState<NewCollectionData>({
         title: "",
         description: "",
         iconId: "book",
@@ -328,10 +330,10 @@ const [newCollectionData, setNewCollectionData] = useState<NewCollectionData>({
             setNewCollectionData({ title: "", description: "", iconId: "book", permission: "public" });
 
             // 5. 显示成功提示
-            alert("文集创建成功！");
+            toast.success("文集创建成功！");
         } catch (error) {
             console.error('创建文集失败:', error);
-            alert("创建文集失败，请稍后重试。");
+            toast.error("创建文集失败，请稍后重试。");
         }
     };
 

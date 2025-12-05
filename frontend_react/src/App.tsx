@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
+import { ToastProvider } from './components/ToastProvider'; // 1. 引入 Provider
 import Layout from './layout/Layout';
 import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';
@@ -16,11 +17,11 @@ import TagsPage from './views/TagsPage';
 function HomeRoute() {
   const navigate = useNavigate();
 
-  const handleNavigate = (viewName, params = {}) => {
+  const handleNavigate = (viewName: string, params = {}) => {
     window.scrollTo(0, 0);
 
     if (viewName === 'article') {
-      const { collId, articleId } = params;
+      const { collId, articleId } = params as { collId: string, articleId?: string };
       if (articleId) {
         navigate(`/article/${collId}/${articleId}`);
       } else {
@@ -39,13 +40,13 @@ function ArticleRoute() {
   const params = useParams();
   const navigate = useNavigate();
 
-  const handleNavigate = (viewName, params = {}) => {
+  const handleNavigate = (viewName: string, params = {}) => {
     window.scrollTo(0, 0);
 
     if (viewName === 'home') {
       navigate('/');
     } else if (viewName === 'article') {
-      const { collId, articleId } = params;
+      const { collId, articleId } = params as { collId: string, articleId?: string };
       if (articleId) {
         navigate(`/article/${collId}/${articleId}`);
       } else {
@@ -69,13 +70,13 @@ function ArticleRoute() {
 function AppWithRouter() {
   const navigate = useNavigate();
 
-  const handleNavigate = (viewName, params = {}) => {
+  const handleNavigate = (viewName: string, params = {}) => {
     window.scrollTo(0, 0);
 
     if (viewName === 'home') {
       navigate('/');
     } else if (viewName === 'article') {
-      const { collId, articleId } = params;
+      const { collId, articleId } = params as { collId: string, articleId?: string };
       if (articleId) {
         navigate(`/article/${collId}/${articleId}`);
       } else {
@@ -134,7 +135,9 @@ function AppWithRouter() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppWithRouter />
+      <ToastProvider>
+        <AppWithRouter />
+      </ToastProvider>
     </BrowserRouter>
   );
 }
