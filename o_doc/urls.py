@@ -21,8 +21,7 @@ from django.views.generic import TemplateView
 
 urlpatterns = [
     path('', TemplateView.as_view(template_name='index.html')),
-    # path('admin/', admin.site.urls),
-    # path('dashboard/', include('dashboard.urls')),  # 看板接口
+    path('api/anthology/', include('anthology.urls')),  # 文集接口
 ]
 
 # 添加静态文件URL配置

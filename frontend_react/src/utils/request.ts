@@ -1,10 +1,11 @@
+import { ResultEnum } from '@/constants/httpEnum';
 import axios, {
     AxiosInstance,
     AxiosError,
     AxiosResponse,
     InternalAxiosRequestConfig
 } from 'axios';
-import { ResultEnum } from '../enums/httpEnum';
+
 
 // 1. 定义后端接口返回的标准格式
 // 根据你实际后端的约定修改，比如有的后端是用 code: 0 表示成功
@@ -16,8 +17,8 @@ export interface ApiResponse<T = any> {
 
 // 2. 创建 axios 实例
 const service: AxiosInstance = axios.create({
-    // 环境变量中的 API 地址，开发环境通常在 vite.config.ts 中配置代理
-    baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+    // 环境变量中的 API 地址，一体项目，无代理，直接请求 /api 即可
+    baseURL: '/api',
     timeout: 10000, // 请求超时时间：10s
     headers: {
         'Content-Type': 'application/json;charset=utf-8'

@@ -6,6 +6,7 @@ import {
     Activity, Database, Shield, Code, Terminal, Server, Plus,
     X, Check, Search
 } from 'lucide-react';
+import { createAnthology, CreateAnthologyParams } from '../api/anthology';
 
 // 1. 定义数据接口
 interface ArticleSummary {
@@ -231,7 +232,15 @@ export default function HomePage({ onNavigate }: HomePageProps) {
 
     // Create Modal State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [newCollectionData, setNewCollectionData] = useState({
+    // 定义新文集数据的类型
+interface NewCollectionData {
+    title: string;
+    description: string;
+    iconId: string;
+    permission: 'public' | 'private';
+}
+
+const [newCollectionData, setNewCollectionData] = useState<NewCollectionData>({
         title: "",
         description: "",
         iconId: "book",
@@ -285,35 +294,45 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         return () => window.removeEventListener('scroll', handleScroll);
     }, [handleScroll]);
 
-    const handleCreateCollection = () => {
+    const handleCreateCollection = async () => {
         if (!newCollectionData.title) return;
 
-        // 1. 查找图标
-        const foundIcon = availableIcons.find(i => i.id === newCollectionData.iconId);
+        try {
+            // 1. 准备请求参数
+            const validPermission = newCollectionData.permission === 'public' ? 'public' : 'private';
+            const params: CreateAnthologyParams = {
+                title: newCollectionData.title,
+                description: newCollectionData.description,
+                iconId: newCollectionData.iconId,
+                permission: validPermission
+            };
 
-        // 2. 解决 "可能为未定义"：如果找不到，就默认用第一个图标（兜底）
-        const selectedIcon = foundIcon || availableIcons[0];
+            // 2. 调用后端API创建文集
+            const response = await createAnthology(params);
 
-        // 3. 这里的 cloneElement 现在应该不会报错了，因为我们在接口里定义了 ReactElement<any>
-        const iconElement = React.cloneElement(selectedIcon.icon, {
-            className: `w-4 h-4 ${selectedIcon.color}`
-        });
+            // 3. 查找图标
+            const foundIcon = availableIcons.find(i => i.id === newCollectionData.iconId);
+            const selectedIcon = foundIcon || availableIcons[0];
+            const iconElement = React.cloneElement(selectedIcon.icon, {
+                className: `w-4 h-4 ${selectedIcon.color}`
+            });
 
-        const newItem = {
-            id: Date.now(),
-            coll_id: `col_new_${Date.now()}`,
-            title: newCollectionData.title,
-            count: 0,
-            icon: iconElement,
-            isTop: false,
-            description: newCollectionData.description || "暂无简介",
-            articles: [],
-            permission: newCollectionData.permission
-        };
+            // 4. 更新前端状态
+            const newItem = {
+                ...response,
+                icon: iconElement  // 添加前端需要的图标元素
+            };
 
-        setCollections([newItem, ...collections]);
-        setIsCreateModalOpen(false);
-        setNewCollectionData({ title: "", description: "", iconId: "book", permission: "public" });
+            setCollections([newItem, ...collections]);
+            setIsCreateModalOpen(false);
+            setNewCollectionData({ title: "", description: "", iconId: "book", permission: "public" });
+
+            // 5. 显示成功提示
+            alert("文集创建成功！");
+        } catch (error) {
+            console.error('创建文集失败:', error);
+            alert("创建文集失败，请稍后重试。");
+        }
     };
 
     return (

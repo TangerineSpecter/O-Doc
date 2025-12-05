@@ -13,14 +13,30 @@ O-Doc/
 │   │   ├── main.tsx     # 应用入口文件
 │   │   ├── layout/      # 布局组件
 │   │   ├── views/       # 页面视图
-│   │   └── doc/         # 文档内容
+│   │   ├── doc/         # 文档内容
+│   │   ├── api/         # API 调用相关
+│   │   ├── components/  # 通用组件
+│   │   ├── constants/   # 常量定义
+│   │   └── utils/       # 工具函数
 │   ├── vite.config.ts   # Vite 配置文件
 │   ├── update.sh        # 前端构建与集成脚本
+│   ├── tailwind.config.js # Tailwind CSS 配置
+│   ├── tsconfig.json    # TypeScript 配置
 │   └── package.json     # 前端依赖配置
 ├── o_doc/               # Django 项目目录
 │   ├── settings.py      # Django 配置文件
 │   ├── urls.py          # URL 路由配置
-│   └── wsgi.py          # WSGI 入口文件
+│   ├── wsgi.py          # WSGI 入口文件
+│   └── asgi.py          # ASGI 入口文件
+├── anthology/           # 文集模块
+├── article/             # 文章模块
+├── assets/              # 资源模块
+├── categories/          # 分类模块
+├── stats/               # 统计模块
+├── tags/                # 标签模块
+├── user/                # 用户模块
+├── utils/               # 工具模块
+├── test/                # 测试模块
 ├── templates/           # Django 模板目录
 │   └── index.html       # 前端构建后的入口模板
 ├── static/              # Django 静态资源目录
@@ -35,8 +51,10 @@ O-Doc/
 ```
 frontend_react/src/
 ├── App.tsx              # 主应用组件
+├── App.css              # App 组件样式
 ├── main.tsx             # 应用入口文件
 ├── index.css            # 全局样式文件
+├── vite-env.d.ts        # Vite 环境类型定义
 ├── assets/              # 静态资源目录
 ├── layout/              # 布局组件
 │   └── Layout.tsx       # 主布局组件
@@ -44,6 +62,10 @@ frontend_react/src/
 │   ├── HomePage.tsx     # 首页组件
 │   ├── Article.tsx      # 文章详情组件
 │   └── ArticleOutline.tsx  # 文章大纲组件
-└── doc/                 # 文档内容目录
-    └── frontend_doc/    # 前端文档
+├── doc/                 # 文档内容目录
+│   └── frontend_doc/    # 前端文档
+├── api/                 # API 调用相关
+├── components/          # 通用组件
+├── constants/           # 常量定义
+└── utils/               # 工具函数
 ```

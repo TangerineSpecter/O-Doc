@@ -187,8 +187,8 @@ docker run -p 8000:11800 o-doc
 - **模板**：前端入口文件配置在 `templates/index.html`
 
 ### 前端配置 (React + Vite)
-- **构建配置**：`vite.config.js` 中设置了静态资源基础路径为 `/static/`
-- **Tailwind CSS**：配置文件 `tailwind.config.js` 已预设常用配置
+- **构建配置**：`vite.config.ts` 中设置了静态资源基础路径为 `/static/`
+- **Tailwind CSS**：配置文件 `tailwind.config.ts` 已预设常用配置
 - **自动集成**：`update.sh` 脚本自动构建前端并将产物复制到 Django 目录
 
 ### Docker 配置

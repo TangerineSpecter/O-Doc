@@ -30,11 +30,18 @@ ALLOWED_HOSTS = []
 DEFAULT_PORT = "11800"
 
 INSTALLED_APPS = [
+    'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.staticfiles',
     'rest_framework',
-    # 'todo.apps.TodoConfig',
+    'article.apps.ArticleConfig',
+    'anthology.apps.AnthologyConfig',
+    'tags.apps.TagsConfig',
+    'categories.apps.CategoriesConfig',
+    'user.apps.UserConfig',
+    'stats.apps.StatsConfig',
+    'assets.apps.AssetsConfig'
 ]
 
 # DRF全局配置
