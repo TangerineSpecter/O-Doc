@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 package-lock.json
+db.sqlite3
 
 # Python compiled cache
 __pycache__/
