@@ -1,11 +1,19 @@
 import request from '../utils/request';
 
+// 定义文章摘要类型
+export interface ArticleSummary {
+    article_id: string;
+    title: string;
+    date: string;
+}
+
 // 定义创建文集参数类型
 export interface CreateAnthologyParams {
     title: string;
     description: string;
     iconId: string;
     permission: 'public' | 'private';
+    sort?: number;
 }
 
 // 定义文集返回数据类型
@@ -14,14 +22,19 @@ export interface Anthology {
     coll_id: string;
     title: string;
     count: number;
-    icon: React.ReactNode;
+    iconId: string;
     isTop: boolean;
-    permission: 'public' | 'private';
     description: string;
-    articles: any[];
+    articles: ArticleSummary[];
+    permission: 'public' | 'private';
 }
 
 // 创建文集接口
 export const createAnthology = (data: CreateAnthologyParams) => {
     return request.post<any, Anthology>('/anthology/create', data);
+};
+
+// 获取文集列表接口
+export const getAnthologyList = () => {
+    return request.get<any, Anthology[]>('/anthology/list');
 };

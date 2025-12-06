@@ -6,7 +6,7 @@ import {
     Activity, Database, Shield, Code, Terminal, Server, Plus,
     X, Check, Search
 } from 'lucide-react';
-import { createAnthology, CreateAnthologyParams } from '../api/anthology';
+import { createAnthology, CreateAnthologyParams, getAnthologyList, Anthology } from '../api/anthology';
 import { useToast } from '../components/ToastProvider';
 
 // 1. 定义数据接口
@@ -219,8 +219,38 @@ const initialCollectionsData = [...manualData, ...generatedData];
 
 // 接收 onNavigate 属性
 export default function HomePage({ onNavigate }: HomePageProps) {
+    // 初始使用演示数据，后续会通过API更新
     const [collections, setCollections] = useState(initialCollectionsData);
     const toast = useToast();
+    const [loading, setLoading] = useState(false);
+    
+    // 获取文集列表数据
+    const fetchCollections = async () => {
+        setLoading(true);
+        try {
+            const data = await getAnthologyList();
+            // 处理iconId，转换为前端需要的icon组件
+            const processedData = data.map(anthology => {
+                // 根据iconId找到对应的图标
+                const iconItem = availableIcons.find(icon => icon.id === anthology.iconId) || availableIcons[0];
+                return {
+                    ...anthology,
+                    icon: React.cloneElement(iconItem.icon, { className: `w-4 h-4 ${iconItem.color}` })
+                };
+            });
+            setCollections(processedData);
+        } catch (error) {
+            console.error('获取文集列表失败:', error);
+            toast.error('获取文集列表失败，请重试');
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+    // 组件加载时获取数据
+    useEffect(() => {
+        fetchCollections();
+    }, []);
 
     // Filter & Sort State
     const [filterType, setFilterType] = useState('all');
@@ -327,7 +357,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
 
             setCollections([newItem, ...collections]);
             setIsCreateModalOpen(false);
-            setNewCollectionData({ title: "", description: "", iconId: "book", permission: "public" });
+            // setNewCollectionData({ title: "", description: "", iconId: "book", permission: "public" });
 
             // 5. 显示成功提示
             toast.success("文集创建成功！");

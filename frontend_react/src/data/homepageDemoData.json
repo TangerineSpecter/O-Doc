@@ -1,0 +1,118 @@
+[
+    {
+        "id": 1,
+        "coll_id": "col_deploy_001",
+        "title": "小橘部署指南",
+        "count": 42,
+        "iconId": "cpu",
+        "isTop": true,
+        "permission": "public",
+        "description": "全面介绍小橘文档私有化部署、Docker容器化及集群配置方案。",
+        "articles": [
+            { "article_id": "art_dep_101", "title": "服务器环境依赖检查清单", "date": "11-24" },
+            { "article_id": "art_dep_102", "title": "Docker Compose 一键部署", "date": "11-20" },
+            { "article_id": "art_dep_103", "title": "Nginx 反向代理配置详解", "date": "11-18" }
+        ]
+    },
+    {
+        "id": 2,
+        "coll_id": "col_api_002",
+        "title": "API 接口开发手册",
+        "count": 128,
+        "iconId": "zap",
+        "isTop": true,
+        "permission": "public",
+        "description": "后端接口定义、鉴权机制（OAuth2.0）、以及错误码字典查询。",
+        "articles": [
+            { "article_id": "art_api_201", "title": "认证鉴权：Access Token 获取", "date": "12-01" },
+            { "article_id": "art_api_202", "title": "通用返回结构与分页说明", "date": "11-30" },
+            { "article_id": "art_api_203", "title": "用户模块接口定义 (v2.0)", "date": "11-28" }
+        ]
+    },
+    {
+        "id": 3,
+        "coll_id": "col_ui_003",
+        "title": "前端组件库样式规范",
+        "count": 35,
+        "iconId": "layers",
+        "isTop": false,
+        "permission": "public",
+        "description": "基于 Tailwind CSS 的设计系统，包含色彩、排版及核心组件。",
+        "articles": [
+            { "article_id": "art_ui_301", "title": "Color Palette：品牌色与辅助色", "date": "10-15" },
+            { "article_id": "art_ui_302", "title": "Button 按钮组件交互状态", "date": "09-22" },
+            { "article_id": "art_ui_303", "title": "Form 表单验证与错误提示", "date": "09-20" }
+        ]
+    },
+    {
+        "id": 4,
+        "coll_id": "col_log_004",
+        "title": "产品更新日志 (Changelog)",
+        "count": 12,
+        "iconId": "globe",
+        "isTop": false,
+        "permission": "public",
+        "description": "记录小橘文档从 v1.0 到最新版本的所有迭代细节与修复。",
+        "articles": [
+            { "article_id": "art_log_401", "title": "v2.1.0：新增AI智能搜索功能", "date": "12-02" },
+            { "article_id": "art_log_402", "title": "v2.0.5：修复移动端表格显示异常", "date": "11-28" },
+            { "article_id": "art_log_403", "title": "v2.0.0：全新UI架构重构发布", "date": "11-01" }
+        ]
+    },
+    {
+        "id": 5,
+        "coll_id": "col_ent_005",
+        "title": "企业版专属功能",
+        "count": 8,
+        "iconId": "book",
+        "isTop": false,
+        "permission": "private",
+        "description": "针对企业客户的高级功能，如SSO单点登录、审计日志及水印。",
+        "articles": [
+            { "article_id": "art_ent_501", "title": "配置 LDAP/AD 域账号同步", "date": "08-05" },
+            { "article_id": "art_ent_502", "title": "开启文档水印与防复制策略", "date": "07-22" }
+        ]
+    },
+    {
+        "id": 6,
+        "coll_id": "col_ms_013",
+        "title": "微服务架构设计",
+        "count": 67,
+        "iconId": "server",
+        "isTop": false,
+        "permission": "public",
+        "description": "Spring Cloud Alibaba 全家桶使用指南及服务治理策略。",
+        "articles": [
+            { "article_id": "art_ms_1301", "title": "Nacos 服务注册与配置中心", "date": "10-30" },
+            { "article_id": "art_ms_1302", "title": "Sentinel 熔断降级限流实战", "date": "10-25" }
+        ]
+    },
+    {
+        "id": 7,
+        "coll_id": "col_db_007",
+        "title": "数据库运维手册",
+        "count": 45,
+        "iconId": "database",
+        "isTop": false,
+        "permission": "private",
+        "description": "MySQL 高可用集群搭建、Redis 缓存策略及数据备份恢复流程。",
+        "articles": [
+            { "article_id": "art_db_701", "title": "MySQL 8.0 主从复制搭建", "date": "10-12" },
+            { "article_id": "art_db_702", "title": "Redis Cluster 集群扩容方案", "date": "10-08" }
+        ]
+    },
+    {
+        "id": 8,
+        "coll_id": "col_sec_008",
+        "title": "安全合规与审计",
+        "count": 19,
+        "iconId": "shield",
+        "isTop": true,
+        "permission": "private",
+        "description": "网络安全策略、渗透测试报告及GDPR合规性检查清单。",
+        "articles": [
+            { "article_id": "art_sec_801", "title": "Web应用防火墙(WAF)规则配置", "date": "11-05" },
+            { "article_id": "art_sec_802", "title": "定期漏洞扫描执行报告", "date": "11-01" }
+        ]
+    }
+]

@@ -14,6 +14,10 @@ dist-ssr
 package-lock.json
 db.sqlite3
 
+# 忽略所有migrations目录（保留__init__.py，避免破坏Python包结构）
+**/migrations/
+!**/migrations/__init__.py
+
 # Python compiled cache
 __pycache__/
 *.py[cod]

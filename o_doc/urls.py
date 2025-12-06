@@ -22,6 +22,7 @@ from django.views.generic import TemplateView
 urlpatterns = [
     path('', TemplateView.as_view(template_name='index.html')),
     path('api/anthology/', include('anthology.urls')),  # 文集接口
+    path('api/article/', include('article.urls')),  # 文章接口
 ]
 
 # 添加静态文件URL配置
