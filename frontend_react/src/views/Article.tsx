@@ -11,6 +11,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow as darkTheme } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
+import { Edit3, Trash2 } from 'lucide-react'; // 1. 新增图标引入
 
 // 定义 Article 组件接收的参数类型
 interface ArticleProps {
@@ -23,6 +24,9 @@ interface ArticleProps {
     category?: string;
     tags?: string[];
     date?: string;
+    // 2. 新增操作回调定义
+    onEdit?: () => void;
+    onDelete?: () => void;
 }
 
 interface HeaderItem {
@@ -112,15 +116,54 @@ const MermaidChart = ({ chart }: { chart: string }) => {
     );
 };
 
-// --- TOC ---
-const TableOfContents = ({ headers, activeId, isEmbedded }: { headers: HeaderItem[], activeId: string, isEmbedded: boolean }) => {
+// --- TOC (Modified) ---
+// 3. 接收 onEdit 和 onDelete
+const TableOfContents = ({ 
+    headers, 
+    activeId, 
+    isEmbedded,
+    onEdit,
+    onDelete 
+}: { 
+    headers: HeaderItem[], 
+    activeId: string, 
+    isEmbedded: boolean,
+    onEdit?: () => void,
+    onDelete?: () => void
+}) => {
     if (!headers?.length) return null;
 
     const visibilityClass = isEmbedded ? 'hidden 2xl:block' : 'hidden xl:block';
 
     return (
         <div className={`${visibilityClass} absolute left-full top-0 ml-4 h-full w-64`}>
-            <div className="sticky top-32">
+            {/* 4. 修改 top-32 为 top-6，大幅减少顶部留白 */}
+            <div className="sticky top-6">
+                
+                {/* 5. 插入按钮组：橙色系交互、紧凑、位于标题上方 */}
+                {(onEdit || onDelete) && (
+                    <div className="flex items-center gap-2 mb-4">
+                        {onEdit && (
+                            <button
+                                onClick={onEdit}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-600 shadow-sm hover:text-orange-600 hover:border-orange-200 hover:bg-orange-50 hover:shadow transition-all duration-200"
+                            >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                <span>编辑文档</span>
+                            </button>
+                        )}
+                        {onDelete && (
+                            <button
+                                onClick={onDelete}
+                                className="flex items-center justify-center p-1.5 bg-white border border-slate-200 rounded-md text-slate-400 shadow-sm hover:text-red-600 hover:border-red-200 hover:bg-red-50 hover:shadow transition-all duration-200"
+                                title="删除文档"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                        )}
+                    </div>
+                )}
+
                 <h5 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> 目录
                 </h5>
@@ -283,7 +326,9 @@ export default function Article({
     isEmbedded,
     scrollContainerId,
     onBack,
-    content
+    content,
+    onEdit,    // 解构
+    onDelete   // 解构
 }: ArticleProps) {
     // 如果没有传入 content，则使用默认文章数据的 content
     const displayMarkdown = content !== undefined ? content : DEFAULT_ARTICLE_DATA.content;
@@ -543,6 +588,8 @@ export default function Article({
                         headers={headers}
                         activeId={activeHeader}
                         isEmbedded={isEmbedded ?? false}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
                     />
                 </main>
 

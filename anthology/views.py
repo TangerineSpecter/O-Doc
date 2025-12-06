@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
+from django.db import models
 
 from article.models import Article
 from utils.error_codes import ErrorCode
@@ -44,9 +45,8 @@ class AnthologyListView(APIView):
 
     def get(self, request):
         try:
-            # 查询admin用户的所有有效文集，按置顶、排序、更新时间排序
-            anthologies = Anthology.objects.filter(userid='admin', is_valid=True).order_by('-is_top', 'sort',
-                                                                                           '-updated_at')
+            # 查询admin用户的所有有效文集，按置顶、更新时间降序、排序升序排序
+            anthologies = Anthology.objects.filter(userid='admin', is_valid=True).order_by('-is_top', 'sort')
 
             # 准备返回数据
             result_list = []
@@ -83,6 +83,62 @@ class AnthologyListView(APIView):
                 result_list.append(anthology_data)
 
             return success_result(data=result_list)
+
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+
+class AnthologySortView(APIView):
+    """文集排序接口"""
+
+    def put(self, request, coll_id):
+        try:
+            # 获取排序参数
+            sort = request.data.get('sort', 0)
+            if not isinstance(sort, int) or sort < 1:
+                return error_result(error=ErrorCode.PARAM_ERROR, message="排序参数必须是大于0的整数")
+
+            # 获取要排序的文集
+            anthology = get_object_or_404(Anthology, coll_id=coll_id, userid='admin', is_valid=True)
+
+            # 检查是否为置顶文集，如果是则不允许排序
+            if anthology.is_top:
+                return error_result(error=ErrorCode.PARAM_ERROR, message="置顶文集不允许排序")
+
+            # 获取当前所有非置顶且有效的文集，按当前排序规则排序
+            all_non_top_anthologies = list(Anthology.objects.filter(
+                userid='admin',
+                is_valid=True,
+                is_top=False
+            ).order_by('-updated_at', 'sort'))
+
+            # 找到当前文集在列表中的位置
+            current_index = None
+            for i, item in enumerate(all_non_top_anthologies):
+                if item.coll_id == coll_id:
+                    current_index = i
+                    break
+
+            if current_index is None:
+                return error_result(error=ErrorCode.PARAM_ERROR, message="文集不存在")
+
+            # 确保目标位置在有效范围内
+            max_position = len(all_non_top_anthologies)
+            target_position = min(max(sort, 1), max_position)
+            target_index = target_position - 1  # 转换为0-based索引
+
+            # 从列表中移除当前文集并插入到目标位置
+            moved_anthology = all_non_top_anthologies.pop(current_index)
+            all_non_top_anthologies.insert(target_index, moved_anthology)
+
+            # 重新分配所有文集的sort值，确保连续且唯一
+            for i, item in enumerate(all_non_top_anthologies):
+                new_sort = i + 1  # 从1开始的连续整数
+                if item.sort != new_sort:
+                    item.sort = new_sort
+                    item.save()
+
+            return success_result()
 
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))

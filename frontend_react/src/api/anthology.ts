@@ -27,6 +27,7 @@ export interface Anthology {
     description: string;
     articles: ArticleSummary[];
     permission: 'public' | 'private';
+    sort?: number;
 }
 
 // 创建文集接口
@@ -37,4 +38,9 @@ export const createAnthology = (data: CreateAnthologyParams) => {
 // 获取文集列表接口
 export const getAnthologyList = () => {
     return request.get<any, Anthology[]>('/anthology/list');
+};
+
+// 新增：文集排序接口
+export const sortAnthology = (collId: string, sort: number) => {
+    return request.put<any, void>(`/anthology/${collId}/sort`, { sort });
 };
