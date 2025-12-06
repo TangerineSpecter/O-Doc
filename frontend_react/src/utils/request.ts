@@ -6,12 +6,19 @@ import axios, {
     InternalAxiosRequestConfig
 } from 'axios';
 
+// 扩展AxiosError类型，添加自定义数据类型
+type CustomAxiosError = AxiosError<{
+    msg?: string;
+    code?: number;
+    data?: any;
+}>;
+
 
 // 1. 定义后端接口返回的标准格式
 // 根据你实际后端的约定修改，比如有的后端是用 code: 0 表示成功
 export interface ApiResponse<T = any> {
     code: number;
-    message: string;
+    msg: string;
     data: T;
 }
 
@@ -38,7 +45,7 @@ service.interceptors.request.use(
 
         return config;
     },
-    (error: AxiosError) => {
+    (error: CustomAxiosError) => {
         // 对请求错误做些什么
         console.error('Request Error:', error);
         return Promise.reject(error);
@@ -58,7 +65,7 @@ service.interceptors.response.use(
             return res.data;
         } else {
             // 处理业务错误
-            console.error('API Error:', res.message);
+            console.error('API Error:', res.msg);
 
             // 示例：处理 Token 过期 (401)
             if (res.code === ResultEnum.TIMEOUT) {
@@ -67,15 +74,19 @@ service.interceptors.response.use(
                 window.location.href = '/login';
             }
 
-            return Promise.reject(new Error(res.message || 'Error'));
+            return Promise.reject(new Error(res.msg || 'Error'));
         }
     },
-    (error: AxiosError) => {
+    (error: CustomAxiosError) => {
         // 超出 2xx 范围的状态码都会触发该函数
-        console.error('Response Error:', error.message);
-
-        // 可以根据 status code 做统一提示
+        // 安全获取错误信息
+        let errorMsg = '网络请求错误';
         if (error.response) {
+            // 服务器返回了错误响应
+            errorMsg = error.response.data?.msg || error.response.statusText || errorMsg;
+            console.error('Response Error:', errorMsg);
+            
+            // 可以根据 status code 做统一提示
             switch (error.response.status) {
                 case 404:
                     console.error('资源不存在');

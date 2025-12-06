@@ -17,6 +17,7 @@ class Anthology(models.Model):
     title = models.CharField(max_length=20, verbose_name='文集名称')
     description = models.CharField(max_length=100, default='暂无简介', verbose_name='文集简介')
     icon_id = models.CharField(max_length=20, default='book', verbose_name='图标ID')
+    userid = models.CharField(max_length=50, default='admin', verbose_name='创建者ID')
     permission = models.CharField(max_length=10, choices=[
         ('public', '公开文集'),
         ('private', '私密文集')
@@ -34,6 +35,8 @@ class Anthology(models.Model):
         verbose_name = '文集'
         verbose_name_plural = '文集管理'
         ordering = ['-is_top', '-updated_at']
+        # 确保同一个userid下的文集标题唯一
+        unique_together = ('userid', 'title')
         # 核心：自定义表名（推荐用小写，符合数据库惯例）
         db_table = 'anthology'  # 直接指定表名为 anthology
     

@@ -1,6 +1,6 @@
 // src/components/ToastProvider.tsx
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { Info, XCircle, Leaf, Citrus, AlertTriangle } from 'lucide-react';
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { Info, XCircle, Leaf, Citrus } from 'lucide-react';
 
 // --- Toast 提示组件 ---
 

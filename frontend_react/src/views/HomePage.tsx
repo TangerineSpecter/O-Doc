@@ -333,7 +333,12 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             toast.success("文集创建成功！");
         } catch (error) {
             console.error('创建文集失败:', error);
-            toast.error("创建文集失败，请稍后重试。");
+            // 从错误对象中提取后端返回的具体错误信息
+            let errorMessage = "创建文集失败，请稍后重试。";
+            if (typeof error === 'object' && error !== null) {
+                errorMessage = 'message' in error ? String(error.message) : errorMessage;
+            }
+            toast.error(errorMessage);
         }
     };
 
