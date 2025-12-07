@@ -8,7 +8,7 @@ import {
     Table as TableIcon, Sigma, Type, Minus,
     X, Tag, Folder, Plus, ChevronDown, FileText,
     Paperclip, Image as ImageIcon, Video as VideoIcon, Loader2,
-    Workflow, Trash2, File // 引入 Workflow 图标用于 Mermaid
+    Workflow, Trash2, File
 } from 'lucide-react';
 
 // 定义分类接口
@@ -28,7 +28,7 @@ interface CommandItem {
     cursorOffset?: number;
 }
 
-// 定义附件接口 (导出以便 Article.tsx 使用)
+// 定义附件接口
 export interface AttachmentItem {
     id: string;
     name: string;
@@ -116,10 +116,9 @@ export default function EditorPage() {
         return new Promise((resolve) => {
             setTimeout(() => {
                 // 真实场景：调用 API 上传，返回 URL
-                // 这里用 createObjectURL 模拟
                 const fakeUrl = URL.createObjectURL(file);
                 resolve(fakeUrl);
-            }, 1000); // 模拟 1秒 延迟
+            }, 1000);
         });
     };
 
@@ -132,7 +131,6 @@ export default function EditorPage() {
         for (let i = 0; i < files.length; i++) {
             if (files[i].size > MAX_ATTACHMENT_SIZE) {
                 alert(`文件 ${files[i].name} 超过 10MB 限制`);
-                // 清空 input 以便重试
                 if (attachmentInputRef.current) attachmentInputRef.current.value = '';
                 return;
             }
@@ -141,7 +139,6 @@ export default function EditorPage() {
         setIsUploadingAttachment(true);
         const newAttachments: AttachmentItem[] = [];
 
-        // 支持多选上传
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             try {
@@ -161,7 +158,6 @@ export default function EditorPage() {
 
         setAttachments(prev => [...prev, ...newAttachments]);
         setIsUploadingAttachment(false);
-        // 清空 input，防止同名文件无法再次触发 onChange
         if (attachmentInputRef.current) attachmentInputRef.current.value = '';
     };
 
@@ -169,23 +165,31 @@ export default function EditorPage() {
         setAttachments(prev => prev.filter(a => a.id !== id));
     };
 
-    // --- 2. 图片处理逻辑 ---
+    // --- 2. 图片/文本插入处理逻辑 (修复滚动跳动) ---
     const insertTextAtCursor = (text: string) => {
         const textarea = textareaRef.current;
         if (!textarea) return;
 
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
+
+        // 关键点：记录当前的滚动位置
+        const scrollTop = textarea.scrollTop;
+
         const before = content.substring(0, start);
         const after = content.substring(end);
 
         const newContent = before + text + after;
         setContent(newContent);
 
-        // 恢复焦点并移动光标
+        // 恢复焦点并移动光标，同时恢复滚动位置
         setTimeout(() => {
-            textarea.focus();
-            textarea.setSelectionRange(start + text.length, start + text.length);
+            if (textareaRef.current) {
+                textareaRef.current.focus();
+                textareaRef.current.setSelectionRange(start + text.length, start + text.length);
+                // 关键点：恢复滚动位置
+                textareaRef.current.scrollTop = scrollTop;
+            }
         }, 0);
     };
 
@@ -195,17 +199,15 @@ export default function EditorPage() {
             return;
         }
 
-        // 插入 Loading 占位符
         const placeholder = `![上传中... ${file.name}]()`;
         insertTextAtCursor(placeholder);
 
         try {
             const url = await mockUpload(file);
-            // 替换占位符为真实图片 Markdown
             setContent(prev => prev.replace(placeholder, `![${file.name}](${url})`));
         } catch (error) {
             alert("图片上传失败");
-            setContent(prev => prev.replace(placeholder, '')); // 移除占位符
+            setContent(prev => prev.replace(placeholder, ''));
         }
     };
 
@@ -216,12 +218,11 @@ export default function EditorPage() {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    // 监听粘贴事件
     const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
         const items = e.clipboardData.items;
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf('image') !== -1) {
-                e.preventDefault(); // 阻止默认粘贴行为
+                e.preventDefault();
                 const file = items[i].getAsFile();
                 if (file) processImageUpload(file);
                 return;
@@ -238,7 +239,7 @@ export default function EditorPage() {
         }
     };
 
-    // --- COMMANDS 定义 (新增 Mermaid) ---
+    // --- COMMANDS 定义 ---
     const COMMANDS: CommandItem[] = [
         { id: 'image', label: '图片', icon: <ImageIcon size={18} />, value: '', desc: '上传并插入图片 (Max 5MB)' },
         { id: 'video', label: '视频', icon: <VideoIcon size={18} />, value: '', desc: '插入视频地址' },
@@ -247,7 +248,7 @@ export default function EditorPage() {
             label: 'Mermaid 图表',
             icon: <Workflow size={18} />,
             value: '\n```mermaid\ngraph TD\n    A[Start] --> B{Is it?}\n    B -- Yes --> C[OK]\n    B -- No --> D[End]\n```\n',
-            cursorOffset: 0, // 插入后光标位置
+            cursorOffset: 0,
             desc: '插入流程图/时序图等'
         },
         { id: 'text', label: '文本', icon: <Type size={18} />, value: '', desc: '开始像往常一样输入' },
@@ -307,7 +308,7 @@ export default function EditorPage() {
         document.body.appendChild(div);
 
         const { offsetLeft, offsetTop } = span;
-        const rect = textarea.getBoundingClientRect(); // 相对于视口
+        const rect = textarea.getBoundingClientRect();
 
         document.body.removeChild(div);
 
@@ -316,17 +317,14 @@ export default function EditorPage() {
         const left = rect.left + offsetLeft - textarea.scrollLeft;
 
         // --- 溢出检测逻辑 ---
-        const MENU_HEIGHT = 300; // 假设菜单最大高度
+        const MENU_HEIGHT = 300;
         const viewportHeight = window.innerHeight;
 
-        // 如果 底部空间 < 菜单高度，则改为向上弹出
-        // 向上弹出时，top 应该是 光标顶部 - 菜单高度
         let finalTop = top;
         let placement = 'bottom';
 
         if (top + MENU_HEIGHT > viewportHeight) {
             placement = 'top';
-            // 修正位置到光标上方 (假设行高约 24px, 菜单高度 300px)
             finalTop = top - MENU_HEIGHT - 40;
         }
 
@@ -420,6 +418,7 @@ export default function EditorPage() {
         }
     };
 
+    // --- 菜单执行逻辑 (修复滚动跳动) ---
     const executeCommand = (command: CommandItem) => {
         const textarea = textareaRef.current;
         if (!textarea) return;
@@ -444,7 +443,10 @@ export default function EditorPage() {
             return;
         }
 
-        // 3. 通用文本插入 (包括 Mermaid)
+        // 关键点：记录滚动位置
+        const scrollTop = textarea.scrollTop;
+
+        // 3. 通用文本插入
         const beforeSlash = content.substring(0, slashIndex);
         const afterCursor = content.substring(textarea.selectionEnd);
 
@@ -457,8 +459,12 @@ export default function EditorPage() {
         const newCursorPos = beforeSlash.length + insertValue.length + cursorOffset;
 
         setTimeout(() => {
-            textarea.focus();
-            textarea.setSelectionRange(newCursorPos, newCursorPos);
+            if (textareaRef.current) {
+                textareaRef.current.focus();
+                textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+                // 关键点：恢复滚动位置
+                textareaRef.current.scrollTop = scrollTop;
+            }
         }, 0);
     };
 
@@ -620,7 +626,7 @@ export default function EditorPage() {
                                 </div>
                             </div>
 
-                            {/* 行 2：附件管理 (新样式) */}
+                            {/* 行 2：附件管理 */}
                             <div className="flex flex-col gap-3 pt-1">
                                 <div className="flex items-center justify-between">
                                     <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
