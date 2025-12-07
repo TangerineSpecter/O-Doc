@@ -11,7 +11,7 @@ class ArticleSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'article_id', 'title', 'content', 'coll_id',
             'author', 'created_at', 'updated_at', 'permission', 'is_valid',
-            'read_count', 'category_id', 'sort'
+            'read_count', 'category_id', 'sort', 'parent'
         ]
         # 只读字段
         read_only_fields = ['id', 'article_id', 'created_at', 'updated_at', 'read_count']

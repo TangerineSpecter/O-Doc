@@ -33,6 +33,17 @@ class Article(models.Model):
         max_length=32,
         help_text="所属文集ID，与anthology表的coll_id对应"
     )
+
+    # 新增：父级文章字段 (自关联)
+    parent = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='children',
+        verbose_name="父级文章",
+        help_text="父级文章ID，用于构建文档树形结构"
+    )
     
     # 作者
     author = models.CharField(

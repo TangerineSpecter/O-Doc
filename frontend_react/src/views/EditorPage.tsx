@@ -6,7 +6,7 @@ import {
     Heading1, Heading2, Heading3, Heading4, Heading5,
     Quote, Code, List, CheckSquare,
     Table as TableIcon, Sigma, Type, Minus,
-    X, Tag, Folder, Plus, ChevronDown
+    X, Tag, Folder, Plus, ChevronDown, FileText
 } from 'lucide-react';
 
 // 定义分类接口
@@ -26,7 +26,18 @@ interface CommandItem {
     cursorOffset?: number;
 }
 
-// ... (COMMANDS 和 CATEGORIES 配置保持不变) ...
+// 1. 模拟父级文章列表 (实际应从API获取当前文集下的其他文章)
+interface ParentArticleItem {
+    id: string;
+    title: string;
+}
+const MOCK_PARENT_ARTICLES: ParentArticleItem[] = [
+    { id: 'root', title: '无 (作为顶级文章)' },
+    { id: '1', title: '小橘部署指南' },
+    { id: '2', title: 'Docker 基础概念' },
+    { id: '3', title: '常见问题 FAQ' },
+];
+
 const COMMANDS: CommandItem[] = [
     { id: 'text', label: '文本', icon: <Type size={18} />, value: '', desc: '开始像往常一样输入' },
     { id: 'h1', label: '标题 1', icon: <Heading1 size={18} />, value: '# ', desc: '一级大标题' },
@@ -62,6 +73,10 @@ export default function EditorPage() {
     const [category, setCategory] = useState(CATEGORIES[0]);
     const [tags, setTags] = useState(['笔记', 'Draft']);
     const [tagInput, setTagInput] = useState('');
+
+    // 2. 新增：父级文章状态
+    const [parentArticle, setParentArticle] = useState<ParentArticleItem>(MOCK_PARENT_ARTICLES[0]);
+    const [isParentOpen, setIsParentOpen] = useState(false);
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
 
     // 获取今日日期并格式化
@@ -368,7 +383,45 @@ export default function EditorPage() {
                                     </>
                                 )}
                             </div>
+
+                            {/* 2. 新增：Parent Article Dropdown */}
+                            <div className="relative z-10">
+                                <button
+                                    onClick={() => setIsParentOpen(!isParentOpen)}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-medium transition-colors border border-slate-200 max-w-[200px]"
+                                    title="设置父级文章"
+                                >
+                                    <FileText className="w-3.5 h-3.5" />
+                                    <span className="truncate">父级: {parentArticle.title}</span>
+                                    <ChevronDown className="w-3 h-3 opacity-50" />
+                                </button>
+                                {isParentOpen && (
+                                    <>
+                                        <div className="fixed inset-0" onClick={() => setIsParentOpen(false)}></div>
+                                        <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
+                                            <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 text-[10px] text-slate-400 font-medium">
+                                                选择父级文章
+                                            </div>
+                                            <div className="max-h-60 overflow-y-auto">
+                                                {MOCK_PARENT_ARTICLES.map(p => (
+                                                    <button
+                                                        key={p.id}
+                                                        onClick={() => { setParentArticle(p); setIsParentOpen(false); }}
+                                                        className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex items-center gap-2 ${p.id === parentArticle.id ? 'text-orange-600 bg-orange-50 font-medium' : 'text-slate-700'}`}
+                                                    >
+                                                        {p.id === 'root' ? <Minus className="w-3 h-3 opacity-50" /> : <FileText className="w-3 h-3 opacity-50" />}
+                                                        <span className="truncate">{p.title}</span>
+                                                        {p.id === parentArticle.id && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-orange-500"></div>}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
                             <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
+
                             {/* Tags */}
                             <div className="flex flex-wrap items-center gap-2 flex-1">
                                 {tags.map(tag => (

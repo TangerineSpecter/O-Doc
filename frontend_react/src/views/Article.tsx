@@ -118,15 +118,15 @@ const MermaidChart = ({ chart }: { chart: string }) => {
 
 // --- TOC (Modified) ---
 // 3. 接收 onEdit 和 onDelete
-const TableOfContents = ({ 
-    headers, 
-    activeId, 
+const TableOfContents = ({
+    headers,
+    activeId,
     isEmbedded,
     onEdit,
-    onDelete 
-}: { 
-    headers: HeaderItem[], 
-    activeId: string, 
+    onDelete
+}: {
+    headers: HeaderItem[],
+    activeId: string,
     isEmbedded: boolean,
     onEdit?: () => void,
     onDelete?: () => void
@@ -139,7 +139,7 @@ const TableOfContents = ({
         <div className={`${visibilityClass} absolute left-full top-0 ml-4 h-full w-64`}>
             {/* 4. 修改 top-32 为 top-6，大幅减少顶部留白 */}
             <div className="sticky top-6">
-                
+
                 {/* 5. 插入按钮组：橙色系交互、紧凑、位于标题上方 */}
                 {(onEdit || onDelete) && (
                     <div className="flex items-center gap-2 mb-4">
@@ -327,9 +327,18 @@ export default function Article({
     scrollContainerId,
     onBack,
     content,
-    onEdit,    // 解构
-    onDelete   // 解构
+    title,
+    category,
+    tags,
+    date,
+    onEdit,
+    onDelete
 }: ArticleProps) {
+    const displayTitle = title || DEFAULT_ARTICLE_DATA.title;
+    const displayCategory = category || DEFAULT_ARTICLE_DATA.category;
+    const displayDate = date || DEFAULT_ARTICLE_DATA.date;
+    // 修复关键点：优先使用传入的 tags
+    const displayTags = tags && tags.length > 0 ? tags : DEFAULT_ARTICLE_DATA.tags;
     // 如果没有传入 content，则使用默认文章数据的 content
     const displayMarkdown = content !== undefined ? content : DEFAULT_ARTICLE_DATA.content;
 
@@ -542,10 +551,10 @@ export default function Article({
                         <header className="mb-10 pb-8 border-b border-slate-100">
                             <div className="flex flex-wrap items-center gap-3 mb-6">
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/30">
-                                    {DEFAULT_ARTICLE_DATA.category}
+                                    {displayCategory}
                                 </span>
-                                {/* 只显示文章配置的 tags */}
-                                {DEFAULT_ARTICLE_DATA.tags.map(tag => (
+
+                                {displayTags.map(tag => (
                                     <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
                                         <Icons.Tag className="w-3 h-3 mr-1 opacity-50" />
                                         {tag}
@@ -561,13 +570,13 @@ export default function Article({
                             </div>
 
                             <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight mb-6">
-                                {DEFAULT_ARTICLE_DATA.title}
+                                {displayTitle}
                             </h1>
 
                             <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500 font-medium">
                                 <div className="flex items-center gap-2"><Icons.FileText className="w-4 h-4 text-slate-400" /><span>{stats.wordCount} 字</span></div>
                                 <div className="flex items-center gap-2"><Icons.Clock className="w-4 h-4 text-slate-400" /><span>{stats.readTime} 分钟阅读</span></div>
-                                <div className="flex items-center gap-2"><Icons.Calendar className="w-4 h-4 text-slate-400" /><span>{DEFAULT_ARTICLE_DATA.date}</span></div>
+                                <div className="flex items-center gap-2"><Icons.Calendar className="w-4 h-4 text-slate-400" /><span>{displayDate}</span></div>
                             </div>
                         </header>
 
