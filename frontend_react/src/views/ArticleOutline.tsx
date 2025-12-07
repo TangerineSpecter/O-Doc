@@ -1,19 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  BookOpen,
-  ChevronRight,
-  ChevronDown,
-  Search,
-  Home,
-  Menu,
-  Plus,
-  X
+  BookOpen, ChevronRight, ChevronDown, Search, Home, Menu, Plus, X
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom'; // 1. 引入 useNavigate
+import { useNavigate } from 'react-router-dom';
 import Article from './Article';
-import ConfirmationModal from '../components/ConfirmationModal';
+import ConfirmationModal from '../components/ConfirmationModal'; // 引入通用确认框
 
-// 1. 定义文档数据结构接口
+// ... (DocItem 接口和 docData 数据保持不变) ...
 interface DocItem {
   id: string;
   article_id: string;
@@ -24,44 +17,24 @@ interface DocItem {
   parent?: DocItem | null;
 }
 
-// --- 模拟数据 (保持不变) ---
 const docData: DocItem[] = [
+  { id: '1', article_id: 'simple-run', title: '简易运行', date: '2025-11-18', type: 'doc' },
   {
-    id: '1',
-    article_id: 'simple-run',
-    title: '简易运行',
-    date: '2025-11-18',
-    type: 'doc'
-  },
-  {
-    id: '2',
-    article_id: 'deployment-guide',
-    title: '部署指南',
-    date: '2022-06-24',
-    type: 'doc',
+    id: '2', article_id: 'deployment-guide', title: '部署指南', date: '2022-06-24', type: 'doc',
     children: [
       {
-        id: '2-1',
-        article_id: 'docker-deployment',
-        title: 'Docker 部署 MrDoc (推荐)',
-        date: '2023-02-24',
-        type: 'doc',
+        id: '2-1', article_id: 'docker-deployment', title: 'Docker 部署 MrDoc (推荐)', date: '2023-02-24', type: 'doc',
         children: [
           { id: '2-1-1', article_id: 'docker-image-deployment', title: 'Docker 镜像部署', date: '2025-05-22', type: 'doc' },
           { id: '2-1-2', article_id: 'docker-compose-deployment', title: 'Docker Compose 部署', date: '2025-03-11', type: 'doc' },
           { id: '2-1-3', article_id: 'docker-container-management', title: '管理 Docker 容器', date: '2025-09-06', type: 'doc' },
         ]
       },
-      // ... (其他数据保持不变，节省空间省略) ...
       { id: '2-7', article_id: 'native-to-docker', title: '原生部署转 Docker 部署', date: '2025-03-14', type: 'doc' },
     ]
   },
   {
-    id: '3',
-    article_id: 'configuration-guide',
-    title: '配置指南',
-    date: '2025-07-31',
-    type: 'doc',
+    id: '3', article_id: 'configuration-guide', title: '配置指南', date: '2025-07-31', type: 'doc',
     children: [
       { id: '3-1', article_id: 'configuration-file', title: '配置文件说明', date: '2022-01-15', type: 'doc' },
       { id: '3-2', article_id: 'custom-database-config', title: '自定义数据库配置', date: '2025-11-24', type: 'doc' },
@@ -69,7 +42,6 @@ const docData: DocItem[] = [
   }
 ];
 
-// 辅助函数
 const flattenDocs = (data: DocItem[]) => {
   let flat: DocItem[] = [];
   const recurse = (items: DocItem[], parent?: DocItem | null) => {
@@ -82,7 +54,6 @@ const flattenDocs = (data: DocItem[]) => {
   return flat;
 };
 
-// 4. Props 接口
 interface ArticleOutlineProps {
   onNavigate?: (viewName: string, params?: any) => void;
   collId?: string;
@@ -92,7 +63,6 @@ interface ArticleOutlineProps {
 
 const allDocs = flattenDocs(docData);
 
-// --- 搜索过滤函数 ---
 const filterDocs = (docs: DocItem[], searchTerm: string) => {
   if (!searchTerm.trim()) return docs;
   const filtered: DocItem[] = [];
@@ -119,15 +89,14 @@ const filterDocs = (docs: DocItem[], searchTerm: string) => {
   return filtered;
 };
 
-// --- 组件定义 ---
 export default function ArticleOutline({ onNavigate, collId, title, articleId }: ArticleOutlineProps) {
-  const navigate = useNavigate(); // 2. 获取 navigate 实例
+  const navigate = useNavigate();
   const [activeDocId, setActiveDocId] = useState<string | undefined>(articleId);
   const [expandedIds, setExpandedIds] = useState(['2', '2-1']);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isCreateDocModalOpen, setIsCreateDocModalOpen] = useState(false);
-  const [newDocTitle, setNewDocTitle] = useState("");
+  
+  // 删除模态框状态
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   useEffect(() => {
@@ -156,17 +125,13 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
     }
   };
 
+  // 1. 修改：直接跳转编辑器
   const handleCreateDoc = () => {
-    if (!newDocTitle) return;
-    alert(`新建文档 "${newDocTitle}" 成功！(此处为演示，需后端API支持)`);
-    setIsCreateDocModalOpen(false);
-    setNewDocTitle("");
+    navigate('/editor'); 
   };
 
-  // --- 3. 新增：处理文章操作的回调 ---
   const handleEditArticle = () => {
     if (!activeDocId) return;
-    // 跳转到编辑器页面 (路由需支持)
     navigate(`/editor/${activeDocId}`);
   };
 
@@ -176,14 +141,12 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
   };
 
   const confirmDelete = () => {
-    // 实际删除逻辑
     alert('删除成功 (模拟)');
     setActiveDocId(undefined);
     if (onNavigate) onNavigate('article', { collId });
     setIsDeleteModalOpen(false);
-}
+  }
 
-  // --- 侧边栏 Item 渲染 ---
   const renderSidebarItem = (item: DocItem, level = 0) => {
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedIds.includes(item.id);
@@ -222,7 +185,6 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
     );
   };
 
-  // --- 默认显示的大纲页面 (Home Content) ---
   const renderHomeContent = () => {
     const renderRow = (item: DocItem, level = 0) => {
       const paddingLeft = level * 32;
@@ -254,7 +216,6 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
 
     return (
       <div className="max-w-4xl mx-auto px-6 py-8 min-h-[80vh] animate-in fade-in duration-300">
-        {/* ... (Home Content 保持不变，省略以节省空间) ... */}
         <div className="mb-10 p-6 bg-gradient-to-br from-white to-orange-50/50 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-orange-100/50 rounded-full blur-3xl pointer-events-none"></div>
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 relative z-10">
@@ -297,34 +258,8 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
 
   return (
     <div className="flex h-[calc(100vh-64px)] bg-[#F9FAFB] text-slate-800 font-sans overflow-hidden">
-      {/* --- Create Doc Modal (保持不变) --- */}
-      {isCreateDocModalOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsCreateDocModalOpen(false)}></div>
-          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 animate-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-slate-800">新建文档</h3>
-              <button onClick={() => setIsCreateDocModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 mb-1">文档标题</label>
-              <input
-                type="text"
-                value={newDocTitle}
-                onChange={(e) => setNewDocTitle(e.target.value)}
-                placeholder="请输入文档标题..."
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-sm"
-                autoFocus
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setIsCreateDocModalOpen(false)} className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
-              <button onClick={handleCreateDoc} disabled={!newDocTitle} className="px-3 py-1.5 text-sm text-white bg-orange-500 hover:bg-orange-600 rounded-lg disabled:opacity-50">确定创建</button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      
+      {/* 2. 替换为通用确认框 */}
       <ConfirmationModal
            isOpen={isDeleteModalOpen}
            onClose={() => setIsDeleteModalOpen(false)}
@@ -334,7 +269,6 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
            confirmText="删除"
        />
 
-      {/* 侧边栏 (保持不变) */}
       <aside
         className={`
           w-72 bg-white flex flex-col border-r border-slate-200 flex-shrink-0 h-full
@@ -373,7 +307,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
           </div>
 
           <button
-            onClick={() => setIsCreateDocModalOpen(true)}
+            onClick={handleCreateDoc}
             className="w-full flex items-center justify-center gap-1.5 py-1.5 bg-white border border-dashed border-slate-300 rounded-md text-xs text-slate-500 hover:text-orange-600 hover:border-orange-300 hover:bg-orange-50 transition-all"
           >
             <Plus size={12} />
@@ -391,7 +325,6 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
         <div className="p-3 border-t border-slate-100 text-xs text-slate-400 flex justify-between items-center flex-shrink-0 bg-white"></div>
       </aside>
 
-      {/* 右侧主内容区 */}
       <main
         id="right-content-window"
         className="flex-1 bg-white/50 relative overflow-y-auto overflow-x-hidden scroll-smooth"
@@ -412,7 +345,6 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
               }}
               isEmbedded={true}
               scrollContainerId="right-content-window"
-              // 4. 重点：将处理函数传给 Article，这样按钮才会显示！
               onEdit={handleEditArticle}
               onDelete={handleDeleteArticle}
             />
