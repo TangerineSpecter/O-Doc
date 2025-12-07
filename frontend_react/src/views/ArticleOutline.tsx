@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom'; // 1. 引入 useNavigate
 import Article from './Article';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 // 1. 定义文档数据结构接口
 interface DocItem {
@@ -127,6 +128,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDocModalOpen, setIsCreateDocModalOpen] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState("");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     if (articleId) {
@@ -170,13 +172,16 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
 
   const handleDeleteArticle = () => {
     if (!activeDocId) return;
-    if (confirm('确定要删除当前文档吗？此操作无法恢复。')) {
-      alert('删除成功 (模拟)');
-      // 实际逻辑：调用API -> 更新左侧列表 -> 清空 activeDocId
-      setActiveDocId(undefined);
-      if (onNavigate) onNavigate('article', { collId });
-    }
+    setIsDeleteModalOpen(true);
   };
+
+  const confirmDelete = () => {
+    // 实际删除逻辑
+    alert('删除成功 (模拟)');
+    setActiveDocId(undefined);
+    if (onNavigate) onNavigate('article', { collId });
+    setIsDeleteModalOpen(false);
+}
 
   // --- 侧边栏 Item 渲染 ---
   const renderSidebarItem = (item: DocItem, level = 0) => {
@@ -319,6 +324,15 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+           isOpen={isDeleteModalOpen}
+           onClose={() => setIsDeleteModalOpen(false)}
+           onConfirm={confirmDelete}
+           title="删除文档"
+           description="确定要删除当前文档吗？此操作无法恢复。"
+           confirmText="删除"
+       />
 
       {/* 侧边栏 (保持不变) */}
       <aside

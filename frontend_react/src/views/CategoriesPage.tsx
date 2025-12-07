@@ -3,8 +3,9 @@ import {
     Folder, FolderOpen, Search, FileText, Clock,
     Plus, MoreHorizontal, LayoutGrid, List, Layers,
     Server, PenTool, Globe, Users, Database, Box, Edit, Trash,
-    X, Inbox, Save, AlertTriangle
+    X, Inbox, Save
 } from 'lucide-react';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 interface CategoryItem {
     id: string;
@@ -267,41 +268,20 @@ export default function CategoriesPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24">
 
             {/* Delete Confirmation Modal (NEW) */}
-            {isDeleteModalOpen && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setIsDeleteModalOpen(false)}></div>
-                    <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-6">
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                                    <AlertTriangle className="w-5 h-5 text-red-600" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-900">确认删除分类?</h3>
-                                    <p className="text-sm text-slate-500">此操作无法撤销。</p>
-                                </div>
-                            </div>
-                            <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-                                确定要删除该分类吗？删除后，该分类下的文章将自动归入 <span className="font-bold text-slate-800">未分类</span> 状态。
-                            </p>
-                            <div className="flex justify-end gap-3">
-                                <button
-                                    onClick={() => setIsDeleteModalOpen(false)}
-                                    className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                                >
-                                    取消
-                                </button>
-                                <button
-                                    onClick={confirmDelete}
-                                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm"
-                                >
-                                    确认删除
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmationModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={confirmDelete}
+                title="确认删除分类?"
+                description={
+                    <span>
+                        确定要删除该分类吗？删除后，该分类下的文章将自动归入 <span className="font-bold text-slate-800">未分类</span> 状态。
+                    </span>
+                }
+                confirmText="确认删除"
+                cancelText="取消"
+                type="danger"
+            />
 
             {/* Create/Edit Modal Overlay */}
             {isModalOpen && (

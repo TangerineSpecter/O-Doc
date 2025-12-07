@@ -11,7 +11,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow as darkTheme } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
-import { Edit3, Trash2 } from 'lucide-react'; // 1. 新增图标引入
+import { Edit3, Trash2 } from 'lucide-react';
 
 // 定义 Article 组件接收的参数类型
 interface ArticleProps {
