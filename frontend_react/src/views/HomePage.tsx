@@ -7,6 +7,7 @@ import {
     X, Check, Search, GripHorizontal, Loader2, MoreHorizontal, Edit, Trash
 } from 'lucide-react';
 import { createAnthology, CreateAnthologyParams, getAnthologyList, sortAnthology, Anthology } from '../api/anthology';
+import homepageDemoData from '../data/homepageDemoData.json';
 import { useToast } from '../components/ToastProvider';
 
 import {
@@ -70,6 +71,7 @@ const availableIcons: IconItem[] = [
     { id: 'harddrive', icon: <HardDrive />, color: "text-slate-500" },
     { id: 'pentool', icon: <PenTool />, color: "text-purple-600" },
     { id: 'archive', icon: <Archive />, color: "text-amber-600" },
+    { id: 'cpu', icon: <Cpu />, color: "text-orange-500" },
 ];
 
 // 模拟数据
@@ -79,6 +81,7 @@ const manualData: Collection[] = [
         coll_id: "col_deploy_001",
         title: "小橘部署指南",
         count: 42,
+        iconId: "cpu",
         icon: <Cpu className="w-4 h-4 text-orange-500" />,
         isTop: true,
         permission: 'public',
@@ -264,8 +267,18 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     const fetchCollections = async () => {
         setLoading(true);
         try {
-            const data = await getAnthologyList();
-            const processedData = data.map((anthology: any) => {
+            // 根据环境切换数据源
+            // 开发环境下使用模拟数据，生产环境下使用API接口
+            let data: Anthology[];
+            if (import.meta.env.MODE === 'development') {
+                console.log('使用开发环境模拟数据');
+                data = homepageDemoData as Anthology[];
+            } else {
+                console.log('使用生产环境API数据');
+                data = await getAnthologyList();
+            }
+            
+            const processedData: Collection[] = data.map((anthology: Anthology) => {
                 const iconItem = availableIcons.find(icon => icon.id === anthology.iconId) || availableIcons[0];
                 return {
                     ...anthology,
@@ -274,12 +287,13 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                     icon: React.cloneElement(iconItem.icon, { className: `w-4 h-4 ${iconItem.color}` })
                 };
             });
+            
             // 按 sort 排序
-            processedData.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+            processedData.sort((a: Collection, b: Collection) => (a.sort || 0) - (b.sort || 0));
             setCollections(processedData);
         } catch (error) {
             console.error('获取列表失败', error);
-            setCollections(initialCollectionsData as any);
+            setCollections(initialCollectionsData);
         } finally {
             setLoading(false);
         }
