@@ -255,6 +255,8 @@ export default function EditorPage() {
         { id: 'h1', label: '标题 1', icon: <Heading1 size={18} />, value: '# ', desc: '一级大标题' },
         { id: 'h2', label: '标题 2', icon: <Heading2 size={18} />, value: '## ', desc: '二级中标题' },
         { id: 'h3', label: '标题 3', icon: <Heading3 size={18} />, value: '### ', desc: '三级小标题' },
+        { id: 'h4', label: '标题 4', icon: <Heading4 size={18} />, value: '#### ', desc: '四级小标题' },
+        { id: 'h5', label: '标题 5', icon: <Heading5 size={18} />, value: '##### ', desc: '五级小标题' },
         { id: 'ul', label: '项目符号列表', icon: <List size={18} />, value: '- ', desc: '创建一个简单的列表' },
         { id: 'ol', label: '有序列表', icon: <List size={18} />, value: '1. ', desc: '创建一个带序号的列表' },
         { id: 'todo', label: '待办清单', icon: <CheckSquare size={18} />, value: '- [ ] ', desc: '跟踪任务完成情况' },
