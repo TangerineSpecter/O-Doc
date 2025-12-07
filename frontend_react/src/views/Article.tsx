@@ -11,7 +11,8 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow as darkTheme } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
-import { Edit3, Trash2 } from 'lucide-react';
+import { Edit3, Trash2, Paperclip, Download, FileText } from 'lucide-react';
+import { AttachmentItem } from './EditorPage'; // 引入类型
 
 // 定义 Article 组件接收的参数类型
 interface ArticleProps {
@@ -24,7 +25,9 @@ interface ArticleProps {
     category?: string;
     tags?: string[];
     date?: string;
-    // 2. 新增操作回调定义
+    // 附件
+    attachments?: AttachmentItem[];
+    // 操作回调
     onEdit?: () => void;
     onDelete?: () => void;
 }
@@ -117,7 +120,6 @@ const MermaidChart = ({ chart }: { chart: string }) => {
 };
 
 // --- TOC (Modified) ---
-// 3. 接收 onEdit 和 onDelete
 const TableOfContents = ({
     headers,
     activeId,
@@ -137,10 +139,8 @@ const TableOfContents = ({
 
     return (
         <div className={`${visibilityClass} absolute left-full top-0 ml-4 h-full w-64`}>
-            {/* 4. 修改 top-32 为 top-6，大幅减少顶部留白 */}
             <div className="sticky top-6">
 
-                {/* 5. 插入按钮组：橙色系交互、紧凑、位于标题上方 */}
                 {(onEdit || onDelete) && (
                     <div className="flex items-center gap-2 mb-4">
                         {onEdit && (
@@ -187,7 +187,6 @@ const DEFAULT_ARTICLE_DATA = {
     title: "深度算法分析：从 DFS 到图论的演进",
     category: "算法与数据结构",
     date: "2025/11/14",
-    // 顶部标签作为配置数据
     tags: ["算法基础", "图论", "回溯搜索", "Python"],
     content: `
 > “细节不是细节，它们构成了设计。” —— Charles Eames
@@ -331,18 +330,18 @@ export default function Article({
     category,
     tags,
     date,
+    attachments, // 新增：接收附件 Prop
     onEdit,
     onDelete
 }: ArticleProps) {
     const displayTitle = title || DEFAULT_ARTICLE_DATA.title;
     const displayCategory = category || DEFAULT_ARTICLE_DATA.category;
     const displayDate = date || DEFAULT_ARTICLE_DATA.date;
-    // 修复关键点：优先使用传入的 tags
     const displayTags = tags && tags.length > 0 ? tags : DEFAULT_ARTICLE_DATA.tags;
-    // 如果没有传入 content，则使用默认文章数据的 content
     const displayMarkdown = content !== undefined ? content : DEFAULT_ARTICLE_DATA.content;
 
-    const [headers, setHeaders] = useState<HeaderItem[]>([]); const [activeHeader, setActiveHeader] = useState("");
+    const [headers, setHeaders] = useState<HeaderItem[]>([]);
+    const [activeHeader, setActiveHeader] = useState("");
     const [stats, setStats] = useState({ wordCount: 0, readTime: 0 });
     const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -385,22 +384,17 @@ export default function Article({
         setHeaders(headerItems);
     }, [displayMarkdown]);
 
-    // 3. 滚动监听 (维持原状，用于更新目录高亮)
+    // 3. 滚动监听
     useEffect(() => {
-        // 获取滚动容器：如果有 ID 则获取元素，否则默认是 window
         const target = scrollContainerId ? document.getElementById(scrollContainerId) : window;
 
         const handleScroll = () => {
-            // A. 获取当前的滚动距离
-            // 注意：window 和 element 的获取方式不同
             const currentScrollTop = scrollContainerId
                 ? (target as HTMLElement).scrollTop
                 : (window.pageYOffset || document.documentElement.scrollTop);
 
-            // B. 设置显隐阈值 (例如滚动超过 300px 显示)
             setShowScrollTop(currentScrollTop > 300);
 
-            // C. 原有的目录高亮逻辑 (保持不变)
             if (headers.length === 0) return;
             for (const header of headers) {
                 const el = document.getElementById(header.slug);
@@ -410,18 +404,13 @@ export default function Article({
             }
         };
 
-        // 监听滚动
         target?.addEventListener('scroll', handleScroll, { passive: true });
-
-        // 初始化时也检查一次（防止刷新后在中间位置不显示）
         handleScroll();
 
         return () => target?.removeEventListener('scroll', handleScroll);
     }, [headers, scrollContainerId]);
 
-    // --- 修复：滚动到顶部逻辑 ---
     const handleScrollToTop = () => {
-        // 优先检查是否有指定的滚动容器 ID
         if (scrollContainerId) {
             const container = document.getElementById(scrollContainerId);
             if (container) {
@@ -429,32 +418,23 @@ export default function Article({
                 return;
             }
         }
-        // 否则回退到默认的 window 滚动
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     // --- Components ---
     const components = useMemo(() => ({
-        // 0. 拦截 pre
         pre: (props: any) => <div className="not-prose">{props.children}</div>,
-
-        // A. P标签 (公式居中)
         p: (props: any) => {
             const { children } = props;
             const childrenArray = React.Children.toArray(children);
-
-            // 1. 过滤掉无意义的换行符或空格
             const validChildren = childrenArray.filter(child => {
                 if (typeof child === 'string') {
                     return child.trim().length > 0;
                 }
                 return true;
             });
-
-            // 2. 检查有效节点是否全部都是公式
             const isMathBlock = validChildren.length > 0 && validChildren.every(child => {
                 if (React.isValidElement(child)) {
-                    // 只有 ReactElement 才有 props 属性
                     const element = child as React.ReactElement<{ className?: string }>;
                     return element.props.className?.includes('katex');
                 }
@@ -470,8 +450,6 @@ export default function Article({
             }
             return <p className="mb-4 leading-7 text-justify">{children}</p>;
         },
-
-        // B. 代码块
         code(props: any) {
             const { node, inline, className, children, ...rest } = props;
             const match = /language-(\w+)/.exec(className || '');
@@ -492,7 +470,6 @@ export default function Article({
                                 <CopyButton text={codeStr} />
                             </div>
                         </div>
-                        {/* 这里 SyntaxHighlighter 的 style 可能还需要 ignore 或者在 .d.ts 声明 */}
                         <SyntaxHighlighter
                             style={darkTheme}
                             language={lang}
@@ -505,29 +482,22 @@ export default function Article({
                     </div>
                 );
             }
-
-            // 行内代码
             return (
                 <code className="bg-pink-50 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] mx-1 break-words" {...props}>
                     {children}
                 </code>
             );
         },
-
-        // C. 引用块
         blockquote: ({ children }: { children: ReactNode }) => (
             <blockquote className="not-prose relative my-8 pl-6 pr-10 pt-4 border-l-4 border-violet-500 bg-gradient-to-r from-violet-50 to-transparent rounded-r-lg text-violet-800 italic flex items-center min-h-[60px]">
                 <div className="absolute top-0 right-4 text-6xl text-violet-500/10 font-serif leading-none select-none">”</div>
                 <div className="relative z-10 w-full">{children}</div>
             </blockquote>
         ),
-
-        // D. Checkbox
         input: (props: any) => {
             if (props.type === 'checkbox') return <input type="checkbox" defaultChecked={props.checked} className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded cursor-pointer" />;
             return <input {...props} />;
         },
-
         h2: ({ children }: { children: ReactNode }) => <h2 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h2>,
         h3: ({ children }: { children: ReactNode }) => <h3 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h3>,
         h4: ({ children }: { children: ReactNode }) => <h4 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h4>,
@@ -584,12 +554,40 @@ export default function Article({
                         <article className="max-w-none prose prose-slate prose-lg prose-p:[&:has(>.katex:only-child)]:text-center prose-a:text-[#0ea5e9] prose-a:no-underline hover:prose-a:underline">
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm, remarkMath]}
-                                rehypePlugins={[rehypeKatex, rehypeRaw]}
+                                rehypePlugins={[rehypeKatex, rehypeRaw]} // 确保 rehypeRaw 存在以支持 video 标签
                                 components={components as any}
                             >
                                 {contentWithSyntax}
                             </ReactMarkdown>
                         </article>
+
+                        {/* --- 附件展示区域 (新增) --- */}
+                        {attachments && attachments.length > 0 && (
+                            <div className="mt-16 pt-8 border-t border-slate-100">
+                                <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+                                    <Paperclip className="w-4 h-4 text-slate-500" />
+                                    附件下载 ({attachments.length})
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {attachments.map(att => (
+                                        <div key={att.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-orange-300 hover:shadow-sm transition-all group">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className="w-10 h-10 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0">
+                                                    <FileText className="w-5 h-5 text-blue-500" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="text-sm font-medium text-slate-700 truncate group-hover:text-orange-600 transition-colors">{att.name}</div>
+                                                    <div className="text-xs text-slate-400">{att.size} · {att.type.toUpperCase()}</div>
+                                                </div>
+                                            </div>
+                                            <a href={att.url} download={att.name} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="点击下载">
+                                                <Download className="w-4 h-4" />
+                                            </a>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                     </div>
 
@@ -602,7 +600,6 @@ export default function Article({
                     />
                 </main>
 
-                {/* 修复后的按钮：绑定了 handleScrollToTop */}
                 <button
                     onClick={handleScrollToTop}
                     className={`

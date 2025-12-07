@@ -179,11 +179,11 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     const [collections, setCollections] = useState<Collection[]>([]);
     const toast = useToast();
     const [loading, setLoading] = useState(false);
-    
+
     // Modal States
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCollection, setEditingCollection] = useState<AnthologyFormData | null>(null);
-    
+
     // 2. 新增：删除确认框状态
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
@@ -207,14 +207,14 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             } else {
                 data = await getAnthologyList();
             }
-            
+
             const processedData: Collection[] = data.map((anthology: Anthology) => ({
                 ...anthology,
                 articles: anthology.articles || [],
                 count: anthology.count || 0,
                 icon: getIconComponent(anthology.iconId)
             }));
-            
+
             processedData.sort((a: Collection, b: Collection) => (a.sort || 0) - (b.sort || 0));
             setCollections(processedData);
         } catch (error) {
@@ -419,7 +419,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                             <Search className="w-3 h-3 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
                         </div>
                         <div className="h-5 w-px bg-slate-200 hidden sm:block mx-1"></div>
-                        
+
                         {/* Filter */}
                         <div className="relative">
                             <button className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs transition-colors ${filterType !== 'all' ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'text-slate-600 hover:bg-slate-100'}`} onClick={(e) => { e.stopPropagation(); setIsFilterOpen(!isFilterOpen); setIsSortOpen(false); }}>
@@ -434,7 +434,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                 </div>
                             )}
                         </div>
-                        
+
                         {/* Sort */}
                         <div className="relative">
                             <button className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs transition-colors ${sortType !== 'default' ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'text-slate-600 hover:bg-slate-100'}`} onClick={(e) => { e.stopPropagation(); setIsSortOpen(!isSortOpen); setIsFilterOpen(false); }}>
