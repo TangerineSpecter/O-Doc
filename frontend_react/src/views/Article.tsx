@@ -8,10 +8,18 @@ import 'katex/dist/katex.min.css';
 import { Paperclip, Download } from 'lucide-react';
 
 import { articleDemoData } from "../mock/articleDemoData";
-import { AttachmentItem } from './EditorPage';
 import { useArticle } from '../hooks/useArticle';
 import { ArticleIcons, MermaidChart, CodeBlock, CUSTOM_STYLES } from '../components/Article/MarkdownElements';
 import { TableOfContents } from '../components/Article/TableOfContents';
+
+// 2. 在这里直接定义 AttachmentItem 接口 (解耦依赖)
+export interface AttachmentItem {
+    id: string;
+    name: string;
+    size: string;
+    url: string;
+    type: string;
+}
 
 interface ArticleProps {
     isEmbedded?: boolean;
@@ -22,7 +30,7 @@ interface ArticleProps {
     category?: string;
     tags?: string[];
     date?: string;
-    attachments?: AttachmentItem[];
+    attachments?: AttachmentItem[]; // 使用本地定义的接口
     onEdit?: () => void;
     onDelete?: () => void;
 }
@@ -63,7 +71,6 @@ export default function Article({
     const components = useMemo(() => ({
         pre: (props: any) => <div className="not-prose">{props.children}</div>,
         p: (props: any) => {
-            // 处理数学公式块的对齐
             const { children } = props;
             const childrenArray = React.Children.toArray(children);
             const isMathBlock = childrenArray.length > 0 && childrenArray.every(child => {

@@ -1,0 +1,332 @@
+import { useState, useRef, useEffect } from 'react';
+import { CommandItem } from '../components/Editor/SlashMenu';
+import { Category, AttachmentItem, ParentArticleItem } from '../components/Editor/EditorMetaBar';
+import {
+    Heading1, Heading2, Heading3, Heading4, Heading5, Quote, Code, List,
+    CheckSquare, Table as TableIcon, Sigma, Type, Minus, ImageIcon, Video as VideoIcon, Workflow
+} from 'lucide-react';
+
+// --- Constants ---
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
+
+export const CATEGORIES: Category[] = [
+    { id: 'algo', name: '算法与数据结构', color: 'bg-blue-600' },
+    { id: 'backend', name: '后端研发', color: 'bg-violet-600' },
+    { id: 'frontend', name: '前端开发', color: 'bg-pink-600' },
+    { id: 'devops', name: '运维部署', color: 'bg-orange-600' },
+    { id: 'product', name: '产品经理', color: 'bg-teal-600' },
+];
+
+export const MOCK_PARENT_ARTICLES: ParentArticleItem[] = [
+    { id: 'root', title: '无 (作为顶级文章)' },
+    { id: '1', title: '小橘部署指南' },
+    { id: '2', title: 'Docker 基础概念' },
+    { id: '3', title: '常见问题 FAQ' },
+];
+
+// --- Commands Config ---
+// React Node 需要在组件中渲染，这里定义配置，图标在组件中实例化或者这里直接用
+// 这里直接用 React Node 是可以的，只要 Hook 文件是 .tsx 或者引入了 React
+const COMMANDS_CONFIG: Omit<CommandItem, 'icon'>[] = [
+    { id: 'image', label: '图片', value: '', desc: '上传并插入图片 (Max 5MB)' },
+    { id: 'video', label: '视频', value: '', desc: '插入视频地址' },
+    { id: 'mermaid', label: 'Mermaid 图表', value: '\n```mermaid\ngraph TD\n    A[Start] --> B{Is it?}\n    B -- Yes --> C[OK]\n    B -- No --> D[End]\n```\n', cursorOffset: 0, desc: '插入流程图/时序图等' },
+    { id: 'text', label: '文本', value: '', desc: '开始像往常一样输入' },
+    { id: 'h1', label: '标题 1', value: '# ', desc: '一级大标题' },
+    { id: 'h2', label: '标题 2', value: '## ', desc: '二级中标题' },
+    { id: 'h3', label: '标题 3', value: '### ', desc: '三级小标题' },
+    { id: 'h4', label: '标题 4', value: '#### ', desc: '四级小标题' },
+    { id: 'h5', label: '标题 5', value: '##### ', desc: '五级小标题' },
+    { id: 'ul', label: '项目符号列表', value: '- ', desc: '创建一个简单的列表' },
+    { id: 'ol', label: '有序列表', value: '1. ', desc: '创建一个带序号的列表' },
+    { id: 'todo', label: '待办清单', value: '- [ ] ', desc: '跟踪任务完成情况' },
+    { id: 'quote', label: '引用', value: '> ', desc: '引用一段话' },
+    { id: 'code', label: '代码块', value: '```\n\n```', cursorOffset: -4, desc: '插入代码片段' },
+    { id: 'math', label: '数学公式', value: '$$\n\n$$', cursorOffset: -3, desc: '插入 KaTex 公式' },
+    { id: 'divider', label: '分割线', value: '---\n', desc: '视觉分割线' },
+    { id: 'table', label: '表格', value: '\n| 表头1 | 表头2 |\n| --- | --- |\n| 内容1 | 内容2 |\n', desc: '插入简单的表格' },
+];
+
+// Helper to add icons
+const getCommandsWithIcons = (): CommandItem[] => {
+    // 简单映射，实际项目中可以更优
+    const icons: Record<string, React.ReactNode> = {
+        image: <ImageIcon size={18} />, video: <VideoIcon size={18} />, mermaid: <Workflow size={18} />,
+        text: <Type size={18} />, h1: <Heading1 size={18} />, h2: <Heading2 size={18} />,
+        h3: <Heading3 size={18} />, h4: <Heading4 size={18} />, h5: <Heading5 size={18} />,
+        ul: <List size={18} />, ol: <List size={18} />, todo: <CheckSquare size={18} />,
+        quote: <Quote size={18} />, code: <Code size={18} />, math: <Sigma size={18} />,
+        divider: <Minus size={18} />, table: <TableIcon size={18} />
+    };
+    return COMMANDS_CONFIG.map(c => ({ ...c, icon: icons[c.id] || <Type size={18} /> }));
+};
+
+export const useEditor = () => {
+    // Refs
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const attachmentInputRef = useRef<HTMLInputElement>(null);
+
+    // State: Content
+    const [title, setTitle] = useState("未命名文档");
+    const [content, setContent] = useState(`> 💡 **提示**: 试一下插入图片、视频和 Mermaid 图表功能吧！\n\n## 1. 图片测试\n试试复制一张图片粘贴到这里，或者使用 \`/图片\` 命令。\n\n## 2. Mermaid 图表\n使用 \`/图表\` 命令插入一个流程图。\n`);
+
+    // State: Meta
+    const [category, setCategory] = useState<Category>(CATEGORIES[0]);
+    const [parentArticle, setParentArticle] = useState<ParentArticleItem>(MOCK_PARENT_ARTICLES[0]);
+    const [tags, setTags] = useState(['笔记', 'Draft']);
+    const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+
+    // State: UI
+    const [isSaving, setIsSaving] = useState(false);
+    const [isPreviewMode, setIsPreviewMode] = useState(false);
+    const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+
+    // State: Slash Menu
+    const [showMenu, setShowMenu] = useState(false);
+    const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedIndex, setSelectedIndex] = useState(0);
+    const [slashIndex, setSlashIndex] = useState(-1);
+
+    const commands = getCommandsWithIcons().filter(cmd =>
+        cmd.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        cmd.id.includes(searchQuery.toLowerCase())
+    );
+
+    // --- Helpers ---
+    const mockUpload = async (file: File): Promise<string> => {
+        return new Promise((resolve) => setTimeout(() => resolve(URL.createObjectURL(file)), 1000));
+    };
+
+    const getCaretCoordinates = () => {
+        const textarea = textareaRef.current;
+        if (!textarea) return { top: 0, left: 0 };
+        const { selectionStart } = textarea;
+        const div = document.createElement('div');
+        const style = window.getComputedStyle(textarea);
+        Array.from(style).forEach(prop => div.style[prop as any] = style.getPropertyValue(prop));
+        div.style.position = 'absolute'; div.style.visibility = 'hidden'; div.style.whiteSpace = 'pre-wrap';
+        div.style.width = style.width;
+        div.textContent = textarea.value.substring(0, selectionStart);
+        const span = document.createElement('span'); span.textContent = '|'; div.appendChild(span);
+        document.body.appendChild(div);
+        const { offsetLeft, offsetTop } = span;
+        const rect = textarea.getBoundingClientRect();
+        document.body.removeChild(div);
+
+        let top = rect.top + offsetTop - textarea.scrollTop + 30;
+        const MENU_HEIGHT = 300;
+        if (top + MENU_HEIGHT > window.innerHeight) top -= (MENU_HEIGHT + 40);
+
+        return { top, left: rect.left + offsetLeft - textarea.scrollLeft };
+    };
+
+    const insertTextAtCursor = (text: string, cursorOffset = 0) => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const scrollTop = textarea.scrollTop;
+        const newContent = content.substring(0, start) + text + content.substring(end);
+        setContent(newContent);
+        setTimeout(() => {
+            textarea.focus();
+            const newPos = start + text.length + cursorOffset;
+            textarea.setSelectionRange(newPos, newPos);
+            textarea.scrollTop = scrollTop;
+        }, 0);
+    };
+
+    // --- Actions ---
+    const handleSave = () => {
+        setIsSaving(true);
+        setTimeout(() => { setIsSaving(false); alert("保存成功！"); }, 800);
+    };
+
+    const handleTogglePreview = () => setIsPreviewMode(prev => !prev);
+
+    const handleAddTag = (tag: string) => {
+        if (!tags.includes(tag)) setTags([...tags, tag]);
+    };
+
+    const handleRemoveTag = (tagToRemove: string) => {
+        setTags(tags.filter(tag => tag !== tagToRemove));
+    };
+
+    // --- File Handling ---
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > MAX_IMAGE_SIZE) { alert("图片大小不能超过 5MB"); return; }
+
+        const placeholder = `![上传中... ${file.name}]()`;
+        insertTextAtCursor(placeholder);
+
+        try {
+            const url = await mockUpload(file);
+            setContent(prev => prev.replace(placeholder, `![${file.name}](${url})`));
+        } catch {
+            alert("上传失败");
+            setContent(prev => prev.replace(placeholder, ''));
+        }
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleAttachmentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files?.length) return;
+
+        for (let i = 0; i < files.length; i++) {
+            if (files[i].size > MAX_ATTACHMENT_SIZE) { alert(`文件 ${files[i].name} 超过 10MB`); return; }
+        }
+
+        setIsUploadingAttachment(true);
+        const newAtts: AttachmentItem[] = [];
+        for (let i = 0; i < files.length; i++) {
+            try {
+                const url = await mockUpload(files[i]);
+                newAtts.push({
+                    id: `att-${Date.now()}-${i}`,
+                    name: files[i].name,
+                    size: (files[i].size / 1024 / 1024).toFixed(2) + ' MB',
+                    type: files[i].name.split('.').pop()?.toUpperCase() || 'FILE',
+                    url
+                });
+            } catch { alert("上传失败"); }
+        }
+        setAttachments(prev => [...prev, ...newAtts]);
+        setIsUploadingAttachment(false);
+        if (attachmentInputRef.current) attachmentInputRef.current.value = '';
+    };
+
+    const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                e.preventDefault();
+                const file = items[i].getAsFile();
+                if (file) {
+                    // Reuse image upload logic but tricky without event, simulate it
+                    const placeholder = `![粘贴上传中...]()`;
+                    // Simplified paste logic for brevity
+                    insertTextAtCursor(placeholder);
+                    mockUpload(file).then(url => setContent(prev => prev.replace(placeholder, `![image](${url})`)));
+                }
+                return;
+            }
+        }
+    };
+
+    // --- Command Handling ---
+    const executeCommand = (cmd: CommandItem) => {
+        if (cmd.id === 'image') {
+            fileInputRef.current?.click();
+            closeMenu();
+            // Clean up slash command text
+            setContent(prev => prev.substring(0, slashIndex) + prev.substring(textareaRef.current!.selectionEnd));
+            return;
+        }
+        if (cmd.id === 'video') {
+            closeMenu();
+            setContent(prev => prev.substring(0, slashIndex) + prev.substring(textareaRef.current!.selectionEnd));
+            setTimeout(() => {
+                const url = prompt("请输入视频地址:", "https://");
+                if (url) insertTextAtCursor(`\n<video src="${url}" controls width="100%"></video>\n`);
+            }, 100);
+            return;
+        }
+
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const beforeSlash = content.substring(0, slashIndex);
+        const afterCursor = content.substring(textarea.selectionEnd);
+        const newContent = beforeSlash + cmd.value + afterCursor;
+
+        setContent(newContent);
+        closeMenu();
+
+        const newCursor = beforeSlash.length + cmd.value.length + (cmd.cursorOffset || 0);
+        setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(newCursor, newCursor);
+        }, 0);
+    };
+
+    const closeMenu = () => { setShowMenu(false); setSlashIndex(-1); setSearchQuery(''); };
+
+    const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const val = e.target.value;
+        const pos = e.target.selectionStart;
+        setContent(val);
+
+        if (showMenu) {
+            if (pos <= slashIndex) { closeMenu(); return; }
+            const query = val.substring(slashIndex + 1, pos);
+            if (query.includes(' ') || query.includes('\n')) closeMenu();
+            else { setSearchQuery(query); setSelectedIndex(0); }
+            return;
+        }
+
+        if (val.charAt(pos - 1) === '/' && (!val.charAt(pos - 2) || /\s/.test(val.charAt(pos - 2)))) {
+            const coords = getCaretCoordinates();
+            setMenuPosition(coords);
+            setSlashIndex(pos - 1);
+            setShowMenu(true);
+            setSelectedIndex(0);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if ((e.metaKey || e.ctrlKey) && e.code === 'KeyE') {
+            e.preventDefault(); handleTogglePreview(); return;
+        }
+        if (!showMenu) return;
+
+        if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(prev => (prev + 1) % commands.length); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(prev => (prev - 1 + commands.length) % commands.length); }
+        else if (e.key === 'Enter') { e.preventDefault(); executeCommand(commands[selectedIndex]); }
+        else if (e.key === 'Escape') { e.preventDefault(); closeMenu(); }
+    };
+
+    // Global shortcut
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.code === 'KeyE') { e.preventDefault(); handleTogglePreview(); }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, []);
+
+    return {
+        // Refs
+        textareaRef, fileInputRef, attachmentInputRef,
+        // State
+        title, setTitle,
+        content,
+        category, setCategory,
+        parentArticle, setParentArticle,
+        tags,
+        attachments, setAttachments,
+        isSaving, isPreviewMode, isUploadingAttachment,
+        showMenu, menuPosition, selectedIndex, setSelectedIndex,
+        commands,
+        // Actions
+        onSave: handleSave,
+        onTogglePreview: handleTogglePreview,
+        onAddTag: handleAddTag,
+        onRemoveTag: handleRemoveTag,
+        onBack: () => window.history.back(),
+        // File Actions
+        onImageUpload: handleImageChange,
+        onAttachmentUpload: handleAttachmentChange,
+        onRemoveAttachment: (id: string) => setAttachments(prev => prev.filter(a => a.id !== id)),
+        onPaste: handlePaste,
+        // Editor Actions
+        onTextChange: handleTextChange,
+        onKeyDown: handleKeyDown,
+        onExecuteCommand: executeCommand
+    };
+};
