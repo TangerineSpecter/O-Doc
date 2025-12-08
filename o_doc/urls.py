@@ -21,8 +21,8 @@ from django.views.generic import TemplateView
 
 urlpatterns = [
     path('', TemplateView.as_view(template_name='index.html')),
-    path('api/anthology/', include('anthologies.urls')),  # 文集接口
-    path('api/article/', include('articles.urls')),  # 文章接口
+    path('api/anthology/', include('anthology.urls')),  # 文集接口
+    path('api/article/', include('article.urls')),  # 文章接口
     path('api/category/', include('categories.urls')),  # 分类接口
     path('api/tag/', include('tags.urls')),  # 标签接口
 ]

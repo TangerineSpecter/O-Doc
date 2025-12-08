@@ -75,6 +75,7 @@ class TagListView(APIView):
                 tag_data = {
                     'tag_id': tag.tag_id,
                     'name': tag.name,
+                    'themeId': tag.themeId,
                     'sort': tag.sort,
                     'article_count': article_count,
                     'created_at': tag.created_at,

@@ -12,7 +12,8 @@ class Tag(models.Model):
         editable=False,
         verbose_name='标签专属ID'
     )
-    name = models.CharField(max_length=30, unique=True, verbose_name='标签名称')
+    name = models.CharField(max_length=30, verbose_name='标签名称')
+    theme_id = models.CharField(max_length=36, verbose_name='主题ID')
     userid = models.CharField(max_length=50, default='admin', verbose_name='创建者ID')
     
     # 状态信息

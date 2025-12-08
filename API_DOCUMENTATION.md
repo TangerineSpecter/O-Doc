@@ -290,7 +290,7 @@
 ```json
 {
   "name": "标签名称",
-  "description": "标签描述"
+  "themeId": "主题ID"
 }
 ```
 
@@ -298,7 +298,7 @@
 | 参数名 | 类型 | 必填 | 描述 |
 |-------|------|------|------|
 | name | string | 是 | 标签名称，最长30个字符 |
-| description | string | 否 | 标签描述，最长100个字符 |
+| themeId | string | 是 | 主题ID，用于标签的颜色主题 |
 
 **响应示例**：
 ```json
@@ -308,7 +308,7 @@
   "data": {
     "tag_id": "tag_001",
     "name": "标签名称",
-    "description": "标签描述",
+    "themeId": "theme_001",
     "sort": 1,
     "created_at": "2025-01-16T10:30:00Z",
     "updated_at": "2025-01-16T10:30:00Z"
@@ -332,7 +332,7 @@
   "data": {
     "tag_id": "tag_001",
     "name": "标签名称",
-    "description": "标签描述",
+    "themeId": "theme_001",
     "sort": 1,
     "created_at": "2025-01-16T10:30:00Z",
     "updated_at": "2025-01-16T10:30:00Z"
@@ -353,7 +353,7 @@
     {
       "tag_id": "tag_001",
       "name": "标签1",
-      "description": "标签描述1",
+      "themeId": "theme_001",
       "sort": 1,
       "created_at": "2025-01-16T10:30:00Z",
       "updated_at": "2025-01-16T10:30:00Z"
@@ -361,7 +361,7 @@
     {
       "tag_id": "tag_002",
       "name": "标签2",
-      "description": "标签描述2",
+      "themeId": "theme_002",
       "sort": 2,
       "created_at": "2025-01-16T10:35:00Z",
       "updated_at": "2025-01-16T10:35:00Z"
@@ -401,7 +401,7 @@
 ```json
 {
   "name": "更新后的标签名称",
-  "description": "更新后的标签描述"
+  "themeId": "更新后的主题ID"
 }
 ```
 
@@ -409,7 +409,7 @@
 | 参数名 | 类型 | 必填 | 描述 |
 |-------|------|------|------|
 | name | string | 否 | 标签名称，最长30个字符 |
-| description | string | 否 | 标签描述，最长100个字符 |
+| themeId | string | 否 | 主题ID，用于标签的颜色主题 |
 
 **响应示例**：
 ```json
@@ -419,7 +419,7 @@
   "data": {
     "tag_id": "tag_001",
     "name": "更新后的标签名称",
-    "description": "更新后的标签描述",
+    "themeId": "更新后的主题ID",
     "sort": 1,
     "created_at": "2025-01-16T10:30:00Z",
     "updated_at": "2025-01-16T11:00:00Z"

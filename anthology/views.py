@@ -1,6 +1,5 @@
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
-from django.db import models
 
 from article.models import Article
 from utils.error_codes import ErrorCode
