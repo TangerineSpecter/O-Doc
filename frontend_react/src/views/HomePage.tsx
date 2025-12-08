@@ -4,7 +4,7 @@ import {
     Plus, Check, Search, GripHorizontal, MoreHorizontal, Edit, Trash
 } from 'lucide-react';
 import { createAnthology, CreateAnthologyParams, getAnthologyList, sortAnthology, Anthology } from '../api/anthology';
-import homepageDemoData from '../data/homepageDemoData.json';
+import homepageDemoData from '../mock/homepageDemoData.json';
 import { useToast } from '../components/ToastProvider';
 import { AVAILABLE_ICONS, getIconComponent } from '../constants/iconList';
 import CreateAnthologyModal, { AnthologyFormData } from '../components/CreateAnthologyModal';
