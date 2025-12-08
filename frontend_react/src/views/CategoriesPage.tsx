@@ -6,7 +6,7 @@ import {
     Server, PenTool, Globe, Users, Database, Box, Edit, Trash,
     Inbox
 } from 'lucide-react';
-import ConfirmationModal from '../components/ConfirmationModal'; // 2. 引入通用确认框
+import ConfirmationModal from '../components/common/ConfirmationModal'; // 2. 引入通用确认框
 import CategoryModal from '../components/CategoryModal'; // 引入分类模态框组件
 import { 
     getCategoryList, 

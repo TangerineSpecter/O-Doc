@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Article from './Article';
-import ConfirmationModal from '../components/ConfirmationModal'; // 引入通用确认框
+import ConfirmationModal from '../components/common/ConfirmationModal'; // 引入通用确认框
 
 // ... (DocItem 接口和 docData 数据保持不变) ...
 interface DocItem {

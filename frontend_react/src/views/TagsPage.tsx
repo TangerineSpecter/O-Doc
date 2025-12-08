@@ -5,7 +5,7 @@ import {
     Filter, BookOpen, Plus, MoreHorizontal, LayoutGrid, List,
     Edit, Trash, X, Save
 } from 'lucide-react';
-import ConfirmationModal from '../components/ConfirmationModal'; // 2. 引入 ConfirmationModal
+import ConfirmationModal from '../components/common/ConfirmationModal'; // 2. 引入 ConfirmationModal
 import { 
     getTagList, 
     createTag, 
