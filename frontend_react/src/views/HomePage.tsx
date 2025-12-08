@@ -6,7 +6,7 @@ import {
 import { createAnthology, CreateAnthologyParams, getAnthologyList, sortAnthology, Anthology } from '../api/anthology';
 import { useToast } from '../components/ToastProvider';
 import { getIconComponent } from '../constants/iconList';
-import CreateAnthologyModal, { AnthologyFormData } from '../components/CreateAnthologyModal';
+import CreateAnthologyModal, { AnthologyFormData } from '../components/AnthologyModal';
 import ConfirmationModal from '../components/ConfirmationModal'; // 1. 引入新组件
 
 import {

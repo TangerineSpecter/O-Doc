@@ -7,7 +7,14 @@
 ### 一体化项目结构
 ```
 O-Doc/
-├── frontend_react/        # 前端项目目录
+├── .dockerignore        # Docker 忽略文件
+├── .gitignore           # Git 忽略文件
+├── .vite/               # Vite 构建缓存目录
+├── API_DOCUMENTATION.md # API 文档
+├── Dockerfile           # Docker 构建文件
+├── PROJECT_STRUCTURE.md # 项目结构文档
+├── README.md            # 项目说明文档
+├── frontend_react/      # 前端项目目录
 │   ├── src/             # 前端源代码
 │   │   ├── App.tsx      # 主应用组件
 │   │   ├── main.tsx     # 应用入口文件
@@ -17,11 +24,17 @@ O-Doc/
 │   │   ├── api/         # API 调用相关
 │   │   ├── components/  # 通用组件
 │   │   ├── constants/   # 常量定义
+│   │   ├── mock/        # Mock 数据配置
 │   │   └── utils/       # 工具函数
+│   ├── LICENSE          # 许可证文件
+│   ├── eslint.config.js # ESLint 配置文件
+│   ├── index.html       # HTML 入口文件
 │   ├── vite.config.ts   # Vite 配置文件
-│   ├── update.sh        # 前端构建与集成脚本
+│   ├── postcss.config.js # PostCSS 配置文件
+│   ├── public/          # 静态资源目录
 │   ├── tailwind.config.js # Tailwind CSS 配置
 │   ├── tsconfig.json    # TypeScript 配置
+│   ├── tsconfig.node.json # TypeScript Node 配置
 │   └── package.json     # 前端依赖配置
 ├── o_doc/               # Django 项目目录
 │   ├── settings.py      # Django 配置文件
@@ -43,8 +56,8 @@ O-Doc/
 │   └── assets/          # 前端构建后的静态资源
 ├── requirements.txt     # 后端依赖配置
 ├── manage.py            # Django 管理脚本
-├── Dockerfile           # Docker 构建文件
-└── start.sh             # 项目启动脚本
+├── start.sh             # 项目启动脚本
+└── update.sh            # 项目更新脚本
 ```
 
 ### 前端项目结构
@@ -56,16 +69,44 @@ frontend_react/src/
 ├── index.css            # 全局样式文件
 ├── vite-env.d.ts        # Vite 环境类型定义
 ├── assets/              # 静态资源目录
+│   └── react.svg        # React 图标
 ├── layout/              # 布局组件
 │   └── Layout.tsx       # 主布局组件
 ├── views/               # 页面视图
 │   ├── HomePage.tsx     # 首页组件
 │   ├── Article.tsx      # 文章详情组件
-│   └── ArticleOutline.tsx  # 文章大纲组件
+│   ├── ArticleOutline.tsx # 文章大纲组件
+│   ├── CategoriesPage.tsx # 分类管理页面
+│   ├── EditorPage.tsx   # 编辑器页面
+│   ├── LoginPage.tsx    # 登录页面
+│   ├── ResourcesPage.tsx # 资源管理页面
+│   ├── StatisticsPage.tsx # 统计页面
+│   └── TagsPage.tsx     # 标签管理页面
 ├── doc/                 # 文档内容目录
-│   └── frontend_doc/    # 前端文档
+│   ├── frontend_doc/    # 前端文档
+│   ├── image.png        # 示例图片
+│   ├── image-1.png      # 示例图片1
+│   └── image-2.png      # 示例图片2
 ├── api/                 # API 调用相关
+│   ├── anthology.ts     # 文集相关 API
+│   ├── article.ts       # 文章相关 API
+│   ├── category.ts      # 分类相关 API
+│   ├── resources.ts     # 资源相关 API
+│   ├── tag.ts           # 标签相关 API
+│   └── user.ts          # 用户相关 API
 ├── components/          # 通用组件
+│   ├── CategoryModal.tsx      # 分类创建/编辑模态框
+│   ├── ConfirmationModal.tsx  # 确认弹窗组件
+│   ├── CreateAnthologyModal.tsx # 创建文集模态框
+│   ├── FloatingActionMenu.tsx  # 悬浮操作菜单
+│   └── ToastProvider.tsx       # 全局提示组件
 ├── constants/           # 常量定义
+│   ├── httpEnum.ts      # HTTP 状态码枚举
+│   └── iconList.tsx     # 图标列表
+├── mock/                # Mock 数据配置
+│   ├── articleDemoData.ts     # 文章示例数据
+│   ├── homepageDemoData.json  # 首页示例数据
+│   └── index.ts         # Mock 服务配置
 └── utils/               # 工具函数
+    └── request.ts       # 请求工具类
 ```
