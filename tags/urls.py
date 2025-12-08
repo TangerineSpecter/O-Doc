@@ -11,17 +11,17 @@ from .views import (
 
 urlpatterns = [
     # 创建标签
-    path('create/', TagCreateView.as_view(), name='tag_create'),
+    path('create', TagCreateView.as_view(), name='tag_create'),
     # 标签详情
-    path('detail/<str:tag_id>/', TagDetailView.as_view(), name='tag_detail'),
+    path('detail/<str:tag_id>', TagDetailView.as_view(), name='tag_detail'),
     # 标签列表
-    path('list/', TagListView.as_view(), name='tag_list'),
+    path('list', TagListView.as_view(), name='tag_list'),
     # 标签排序
-    path('<str:tag_id>/sort/', TagSortView.as_view(), name='tag_sort'),
+    path('<str:tag_id>/sort', TagSortView.as_view(), name='tag_sort'),
     # 更新标签
-    path('update/<str:tag_id>/', TagUpdateView.as_view(), name='tag_update'),
+    path('update/<str:tag_id>', TagUpdateView.as_view(), name='tag_update'),
     # 删除标签
-    path('delete/<str:tag_id>/', TagDeleteView.as_view(), name='tag_delete'),
+    path('delete/<str:tag_id>', TagDeleteView.as_view(), name='tag_delete'),
     # 标签下的文章列表
-    path('articles/', TagArticlesView.as_view(), name='tag_articles'),
+    path('articles', TagArticlesView.as_view(), name='tag_articles'),
 ]

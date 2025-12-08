@@ -12,7 +12,7 @@ class TagSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Tag
-        fields = ['tag_id', 'name', 'themeId', 'userid', 'is_valid', 'sort', 'created_at', 'updated_at']
+        fields = ['tag_id', 'name', 'theme_id', 'userid', 'is_valid', 'sort', 'created_at', 'updated_at']
         read_only_fields = ['tag_id', 'is_valid', 'created_at', 'updated_at']
     
     def validate_name(self, value):
