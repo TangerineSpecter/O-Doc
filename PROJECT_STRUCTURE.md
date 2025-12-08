@@ -25,6 +25,7 @@ O-Doc/
 │   │   ├── components/  # 通用组件
 │   │   ├── constants/   # 常量定义
 │   │   ├── mock/        # Mock 数据配置
+│   │   ├── hooks/       # 自定义 Hooks
 │   │   └── utils/       # 工具函数
 │   ├── LICENSE          # 许可证文件
 │   ├── eslint.config.js # ESLint 配置文件
@@ -94,12 +95,24 @@ frontend_react/src/
 │   ├── resources.ts     # 资源相关 API
 │   ├── tag.ts           # 标签相关 API
 │   └── user.ts          # 用户相关 API
+├── hooks/               # 自定义 Hooks
+│   ├── useArticle.ts      # 文章相关 Hook
+│   ├── useCategories.ts   # 分类相关 Hook
+│   ├── useCollections.ts  # 文集相关 Hook
+│   ├── useEditor.tsx      # 编辑器相关 Hook
+│   └── useTags.ts         # 标签相关 Hook
 ├── components/          # 通用组件
-│   ├── CategoryModal.tsx      # 分类创建/编辑模态框
-│   ├── ConfirmationModal.tsx  # 确认弹窗组件
-│   ├── CreateAnthologyModal.tsx # 创建文集模态框
-│   ├── FloatingActionMenu.tsx  # 悬浮操作菜单
-│   └── ToastProvider.tsx       # 全局提示组件
+│   ├── AnthologyModal.tsx        # 文集模态框组件
+│   ├── CategoryModal.tsx         # 分类创建/编辑模态框
+│   ├── TagModal.tsx              # 标签模态框组件
+│   ├── FloatingActionMenu.tsx    # 悬浮操作菜单
+│   ├── SortableCollectionCard.tsx # 可排序文集卡片
+│   ├── ToastProvider.tsx         # 全局提示组件
+│   ├── Article/                  # 文章相关组件
+│   ├── Category/                 # 分类相关组件
+│   ├── Editor/                   # 编辑器相关组件
+│   ├── Tag/                      # 标签相关组件
+│   └── common/                   # 通用基础组件
 ├── constants/           # 常量定义
 │   ├── httpEnum.ts      # HTTP 状态码枚举
 │   └── iconList.tsx     # 图标列表
