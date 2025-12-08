@@ -87,12 +87,24 @@ class Article(models.Model):
         help_text="阅读次数"
     )
     
-    # 分类ID
-    category_id = models.CharField(
-        max_length=32,
-        blank=True,
+    # 分类（外键）
+    category = models.ForeignKey(
+        'categories.Category',
         null=True,
-        help_text="文章分类ID"
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='articles',
+        verbose_name="所属分类",
+        help_text="文章所属分类"
+    )
+    
+    # 标签（多对多关系）
+    tags = models.ManyToManyField(
+        'tags.Tag',
+        blank=True,
+        related_name='articles',
+        verbose_name="文章标签",
+        help_text="文章关联的标签"
     )
     
     # 排序字段

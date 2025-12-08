@@ -33,3 +33,19 @@ def generate_article_id() -> str:
     :return: 带art前缀的唯一ID字符串
     """
     return generate_unique_id("art")
+
+# 为分类生成带cat前缀的ID
+def generate_category_id() -> str:
+    """
+    生成带cat前缀的分类ID
+    :return: 带cat前缀的唯一ID字符串
+    """
+    return generate_unique_id("cat")
+
+# 为标签生成带tag前缀的ID
+def generate_tag_id() -> str:
+    """
+    生成带tag前缀的标签ID
+    :return: 带tag前缀的唯一ID字符串
+    """
+    return generate_unique_id("tag")
