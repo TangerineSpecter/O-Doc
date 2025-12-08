@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useToast } from '../components/ToastProvider';
-import { getAnthologyList, createAnthology, sortAnthology, CreateAnthologyParams, Anthology } from '../api/anthology';
+import { getAnthologyList, createAnthology, sortAnthology, updateAnthology, deleteAnthology, CreateAnthologyParams, Anthology } from '../api/anthology';
 import { getIconComponent } from '../constants/iconList';
 import { Collection } from '../components/SortableCollectionCard';
 import { DragEndEvent } from '@dnd-kit/core';
@@ -24,7 +24,7 @@ export const useCollections = () => {
                 ...anthology,
                 articles: anthology.articles || [],
                 count: anthology.count || 0,
-                icon: getIconComponent(anthology.iconId)
+                icon: getIconComponent(anthology.icon_id)
             }));
             // 默认排序
             processedData.sort((a, b) => (a.sort || 0) - (b.sort || 0));
@@ -97,7 +97,7 @@ export const useCollections = () => {
                 articles: [],
                 count: 0,
                 isTop: false,
-                icon: getIconComponent(response.iconId)
+                icon: getIconComponent(response.icon_id)
             };
             setCollections((prev) => {
                 const pinned = prev.filter(c => c.isTop);
@@ -112,25 +112,64 @@ export const useCollections = () => {
         }
     };
 
-    // 5. 处理更新 (前端模拟)
-    const updateCollectionLocal = (id: number, data: any) => {
-        setCollections(prev => prev.map(c => {
-            if (c.id === id) {
-                return {
-                    ...c,
-                    ...data,
-                    icon: getIconComponent(data.iconId)
-                };
+    // 5. 处理更新 (集成后端接口)
+    const updateCollection = async (id: number, data: any) => {
+        try {
+            const collection = collections.find(c => c.id === id);
+            if (!collection) {
+                toast.error("文集不存在");
+                return false;
             }
-            return c;
-        }));
-        toast.success("文集已更新");
+            
+            const params: Partial<CreateAnthologyParams> = {
+                title: data.title,
+                description: data.description,
+                iconId: data.iconId,
+                permission: data.permission
+            };
+            
+            const response = await updateAnthology(collection.coll_id, params);
+            
+            // 更新本地数据
+            setCollections(prev => prev.map(c => {
+                if (c.id === id) {
+                    return {
+                        ...c,
+                        ...response,
+                        icon: getIconComponent(response.icon_id)
+                    };
+                }
+                return c;
+            }));
+            
+            toast.success("文集已更新");
+            return true;
+        } catch (error) {
+            toast.error("更新失败");
+            return false;
+        }
     };
 
-    // 6. 处理删除
-    const removeCollection = (id: number) => {
-        setCollections(prev => prev.filter(c => c.id !== id));
-        toast.success('文集已删除');
+    // 6. 处理删除 (集成后端接口)
+    const removeCollection = async (id: number) => {
+        try {
+            const collection = collections.find(c => c.id === id);
+            if (!collection) {
+                toast.error("文集不存在");
+                return false;
+            }
+            
+            await deleteAnthology(collection.coll_id);
+            
+            // 更新本地数据
+            setCollections(prev => prev.filter(c => c.id !== id));
+            
+            toast.success('文集已删除');
+            return true;
+        } catch (error) {
+            toast.error("删除失败");
+            return false;
+        }
     };
 
     return {
@@ -141,7 +180,7 @@ export const useCollections = () => {
         sortType, setSortType,
         handleDragEnd,
         addCollection,
-        updateCollectionLocal,
+        updateCollection,
         removeCollection,
         refresh: fetchCollections
     };

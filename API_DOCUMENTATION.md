@@ -55,8 +55,8 @@
 | 创建文集 | POST | /api/anthology/create | 创建新文集 | 已实现 |
 | 获取文集列表 | GET | /api/anthology/list | 获取文集列表 | 已实现 |
 | 获取文集详情 | GET | /api/anthology/detail/:coll_id | 根据coll_id获取文集详情 | 已实现 |
-| 更新文集 | PUT | /api/anthology/:id | 更新文集信息 | 待实现 |
-| 删除文集 | DELETE | /api/anthology/:id | 删除文集 | 待实现 |
+| 更新文集 | PUT | /api/anthology/update/:coll_id | 更新文集信息 | 已实现 |
+| 删除文集 | DELETE | /api/anthology/delete/:coll_id | 删除文集 | 已实现 |
 
 #### 5.1 创建文集接口
 **请求路径**：`/api/anthology/create`
@@ -232,6 +232,65 @@
 **注意**：
 - 仅对非置顶文集进行排序
 - 排序位置必须是大于0的整数
+
+#### 5.5 更新文集接口
+**请求路径**：`/api/anthology/update/:coll_id`
+**请求方式**：PUT
+**请求参数**：
+```json
+{
+  "title": "更新后的文集标题",
+  "description": "更新后的文集描述",
+  "icon_id": "update-icon",
+  "permission": "private",
+  "is_top": true
+}
+```
+
+**参数说明**：
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| title | string | 否 | 文集标题，最长20个字符 |
+| description | string | 否 | 文集描述，最长100个字符 |
+| icon_id | string | 否 | 图标ID，用于前端显示图标 |
+| permission | string | 否 | 访问权限，可选值：public（公开）、private（私密） |
+| is_top | boolean | 否 | 是否置顶 |
+
+**响应示例**：
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "coll_id": "coll_1234567890",
+    "title": "更新后的文集标题",
+    "description": "更新后的文集描述",
+    "icon_id": "update-icon",
+    "userid": "admin",
+    "permission": "private",
+    "is_top": true,
+    "count": 0,
+    "created_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-01-02T00:00:00Z"
+  }
+}
+```
+
+#### 5.6 删除文集接口
+**请求路径**：`/api/anthology/delete/:coll_id`
+**请求方式**：DELETE
+**响应示例**：
+```json
+{
+  "code": 200,
+  "message": "删除成功",
+  "data": null
+}
+```
+
+**注意**：
+- 该接口执行的是逻辑删除，将文集的is_valid字段设置为false
+- 删除后，该文集将不再出现在列表接口中
 
 ### 6. 资源管理接口
 

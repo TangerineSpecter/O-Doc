@@ -32,7 +32,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         sortType, setSortType,
         handleDragEnd,
         addCollection,
-        updateCollectionLocal,
+        updateCollection,
         removeCollection
     } = useCollections();
 
@@ -80,15 +80,15 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     // --- UI 交互 ---
     const handleModalSubmit = async (data: AnthologyFormData) => {
         if (editingCollection) {
-            updateCollectionLocal(editingCollection.id!, data);
+            await updateCollection(editingCollection.id!, data);
         } else {
             await addCollection(data);
         }
     };
 
-    const handleConfirmDelete = () => {
+    const handleConfirmDelete = async () => {
         if (deleteTargetId) {
-            removeCollection(deleteTargetId);
+            await removeCollection(deleteTargetId);
             setIsDeleteModalOpen(false);
             setDeleteTargetId(null);
         }
@@ -100,7 +100,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             coll_id: item.coll_id,
             title: item.title,
             description: item.description,
-            iconId: item.iconId,
+            iconId: item.icon_id, // 使用正确的icon_id属性
             permission: item.permission
         });
         setIsModalOpen(true);
@@ -110,7 +110,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     return (
         <div onClick={() => { setIsFilterOpen(false); setIsSortOpen(false); setActiveMenuId(null); }}>
 
-            {/* Modals */}
+            {/* 文集创建/编辑弹窗 */}
             <CreateAnthologyModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
@@ -118,6 +118,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                 initialData={editingCollection}
             />
 
+            {/* 文集删除确认弹窗 */}
             <ConfirmationModal
                 isOpen={isDeleteModalOpen}
                 onClose={() => setIsDeleteModalOpen(false)}
@@ -133,7 +134,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             />
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                {/* Filter Bar */}
+                {/* 过滤和排序 */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-white p-3 rounded-xl shadow-sm border border-slate-100">
                     <div className="relative">
                         <button className="flex items-center gap-2 text-slate-700 font-semibold text-base hover:text-orange-600 transition-colors pl-2">
@@ -148,7 +149,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                         </div>
                         <div className="h-5 w-px bg-slate-200 hidden sm:block mx-1"></div>
 
-                        {/* Filter Dropdown */}
+                        {/* 筛选下拉框 */}
                         <div className="relative">
                             <button className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs transition-colors ${filterType !== 'all' ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'text-slate-600 hover:bg-slate-100'}`} onClick={(e) => { e.stopPropagation(); setIsFilterOpen(!isFilterOpen); setIsSortOpen(false); }}>
                                 <Filter className="w-3.5 h-3.5" />
@@ -162,7 +163,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                             )}
                         </div>
 
-                        {/* Sort Dropdown */}
+                        {/* 排序下拉框 */}
                         <div className="relative">
                             <button className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs transition-colors ${sortType !== 'default' ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'text-slate-600 hover:bg-slate-100'}`} onClick={(e) => { e.stopPropagation(); setIsSortOpen(!isSortOpen); setIsFilterOpen(false); }}>
                                 <ArrowUpDown className="w-3.5 h-3.5" />

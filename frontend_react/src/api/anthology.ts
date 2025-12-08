@@ -22,7 +22,7 @@ export interface Anthology {
     coll_id: string;
     title: string;
     count: number;
-    iconId: string;
+    icon_id: string;
     isTop: boolean;
     description: string;
     articles: ArticleSummary[];
@@ -43,4 +43,14 @@ export const getAnthologyList = () => {
 // 新增：文集排序接口
 export const sortAnthology = (collId: string, sort: number) => {
     return request.put<any, void>(`/anthology/${collId}/sort`, { sort });
+};
+
+// 新增：更新文集接口
+export const updateAnthology = (collId: string, data: Partial<CreateAnthologyParams>) => {
+    return request.put<any, Anthology>(`/anthology/update/${collId}`, data);
+};
+
+// 新增：删除文集接口
+export const deleteAnthology = (collId: string) => {
+    return request.delete<any, void>(`/anthology/delete/${collId}`);
 };

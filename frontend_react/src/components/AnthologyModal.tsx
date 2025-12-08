@@ -35,15 +35,15 @@ export default function CreateAnthologyModal({
     const isEditing = !!initialData;
 
     // 当打开或初始数据变化时重置表单
-    useEffect(() => {
-        if (isOpen) {
-            if (initialData) {
-                setFormData(initialData);
-            } else {
-                setFormData({ title: "", description: "", iconId: "book", permission: "public" });
-            }
+  useEffect(() => {
+    if (isOpen) {
+        if (initialData) {
+            setFormData(initialData);
+        } else {
+            setFormData({ title: "", description: "", iconId: "book", permission: "public" });
         }
-    }, [isOpen, initialData]);
+    }
+  }, [isOpen, initialData]);
 
     const handleSubmit = async () => {
         if (!formData.title) return;

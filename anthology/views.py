@@ -142,3 +142,43 @@ class AnthologySortView(APIView):
 
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+
+class AnthologyUpdateView(APIView):
+    """文集编辑接口"""
+
+    def put(self, request, coll_id):
+        try:
+            # 获取要编辑的文集
+            anthology = get_object_or_404(Anthology, coll_id=coll_id, userid='admin', is_valid=True)
+            
+            # 使用序列化器验证和更新数据
+            serializer = AnthologySerializer(anthology, data=request.data, partial=True, context={'request': request})
+            serializer.is_valid(raise_exception=True)
+            
+            # 保存更新
+            updated_anthology = serializer.save()
+            
+            # 返回更新后的数据
+            return success_result(data=AnthologySerializer(updated_anthology).data)
+            
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+
+class AnthologyDeleteView(APIView):
+    """文集删除接口"""
+
+    def delete(self, request, coll_id):
+        try:
+            # 获取要删除的文集
+            anthology = get_object_or_404(Anthology, coll_id=coll_id, userid='admin', is_valid=True)
+            
+            # 执行逻辑删除
+            anthology.is_valid = False
+            anthology.save()
+            
+            return success_result()
+            
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
