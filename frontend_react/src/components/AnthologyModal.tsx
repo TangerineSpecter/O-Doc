@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { X, Globe, Lock, Loader2, Save, Plus } from 'lucide-react';
+import { X, Globe, Lock, Loader2, Save, Plus, Pin } from 'lucide-react'; // 新增 Pin 图标
 import { AVAILABLE_ICONS } from '../constants/iconList';
 
 export interface AnthologyFormData {
-    id?: number; // 编辑时才有
-    coll_id?: string; // 编辑时才有
+    id?: number;
+    coll_id?: string;
     title: string;
     description: string;
     iconId: string;
     permission: 'public' | 'private';
+    isTop: boolean;
 }
 
 interface CreateAnthologyModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: (data: AnthologyFormData) => Promise<void>;
-    initialData?: AnthologyFormData | null; // 传入初始数据即为编辑模式
+    initialData?: AnthologyFormData | null;
 }
 
 export default function CreateAnthologyModal({
@@ -29,21 +30,31 @@ export default function CreateAnthologyModal({
         title: "",
         description: "",
         iconId: "book",
-        permission: "public"
+        permission: "public",
+        isTop: false // 2. 初始化默认值
     });
 
     const isEditing = !!initialData;
 
-    // 当打开或初始数据变化时重置表单
-  useEffect(() => {
-    if (isOpen) {
-        if (initialData) {
-            setFormData(initialData);
-        } else {
-            setFormData({ title: "", description: "", iconId: "book", permission: "public" });
+    useEffect(() => {
+        if (isOpen) {
+            if (initialData) {
+                // 如果是编辑模式，确保 isTop 也有值，如果没有则默认为 false
+                setFormData({
+                    ...initialData,
+                    isTop: initialData.isTop ?? false
+                });
+            } else {
+                setFormData({ 
+                    title: "", 
+                    description: "", 
+                    iconId: "book", 
+                    permission: "public", 
+                    isTop: false 
+                });
+            }
         }
-    }
-  }, [isOpen, initialData]);
+    }, [isOpen, initialData]);
 
     const handleSubmit = async () => {
         if (!formData.title) return;
@@ -74,7 +85,8 @@ export default function CreateAnthologyModal({
                 </div>
 
                 {/* Body */}
-                <div className="p-6 space-y-5">
+                <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto"> {/* 增加滚动支持以防内容过长 */}
+                    
                     {/* Title */}
                     <div className="space-y-1.5">
                         <label className="text-sm font-semibold text-slate-700">文集名称 <span className="text-red-500">*</span></label>
@@ -143,6 +155,37 @@ export default function CreateAnthologyModal({
                             </div>
                         </div>
                     </div>
+
+                    {/* 3. 置顶设置 (新增区域) */}
+                    <div className="space-y-2">
+                         <label className="text-sm font-semibold text-slate-700">其他设置</label>
+                         <div 
+                            className={`flex items-center justify-between p-3 border rounded-lg transition-all ${formData.isTop ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-full ${formData.isTop ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                                    <Pin className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <div className="text-sm font-medium text-slate-800">置顶文集</div>
+                                    <div className="text-xs text-slate-500">将此文集固定在列表首位</div>
+                                </div>
+                            </div>
+                            
+                            {/* Toggle Switch */}
+                            <button
+                                type="button"
+                                disabled={isSubmitting}
+                                onClick={() => setFormData({ ...formData, isTop: !formData.isTop })}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${formData.isTop ? 'bg-orange-500' : 'bg-slate-200'}`}
+                            >
+                                <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.isTop ? 'translate-x-6' : 'translate-x-1'}`}
+                                />
+                            </button>
+                        </div>
+                    </div>
+
                 </div>
 
                 {/* Footer */}

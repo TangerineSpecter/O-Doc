@@ -89,6 +89,7 @@ export const useCollections = () => {
                 description: data.description,
                 iconId: data.iconId,
                 permission: data.permission,
+                isTop: data.isTop,
                 sort: collections.length + 1
             };
             const response = await createAnthology(params);
@@ -96,7 +97,7 @@ export const useCollections = () => {
                 ...response,
                 articles: [],
                 count: 0,
-                isTop: false,
+                isTop: response.isTop || false,
                 icon: getIconComponent(response.icon_id)
             };
             setCollections((prev) => {
@@ -125,7 +126,8 @@ export const useCollections = () => {
                 title: data.title,
                 description: data.description,
                 iconId: data.iconId,
-                permission: data.permission
+                permission: data.permission,
+                isTop: data.isTop
             };
             
             const response = await updateAnthology(collection.coll_id, params);
@@ -136,6 +138,7 @@ export const useCollections = () => {
                     return {
                         ...c,
                         ...response,
+                        isTop: response.isTop || false,
                         icon: getIconComponent(response.icon_id)
                     };
                 }

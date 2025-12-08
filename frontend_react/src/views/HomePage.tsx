@@ -101,7 +101,8 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             title: item.title,
             description: item.description,
             iconId: item.icon_id, // 使用正确的icon_id属性
-            permission: item.permission
+            permission: item.permission,
+            isTop: item.isTop // 添加置顶状态
         });
         setIsModalOpen(true);
         setActiveMenuId(null);

@@ -13,6 +13,7 @@ export interface CreateAnthologyParams {
     description: string;
     iconId: string;
     permission: 'public' | 'private';
+    isTop?: boolean;
     sort?: number;
 }
 
