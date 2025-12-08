@@ -1,15 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Article from './Article';
-import {
-    Save, ArrowLeft, Eye, Edit3,
-    Heading1, Heading2, Heading3, Heading4, Heading5,
-    Quote, Code, List, CheckSquare,
-    Table as TableIcon, Sigma, Type, Minus,
-    X, Tag, Folder, Plus, ChevronDown, FileText,
-    Paperclip, Image as ImageIcon, Video as VideoIcon, Loader2,
-    Workflow, Trash2, File
-} from 'lucide-react';
+import { Save, ArrowLeft, Eye, Edit3, Heading1, Heading2, Heading3, Heading4, Heading5, Quote, Code, List, CheckSquare, Table as TableIcon, Sigma, Type, Minus, X, Tag, Folder, Plus, ChevronDown, FileText, Paperclip, Image as ImageIcon, Video as VideoIcon, Loader2, Workflow, File } from 'lucide-react';
 
 // 定义分类接口
 interface Category {

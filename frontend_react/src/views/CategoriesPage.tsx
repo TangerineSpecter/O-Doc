@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom'; // 1. 引入路由
 import {
     Folder, FolderOpen, Search, FileText, Clock,
@@ -7,17 +7,15 @@ import {
     X, Inbox, Save
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal'; // 2. 引入通用确认框
-
-// ... (接口定义和常量 ICON_MAP, COLOR_THEMES, INITIAL_CATEGORIES 保持不变) ...
-interface CategoryItem {
-    id: string;
-    name: string;
-    count: number;
-    description: string;
-    iconKey: string;
-    themeId: string;
-    isSystem?: boolean;
-}
+import { 
+    getCategoryList, 
+    createCategory, 
+    updateCategory, 
+    deleteCategory, 
+    getArticlesByCategory,
+    CategoryItem,
+    ArticleItem
+} from '../api/category';
 
 interface CategoryFormData {
     name: string;
@@ -50,37 +48,7 @@ const COLOR_THEMES = [
     { id: 'slate', label: '极简灰', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200', dot: 'bg-slate-500' },
 ];
 
-const INITIAL_CATEGORIES: CategoryItem[] = [
-    { id: 'all', name: '全部分类', count: 383, description: '浏览知识库所有文档', iconKey: 'Layers', themeId: 'slate', isSystem: true },
-    { id: 'uncategorized', name: '未分类', count: 12, description: '暂未关联任何分类的文档', iconKey: 'Box', themeId: 'slate', isSystem: true },
-    { id: 'tech', name: '技术研发', count: 128, description: '后端架构、前端开发及代码规范', iconKey: 'Server', themeId: 'blue' },
-    { id: 'product', name: '产品设计', count: 64, description: 'PRD文档、UI设计稿及交互规范', iconKey: 'PenTool', themeId: 'pink' },
-    { id: 'ops', name: '运维部署', count: 42, description: '服务器配置、Docker及CI/CD', iconKey: 'Database', themeId: 'emerald' },
-    { id: 'marketing', name: '市场运营', count: 35, description: '活动策划、SEO及数据分析', iconKey: 'Globe', themeId: 'orange' },
-];
 
-const TAG_POOL = ['基础', '进阶', '最佳实践', 'React', 'Vue', 'Docker', 'API', '设计规范', '运维', '数据库'];
-
-const generateArticles = (catId: string, categories: CategoryItem[]) => {
-    const category = categories.find(c => c.id === catId);
-    const catName = category ? category.name : '未知';
-
-    return Array.from({ length: Math.floor(Math.random() * 6) + 4 }).map((_, i) => {
-        const tagCount = Math.floor(Math.random() * 3) + 1;
-        const shuffled = [...TAG_POOL].sort(() => 0.5 - Math.random());
-        const tags = shuffled.slice(0, tagCount);
-
-        return {
-            id: `art-${catId}-${i}`,
-            title: `${catName} - 相关文档 ${i + 1}`,
-            desc: '本文档详细记录了该模块的核心业务逻辑与操作流程，旨在帮助团队成员快速理解并上手相关工作。',
-            date: '2025-11-21',
-            readTime: Math.floor(Math.random() * 20) + 5,
-            tags: tags,
-            collId: 'col_deploy_001' // 2. 新增：硬编码一个存在的文集ID，确保能跳转到详情
-        };
-    });
-};
 const getTagStyle = (tag: string) => {
     let hash = 0;
     for (let i = 0; i < tag.length; i++) { hash = tag.charCodeAt(i) + ((hash << 5) - hash); }
@@ -120,11 +88,49 @@ const TagList = ({ tags, limit = 2, justify = "start" }: TagListProps) => {
 
 export default function CategoriesPage() {
     const navigate = useNavigate(); // 3. Hook
-    const [categories, setCategories] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
+    const [categories, setCategories] = useState<CategoryItem[]>([]);
     const [selectedCatId, setSelectedCatId] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState('grid');
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+    const [displayArticles, setDisplayArticles] = useState<ArticleItem[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    // 获取分类列表
+    const fetchCategories = async () => {
+        try {
+            const data = await getCategoryList();
+            setCategories(data);
+        } catch (error) {
+            console.error('获取分类列表失败:', error);
+        }
+    };
+
+    // 根据分类获取文章
+    const fetchArticles = async (catId: string) => {
+        try {
+            setLoading(true);
+            const data = await getArticlesByCategory(catId);
+            setDisplayArticles(data);
+        } catch (error) {
+            console.error('获取文章失败:', error);
+            setDisplayArticles([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // 初始化数据
+    useEffect(() => {
+        fetchCategories();
+    }, []);
+
+    // 分类变化时获取对应文章
+    useEffect(() => {
+        if (selectedCatId) {
+            fetchArticles(selectedCatId);
+        }
+    }, [selectedCatId]);
 
     // --- Modal State ---
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -163,31 +169,41 @@ export default function CategoriesPage() {
         setIsDeleteModalOpen(true);
     };
 
-    const confirmDeleteCategory = () => {
+    const confirmDeleteCategory = async () => {
         if (categoryToDelete) {
-            setCategories(prev => prev.filter(c => c.id !== categoryToDelete));
-            if (selectedCatId === categoryToDelete) setSelectedCatId('all');
+            try {
+                await deleteCategory(categoryToDelete);
+                setCategories(prev => prev.filter(c => c.id !== categoryToDelete));
+                if (selectedCatId === categoryToDelete) {
+                    setSelectedCatId('all');
+                    setDisplayArticles([]);
+                }
+            } catch (error) {
+                console.error('删除分类失败:', error);
+            }
         }
         setIsDeleteModalOpen(false);
         setCategoryToDelete(null);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.name.trim()) return;
 
-        if (editingCategory) {
-            setCategories(prev => prev.map(c => c.id === editingCategory.id ? { ...c, ...formData } : c));
-        } else {
-            const newCat: CategoryItem = {
-                id: `cat-${Date.now()}`,
-                count: 0,
-                isSystem: false,
-                ...formData
-            };
-            setCategories(prev => [...prev, newCat]);
+        try {
+            if (editingCategory) {
+                // 更新分类
+                const updatedCategory = await updateCategory(editingCategory.id, formData);
+                setCategories(prev => prev.map(c => c.id === editingCategory.id ? updatedCategory : c));
+            } else {
+                // 创建分类
+                const newCategory = await createCategory(formData);
+                setCategories(prev => [...prev, newCategory]);
+            }
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error('操作分类失败:', error);
         }
-        setIsModalOpen(false);
     };
 
     // --- 5. 新增：Article Actions ---
@@ -217,17 +233,21 @@ export default function CategoriesPage() {
         return categories.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
     }, [searchQuery, categories]);
 
-    const displayArticles = useMemo(() => {
-        let articles;
-        if (selectedCatId !== 'all') {
-            articles = generateArticles(selectedCatId, categories);
-        } else {
-            articles = categories.slice(2, 6).flatMap(c => generateArticles(c.id, categories));
-        }
-        return articles.filter(art => !deletedArticleIds.has(art.id));
-    }, [selectedCatId, categories, deletedArticleIds]);
+    // 过滤已删除的文章
+    const filteredDisplayArticles = useMemo(() => {
+        return displayArticles.filter(art => !deletedArticleIds.has(art.id));
+    }, [displayArticles, deletedArticleIds]);
 
-    const activeCategory = categories.find(c => c.id === selectedCatId) || categories[0];
+    // 确保 activeCategory 始终有值，避免 undefined 错误
+    const activeCategory = categories.find(c => c.id === selectedCatId) || categories[0] || {
+        id: 'all',
+        name: '所有分类',
+        description: '所有分类下的文章',
+        count: 0,
+        isSystem: true,
+        themeId: 'blue',
+        iconKey: 'Folder'
+    };
     const getThemeStyles = (themeId: string) => COLOR_THEMES.find(t => t.id === themeId) || COLOR_THEMES[0];
     const getCategoryIcon = (cat: CategoryItem) => {
         if (cat.id === 'uncategorized') return <Inbox className="w-5 h-5" />;
@@ -414,7 +434,7 @@ export default function CategoriesPage() {
                 {/* Articles Rendering */}
                 {viewMode === 'grid' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {displayArticles.map((article) => (
+                        {filteredDisplayArticles.map((article) => (
                             <div key={article.id}
                                 onClick={() => navigate(`/article/${article.collId}/${article.id}`)}
                                 className="group bg-white rounded-xl p-4 border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all duration-300 cursor-pointer flex flex-col h-full relative">
@@ -500,7 +520,11 @@ export default function CategoriesPage() {
                     </div>
                 )}
 
-                {displayArticles.length === 0 && (
+                {loading ? (
+                        <div className="flex justify-center items-center py-24">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+                        </div>
+                    ) : filteredDisplayArticles.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-24 text-slate-400 bg-white rounded-3xl border border-dashed border-slate-200">
                         <FolderOpen className="w-12 h-12 text-slate-200 mb-3" />
                         <p className="text-sm font-medium">该分类下暂无文档</p>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Search, Filter, Download, Trash2, FileText,
     Image as ImageIcon, Music, Video, Box, FileCode, File,
@@ -6,20 +6,7 @@ import {
     BookOpen
 } from 'lucide-react';
 
-interface ArticleSource {
-    id: string;
-    title: string;
-}
-
-interface ResourceItem {
-    id: string;
-    name: string;
-    type: string;
-    size: string;
-    date: string;
-    linked: boolean;
-    sourceArticle: ArticleSource | null;
-}
+import { getResources, deleteResource, ResourceItem, GetResourcesParams } from '../api/resources';
 
 interface SelectionBox {
     left: number;
@@ -28,38 +15,6 @@ interface SelectionBox {
     height: number;
 }
 
-// --- 1. 模拟数据生成 (增加 sourceArticle 字段) ---
-const generateMockResources = (count: number): ResourceItem[] => {
-    const types = ['doc', 'image', 'video', 'audio', 'code', 'archive', 'design'];
-    const names = [
-        '需求说明书', 'UI设计稿', '演示视频', '接口文档', '数据库备份',
-        'Logo源文件', '会议记录', '宣传物料', '测试报告', '架构图'
-    ];
-    // 模拟一些文章来源
-    const articles = [
-        '小橘文档部署指南 v2.0', 'React 组件库设计规范', '后端 API 接口鉴权说明',
-        '2025 年度产品规划', 'Q4 运营活动复盘', null, null, null // null 表示未关联
-    ];
-
-    return Array.from({ length: count }).map((_, i) => {
-        const type = types[i % types.length];
-        const nameIdx = i % names.length;
-        const ext = type === 'doc' ? 'pdf' : type === 'image' ? 'png' : type === 'code' ? 'js' : 'file';
-        const sourceTitle = articles[i % articles.length];
-
-        return {
-            id: `res-${i}`,
-            name: `${names[nameIdx]}_v${(i % 5) + 1}.${ext}`,
-            type: type,
-            size: `${(Math.random() * 10 + 0.5).toFixed(1)} MB`,
-            date: `11-${(Math.floor(Math.random() * 30) + 1).toString().padStart(2, '0')}`,
-            linked: !!sourceTitle,
-            sourceArticle: sourceTitle ? { id: `art-${i}`, title: sourceTitle } : null
-        };
-    });
-};
-
-const ALL_MOCK_DATA = generateMockResources(200);
 const PAGE_SIZE = 24;
 
 interface TypeConfigItem {
@@ -96,6 +51,7 @@ export default function ResourcesPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [hasMore, setHasMore] = useState(true);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [totalCount, setTotalCount] = useState(0); // 添加总数状态
 
     // --- Delete Modal State ---
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -112,15 +68,7 @@ export default function ResourcesPage() {
     const [dragSelectionBox, setDragSelectionBox] = useState<SelectionBox | null>(null);
 
     // ... Data Loading Logic ...
-    const allFilteredData = useMemo(() => {
-        return ALL_MOCK_DATA.filter(item => {
-            const matchType = activeTab === 'all' || item.type === activeTab;
-            const matchSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-            const matchLinked = showUnlinkedOnly ? !item.linked : true;
-            return matchType && matchSearch && matchLinked;
-        });
-    }, [activeTab, searchQuery, showUnlinkedOnly]);
-
+    // 移除本地过滤，改用API获取数据
     useEffect(() => {
         filterVersion.current += 1;
         isLoadingRef.current = true;
@@ -129,43 +77,51 @@ export default function ResourcesPage() {
         setHasMore(true);
         setSelectedIds(new Set());
         setVisibleData([]);
+        fetchResources(1);
+    }, [activeTab, searchQuery, showUnlinkedOnly]);
 
+    // 获取资源列表数据
+    const fetchResources = async (pageNum: number) => {
         const currentVersion = filterVersion.current;
-        const timer = setTimeout(() => {
+        try {
+            const params: GetResourcesParams = {
+                page: pageNum,
+                pageSize: PAGE_SIZE,
+                type: activeTab === 'all' ? undefined : activeTab,
+                linked: showUnlinkedOnly ? false : undefined,
+                searchQuery: searchQuery || undefined // 修复参数名
+            };
+
+            const response = await getResources(params);
+            // API返回的是ResourceItem[]，直接使用
+            const newData = response;
+
             if (filterVersion.current !== currentVersion) return;
-            const firstPageData = allFilteredData.slice(0, PAGE_SIZE);
-            setVisibleData(firstPageData);
-            setHasMore(allFilteredData.length > PAGE_SIZE);
+
+            if (pageNum === 1) {
+                setVisibleData(newData);
+                setTotalCount(newData.length); // 初始加载时设置总数
+            } else {
+                setVisibleData(prev => [...prev, ...newData]);
+                setTotalCount(prev => prev + newData.length); // 加载更多时更新总数
+            }
+            setPage(pageNum);
+            setHasMore(newData.length >= PAGE_SIZE); // 根据返回数量判断是否有更多
+        } catch (error) {
+            console.error('Failed to fetch resources:', error);
+            if (filterVersion.current !== currentVersion) return;
+        } finally {
             setIsLoading(false);
             isLoadingRef.current = false;
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [allFilteredData]);
+        }
+    };
 
     const loadMore = useCallback(() => {
         if (isLoadingRef.current || !hasMore) return;
         isLoadingRef.current = true;
         setIsLoading(true);
-        const currentVersion = filterVersion.current;
-        setTimeout(() => {
-            if (filterVersion.current !== currentVersion) {
-                isLoadingRef.current = false;
-                setIsLoading(false);
-                return;
-            }
-            const nextPage = page + 1;
-            const startIndex = (nextPage - 1) * PAGE_SIZE;
-            const endIndex = startIndex + PAGE_SIZE;
-            const nextData = allFilteredData.slice(startIndex, endIndex);
-            if (nextData.length > 0) {
-                setVisibleData(prev => [...prev, ...nextData]);
-                setPage(nextPage);
-            }
-            setHasMore(endIndex < allFilteredData.length);
-            setIsLoading(false);
-            isLoadingRef.current = false;
-        }, 800);
-    }, [page, hasMore, allFilteredData]);
+        fetchResources(page + 1);
+    }, [page, hasMore, activeTab, searchQuery, showUnlinkedOnly]);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -285,10 +241,36 @@ export default function ResourcesPage() {
         }
     };
 
-    const confirmBatchDelete = () => {
-        alert('删除成功 (模拟)');
-        setSelectedIds(new Set());
-        setIsDeleteModalOpen(false);
+    const confirmBatchDelete = async () => {
+        try {
+            // Delete each selected resource
+            for (const id of selectedIds) {
+                await deleteResource(id);
+            }
+            
+            // Re-fetch resources to update the list
+            const currentVersion = filterVersion.current;
+            const response = await getResources({
+                page: 1,
+                pageSize: PAGE_SIZE,
+                type: activeTab === 'all' ? undefined : activeTab,
+                linked: showUnlinkedOnly ? false : undefined,
+                searchQuery: searchQuery || undefined // 修复参数名
+            });
+            
+            if (filterVersion.current === currentVersion) {
+                setVisibleData(response);
+                setHasMore(response.length >= PAGE_SIZE);
+                setPage(1);
+                setTotalCount(response.length); // 更新总数
+            }
+            
+            setSelectedIds(new Set());
+            setIsDeleteModalOpen(false);
+        } catch (error) {
+            console.error('Failed to delete resources:', error);
+            alert('删除失败，请重试');
+        }
     };
 
     const handleBatchDownload = () => {
@@ -394,7 +376,7 @@ export default function ResourcesPage() {
                         <div className="flex-col hidden sm:flex">
                             <span className="text-[10px] text-slate-400 font-medium">资源总数</span>
                             <div className="flex items-end gap-1">
-                                <span className="text-sm font-bold text-slate-800">{allFilteredData.length}</span>
+                                <span className="text-sm font-bold text-slate-800">{visibleData.length}</span>
                                 <span className="text-[10px] text-slate-400 mb-0.5">个</span>
                             </div>
                         </div>
@@ -491,8 +473,8 @@ export default function ResourcesPage() {
                 )}
 
                 {visibleData.length > 0 && (
-                    <div className="py-8 flex justify-center items-center">
-                        {isLoading ? <div className="flex items-center gap-2 text-slate-400 text-sm"><Loader2 className="w-4 h-4 animate-spin" /> 正在加载更多...</div> : !hasMore && <div className="text-slate-300 text-xs">— 到底了，共 {allFilteredData.length} 个文件 —</div>}
+                    <div className="flex justify-center mt-6 mb-10 text-center">
+                        {isLoading ? <div className="flex items-center gap-2 text-slate-400 text-sm"><Loader2 className="w-4 h-4 animate-spin" /> 正在加载更多...</div> : !hasMore && <div className="text-slate-300 text-xs">— 到底了，共 {totalCount} 个文件 —</div>}
                     </div>
                 )}
             </div>

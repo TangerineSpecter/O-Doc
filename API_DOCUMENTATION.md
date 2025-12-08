@@ -237,9 +237,115 @@
 
 | 接口名称 | 请求方式 | 接口路径 | 功能描述 | 状态 |
 |---------|---------|---------|---------|------|
-| 上传文件 | POST | /asset/upload | 上传文件资源 | 待实现 |
-| 获取资源列表 | GET | /asset/list | 获取资源列表 | 待实现 |
-| 删除资源 | DELETE | /asset/:id | 删除资源 | 待实现 |
+| 获取资源列表 | GET | /api/resources/list | 获取资源列表 | 已实现 |
+| 创建资源 | POST | /api/resources/create | 创建新资源 | 已实现 |
+| 更新资源 | PUT | /api/resources/:id | 更新资源信息 | 已实现 |
+| 删除资源 | DELETE | /api/resources/:id | 删除资源 | 已实现 |
+| 下载资源 | GET | /api/resources/download/:id | 下载资源 | 已实现 |
+
+#### 6.1 获取资源列表接口
+**请求路径**：`/api/resources/list`
+**请求方式**：GET
+**请求参数**：
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| page | integer | 否 | 页码，默认1 |
+| pageSize | integer | 否 | 每页数量，默认24 |
+| type | string | 否 | 资源类型（doc/image/video/audio/code/archive/design） |
+| linked | boolean | 否 | 是否已关联（true/false） |
+| keyword | string | 否 | 搜索关键词 |
+
+**响应示例**：
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "data": [
+      {
+        "id": "res_1234567890",
+        "name": "需求说明书_v1.pdf",
+        "type": "doc",
+        "size": "2.5 MB",
+        "date": "11-24",
+        "linked": true,
+        "sourceArticle": {
+          "id": "art_001",
+          "title": "服务器环境依赖检查清单"
+        }
+      }
+    ],
+    "total": 100
+  }
+}
+```
+
+#### 6.2 创建资源接口
+**请求路径**：`/api/resources/create`
+**请求方式**：POST
+**请求参数**：
+```json
+{
+  "name": "需求说明书_v1.pdf",
+  "type": "doc",
+  "size": "2.5 MB",
+  "date": "11-24",
+  "linked": false,
+  "sourceArticle": null
+}
+```
+
+**参数说明**：
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| name | string | 是 | 资源名称 |
+| type | string | 是 | 资源类型 |
+| size | string | 是 | 资源大小 |
+| date | string | 是 | 创建日期 |
+| linked | boolean | 是 | 是否已关联 |
+| sourceArticle | object | 否 | 关联的文章信息 |
+
+#### 6.3 更新资源接口
+**请求路径**：`/api/resources/:id`
+**请求方式**：PUT
+**请求参数**：
+```json
+{
+  "name": "需求说明书_v2.pdf",
+  "linked": true,
+  "sourceArticle": {
+    "id": "art_001",
+    "title": "服务器环境依赖检查清单"
+  }
+}
+```
+
+**参数说明**：
+| 参数名 | 类型 | 必填 | 描述 |
+|-------|------|------|------|
+| name | string | 否 | 资源名称 |
+| type | string | 否 | 资源类型 |
+| size | string | 否 | 资源大小 |
+| date | string | 否 | 创建日期 |
+| linked | boolean | 否 | 是否已关联 |
+| sourceArticle | object | 否 | 关联的文章信息 |
+
+#### 6.4 删除资源接口
+**请求路径**：`/api/resources/:id`
+**请求方式**：DELETE
+**响应示例**：
+```json
+{
+  "code": 200,
+  "message": "删除成功",
+  "data": null
+}
+```
+
+#### 6.5 下载资源接口
+**请求路径**：`/api/resources/download/:id`
+**请求方式**：GET
+**响应**：返回文件流
 
 ### 7. 统计接口
 

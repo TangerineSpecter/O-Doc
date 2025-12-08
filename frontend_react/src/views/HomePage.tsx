@@ -1,12 +1,11 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
     ChevronDown, FileText, Filter, ArrowUpDown, ArrowUp, Lock,
     Plus, Check, Search, GripHorizontal, MoreHorizontal, Edit, Trash
 } from 'lucide-react';
 import { createAnthology, CreateAnthologyParams, getAnthologyList, sortAnthology, Anthology } from '../api/anthology';
-import homepageDemoData from '../mock/homepageDemoData.json';
 import { useToast } from '../components/ToastProvider';
-import { AVAILABLE_ICONS, getIconComponent } from '../constants/iconList';
+import { getIconComponent } from '../constants/iconList';
 import CreateAnthologyModal, { AnthologyFormData } from '../components/CreateAnthologyModal';
 import ConfirmationModal from '../components/ConfirmationModal'; // 1. 引入新组件
 
@@ -29,7 +28,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 
 // ... (接口定义和模拟数据部分保持不变) ...
-interface ArticleSummary { article_id: string; title: string; date: string; }
+// ArticleSummary interface removed as unused
 interface Collection extends Anthology { icon: React.ReactNode; }
 interface HomePageProps { onNavigate: (viewName: string, params?: any) => void; }
 
@@ -200,13 +199,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     const fetchCollections = async () => {
         setLoading(true);
         try {
-            let data: Anthology[];
-            // 简单处理：判断环境
-            if (import.meta.env.MODE === 'development') {
-                data = homepageDemoData as Anthology[];
-            } else {
-                data = await getAnthologyList();
-            }
+            const data: Anthology[] = await getAnthologyList();
 
             const processedData: Collection[] = data.map((anthology: Anthology) => ({
                 ...anthology,
@@ -219,7 +212,6 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             setCollections(processedData);
         } catch (error) {
             console.error('获取列表失败', error);
-            // setCollections(initialCollectionsData); // 这里需要您保证 initialCollectionsData 存在，或者移除
         } finally {
             setLoading(false);
         }

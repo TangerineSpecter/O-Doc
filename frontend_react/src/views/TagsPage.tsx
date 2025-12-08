@@ -1,36 +1,38 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom'; // 1. 引入 useNavigate
 import {
     Tag, Hash, Search, FileText, Clock, ChevronRight,
     Filter, BookOpen, Plus, MoreHorizontal, LayoutGrid, List,
-    Edit, Trash, X, Save, AlertTriangle
+    Edit, Trash, X, Save
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal'; // 2. 引入 ConfirmationModal
+import { 
+    getTagList, 
+    createTag, 
+    updateTag, 
+    deleteTag, 
+    getArticlesByTag,
+    TagItem,
+    ArticleItem
+} from '../api/tag';
 
-// ... (接口定义和模拟数据逻辑保持不变) ...
-interface TagItem {
-    id: string;
-    name: string;
-    count: number;
-    themeId: string;
-}
-
-interface ArticleItem {
-    id: string;
-    title: string;
-    desc: string;
-    date: string;
-    readTime: number;
-    collection: string;
-    collId?: string;
-}
-
+// --- 接口定义 ---
 interface TagFormData {
     name: string;
     themeId: string;
 }
 
-const COLOR_THEMES = [
+interface ColorTheme {
+    id: string;
+    label: string;
+    bg: string;
+    text: string;
+    border: string;
+    dot: string;
+}
+
+// --- 颜色主题池 ---
+const COLOR_THEMES: ColorTheme[] = [
     { id: 'blue', label: '科技蓝', bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100', dot: 'bg-blue-600' },
     { id: 'emerald', label: '翡翠绿', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', dot: 'bg-emerald-600' },
     { id: 'orange', label: '活力橙', bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100', dot: 'bg-orange-600' },
@@ -42,37 +44,11 @@ const COLOR_THEMES = [
     { id: 'slate', label: '极简灰', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200', dot: 'bg-slate-500' },
 ];
 
-const INITIAL_TAGS: TagItem[] = [
-    { id: 'react', name: 'React', count: 45, themeId: 'blue' },
-    { id: 'vue', name: 'Vue.js', count: 32, themeId: 'emerald' },
-    { id: 'tailwind', name: 'Tailwind CSS', count: 28, themeId: 'cyan' },
-    { id: 'docker', name: 'Docker', count: 15, themeId: 'sky' },
-    { id: 'deploy', name: '自动化部署', count: 12, themeId: 'orange' },
-    { id: 'backend', name: '后端架构', count: 38, themeId: 'violet' },
-    { id: 'db', name: 'Database', count: 24, themeId: 'slate' },
-    { id: 'api', name: 'RESTful API', count: 19, themeId: 'pink' },
-    { id: 'perf', name: '性能优化', count: 9, themeId: 'amber' },
-    { id: 'linux', name: 'Linux', count: 42, themeId: 'slate' },
-];
 
-const generateArticles = (tagId: string, tags: TagItem[]): ArticleItem[] => {
-    const collections = ['小橘部署指南', 'API 开发手册', '微服务架构设计', '前端组件库', '最佳实践'];
-    const tagName = tags.find(t => t.id === tagId)?.name || '技术';
-
-    return Array.from({ length: Math.floor(Math.random() * 8) + 4 }).map((_, i) => ({
-        id: `art-${tagId}-${i}`,
-        title: `${tagId === 'all' ? '技术' : tagName} 相关技术深度解析 - 第 ${i + 1} 部分`,
-        desc: '本文深入探讨了核心概念与最佳实践，适合中高级开发者阅读。包含了大量的代码示例与架构图解。',
-        date: '2025-11-20',
-        readTime: Math.floor(Math.random() * 15) + 3,
-        collection: collections[Math.floor(Math.random() * collections.length)],
-        collId: 'col_deploy_001' // 新增：硬编码文集ID
-    }));
-};
 
 export default function TagsPage() {
     const navigate = useNavigate(); // 3. Hook
-    const [tags, setTags] = useState<TagItem[]>(INITIAL_TAGS);
+    const [tags, setTags] = useState<TagItem[]>([]);
     const [selectedTagId, setSelectedTagId] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState('list');
@@ -92,6 +68,60 @@ export default function TagsPage() {
     const [isArticleDeleteModalOpen, setIsArticleDeleteModalOpen] = useState(false);
     const [articleToDelete, setArticleToDelete] = useState<string | null>(null);
 
+    // --- API 状态 ---
+    const [displayArticles, setDisplayArticles] = useState<ArticleItem[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    // 获取标签列表
+    const fetchTags = async () => {
+        try {
+            const data = await getTagList();
+            setTags(data);
+        } catch (error) {
+            console.error('获取标签列表失败:', error);
+        }
+    };
+
+    // 根据标签获取文章
+    const fetchArticles = async (tagId: string) => {
+        try {
+            setLoading(true);
+            const data = await getArticlesByTag(tagId);
+            setDisplayArticles(data);
+        } catch (error) {
+            console.error('获取文章失败:', error);
+            setDisplayArticles([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // 初始化数据
+    useEffect(() => {
+        fetchTags();
+    }, []);
+
+    
+
+    // 标签变化时获取对应文章
+    useEffect(() => {
+        if (selectedTagId && selectedTagId !== 'all') {
+            fetchArticles(selectedTagId);
+        } else if (selectedTagId === 'all') {
+            // 全部标签时，调用API获取默认文章数据
+            getArticlesByTag(selectedTagId)
+                .then(articles => {
+                    setLoading(false);
+                    setDisplayArticles(articles);
+                })
+                .catch(error => {
+                    console.error("获取全部文章失败:", error);
+                    setLoading(false);
+                    setDisplayArticles([]);
+                });
+        }
+    }, [selectedTagId, tags]);
+
     // --- Tag Actions (保持不变) ---
     const handleOpenCreate = () => {
         setEditingTag(null);
@@ -110,30 +140,41 @@ export default function TagsPage() {
         setIsDeleteModalOpen(true);
     };
 
-    const confirmDeleteTag = () => {
+    const confirmDeleteTag = async () => {
         if (tagToDelete) {
-            setTags(prev => prev.filter(t => t.id !== tagToDelete));
-            if (selectedTagId === tagToDelete) setSelectedTagId('all');
+            try {
+                await deleteTag(tagToDelete);
+                setTags(prev => prev.filter(t => t.id !== tagToDelete));
+                if (selectedTagId === tagToDelete) {
+                    setSelectedTagId('all');
+                    setDisplayArticles([]);
+                }
+            } catch (error) {
+                console.error('删除标签失败:', error);
+            }
         }
         setIsDeleteModalOpen(false);
         setTagToDelete(null);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.name.trim()) return;
 
-        if (editingTag) {
-            setTags(prev => prev.map(t => t.id === editingTag.id ? { ...t, ...formData } : t));
-        } else {
-            const newTag: TagItem = {
-                id: `tag-${Date.now()}`,
-                count: 0,
-                ...formData
-            };
-            setTags(prev => [...prev, newTag]);
+        try {
+            if (editingTag) {
+                // 更新标签
+                const updatedTag = await updateTag(editingTag.id, formData);
+                setTags(prev => prev.map(t => t.id === editingTag.id ? updatedTag : t));
+            } else {
+                // 创建标签
+                const newTag = await createTag(formData);
+                setTags(prev => [...prev, newTag]);
+            }
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error('操作标签失败:', error);
         }
-        setIsModalOpen(false);
     };
 
     // --- 5. 新增：Article Actions ---
@@ -162,7 +203,7 @@ export default function TagsPage() {
     };
 
     // --- Helpers ---
-    const getThemeStyles = (themeId: string | undefined) => COLOR_THEMES.find(t => t.id === themeId) || COLOR_THEMES[0];
+    const getThemeStyles = (themeId: string | undefined): ColorTheme => COLOR_THEMES.find((t: ColorTheme) => t.id === themeId) || COLOR_THEMES[0];
 
     // --- Derived State ---
     const filteredTags = useMemo(() => {
@@ -170,19 +211,21 @@ export default function TagsPage() {
         return tags.filter(tag => tag.name.toLowerCase().includes(searchQuery.toLowerCase()));
     }, [searchQuery, tags]);
 
-    const displayArticles = useMemo(() => {
-        let articles;
-        if (selectedTagId !== 'all') {
-            articles = generateArticles(selectedTagId, tags);
-        } else {
-            articles = tags.slice(0, 5).flatMap(tag => generateArticles(tag.id, tags));
-        }
-        // 6. 过滤已删除的文章
-        return articles.filter(art => !deletedArticleIds.has(art.id));
-    }, [selectedTagId, tags, deletedArticleIds]);
+    // 过滤已删除的文章
+    const filteredDisplayArticles = useMemo(() => {
+        return displayArticles.filter(art => !deletedArticleIds.has(art.id));
+    }, [displayArticles, deletedArticleIds]);
 
     const totalArticles = tags.reduce((acc, cur) => acc + cur.count, 0);
-    const activeTag = tags.find(t => t.id === selectedTagId);
+    // 确保 activeTag 始终有值，避免 undefined 错误
+    const activeTag = tags.find(t => t.id === selectedTagId) || {
+        id: 'all',
+        name: '所有标签',
+        description: '所有标签下的文章',
+        count: totalArticles,
+        isSystem: true,
+        themeId: 'blue'
+    };
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24" onClick={() => setActiveMenuId(null)}>
@@ -239,7 +282,7 @@ export default function TagsPage() {
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">颜色主题</label>
                                 <div className="flex flex-wrap gap-2">
-                                    {COLOR_THEMES.map(theme => (
+                                    {COLOR_THEMES.map((theme: ColorTheme) => (
                                         <button
                                             key={theme.id}
                                             type="button"
@@ -352,7 +395,7 @@ export default function TagsPage() {
 
                     {/* Articles Grid/List */}
                     <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
-                        {displayArticles.map((article) => (
+                        {filteredDisplayArticles.map((article) => (
                             <div key={article.id}
                                 onClick={() => navigate(`/article/${article.collId || 'col_default'}/${article.id}`)}
                                 className="group bg-white rounded-2xl p-5 border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all duration-300 cursor-pointer relative overflow-visible">
@@ -404,7 +447,11 @@ export default function TagsPage() {
                         ))}
                     </div>
 
-                    {displayArticles.length === 0 && (
+                    {loading ? (
+                        <div className="flex justify-center items-center py-20">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+                        </div>
+                    ) : filteredDisplayArticles.length === 0 && (
                         <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
                             <Tag className="w-10 h-10 text-slate-300 mb-3" />
                             <p className="text-sm font-medium">该标签下暂无文章</p>
