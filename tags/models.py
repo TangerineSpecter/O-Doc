@@ -28,6 +28,8 @@ class Tag(models.Model):
         verbose_name = '标签'
         verbose_name_plural = '标签管理'
         ordering = ['sort', '-created_at']
+        # 确保同一个userid下的文集标题唯一
+        unique_together = ('userid', 'name')
         # 核心：自定义表名（推荐用小写，符合数据库惯例）
         db_table = 'tags'  # 直接指定表名为 tags
         

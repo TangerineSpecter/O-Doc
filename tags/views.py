@@ -68,14 +68,14 @@ class TagListView(APIView):
                 # 统计该标签下的文章数量
                 article_count = Article.objects.filter(
                     tags=tag, 
-                    userid='admin', 
+                    author='admin', 
                     is_valid=True
                 ).count()
 
                 tag_data = {
                     'tag_id': tag.tag_id,
                     'name': tag.name,
-                    'themeId': tag.themeId,
+                    'themeId': tag.theme_id,
                     'sort': tag.sort,
                     'article_count': article_count,
                     'created_at': tag.created_at,
@@ -104,7 +104,7 @@ class TagSortView(APIView):
             tag.sort = sort
             tag.save()
             
-            return success_result(message="排序成功")
+            return success_result()
             
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
@@ -143,71 +143,9 @@ class TagDeleteView(APIView):
             tag.is_valid = False
             tag.save()
             
-            return success_result(message="删除成功")
+            return success_result()
             
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
 
 
-class TagArticlesView(APIView):
-    """获取标签下的文章列表接口"""
-    pagination_class = TagPagination
-
-    def get(self, request):
-        try:
-            # 获取查询参数
-            tag_id = request.GET.get('tag_id', '')
-            page_size = request.GET.get('page_size', 20)
-
-            # 查询条件：默认查询admin用户的有效文章
-            queryset = Article.objects.filter(userid='admin', is_valid=True)
-
-            # 如果指定了标签ID
-            if tag_id:
-                # 查询指定标签的文章
-                tag = get_object_or_404(Tag, tag_id=tag_id, userid='admin', is_valid=True)
-                queryset = queryset.filter(tags=tag)
-            # 否则查询所有文章
-
-            # 排序：按更新时间降序
-            queryset = queryset.order_by('-updated_at')
-
-            # 分页
-            paginator = TagPagination()
-            paginator.page_size = int(page_size)
-            result_page = paginator.paginate_queryset(queryset, request)
-
-            # 准备返回数据
-            articles_list = []
-            for article in result_page:
-                article_data = {
-                    'article_id': article.article_id,
-                    'title': article.title,
-                    'coll_id': article.coll_id,
-                    'parent': article.parent,
-                    'category': article.category.category_id if article.category else None,
-                    'tags': [tag.tag_id for tag in article.tags.all()],
-                    'sort': article.sort,
-                    'is_valid': article.is_valid,
-                    'created_at': article.created_at,
-                    'updated_at': article.updated_at
-                }
-                articles_list.append(article_data)
-
-            # 构建分页响应数据
-            pagination_data = {
-                'current_page': paginator.page.number,
-                'page_size': paginator.page_size,
-                'total_pages': paginator.page.paginator.num_pages,
-                'total_count': paginator.page.paginator.count
-            }
-
-            return success_result(
-                data={
-                    'articles': articles_list,
-                    'pagination': pagination_data
-                }
-            )
-
-        except Exception as e:
-            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))

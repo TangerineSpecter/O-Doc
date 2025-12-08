@@ -1,4 +1,5 @@
 import request from '../utils/request';
+import { getArticles } from './article';
 
 // 定义分类项类型
 export interface CategoryItem {
@@ -50,7 +51,4 @@ export const deleteCategory = (categoryId: string) => {
     return request.delete<any, void>(`/category/delete/${categoryId}`);
 };
 
-// 根据分类ID获取文章接口
-export const getArticlesByCategory = (categoryId: string) => {
-    return request.get<any, ArticleItem[]>(`/category/articles/${categoryId}`);
-};
+

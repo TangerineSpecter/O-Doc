@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.views.generic import TemplateView
 
 urlpatterns = [
@@ -25,6 +25,10 @@ urlpatterns = [
     path('api/article/', include('article.urls')),  # 文章接口
     path('api/category/', include('categories.urls')),  # 分类接口
     path('api/tag/', include('tags.urls')),  # 标签接口
+]
+
+urlpatterns += [
+    re_path(r'^(?!api/|static/).*$', TemplateView.as_view(template_name='index.html')),
 ]
 
 # 添加静态文件URL配置

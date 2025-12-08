@@ -1,7 +1,7 @@
 import request from '../utils/request';
 
 // 文章接口定义
-interface Article {
+export interface Article {
     id: number;
     articleId: string;
     title: string;
@@ -15,6 +15,10 @@ interface Article {
     readCount: number;
     categoryId?: string;
     sort: number;
+    tags?: Array<{tagId: string, name: string}>;
+    desc?: string;
+    readTime?: number;
+    collection?: boolean;
 }
 
 // 创建文章参数
@@ -57,7 +61,7 @@ export const getArticleDetail = async (articleId: string): Promise<Article> => {
  * 更新文章
  */
 export const updateArticle = async (articleId: string, params: UpdateArticleParams): Promise<Article> => {
-    const response = await request.put(`/api/article/update/${articleId}`, params);
+    const response = await request.put(`/article/update/${articleId}`, params);
     return response.data;
 };
 
@@ -65,13 +69,28 @@ export const updateArticle = async (articleId: string, params: UpdateArticlePara
  * 删除文章
  */
 export const deleteArticle = async (articleId: string): Promise<void> => {
-    await request.delete(`/api/article/delete/${articleId}`);
+    await request.delete(`/article/delete/${articleId}`);
+};
+
+// 定义文章列表查询参数
+export interface GetArticlesParams {
+    collId?: string;
+    tagId?: string;
+    categoryId?: string;
+    keyword?: string;
+}
+
+/**
+ * 文章列表查询，支持多条件
+ */
+export const getArticles = async (params?: GetArticlesParams): Promise<Article[]> => {
+    const response = await request.get('/article/list', { params });
+    return response.data;
 };
 
 /**
- * 根据文集获取文章列表
+ * 根据文集获取文章列表（兼容旧接口调用方式）
  */
 export const getArticlesByAnthology = async (collId: string): Promise<Article[]> => {
-    const response = await request.get(`/api/article/list/${collId}`);
-    return response.data;
+    return getArticles({ collId });
 };

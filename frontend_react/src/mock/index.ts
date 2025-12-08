@@ -15,12 +15,25 @@ function getUrlParams(url: unknown, paramName: string): string | null {
 // 生成随机文章数据
 const generateArticle = (articleId: string) => {
   return {
+    id: Mock.Random.integer(1, 1000),
     articleId,
     title: Mock.Random.ctitle(5, 20),
-    date: Mock.Random.date('yyyy-MM-dd'),
+    content: Mock.Random.cparagraph(5, 10),
+    collId: Mock.Random.string('lower', 8),
+    author: Mock.Random.cname(),
+    createdAt: Mock.Random.datetime('yyyy-MM-dd HH:mm:ss'),
+    updatedAt: Mock.Random.datetime('yyyy-MM-dd HH:mm:ss'),
+    isValid: true,
+    permission: 'public' as const,
+    readCount: Mock.Random.integer(100, 1000),
+    categoryId: Mock.Random.string('lower', 8),
+    sort: Mock.Random.integer(0, 100),
+    desc: Mock.Random.csentence(10, 20),
+    date: Mock.Random.datetime('yyyy-MM-dd HH:mm:ss'),
+    readTime: Mock.Random.integer(1, 30),
+    collection: Mock.Random.boolean(),
     tagList: [Mock.Random.cword(2, 4), Mock.Random.cword(2, 4)],
-    category: '技术笔记',
-    readCount: Mock.Random.integer(100, 1000)
+    category: '技术笔记'
   };
 };
 
@@ -217,16 +230,37 @@ export default [
     }
   },
 
-  // 根据文集获取文章列表
+  // 文章列表接口，支持多条件查询
   {
-    url: '/api/article/list/:collId',
+    url: '/article/list',
     method: 'get',
     response: (req: any) => {
-      const collId = getUrlParams(req.url, 'collId');
-      const articles = [];
-      for (let i = 0; i < 5; i++) {
-        articles.push(generateArticle(`art_${collId || 'default'}_${i}`));
+      // 获取查询参数
+      const query = req.query;
+      const collId = query.collId;
+      const tagId = query.tagId;
+      const categoryId = query.categoryId;
+      const keyword = query.keyword;
+      
+      // 生成文章列表
+      let articles = [];
+      for (let i = 0; i < 10; i++) {
+        articles.push(generateArticle(`art_${i}`));
       }
+      
+      // 根据查询参数过滤
+      if (collId) {
+        articles = articles.filter(article => article.collId === collId);
+      }
+      
+      if (keyword) {
+        articles = articles.filter(article => 
+          article.title.toLowerCase().includes(keyword.toLowerCase())
+        );
+      }
+      
+      // 这里可以添加更多过滤逻辑（tagId, categoryId）
+      
       return {
         code: 200,
         msg: 'success',

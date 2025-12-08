@@ -2,7 +2,7 @@ from django.urls import path
 from article.views import (
     ArticleCreateView, ArticleDetailView,
     ArticleUpdateView, ArticleDeleteView,
-    ArticleListByAnthologyView
+    ArticleListView
 )
 
 urlpatterns = [
@@ -18,6 +18,6 @@ urlpatterns = [
     # 删除文章
     path('delete/<str:article_id>', ArticleDeleteView.as_view(), name='delete-article'),
     
-    # 根据文集获取文章列表
-    path('list/<str:coll_id>', ArticleListByAnthologyView.as_view(), name='article-list-by-anthology'),
+    # 文章列表，支持多条件查询
+    path('list', ArticleListView.as_view(), name='article-list'),
 ]

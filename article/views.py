@@ -54,7 +54,7 @@ class ArticleDetailView(APIView):
             # 序列化响应数据
             response_data = ArticleSerializer(article).data
             
-            return success_result(data=response_data)
+            return success_result(response_data)
             
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
@@ -80,7 +80,7 @@ class ArticleUpdateView(APIView):
             # 序列化响应数据
             response_data = ArticleSerializer(article).data
             
-            return success_result(data=response_data)
+            return success_result(response_data)
             
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
@@ -103,14 +103,40 @@ class ArticleDeleteView(APIView):
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
 
-class ArticleListByAnthologyView(APIView):
+class ArticleListView(APIView):
     """
-    根据文集获取文章列表视图
+    文章列表视图，支持多条件查询
+    - 支持文集ID查询
+    - 支持标签ID查询
+    - 支持分类ID查询
+    - 支持关键词查询（标题模糊检索）
     """
-    def get(self, request, coll_id):
+    def get(self, request):
         try:
-            # 直接根据coll_id获取该文集下的所有文章
-            articles = Article.objects.filter(coll_id=coll_id).order_by('sort', '-updated_at')
+            # 获取查询参数
+            coll_id = request.GET.get('coll_id')
+            tag_id = request.GET.get('tag_id')
+            category_id = request.GET.get('category_id')
+            keyword = request.GET.get('keyword')
+            
+            # 构建查询集
+            articles = Article.objects.filter(is_valid=True).order_by('sort', '-updated_at')
+            
+            # 文集ID过滤
+            if coll_id:
+                articles = articles.filter(coll_id=coll_id)
+            
+            # 标签ID过滤
+            if tag_id:
+                articles = articles.filter(tags__tag_id=tag_id)
+            
+            # 分类ID过滤
+            if category_id:
+                articles = articles.filter(category__category_id=category_id)
+            
+            # 关键词过滤（标题模糊检索）
+            if keyword:
+                articles = articles.filter(title__icontains=keyword)
             
             # 序列化响应数据
             serializer = ArticleSerializer(articles, many=True)

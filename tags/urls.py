@@ -5,8 +5,7 @@ from .views import (
     TagListView,
     TagSortView,
     TagUpdateView,
-    TagDeleteView,
-    TagArticlesView
+    TagDeleteView
 )
 
 urlpatterns = [
@@ -22,6 +21,4 @@ urlpatterns = [
     path('update/<str:tag_id>', TagUpdateView.as_view(), name='tag_update'),
     # 删除标签
     path('delete/<str:tag_id>', TagDeleteView.as_view(), name='tag_delete'),
-    # 标签下的文章列表
-    path('articles', TagArticlesView.as_view(), name='tag_articles'),
 ]

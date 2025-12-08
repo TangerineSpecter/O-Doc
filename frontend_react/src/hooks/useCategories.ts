@@ -4,10 +4,10 @@ import {
     createCategory,
     updateCategory,
     deleteCategory,
-    getArticlesByCategory,
-    CategoryItem,
-    ArticleItem
+    CategoryItem
 } from '../api/category';
+import { getArticles, Article } from '../api/article';
+import { ArticleItem } from '../api/tag';
 import { CategoryFormData } from '../components/CategoryModal';
 
 export const useCategories = () => {
@@ -33,8 +33,19 @@ export const useCategories = () => {
     const fetchArticles = useCallback(async (catId: string) => {
         try {
             setLoading(true);
-            const data = await getArticlesByCategory(catId);
-            setDisplayArticles(data);
+            const data = await getArticles(catId === 'all' ? undefined : { categoryId: catId });
+            // 转换数据格式
+            const formattedData: ArticleItem[] = data.map((article: Article) => ({
+                id: article.articleId,
+                title: article.title,
+                desc: article.desc || '',
+                date: article.createdAt,
+                readTime: article.readTime || 0,
+                tags: article.tags?.map(tag => tag.name) || [],
+                collId: article.collId,
+                collection: article.collection
+            }));
+            setDisplayArticles(formattedData);
         } catch (error) {
             console.error('获取文章失败:', error);
             setDisplayArticles([]);
@@ -56,6 +67,11 @@ export const useCategories = () => {
     }, [selectedCatId, fetchArticles]);
 
     // --- Actions: Category ---
+    const confirmDeleteArticle = (articleId: string) => {
+        // 这里只是前端模拟删除状态，实际项目中应调用 deleteArticle API
+        setDeletedArticleIds(prev => new Set(prev).add(articleId));
+    };
+
     const handleCategorySubmit = async (formData: CategoryFormData, editingCategory: CategoryItem | null) => {
         try {
             if (editingCategory) {
@@ -88,11 +104,6 @@ export const useCategories = () => {
     };
 
     // --- Actions: Article ---
-    const confirmDeleteArticle = (articleId: string) => {
-        // 这里只是前端模拟删除状态，实际项目中应调用 deleteArticle API
-        setDeletedArticleIds(prev => new Set(prev).add(articleId));
-    };
-
     // --- Derived Data ---
     const filteredCategories = useMemo(() => {
         if (!searchQuery) return categories;

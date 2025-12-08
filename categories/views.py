@@ -71,7 +71,7 @@ class CategoryListView(APIView):
                 # 统计该分类下的文章数量
                 article_count = Article.objects.filter(
                     category=category, 
-                    userid='admin', 
+                    author='admin', 
                     is_valid=True
                 ).count()
 
@@ -89,7 +89,7 @@ class CategoryListView(APIView):
             # 如果需要包含未分类文章的统计
             if include_uncategorized:
                 uncategorized_count = Article.objects.filter(
-                    userid='admin', 
+                    author='admin', 
                     is_valid=True,
                     category__isnull=True
                 ).count()
@@ -202,67 +202,4 @@ class CategoryDeleteView(APIView):
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
 
 
-class CategoryArticlesView(APIView):
-    """获取分类下的文章列表接口"""
-    pagination_class = CategoryPagination
 
-    def get(self, request):
-        try:
-            # 获取查询参数
-            category_id = request.GET.get('category_id', '')
-            page_size = request.GET.get('page_size', 20)
-
-            # 查询条件：默认查询admin用户的有效文章
-            queryset = Article.objects.filter(userid='admin', is_valid=True)
-
-            # 如果指定了分类ID
-            if category_id:
-                if category_id == 'uncategorized':
-                    # 查询未分类的文章
-                    queryset = queryset.filter(category__isnull=True)
-                else:
-                    # 查询指定分类的文章
-                    category = get_object_or_404(Category, category_id=category_id, userid='admin', is_valid=True)
-                    queryset = queryset.filter(category=category)
-            # 否则查询所有文章
-
-            # 排序：按更新时间降序
-            queryset = queryset.order_by('-updated_at')
-
-            # 分页
-            paginator = CategoryPagination()
-            paginator.page_size = int(page_size)
-            result_page = paginator.paginate_queryset(queryset, request)
-
-            # 准备返回数据
-            articles_list = []
-            for article in result_page:
-                article_data = {
-                    'article_id': article.article_id,
-                    'title': article.title,
-                    'content': article.content[:200] + '...' if len(article.content) > 200 else article.content,  # 内容摘要
-                    'coll_id': article.coll_id,
-                    'author': article.author,
-                    'read_count': article.read_count,
-                    'created_at': article.created_at,
-                    'updated_at': article.updated_at
-                }
-                articles_list.append(article_data)
-
-            # 构建分页响应数据
-            pagination_data = {
-                'current_page': paginator.page.number,
-                'page_size': paginator.page_size,
-                'total_pages': paginator.page.paginator.num_pages,
-                'total_count': paginator.page.paginator.count
-            }
-
-            return success_result(
-                data={
-                    'articles': articles_list,
-                    'pagination': pagination_data
-                }
-            )
-
-        except Exception as e:
-            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))

@@ -4,11 +4,12 @@ import {
     createTag,
     updateTag,
     deleteTag,
-    getArticlesByTag,
     TagItem,
     ArticleItem
 } from '../api/tag';
+import { getArticles, Article } from '../api/article';
 import { TagFormData } from '../components/TagModal';
+import { useToast } from '../components/ToastProvider';
 
 export const useTags = () => {
     // --- State ---
@@ -19,12 +20,21 @@ export const useTags = () => {
     const [displayArticles, setDisplayArticles] = useState<ArticleItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [deletedArticleIds, setDeletedArticleIds] = useState<Set<string>>(new Set());
+    
+    // --- Toast ---
+    const toast = useToast();
 
     // --- Data Fetching ---
     const fetchTags = useCallback(async () => {
         try {
             const data = await getTagList();
-            setTags(data);
+            // 转换数据格式，确保字段名一致
+            const formattedTags: TagItem[] = data.map(tag => ({
+                ...tag,
+                tag_id: tag.tag_id,
+                article_count: tag.article_count || 0
+            }));
+            setTags(formattedTags);
         } catch (error) {
             console.error('获取标签列表失败:', error);
         }
@@ -33,8 +43,19 @@ export const useTags = () => {
     const fetchArticles = useCallback(async (tagId: string) => {
         try {
             setLoading(true);
-            const data = await getArticlesByTag(tagId);
-            setDisplayArticles(data);
+            const data = await getArticles(tagId === 'all' ? undefined : { tagId });
+            // 转换数据格式
+            const formattedData: ArticleItem[] = data.map((article: Article) => ({
+                id: article.articleId,
+                title: article.title,
+                desc: article.desc || '',
+                date: article.createdAt,
+                readTime: article.readTime || 0,
+                tags: article.tags?.map(tag => tag.name) || [],
+                collId: article.collId,
+                collection: article.collection
+            }));
+            setDisplayArticles(formattedData);
         } catch (error) {
             console.error('获取文章失败:', error);
             setDisplayArticles([]);
@@ -60,15 +81,20 @@ export const useTags = () => {
     const handleTagSubmit = async (formData: TagFormData, editingTag: TagItem | null) => {
         try {
             if (editingTag) {
-                const updatedTag = await updateTag(editingTag.id, formData);
-                setTags(prev => prev.map(t => t.id === editingTag.id ? updatedTag : t));
+                const updatedTag = await updateTag(editingTag.tag_id, formData);
+                setTags(prev => prev.map(t => t.tag_id === editingTag.tag_id ? updatedTag : t));
+                toast.success('标签更新成功');
             } else {
                 const newTag = await createTag(formData);
                 setTags(prev => [...prev, newTag]);
+                toast.success('标签创建成功');
             }
             return true;
         } catch (error) {
             console.error('操作标签失败:', error);
+            // 显示错误信息给用户
+            const errorMsg = error instanceof Error ? error.message : '操作标签失败';
+            toast.error(errorMsg)
             return false;
         }
     };
@@ -76,14 +102,17 @@ export const useTags = () => {
     const confirmDeleteTag = async (tagId: string) => {
         try {
             await deleteTag(tagId);
-            setTags(prev => prev.filter(t => t.id !== tagId));
+            setTags(prev => prev.filter(t => t.tag_id !== tagId));
             if (selectedTagId === tagId) {
                 setSelectedTagId('all');
                 setDisplayArticles([]);
             }
+            toast.success('标签删除成功');
             return true;
         } catch (error) {
             console.error('删除标签失败:', error);
+            const errorMsg = error instanceof Error ? error.msg : '删除标签失败';
+            toast.error(errorMsg);
             return false;
         }
     };
@@ -103,13 +132,13 @@ export const useTags = () => {
         return displayArticles.filter(art => !deletedArticleIds.has(art.id));
     }, [displayArticles, deletedArticleIds]);
 
-    const totalArticles = useMemo(() => tags.reduce((acc, cur) => acc + cur.count, 0), [tags]);
+    const totalArticles = useMemo(() => tags.reduce((acc, cur) => acc + (cur.article_count || 0), 0), [tags]);
 
     const activeTag = useMemo(() => {
-        return tags.find(t => t.id === selectedTagId) || {
-            id: 'all',
+        return tags.find(t => t.tag_id === selectedTagId) || {
+            tag_id: 'all',
             name: '所有标签',
-            count: totalArticles,
+            article_count: totalArticles,
             isSystem: true,
             themeId: 'blue'
         };

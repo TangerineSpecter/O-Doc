@@ -1,10 +1,11 @@
 import request from '../utils/request';
+import { getArticles } from './article';
 
 // 定义标签项类型
 export interface TagItem {
-    id: string;
+    tag_id: string;
     name: string;
-    count: number;
+    article_count: number;
     themeId: string;
 }
 
@@ -21,8 +22,9 @@ export interface ArticleItem {
     desc: string;
     date: string;
     readTime: number;
-    collection: string;
-    collId?: string;
+    tags: string[];
+    collId: string;
+    collection?: boolean;
 }
 
 // 获取标签列表接口
@@ -45,7 +47,4 @@ export const deleteTag = (tagId: string) => {
     return request.delete<any, void>(`/tag/delete/${tagId}`);
 };
 
-// 根据标签ID获取文章接口
-export const getArticlesByTag = (tagId: string) => {
-    return request.get<any, ArticleItem[]>(`/tag/articles/${tagId}`);
-};
+
