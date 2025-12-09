@@ -108,8 +108,9 @@ export const useCollections = () => {
             toast.success("文集创建成功！");
             return true;
         } catch (error) {
-            toast.error("创建失败");
-            return false;
+            const err = error as Error;
+            toast.error(err.message || '创建文集失败');
+            throw err;
         }
     };
 
@@ -148,8 +149,9 @@ export const useCollections = () => {
             toast.success("文集已更新");
             return true;
         } catch (error) {
-            toast.error("更新失败");
-            return false;
+            const err = error as Error;
+            toast.error(err.message || '更新文集失败');
+            throw err;
         }
     };
 

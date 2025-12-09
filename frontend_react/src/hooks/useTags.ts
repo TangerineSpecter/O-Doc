@@ -20,7 +20,7 @@ export const useTags = () => {
     const [displayArticles, setDisplayArticles] = useState<ArticleItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [deletedArticleIds, setDeletedArticleIds] = useState<Set<string>>(new Set());
-    
+
     // --- Toast ---
     const toast = useToast();
 
@@ -93,8 +93,8 @@ export const useTags = () => {
         } catch (error) {
             console.error('操作标签失败:', error);
             // 显示错误信息给用户
-            const errorMsg = error instanceof Error ? error.message : '操作标签失败';
-            toast.error(errorMsg)
+            const err = error as Error;
+            toast.error(err.message || '操作标签失败');
             return false;
         }
     };
@@ -111,8 +111,8 @@ export const useTags = () => {
             return true;
         } catch (error) {
             console.error('删除标签失败:', error);
-            const errorMsg = error instanceof Error ? error.msg : '删除标签失败';
-            toast.error(errorMsg);
+            const err = error as Error;
+            toast.error(err.message || '删除标签失败');
             return false;
         }
     };
