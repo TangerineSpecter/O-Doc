@@ -24,7 +24,7 @@ export const useCollections = () => {
                 ...anthology,
                 articles: anthology.articles || [],
                 count: anthology.count || 0,
-                icon: getIconComponent(anthology.icon_id)
+                icon: getIconComponent(anthology.iconId)
             }));
             // 默认排序
             processedData.sort((a, b) => (a.sort || 0) - (b.sort || 0));
@@ -70,7 +70,7 @@ export const useCollections = () => {
         if (newSortOrder < 1) newSortOrder = 1;
 
         try {
-            await sortAnthology(draggedItem.coll_id, newSortOrder);
+            await sortAnthology(draggedItem.collId, newSortOrder);
             toast.success('排序已更新');
         } catch (error) {
             console.error('排序更新失败', error);
@@ -98,7 +98,7 @@ export const useCollections = () => {
                 articles: [],
                 count: 0,
                 isTop: response.isTop || false,
-                icon: getIconComponent(response.icon_id)
+                icon: getIconComponent(response.iconId)
             };
             setCollections((prev) => {
                 const pinned = prev.filter(c => c.isTop);
@@ -131,7 +131,7 @@ export const useCollections = () => {
                 isTop: data.isTop
             };
             
-            const response = await updateAnthology(collection.coll_id, params);
+            const response = await updateAnthology(collection.collId, params);
             
             // 更新本地数据
             setCollections(prev => prev.map(c => {
@@ -140,7 +140,7 @@ export const useCollections = () => {
                         ...c,
                         ...response,
                         isTop: response.isTop || false,
-                        icon: getIconComponent(response.icon_id)
+                        icon: getIconComponent(response.iconId)
                     };
                 }
                 return c;
@@ -164,7 +164,7 @@ export const useCollections = () => {
                 return false;
             }
             
-            await deleteAnthology(collection.coll_id);
+            await deleteAnthology(collection.collId);
             
             // 更新本地数据
             setCollections(prev => prev.filter(c => c.id !== id));

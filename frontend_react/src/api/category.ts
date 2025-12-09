@@ -1,5 +1,4 @@
 import request from '../utils/request';
-import { getArticles } from './article';
 
 // 定义分类项类型
 export interface CategoryItem {

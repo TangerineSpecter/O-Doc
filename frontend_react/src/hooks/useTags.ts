@@ -31,8 +31,8 @@ export const useTags = () => {
             // 转换数据格式，确保字段名一致
             const formattedTags: TagItem[] = data.map(tag => ({
                 ...tag,
-                tag_id: tag.tag_id,
-                article_count: tag.article_count || 0
+                tag_id: tag.tagId,
+                article_count: tag.articleCount || 0
             }));
             setTags(formattedTags);
         } catch (error) {
@@ -81,8 +81,8 @@ export const useTags = () => {
     const handleTagSubmit = async (formData: TagFormData, editingTag: TagItem | null) => {
         try {
             if (editingTag) {
-                const updatedTag = await updateTag(editingTag.tag_id, formData);
-                setTags(prev => prev.map(t => t.tag_id === editingTag.tag_id ? updatedTag : t));
+                const updatedTag = await updateTag(editingTag.tagId, formData);
+                setTags(prev => prev.map(t => t.tagId === editingTag.tagId ? updatedTag : t));
                 toast.success('标签更新成功');
             } else {
                 const newTag = await createTag(formData);
@@ -102,7 +102,7 @@ export const useTags = () => {
     const confirmDeleteTag = async (tagId: string) => {
         try {
             await deleteTag(tagId);
-            setTags(prev => prev.filter(t => t.tag_id !== tagId));
+            setTags(prev => prev.filter(t => t.tagId !== tagId));
             if (selectedTagId === tagId) {
                 setSelectedTagId('all');
                 setDisplayArticles([]);
@@ -132,10 +132,10 @@ export const useTags = () => {
         return displayArticles.filter(art => !deletedArticleIds.has(art.id));
     }, [displayArticles, deletedArticleIds]);
 
-    const totalArticles = useMemo(() => tags.reduce((acc, cur) => acc + (cur.article_count || 0), 0), [tags]);
+    const totalArticles = useMemo(() => tags.reduce((acc, cur) => acc + (cur.articleCount || 0), 0), [tags]);
 
     const activeTag = useMemo(() => {
-        return tags.find(t => t.tag_id === selectedTagId) || {
+        return tags.find(t => t.tagId === selectedTagId) || {
             tag_id: 'all',
             name: '所有标签',
             article_count: totalArticles,

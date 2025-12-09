@@ -1,9 +1,23 @@
-import { useState, useRef, useEffect } from 'react';
-import { CommandItem } from '../components/Editor/SlashMenu';
-import { Category, AttachmentItem, ParentArticleItem } from '../components/Editor/EditorMetaBar';
+import {useEffect, useRef, useState} from 'react';
+import {CommandItem} from '../components/Editor/SlashMenu';
+import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
 import {
-    Heading1, Heading2, Heading3, Heading4, Heading5, Quote, Code, List,
-    CheckSquare, Table as TableIcon, Sigma, Type, Minus, ImageIcon, Video as VideoIcon, Workflow
+    CheckSquare,
+    Code,
+    Heading1,
+    Heading2,
+    Heading3,
+    Heading4,
+    Heading5,
+    ImageIcon,
+    List,
+    Minus,
+    Quote,
+    Sigma,
+    Table as TableIcon,
+    Type,
+    Video as VideoIcon,
+    Workflow
 } from 'lucide-react';
 
 // --- Constants ---

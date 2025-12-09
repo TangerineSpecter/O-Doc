@@ -2,9 +2,9 @@ import request from '../utils/request';
 
 // 定义标签项类型
 export interface TagItem {
-    tag_id: string;
+    tagId: string;
     name: string;
-    article_count: number;
+    articleCount: number;
     themeId: string;
 }
 

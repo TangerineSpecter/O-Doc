@@ -2,7 +2,7 @@ import request from '../utils/request';
 
 // 定义文章摘要类型
 export interface ArticleSummary {
-    article_id: string;
+    articleId: string;
     title: string;
     date: string;
 }
@@ -20,10 +20,10 @@ export interface CreateAnthologyParams {
 // 定义文集返回数据类型
 export interface Anthology {
     id: number;
-    coll_id: string;
+    collId: string;
     title: string;
     count: number;
-    icon_id: string;
+    iconId: string;
     isTop: boolean;
     description: string;
     articles: ArticleSummary[];

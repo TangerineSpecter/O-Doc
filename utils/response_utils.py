@@ -1,5 +1,4 @@
-from django.http import JsonResponse
-
+from rest_framework.response import Response
 
 def success_result(data=None):
     """
@@ -7,7 +6,7 @@ def success_result(data=None):
     :param data: 响应数据
     :return: JsonResponse对象
     """
-    return JsonResponse({
+    return Response({
         'code': ErrorCode.SUCCESS.code,
         'msg': ErrorCode.SUCCESS.message,
         'data': data
@@ -24,7 +23,7 @@ def valid_result(msg=ErrorCode.PARAM_ERROR.message, data=None):
     :param data: 错误附加数据
     :return: JsonResponse
     """
-    return JsonResponse({
+    return Response({
         'code': ErrorCode.PARAM_ERROR.code,
         'msg': msg,
         'data': data
@@ -38,7 +37,7 @@ def error_result(error: ErrorCode, data=None):
     :param data: 错误附加数据
     :return: JsonResponse
     """
-    return JsonResponse({
+    return Response({
         'code': error.code,
         'msg': error.message,
         'data': data
@@ -54,7 +53,7 @@ def list_result(data=None, total=0, page=1, page_size=20):
     :param page_size: 每页大小
     :return: JsonResponse对象
     """
-    return JsonResponse({
+    return Response({
         'code': ErrorCode.SUCCESS.code,
         'msg': ErrorCode.SUCCESS.message,
         'data': {
