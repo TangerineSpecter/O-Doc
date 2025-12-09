@@ -31,7 +31,7 @@ export default function TagsPage() {
         tags,
         filteredTags,
         activeTag,
-        displayArticles,
+    displayArticles,
         totalArticles,
         loading,
         selectedTagId, setSelectedTagId,
@@ -234,14 +234,14 @@ export default function TagsPage() {
                     <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
                         {displayArticles.map((article) => (
                             <TagArticleCard
-                                key={article.id}
+                                key={article.articleId}
                                 article={article}
                                 viewMode={viewMode}
                                 onNavigate={(collId, articleId) => navigate(`/article/${collId}/${articleId}`)}
-                                isMenuOpen={activeMenuId === article.id}
-                                onToggleMenu={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === article.id ? null : article.id); }}
-                                onEdit={() => handleEditArticle(article.id)}
-                                onDelete={() => handleDeleteArticleClick(article.id)}
+                                isMenuOpen={activeMenuId === article.articleId}
+                                onToggleMenu={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === article.articleId ? null : article.articleId); }}
+                                onEdit={() => handleEditArticle(article.articleId)}
+                                onDelete={() => handleDeleteArticleClick(article.articleId)}
                             />
                         ))}
                     </div>
