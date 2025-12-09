@@ -325,9 +325,9 @@ export default function CategoriesPage() {
                         className="flex flex-col items-center justify-center py-24 text-slate-400 bg-white rounded-3xl border border-dashed border-slate-200">
                         <Folder className="w-12 h-12 text-slate-200 mb-3" />
                         <p className="text-sm font-medium">该分类下暂无文档</p>
-                        <button onClick={handleOpenCreate}
-                            className="mt-4 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-xs rounded-lg hover:border-orange-300 hover:text-orange-600 transition-colors shadow-sm">创建新文档
-                        </button>
+                        {/*<button onClick={handleOpenCreate}*/}
+                        {/*    className="mt-4 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-xs rounded-lg hover:border-orange-300 hover:text-orange-600 transition-colors shadow-sm">创建新文档*/}
+                        {/*</button>*/}
                     </div>
                 )}
             </div>
