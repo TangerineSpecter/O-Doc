@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getArticleTreeByAnthology, ArticleNode } from '../api/article';
-import { useToast } from '../components/ToastProvider';
+import { useToast } from '../components/common/ToastProvider';
 
 export const useArticleTree = (collId?: string) => {
     const [treeData, setTreeData] = useState<ArticleNode[]>([]);

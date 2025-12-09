@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 
+from utils.drf_utils import CurrentUserOrAdminDefault
 from .models import Tag
 
 
@@ -8,7 +9,9 @@ class TagSerializer(serializers.ModelSerializer):
     """标签序列化器"""
 
     # 用户ID默认值（使用当前登录用户或admin）
-    userid = serializers.CharField(default='admin', required=False)
+    userid = serializers.HiddenField(
+        default=CurrentUserOrAdminDefault()
+    )
 
     class Meta:
         model = Tag

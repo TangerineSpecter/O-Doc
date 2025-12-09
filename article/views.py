@@ -1,9 +1,11 @@
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 
 from article.models import Article
 from article.serializers import ArticleSerializer, ArticleTreeSerializer
+from tags.models import Tag
+from tags.serializers import TagSerializer
 from utils.error_codes import ErrorCode
 # 导入封装工具
 from utils.response_utils import success_result, error_result, valid_result
@@ -15,29 +17,58 @@ class ArticleCreateView(APIView):
     """
 
     def post(self, request):
-        try:
-            # 使用序列化器验证请求数据
-            serializer = ArticleSerializer(data=request.data)
+        # try:
+            # 使用事务包装所有数据库操作，确保原子性
+            with transaction.atomic():
+                # 使用序列化器验证请求数据
+                serializer = ArticleSerializer(data=request.data)
 
-            if not serializer.is_valid():
-                return valid_result(data=serializer.errors)
+                if not serializer.is_valid():
+                    return valid_result(data=serializer.errors)
 
-            # 保存文章
-            article = serializer.save()
+                # 保存文章
+                article = serializer.save()
 
-            # 序列化响应数据
-            response_data = ArticleSerializer(article).data
+                # 处理标签数据
+                tags_data = request.data.get('tags', [])
+                if tags_data:
+                    tag_objects = []
 
-            return success_result(data=response_data)
+                    for tag_name in tags_data:
+                        # 去除标签名称两端的空格
+                        tag_name = tag_name.strip()
+                        if tag_name:
+                            try:
+                                # 先尝试获取已存在的标签
+                                tag = Tag.objects.get(name=tag_name, userid='admin')
+                            except Tag.DoesNotExist:
+                                # 如果标签不存在，使用TagSerializer创建
+                                tag_data = {
+                                    'name': tag_name,
+                                    'userid': 'admin'
+                                }
+                                tag_serializer = TagSerializer(data=tag_data, context={'request': request})
+                                tag_serializer.is_valid(raise_exception=True)
+                                tag = tag_serializer.save()
+                            
+                            tag_objects.append(tag)
+                    
+                    # 关联标签到文章
+                    article.tags.set(tag_objects)
 
-        except IntegrityError as e:
-            if 'unique constraint' in str(e).lower() or 'duplicate' in str(e).lower():
-                return error_result(error=ErrorCode.TITLE_DUPLICATE, data=str(e))
-            else:
-                return error_result(error=ErrorCode.DATABASE_ERROR, data=str(e))
+                # 序列化响应数据（在处理完标签后）
+                response_data = ArticleSerializer(article).data
 
-        except Exception as e:
-            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+                return success_result(data=response_data)
+
+        # except IntegrityError as e:
+        #     if 'unique constraint' in str(e).lower() or 'duplicate' in str(e).lower():
+        #         return error_result(error=ErrorCode.TITLE_DUPLICATE, data=str(e))
+        #     else:
+        #         return error_result(error=ErrorCode.DATABASE_ERROR, data=str(e))
+        #
+        # except Exception as e:
+        #     return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
 
 
 class ArticleDetailView(APIView):

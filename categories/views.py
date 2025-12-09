@@ -138,7 +138,7 @@ class CategorySortView(APIView):
                     break
 
             if current_index is None:
-                return error_result(error=ErrorCode.PARAM_ERROR, message="分类不存在")
+                return error_result(error=ErrorCode.PARAM_ERROR)
 
             # 确保目标位置在有效范围内
             max_position = len(all_categories)

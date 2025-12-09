@@ -54,6 +54,7 @@ interface CreateArticleParams {
     permission?: 'public' | 'private';
     categoryId?: string;
     sort?: number;
+    tags?: string[];
 }
 
 // 更新文章参数

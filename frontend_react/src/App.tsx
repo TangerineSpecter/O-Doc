@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
-import { ToastProvider } from './components/ToastProvider'; // 1. 引入 Provider
+import { ToastProvider } from './components/common/ToastProvider'; // 1. 引入 Provider
 import Layout from './layout/Layout';
 import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';

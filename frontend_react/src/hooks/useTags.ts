@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from 'react';
 import {createTag, deleteTag, getTagList, TagItem, updateTag} from '../api/tag';
 import {Article, ArticleItem, getArticles} from '../api/article';
 import {TagFormData} from '../components/TagModal';
-import {useToast} from '../components/ToastProvider';
+import {useToast} from '../components/common/ToastProvider';
 
 export const useTags = () => {
     // --- State ---

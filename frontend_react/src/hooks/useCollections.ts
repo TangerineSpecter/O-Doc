@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useToast } from '../components/ToastProvider';
+import { useToast } from '../components/common/ToastProvider';
 import { getAnthologyList, createAnthology, sortAnthology, updateAnthology, deleteAnthology, CreateAnthologyParams, Anthology } from '../api/anthology';
 import { getIconComponent } from '../constants/iconList';
 import { Collection } from '../components/SortableCollectionCard';

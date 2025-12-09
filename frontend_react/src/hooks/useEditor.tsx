@@ -3,6 +3,7 @@ import {useNavigate, useLocation} from 'react-router-dom';
 import {CommandItem} from '../components/Editor/SlashMenu';
 import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
 import {createArticle} from '../api/article';
+import {useToast} from '../components/common/ToastProvider';
 import {
     CheckSquare,
     Code,
@@ -109,10 +110,13 @@ export const useEditor = () => {
     const [title, setTitle] = useState("未命名文档");
     const [content, setContent] = useState(`> 💡 **提示**: 试一下插入图片、视频和 Mermaid 图表功能吧！\n\n## 1. 图片测试\n试试复制一张图片粘贴到这里，或者使用 \`/图片\` 命令。\n\n## 2. Mermaid 图表\n使用 \`/图表\` 命令插入一个流程图。\n`);
 
+    // Toast
+    const toast = useToast();
+    
     // State: Meta
     const [category, setCategory] = useState<Category>(CATEGORIES[0]);
     const [parentArticle, setParentArticle] = useState<ParentArticleItem>(MOCK_PARENT_ARTICLES[0]);
-    const [tags, setTags] = useState(['笔记', 'Draft']);
+    const [tags, setTags] = useState<string[]>([]);
     const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
 
     // State: UI
@@ -193,7 +197,7 @@ export const useEditor = () => {
                 collId,
                 parentId: parentArticle.id === 'root' ? undefined : parentArticle.id,
                 categoryId: category.id,
-                tags: tags.filter(tag => tag !== 'Draft'),
+                tags: tags.length > 0 ? tags : ['笔记'], // 默认为['笔记']，如果用户未添加任何标签
                 attachments: attachments.map(att => ({
                     id: att.id,
                     name: att.name,
@@ -202,13 +206,14 @@ export const useEditor = () => {
             };
 
             const result = await createArticle(articleData);
-            alert("文章创建成功！");
+            toast.success("文章创建成功！");
             
             // 跳转到文章详情页
             navigate(`/article/${collId}/${result.articleId}`);
         } catch (error) {
             console.error("创建文章失败:", error);
-            alert("创建文章失败，请重试！");
+            const err = error as Error;
+            toast.error(err.message || '创建文章失败');
         } finally {
             setIsSaving(false);
         }
