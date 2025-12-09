@@ -1,7 +1,7 @@
 [
     {
         "id": 1,
-        "coll_id": "col_deploy_001",
+        "collId": "col_deploy_001",
         "title": "小橘部署指南",
         "count": 42,
         "iconId": "cpu",
@@ -9,14 +9,14 @@
         "permission": "public",
         "description": "全面介绍小橘文档私有化部署、Docker容器化及集群配置方案。",
         "articles": [
-            { "article_id": "art_dep_101", "title": "服务器环境依赖检查清单", "date": "11-24" },
-            { "article_id": "art_dep_102", "title": "Docker Compose 一键部署", "date": "11-20" },
-            { "article_id": "art_dep_103", "title": "Nginx 反向代理配置详解", "date": "11-18" }
+            { "articleId": "art_dep_101", "title": "服务器环境依赖检查清单", "date": "11-24" },
+            { "articleId": "art_dep_102", "title": "Docker Compose 一键部署", "date": "11-20" },
+            { "articleId": "art_dep_103", "title": "Nginx 反向代理配置详解", "date": "11-18" }
         ]
     },
     {
         "id": 2,
-        "coll_id": "col_api_002",
+        "collId": "col_api_002",
         "title": "API 接口开发手册",
         "count": 128,
         "iconId": "zap",
@@ -24,14 +24,14 @@
         "permission": "public",
         "description": "后端接口定义、鉴权机制（OAuth2.0）、以及错误码字典查询。",
         "articles": [
-            { "article_id": "art_api_201", "title": "认证鉴权：Access Token 获取", "date": "12-01" },
-            { "article_id": "art_api_202", "title": "通用返回结构与分页说明", "date": "11-30" },
-            { "article_id": "art_api_203", "title": "用户模块接口定义 (v2.0)", "date": "11-28" }
+            { "articleId": "art_api_201", "title": "认证鉴权：Access Token 获取", "date": "12-01" },
+            { "articleId": "art_api_202", "title": "通用返回结构与分页说明", "date": "11-30" },
+            { "articleId": "art_api_203", "title": "用户模块接口定义 (v2.0)", "date": "11-28" }
         ]
     },
     {
         "id": 3,
-        "coll_id": "col_ui_003",
+        "collId": "col_ui_003",
         "title": "前端组件库样式规范",
         "count": 35,
         "iconId": "layers",
@@ -39,14 +39,14 @@
         "permission": "public",
         "description": "基于 Tailwind CSS 的设计系统，包含色彩、排版及核心组件。",
         "articles": [
-            { "article_id": "art_ui_301", "title": "Color Palette：品牌色与辅助色", "date": "10-15" },
-            { "article_id": "art_ui_302", "title": "Button 按钮组件交互状态", "date": "09-22" },
-            { "article_id": "art_ui_303", "title": "Form 表单验证与错误提示", "date": "09-20" }
+            { "articleId": "art_ui_301", "title": "Color Palette：品牌色与辅助色", "date": "10-15" },
+            { "articleId": "art_ui_302", "title": "Button 按钮组件交互状态", "date": "09-22" },
+            { "articleId": "art_ui_303", "title": "Form 表单验证与错误提示", "date": "09-20" }
         ]
     },
     {
         "id": 4,
-        "coll_id": "col_log_004",
+        "collId": "col_log_004",
         "title": "产品更新日志 (Changelog)",
         "count": 12,
         "iconId": "globe",
@@ -54,14 +54,14 @@
         "permission": "public",
         "description": "记录小橘文档从 v1.0 到最新版本的所有迭代细节与修复。",
         "articles": [
-            { "article_id": "art_log_401", "title": "v2.1.0：新增AI智能搜索功能", "date": "12-02" },
-            { "article_id": "art_log_402", "title": "v2.0.5：修复移动端表格显示异常", "date": "11-28" },
-            { "article_id": "art_log_403", "title": "v2.0.0：全新UI架构重构发布", "date": "11-01" }
+            { "articleId": "art_log_401", "title": "v2.1.0：新增AI智能搜索功能", "date": "12-02" },
+            { "articleId": "art_log_402", "title": "v2.0.5：修复移动端表格显示异常", "date": "11-28" },
+            { "articleId": "art_log_403", "title": "v2.0.0：全新UI架构重构发布", "date": "11-01" }
         ]
     },
     {
         "id": 5,
-        "coll_id": "col_ent_005",
+        "collId": "col_ent_005",
         "title": "企业版专属功能",
         "count": 8,
         "iconId": "book",
@@ -69,13 +69,13 @@
         "permission": "private",
         "description": "针对企业客户的高级功能，如SSO单点登录、审计日志及水印。",
         "articles": [
-            { "article_id": "art_ent_501", "title": "配置 LDAP/AD 域账号同步", "date": "08-05" },
-            { "article_id": "art_ent_502", "title": "开启文档水印与防复制策略", "date": "07-22" }
+            { "articleId": "art_ent_501", "title": "配置 LDAP/AD 域账号同步", "date": "08-05" },
+            { "articleId": "art_ent_502", "title": "开启文档水印与防复制策略", "date": "07-22" }
         ]
     },
     {
         "id": 6,
-        "coll_id": "col_ms_013",
+        "collId": "col_ms_013",
         "title": "微服务架构设计",
         "count": 67,
         "iconId": "server",
@@ -83,13 +83,13 @@
         "permission": "public",
         "description": "Spring Cloud Alibaba 全家桶使用指南及服务治理策略。",
         "articles": [
-            { "article_id": "art_ms_1301", "title": "Nacos 服务注册与配置中心", "date": "10-30" },
-            { "article_id": "art_ms_1302", "title": "Sentinel 熔断降级限流实战", "date": "10-25" }
+            { "articleId": "art_ms_1301", "title": "Nacos 服务注册与配置中心", "date": "10-30" },
+            { "articleId": "art_ms_1302", "title": "Sentinel 熔断降级限流实战", "date": "10-25" }
         ]
     },
     {
         "id": 7,
-        "coll_id": "col_db_007",
+        "collId": "col_db_007",
         "title": "数据库运维手册",
         "count": 45,
         "iconId": "database",
@@ -97,13 +97,13 @@
         "permission": "private",
         "description": "MySQL 高可用集群搭建、Redis 缓存策略及数据备份恢复流程。",
         "articles": [
-            { "article_id": "art_db_701", "title": "MySQL 8.0 主从复制搭建", "date": "10-12" },
-            { "article_id": "art_db_702", "title": "Redis Cluster 集群扩容方案", "date": "10-08" }
+            { "articleId": "art_db_701", "title": "MySQL 8.0 主从复制搭建", "date": "10-12" },
+            { "articleId": "art_db_702", "title": "Redis Cluster 集群扩容方案", "date": "10-08" }
         ]
     },
     {
         "id": 8,
-        "coll_id": "col_sec_008",
+        "collId": "col_sec_008",
         "title": "安全合规与审计",
         "count": 19,
         "iconId": "shield",
@@ -111,13 +111,13 @@
         "permission": "private",
         "description": "网络安全策略、渗透测试报告及GDPR合规性检查清单。",
         "articles": [
-            { "article_id": "art_sec_801", "title": "Web应用防火墙(WAF)规则配置", "date": "11-05" },
-            { "article_id": "art_sec_802", "title": "定期漏洞扫描执行报告", "date": "11-01" }
+            { "articleId": "art_sec_801", "title": "Web应用防火墙(WAF)规则配置", "date": "11-05" },
+            { "articleId": "art_sec_802", "title": "定期漏洞扫描执行报告", "date": "11-01" }
         ]
     },
     {
         "id": 9,
-        "coll_id": "col_dev_009",
+        "collId": "col_dev_009",
         "title": "开发者工具链",
         "count": 28,
         "iconId": "code",
@@ -125,14 +125,14 @@
         "permission": "public",
         "description": "VS Code 插件推荐、Git 高级技巧及 CI/CD 流水线配置。",
         "articles": [
-            { "article_id": "art_dev_901", "title": "VS Code 必装插件清单", "date": "12-05" },
-            { "article_id": "art_dev_902", "title": "Git 分支管理最佳实践", "date": "12-03" },
-            { "article_id": "art_dev_903", "title": "GitHub Actions 自动化构建", "date": "11-29" }
+            { "articleId": "art_dev_901", "title": "VS Code 必装插件清单", "date": "12-05" },
+            { "articleId": "art_dev_902", "title": "Git 分支管理最佳实践", "date": "12-03" },
+            { "articleId": "art_dev_903", "title": "GitHub Actions 自动化构建", "date": "11-29" }
         ]
     },
     {
         "id": 10,
-        "coll_id": "col_mob_010",
+        "collId": "col_mob_010",
         "title": "移动端开发指南",
         "count": 41,
         "iconId": "smartphone",
@@ -140,13 +140,13 @@
         "permission": "public",
         "description": "React Native 开发实战、Flutter 组件库及移动端性能优化。",
         "articles": [
-            { "article_id": "art_mob_1001", "title": "React Native 环境搭建", "date": "11-27" },
-            { "article_id": "art_mob_1002", "title": "Flutter 状态管理方案", "date": "11-25" }
+            { "articleId": "art_mob_1001", "title": "React Native 环境搭建", "date": "11-27" },
+            { "articleId": "art_mob_1002", "title": "Flutter 状态管理方案", "date": "11-25" }
         ]
     },
     {
         "id": 11,
-        "coll_id": "col_ai_011",
+        "collId": "col_ai_011",
         "title": "人工智能应用",
         "count": 33,
         "iconId": "brain",
@@ -154,13 +154,13 @@
         "permission": "private",
         "description": "机器学习入门、大语言模型应用及 AI 工具集成方案。",
         "articles": [
-            { "article_id": "art_ai_1101", "title": "Python 机器学习基础", "date": "12-04" },
-            { "article_id": "art_ai_1102", "title": "LLM 应用开发指南", "date": "12-01" }
+            { "articleId": "art_ai_1101", "title": "Python 机器学习基础", "date": "12-04" },
+            { "articleId": "art_ai_1102", "title": "LLM 应用开发指南", "date": "12-01" }
         ]
     },
     {
         "id": 12,
-        "coll_id": "col_design_012",
+        "collId": "col_design_012",
         "title": "UI/UX 设计规范",
         "count": 22,
         "iconId": "palette",
@@ -168,13 +168,13 @@
         "permission": "public",
         "description": "Figma 设计系统、用户体验设计原则及设计评审流程。",
         "articles": [
-            { "article_id": "art_design_1201", "title": "Figma 组件库建设", "date": "11-23" },
-            { "article_id": "art_design_1202", "title": "用户体验评估方法", "date": "11-20" }
+            { "articleId": "art_design_1201", "title": "Figma 组件库建设", "date": "11-23" },
+            { "articleId": "art_design_1202", "title": "用户体验评估方法", "date": "11-20" }
         ]
     },
     {
         "id": 13,
-        "coll_id": "col_cloud_013",
+        "collId": "col_cloud_013",
         "title": "云服务架构",
         "count": 37,
         "iconId": "cloud",
@@ -182,13 +182,13 @@
         "permission": "private",
         "description": "AWS、阿里云服务配置、容器化部署及云原生应用开发。",
         "articles": [
-            { "article_id": "art_cloud_1301", "title": "AWS EC2 实例优化", "date": "12-03" },
-            { "article_id": "art_cloud_1302", "title": "Kubernetes 集群管理", "date": "11-30" }
+            { "articleId": "art_cloud_1301", "title": "AWS EC2 实例优化", "date": "12-03" },
+            { "articleId": "art_cloud_1302", "title": "Kubernetes 集群管理", "date": "11-30" }
         ]
     },
     {
         "id": 14,
-        "coll_id": "col_test_014",
+        "collId": "col_test_014",
         "title": "软件测试策略",
         "count": 29,
         "iconId": "bug",
@@ -196,13 +196,13 @@
         "permission": "public",
         "description": "自动化测试、性能测试及测试用例设计最佳实践。",
         "articles": [
-            { "article_id": "art_test_1401", "title": "Jest 单元测试入门", "date": "11-28" },
-            { "article_id": "art_test_1402", "title": "性能测试工具选择", "date": "11-25" }
+            { "articleId": "art_test_1401", "title": "Jest 单元测试入门", "date": "11-28" },
+            { "articleId": "art_test_1402", "title": "性能测试工具选择", "date": "11-25" }
         ]
     },
     {
         "id": 15,
-        "coll_id": "col_lang_015",
+        "collId": "col_lang_015",
         "title": "编程语言进阶",
         "count": 52,
         "iconId": "file-code",
@@ -210,14 +210,14 @@
         "permission": "public",
         "description": "JavaScript、Python、Go 等编程语言的高级特性及最佳实践。",
         "articles": [
-            { "article_id": "art_lang_1501", "title": "JavaScript 异步编程", "date": "12-06" },
-            { "article_id": "art_lang_1502", "title": "Python 装饰器深入理解", "date": "12-04" },
-            { "article_id": "art_lang_1503", "title": "Go 并发编程模型", "date": "12-02" }
+            { "articleId": "art_lang_1501", "title": "JavaScript 异步编程", "date": "12-06" },
+            { "articleId": "art_lang_1502", "title": "Python 装饰器深入理解", "date": "12-04" },
+            { "articleId": "art_lang_1503", "title": "Go 并发编程模型", "date": "12-02" }
         ]
     },
     {
         "id": 16,
-        "coll_id": "col_data_016",
+        "collId": "col_data_016",
         "title": "数据处理与分析",
         "count": 38,
         "iconId": "chart-bar",
@@ -225,13 +225,13 @@
         "permission": "private",
         "description": "数据清洗、SQL 优化及数据分析可视化技术。",
         "articles": [
-            { "article_id": "art_data_1601", "title": "SQL 查询优化技巧", "date": "11-26" },
-            { "article_id": "art_data_1602", "title": "Python 数据分析库比较", "date": "11-23" }
+            { "articleId": "art_data_1601", "title": "SQL 查询优化技巧", "date": "11-26" },
+            { "articleId": "art_data_1602", "title": "Python 数据分析库比较", "date": "11-23" }
         ]
     },
     {
         "id": 17,
-        "coll_id": "col_team_017",
+        "collId": "col_team_017",
         "title": "团队协作规范",
         "count": 15,
         "iconId": "users",
@@ -239,13 +239,13 @@
         "permission": "public",
         "description": "敏捷开发流程、会议规范及团队知识管理方法。",
         "articles": [
-            { "article_id": "art_team_1701", "title": "Scrum 敏捷开发实践", "date": "12-01" },
-            { "article_id": "art_team_1702", "title": "高效会议管理技巧", "date": "11-28" }
+            { "articleId": "art_team_1701", "title": "Scrum 敏捷开发实践", "date": "12-01" },
+            { "articleId": "art_team_1702", "title": "高效会议管理技巧", "date": "11-28" }
         ]
     },
     {
         "id": 18,
-        "coll_id": "col_monitor_018",
+        "collId": "col_monitor_018",
         "title": "系统监控与运维",
         "count": 24,
         "iconId": "activity",
@@ -253,8 +253,8 @@
         "permission": "private",
         "description": "Prometheus、Grafana 监控配置及系统性能优化。",
         "articles": [
-            { "article_id": "art_monitor_1801", "title": "Prometheus 监控指标设计", "date": "12-05" },
-            { "article_id": "art_monitor_1802", "title": "Grafana 仪表盘制作", "date": "12-03" }
+            { "articleId": "art_monitor_1801", "title": "Prometheus 监控指标设计", "date": "12-05" },
+            { "articleId": "art_monitor_1802", "title": "Grafana 仪表盘制作", "date": "12-03" }
         ]
     }
 ]

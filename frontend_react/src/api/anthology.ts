@@ -55,3 +55,8 @@ export const updateAnthology = (collId: string, data: Partial<CreateAnthologyPar
 export const deleteAnthology = (collId: string) => {
     return request.delete<any, void>(`/anthology/delete/${collId}`);
 };
+
+// 新增：获取文集详情接口
+export const getAnthologyDetail = (collId: string) => {
+    return request.get<any, Anthology>(`/anthology/detail/${collId}`);
+};

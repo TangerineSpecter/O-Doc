@@ -35,6 +35,17 @@ export interface ArticleItem {
     collection?: boolean;
 }
 
+// 文章树形节点结构
+export interface ArticleNode {
+    id: string;
+    articleId: string;
+    title: string;
+    date?: string;
+    type: 'doc' | 'folder'; // 节点类型
+    children?: ArticleNode[];
+    parentId?: string; // 可选，方便前端处理
+}
+
 // 创建文章参数
 interface CreateArticleParams {
     title: string;
@@ -113,6 +124,6 @@ export const getArticlesByAnthology = async (collId: string): Promise<Article[]>
 /**
  * 根据文集获取树形结构文章列表
  */
-export const getArticleTreeByAnthology = async (collId: string): Promise<Article[]> => {
+export const getArticleTreeByAnthology = async (collId: string): Promise<ArticleNode[]> => {
     return request.get('/article/tree-list', {params: {collId}});
 };

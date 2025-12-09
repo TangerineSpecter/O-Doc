@@ -1,8 +1,8 @@
 import React from 'react';
 import {
-    FileText, MoreHorizontal, Edit, Trash, Clock, BookOpen, ChevronRight
+    FileText, MoreHorizontal, Edit, Trash, Clock, ChevronRight
 } from 'lucide-react';
-import { ArticleItem } from '../../api/tag';
+import { ArticleItem } from '../../api/article';
 
 // --- 1. 简单的标签列表组件 ---
 const SimpleTagList = ({ tags }: { tags: string[] }) => {
@@ -59,7 +59,7 @@ export const TagArticleCard = ({
     if (viewMode === 'grid') {
         return (
             <div
-                onClick={() => onNavigate(article.collId || 'col_default', article.id)}
+                onClick={() => onNavigate(article.collId || 'col_default', article.articleId)}
                 className="group bg-white rounded-2xl p-5 border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all duration-300 cursor-pointer relative overflow-visible h-full flex flex-col"
             >
                 <div className="flex justify-between items-start mb-2">
@@ -95,7 +95,7 @@ export const TagArticleCard = ({
     // --- 3. 列表视图 (全新设计：补充了标签展示) ---
     return (
         <div
-            onClick={() => onNavigate(article.collId || 'col_default', article.id)}
+            onClick={() => onNavigate(article.collId || 'col_default', article.articleId)}
             className="group bg-white rounded-xl p-4 border border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all duration-200 cursor-pointer flex items-center gap-4 relative"
         >
             {/* 左侧图标 */}
@@ -112,7 +112,7 @@ export const TagArticleCard = ({
                     <span className="text-[10px] text-slate-300 hidden sm:inline-block">|</span>
                     <span className="text-[10px] text-slate-400 hidden sm:inline-block truncate max-w-[300px]">{article.desc}</span>
                 </div>
-                
+
                 {/* ✨ 这里展示了原来缺失的标签 ✨ */}
                 <SimpleTagList tags={article.tags} />
             </div>

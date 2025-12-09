@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { fakerZH_CN as faker } from '@faker-js/faker';
-import { articleDemoData } from './articleDemoData';
+import { articleDemoData, articleTreeData } from './articleDemoData';
 import homepageDemoData from './homepageDemoData.json';
 
 // --- 1. 中文技术词库 (让数据更真实) ---
@@ -12,28 +12,28 @@ const TAG_POOL = ['后端架构', '前端', 'DevOps', '数据库', '面试题', 
 
 // 生成中文标题
 const generateChineseTitle = () => {
-    return `${faker.helpers.arrayElement(TECH_PREFIXES)} ${faker.helpers.arrayElement(TECH_KEYWORDS)} ${faker.helpers.arrayElement(TECH_SUFFIXES)}`;
+  return `${faker.helpers.arrayElement(TECH_PREFIXES)} ${faker.helpers.arrayElement(TECH_KEYWORDS)} ${faker.helpers.arrayElement(TECH_SUFFIXES)}`;
 };
 
 // 生成中文描述 (模拟一段技术摘要)
 const generateChineseDesc = () => {
-    const topic = faker.helpers.arrayElement(TECH_KEYWORDS);
-    return `本文主要介绍了 ${topic} 的核心概念与应用场景。通过实际案例分析，详细讲解了在生产环境中遇到的问题及解决方案，适合中高级开发者阅读。`;
+  const topic = faker.helpers.arrayElement(TECH_KEYWORDS);
+  return `本文主要介绍了 ${topic} 的核心概念与应用场景。通过实际案例分析，详细讲解了在生产环境中遇到的问题及解决方案，适合中高级开发者阅读。`;
 };
 
 // --- 2. 模拟文章生成 ---
 const generateArticle = (articleId: string) => {
   // 随机生成 1-3 个中文标签
   const randomTags = faker.helpers.arrayElements(TAG_POOL, { min: 1, max: 3 });
-  
+
   return {
     id: faker.number.int({ min: 1, max: 1000 }),
     articleId,
     // 使用上面的中文生成器
-    title: generateChineseTitle(), 
+    title: generateChineseTitle(),
     content: generateChineseDesc(), // 简略内容
     desc: generateChineseDesc(),    // 列表页显示的描述
-    
+
     collId: faker.string.alpha({ length: 8, casing: 'lower' }),
     author: faker.person.fullName(), // 中文人名
     createdAt: faker.date.past().toISOString().replace('T', ' ').substring(0, 19),
@@ -43,13 +43,13 @@ const generateArticle = (articleId: string) => {
     readCount: faker.number.int({ min: 100, max: 5000 }),
     categoryId: faker.string.alpha({ length: 8, casing: 'lower' }),
     sort: faker.number.int({ min: 0, max: 100 }),
-    
+
     date: faker.date.recent().toISOString().split('T')[0], // YYYY-MM-DD
     readTime: faker.number.int({ min: 3, max: 25 }),
     collection: faker.datatype.boolean(),
-    
+
     // 确保标签也是中文
-    tags: randomTags.map((t, i) => ({ tagId: `t${i}`, name: t })), 
+    tags: randomTags.map((t, i) => ({ tagId: `t${i}`, name: t })),
     // 兼容部分旧字段
     tagList: randomTags
   };
@@ -57,49 +57,49 @@ const generateArticle = (articleId: string) => {
 
 // --- 3. 模拟资源生成 ---
 const generateMockResources = (count: number) => {
-    const types = ['doc', 'image', 'video', 'audio', 'code', 'archive', 'design'];
-    const names = ['需求说明书', '架构图', '会议纪要', '接口文档', '首页设计稿', '数据库备份', '演示视频', '验收报告'];
-    
-    return Array.from({ length: count }).map((_, i) => {
-        const type = types[i % types.length];
-        const nameIdx = i % names.length;
-        const ext = type === 'doc' ? 'pdf' : type === 'image' ? 'png' : 'file';
-        
-        return {
-            id: `res-${i}`,
-            name: `${names[nameIdx]}_v${(i % 5) + 1}.${ext}`,
-            type: type,
-            size: `${(Math.random() * 10 + 0.5).toFixed(1)} MB`,
-            date: `2025-11-${(Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0')}`,
-            linked: Math.random() > 0.5,
-            sourceArticle: Math.random() > 0.5 ? { id: `art-${i}`, title: generateChineseTitle() } : null
-        };
-    });
+  const types = ['doc', 'image', 'video', 'audio', 'code', 'archive', 'design'];
+  const names = ['需求说明书', '架构图', '会议纪要', '接口文档', '首页设计稿', '数据库备份', '演示视频', '验收报告'];
+
+  return Array.from({ length: count }).map((_, i) => {
+    const type = types[i % types.length];
+    const nameIdx = i % names.length;
+    const ext = type === 'doc' ? 'pdf' : type === 'image' ? 'png' : 'file';
+
+    return {
+      id: `res-${i}`,
+      name: `${names[nameIdx]}_v${(i % 5) + 1}.${ext}`,
+      type: type,
+      size: `${(Math.random() * 10 + 0.5).toFixed(1)} MB`,
+      date: `2025-11-${(Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0')}`,
+      linked: Math.random() > 0.5,
+      sourceArticle: Math.random() > 0.5 ? { id: `art-${i}`, title: generateChineseTitle() } : null
+    };
+  });
 };
 
 const ALL_MOCK_RESOURCES = generateMockResources(200);
 
 // --- 4. 静态分类与标签数据 ---
 const INITIAL_CATEGORIES = [
-    { id: 'all', name: '全部分类', count: 383, description: '浏览知识库所有文档', iconKey: 'Layers', themeId: 'slate', isSystem: true },
-    { id: 'uncategorized', name: '未分类', count: 12, description: '暂未关联任何分类的文档', iconKey: 'Box', themeId: 'slate', isSystem: true },
-    { id: 'tech', name: '技术研发', count: 128, description: '后端架构、前端开发及代码规范', iconKey: 'Server', themeId: 'blue' },
-    { id: 'product', name: '产品设计', count: 64, description: 'PRD文档、UI设计稿及交互规范', iconKey: 'PenTool', themeId: 'pink' },
-    { id: 'ops', name: '运维部署', count: 42, description: '服务器配置、Docker及CI/CD', iconKey: 'Database', themeId: 'emerald' },
-    { id: 'marketing', name: '市场运营', count: 35, description: '活动策划、SEO及数据分析', iconKey: 'Globe', themeId: 'orange' },
+  { id: 'all', name: '全部分类', count: 383, description: '浏览知识库所有文档', iconKey: 'Layers', themeId: 'slate', isSystem: true },
+  { id: 'uncategorized', name: '未分类', count: 12, description: '暂未关联任何分类的文档', iconKey: 'Box', themeId: 'slate', isSystem: true },
+  { id: 'tech', name: '技术研发', count: 128, description: '后端架构、前端开发及代码规范', iconKey: 'Server', themeId: 'blue' },
+  { id: 'product', name: '产品设计', count: 64, description: 'PRD文档、UI设计稿及交互规范', iconKey: 'PenTool', themeId: 'pink' },
+  { id: 'ops', name: '运维部署', count: 42, description: '服务器配置、Docker及CI/CD', iconKey: 'Database', themeId: 'emerald' },
+  { id: 'marketing', name: '市场运营', count: 35, description: '活动策划、SEO及数据分析', iconKey: 'Globe', themeId: 'orange' },
 ];
 
 const INITIAL_TAGS = [
-    { tag_id: 'react', name: 'React', article_count: 45, themeId: 'blue' },
-    { tag_id: 'vue', name: 'Vue.js', article_count: 32, themeId: 'emerald' },
-    { tag_id: 'tailwind', name: 'Tailwind CSS', article_count: 28, themeId: 'cyan' },
-    { tag_id: 'docker', name: 'Docker', article_count: 15, themeId: 'sky' },
-    { tag_id: 'deploy', name: '自动化部署', article_count: 12, themeId: 'orange' },
-    { tag_id: 'backend', name: '后端架构', article_count: 38, themeId: 'violet' },
-    { tag_id: 'db', name: 'Database', article_count: 24, themeId: 'slate' },
-    { tag_id: 'api', name: 'RESTful API', article_count: 19, themeId: 'pink' },
-    { tag_id: 'perf', name: '性能优化', article_count: 9, themeId: 'amber' },
-    { tag_id: 'linux', name: 'Linux', article_count: 42, themeId: 'slate' },
+  { tag_id: 'react', name: 'React', article_count: 45, themeId: 'blue' },
+  { tag_id: 'vue', name: 'Vue.js', article_count: 32, themeId: 'emerald' },
+  { tag_id: 'tailwind', name: 'Tailwind CSS', article_count: 28, themeId: 'cyan' },
+  { tag_id: 'docker', name: 'Docker', article_count: 15, themeId: 'sky' },
+  { tag_id: 'deploy', name: '自动化部署', article_count: 12, themeId: 'orange' },
+  { tag_id: 'backend', name: '后端架构', article_count: 38, themeId: 'violet' },
+  { tag_id: 'db', name: 'Database', article_count: 24, themeId: 'slate' },
+  { tag_id: 'api', name: 'RESTful API', article_count: 19, themeId: 'pink' },
+  { tag_id: 'perf', name: '性能优化', article_count: 9, themeId: 'amber' },
+  { tag_id: 'linux', name: 'Linux', article_count: 42, themeId: 'slate' },
 ];
 
 // --- Handlers 定义 ---
@@ -241,9 +241,9 @@ export const handlers = [
   http.put('/api/anthology/update/:collId', async ({ params, request }) => {
     const body = await request.json() as any;
     return HttpResponse.json({
-        code: 200,
-        msg: 'success',
-        data: { ...body, coll_id: params.collId }
+      code: 200,
+      msg: 'success',
+      data: { ...body, coll_id: params.collId }
     });
   }),
 
@@ -261,9 +261,9 @@ export const handlers = [
   http.post('/api/category/create', async ({ request }) => {
     const body = await request.json() as any;
     return HttpResponse.json({
-        code: 200,
-        msg: 'success',
-        data: { id: `cat-${Date.now()}`, count: 0, isSystem: false, ...body }
+      code: 200,
+      msg: 'success',
+      data: { id: `cat-${Date.now()}`, count: 0, isSystem: false, ...body }
     });
   }),
 
@@ -271,9 +271,9 @@ export const handlers = [
   http.put('/api/category/update/:categoryId', async ({ params, request }) => {
     const body = await request.json() as any;
     return HttpResponse.json({
-        code: 200,
-        msg: 'success',
-        data: { id: params.categoryId, ...body }
+      code: 200,
+      msg: 'success',
+      data: { id: params.categoryId, ...body }
     });
   }),
 
@@ -291,9 +291,9 @@ export const handlers = [
   http.post('/api/tag/create', async ({ request }) => {
     const body = await request.json() as any;
     return HttpResponse.json({
-        code: 200,
-        msg: 'success',
-        data: { tag_id: `tag-${Date.now()}`, article_count: 0, ...body }
+      code: 200,
+      msg: 'success',
+      data: { tag_id: `tag-${Date.now()}`, article_count: 0, ...body }
     });
   }),
 
@@ -301,9 +301,9 @@ export const handlers = [
   http.put('/api/tag/update/:tagId', async ({ params, request }) => {
     const body = await request.json() as any;
     return HttpResponse.json({
-        code: 200,
-        msg: 'success',
-        data: { tag_id: params.tagId, ...body }
+      code: 200,
+      msg: 'success',
+      data: { tag_id: params.tagId, ...body }
     });
   }),
 
@@ -324,14 +324,14 @@ export const handlers = [
     let filteredResources = [...ALL_MOCK_RESOURCES];
 
     if (type && type !== 'all') {
-        filteredResources = filteredResources.filter(item => item.type === type);
+      filteredResources = filteredResources.filter(item => item.type === type);
     }
     if (searchQuery) {
-        filteredResources = filteredResources.filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      filteredResources = filteredResources.filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
     }
     if (linked !== null) {
-        const isLinked = linked === 'true';
-        filteredResources = filteredResources.filter(item => item.linked === isLinked);
+      const isLinked = linked === 'true';
+      filteredResources = filteredResources.filter(item => item.linked === isLinked);
     }
 
     const paginatedResources = filteredResources.slice((page - 1) * pageSize, page * pageSize);
@@ -343,17 +343,17 @@ export const handlers = [
   http.post('/api/resource/create', async ({ request }) => {
     const body = await request.json() as any;
     return HttpResponse.json({
-        code: 200,
-        msg: 'success',
-        data: {
-            id: `res-${Date.now()}`,
-            type: 'doc',
-            size: `${(Math.random() * 10 + 0.5).toFixed(1)} MB`,
-            date: new Date().toISOString().split('T')[0],
-            linked: false,
-            sourceArticle: null,
-            ...body
-        }
+      code: 200,
+      msg: 'success',
+      data: {
+        id: `res-${Date.now()}`,
+        type: 'doc',
+        size: `${(Math.random() * 10 + 0.5).toFixed(1)} MB`,
+        date: new Date().toISOString().split('T')[0],
+        linked: false,
+        sourceArticle: null,
+        ...body
+      }
     });
   }),
 
@@ -364,14 +364,47 @@ export const handlers = [
 
   // 22. 登录接口
   http.post('/api/auth/login', () => {
-      return HttpResponse.json({
-          code: 200,
-          msg: 'success',
-          data: {
-              token: 'mock-jwt-token-123456',
-              username: 'admin',
-              avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
-          }
-      });
-  })
+    return HttpResponse.json({
+      code: 200,
+      msg: 'success',
+      data: {
+        token: 'mock-jwt-token-123456',
+        username: 'admin',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
+      }
+    });
+  }),
+
+  // 新增：23. 获取文章大纲树
+  http.get('/api/article/tree-list', ( ) => {
+
+    return HttpResponse.json({
+      code: 200,
+      msg: 'success',
+      data: articleTreeData
+    });
+  }),
+
+  // 新增：24. 获取文集详情
+  http.get('/anthology/detail/:collId', ({ params }) => {
+    const { collId } = params;
+    return HttpResponse.json({
+      code: 200,
+      msg: 'success',
+      data: {
+        id: faker.number.int({ min: 1, max: 1000 }),
+        collId: typeof collId === 'string' ? collId : 'col_deploy_001',
+        title: '小橘文档',
+        description: '包含各类部署相关的文档和指南',
+        iconId: 'server',
+        permission: 'public',
+        isTop: false,
+        sort: 1,
+        count: 25,
+        articles: [],
+        createdAt: faker.date.past().toISOString().replace('T', ' ').substring(0, 19),
+        updatedAt: faker.date.recent().toISOString().replace('T', ' ').substring(0, 19)
+      }
+    });
+  }),
 ];

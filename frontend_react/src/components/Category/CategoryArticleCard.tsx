@@ -1,6 +1,6 @@
 import React from 'react';
-import {Clock, Edit, FileText, MoreHorizontal, Trash} from 'lucide-react';
-import {ArticleItem} from '@/api/category.ts';
+import { Clock, Edit, FileText, MoreHorizontal, Trash } from 'lucide-react';
+import { ArticleItem } from '@/api/article';
 
 // --- TagList 组件 (移至此处) ---
 const getTagStyle = (tag: string) => {
@@ -82,7 +82,7 @@ export const CategoryArticleCard = ({
     if (viewMode === 'grid') {
         return (
             <div
-                onClick={() => onNavigate(article.collId || 'col_default', article.id)}
+                onClick={() => onNavigate(article.collId || 'col_default', article.articleId)}
                 className="group bg-white rounded-xl p-4 border border-slate-200 hover:border-orange-300 hover:shadow-md transition-all duration-300 cursor-pointer flex flex-col h-full relative"
             >
                 <div className="flex justify-between items-start gap-3 mb-2">
@@ -110,7 +110,7 @@ export const CategoryArticleCard = ({
     // 列表视图
     return (
         <div
-            onClick={() => onNavigate(article.collId || 'col_default', article.id)}
+            onClick={() => onNavigate(article.collId || 'col_default', article.articleId)}
             className="group bg-white rounded-xl p-4 border border-slate-200 hover:border-orange-300 hover:shadow-sm transition-all duration-200 cursor-pointer flex items-center gap-4 relative"
         >
             <div className="p-2.5 bg-orange-50 text-orange-600 rounded-xl group-hover:bg-orange-100 transition-colors shrink-0"><FileText className="w-5 h-5" /></div>
