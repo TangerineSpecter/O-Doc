@@ -1,5 +1,4 @@
 import request from '../utils/request';
-import { getArticles } from './article';
 
 // 定义标签项类型
 export interface TagItem {
