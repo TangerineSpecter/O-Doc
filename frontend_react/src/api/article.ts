@@ -15,6 +15,8 @@ export interface Article {
     readCount: number;
     categoryId?: string;
     sort: number;
+    parent?: number | null;
+    children?: Article[];
     tags?: Array<{ tagId: string, name: string }>;
     desc?: string;
     readTime?: number;
@@ -106,4 +108,11 @@ export const getArticles = async (params?: GetArticlesParams): Promise<Article[]
  */
 export const getArticlesByAnthology = async (collId: string): Promise<Article[]> => {
     return getArticles({collId});
+};
+
+/**
+ * 根据文集获取树形结构文章列表
+ */
+export const getArticleTreeByAnthology = async (collId: string): Promise<Article[]> => {
+    return request.get('/article/tree-list', {params: {collId}});
 };

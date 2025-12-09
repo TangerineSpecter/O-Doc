@@ -2,7 +2,7 @@ from django.urls import path
 from article.views import (
     ArticleCreateView, ArticleDetailView,
     ArticleUpdateView, ArticleDeleteView,
-    ArticleListView
+    ArticleListView, ArticleTreeListView
 )
 
 urlpatterns = [
@@ -20,4 +20,7 @@ urlpatterns = [
     
     # 文章列表，支持多条件查询
     path('list', ArticleListView.as_view(), name='article-list'),
+    
+    # 树形结构文章列表，按文集ID返回树形结构的文章列表
+    path('tree-list', ArticleTreeListView.as_view(), name='article-tree-list'),
 ]

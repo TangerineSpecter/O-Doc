@@ -145,3 +145,32 @@ class ArticleListView(APIView):
             
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+class ArticleTreeListView(APIView):
+    """
+    树形结构文章列表视图，按文集ID返回树形结构的文章列表
+    - coll_id：文集ID，必传参数
+    """
+    def get(self, request):
+        try:
+            # 获取查询参数
+            coll_id = request.GET.get('coll_id')
+            
+            # 验证文集ID是否存在
+            if not coll_id:
+                return error_result(error=ErrorCode.PARAMETER_ERROR, data="文集ID不能为空")
+            
+            # 构建查询集：只获取文集下的主文章（parent为空），并按sort和更新时间排序
+            root_articles = Article.objects.filter(
+                is_valid=True, 
+                coll_id=coll_id, 
+                parent__isnull=True
+            ).order_by('sort', '-updated_at')
+            
+            # 使用树形序列化器序列化响应数据
+            serializer = ArticleTreeSerializer(root_articles, many=True)
+            
+            return success_result(data=serializer.data)
+            
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
