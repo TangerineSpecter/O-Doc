@@ -7,7 +7,7 @@ import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
 import { Paperclip, Download } from 'lucide-react';
 
-import { articleDemoData } from "../mock/articleDemoData";
+import { articleDemoData } from "../mocks/articleDemoData";
 import { useArticle } from '../hooks/useArticle';
 import { ArticleIcons, MermaidChart, CodeBlock, CUSTOM_STYLES } from '../components/Article/MarkdownElements';
 import { TableOfContents } from '../components/Article/TableOfContents';

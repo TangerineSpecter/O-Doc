@@ -45,31 +45,32 @@ interface UpdateArticleParams {
  * 创建文章
  */
 export const createArticle = async (params: CreateArticleParams): Promise<Article> => {
-    const response = await request.post('/article/create', params);
-    return response.data;
+    // 修改：直接返回 request 结果
+    return request.post('/article/create', params);
 };
 
 /**
  * 获取文章详情
  */
 export const getArticleDetail = async (articleId: string): Promise<Article> => {
-    const response = await request.get(`/article/detail/${articleId}`);
-    return response.data;
+    // 修改：直接返回 request 结果
+    return request.get(`/article/detail/${articleId}`);
 };
 
 /**
  * 更新文章
  */
 export const updateArticle = async (articleId: string, params: UpdateArticleParams): Promise<Article> => {
-    const response = await request.put(`/article/update/${articleId}`, params);
-    return response.data;
+    // 修改：直接返回 request 结果
+    return request.put(`/article/update/${articleId}`, params);
 };
 
 /**
  * 删除文章
  */
 export const deleteArticle = async (articleId: string): Promise<void> => {
-    await request.delete(`/article/delete/${articleId}`);
+    // 修改：直接返回 request 结果
+    return request.delete(`/article/delete/${articleId}`);
 };
 
 // 定义文章列表查询参数
@@ -84,8 +85,8 @@ export interface GetArticlesParams {
  * 文章列表查询，支持多条件
  */
 export const getArticles = async (params?: GetArticlesParams): Promise<Article[]> => {
-    const response = await request.get('/article/list', { params });
-    return response.data;
+    // 修改：直接返回 request 结果
+    return request.get('/article/list', { params });
 };
 
 /**
