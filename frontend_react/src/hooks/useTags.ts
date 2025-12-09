@@ -28,13 +28,9 @@ export const useTags = () => {
     const fetchTags = useCallback(async () => {
         try {
             const data = await getTagList();
-            // 转换数据格式，确保字段名一致
-            const formattedTags: TagItem[] = data.map(tag => ({
-                ...tag,
-                tag_id: tag.tagId,
-                article_count: tag.articleCount || 0
-            }));
-            setTags(formattedTags);
+            // 修复：后端已开启 CamelCaseJSONRenderer，直接使用返回的驼峰数据即可
+            // 不需要再手动映射 tag_id 或 article_count
+            setTags(data);
         } catch (error) {
             console.error('获取标签列表失败:', error);
         }
@@ -135,13 +131,14 @@ export const useTags = () => {
     const totalArticles = useMemo(() => tags.reduce((acc, cur) => acc + (cur.articleCount || 0), 0), [tags]);
 
     const activeTag = useMemo(() => {
+        // 修复：这里也要统一使用 tagId
         return tags.find(t => t.tagId === selectedTagId) || {
-            tag_id: 'all',
+            tagId: 'all', // 修正字段名
             name: '所有标签',
-            article_count: totalArticles,
+            articleCount: totalArticles, // 修正字段名
             isSystem: true,
             themeId: 'blue'
-        };
+        } as unknown as TagItem; // 类型断言处理模拟对象
     }, [tags, selectedTagId, totalArticles]);
 
     return {

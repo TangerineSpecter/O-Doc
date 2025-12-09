@@ -65,7 +65,14 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
     // 表单字段变化处理
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        let finalValue = value;
+
+        // 如果是名称字段，禁止输入空格
+        if (name === 'name') {
+            finalValue = value.replace(/\s+/g, '');
+        }
+
+        setFormData(prev => ({ ...prev, [name]: finalValue }));
     };
 
     // 图标选择处理
@@ -119,10 +126,16 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
                             name="name"
                             value={formData.name}
                             onChange={handleInputChange}
+                            maxLength={10}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                             placeholder="例如：技术文档"
                             autoFocus
                         />
+                        <div className="text-right">
+                            <span className={`text-xs ${formData.name.length >= 10 ? 'text-orange-500 font-medium' : 'text-slate-400'}`}>
+                                {formData.name.length}/10 字
+                            </span>
+                        </div>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1.5">描述说明</label>
@@ -131,9 +144,15 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
                             value={formData.description}
                             onChange={handleInputChange}
                             rows={3}
+                            maxLength={100}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all resize-none"
                             placeholder="简要描述该分类下的内容..."
                         />
+                        <div className="text-right">
+                            <span className={`text-xs ${formData.description.length >= 100 ? 'text-orange-500 font-medium' : 'text-slate-400'}`}>
+                                {formData.description.length}/100 字
+                            </span>
+                        </div>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">选择图标</label>
