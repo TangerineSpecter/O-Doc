@@ -58,7 +58,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
     if (onNavigate) onNavigate('article', { collId });
   };
 
-  const handleCreateDoc = () => navigate('/editor');
+  const handleCreateDoc = () => navigate(`/editor?collId=${collId}`);
 
   const handleEditArticle = () => {
     if (!activeDocId) return;

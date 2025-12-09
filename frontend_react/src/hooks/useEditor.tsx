@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState} from 'react';
+import {useNavigate, useLocation} from 'react-router-dom';
 import {CommandItem} from '../components/Editor/SlashMenu';
 import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
+import {createArticle} from '../api/article';
 import {
     CheckSquare,
     Code,
@@ -81,6 +83,27 @@ export const useEditor = () => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const attachmentInputRef = useRef<HTMLInputElement>(null);
+    
+    // Router
+    const navigate = useNavigate();
+    const location = useLocation();
+    
+    // 获取collId
+    const getCollId = () => {
+        // 首先尝试从搜索参数中获取
+        const params = new URLSearchParams(location.search);
+        const collId = params.get('collId');
+        if (collId) return collId;
+        
+        // 然后尝试从路径参数中获取 (编辑模式下的路径可能包含collId)
+        const pathParts = location.pathname.split('/');
+        const collIndex = pathParts.indexOf('coll');
+        if (collIndex !== -1 && collIndex + 1 < pathParts.length) {
+            return pathParts[collIndex + 1];
+        }
+        
+        return null;
+    };
 
     // State: Content
     const [title, setTitle] = useState("未命名文档");
@@ -154,9 +177,41 @@ export const useEditor = () => {
     };
 
     // --- Actions ---
-    const handleSave = () => {
+    const handleSave = async () => {
+        const collId = getCollId();
+        if (!collId) {
+            alert("请选择文集！");
+            setIsSaving(false);
+            return;
+        }
+
         setIsSaving(true);
-        setTimeout(() => { setIsSaving(false); alert("保存成功！"); }, 800);
+        try {
+            const articleData = {
+                title,
+                content,
+                collId,
+                parentId: parentArticle.id === 'root' ? undefined : parentArticle.id,
+                categoryId: category.id,
+                tags: tags.filter(tag => tag !== 'Draft'),
+                attachments: attachments.map(att => ({
+                    id: att.id,
+                    name: att.name,
+                    url: att.url
+                }))
+            };
+
+            const result = await createArticle(articleData);
+            alert("文章创建成功！");
+            
+            // 跳转到文章详情页
+            navigate(`/article/${collId}/${result.articleId}`);
+        } catch (error) {
+            console.error("创建文章失败:", error);
+            alert("创建文章失败，请重试！");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleTogglePreview = () => setIsPreviewMode(prev => !prev);
