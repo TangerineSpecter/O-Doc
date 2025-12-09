@@ -2,9 +2,9 @@ import request from '../utils/request';
 
 // 定义分类项类型
 export interface CategoryItem {
-    id: string;
+    categoryId: string;
     name: string;
-    count: number;
+    articleCount: number;
     description: string;
     iconKey: string;
     themeId: string;
@@ -19,16 +19,6 @@ export interface CreateCategoryParams {
     iconKey: string;
 }
 
-// 定义文章项类型
-export interface ArticleItem {
-    id: string;
-    title: string;
-    desc: string;
-    date: string;
-    readTime: number;
-    tags: string[];
-    collId: string;
-}
 
 // 获取分类列表接口
 export const getCategoryList = () => {

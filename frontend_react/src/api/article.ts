@@ -15,9 +15,21 @@ export interface Article {
     readCount: number;
     categoryId?: string;
     sort: number;
-    tags?: Array<{tagId: string, name: string}>;
+    tags?: Array<{ tagId: string, name: string }>;
     desc?: string;
     readTime?: number;
+    collection?: boolean;
+}
+
+//前端列表通用的文章项类型 (ViewModel)
+export interface ArticleItem {
+    articleId: string;
+    title: string;
+    desc: string;
+    date: string;
+    readTime: number;
+    tags: string[];
+    collId: string;
     collection?: boolean;
 }
 
@@ -86,12 +98,12 @@ export interface GetArticlesParams {
  */
 export const getArticles = async (params?: GetArticlesParams): Promise<Article[]> => {
     // 修改：直接返回 request 结果
-    return request.get('/article/list', { params });
+    return request.get('/article/list', {params});
 };
 
 /**
  * 根据文集获取文章列表（兼容旧接口调用方式）
  */
 export const getArticlesByAnthology = async (collId: string): Promise<Article[]> => {
-    return getArticles({ collId });
+    return getArticles({collId});
 };

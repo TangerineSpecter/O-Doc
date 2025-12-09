@@ -1,8 +1,6 @@
 import React from 'react';
-import {
-    FileText, MoreHorizontal, Edit, Trash, Clock
-} from 'lucide-react';
-import { ArticleItem } from '../../api/category';
+import {Clock, Edit, FileText, MoreHorizontal, Trash} from 'lucide-react';
+import {ArticleItem} from '@/api/category.ts';
 
 // --- TagList 组件 (移至此处) ---
 const getTagStyle = (tag: string) => {

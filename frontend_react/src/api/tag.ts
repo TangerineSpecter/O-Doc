@@ -14,17 +14,6 @@ export interface CreateTagParams {
     themeId: string;
 }
 
-// 定义文章项类型
-export interface ArticleItem {
-    id: string;
-    title: string;
-    desc: string;
-    date: string;
-    readTime: number;
-    tags: string[];
-    collId: string;
-    collection?: boolean;
-}
 
 // 获取标签列表接口
 export const getTagList = () => {

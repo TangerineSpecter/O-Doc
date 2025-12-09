@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {CategoryItem, createCategory, deleteCategory, getCategoryList, updateCategory} from '../api/category';
-import {Article, getArticles} from '../api/article';
-import {ArticleItem} from '../api/tag';
+import {Article, ArticleItem, getArticles} from '../api/article';
 import {CategoryFormData} from '../components/CategoryModal';
 
 export const useCategories = () => {
@@ -27,10 +26,10 @@ export const useCategories = () => {
     const fetchArticles = useCallback(async (catId: string) => {
         try {
             setLoading(true);
-            const data = await getArticles(catId === 'all' ? undefined : { categoryId: catId });
+            const data = await getArticles(catId === 'all' ? undefined : {categoryId: catId});
             // 转换数据格式
             const formattedData: ArticleItem[] = data.map((article: Article) => ({
-                id: article.articleId,
+                articleId: article.articleId,
                 title: article.title,
                 desc: article.desc || '',
                 date: article.createdAt,
@@ -69,8 +68,8 @@ export const useCategories = () => {
     const handleCategorySubmit = async (formData: CategoryFormData, editingCategory: CategoryItem | null) => {
         try {
             if (editingCategory) {
-                const updatedCategory = await updateCategory(editingCategory.id, formData);
-                setCategories(prev => prev.map(c => c.id === editingCategory.id ? updatedCategory : c));
+                const updatedCategory = await updateCategory(editingCategory.categoryId, formData);
+                setCategories(prev => prev.map(c => c.categoryId === editingCategory.categoryId ? updatedCategory : c));
             } else {
                 const newCategory = await createCategory(formData);
                 setCategories(prev => [...prev, newCategory]);
@@ -85,7 +84,7 @@ export const useCategories = () => {
     const confirmDeleteCategory = async (catId: string) => {
         try {
             await deleteCategory(catId);
-            setCategories(prev => prev.filter(c => c.id !== catId));
+            setCategories(prev => prev.filter(c => c.categoryId !== catId));
             if (selectedCatId === catId) {
                 setSelectedCatId('all');
                 setDisplayArticles([]);
@@ -105,12 +104,12 @@ export const useCategories = () => {
     }, [searchQuery, categories]);
 
     const filteredDisplayArticles = useMemo(() => {
-        return displayArticles.filter(art => !deletedArticleIds.has(art.id));
+        return displayArticles.filter(art => !deletedArticleIds.has(art.articleId));
     }, [displayArticles, deletedArticleIds]);
 
     const activeCategory = useMemo(() => {
-        return categories.find(c => c.id === selectedCatId) || categories[0] || {
-            id: 'all',
+        return categories.find(c => c.categoryId === selectedCatId) || categories[0] || {
+            categoryId: 'all',
             name: '所有分类',
             description: '所有分类下的文章',
             count: 0,

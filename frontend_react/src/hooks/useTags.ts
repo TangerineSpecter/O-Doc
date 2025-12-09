@@ -1,15 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-    getTagList,
-    createTag,
-    updateTag,
-    deleteTag,
-    TagItem,
-    ArticleItem
-} from '../api/tag';
-import { getArticles, Article } from '../api/article';
-import { TagFormData } from '../components/TagModal';
-import { useToast } from '../components/ToastProvider';
+import {useCallback, useEffect, useMemo, useState} from 'react';
+import {createTag, deleteTag, getTagList, TagItem, updateTag} from '../api/tag';
+import {Article, ArticleItem, getArticles} from '../api/article';
+import {TagFormData} from '../components/TagModal';
+import {useToast} from '../components/ToastProvider';
 
 export const useTags = () => {
     // --- State ---
@@ -39,10 +32,10 @@ export const useTags = () => {
     const fetchArticles = useCallback(async (tagId: string) => {
         try {
             setLoading(true);
-            const data = await getArticles(tagId === 'all' ? undefined : { tagId });
+            const data = await getArticles(tagId === 'all' ? undefined : {tagId});
             // 转换数据格式
             const formattedData: ArticleItem[] = data.map((article: Article) => ({
-                id: article.articleId,
+                articleId: article.articleId,
                 title: article.title,
                 desc: article.desc || '',
                 date: article.createdAt,
@@ -125,7 +118,7 @@ export const useTags = () => {
     }, [searchQuery, tags]);
 
     const filteredDisplayArticles = useMemo(() => {
-        return displayArticles.filter(art => !deletedArticleIds.has(art.id));
+        return displayArticles.filter(art => !deletedArticleIds.has(art.articleId));
     }, [displayArticles, deletedArticleIds]);
 
     const totalArticles = useMemo(() => tags.reduce((acc, cur) => acc + (cur.articleCount || 0), 0), [tags]);
