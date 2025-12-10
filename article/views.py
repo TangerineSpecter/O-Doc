@@ -18,8 +18,7 @@ class ArticleCreateView(APIView):
         # 使用事务包装所有数据库操作，确保原子性
         with transaction.atomic():
             serializer = ArticleSerializer(data=request.data, context={'request': request})
-            if not serializer.is_valid():
-                return valid_result(data=serializer.errors)
+            serializer.is_valid(raise_exception=True)
 
             article = serializer.save()
 
@@ -55,26 +54,20 @@ class ArticleUpdateView(APIView):
     """
 
     def put(self, request, article_id):
-        try:
-            # 查找文章
-            article = get_object_or_404(Article, article_id=article_id)
+        # 查找文章
+        article = get_object_or_404(Article, article_id=article_id)
 
-            # 使用序列化器验证请求数据并更新文章
-            serializer = ArticleSerializer(article, data=request.data, partial=True)
+        # 使用序列化器验证请求数据并更新文章
+        serializer = ArticleSerializer(article, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
 
-            if not serializer.is_valid():
-                return valid_result(data=serializer.errors)
+        # 保存更新
+        article = serializer.save()
 
-            # 保存更新
-            article = serializer.save()
+        # 序列化响应数据
+        response_data = ArticleSerializer(article).data
 
-            # 序列化响应数据
-            response_data = ArticleSerializer(article).data
-
-            return success_result(response_data)
-
-        except Exception as e:
-            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+        return success_result(response_data)
 
 
 class ArticleDeleteView(APIView):

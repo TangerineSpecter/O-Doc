@@ -181,6 +181,10 @@ class ArticleSerializer(serializers.ModelSerializer):
             Article.objects.get(article_id=value)
         except Article.DoesNotExist:
             raise serializers.ValidationError(f"父级文章不存在：'{value}'")
+        
+        # 检查父级文章ID是否与当前编辑的文章ID相同，防止循环引用
+        if self.instance and self.instance.article_id == value:
+            raise serializers.ValidationError("父级文章不能是当前文章自身")
 
         return value
 
