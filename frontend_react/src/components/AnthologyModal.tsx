@@ -227,7 +227,7 @@ export default function CreateAnthologyModal({
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={!formData.title || isSubmitting}
+                        disabled={!formData.title || !formData.description || isSubmitting}
                         className="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 active:bg-orange-700 rounded-lg transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                         {isSubmitting ? (
