@@ -180,16 +180,23 @@ class ArticleTreeSerializer(serializers.ModelSerializer):
     树形结构文章序列化器
     """
     children = serializers.SerializerMethodField()
+    date = serializers.SerializerMethodField()
 
     class Meta:
         model = Article
         fields = [
             'article_id', 'title', 'content', 'coll_id',
             'author', 'created_at', 'updated_at', 'permission', 'is_valid',
-            'read_count', 'category_id', 'sort', 'parent_id', 'children'
+            'read_count', 'category_id', 'sort', 'parent_id', 'children', 'date'
         ]
         # 只读字段
-        read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'children']
+        read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'children', 'date']
+
+    def get_date(self, obj):
+        """
+        返回格式化的日期，用于前端显示
+        """
+        return obj.updated_at.strftime('%Y-%m-%d')
 
     def get_children(self, obj):
         """
