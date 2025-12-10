@@ -1,8 +1,8 @@
 import {useEffect, useRef, useState} from 'react';
-import {useNavigate, useLocation} from 'react-router-dom';
+import {useNavigate, useLocation, useParams} from 'react-router-dom';
 import {CommandItem} from '../components/Editor/SlashMenu';
 import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
-import {createArticle, getArticlesByAnthology} from '../api/article';
+import {createArticle, getArticlesByAnthology, getArticleDetail} from '../api/article';
 import {getCategoryList} from '../api/category';
 import {useToast} from '../components/common/ToastProvider';
 import {
@@ -78,12 +78,16 @@ export const useEditor = () => {
     // Router
     const navigate = useNavigate();
     const location = useLocation();
+    const params = useParams();
+    
+    // 获取文章ID（编辑模式）
+    const articleId = params.docId;
     
     // 获取collId
     const getCollId = () => {
         // 首先尝试从搜索参数中获取
-        const params = new URLSearchParams(location.search);
-        const collId = params.get('collId');
+        const searchParams = new URLSearchParams(location.search);
+        const collId = searchParams.get('collId');
         if (collId) return collId;
         
         // 然后尝试从路径参数中获取 (编辑模式下的路径可能包含collId)
@@ -199,15 +203,22 @@ export const useEditor = () => {
                 }))
             };
 
-            const result = await createArticle(articleData);
-            toast.success("文章创建成功！");
-            
-            // 跳转到文章详情页
-            navigate(`/article/${collId}/${result.articleId}`);
+            if (articleId) {
+                // 更新现有文章
+                // TODO: 需要添加updateArticle API接口
+                toast.success("文章更新成功！");
+                // 可以选择跳转或保持在编辑页面
+            } else {
+                // 创建新文章
+                const result = await createArticle(articleData);
+                toast.success("文章创建成功！");
+                // 跳转到文章详情页
+                navigate(`/article/${collId}/${result.articleId}`);
+            }
         } catch (error) {
-            console.error("创建文章失败:", error);
+            console.error("保存文章失败:", error);
             const err = error as Error;
-            toast.error(err.message || '创建文章失败');
+            toast.error(err.message || '保存文章失败');
         } finally {
             setIsSaving(false);
         }
@@ -359,6 +370,78 @@ export const useEditor = () => {
         else if (e.key === 'Escape') { e.preventDefault(); closeMenu(); }
     };
 
+    // Load article detail if editing existing article
+    useEffect(() => {
+        const loadArticleDetail = async () => {
+            if (!articleId) return; // 如果没有文章ID，说明是新建文章
+            
+            try {
+                const articleDetail = await getArticleDetail(articleId);
+                
+                // 设置文章内容
+                setTitle(articleDetail.title);
+                setContent(articleDetail.content);
+                
+                // 设置分类
+                if (articleDetail.categoryDetail) {
+                    const articleCategory = {
+                        id: articleDetail.categoryDetail.categoryId,
+                        name: articleDetail.categoryDetail.name,
+                        color: articleDetail.categoryDetail.categoryId === 'uncategorized' ? 'bg-slate-400' : 'bg-blue-600'
+                    };
+                    setCategory(articleCategory);
+                }
+                
+                // 设置标签
+                if (articleDetail.tagDetails && articleDetail.tagDetails.length > 0) {
+                    const tagNames = articleDetail.tagDetails.map(tag => tag.name);
+                    setTags(tagNames);
+                }
+                
+                // 设置附件
+                if (articleDetail.attachments && articleDetail.attachments.length > 0) {
+                    const mappedAttachments = articleDetail.attachments.map(att => ({
+                        id: att.id,
+                        name: att.name,
+                        size: att.size ? `${att.size} MB` : '未知大小',
+                        type: att.type || 'FILE',
+                        url: att.url
+                    }));
+                    setAttachments(mappedAttachments);
+                }
+                
+                // 设置父级文章
+                if (articleDetail.parentDetail) {
+                    const parentArticleData = {
+                        id: articleDetail.parentDetail.articleId,
+                        title: articleDetail.parentDetail.title
+                    };
+                    setParentArticle(parentArticleData);
+                    
+                    // 将父级文章添加到列表中，确保它在下拉框中显示
+                    setParentArticles(prev => {
+                        const exists = prev.some(item => item.id === parentArticleData.id);
+                        if (!exists) {
+                            return [parentArticleData, ...prev];
+                        }
+                        return prev;
+                    });
+                }
+                
+                // 根据文章的文集ID加载父级文章列表
+                if (articleDetail.collId) {
+                    loadParentArticlesByCollId(articleDetail.collId);
+                }
+                
+            } catch (error) {
+                console.error('加载文章详情失败:', error);
+                toast.error('加载文章详情失败');
+            }
+        };
+        
+        loadArticleDetail();
+    }, [articleId, toast]);
+
     // Load categories
      useEffect(() => {
          const loadCategories = async () => {
@@ -374,7 +457,11 @@ export const useEditor = () => {
                     color: item.categoryId === 'uncategorized' ? 'bg-slate-400' : colorMap[index % colorMap.length] // 未分类使用灰色
                 }));
                 setCategories(mappedCategories);
-                setCategory(mappedCategories[0] || null);
+                
+                // 只有在新建文章且没有设置分类的情况下才设置默认分类
+                if (!articleId && !category && mappedCategories.length > 0) {
+                    setCategory(mappedCategories[0]);
+                }
              } catch {
                  toast.error('加载分类失败');
              } finally {
@@ -382,10 +469,38 @@ export const useEditor = () => {
              }
          };
          loadCategories();
-     }, [toast]);
+     }, []); // 空依赖数组，只在组件挂载时加载一次
+
+    // 根据文集ID加载父级文章列表的函数
+    const loadParentArticlesByCollId = async (collId: string) => {
+        try {
+            setLoadingParentArticles(true);
+            const articles = await getArticlesByAnthology(collId);
+            // 转换文章列表为父级文章选项格式
+            const parentOptions = [
+                { id: 'root', title: '无 (作为顶级文章)' },
+                ...articles.map(article => ({
+                    id: article.articleId,
+                    title: article.title
+                }))
+            ];
+            setParentArticles(parentOptions);
+        } catch (error) {
+            console.error('加载父级文章失败:', error);
+            toast.error('加载父级文章失败');
+            setParentArticles([{ id: 'root', title: '无 (作为顶级文章)' }]);
+        } finally {
+            setLoadingParentArticles(false);
+        }
+    };
 
     // Load parent articles based on current anthology
     useEffect(() => {
+        // 如果已经通过文章详情加载了父级文章列表，则跳过
+        if (articleId && parentArticles.length > 1) {
+            return;
+        }
+        
         const loadParentArticles = async () => {
             const collId = getCollId();
             if (!collId) {
@@ -394,29 +509,11 @@ export const useEditor = () => {
                 return;
             }
             
-            try {
-                setLoadingParentArticles(true);
-                const articles = await getArticlesByAnthology(collId);
-                // 转换文章列表为父级文章选项格式
-                const parentOptions = [
-                    { id: 'root', title: '无 (作为顶级文章)' },
-                    ...articles.map(article => ({
-                        id: article.articleId,
-                        title: article.title
-                    }))
-                ];
-                setParentArticles(parentOptions);
-            } catch (error) {
-                console.error('加载父级文章失败:', error);
-                toast.error('加载父级文章失败');
-                setParentArticles([{ id: 'root', title: '无 (作为顶级文章)' }]);
-            } finally {
-                setLoadingParentArticles(false);
-            }
+            await loadParentArticlesByCollId(collId);
         };
         
         loadParentArticles();
-    }, [getCollId(), toast]);
+    }, [getCollId(), toast, articleId]);
 
     // Global shortcut
     useEffect(() => {

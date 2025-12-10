@@ -46,6 +46,9 @@ class ArticleSerializer(serializers.ModelSerializer):
         required=False,
         write_only=True
     )
+    
+    # 父级文章详情，用于返回父级文章信息（读取）
+    parent_detail = serializers.SerializerMethodField(read_only=True)
 
     def create(self, validated_data):
         # 1. 这里的 pop 操作非常关键！
@@ -144,10 +147,10 @@ class ArticleSerializer(serializers.ModelSerializer):
             'article_id', 'title', 'content', 'coll_id',
             'author', 'created_at', 'updated_at', 'permission', 'is_valid',
             'read_count', 'category_id', 'sort', 'parent_id', 'tags',
-            'tag_details', 'category_detail'
+            'tag_details', 'category_detail', 'parent_detail'
         ]
         # 只读字段
-        read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'tag_details', 'category_detail']
+        read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'tag_details', 'category_detail', 'parent_detail']
 
         validators = [
             UniqueTogetherValidator(
@@ -189,6 +192,17 @@ class ArticleSerializer(serializers.ModelSerializer):
             return {
                 'category_id': obj.category.category_id,
                 'name': obj.category.name
+            }
+        return None
+        
+    def get_parent_detail(self, obj):
+        """
+        返回父级文章详情信息
+        """
+        if obj.parent:
+            return {
+                'article_id': obj.parent.article_id,
+                'title': obj.parent.title
             }
         return None
 

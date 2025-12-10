@@ -18,6 +18,11 @@ export interface Article {
         categoryId: string;
         name: string;
     };
+    parent_id?: string; // 父级文章ID（写入）
+    parentDetail?: { // 父级文章详情（读取）
+        articleId: string;
+        title: string;
+    };
     sort: number;
     parent?: number | null;
     children?: Article[];
