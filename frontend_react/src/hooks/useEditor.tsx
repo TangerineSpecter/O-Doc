@@ -3,6 +3,7 @@ import {useNavigate, useLocation} from 'react-router-dom';
 import {CommandItem} from '../components/Editor/SlashMenu';
 import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
 import {createArticle} from '../api/article';
+import {getCategoryList} from '../api/category';
 import {useToast} from '../components/common/ToastProvider';
 import {
     CheckSquare,
@@ -27,13 +28,7 @@ import {
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
-export const CATEGORIES: Category[] = [
-    { id: 'algo', name: '算法与数据结构', color: 'bg-blue-600' },
-    { id: 'backend', name: '后端研发', color: 'bg-violet-600' },
-    { id: 'frontend', name: '前端开发', color: 'bg-pink-600' },
-    { id: 'devops', name: '运维部署', color: 'bg-orange-600' },
-    { id: 'product', name: '产品经理', color: 'bg-teal-600' },
-];
+export const CATEGORIES: Category[] = [];
 
 export const MOCK_PARENT_ARTICLES: ParentArticleItem[] = [
     { id: 'root', title: '无 (作为顶级文章)' },
@@ -114,7 +109,9 @@ export const useEditor = () => {
     const toast = useToast();
     
     // State: Meta
-    const [category, setCategory] = useState<Category>(CATEGORIES[0]);
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [loadingCategories, setLoadingCategories] = useState<boolean>(true);
+    const [category, setCategory] = useState<Category | null>(null);
     const [parentArticle, setParentArticle] = useState<ParentArticleItem>(MOCK_PARENT_ARTICLES[0]);
     const [tags, setTags] = useState<string[]>([]);
     const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
@@ -196,7 +193,7 @@ export const useEditor = () => {
                 content,
                 collId,
                 parentId: parentArticle.id === 'root' ? undefined : parentArticle.id,
-                categoryId: category.id,
+                categoryId: category?.id || null, // 支持可选分类
                 tags: tags.length > 0 ? tags : ['笔记'], // 默认为['笔记']，如果用户未添加任何标签
                 attachments: attachments.map(att => ({
                     id: att.id,
@@ -365,6 +362,30 @@ export const useEditor = () => {
         else if (e.key === 'Escape') { e.preventDefault(); closeMenu(); }
     };
 
+    // Load categories
+     useEffect(() => {
+         const loadCategories = async () => {
+             try {
+                 const data = await getCategoryList();
+                 // 映射API返回的CategoryItem到前端Category接口
+                 // 添加color属性（可以基于themeId或其他字段生成，这里使用默认颜色方案）
+                 const colorMap = ['bg-blue-600', 'bg-violet-600', 'bg-pink-600', 'bg-orange-600', 'bg-teal-600'];
+                 const mappedCategories = data.map((item, index) => ({
+                     id: item.categoryId, // 映射categoryId到id
+                     name: item.name,
+                     color: colorMap[index % colorMap.length] // 循环使用颜色
+                 }));
+                 setCategories(mappedCategories);
+                 setCategory(mappedCategories[0] || null);
+             } catch {
+                 toast.error('加载分类失败');
+             } finally {
+                 setLoadingCategories(false);
+             }
+         };
+         loadCategories();
+     }, [toast]);
+
     // Global shortcut
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -381,6 +402,8 @@ export const useEditor = () => {
         title, setTitle,
         content,
         category, setCategory,
+        categories,
+        loadingCategories,
         parentArticle, setParentArticle,
         tags,
         attachments, setAttachments,

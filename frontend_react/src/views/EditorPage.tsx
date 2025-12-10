@@ -10,6 +10,7 @@ export default function EditorPage() {
         title, setTitle,
         content,
         category, setCategory,
+        categories, loadingCategories, // 添加分类列表和加载状态
         parentArticle, setParentArticle,
         tags, onAddTag, onRemoveTag,
         attachments, onAttachmentUpload, onRemoveAttachment,
@@ -53,7 +54,8 @@ export default function EditorPage() {
                         <EditorMetaBar
                             category={category}
                             setCategory={setCategory}
-                            categories={CATEGORIES}
+                            categories={categories}
+                            loadingCategories={loadingCategories}
                             parentArticle={parentArticle}
                             setParentArticle={setParentArticle}
                             parentArticles={MOCK_PARENT_ARTICLES}
@@ -107,7 +109,7 @@ export default function EditorPage() {
                             content={content}
                             scrollContainerId="preview-scroll-container"
                             title={title}
-                            category={category.name}
+                            category={category?.name || ''} // 支持可选分类
                             tags={tags}
                             date={todayStr}
                             attachments={attachments}
