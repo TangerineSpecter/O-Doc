@@ -21,8 +21,8 @@ export interface CreateCategoryParams {
 
 
 // 获取分类列表接口
-export const getCategoryList = () => {
-    return request.get<any, CategoryItem[]>('/category/list');
+export const getCategoryList = (includeUncategorized: boolean = false) => {
+    return request.get<any, CategoryItem[]>(`/category/list${includeUncategorized ? '?include_uncategorized=true' : ''}`);
 };
 
 // 创建分类接口

@@ -363,17 +363,18 @@ export const useEditor = () => {
      useEffect(() => {
          const loadCategories = async () => {
              try {
-                 const data = await getCategoryList();
-                 // 映射API返回的CategoryItem到前端Category接口
-                 // 添加color属性（可以基于themeId或其他字段生成，这里使用默认颜色方案）
-                 const colorMap = ['bg-blue-600', 'bg-violet-600', 'bg-pink-600', 'bg-orange-600', 'bg-teal-600'];
-                 const mappedCategories = data.map((item, index) => ({
-                     id: item.categoryId, // 映射categoryId到id
-                     name: item.name,
-                     color: colorMap[index % colorMap.length] // 循环使用颜色
-                 }));
-                 setCategories(mappedCategories);
-                 setCategory(mappedCategories[0] || null);
+                 const data = await getCategoryList(true); // 获取包含未分类的分类列表
+                // 映射API返回的CategoryItem到前端Category接口
+                // 添加color属性（可以基于themeId或其他字段生成，这里使用默认颜色方案）
+                const colorMap = ['bg-blue-600', 'bg-violet-600', 'bg-pink-600', 'bg-orange-600', 'bg-teal-600'];
+                
+                const mappedCategories = data.map((item, index) => ({
+                    id: item.categoryId, // 映射categoryId到id
+                    name: item.name,
+                    color: item.categoryId === 'uncategorized' ? 'bg-slate-400' : colorMap[index % colorMap.length] // 未分类使用灰色
+                }));
+                setCategories(mappedCategories);
+                setCategory(mappedCategories[0] || null);
              } catch {
                  toast.error('加载分类失败');
              } finally {

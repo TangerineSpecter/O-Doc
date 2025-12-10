@@ -87,17 +87,13 @@ export const EditorMetaBar = ({
                     >
                         <Folder className="w-3.5 h-3.5" />
                         {loadingCategories ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                        <span>{category?.name || '无分类'}</span>
+                        <span className="truncate">{category?.name || '无分类'}</span>
                         <ChevronDown className="w-3 h-3 opacity-50" />
                     </button>
                     {isCategoryOpen && (
                         <>
                             <div className="fixed inset-0 z-20" onClick={() => setIsCategoryOpen(false)}></div>
                             <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100 z-20">
-                                {/* 无分类选项 */}
-                                <button onClick={() => { setCategory(null); setIsCategoryOpen(false); }} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 text-slate-700 flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-slate-300"></span>无分类
-                                </button>
                                 {categories.map(cat => (
                                     <button key={cat.id} onClick={() => { setCategory(cat); setIsCategoryOpen(false); }} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 text-slate-700 flex items-center gap-2 ${category?.id === cat.id ? 'bg-slate-50' : ''}`}>
                                         <span className={`w-2 h-2 rounded-full ${cat.color}`}></span>{cat.name}

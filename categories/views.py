@@ -95,11 +95,11 @@ class CategoryListView(APIView):
                 ).count()
                 
                 # 添加未分类的虚拟分类
-                result_list.append({
+                result_list.insert(0, {
                     'category_id': 'uncategorized',  # 使用特殊标识
                     'name': '未分类',
                     'description': '未关联分类的文章',
-                    'sort': 9999,  # 放在最后
+                    'sort': 0,  # 放在最前面
                     'article_count': uncategorized_count,
                     'created_at': None,
                     'updated_at': None

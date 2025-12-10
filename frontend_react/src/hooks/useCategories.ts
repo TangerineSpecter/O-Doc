@@ -6,7 +6,7 @@ import {CategoryFormData} from '../components/CategoryModal';
 export const useCategories = () => {
     // --- State ---
     const [categories, setCategories] = useState<CategoryItem[]>([]);
-    const [selectedCatId, setSelectedCatId] = useState('all');
+    const [selectedCatId, setSelectedCatId] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [displayArticles, setDisplayArticles] = useState<ArticleItem[]>([]);
@@ -86,7 +86,7 @@ export const useCategories = () => {
             await deleteCategory(catId);
             setCategories(prev => prev.filter(c => c.categoryId !== catId));
             if (selectedCatId === catId) {
-                setSelectedCatId('all');
+                setSelectedCatId('');
                 setDisplayArticles([]);
             }
             return true;
@@ -108,16 +108,12 @@ export const useCategories = () => {
     }, [displayArticles, deletedArticleIds]);
 
     const activeCategory = useMemo(() => {
-        return categories.find(c => c.categoryId === selectedCatId) || categories[0] || {
+        return filteredCategories.find(c => c.categoryId === selectedCatId) || filteredCategories[0] || {
             categoryId: 'all',
             name: '所有分类',
-            description: '所有分类下的文章',
-            count: 0,
-            isSystem: true,
-            themeId: 'blue',
-            iconKey: 'Folder'
+            count: 0
         };
-    }, [categories, selectedCatId]);
+    }, [filteredCategories, selectedCatId]);
 
     return {
         // Data
