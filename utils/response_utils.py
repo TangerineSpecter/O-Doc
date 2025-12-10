@@ -1,5 +1,6 @@
 from rest_framework.response import Response
 
+
 def success_result(data=None):
     """
     统一的成功响应格式化函数
@@ -30,7 +31,7 @@ def valid_result(msg=ErrorCode.PARAM_ERROR.message, data=None):
     })
 
 
-def error_result(error: ErrorCode, data=None):
+def error_result(error: ErrorCode = ErrorCode.PARAM_ERROR, data=None):
     """
     统一的错误响应格式化函数
     :param error: ErrorCode 枚举项，如 ErrorCode.TITLE_DUPLICATE

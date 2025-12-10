@@ -1,8 +1,5 @@
 from django.db import models
-from django.contrib.auth import get_user_model
 from article.models import Article
-
-User = get_user_model()
 
 
 class Asset(models.Model):
@@ -32,7 +29,7 @@ class Asset(models.Model):
     mime_type = models.CharField(max_length=100, verbose_name='MIME类型')
     
     # 关联信息
-    uploader = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name='上传者')
+    uploader = models.CharField(max_length=50, default='admin', verbose_name='上传者')
     linked_article = models.ForeignKey(Article, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='关联文章')
     is_linked = models.BooleanField(default=False, verbose_name='是否已关联')
     
@@ -58,6 +55,7 @@ class Asset(models.Model):
             models.Index(fields=['uploader']),
             models.Index(fields=['linked_article']),
             models.Index(fields=['file_hash']),
+            models.Index(fields=['upload_time']),
         ]
     
     def __str__(self):
@@ -98,9 +96,9 @@ class Asset(models.Model):
         return cls.objects.filter(file_hash=file_hash, is_valid=True).first()
     
     @classmethod
-    def get_user_assets(cls, user, **kwargs):
+    def get_user_assets(cls, username, **kwargs):
         """获取用户的资源列表"""
-        return cls.objects.filter(uploader=user, is_valid=True, **kwargs)
+        return cls.objects.filter(uploader=username, is_valid=True, **kwargs)
     
     @classmethod
     def get_linked_assets(cls, article_id):
