@@ -59,6 +59,7 @@ export default function CreateAnthologyModal({
 
     const handleSubmit = async () => {
         if (!formData.title) return;
+        if (!formData.description) return;
         setIsSubmitting(true);
         try {
             await onSubmit(formData);
@@ -118,7 +119,8 @@ export default function CreateAnthologyModal({
 
                     {/* Description */}
                     <div className="space-y-1.5">
-                        <label className="text-sm font-semibold text-slate-700">简介说明</label>
+                        <label className="text-sm font-semibold text-slate-700">简介说明<span
+                            className="text-red-500">*</span></label>
                         <textarea
                             disabled={isSubmitting}
                             rows={3}

@@ -13,6 +13,7 @@ class Article(models.Model):
     article_id = models.CharField(
         max_length=32,
         unique=True,
+        primary_key=True,
         default=generate_article_id,
         editable=False,
         help_text="文章唯一标识"

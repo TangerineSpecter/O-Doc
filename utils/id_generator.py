@@ -9,7 +9,7 @@ def generate_unique_id(prefix: str = "") -> str:
     """
     # 使用 URL 安全的字符集
     # 生成 10 位随机字符
-    nid = generate(alphabet=alphabet, size=12)
+    nid = generate(alphabet=alphabet, size=10)
 
     if prefix:
         return f"{prefix}_{nid}"

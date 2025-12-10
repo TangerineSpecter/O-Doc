@@ -68,7 +68,6 @@ class AnthologyListView(APIView):
 
                 # 构建文集数据
                 anthology_data = {
-                    'id': anthology.id,
                     'coll_id': anthology.coll_id,
                     'title': anthology.title,
                     'count': anthology.count,
