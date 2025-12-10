@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from 'react';
 import {useNavigate, useLocation, useParams} from 'react-router-dom';
 import {CommandItem} from '../components/Editor/SlashMenu';
 import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
-import {createArticle, getArticlesByAnthology, getArticleDetail} from '../api/article';
+import {createArticle, updateArticle, getArticlesByAnthology, getArticleDetail} from '../api/article';
 import {getCategoryList} from '../api/category';
 import {useToast} from '../components/common/ToastProvider';
 import {
@@ -180,36 +180,40 @@ export const useEditor = () => {
 
     // --- Actions ---
     const handleSave = async () => {
-        const collId = getCollId();
-        if (!collId) {
-            alert("请选择文集！");
-            setIsSaving(false);
-            return;
-        }
-
         setIsSaving(true);
         try {
-            const articleData = {
-                title,
-                content,
-                collId,
-                parentId: parentArticle?.id === 'root' ? undefined : parentArticle?.id,
-                categoryId: category?.id, // 转换为undefined而不是null以匹配接口类型
-                tags: tags.length > 0 ? tags : ['笔记'], // 默认为['笔记']，如果用户未添加任何标签
-                attachments: attachments.map(att => ({
-                    id: att.id,
-                    name: att.name,
-                    url: att.url
-                }))
-            };
-
             if (articleId) {
-                // 更新现有文章
-                // TODO: 需要添加updateArticle API接口
+                // 更新现有文章 - 不需要文集ID
+                const articleData = {
+                    title,
+                    content,
+                    parentId: parentArticle?.id === 'root' ? undefined : parentArticle?.id,
+                    categoryId: category?.id, // 转换为undefined而不是null以匹配接口类型
+                    tags: tags.length > 0 ? tags : ['笔记'] // 默认为['笔记']，如果用户未添加任何标签
+                };
+                
+                await updateArticle(articleId, articleData);
                 toast.success("文章更新成功！");
-                // 可以选择跳转或保持在编辑页面
+                // 保持在编辑页面，可以更新本地状态
+                // 可以选择重新加载文章详情以保持数据同步
             } else {
-                // 创建新文章
+                // 创建新文章 - 需要文集ID
+                const collId = getCollId();
+                if (!collId) {
+                    alert("请选择文集！");
+                    setIsSaving(false);
+                    return;
+                }
+
+                const articleData = {
+                    title,
+                    content,
+                    collId,
+                    parentId: parentArticle?.id === 'root' ? undefined : parentArticle?.id,
+                    categoryId: category?.id, // 转换为undefined而不是null以匹配接口类型
+                    tags: tags.length > 0 ? tags : ['笔记'] // 默认为['笔记']，如果用户未添加任何标签
+                };
+                
                 const result = await createArticle(articleData);
                 toast.success("文章创建成功！");
                 // 跳转到文章详情页

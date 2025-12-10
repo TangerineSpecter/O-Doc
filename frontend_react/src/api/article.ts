@@ -31,6 +31,13 @@ export interface Article {
     desc?: string;
     readTime?: number;
     collection?: boolean;
+    attachments?: Array<{
+        id: string;
+        name: string;
+        size?: number;
+        type?: string;
+        url: string;
+    }>;
 }
 
 //前端列表通用的文章项类型 (ViewModel)
@@ -76,6 +83,8 @@ interface UpdateArticleParams {
     permission?: 'public' | 'private';
     categoryId?: string;
     sort?: number;
+    parentId?: string;
+    tags?: string[];
 }
 
 /**
