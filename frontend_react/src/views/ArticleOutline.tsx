@@ -6,6 +6,7 @@ import ConfirmationModal from '../components/common/ConfirmationModal';
 import OutlineSidebar from '../components/Outline/OutlineSidebar';
 import OutlineContent from '../components/Outline/OutlineContent';
 import { useArticleTree } from '../hooks/useArticleTree';
+import { getArticleDetail, Article as ArticleType } from '../api/article';
 
 interface ArticleOutlineProps {
   onNavigate?: (viewName: string, params?: any) => void;
@@ -32,11 +33,36 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
   const [activeDocId, setActiveDocId] = useState<string | undefined>(articleId);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [articleDetail, setArticleDetail] = useState<ArticleType | null>(null);
+  const [articleLoading, setArticleLoading] = useState(false);
 
   // 同步路由参数到状态
   useEffect(() => {
     setActiveDocId(articleId);
   }, [articleId]);
+
+  // 获取文章详情
+  useEffect(() => {
+    if (!activeDocId) {
+      setArticleDetail(null);
+      return;
+    }
+
+    const fetchArticleDetail = async () => {
+      try {
+        setArticleLoading(true);
+        const detail = await getArticleDetail(activeDocId);
+        setArticleDetail(detail);
+      } catch (error) {
+        console.error('获取文章详情失败:', error);
+        setArticleDetail(null);
+      } finally {
+        setArticleLoading(false);
+      }
+    };
+
+    fetchArticleDetail();
+  }, [activeDocId]);
 
   // --- Handlers ---
   const handleSelectDoc = (docArticleId: string) => {
@@ -84,6 +110,17 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
         <div className="flex flex-col items-center gap-3 text-slate-400">
           <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
           <span className="text-sm">正在加载文档目录...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (articleLoading && activeDocId) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#F9FAFB]">
+        <div className="flex flex-col items-center gap-3 text-slate-400">
+          <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+          <span className="text-sm">正在加载文章详情...</span>
         </div>
       </div>
     );
@@ -139,8 +176,11 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
               scrollContainerId="right-content-window"
               onEdit={handleEditArticle}
               onDelete={handleDeleteArticle}
-            // 实际项目中，这里需要根据 activeDocId 去 fetch 文章详情
-            // 目前演示使用默认数据或 props 传递
+              content={articleDetail?.content}
+              title={articleDetail?.title}
+              category={articleDetail?.categoryDetail?.name || '未分类'}
+              tags={articleDetail?.tagDetails?.map(tag => tag.name) || []}
+              date={articleDetail?.updatedAt}
             />
           </div>
         ) : (

@@ -14,10 +14,15 @@ export interface Article {
     permission: 'public' | 'private';
     readCount: number;
     categoryId?: string;
+    categoryDetail?: {
+        categoryId: string;
+        name: string;
+    };
     sort: number;
     parent?: number | null;
     children?: Article[];
     tags?: Array<{ tagId: string, name: string }>;
+    tagDetails?: Array<{ tagId: string; name: string }>;
     desc?: string;
     readTime?: number;
     collection?: boolean;

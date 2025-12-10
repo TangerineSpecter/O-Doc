@@ -12,7 +12,7 @@ class ArticleSerializer(serializers.ModelSerializer):
     """
     文章序列化器
     """
-    # 标签字段，接收前端传递的标签名称数组
+    # 标签字段，接收前端传递的标签名称数组（写入）
     tags = serializers.ListField(
         child=serializers.CharField(max_length=30),
         allow_null=True,
@@ -20,6 +20,12 @@ class ArticleSerializer(serializers.ModelSerializer):
         required=False,
         write_only=True
     )
+    
+    # 标签详情，用于返回标签完整信息（读取）
+    tag_details = TagSerializer(source='tags', many=True, read_only=True)
+    
+    # 分类详情，用于返回分类完整信息（读取）
+    category_detail = serializers.SerializerMethodField(read_only=True)
 
     # 作者字段，设置默认值为"admin"
     author = serializers.HiddenField(
@@ -137,10 +143,11 @@ class ArticleSerializer(serializers.ModelSerializer):
         fields = [
             'article_id', 'title', 'content', 'coll_id',
             'author', 'created_at', 'updated_at', 'permission', 'is_valid',
-            'read_count', 'category_id', 'sort', 'parent_id', 'tags'
+            'read_count', 'category_id', 'sort', 'parent_id', 'tags',
+            'tag_details', 'category_detail'
         ]
         # 只读字段
-        read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count']
+        read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'tag_details', 'category_detail']
 
         validators = [
             UniqueTogetherValidator(
@@ -173,6 +180,17 @@ class ArticleSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"父级文章不存在：'{value}'")
 
         return value
+
+    def get_category_detail(self, obj):
+        """
+        返回分类详情信息
+        """
+        if obj.category:
+            return {
+                'category_id': obj.category.category_id,
+                'name': obj.category.name
+            }
+        return None
 
 
 class ArticleTreeSerializer(serializers.ModelSerializer):
