@@ -26,10 +26,35 @@ class ArticleSerializer(serializers.ModelSerializer):
         default=CurrentUserOrAdminDefault()
     )
 
+    # 直接接收前端传递的categoryId和parentId
+    category_id = serializers.CharField(
+        allow_null=True,
+        allow_blank=True,
+        required=False,
+        write_only=True
+    )
+
+    parent_id = serializers.CharField(
+        allow_null=True,
+        allow_blank=True,
+        required=False,
+        write_only=True
+    )
+
     def create(self, validated_data):
         # 1. 这里的 pop 操作非常关键！
         # 它将 tags 从验证数据中取出，防止 DRF 的默认 create 方法尝试直接保存它导致报错
         tags_names = validated_data.pop('tags', [])
+        
+        # 处理category_id和parent_id字段映射
+        category_id = validated_data.pop('category_id', None)
+        parent_id = validated_data.pop('parent_id', None)
+        
+        # 设置外键关系
+        if category_id:
+            validated_data['category_id'] = category_id
+        if parent_id:
+            validated_data['parent_id'] = parent_id
 
         # 2. 创建文章实例
         article = super().create(validated_data)
@@ -42,6 +67,16 @@ class ArticleSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # 更新时同样需要接管 tags
         tags_names = validated_data.pop('tags', None)
+        
+        # 处理category_id和parent_id字段映射
+        category_id = validated_data.pop('category_id', None)
+        parent_id = validated_data.pop('parent_id', None)
+        
+        # 设置外键关系
+        if category_id is not None:
+            validated_data['category_id'] = category_id
+        if parent_id is not None:
+            validated_data['parent_id'] = parent_id
 
         article = super().update(instance, validated_data)
 
@@ -102,7 +137,7 @@ class ArticleSerializer(serializers.ModelSerializer):
         fields = [
             'article_id', 'title', 'content', 'coll_id',
             'author', 'created_at', 'updated_at', 'permission', 'is_valid',
-            'read_count', 'category', 'sort', 'parent', 'tags'
+            'read_count', 'category_id', 'sort', 'parent_id', 'tags'
         ]
         # 只读字段
         read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count']
@@ -116,12 +151,10 @@ class ArticleSerializer(serializers.ModelSerializer):
         ]
 
     def validate_category_id(self, value):
-        # 1. 如果是空字符串或 None，直接返回 None，避免空字符串报错
+        # 验证分类ID是否真实存在
         if not value:
             return None
 
-        # 2. 验证 ID 是否真实存在
-        # 如果前端传了 "coll_xxxx" 这种错误的 ID，这里会捕获并抛出 400 错误
         try:
             Category.objects.get(category_id=value)
         except Category.DoesNotExist:
@@ -129,8 +162,8 @@ class ArticleSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate_parent(self, value):
-        # 验证parent_id是否存在于Article表中
+    def validate_parent_id(self, value):
+        # 验证父级文章ID是否存在于Article表中
         if not value:
             return None
 
@@ -138,6 +171,7 @@ class ArticleSerializer(serializers.ModelSerializer):
             Article.objects.get(article_id=value)
         except Article.DoesNotExist:
             raise serializers.ValidationError(f"父级文章不存在：'{value}'")
+
         return value
 
 
@@ -152,7 +186,7 @@ class ArticleTreeSerializer(serializers.ModelSerializer):
         fields = [
             'article_id', 'title', 'content', 'coll_id',
             'author', 'created_at', 'updated_at', 'permission', 'is_valid',
-            'read_count', 'category', 'sort', 'parent', 'children'
+            'read_count', 'category_id', 'sort', 'parent_id', 'children'
         ]
         # 只读字段
         read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'children']
