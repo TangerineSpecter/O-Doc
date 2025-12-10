@@ -21,7 +21,9 @@ import {
     Table as TableIcon,
     Type,
     Video as VideoIcon,
-    Workflow
+    Workflow,
+    Underline,
+    Highlighter
 } from 'lucide-react';
 
 // --- Constants ---
@@ -37,6 +39,7 @@ export const CATEGORIES: Category[] = [];
 // 这里直接用 React Node 是可以的，只要 Hook 文件是 .tsx 或者引入了 React
 const COMMANDS_CONFIG: Omit<CommandItem, 'icon'>[] = [
     { id: 'image', label: '图片', value: '', desc: '上传并插入图片 (Max 5MB)' },
+    { id: 'imageLink', label: '图片链接', value: '', desc: '通过URL插入图片' },
     { id: 'video', label: '视频', value: '', desc: '插入视频地址' },
     { id: 'mermaid', label: 'Mermaid 图表', value: '\n```mermaid\ngraph TD\n    A[Start] --> B{Is it?}\n    B -- Yes --> C[OK]\n    B -- No --> D[End]\n```\n', cursorOffset: 0, desc: '插入流程图/时序图等' },
     { id: 'text', label: '文本', value: '', desc: '开始像往常一样输入' },
@@ -53,18 +56,22 @@ const COMMANDS_CONFIG: Omit<CommandItem, 'icon'>[] = [
     { id: 'math', label: '数学公式', value: '$$\n\n$$', cursorOffset: -3, desc: '插入 KaTex 公式' },
     { id: 'divider', label: '分割线', value: '---\n', desc: '视觉分割线' },
     { id: 'table', label: '表格', value: '\n| 表头1 | 表头2 |\n| --- | --- |\n| 内容1 | 内容2 |\n', desc: '插入简单的表格' },
+    { id: 'underline', label: '下划线', value: '++红色下划线重点++', cursorOffset: -2, desc: '添加红色下划线重点标记' },
+    { id: 'wave', label: '波浪线', value: '^^天蓝色波浪线^^', cursorOffset: -2, desc: '添加天蓝色波浪线标记' },
+    { id: 'watercolor', label: '水彩标记', value: '==重点水彩标记==', cursorOffset: -2, desc: '添加重点水彩标记' },
 ];
 
 // Helper to add icons
 const getCommandsWithIcons = (): CommandItem[] => {
     // 简单映射，实际项目中可以更优
     const icons: Record<string, React.ReactNode> = {
-        image: <ImageIcon size={18} />, video: <VideoIcon size={18} />, mermaid: <Workflow size={18} />,
+        image: <ImageIcon size={18} />, imageLink: <ImageIcon size={18} />, video: <VideoIcon size={18} />, mermaid: <Workflow size={18} />,
         text: <Type size={18} />, h1: <Heading1 size={18} />, h2: <Heading2 size={18} />,
         h3: <Heading3 size={18} />, h4: <Heading4 size={18} />, h5: <Heading5 size={18} />,
         ul: <List size={18} />, ol: <List size={18} />, todo: <CheckSquare size={18} />,
         quote: <Quote size={18} />, code: <Code size={18} />, math: <Sigma size={18} />,
-        divider: <Minus size={18} />, table: <TableIcon size={18} />
+        divider: <Minus size={18} />, table: <TableIcon size={18} />,
+        underline: <Underline size={18} />, wave: <Sigma size={18} />, watercolor: <Highlighter size={18} />
     };
     return COMMANDS_CONFIG.map(c => ({ ...c, icon: icons[c.id] || <Type size={18} /> }));
 };
@@ -119,8 +126,10 @@ export const useEditor = () => {
 
     // State: UI
     const [isSaving, setIsSaving] = useState(false);
-    const [isPreviewMode, setIsPreviewMode] = useState(false);
     const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+    const [isPreviewMode, setIsPreviewMode] = useState(false);
+    const [isImageLinkModalOpen, setIsImageLinkModalOpen] = useState(false);
+    const [isVideoLinkModalOpen, setIsVideoLinkModalOpen] = useState(false);
 
     // State: Slash Menu
     const [showMenu, setShowMenu] = useState(false);
@@ -311,13 +320,16 @@ export const useEditor = () => {
             setContent(prev => prev.substring(0, slashIndex) + prev.substring(textareaRef.current!.selectionEnd));
             return;
         }
+        if (cmd.id === 'imageLink') {
+            closeMenu();
+            setContent(prev => prev.substring(0, slashIndex) + prev.substring(textareaRef.current!.selectionEnd));
+            setIsImageLinkModalOpen(true);
+            return;
+        }
         if (cmd.id === 'video') {
             closeMenu();
             setContent(prev => prev.substring(0, slashIndex) + prev.substring(textareaRef.current!.selectionEnd));
-            setTimeout(() => {
-                const url = prompt("请输入视频地址:", "https://");
-                if (url) insertTextAtCursor(`\n<video src="${url}" controls width="100%"></video>\n`);
-            }, 100);
+            setIsVideoLinkModalOpen(true);
             return;
         }
 
@@ -339,6 +351,24 @@ export const useEditor = () => {
     };
 
     const closeMenu = () => { setShowMenu(false); setSlashIndex(-1); setSearchQuery(''); };
+
+    const handleImageLinkConfirm = (url: string, altText: string) => {
+        insertTextAtCursor(`![${altText || '图片'}](${url})`);
+        setIsImageLinkModalOpen(false);
+    };
+
+    const handleImageLinkCancel = () => {
+        setIsImageLinkModalOpen(false);
+    };
+
+    const handleVideoLinkConfirm = (url: string) => {
+        insertTextAtCursor(`\n<video src="${url}" controls width="100%"></video>\n`);
+        setIsVideoLinkModalOpen(false);
+    };
+
+    const handleVideoLinkCancel = () => {
+        setIsVideoLinkModalOpen(false);
+    };
 
     const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value;
@@ -543,6 +573,7 @@ export const useEditor = () => {
         tags,
         attachments, setAttachments,
         isSaving, isPreviewMode, isUploadingAttachment,
+        isImageLinkModalOpen, isVideoLinkModalOpen,
         showMenu, menuPosition, selectedIndex, setSelectedIndex,
         commands,
         // Actions
@@ -559,6 +590,12 @@ export const useEditor = () => {
         // Editor Actions
         onTextChange: handleTextChange,
         onKeyDown: handleKeyDown,
-        onExecuteCommand: executeCommand
+        onExecuteCommand: executeCommand,
+        // Image Link Actions
+        onImageLinkConfirm: handleImageLinkConfirm,
+        onImageLinkCancel: handleImageLinkCancel,
+        // Video Link Actions
+        onVideoLinkConfirm: handleVideoLinkConfirm,
+        onVideoLinkCancel: handleVideoLinkCancel
     };
 };

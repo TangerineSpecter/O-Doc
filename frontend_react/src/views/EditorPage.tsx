@@ -2,6 +2,8 @@ import Article from './Article';
 import { EditorHeader } from '../components/Editor/EditorHeader';
 import { EditorMetaBar } from '../components/Editor/EditorMetaBar';
 import { SlashMenu } from '../components/Editor/SlashMenu';
+import ImageLinkModal from '../components/common/ImageLinkModal';
+import VideoLinkModal from '../components/common/VideoLinkModal';
 import { useEditor } from '../hooks/useEditor';
 
 export default function EditorPage() {
@@ -18,6 +20,8 @@ export default function EditorPage() {
         isSaving, onSave,
         isPreviewMode, onTogglePreview, onBack,
         isUploadingAttachment,
+        isImageLinkModalOpen, onImageLinkConfirm, onImageLinkCancel,
+        isVideoLinkModalOpen, onVideoLinkConfirm, onVideoLinkCancel,
         showMenu, menuPosition, commands, selectedIndex, setSelectedIndex, onExecuteCommand,
         onImageUpload, onTextChange, onKeyDown, onPaste
     } = useEditor();
@@ -120,6 +124,20 @@ export default function EditorPage() {
                 </div>
 
             </div>
+
+            {/* Image Link Modal */}
+            <ImageLinkModal
+                isOpen={isImageLinkModalOpen}
+                onClose={onImageLinkCancel}
+                onConfirm={onImageLinkConfirm}
+            />
+            
+            {/* Video Link Modal */}
+            <VideoLinkModal
+                isOpen={isVideoLinkModalOpen}
+                onClose={onVideoLinkCancel}
+                onConfirm={onVideoLinkConfirm}
+            />
         </div>
     );
 }
