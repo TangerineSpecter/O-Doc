@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import transaction, models
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 
@@ -21,6 +21,10 @@ class ArticleCreateView(APIView):
             serializer.is_valid(raise_exception=True)
 
             article = serializer.save()
+            
+            # 更新文集文章数量
+            from anthology.models import Anthology
+            Anthology.objects.filter(coll_id=article.coll_id).update(count=models.F('count') + 1)
 
             return success_result(data=ArticleSerializer(article).data)
 
@@ -56,6 +60,7 @@ class ArticleUpdateView(APIView):
     def put(self, request, article_id):
         # 查找文章
         article = get_object_or_404(Article, article_id=article_id)
+        old_coll_id = article.coll_id
 
         # 使用序列化器验证请求数据并更新文章
         serializer = ArticleSerializer(article, data=request.data, partial=True)
@@ -63,6 +68,14 @@ class ArticleUpdateView(APIView):
 
         # 保存更新
         article = serializer.save()
+        
+        # 如果文集ID发生变化，更新两个文集的文章数量
+        from anthology.models import Anthology
+        if old_coll_id != article.coll_id:
+            # 减少旧文集的文章数量
+            Anthology.objects.filter(coll_id=old_coll_id).update(count=models.F('count') - 1)
+            # 增加新文集的文章数量
+            Anthology.objects.filter(coll_id=article.coll_id).update(count=models.F('count') + 1)
 
         # 序列化响应数据
         response_data = ArticleSerializer(article).data
@@ -88,6 +101,10 @@ class ArticleDeleteView(APIView):
             # 软删除：更新is_valid为False
             article.is_valid = False
             article.save()
+            
+            # 更新文集文章数量
+            from anthology.models import Anthology
+            Anthology.objects.filter(coll_id=article.coll_id).update(count=models.F('count') - 1)
 
             return success_result(data=None)
 
