@@ -87,6 +87,11 @@ class ArticleDeleteView(APIView):
             # 查找文章
             article = get_object_or_404(Article, article_id=article_id)
 
+            # 检查是否存在子文章
+            has_children = Article.objects.filter(parent=article, is_valid=True).exists()
+            if has_children:
+                return error_result(ErrorCode.ARTICLE_HAVE_CHILDREN)
+
             # 软删除：更新is_valid为False
             article.is_valid = False
             article.save()

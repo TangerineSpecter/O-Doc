@@ -10,6 +10,7 @@ class ErrorCode(Enum):
     PARAM_REQUIRED = (401, '缺少必要参数')
     PARAM_INVALID = (402, '参数格式无效')
     TITLE_DUPLICATE = (4003, '该标题已存在，请使用其他标题')
+    ARTICLE_HAVE_CHILDREN = (4004,"该文章存在子文章无法删除。")
 
     # 权限错误
     AUTHENTICATION_ERROR = (401, '未认证')
