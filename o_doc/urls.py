@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/article/', include('article.urls')),  # 文章接口
     path('api/category/', include('categories.urls')),  # 分类接口
     path('api/tag/', include('tags.urls')),  # 标签接口
+    path('api/', include('assets.urls')),  # 资源管理接口
 ]
 
 urlpatterns += [
