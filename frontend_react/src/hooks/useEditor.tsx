@@ -5,6 +5,7 @@ import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/
 import {createArticle, updateArticle, getArticlesByAnthology, getArticleDetail} from '../api/article';
 import {getCategoryList} from '../api/category';
 import {useToast} from '../components/common/ToastProvider';
+import { uploadResource } from '../api/resources';
 import {
     CheckSquare,
     Code,
@@ -137,6 +138,8 @@ export const useEditor = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [slashIndex, setSlashIndex] = useState(-1);
+    // 保存使用斜杠命令上传图片时的插入位置
+    const [imageInsertPosition, setImageInsertPosition] = useState<number | null>(null);
 
     const commands = getCommandsWithIcons().filter(cmd =>
         cmd.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -144,9 +147,6 @@ export const useEditor = () => {
     );
 
     // --- Helpers ---
-    const mockUpload = async (file: File): Promise<string> => {
-        return new Promise((resolve) => setTimeout(() => resolve(URL.createObjectURL(file)), 1000));
-    };
 
     const getCaretCoordinates = () => {
         const textarea = textareaRef.current;
@@ -247,20 +247,53 @@ export const useEditor = () => {
         setTags(tags.filter(tag => tag !== tagToRemove));
     };
 
+    // 生成唯一占位符
+    const generateUniquePlaceholder = () => {
+        return `![上传中... ${Date.now()}${Math.random().toString(36).substr(2, 9)}]()`;
+    };
+
     // --- File Handling ---
     const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         if (file.size > MAX_IMAGE_SIZE) { alert("图片大小不能超过 5MB"); return; }
 
-        const placeholder = `![上传中... ${file.name}]()`;
-        insertTextAtCursor(placeholder);
+        // Generate unique placeholder
+        const placeholder = generateUniquePlaceholder();
+        
+        // Check if this is from slash command
+        if (imageInsertPosition !== null) {
+            // Clean up slash command text first
+            setContent(prev => {
+                // Remove the slash command text
+                const cleanContent = prev.substring(0, imageInsertPosition) + prev.substring(textareaRef.current!.selectionEnd);
+                // Insert placeholder at the correct position
+                return cleanContent.substring(0, imageInsertPosition) + placeholder + cleanContent.substring(imageInsertPosition);
+            });
+            // Reset the insert position
+            setImageInsertPosition(null);
+        } else {
+            // Normal image upload, insert at cursor position
+            insertTextAtCursor(placeholder);
+        }
 
         try {
-            const url = await mockUpload(file);
-            setContent(prev => prev.replace(placeholder, `![${file.name}](${url})`));
-        } catch {
+            const response = await uploadResource(file);
+            // Replace placeholder with actual image link
+            setContent(prev => prev.replace(placeholder, `![${file.name}](/api/resource/view/${response.id})`));
+            
+            // Add to attachments
+            setAttachments(prev => [...prev, {
+                id: response.id,
+                name: file.name,
+                size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+                type: file.name.split('.').pop()?.toUpperCase() || 'IMAGE',
+                url: `/api/resource/download/${response.id}`
+            }]);
+        } catch (err) {
+            console.error('上传图片失败:', err);
             alert("上传失败");
+            // Remove placeholder on error
             setContent(prev => prev.replace(placeholder, ''));
         }
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -278,13 +311,13 @@ export const useEditor = () => {
         const newAtts: AttachmentItem[] = [];
         for (let i = 0; i < files.length; i++) {
             try {
-                const url = await mockUpload(files[i]);
+                const response = await uploadResource(files[i]);
                 newAtts.push({
-                    id: `att-${Date.now()}-${i}`,
+                    id: response.id,
                     name: files[i].name,
                     size: (files[i].size / 1024 / 1024).toFixed(2) + ' MB',
                     type: files[i].name.split('.').pop()?.toUpperCase() || 'FILE',
-                    url
+                    url: `/api/resource/download/${response.id}`
                 });
             } catch { alert("上传失败"); }
         }
@@ -301,10 +334,10 @@ export const useEditor = () => {
                 const file = items[i].getAsFile();
                 if (file) {
                     // Reuse image upload logic but tricky without event, simulate it
-                    const placeholder = `![粘贴上传中...]()`;
+                    const placeholder = generateUniquePlaceholder();
                     // Simplified paste logic for brevity
                     insertTextAtCursor(placeholder);
-                    mockUpload(file).then(url => setContent(prev => prev.replace(placeholder, `![image](${url})`)));
+                    uploadResource(file).then(response => setContent(prev => prev.replace(placeholder, `![image](/api/resource/view/${response.id})`)));
                 }
                 return;
             }
@@ -314,10 +347,16 @@ export const useEditor = () => {
     // --- Command Handling ---
     const executeCommand = (cmd: CommandItem) => {
         if (cmd.id === 'image') {
+            // 保存斜杠命令位置，用于后续清理
+            setImageInsertPosition(slashIndex);
+            // 触发文件选择
             fileInputRef.current?.click();
             closeMenu();
-            // Clean up slash command text
-            setContent(prev => prev.substring(0, slashIndex) + prev.substring(textareaRef.current!.selectionEnd));
+            
+            // 设置超时，防止用户取消选择后状态不一致
+            setTimeout(() => {
+                setImageInsertPosition(null);
+            }, 5000); // 5秒后重置
             return;
         }
         if (cmd.id === 'imageLink') {

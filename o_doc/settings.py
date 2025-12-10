@@ -137,6 +137,12 @@ STATICFILES_DIRS = [
 ]
 STATIC_ROOT = BASE_DIR / 'staticfiles'  # 生产环境静态文件收集目录
 
+# Media files (Uploaded files)
+# https://docs.djangoproject.com/en/5.1/ref/settings/#media-root
+
+MEDIA_ROOT = BASE_DIR / 'media'  # 媒体文件存储目录
+MEDIA_URL = '/media/'  # 媒体文件访问 URL
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 

@@ -201,7 +201,11 @@ class ResourceDownloadView(APIView):
 
             # 设置响应
             response = HttpResponse(file_content, content_type=asset.mime_type or 'application/octet-stream')
-            response['Content-Disposition'] = f'attachment; filename="{asset.original_name}"'
+            # 根据文件类型设置不同的Content-Disposition
+            if asset.file_type == 'image':
+                response['Content-Disposition'] = f'inline; filename="{asset.original_name}"'
+            else:
+                response['Content-Disposition'] = f'attachment; filename="{asset.original_name}"'
             response['Content-Length'] = asset.file_size
 
             return response
@@ -271,7 +275,7 @@ class ResourceUploadView(APIView):
                 file_type = 'other'
 
             # 创建存储目录
-            upload_dir = os.path.join(settings.MEDIA_ROOT, 'assets', file_type)
+            upload_dir = os.path.join(settings.MEDIA_ROOT, file_type)
             os.makedirs(upload_dir, exist_ok=True)
 
             # 生成文件名

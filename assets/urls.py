@@ -21,4 +21,7 @@ urlpatterns = [
     
     # 资源下载
     path('resource/download/<str:resource_id>', views.ResourceDownloadView.as_view(), name='resource_download'),
+    
+    # 资源查看（用于浏览器直接显示，如图片预览）
+    path('resource/view/<str:resource_id>', views.ResourceDownloadView.as_view(), name='resource_view'),
 ]
