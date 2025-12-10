@@ -2,7 +2,7 @@ import Article from './Article';
 import { EditorHeader } from '../components/Editor/EditorHeader';
 import { EditorMetaBar } from '../components/Editor/EditorMetaBar';
 import { SlashMenu } from '../components/Editor/SlashMenu';
-import { useEditor, CATEGORIES, MOCK_PARENT_ARTICLES } from '../hooks/useEditor';
+import { useEditor } from '../hooks/useEditor';
 
 export default function EditorPage() {
     const {
@@ -12,6 +12,7 @@ export default function EditorPage() {
         category, setCategory,
         categories, loadingCategories, // 添加分类列表和加载状态
         parentArticle, setParentArticle,
+        parentArticles, loadingParentArticles,
         tags, onAddTag, onRemoveTag,
         attachments, onAttachmentUpload, onRemoveAttachment,
         isSaving, onSave,
@@ -58,7 +59,8 @@ export default function EditorPage() {
                             loadingCategories={loadingCategories}
                             parentArticle={parentArticle}
                             setParentArticle={setParentArticle}
-                            parentArticles={MOCK_PARENT_ARTICLES}
+                            parentArticles={parentArticles}
+                            loadingParentArticles={loadingParentArticles}
                             tags={tags}
                             onAddTag={onAddTag}
                             onRemoveTag={onRemoveTag}

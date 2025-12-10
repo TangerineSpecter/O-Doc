@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from 'react';
 import {useNavigate, useLocation} from 'react-router-dom';
 import {CommandItem} from '../components/Editor/SlashMenu';
 import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
-import {createArticle} from '../api/article';
+import {createArticle, getArticlesByAnthology} from '../api/article';
 import {getCategoryList} from '../api/category';
 import {useToast} from '../components/common/ToastProvider';
 import {
@@ -30,12 +30,7 @@ const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
 export const CATEGORIES: Category[] = [];
 
-export const MOCK_PARENT_ARTICLES: ParentArticleItem[] = [
-    { id: 'root', title: '无 (作为顶级文章)' },
-    { id: '1', title: '小橘部署指南' },
-    { id: '2', title: 'Docker 基础概念' },
-    { id: '3', title: '常见问题 FAQ' },
-];
+// 移除模拟数据，改为从API获取
 
 // --- Commands Config ---
 // React Node 需要在组件中渲染，这里定义配置，图标在组件中实例化或者这里直接用
@@ -112,7 +107,9 @@ export const useEditor = () => {
     const [categories, setCategories] = useState<Category[]>([]);
     const [loadingCategories, setLoadingCategories] = useState<boolean>(true);
     const [category, setCategory] = useState<Category | null>(null);
-    const [parentArticle, setParentArticle] = useState<ParentArticleItem>(MOCK_PARENT_ARTICLES[0]);
+    const [parentArticles, setParentArticles] = useState<ParentArticleItem[]>([{ id: 'root', title: '无 (作为顶级文章)' }]);
+    const [loadingParentArticles, setLoadingParentArticles] = useState<boolean>(true);
+    const [parentArticle, setParentArticle] = useState<ParentArticleItem | null>({ id: 'root', title: '无 (作为顶级文章)' });
     const [tags, setTags] = useState<string[]>([]);
     const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
 
@@ -192,8 +189,8 @@ export const useEditor = () => {
                 title,
                 content,
                 collId,
-                parentId: parentArticle.id === 'root' ? undefined : parentArticle.id,
-                categoryId: category?.id || null, // 支持可选分类
+                parentId: parentArticle?.id === 'root' ? undefined : parentArticle?.id,
+                categoryId: category?.id, // 转换为undefined而不是null以匹配接口类型
                 tags: tags.length > 0 ? tags : ['笔记'], // 默认为['笔记']，如果用户未添加任何标签
                 attachments: attachments.map(att => ({
                     id: att.id,
@@ -386,6 +383,40 @@ export const useEditor = () => {
          loadCategories();
      }, [toast]);
 
+    // Load parent articles based on current anthology
+    useEffect(() => {
+        const loadParentArticles = async () => {
+            const collId = getCollId();
+            if (!collId) {
+                setParentArticles([{ id: 'root', title: '无 (作为顶级文章)' }]);
+                setLoadingParentArticles(false);
+                return;
+            }
+            
+            try {
+                setLoadingParentArticles(true);
+                const articles = await getArticlesByAnthology(collId);
+                // 转换文章列表为父级文章选项格式
+                const parentOptions = [
+                    { id: 'root', title: '无 (作为顶级文章)' },
+                    ...articles.map(article => ({
+                        id: article.articleId,
+                        title: article.title
+                    }))
+                ];
+                setParentArticles(parentOptions);
+            } catch (error) {
+                console.error('加载父级文章失败:', error);
+                toast.error('加载父级文章失败');
+                setParentArticles([{ id: 'root', title: '无 (作为顶级文章)' }]);
+            } finally {
+                setLoadingParentArticles(false);
+            }
+        };
+        
+        loadParentArticles();
+    }, [getCollId(), toast]);
+
     // Global shortcut
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -405,6 +436,8 @@ export const useEditor = () => {
         categories,
         loadingCategories,
         parentArticle, setParentArticle,
+        parentArticles,
+        loadingParentArticles,
         tags,
         attachments, setAttachments,
         isSaving, isPreviewMode, isUploadingAttachment,

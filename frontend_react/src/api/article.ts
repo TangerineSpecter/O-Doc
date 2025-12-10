@@ -51,6 +51,7 @@ interface CreateArticleParams {
     title: string;
     content: string;
     collId: string;
+    parentId?: string;
     permission?: 'public' | 'private';
     categoryId?: string;
     sort?: number;

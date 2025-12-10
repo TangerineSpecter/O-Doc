@@ -33,6 +33,7 @@ export interface EditorMetaBarProps {
     parentArticle: ParentArticleItem | null;
     setParentArticle: (parent: ParentArticleItem | null) => void;
     parentArticles: ParentArticleItem[];
+    loadingParentArticles?: boolean;
 
     tags: string[];
     onAddTag: (tag: string) => void;
@@ -52,6 +53,7 @@ export const EditorMetaBar = ({
     parentArticle,
     setParentArticle,
     parentArticles,
+    loadingParentArticles = false,
     tags,
     onAddTag,
     onRemoveTag,
@@ -90,8 +92,8 @@ export const EditorMetaBar = ({
                     </button>
                     {isCategoryOpen && (
                         <>
-                            <div className="fixed inset-0" onClick={() => setIsCategoryOpen(false)}></div>
-                            <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100">
+                            <div className="fixed inset-0 z-20" onClick={() => setIsCategoryOpen(false)}></div>
+                            <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100 z-20">
                                 {/* 无分类选项 */}
                                 <button onClick={() => { setCategory(null); setIsCategoryOpen(false); }} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 text-slate-700 flex items-center gap-2">
                                     <span className="w-2 h-2 rounded-full bg-slate-300"></span>无分类
@@ -107,17 +109,20 @@ export const EditorMetaBar = ({
                 </div>
 
                 {/* Parent Article Selector */}
-                <div className="relative z-10">
-                    <button onClick={() => setIsParentOpen(!isParentOpen)} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-medium transition-colors border border-slate-200 max-w-[200px]">
-                        <FileText className="w-3.5 h-3.5" /><span className="truncate">父级: {parentArticle.title}</span><ChevronDown className="w-3 h-3 opacity-50" />
+                <div className="relative z-20">
+                    <button onClick={() => !loadingParentArticles && setIsParentOpen(!isParentOpen)} disabled={loadingParentArticles} className={`flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-medium transition-colors border border-slate-200 max-w-[200px] ${loadingParentArticles ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        <FileText className="w-3.5 h-3.5" />
+                        {loadingParentArticles && <Loader2 className="w-3 h-3 animate-spin" />}
+                        <span className="truncate">父级: {parentArticle?.title || '无'}</span>
+                        <ChevronDown className="w-3 h-3 opacity-50" />
                     </button>
                     {isParentOpen && (
                         <>
-                            <div className="fixed inset-0" onClick={() => setIsParentOpen(false)}></div>
-                            <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
+                            <div className="fixed inset-0 z-20" onClick={() => setIsParentOpen(false)}></div>
+                            <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100 overflow-hidden z-20">
                                 <div className="max-h-60 overflow-y-auto">
                                     {parentArticles.map(p => (
-                                        <button key={p.id} onClick={() => { setParentArticle(p); setIsParentOpen(false); }} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex items-center gap-2 ${p.id === parentArticle.id ? 'text-orange-600 bg-orange-50 font-medium' : 'text-slate-700'}`}>
+                                        <button key={p.id} onClick={() => { setParentArticle(p); setIsParentOpen(false); }} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex items-center gap-2 ${p.id === parentArticle?.id ? 'text-orange-600 bg-orange-50 font-medium' : 'text-slate-700'}`}>
                                             {p.id === 'root' ? <Minus className="w-3 h-3 opacity-50" /> : <FileText className="w-3 h-3 opacity-50" />}<span className="truncate">{p.title}</span>
                                         </button>
                                     ))}
