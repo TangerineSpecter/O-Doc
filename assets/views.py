@@ -25,6 +25,7 @@ class ResourceListView(APIView):
             file_type = request.GET.get('type')
             search_query = request.GET.get('searchQuery')
             linked = request.GET.get('linked')
+            source_type = request.GET.get('sourceType')
             page = int(request.GET.get('page', 1))
             page_size = int(request.GET.get('pageSize', 20))
 
@@ -45,6 +46,9 @@ class ResourceListView(APIView):
                 is_linked = linked.lower() == 'true'
                 queryset = queryset.filter(is_linked=is_linked)
 
+            if source_type:
+                queryset = queryset.filter(source_type=source_type)
+
             # 分页
             paginator = Paginator(queryset, page_size)
             page_obj = paginator.get_page(page)
@@ -60,7 +64,8 @@ class ResourceListView(APIView):
                     'size': asset['formatted_size'],
                     'date': asset['upload_time'].strftime('%Y-%m-%d %H:%M:%S'),
                     'linked': asset['is_linked'],
-                    'sourceArticle': asset['sourceArticle']
+                    'sourceArticle': asset['sourceArticle'],
+                    'sourceType': asset['source_type']
                 }
                 resources.append(resource_data)
 
@@ -73,7 +78,7 @@ class ResourceListView(APIView):
             })
 
         except Exception as e:
-            return error_result()
+            return error_result(ErrorCode.SYSTEM_ERROR)
 
 
 class ResourceCreateView(APIView):
@@ -86,10 +91,10 @@ class ResourceCreateView(APIView):
             data = request.data
             if isinstance(data, str):
                 data = json.loads(data)
-            
+
             # 设置默认上传者为admin
             data['uploader'] = 'admin'
-            
+
             serializer = AssetSerializer(data=data)
             serializer.is_valid(raise_exception=True)
             asset = serializer.save()
@@ -101,13 +106,12 @@ class ResourceCreateView(APIView):
                 'size': asset.formatted_size,
                 'date': asset.upload_time.strftime('%Y-%m-%d %H:%M:%S'),
                 'linked': asset.is_linked,
-                'sourceArticle': None
+                'sourceArticle': None,
+                'sourceType': asset.source_type
             })
 
-        except serializers.ValidationError as e:
-            return error_result(str(e), ErrorCode.PARAMETER_ERROR)
         except Exception as e:
-            return error_result(str(e), ErrorCode.PARAMETER_ERROR)
+            return error_result(ErrorCode.SYSTEM_ERROR)
 
 
 class ResourceUpdateView(APIView):
@@ -120,13 +124,13 @@ class ResourceUpdateView(APIView):
             try:
                 asset = Asset.objects.get(id=resource_id, is_valid=True, uploader='admin')
             except Asset.DoesNotExist:
-                return error_result('资源不存在', ErrorCode.NOT_FOUND)
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
             # 使用序列化器验证和更新数据
             data = request.data
             if isinstance(data, str):
                 data = json.loads(data)
-            
+
             # 处理关联文章
             if 'linked_article_id' in data:
                 if data['linked_article_id']:
@@ -135,11 +139,11 @@ class ResourceUpdateView(APIView):
                         data['linked_article'] = article.id
                         data['is_linked'] = True
                     except Article.DoesNotExist:
-                        return error_result('关联的文章不存在', ErrorCode.NOT_FOUND)
+                        return error_result(ErrorCode.ARTICLE_NOT_EXIST)
                 else:
                     data['linked_article'] = None
                     data['is_linked'] = False
-            
+
             serializer = AssetSerializer(asset, data=data, partial=True)
             serializer.is_valid(raise_exception=True)
             updated_asset = serializer.save()
@@ -151,13 +155,12 @@ class ResourceUpdateView(APIView):
                 'size': updated_asset.formatted_size,
                 'date': updated_asset.upload_time.strftime('%Y-%m-%d %H:%M:%S'),
                 'linked': updated_asset.is_linked,
-                'sourceArticle': updated_asset.get_source_info()
+                'sourceArticle': updated_asset.get_source_info(),
+                'sourceType': updated_asset.source_type
             })
 
-        except serializers.ValidationError as e:
-            return error_result(str(e), ErrorCode.PARAMETER_ERROR)
         except Exception as e:
-            return error_result(str(e), ErrorCode.PARAMETER_ERROR)
+            return error_result(ErrorCode.SYSTEM_ERROR)
 
 
 class ResourceDeleteView(APIView):
@@ -169,15 +172,15 @@ class ResourceDeleteView(APIView):
             try:
                 asset = Asset.objects.get(id=resource_id, is_valid=True, uploader='admin')  # 直接写死admin用户
             except Asset.DoesNotExist:
-                return error_result('资源不存在', ErrorCode.NOT_FOUND)
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
             # 执行软删除
             asset.soft_delete()
 
-            return success_result({'message': '删除成功'})
+            return success_result()
 
         except Exception as e:
-            return error_result(str(e), ErrorCode.PARAMETER_ERROR)
+            return error_result(ErrorCode.SYSTEM_ERROR)
 
 
 class ResourceDownloadView(APIView):
@@ -189,14 +192,14 @@ class ResourceDownloadView(APIView):
             try:
                 asset = Asset.objects.get(id=resource_id, is_valid=True, uploader='admin')  # 直接写死admin用户
             except Asset.DoesNotExist:
-                return error_result('资源不存在', ErrorCode.NOT_FOUND)
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
-            # 检查文件是否存在
-            if not os.path.exists(asset.file_path):
-                return error_result('文件不存在', ErrorCode.NOT_FOUND)
+            # 检查文件是否存在并读取文件
+            abs_file_path = os.path.join(settings.MEDIA_ROOT, asset.file_path)
+            if not os.path.exists(abs_file_path):
+                return error_result(ErrorCode.ARTICLE_NOT_EXIST)
 
-            # 读取文件
-            with open(asset.file_path, 'rb') as f:
+            with open(abs_file_path, 'rb') as f:
                 file_content = f.read()
 
             # 设置响应
@@ -211,7 +214,7 @@ class ResourceDownloadView(APIView):
             return response
 
         except Exception as e:
-            return error_result(str(e), ErrorCode.PARAMETER_ERROR)
+            return error_result(ErrorCode.SYSTEM_ERROR)
 
 
 class ResourceUploadView(APIView):
@@ -221,14 +224,14 @@ class ResourceUploadView(APIView):
         """上传资源文件"""
         try:
             if 'file' not in request.FILES:
-                return error_result('未找到上传的文件', ErrorCode.PARAMETER_ERROR)
+                return error_result(ErrorCode.UPLOAD_RESOURCE_NOT_FOUND)
 
             uploaded_file = request.FILES['file']
 
             # 文件大小限制 (50MB)
             max_size = 50 * 1024 * 1024
             if uploaded_file.size > max_size:
-                return error_result('文件大小超过50MB限制', ErrorCode.PARAMETER_ERROR)
+                return error_result(ErrorCode.UPLOAD_RESOURCE_MORE_THAN_MAX_SIZE)
 
             # 生成唯一文件名
             import uuid
@@ -250,6 +253,7 @@ class ResourceUploadView(APIView):
                     'size': existing_asset.formatted_size,
                     'date': existing_asset.upload_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'linked': existing_asset.is_linked,
+                    'sourceType': existing_asset.source_type,
                     'sourceArticle': existing_asset.get_source_info(),
                     'duplicate': True  # 标记为重复文件
                 })
@@ -259,7 +263,7 @@ class ResourceUploadView(APIView):
             mime_type = mimetypes.guess_type(uploaded_file.name)[0] or 'application/octet-stream'
 
             # 根据扩展名确定文件类型
-            if file_extension in ['.pdf', '.doc', '.docx', '.txt', '.md']:
+            if file_extension in ['.pdf', '.doc', '.docx', '.txt', '.md', '.xls', '.xlsx', '.csv', '.ppt', '.pptx']:
                 file_type = 'document'
             elif file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg']:
                 file_type = 'image'
@@ -281,12 +285,22 @@ class ResourceUploadView(APIView):
             # 生成文件名
             file_id = str(uuid.uuid4()).replace('-', '')[:16]
             file_name = f"{file_id}{file_extension}"
-            file_path = os.path.join(upload_dir, file_name)
+            abs_file_path = os.path.join(upload_dir, file_name)
+            # 存储相对路径（相对于MEDIA_ROOT）
+            rel_file_path = os.path.join(file_type, file_name)
 
             # 保存文件
-            with open(file_path, 'wb+') as destination:
+            with open(abs_file_path, 'wb+') as destination:
                 for chunk in uploaded_file.chunks():
                     destination.write(chunk)
+
+            # 获取请求参数
+            source_type = request.data.get('source_type', 'other')
+            linked_article_id = request.data.get('linked_article_id')
+            # 验证source_type是否合法
+            valid_source_types = [choice[0] for choice in Asset.SOURCE_TYPE_CHOICES]
+            if source_type not in valid_source_types:
+                source_type = 'other'
 
             # 创建资源数据
             asset_data = {
@@ -295,12 +309,18 @@ class ResourceUploadView(APIView):
                 'original_name': uploaded_file.name,
                 'file_type': file_type,
                 'file_size': uploaded_file.size,
-                'file_path': file_path,
+                'file_path': rel_file_path,  # 存储相对路径
                 'file_extension': file_extension,
                 'mime_type': mime_type,
                 'file_hash': file_hash_hex,
-                'uploader': 'admin'  # 直接写死admin用户
+                'uploader': 'admin',  # 直接写死admin用户
+                'source_type': source_type
             }
+            
+            # 处理关联文章
+            if linked_article_id:
+                asset_data['linked_article'] = linked_article_id
+                asset_data['is_linked'] = True
 
             # 使用序列化器创建资源记录
             serializer = AssetSerializer(data=asset_data)
@@ -314,11 +334,10 @@ class ResourceUploadView(APIView):
                 'size': asset.formatted_size,
                 'date': asset.upload_time.strftime('%Y-%m-%d %H:%M:%S'),
                 'linked': asset.is_linked,
-                'sourceArticle': None,
+                'sourceType': asset.source_type,
+                'sourceArticle': asset.get_source_info(),
                 'duplicate': False
             })
 
-        except serializers.ValidationError as e:
-            return error_result(str(e), ErrorCode.PARAMETER_ERROR)
         except Exception as e:
-            return error_result(str(e), ErrorCode.PARAMETER_ERROR)
+            return error_result(ErrorCode.SYSTEM_ERROR)

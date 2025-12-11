@@ -16,6 +16,7 @@ export interface ResourceItem {
     linked: boolean;
     sourceArticle: ArticleSource | null;
     duplicate?: boolean; // 标记是否为重复文件
+    sourceType?: string; // 资源来源类型：attachment(附件)、content(内容)
 }
 
 // 定义获取资源列表参数类型
@@ -37,6 +38,7 @@ export interface ResourceUploadResponse {
     linked: boolean;
     sourceArticle: ArticleSource | null;
     duplicate?: boolean;
+    sourceType?: string; // 资源来源类型
 }
 
 // 获取资源列表接口
@@ -65,9 +67,10 @@ export const downloadResource = (resourceId: string) => {
 };
 
 // 上传资源接口
-export const uploadResource = (file: File) => {
+export const uploadResource = (file: File, sourceType: string = 'content') => {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('source_type', sourceType);
     return request.post<any, ResourceUploadResponse>('/resource/upload', formData, {
         headers: {
             'Content-Type': 'multipart/form-data',

@@ -16,6 +16,13 @@ class Asset(models.Model):
         ('other', '其他'),
     ]
     
+    # 来源类型枚举 - 用于区分附件和笔记内容中的资源
+    SOURCE_TYPE_CHOICES = [
+        ('attachment', '附件'),
+        ('content', '内容'),
+        ('other', '其他'),
+    ]
+    
     # 基础信息
     id = models.CharField(max_length=32, primary_key=True, verbose_name='资源ID')
     name = models.CharField(max_length=255, verbose_name='文件名')
@@ -32,6 +39,7 @@ class Asset(models.Model):
     uploader = models.CharField(max_length=50, default='admin', verbose_name='上传者')
     linked_article = models.ForeignKey(Article, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='关联文章')
     is_linked = models.BooleanField(default=False, verbose_name='是否已关联')
+    source_type = models.CharField(max_length=20, choices=SOURCE_TYPE_CHOICES, default='other', verbose_name='资源来源类型')
     
     # 状态管理
     is_valid = models.BooleanField(default=True, verbose_name='是否有效')
@@ -56,6 +64,7 @@ class Asset(models.Model):
             models.Index(fields=['linked_article']),
             models.Index(fields=['file_hash']),
             models.Index(fields=['upload_time']),
+            models.Index(fields=['source_type']),  # 添加来源类型索引
         ]
     
     def __str__(self):

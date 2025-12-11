@@ -8,13 +8,16 @@ class AssetSerializer(serializers.ModelSerializer):
     formatted_size = serializers.ReadOnlyField()
     download_url = serializers.ReadOnlyField()
     sourceArticle = serializers.SerializerMethodField()
+    # file_path和linked_article字段只用于写入数据库，不暴露给前端
+    file_path = serializers.CharField(write_only=True)
+    linked_article = serializers.CharField(write_only=True, required=False)
     
     class Meta:
         model = Asset
         fields = ['id', 'name', 'original_name', 'file_type', 'file_size', 'formatted_size', 
                   'file_path', 'file_extension', 'mime_type', 'uploader', 'linked_article', 
                   'is_linked', 'is_valid', 'upload_time', 'update_time', 'file_hash', 'metadata',
-                  'download_url', 'sourceArticle']
+                  'download_url', 'sourceArticle', 'source_type']
         read_only_fields = ['is_valid', 'upload_time', 'update_time', 'formatted_size', 
                            'download_url', 'sourceArticle']
     

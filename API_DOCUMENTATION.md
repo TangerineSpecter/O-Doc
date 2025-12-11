@@ -892,6 +892,7 @@
 | type | string | 否 | 资源类型（doc/image/video/audio/code/archive/design） |
 | linked | boolean | 否 | 是否已关联（true/false） |
 | keyword | string | 否 | 搜索关键词 |
+| sourceType | string | 否 | 资源来源类型（attachment/附件, content/内容, other/其他） |
 
 **响应示例**：
 
@@ -908,6 +909,7 @@
         "size": "2.5 MB",
         "date": "11-24",
         "linked": true,
+        "sourceType": "attachment",
         "sourceArticle": {
           "id": "art_001",
           "title": "服务器环境依赖检查清单"
@@ -927,6 +929,14 @@
 - `file`: 要上传的文件（multipart/form-data格式）
 - `linked`: 是否关联文章（可选，布尔值）
 - `sourceArticle`: 关联的文章ID（可选，字符串）
+- `source_type`: 资源来源类型（可选，字符串），取值范围：
+  - `attachment`: 附件上传
+  - `content`: 笔记编辑器内插入上传
+  - `other`: 其他来源（默认）
+
+**说明**：
+- 当从笔记编辑器内插入上传图片等资源时，请设置`source_type=content`
+- 当从附件管理界面上传资源时，请设置`source_type=attachment`
 
 **响应示例**：
 
@@ -941,6 +951,7 @@
     "size": "2.5 MB",
     "date": "11-24",
     "linked": true,
+    "sourceType": "attachment",
     "sourceArticle": {
       "id": "art_001",
       "title": "服务器环境依赖检查清单"
@@ -962,6 +973,7 @@
   "size": "2.5 MB",
   "date": "11-24",
   "linked": false,
+  "sourceType": "attachment",
   "sourceArticle": null
 }
 ```
@@ -974,6 +986,7 @@
 | size | string | 是 | 资源大小 |
 | date | string | 是 | 创建日期 |
 | linked | boolean | 是 | 是否已关联 |
+| sourceType | string | 否 | 资源来源类型（attachment/附件, content/内容, other/其他） |
 | sourceArticle | object | 否 | 关联的文章信息 |
 
 #### 6.5 更新资源接口
@@ -986,6 +999,7 @@
 {
   "name": "需求说明书_v2.pdf",
   "linked": true,
+  "sourceType": "attachment",
   "sourceArticle": {
     "id": "art_001",
     "title": "服务器环境依赖检查清单"
@@ -1001,6 +1015,7 @@
 | size | string | 否 | 资源大小 |
 | date | string | 否 | 创建日期 |
 | linked | boolean | 否 | 是否已关联 |
+| sourceType | string | 否 | 资源来源类型（attachment/附件, content/内容, other/其他） |
 | sourceArticle | object | 否 | 关联的文章信息 |
 
 #### 6.5 删除资源接口

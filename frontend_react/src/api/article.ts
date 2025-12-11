@@ -73,6 +73,7 @@ interface CreateArticleParams {
     categoryId?: string;
     sort?: number;
     tags?: string[];
+    assets?: string[];
 }
 
 // 更新文章参数
@@ -85,6 +86,7 @@ interface UpdateArticleParams {
     sort?: number;
     parentId?: string;
     tags?: string[];
+    assets?: string[];
 }
 
 /**

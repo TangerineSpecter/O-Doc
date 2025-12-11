@@ -217,6 +217,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                             category={articleDetail?.categoryDetail?.name || '未分类'}
                             tags={articleDetail?.tagDetails?.map(tag => tag.name) || []}
                             date={articleDetail?.updatedAt}
+                            attachments={articleDetail?.attachments}
                         />
                     </div>
                 ) : (
