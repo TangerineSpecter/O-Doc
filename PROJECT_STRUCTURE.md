@@ -24,7 +24,7 @@ O-Doc/
 │   │   ├── api/         # API 调用相关
 │   │   ├── components/  # 通用组件
 │   │   ├── constants/   # 常量定义
-│   │   ├── mock/        # Mock 数据配置
+│   │   ├── mocks/       # Mock 数据配置
 │   │   ├── hooks/       # 自定义 Hooks
 │   │   └── utils/       # 工具函数
 │   ├── LICENSE          # 许可证文件
@@ -81,6 +81,7 @@ frontend_react/src/
 │   ├── EditorPage.tsx   # 编辑器页面
 │   ├── LoginPage.tsx    # 登录页面
 │   ├── ResourcesPage.tsx # 资源管理页面
+│   ├── SettingsPage.tsx # 设置页面
 │   ├── StatisticsPage.tsx # 统计页面
 │   └── TagsPage.tsx     # 标签管理页面
 ├── doc/                 # 文档内容目录
@@ -93,13 +94,16 @@ frontend_react/src/
 │   ├── article.ts       # 文章相关 API
 │   ├── category.ts      # 分类相关 API
 │   ├── resources.ts     # 资源相关 API
+│   ├── setting.ts       # 设置相关 API
 │   ├── tag.ts           # 标签相关 API
 │   └── user.ts          # 用户相关 API
 ├── hooks/               # 自定义 Hooks
 │   ├── useArticle.ts      # 文章相关 Hook
+│   ├── useArticleTree.ts  # 文章树相关 Hook
 │   ├── useCategories.ts   # 分类相关 Hook
 │   ├── useCollections.ts  # 文集相关 Hook
 │   ├── useEditor.tsx      # 编辑器相关 Hook
+│   ├── useSettings.ts     # 设置相关 Hook
 │   └── useTags.ts         # 标签相关 Hook
 ├── components/          # 通用组件
 │   ├── AnthologyModal.tsx        # 文集模态框组件
@@ -107,19 +111,21 @@ frontend_react/src/
 │   ├── TagModal.tsx              # 标签模态框组件
 │   ├── FloatingActionMenu.tsx    # 悬浮操作菜单
 │   ├── SortableCollectionCard.tsx # 可排序文集卡片
-│   ├── ToastProvider.tsx         # 全局提示组件
 │   ├── Article/                  # 文章相关组件
 │   ├── Category/                 # 分类相关组件
 │   ├── Editor/                   # 编辑器相关组件
+│   ├── Outline/                  # 大纲相关组件
+│   ├── Settings/                 # 设置相关组件
 │   ├── Tag/                      # 标签相关组件
 │   └── common/                   # 通用基础组件
 ├── constants/           # 常量定义
 │   ├── httpEnum.ts      # HTTP 状态码枚举
 │   └── iconList.tsx     # 图标列表
-├── mock/                # Mock 数据配置
+├── mocks/               # Mock 数据配置
 │   ├── articleDemoData.ts     # 文章示例数据
-│   ├── homepageDemoData.json  # 首页示例数据
-│   └── index.ts         # Mock 服务配置
+│   ├── browser.ts             # Mock 浏览器配置
+│   ├── handlers.ts            # Mock 处理函数
+│   └── homepageDemoData.json  # 首页示例数据
 └── utils/               # 工具函数
     └── request.ts       # 请求工具类
 ```

@@ -31,6 +31,7 @@
 | 获取文章详情 | GET    | /article/detail/:article_id  | 获取文章详情 | 已实现 |
 | 更新文章   | PUT    | /article/update/:article_id  | 更新文章内容 | 已实现 |
 | 删除文章   | DELETE | /article/delete/:article_id  | 删除文章   | 已实现 |
+| 获取文章树形列表 | GET | /article/tree-list | 获取树形结构文章列表 | 已实现 |
 
 #### 2.1 创建文章接口
 
@@ -217,17 +218,17 @@
 
 | 接口名称      | 请求方式   | 接口路径                                | 功能描述       | 状态  |
 |-----------|--------|-------------------------------------|------------|-----|
-| 创建分类      | POST   | /api/category/create                | 创建新分类      | 已实现 |
-| 获取分类列表    | GET    | /api/category/list                  | 获取分类列表     | 已实现 |
-| 获取分类详情    | GET    | /api/category/detail/:category_id   | 获取分类详情     | 已实现 |
-| 更新分类      | PUT    | /api/category/update/:category_id   | 更新分类信息     | 已实现 |
-| 删除分类      | DELETE | /api/category/delete/:category_id   | 删除分类       | 已实现 |
-| 分类排序      | PUT    | /api/category/:category_id/sort     | 更新分类排序     | 已实现 |
+| 创建分类      | POST   | /category/create                | 创建新分类      | 已实现 |
+| 获取分类列表    | GET    | /category/list                  | 获取分类列表     | 已实现 |
+| 获取分类详情    | GET    | /category/detail/:category_id   | 获取分类详情     | 已实现 |
+| 更新分类      | PUT    | /category/update/:category_id   | 更新分类信息     | 已实现 |
+| 删除分类      | DELETE | /category/delete/:category_id   | 删除分类       | 已实现 |
+| 分类排序      | PUT    | /category/:category_id/sort     | 更新分类排序     | 已实现 |
 
 
 #### 3.1 创建分类接口
 
-**请求路径**：`/api/category/create`
+**请求路径**：`/category/create`
 **请求方式**：POST
 **请求参数**：
 
@@ -265,7 +266,7 @@
 
 #### 3.2 获取分类列表接口
 
-**请求路径**：`/api/category/list`
+**请求路径**：`/category/list`
 **请求方式**：GET
 **响应示例**：
 
@@ -312,7 +313,7 @@
 
 #### 3.3 获取分类详情接口
 
-**请求路径**：`/api/category/detail/:category_id`
+**请求路径**：`/category/detail/:category_id`
 **请求方式**：GET
 **响应示例**：
 
@@ -333,9 +334,9 @@
 }
 ```
 
-#### 3.4 分类排序接口
+#### 3.6 分类排序接口
 
-**请求路径**：`/api/category/:category_id/sort`
+**请求路径**：`/category/:category_id/sort`
 **请求方式**：PUT
 **请求参数**：
 
@@ -360,9 +361,9 @@
 }
 ```
 
-#### 3.5 更新分类接口
+#### 3.4 更新分类接口
 
-**请求路径**：`/api/category/update/:category_id`
+**请求路径**：`/category/update/:category_id`
 **请求方式**：PUT
 **请求参数**：
 
@@ -398,9 +399,9 @@
 }
 ```
 
-#### 3.6 删除分类接口
+#### 3.5 删除分类接口
 
-**请求路径**：`/api/category/delete/:category_id`
+**请求路径**：`/category/delete/:category_id`
 **请求方式**：DELETE
 **响应示例**：
 
@@ -421,17 +422,17 @@
 
 | 接口名称    | 请求方式   | 接口路径                    | 功能描述            | 状态  |
 |---------|--------|-------------------------|-----------------|-----|
-| 创建标签    | POST   | /api/tag/create         | 创建新标签           | 已实现 |
-| 获取标签详情  | GET    | /api/tag/detail/:tag_id | 获取标签详情          | 已实现 |
-| 获取标签列表  | GET    | /api/tag/list           | 获取标签列表          | 已实现 |
-| 标签排序    | PUT    | /api/tag/:tag_id/sort   | 更新标签排序          | 已实现 |
-| 更新标签    | PUT    | /api/tag/update/:tag_id | 更新标签信息          | 已实现 |
-| 删除标签    | DELETE | /api/tag/delete/:tag_id | 删除标签            | 已实现 |
+| 创建标签    | POST   | /tag/create         | 创建新标签           | 已实现 |
+| 获取标签详情  | GET    | /tag/detail/:tag_id | 获取标签详情          | 已实现 |
+| 获取标签列表  | GET    | /tag/list           | 获取标签列表          | 已实现 |
+| 标签排序    | PUT    | /tag/:tag_id/sort   | 更新标签排序          | 已实现 |
+| 更新标签    | PUT    | /tag/update/:tag_id | 更新标签信息          | 已实现 |
+| 删除标签    | DELETE | /tag/delete/:tag_id | 删除标签            | 已实现 |
 
 
 #### 4.1 创建标签接口
 
-**请求路径**：`/api/tag/create`
+**请求路径**：`/tag/create`
 **请求方式**：POST
 **请求参数**：
 
@@ -467,7 +468,7 @@
 
 #### 4.2 获取标签详情接口
 
-**请求路径**：`/api/tag/detail/:tag_id`
+**请求路径**：`/tag/detail/:tag_id`
 **请求方式**：GET
 **参数说明**：
 | 参数名 | 类型 | 必填 | 描述 |
@@ -493,7 +494,7 @@
 
 #### 4.3 获取标签列表接口
 
-**请求路径**：`/api/tag/list`
+**请求路径**：`/tag/list`
 **请求方式**：GET
 
 **响应示例**：
@@ -525,7 +526,7 @@
 
 #### 4.4 标签排序接口
 
-**请求路径**：`/api/tag/:tag_id/sort`
+**请求路径**：`/tag/:tag_id/sort`
 **请求方式**：PUT
 **请求参数**：
 
@@ -552,7 +553,7 @@
 
 #### 4.5 更新标签接口
 
-**请求路径**：`/api/tag/update/:tag_id`
+**请求路径**：`/tag/update/:tag_id`
 **请求方式**：PUT
 **请求参数**：
 
@@ -588,7 +589,7 @@
 
 #### 4.6 删除标签接口
 
-**请求路径**：`/api/tag/delete/:tag_id`
+**请求路径**：`/tag/delete/:tag_id`
 **请求方式**：DELETE
 **参数说明**：
 | 参数名 | 类型 | 必填 | 描述 |
@@ -609,15 +610,15 @@
 
 | 接口名称   | 请求方式   | 接口路径                           | 功能描述            | 状态  |
 |--------|--------|--------------------------------|-----------------|-----|
-| 创建文集   | POST   | /api/anthology/create          | 创建新文集           | 已实现 |
-| 获取文集列表 | GET    | /api/anthology/list            | 获取文集列表          | 已实现 |
-| 获取文集详情 | GET    | /api/anthology/detail/:coll_id | 根据coll_id获取文集详情 | 已实现 |
-| 更新文集   | PUT    | /api/anthology/update/:coll_id | 更新文集信息          | 已实现 |
-| 删除文集   | DELETE | /api/anthology/delete/:coll_id | 删除文集            | 已实现 |
+| 创建文集   | POST   | /anthology/create          | 创建新文集           | 已实现 |
+| 获取文集列表 | GET    | /anthology/list            | 获取文集列表          | 已实现 |
+| 获取文集详情 | GET    | /anthology/detail/:coll_id | 根据coll_id获取文集详情 | 已实现 |
+| 更新文集   | PUT    | /anthology/update/:coll_id | 更新文集信息          | 已实现 |
+| 删除文集   | DELETE | /anthology/delete/:coll_id | 删除文集            | 已实现 |
 
 #### 5.1 创建文集接口
 
-**请求路径**：`/api/anthology/create`
+**请求路径**：`/anthology/create`
 **请求方式**：POST
 **请求参数**：
 
@@ -661,7 +662,7 @@
 
 #### 5.2 获取文集列表接口
 
-**请求路径**：`/api/anthology/list`
+**请求路径**：`/anthology/list`
 **请求方式**：GET
 **响应示例**：
 
@@ -735,7 +736,7 @@
 
 #### 5.3 获取文集详情接口
 
-**请求路径**：`/api/anthology/detail/:coll_id`
+**请求路径**：`/anthology/detail/:coll_id`
 **请求方式**：GET
 **响应示例**：
 
@@ -802,9 +803,9 @@
 - 仅对非置顶文集进行排序
 - 排序位置必须是大于0的整数
 
-#### 5.5 更新文集接口
+#### 5.4 更新文集接口
 
-**请求路径**：`/api/anthology/update/:coll_id`
+**请求路径**：`/anthology/update/:coll_id`
 **请求方式**：PUT
 **请求参数**：
 
@@ -848,9 +849,9 @@
 }
 ```
 
-#### 5.6 删除文集接口
+#### 5.5 删除文集接口
 
-**请求路径**：`/api/anthology/delete/:coll_id`
+**请求路径**：`/anthology/delete/:coll_id`
 **请求方式**：DELETE
 **响应示例**：
 
@@ -871,15 +872,17 @@
 
 | 接口名称   | 请求方式   | 接口路径                        | 功能描述   | 状态  |
 |--------|--------|-----------------------------|--------|-----|
-| 获取资源列表 | GET    | /api/resources/list         | 获取资源列表 | 已实现 |
-| 创建资源   | POST   | /api/resources/create       | 创建新资源  | 已实现 |
-| 更新资源   | PUT    | /api/resources/:id          | 更新资源信息 | 已实现 |
-| 删除资源   | DELETE | /api/resources/:id          | 删除资源   | 已实现 |
-| 下载资源   | GET    | /api/resources/download/:id | 下载资源   | 已实现 |
+| 获取资源列表 | GET    | /resource/list         | 获取资源列表 | 已实现 |
+| 资源上传   | POST   | /resource/upload       | 上传资源文件  | 已实现 |
+| 创建资源   | POST   | /resource/create       | 创建新资源记录  | 已实现 |
+| 更新资源   | PUT    | /resource/update/:resource_id          | 更新资源信息 | 已实现 |
+| 删除资源   | DELETE | /resource/delete/:resource_id          | 删除资源   | 已实现 |
+| 下载资源   | GET    | /resource/download/:resource_id | 下载资源   | 已实现 |
+| 查看资源   | GET    | /resource/view/:resource_id | 查看资源（图片预览）   | 已实现 |
 
 #### 6.1 获取资源列表接口
 
-**请求路径**：`/api/resources/list`
+**请求路径**：`/resource/list`
 **请求方式**：GET
 **请求参数**：
 | 参数名 | 类型 | 必填 | 描述 |
@@ -916,10 +919,40 @@
 }
 ```
 
-#### 6.2 创建资源接口
+#### 6.2 资源上传接口
 
-**请求路径**：`/api/resources/create`
-**请求方式**：POST
+**请求路径**：`/resource/upload`
+**请求方式**：`POST`
+**请求参数**：
+- `file`: 要上传的文件（multipart/form-data格式）
+- `linked`: 是否关联文章（可选，布尔值）
+- `sourceArticle`: 关联的文章ID（可选，字符串）
+
+**响应示例**：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "resource_id": "res_1234567890",
+    "name": "需求说明书_v1.pdf",
+    "type": "doc",
+    "size": "2.5 MB",
+    "date": "11-24",
+    "linked": true,
+    "sourceArticle": {
+      "id": "art_001",
+      "title": "服务器环境依赖检查清单"
+    }
+  }
+}
+```
+
+#### 6.4 创建资源接口
+
+**请求路径**：`/resource/create`
+**请求方式**：`POST`
 **请求参数**：
 
 ```json
@@ -943,9 +976,9 @@
 | linked | boolean | 是 | 是否已关联 |
 | sourceArticle | object | 否 | 关联的文章信息 |
 
-#### 6.3 更新资源接口
+#### 6.5 更新资源接口
 
-**请求路径**：`/api/resources/:id`
+**请求路径**：`/resource/update/:resource_id`
 **请求方式**：PUT
 **请求参数**：
 
@@ -970,10 +1003,10 @@
 | linked | boolean | 否 | 是否已关联 |
 | sourceArticle | object | 否 | 关联的文章信息 |
 
-#### 6.4 删除资源接口
+#### 6.5 删除资源接口
 
-**请求路径**：`/api/resources/:id`
-**请求方式**：DELETE
+**请求路径**：`/resource/delete/:resource_id`
+**请求方式**：`DELETE`
 **响应示例**：
 
 ```json
@@ -984,11 +1017,17 @@
 }
 ```
 
-#### 6.5 下载资源接口
+#### 6.6 下载资源接口
 
-**请求路径**：`/api/resources/download/:id`
-**请求方式**：GET
+**请求路径**：`/resource/download/:resource_id`
+**请求方式**：`GET`
 **响应**：返回文件流
+
+#### 6.7 查看资源接口
+
+**请求路径**：`/resource/view/:resource_id`
+**请求方式**：`GET`
+**响应**：返回文件流（用于浏览器直接显示，如图片预览）
 
 ### 7. 统计接口
 
