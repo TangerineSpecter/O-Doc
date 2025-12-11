@@ -246,17 +246,27 @@ class ResourceUploadView(APIView):
             # 检查是否已存在相同文件
             existing_asset = Asset.get_by_hash(file_hash_hex)
             if existing_asset:
-                return success_result({
-                    'id': existing_asset.id,
-                    'name': existing_asset.name,
-                    'type': existing_asset.file_type,
-                    'size': existing_asset.formatted_size,
-                    'date': existing_asset.upload_time.strftime('%Y-%m-%d %H:%M:%S'),
-                    'linked': existing_asset.is_linked,
-                    'sourceType': existing_asset.source_type,
-                    'sourceArticle': existing_asset.get_source_info(),
-                    'duplicate': True  # 标记为重复文件
-                })
+                try:
+                    # 获取关联文章信息（处理可能的异常）
+                    source_article = None
+                    if existing_asset.linked_article:
+                        source_article = existing_asset.get_source_info()
+                    
+                    return success_result({
+                        'id': existing_asset.id,
+                        'name': existing_asset.name,
+                        'type': existing_asset.file_type,
+                        'size': existing_asset.formatted_size,
+                        'date': existing_asset.upload_time.strftime('%Y-%m-%d %H:%M:%S'),
+                        'linked': existing_asset.is_linked,
+                        'sourceType': existing_asset.source_type,
+                        'sourceArticle': source_article,
+                        'duplicate': True  # 标记为重复文件
+                    })
+                except Exception as e:
+                    # 记录异常并返回新上传的文件
+                    print(f"处理重复文件时发生异常: {str(e)}")
+                    # 继续执行上传逻辑，不使用重复文件
 
             # 确定文件类型
             file_extension = os.path.splitext(uploaded_file.name)[1].lower()

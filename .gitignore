@@ -26,6 +26,7 @@ __pycache__/
 # Build outputs (generated files)
 templates/index.html
 static/*
+media/*
 
 # Editor directories and files
 .vscode/*
