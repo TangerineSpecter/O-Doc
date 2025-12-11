@@ -2,6 +2,71 @@ import React from 'react';
 import { Server, Plus, Zap, Edit2, Trash2, Globe, Key, Layers, X, ChevronDown } from 'lucide-react';
 import { AIProvider, SystemAIConfig, ModelType, AIModel } from '../../api/setting';
 
+// 1. 引入图片资源 (请确保这些图片已存在于 src/assets/ 目录下)
+import deepseekLogo from '../../../public/deepseek.svg'
+import qwenLogo from '../../../public/qwen.png'
+import ollamaLogo from '../../../public/ollama.svg'
+import openaiLogo from '../../../public/openai.svg'
+import doubaoLogo from '../../../public/doubao.svg'
+
+
+
+// --- Logo Component ---
+const ProviderLogo = ({ type, name }: { type: string, name: string }) => {
+    
+    // 2. 样式配置表
+    // 策略：使用图片的厂商 -> 用白底 (bg-white) 或透明底
+    //       使用 SVG/文字的厂商 -> 用品牌色底 (bg-[color])
+    const brandStyles: Record<string, string> = {
+        // --- 纯色背景类 (SVG / Text) ---
+        'OpenAi': 'bg-white text-white',         // OpenAI 绿
+        'Ollama': 'bg-white text-white',             // Ollama 黑
+        'Google AI': 'bg-white border border-slate-200 text-slate-700', // Google 通常是彩色的，这里用白底
+        'custom': 'bg-slate-500 text-white',         // 自定义 灰
+
+        // --- 图片类 (Image) ---
+        // 关键点：这里把背景色去掉了，改为 bg-white，并加了浅边框以防图片也是白底导致看不清边界
+        'DeepSeek': 'bg-white border border-slate-200', 
+        'Qwen': 'bg-white border border-slate-200',
+        'Doubao': 'bg-white border border-slate-200',
+    };
+
+    // 3. 图标渲染逻辑
+    const renderIcon = () => {
+        switch (type) {
+            case 'OpenAi':
+                return <img src={openaiLogo} alt="OpenAI" className="w-full h-full object-cover" />;
+            case 'Ollama':
+                return <img src={ollamaLogo} alt="Ollama" className="w-full h-full object-cover" />;
+            case 'Google AI':
+                return <img src={deepseekLogo} alt="DeepSeek" className="w-full h-full object-cover" />;
+            
+            // --- 图片渲染区域 ---
+            case 'DeepSeek':
+                return <img src={deepseekLogo} alt="DeepSeek" className="w-full h-full p-0.5 object-contain translate-x-[2px] translate-y-[2px] p-0.5" />;
+            case 'Qwen':
+                return <img src={qwenLogo} alt="Qwen" className="w-full h-full object-contain p-0.5" />;
+            case 'Doubao':
+                return <img src={doubaoLogo} alt="Doubao" className="w-full h-full object-cover" />;
+            
+            default:
+                // 默认兜底：首字母
+                return <span className="font-bold text-sm">{name.charAt(0).toUpperCase()}</span>;
+        }
+    };
+
+    const style = brandStyles[type] || brandStyles['custom'];
+
+    return (
+        // 添加 overflow-hidden 确保图片圆角跟随容器
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm shrink-0 overflow-hidden ${style}`}>
+            {renderIcon()}
+        </div>
+    );
+};
+
+// --- Main Component ---
+
 interface AISettingsProps {
     providers: AIProvider[];
     systemConfig: SystemAIConfig;
@@ -139,20 +204,22 @@ export const AISettings = ({
 
                 <div className="grid grid-cols-1 gap-4">
                     {providers.map(provider => (
-                        <div key={provider.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden group">
+                        <div key={provider.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden group hover:border-orange-200 transition-colors">
                             {/* Provider Header */}
-                            <div className="flex items-center justify-between px-5 py-4 bg-slate-50/50 border-b border-slate-100">
+                            <div className="flex items-center justify-between px-5 py-4 bg-slate-50/50 border-b border-slate-100 group-hover:bg-orange-50/30 transition-colors">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-700 shadow-sm font-bold text-lg">
-                                        {provider.name.charAt(0).toUpperCase()}
-                                    </div>
+                                    {/* Logo 展示 */}
+                                    <ProviderLogo type={provider.type} name={provider.name} />
+                                    
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <h4 className="font-bold text-slate-800">{provider.name}</h4>
-                                            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded-full border border-slate-200 uppercase tracking-wider">{provider.type}</span>
+                                            <span className="px-2 py-0.5 bg-white text-slate-500 text-[10px] rounded-full border border-slate-200 uppercase tracking-wider font-mono shadow-sm">
+                                                {provider.type}
+                                            </span>
                                         </div>
-                                        <div className="flex items-center gap-4 mt-1 text-xs text-slate-400">
-                                            <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> {provider.baseUrl}</span>
+                                        <div className="flex items-center gap-4 mt-1.5 text-xs text-slate-400">
+                                            <span className="flex items-center gap-1" title={provider.baseUrl}><Globe className="w-3 h-3" /> {provider.baseUrl.length > 30 ? provider.baseUrl.substring(0, 30) + '...' : provider.baseUrl}</span>
                                             <span className="flex items-center gap-1"><Key className="w-3 h-3" /> {provider.apiKey ? `${provider.apiKey.substring(0, 6)}...` : '无密钥'}</span>
                                         </div>
                                     </div>
@@ -166,7 +233,10 @@ export const AISettings = ({
                             {/* Models List */}
                             <div className="px-5 py-4">
                                 <div className="flex items-center justify-between mb-3">
-                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">包含模型 ({provider.models.length})</span>
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                        <Layers className="w-3.5 h-3.5" />
+                                        包含模型 ({provider.models.length})
+                                    </span>
                                     <button onClick={() => onOpenModelModal(provider.id)} className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1 hover:underline">
                                         <Plus className="w-3 h-3" /> 添加模型
                                     </button>
@@ -175,11 +245,11 @@ export const AISettings = ({
                                 {provider.models.length > 0 ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                         {provider.models.map(model => (
-                                            <div key={model.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/30 hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all group/model">
-                                                <div className="flex items-center gap-2.5">
-                                                    <Layers className="w-4 h-4 text-slate-300" />
-                                                    <div className="flex flex-col">
-                                                        <span className="text-sm font-medium text-slate-700">{model.name}</span>
+                                            <div key={model.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/30 hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all group/model">
+                                                <div className="flex items-center gap-2.5 overflow-hidden">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300 group-hover/model:bg-orange-400 transition-colors shrink-0"></div>
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="text-sm font-medium text-slate-700 truncate">{model.name}</span>
                                                         <div className="flex mt-0.5">
                                                             <ModelTypeBadge type={model.type} />
                                                         </div>
