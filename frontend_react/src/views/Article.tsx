@@ -147,10 +147,14 @@ export default function Article({
                             </button>
 
                                 {displayTags.map(tag => (
-                                    <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                    <button 
+                                        key={tag} 
+                                        onClick={() => navigate(`/tags?tagId=${tag}`)}
+                                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 cursor-pointer hover:bg-indigo-100 transition-colors"
+                                    >
                                         <ArticleIcons.Tag className="w-3 h-3 mr-1 opacity-50" />
                                         {tag}
-                                    </span>
+                                    </button>
                                 ))}
 
                                 {onBack && (

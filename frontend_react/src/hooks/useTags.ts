@@ -1,13 +1,18 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useSearchParams} from 'react-router-dom';
 import {createTag, deleteTag, getTagList, TagItem, updateTag} from '../api/tag';
 import {Article, ArticleItem, getArticles} from '../api/article';
 import {TagFormData} from '../components/TagModal';
 import {useToast} from '../components/common/ToastProvider';
 
 export const useTags = () => {
+    // URL参数 - 先获取URL参数，用于初始化selectedTagId
+    const [searchParams] = useSearchParams();
+    const initialTagId = searchParams.get('tagId') || 'all';
+    
     // --- State ---
     const [tags, setTags] = useState<TagItem[]>([]);
-    const [selectedTagId, setSelectedTagId] = useState('all');
+    const [selectedTagId, setSelectedTagId] = useState(initialTagId);
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list'); // 默认 list，与 TagsPage 原始逻辑保持一致
     const [displayArticles, setDisplayArticles] = useState<ArticleItem[]>([]);
@@ -57,6 +62,33 @@ export const useTags = () => {
     useEffect(() => {
         fetchTags();
     }, [fetchTags]);
+    
+    // 处理URL参数中的tagId - 在标签列表加载完成后验证tagId的有效性
+    useEffect(() => {
+        if (tags.length === 0) return;
+        
+        const tagId = searchParams.get('tagId');
+        if (tagId) {
+            // 首先尝试通过tagId匹配
+            const matchingTag = tags.find(tag => tag.tagId === tagId);
+            if (matchingTag) {
+                setSelectedTagId(tagId);
+            } else {
+                // 如果tagId不匹配，尝试通过名称匹配（用于兼容旧的导航方式）
+                const tagName = tagId;
+                const matchingTagByName = tags.find(tag => tag.name === tagName);
+                if (matchingTagByName) {
+                    setSelectedTagId(matchingTagByName.tagId);
+                } else {
+                    // 如果都不匹配，回退到'all'
+                    setSelectedTagId('all');
+                }
+            }
+        } else {
+            // 如果没有tagId参数，使用'all'
+            setSelectedTagId('all');
+        }
+    }, [searchParams, tags]);
 
     // Fetch Articles when Tag changes
     useEffect(() => {
