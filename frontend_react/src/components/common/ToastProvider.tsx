@@ -1,6 +1,5 @@
-// src/components/ToastProvider.tsx
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { Info, XCircle, Leaf, Citrus } from 'lucide-react';
+import {createContext, ReactNode, useCallback, useContext, useMemo, useState} from 'react';
+import {Citrus, Info, Leaf, XCircle} from 'lucide-react';
 
 // --- Toast 提示组件 ---
 
@@ -29,30 +28,30 @@ const TOAST_STYLES = {
     // 成功：翡翠绿 (Emerald) - 沉稳且高级
     success: {
         container: 'bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-emerald-500/40 ring-emerald-400',
-        icon: <Leaf className="w-5 h-5 text-white" strokeWidth={2.5} />, 
+        icon: <Leaf className="w-5 h-5 text-white" strokeWidth={2.5}/>,
     },
     // 警告：琥珀橙 (Amber/Orange) - 活力且醒目
     warning: {
         container: 'bg-gradient-to-r from-orange-500 to-orange-600 shadow-orange-500/40 ring-orange-400',
-        icon: <Citrus className="w-5 h-5 text-white" strokeWidth={2.5} />, 
+        icon: <Citrus className="w-5 h-5 text-white" strokeWidth={2.5}/>,
     },
     // 错误：玫瑰红 (Rose) - 柔和但有力
     error: {
         container: 'bg-gradient-to-r from-rose-500 to-rose-600 shadow-rose-500/40 ring-rose-400',
-        icon: <XCircle className="w-5 h-5 text-white" strokeWidth={2.5} />, 
+        icon: <XCircle className="w-5 h-5 text-white" strokeWidth={2.5}/>,
     },
     // 信息：海洋蓝 (Sky/Blue)
     info: {
         container: 'bg-gradient-to-r from-blue-500 to-blue-600 shadow-blue-500/40 ring-blue-400',
-        icon: <Info className="w-5 h-5 text-white" strokeWidth={2.5} />, 
+        icon: <Info className="w-5 h-5 text-white" strokeWidth={2.5}/>,
     }
 };
 
-export const ToastProvider = ({ children }: { children: ReactNode }) => {
+export const ToastProvider = ({children}: { children: ReactNode }) => {
     const [toasts, setToasts] = useState<Toast[]>([]);
 
     const removeToast = useCallback((id: number) => {
-        setToasts((prev) => prev.map(t => t.id === id ? { ...t, isVisible: false } : t));
+        setToasts((prev) => prev.map(t => t.id === id ? {...t, isVisible: false} : t));
         setTimeout(() => {
             setToasts((prev) => prev.filter((toast) => toast.id !== id));
         }, 300);
@@ -61,7 +60,7 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
     const showToast = useCallback((message: string, type: ToastType = 'info') => {
         const id = Date.now();
         setToasts((prev) => {
-            const newToast = { id, message, type, isVisible: true };
+            const newToast = {id, message, type, isVisible: true};
             if (prev.length >= 3) {
                 return [...prev.slice(1), newToast];
             }
@@ -74,20 +73,24 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
         }, 3000);
     }, [removeToast]);
 
-    const success = (msg: string) => showToast(msg, 'success');
-    const error = (msg: string) => showToast(msg, 'error');
-    const warning = (msg: string) => showToast(msg, 'warning');
-    const info = (msg: string) => showToast(msg, 'info');
+    const contextValue = useMemo(() => ({
+        showToast,
+        success: (msg: string) => showToast(msg, 'success'),
+        error: (msg: string) => showToast(msg, 'error'),
+        warning: (msg: string) => showToast(msg, 'warning'),
+        info: (msg: string) => showToast(msg, 'info')
+    }), [showToast]);
 
     return (
-        <ToastContext.Provider value={{ showToast, success, error, warning, info }}>
+        <ToastContext.Provider value={contextValue}>
             {children}
-            
+
             {/* 容器：顶部居中 */}
-            <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-3 pointer-events-none items-center w-full max-w-sm px-4">
+            <div
+                className="fixed top-8 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-3 pointer-events-none items-center w-full max-w-sm px-4">
                 {toasts.map((toast) => {
                     const style = TOAST_STYLES[toast.type];
-                    
+
                     return (
                         <div
                             key={toast.id}
@@ -102,10 +105,10 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
                                 hover:scale-[1.02] active:scale-95
                                 text-white
                                 ${style.container}
-                                ${toast.isVisible 
-                                    ? 'translate-y-0 opacity-100 scale-100' 
-                                    : '-translate-y-8 opacity-0 scale-95'
-                                }
+                                ${toast.isVisible
+                                ? 'translate-y-0 opacity-100 scale-100'
+                                : '-translate-y-8 opacity-0 scale-95'
+                            }
                             `}
                         >
                             {/* 图标 (无背景，直接展示，更通透) */}

@@ -29,7 +29,7 @@ const searchSuggestions = [
     { id: 'rec-1', type: 'recent', title: "Docker Compose 一键部署", subtitle: "部署指南", icon: <Clock className="w-4 h-4" /> },
     { id: 'rec-2', type: 'recent', title: "错误码字典查询", subtitle: "API 手册", icon: <Hash className="w-4 h-4" /> },
     { id: 'sug-1', type: 'suggest', title: "如何配置 Nginx 反向代理", subtitle: "跳转", icon: <FileText className="w-4 h-4" /> },
-    { id: 'sug-2', type: 'suggest', title: "偏好设置", subtitle: "设置", icon: <Settings className="w-4 h-4" /> },
+    { id: 'sug-2', type: 'suggest', title: "系统设置", subtitle: "设置", icon: <Settings className="w-4 h-4" /> },
 ];
 
 // --- 辅助函数：语义化版本比较 ---
@@ -316,9 +316,12 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                                                 <LogIn className="w-4 h-4" />
                                                 立即登录 / 注册
                                             </button>
-                                            <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-left">
+                                            <button
+                                                onClick={() => onNavigate && onNavigate('settings')} // 关键：调用 navigate 跳转
+                                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-left"
+                                            >
                                                 <Settings className="w-4 h-4" />
-                                                偏好设置
+                                                系统设置
                                             </button>
                                             <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-left">
                                                 <BookOpen className="w-4 h-4" />

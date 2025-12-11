@@ -9,6 +9,7 @@ import ResourcesPage from './views/ResourcesPage';
 import StatisticsPage from './views/StatisticsPage';
 import CategoriesPage from './views/CategoriesPage';
 import TagsPage from './views/TagsPage';
+import SettingsPage from './views/SettingsPage';
 
 
 
@@ -19,7 +20,9 @@ function HomeRoute() {
   const handleNavigate = (viewName: string, params = {}) => {
     window.scrollTo(0, 0);
 
-    if (viewName === 'article') {
+    if (viewName === 'home') {
+      navigate('/');
+    } else if (viewName === 'article') {
       const { collId, articleId } = params as { collId: string, articleId?: string };
       if (articleId) {
         navigate(`/article/${collId}/${articleId}`);
@@ -28,6 +31,8 @@ function HomeRoute() {
       }
     } else if (viewName === 'login') { // 新增
       navigate('/login');
+    } else if (viewName === 'settings') { // 新增：处理设置页跳转
+      navigate('/settings');
     }
   };
 
@@ -44,7 +49,7 @@ function ArticleRoute() {
 
     if (viewName === 'home') {
       navigate('/');
-    } else if (viewName === 'article') {
+    }else if (viewName === 'article') {
       const { collId, articleId } = params as { collId: string, articleId?: string };
       if (articleId) {
         navigate(`/article/${collId}/${articleId}`);
@@ -83,6 +88,8 @@ function AppWithRouter() {
       }
     } else if (viewName === 'login') { // 新增：处理登录跳转
       navigate('/login');
+    } else if (viewName === 'settings') { // 新增：处理设置页跳转
+      navigate('/settings');
     }
   };
 
@@ -125,6 +132,11 @@ function AppWithRouter() {
       <Route path="/categories" element={
         <Layout onNavigate={handleNavigate}>
           <CategoriesPage />
+        </Layout>
+      } />
+      <Route path="/settings" element={
+        <Layout onNavigate={handleNavigate}>
+          <SettingsPage />
         </Layout>
       } />
     </Routes>
