@@ -32,8 +32,11 @@ class AnthologyDetailView(APIView):
         # 使用coll_id查询文集
         anthology = get_object_or_404(Anthology, coll_id=coll_id, userid='admin')
 
+        # 使用序列化器将文集对象转换为JSON格式
+        json_data = AnthologySerializer(anthology).data
+        
         # 使用统一的成功响应格式，使用预定义的成功错误码
-        return success_result(data=anthology)
+        return success_result(json_data)
 
 
 class AnthologyListView(APIView):

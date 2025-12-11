@@ -8,6 +8,8 @@ import OutlineContent from '../components/Outline/OutlineContent';
 import {useArticleTree} from '../hooks/useArticleTree';
 import {Article as ArticleType, deleteArticle, getArticleDetail} from '../api/article';
 import {useToast} from '../components/common/ToastProvider';
+import { getAnthologyDetail, Anthology } from '../api/anthology';
+import { getIconComponent } from '../constants/iconList';
 
 interface ArticleOutlineProps {
     onNavigate?: (viewName: string, params?: any) => void;
@@ -36,12 +38,27 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [articleDetail, setArticleDetail] = useState<ArticleType | null>(null);
     const [articleLoading, setArticleLoading] = useState(false);
+
+    // 新增：文集详情状态
+    const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
+
     const toast = useToast();
 
     // 同步路由参数到状态
     useEffect(() => {
         setActiveDocId(articleId);
     }, [articleId]);
+
+    // 新增：获取文集详情
+    useEffect(() => {
+        if (collId) {
+            getAnthologyDetail(collId).then(data => {
+                setAnthologyInfo(data);
+            }).catch(error => {
+                console.error('获取文集详情失败:', error);
+            });
+        }
+    }, [collId]);
 
     // 获取文章详情
     useEffect(() => {
@@ -139,6 +156,11 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
         );
     }
 
+    // 优先使用接口获取的文集标题，其次是路由传参的标题
+    const displayTitle = anthologyInfo?.title || title || '文档目录';
+    // 解析文集图标
+    const anthologyIcon = anthologyInfo ? getIconComponent(anthologyInfo.iconId, "w-6 h-6") : null;
+
     return (
         <div className="flex h-[calc(100vh-64px)] bg-[#F9FAFB] text-slate-800 font-sans overflow-hidden">
 
@@ -156,7 +178,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
             {/* 左侧侧边栏 */}
             <OutlineSidebar
                 className={`${isSidebarOpen ? 'block' : 'hidden md:flex'} w-72`}
-                title={title || '文档目录'}
+                title={displayTitle}
                 docs={filteredDocs}
                 activeDocId={activeDocId}
                 expandedIds={expandedIds}
@@ -199,7 +221,9 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                     </div>
                 ) : (
                     <OutlineContent
-                        title={title}
+                        title={displayTitle}
+                        description={anthologyInfo?.description}
+                        icon={anthologyIcon}
                         docs={filteredDocs}
                         flatCount={flatDocs.length}
                         onSelectDoc={handleSelectDoc}
