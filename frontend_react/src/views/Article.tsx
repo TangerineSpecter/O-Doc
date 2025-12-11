@@ -6,6 +6,7 @@ import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
 import { Paperclip, Download } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 import { articleDemoData } from "../mocks/articleDemoData";
 import { useArticle } from '../hooks/useArticle';
@@ -16,9 +17,9 @@ import { TableOfContents } from '../components/Article/TableOfContents';
 export interface AttachmentItem {
     id: string;
     name: string;
-    size: string;
+    size?: number;
     url: string;
-    type: string;
+    type?: string;
 }
 
 interface ArticleProps {
@@ -28,6 +29,7 @@ interface ArticleProps {
     content?: string;
     title?: string;
     category?: string;
+    categoryId?: string;
     tags?: string[];
     date?: string;
     attachments?: AttachmentItem[]; // 使用本地定义的接口
@@ -44,12 +46,14 @@ export default function Article({
     content,
     title,
     category,
+    categoryId,
     tags,
     date,
     attachments,
     onEdit,
     onDelete
 }: ArticleProps) {
+    const navigate = useNavigate();
     // 1. 准备数据
     const displayTitle = title || DEFAULT_ARTICLE_DATA.title;
     const displayCategory = category || DEFAULT_ARTICLE_DATA.category;
@@ -135,9 +139,12 @@ export default function Article({
                         {/* Header */}
                         <header className="mb-10 pb-8 border-b border-slate-100">
                             <div className="flex flex-wrap items-center gap-3 mb-6">
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/30">
-                                    {displayCategory}
-                                </span>
+                            <button 
+                                onClick={() => navigate(`/categories?catId=${categoryId || displayCategory}`)}
+                                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/30 cursor-pointer hover:bg-blue-700 transition-colors"
+                            >
+                                {displayCategory}
+                            </button>
 
                                 {displayTags.map(tag => (
                                     <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
@@ -192,7 +199,7 @@ export default function Article({
                                                 </div>
                                                 <div className="min-w-0">
                                                     <div className="text-sm font-medium text-slate-700 truncate group-hover:text-orange-600 transition-colors">{att.name}</div>
-                                                    <div className="text-xs text-slate-400">{att.size} · {att.type.toUpperCase()}</div>
+                                                <div className="text-xs text-slate-400">{att.size ? `${att.size}B` : '-'}</div>
                                                 </div>
                                             </div>
                                             <a href={att.url} download={att.name} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="点击下载">

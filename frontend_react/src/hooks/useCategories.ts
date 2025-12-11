@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from 'react';
 import {CategoryItem, createCategory, deleteCategory, getCategoryList, updateCategory} from '../api/category';
 import {Article, ArticleItem, getArticles} from '../api/article';
 import {CategoryFormData} from '../components/CategoryModal';
+import { useSearchParams } from 'react-router-dom';
 
 export const useCategories = () => {
     // --- State ---
@@ -12,6 +13,7 @@ export const useCategories = () => {
     const [displayArticles, setDisplayArticles] = useState<ArticleItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [deletedArticleIds, setDeletedArticleIds] = useState<Set<string>>(new Set());
+    const [searchParams] = useSearchParams();
 
     // --- Data Fetching ---
     const fetchCategories = useCallback(async () => {
@@ -51,6 +53,24 @@ export const useCategories = () => {
     useEffect(() => {
         fetchCategories();
     }, [fetchCategories]);
+
+    // Handle catId from URL
+    useEffect(() => {
+        const catIdFromUrl = searchParams.get('catId');
+        if (catIdFromUrl) {
+            // 优先使用分类 ID 查找
+            const category = categories.find(c => c.categoryId === catIdFromUrl);
+            if (category) {
+                setSelectedCatId(category.categoryId);
+            } else {
+                // 如果没有找到，尝试使用分类名称查找
+                const categoryByName = categories.find(c => c.name === catIdFromUrl);
+                if (categoryByName) {
+                    setSelectedCatId(categoryByName.categoryId);
+                }
+            }
+        }
+    }, [categories, searchParams]);
 
     // Fetch Articles when Category changes
     useEffect(() => {
