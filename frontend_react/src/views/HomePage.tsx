@@ -1,25 +1,11 @@
-import React, {useState, useMemo, useCallback} from 'react';
-import {
-    ChevronDown, Filter, ArrowUpDown, Plus, Check, Search
-} from 'lucide-react';
+import React, {useCallback, useMemo, useState} from 'react';
+import {ArrowUpDown, Check, ChevronDown, Filter, Plus, Search} from 'lucide-react';
 import CreateAnthologyModal, {AnthologyFormData} from '../components/AnthologyModal';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import {SortableCollectionCard} from '../components/SortableCollectionCard'; // 引入新组件
 import {useCollections} from '../hooks/useCollections'; // 引入新 Hook
-
-import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors
-} from '@dnd-kit/core';
-import {
-    SortableContext,
-    sortableKeyboardCoordinates,
-    rectSortingStrategy
-} from '@dnd-kit/sortable';
+import {closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors} from '@dnd-kit/core';
+import {rectSortingStrategy, SortableContext, sortableKeyboardCoordinates} from '@dnd-kit/sortable';
 
 interface HomePageProps {
     onNavigate: (viewName: string, params?: any) => void;
@@ -42,9 +28,9 @@ export default function HomePage({onNavigate}: HomePageProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCollection, setEditingCollection] = useState<AnthologyFormData | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+    const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
-    const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
+    const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isSortOpen, setIsSortOpen] = useState(false);
 
@@ -82,7 +68,7 @@ export default function HomePage({onNavigate}: HomePageProps) {
     // --- UI 交互 ---
     const handleModalSubmit = async (data: AnthologyFormData) => {
         if (editingCollection) {
-            await updateCollection(editingCollection.id!, data);
+            await updateCollection(editingCollection.collId!, data);
         } else {
             await addCollection(data);
         }
@@ -223,21 +209,21 @@ export default function HomePage({onNavigate}: HomePageProps) {
                     onDragStart={() => setActiveMenuId(null)}
                     onDragEnd={handleDragEnd}
                 >
-                    <SortableContext items={visibleCollections.map(c => c.id)} strategy={rectSortingStrategy}>
+                    <SortableContext items={visibleCollections.map(c => c.collId)} strategy={rectSortingStrategy}>
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-20">
                             {visibleCollections.map((item) => (
                                 <SortableCollectionCard
-                                    key={item.id}
+                                    key={item.collId}
                                     item={item}
                                     onNavigate={onNavigate}
-                                    isMenuOpen={activeMenuId === item.id}
+                                    isMenuOpen={activeMenuId === item.collId}
                                     onToggleMenu={(e) => {
                                         e.stopPropagation();
-                                        setActiveMenuId(activeMenuId === item.id ? null : item.id);
+                                        setActiveMenuId(activeMenuId === item.collId ? null : item.collId);
                                     }}
                                     onEdit={() => handleEdit(item)}
                                     onDelete={() => {
-                                        setDeleteTargetId(item.id);
+                                        setDeleteTargetId(item.collId);
                                         setIsDeleteModalOpen(true);
                                         setActiveMenuId(null);
                                     }}

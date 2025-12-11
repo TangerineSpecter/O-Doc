@@ -34,7 +34,7 @@ export const SortableCollectionCard = ({
         transition,
         isDragging
     } = useSortable({
-        id: item.id,
+        id: item.collId,
         disabled: item.isTop
     });
 

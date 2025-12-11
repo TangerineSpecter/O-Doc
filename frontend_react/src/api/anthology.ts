@@ -19,7 +19,6 @@ export interface CreateAnthologyParams {
 
 // 定义文集返回数据类型
 export interface Anthology {
-    id: number;
     collId: string;
     title: string;
     count: number;
@@ -43,7 +42,7 @@ export const getAnthologyList = () => {
 
 // 新增：文集排序接口
 export const sortAnthology = (collId: string, sort: number) => {
-    return request.put<any, void>(`/anthology/${collId}/sort`, { sort });
+    return request.put<any, void>(`/anthology/${collId}/sort`, {sort});
 };
 
 // 新增：更新文集接口

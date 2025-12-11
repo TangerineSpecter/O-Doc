@@ -70,6 +70,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
         const fetchArticleDetail = async () => {
             try {
                 setArticleLoading(true);
+                // 此时不要清空 articleDetail，或者可以清空以显示空白，但不要卸载组件
                 const detail = await getArticleDetail(activeDocId);
                 setArticleDetail(detail);
             } catch (error) {
@@ -134,23 +135,13 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
         }
     };
 
+    // 这里只处理整树加载，文章详情加载移到下方 render 内部处理
     if (loading && flatDocs.length === 0) {
         return (
             <div className="flex h-screen items-center justify-center bg-[#F9FAFB]">
                 <div className="flex flex-col items-center gap-3 text-slate-400">
                     <Loader2 className="w-8 h-8 animate-spin text-orange-500"/>
                     <span className="text-sm">正在加载文档目录...</span>
-                </div>
-            </div>
-        );
-    }
-
-    if (articleLoading && activeDocId) {
-        return (
-            <div className="flex h-screen items-center justify-center bg-[#F9FAFB]">
-                <div className="flex flex-col items-center gap-3 text-slate-400">
-                    <Loader2 className="w-8 h-8 animate-spin text-orange-500"/>
-                    <span className="text-sm">正在加载文章详情...</span>
                 </div>
             </div>
         );
@@ -204,22 +195,32 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                     <span className="font-bold text-slate-700">{activeDocId ? '文章详情' : '目录大纲'}</span>
                 </div>
 
+                {/* 核心修改：将 Loading 放在主内容区内部，而不是替换整个页面 */}
                 {activeDocId ? (
-                    <div className="min-h-full bg-white">
-                        <Article
-                            onBack={handleResetView}
-                            isEmbedded={true}
-                            scrollContainerId="right-content-window"
-                            onEdit={handleEditArticle}
-                            onDelete={handleDeleteArticle}
-                            content={articleDetail?.content}
-                            title={articleDetail?.title}
-                            category={articleDetail?.categoryDetail?.name || '未分类'}
-                            categoryId={articleDetail?.categoryDetail?.categoryId}
-                            tags={articleDetail?.tagDetails?.map(tag => tag.name) || []}
-                            date={articleDetail?.updatedAt}
-                            attachments={articleDetail?.attachments}
-                        />
+                    <div className="min-h-full bg-white relative">
+                        {articleLoading ? (
+                            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 h-[50vh]">
+                                <div className="flex flex-col items-center gap-3 text-slate-400">
+                                    <Loader2 className="w-8 h-8 animate-spin text-orange-500"/>
+                                    <span className="text-sm">加载中...</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <Article
+                                onBack={handleResetView}
+                                isEmbedded={true}
+                                scrollContainerId="right-content-window"
+                                onEdit={handleEditArticle}
+                                onDelete={handleDeleteArticle}
+                                content={articleDetail?.content}
+                                title={articleDetail?.title}
+                                category={articleDetail?.categoryDetail?.name || '未分类'}
+                                categoryId={articleDetail?.categoryDetail?.categoryId}
+                                tags={articleDetail?.tagDetails?.map(tag => tag.name) || []}
+                                date={articleDetail?.updatedAt}
+                                attachments={articleDetail?.attachments}
+                            />
+                        )}
                     </div>
                 ) : (
                     <OutlineContent

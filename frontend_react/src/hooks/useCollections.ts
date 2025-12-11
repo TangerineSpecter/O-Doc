@@ -1,16 +1,24 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useToast } from '../components/common/ToastProvider';
-import { getAnthologyList, createAnthology, sortAnthology, updateAnthology, deleteAnthology, CreateAnthologyParams, Anthology } from '../api/anthology';
-import { getIconComponent } from '../constants/iconList';
-import { Collection } from '../components/SortableCollectionCard';
-import { DragEndEvent } from '@dnd-kit/core';
-import { arrayMove } from '@dnd-kit/sortable';
+import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useToast} from '../components/common/ToastProvider';
+import {
+    Anthology,
+    createAnthology,
+    CreateAnthologyParams,
+    deleteAnthology,
+    getAnthologyList,
+    sortAnthology,
+    updateAnthology
+} from '../api/anthology';
+import {getIconComponent} from '../constants/iconList';
+import {Collection} from '../components/SortableCollectionCard';
+import {DragEndEvent} from '@dnd-kit/core';
+import {arrayMove} from '@dnd-kit/sortable';
 
 export const useCollections = () => {
     const toast = useToast();
     const [collections, setCollections] = useState<Collection[]>([]);
     const [loading, setLoading] = useState(false);
-    
+
     // 筛选排序状态
     const [filterType, setFilterType] = useState('all');
     const [sortType, setSortType] = useState('default');
@@ -45,20 +53,20 @@ export const useCollections = () => {
     const displayCollections = useMemo(() => {
         let result = [...collections];
         if (filterType === 'top') result = result.filter(item => item.isTop);
-        
+
         if (sortType === 'count') result.sort((a, b) => b.count - a.count);
         else if (sortType === 'az') result.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
-        
+
         return result;
     }, [collections, filterType, sortType]);
 
     // 3. 处理拖拽排序
     const handleDragEnd = async (event: DragEndEvent) => {
-        const { active, over } = event;
+        const {active, over} = event;
         if (!over || active.id === over.id) return;
 
-        const oldIndex = collections.findIndex((c) => c.id === active.id);
-        const newIndex = collections.findIndex((c) => c.id === over.id);
+        const oldIndex = collections.findIndex((c) => c.collId === active.id);
+        const newIndex = collections.findIndex((c) => c.collId === over.id);
 
         // 乐观更新 (Optimistic UI Update)
         const newCollections = arrayMove(collections, oldIndex, newIndex);
@@ -115,14 +123,14 @@ export const useCollections = () => {
     };
 
     // 5. 处理更新 (集成后端接口)
-    const updateCollection = async (id: number, data: any) => {
+    const updateCollection = async (collId: string, data: any) => {
         try {
-            const collection = collections.find(c => c.id === id);
+            const collection = collections.find(c => c.collId === collId);
             if (!collection) {
                 toast.error("文集不存在");
                 return false;
             }
-            
+
             const params: Partial<CreateAnthologyParams> = {
                 title: data.title,
                 description: data.description,
@@ -130,12 +138,12 @@ export const useCollections = () => {
                 permission: data.permission,
                 isTop: data.isTop
             };
-            
+
             const response = await updateAnthology(collection.collId, params);
-            
+
             // 更新本地数据
             setCollections(prev => prev.map(c => {
-                if (c.id === id) {
+                if (c.collId === collId) {
                     return {
                         ...c,
                         ...response,
@@ -145,7 +153,7 @@ export const useCollections = () => {
                 }
                 return c;
             }));
-            
+
             toast.success("文集已更新");
             return true;
         } catch (error) {
@@ -156,19 +164,19 @@ export const useCollections = () => {
     };
 
     // 6. 处理删除 (集成后端接口)
-    const removeCollection = async (id: number) => {
+    const removeCollection = async (collId: string) => {
         try {
-            const collection = collections.find(c => c.id === id);
+            const collection = collections.find(c => c.collId === collId);
             if (!collection) {
                 toast.error("文集不存在");
                 return false;
             }
-            
+
             await deleteAnthology(collection.collId);
-            
+
             // 更新本地数据
-            setCollections(prev => prev.filter(c => c.id !== id));
-            
+            setCollections(prev => prev.filter(c => c.collId !== collId));
+
             toast.success('文集已删除');
             return true;
         } catch (error) {
