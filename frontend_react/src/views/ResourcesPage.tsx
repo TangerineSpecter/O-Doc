@@ -89,24 +89,29 @@ export default function ResourcesPage() {
                 pageSize: PAGE_SIZE,
                 type: activeTab === 'all' ? undefined : activeTab,
                 linked: showUnlinkedOnly ? false : undefined,
-                searchQuery: searchQuery || undefined // 修复参数名
+                searchQuery: searchQuery || undefined
             };
 
             const response = await getResources(params);
-            // API返回的是ResourceItem[]，直接使用
-            const newData = response;
+
+            // --- 核心修复：解构响应对象 ---
+            // 后端返回结构: { list: [], total: 100, hasMore: true, ... }
+            const { list, total, hasMore: backendHasMore } = response;
 
             if (filterVersion.current !== currentVersion) return;
 
             if (pageNum === 1) {
-                setVisibleData(newData);
-                setTotalCount(newData.length); // 初始加载时设置总数
+                setVisibleData(list);
+                setTotalCount(total);
             } else {
-                setVisibleData(prev => [...prev, ...newData]);
-                setTotalCount(prev => prev + newData.length); // 加载更多时更新总数
+                setVisibleData(prev => [...prev, ...list]);
+                setTotalCount(total); // 更新总数以防变化
             }
+
             setPage(pageNum);
-            setHasMore(newData.length >= PAGE_SIZE); // 根据返回数量判断是否有更多
+            // 使用后端返回的 hasMore 字段
+            setHasMore(backendHasMore);
+
         } catch (error) {
             console.error('Failed to fetch resources:', error);
             if (filterVersion.current !== currentVersion) return;
@@ -243,26 +248,28 @@ export default function ResourcesPage() {
 
     const confirmBatchDelete = async () => {
         try {
-            // Delete each selected resource
             for (const id of selectedIds) {
                 await deleteResource(id);
             }
-            
-            // Re-fetch resources to update the list
+
+            // 重新请求第一页数据
             const currentVersion = filterVersion.current;
             const response = await getResources({
                 page: 1,
                 pageSize: PAGE_SIZE,
                 type: activeTab === 'all' ? undefined : activeTab,
                 linked: showUnlinkedOnly ? false : undefined,
-                searchQuery: searchQuery || undefined // 修复参数名
+                searchQuery: searchQuery || undefined
             });
-            
+
+            // --- 核心修复：同样解构响应对象 ---
+            const { list, total, hasMore: backendHasMore } = response;
+
             if (filterVersion.current === currentVersion) {
-                setVisibleData(response);
-                setHasMore(response.length >= PAGE_SIZE);
+                setVisibleData(list);
+                setTotalCount(total);
+                setHasMore(backendHasMore);
                 setPage(1);
-                setTotalCount(response.length); // 更新总数
             }
             
             setSelectedIds(new Set());

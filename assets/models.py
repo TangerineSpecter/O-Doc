@@ -89,7 +89,7 @@ class Asset(models.Model):
         """获取来源信息"""
         if self.linked_article:
             return {
-                'id': self.linked_article.id,
+                'id': self.linked_article.article_id,
                 'title': self.linked_article.title
             }
         return None

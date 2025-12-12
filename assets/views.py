@@ -42,7 +42,7 @@ class ResourceListView(APIView):
                     Q(original_name__icontains=search_query)
                 )
 
-            if linked is not None:
+            if linked:
                 is_linked = linked.lower() == 'true'
                 queryset = queryset.filter(is_linked=is_linked)
 
@@ -62,7 +62,7 @@ class ResourceListView(APIView):
                     'name': asset['name'],
                     'type': asset['file_type'],
                     'size': asset['formatted_size'],
-                    'date': asset['upload_time'].strftime('%Y-%m-%d %H:%M:%S'),
+                    'date': asset['upload_time'],
                     'linked': asset['is_linked'],
                     'sourceArticle': asset['sourceArticle'],
                     'sourceType': asset['source_type']

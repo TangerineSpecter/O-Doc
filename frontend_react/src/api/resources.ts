@@ -41,9 +41,17 @@ export interface ResourceUploadResponse {
     sourceType?: string; // 资源来源类型
 }
 
+export interface ResourceListResponse {
+    list: ResourceItem[];
+    total: number;
+    page: number;
+    pageSize: number;
+    hasMore: boolean;
+}
+
 // 获取资源列表接口
 export const getResources = (params: GetResourcesParams) => {
-    return request.get<any, ResourceItem[]>('/resource/list', { params });
+    return request.get<any, ResourceListResponse>('/resource/list', { params });
 };
 
 // 创建资源接口
