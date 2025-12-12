@@ -9,7 +9,7 @@
 [![Docker](https://img.shields.io/badge/Docker-26.0+-2496ed.svg?logo=docker)](https://www.docker.com/)
 [![许可证](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](frontend_react/LICENSE)
 
-一个现代化的知识管理与文档展示平台，基于 Django 5 + React + Vite + Tailwind CSS 构建的一体化项目，专为团队知识记录、文档管理和信息共享而设计，支持 Docker 容器化部署。
+一个现代化的Ai知识管理与文档展示平台，基于 Django 5 + React + Vite + Tailwind CSS 构建的一体化项目，专为团队知识记录、文档管理和信息共享而设计，支持 AI 智能助手和RAG知识库。
 
 ## 📸 软件界面
 
@@ -34,16 +34,19 @@
 ## 🌟 项目特色
 
 - **📚 知识记录** - 系统化的文档分类与管理
+- **🤖 AI 智能助手** - 集成多种 AI 模型，提供智能对话和文档助手功能
 - **🔍 智能搜索** - 快速定位所需文档内容
 - **📱 响应式设计** - 完美适配各种设备尺寸
 - **🎨 优雅界面** - 现代化的视觉体验
 - **⚡ 高性能** - 基于 Vite 的快速开发与构建
+- **⚙️ 系统配置管理** - 灵活的 AI 提供商和模型配置功能
 
 ## 🛠 技术栈
 
 ### 后端框架
 - **Django 5** - 高性能 Python Web 框架，提供完整的后端功能
 - **SQLite 3** - 轻量级文件数据库，适合个人项目和小型应用
+- **Django REST Framework** - 构建 RESTful API 的强大工具
 
 ### 前端框架
 - **React 19** - 最新的 React 版本，提供卓越的开发体验
@@ -158,10 +161,24 @@ docker run -p 8000:11800 o-doc
 
 ## ✨ 核心功能
 
-### 文档展示
+### 文档管理
 - 卡片式文档布局，支持图标、标题、描述
 - 文档数量统计与置顶功能
 - 响应式网格布局，自适应不同屏幕尺寸
+- Markdown 编辑器，支持丰富的文档格式
+- 文档大纲自动生成
+
+### AI 智能助手
+- 多 AI 提供商支持（OpenAI、Ollama、DeepSeek 等）
+- 多种 AI 模型配置
+- 智能对话功能，支持上下文理解
+- 流式响应输出，提供流畅的交互体验
+
+### 系统配置
+- AI 提供商管理
+- AI 模型配置
+- 通用设置
+- 同步设置
 
 ### 搜索与筛选
 - **智能搜索框** - 支持快捷键 (⌘K) 快速调用
@@ -172,6 +189,7 @@ docker run -p 8000:11800 o-doc
 - **无限滚动** - 流畅的文档加载体验
 - **动画效果** - 优雅的过渡动画和交互反馈
 - **深色模式支持** - 适配不同使用场景
+- 丰富的编辑器组件（气泡菜单、斜杠菜单等）
 
 ## 🎯 使用场景
 
@@ -186,6 +204,7 @@ docker run -p 8000:11800 o-doc
 - **数据库**：默认使用 SQLite，配置在 `o_doc/settings.py` 中
 - **静态资源**：前端构建产物自动配置到 `/static/` 路径
 - **模板**：前端入口文件配置在 `templates/index.html`
+- **AI 配置**：系统设置模块管理 AI 提供商和模型配置
 
 ### 前端配置 (React + Vite)
 - **构建配置**：`vite.config.ts` 中设置了静态资源基础路径为 `/static/`
@@ -213,6 +232,12 @@ cd ..
 python manage.py migrate
 python manage.py runserver
 ```
+
+### 环境变量配置
+可在 `o_doc/settings.py` 中配置以下环境变量：
+- `AI_DEFAULT_PROVIDER` - 默认 AI 提供商
+- `AI_DEFAULT_MODEL` - 默认 AI 模型
+- `OPENAI_API_KEY` - OpenAI API 密钥（可选）
 
 ### Docker 容器部署
 ```bash
