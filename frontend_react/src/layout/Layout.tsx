@@ -10,32 +10,24 @@ import {
     ArrowUpDown,
     ArrowUpCircle,
     Leaf,
-    Zap // 新增图标
+    Zap,
+    FileText,
+    Loader2,
+    Library
 } from 'lucide-react';
 import packageJson from '../../package.json';
 import FloatingActionMenu from '../components/FloatingActionMenu';
-import { AIChatWindow } from '../components/AIChatWindow'; // 引入组件
+import { AIChatWindow } from '../components/AIChatWindow';
+import { getArticles, Article } from '../api/article';
+import request from '../utils/request'; // 引入 request 用于获取文集列表
 
 interface LayoutProps {
     children: ReactNode;
     onNavigate?: (viewName: string, params?: any) => void;
 }
 
-// 1. 修改搜索建议数据：只保留 AI 对话入口
-const searchSuggestions = [
-    {
-        id: 'ai-chat',
-        type: 'action',
-        title: "AI 智能对话",
-        subtitle: "基于知识库回答问题",
-        icon: <Zap className="w-4 h-4" />
-    },
-    // 如果需要保留文档搜索，可以加在这里，暂时按需求只留一个
-];
-
-// ... (compareVersions 函数保持不变) ...
+// 辅助函数：版本比较
 const compareVersions = (remoteVersion: string, localVersion: string) => {
-    // 移除可能存在的 'v' 前缀
     const v1 = remoteVersion.replace(/^v/, '').split('.').map(Number);
     const v2 = localVersion.replace(/^v/, '').split('.').map(Number);
     const len = Math.max(v1.length, v2.length);
@@ -48,18 +40,113 @@ const compareVersions = (remoteVersion: string, localVersion: string) => {
     return 0;
 };
 
+// 定义搜索建议项的类型
+interface SuggestionItem {
+    id: string;
+    type: 'ai' | 'article';
+    title: string;
+    subtitle: string;
+    icon: ReactNode;
+    data?: any;
+}
+
 export default function Layout({ children, onNavigate }: LayoutProps) {
+    // --- 搜索相关状态 ---
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchIndex, setSearchIndex] = useState(0);
     const searchInputRef = useRef<HTMLInputElement>(null);
 
-    // --- 新增：AI 窗口状态 ---
+    // 输入关键词与结果
+    const [keyword, setKeyword] = useState('');
+    const [articleResults, setArticleResults] = useState<Article[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+
+    // 辅助数据：文集名称映射
+    const [anthologyMap, setAnthologyMap] = useState<Record<string, string>>({});
+
+    // AI 窗口状态
     const [isChatOpen, setIsChatOpen] = useState(false);
 
-    // --- 版本检查状态 (保持不变) ---
+    // 版本检查状态
     const [hasNewVersion, setHasNewVersion] = useState(false);
     const [latestVersionStr, setLatestVersionStr] = useState('');
 
+    // --- 0. 初始化加载文集列表 (用于 ID 转 Name) ---
+    useEffect(() => {
+        const fetchAnthologies = async () => {
+            try {
+                // 尝试获取文集列表构建映射表
+                const res: any = await request.get('/anthology/list');
+                // 兼容不同的返回结构
+                const list = Array.isArray(res) ? res : (res.list || []);
+                const map: Record<string, string> = {};
+                list.forEach((item: any) => {
+                    // 兼容后端可能返回的字段名 (camelCase 或 snake_case)
+                    const id = item.collId || item.coll_id;
+                    const title = item.title;
+                    if (id && title) {
+                        map[id] = title;
+                    }
+                });
+                setAnthologyMap(map);
+            } catch (error) {
+                console.warn("Layout: Failed to load anthology map", error);
+            }
+        };
+        fetchAnthologies();
+    }, []);
+
+    // --- 1. 构建混合建议列表 ---
+    const suggestions: SuggestionItem[] = [
+        // 固定项：AI 对话
+        {
+            id: 'ai-chat',
+            type: 'ai',
+            title: keyword ? `询问 AI 关于 "${keyword}"` : "AI 智能对话",
+            subtitle: "基于知识库回答问题",
+            icon: <Zap className="w-4 h-4" />
+        },
+        // 动态项：文章搜索结果
+        ...articleResults.map(article => {
+            // 处理作者字段可能的不同命名
+            const authorName = (article as any).author || (article as any).userName || (article as any).user_id || 'admin';
+            // 处理文集名称
+            const collName = anthologyMap[article.collId] || article.collId || '未知文集';
+
+            return {
+                id: `art-${article.articleId}`,
+                type: 'article' as const,
+                title: article.title,
+                subtitle: `文集: ${collName} · 作者: ${authorName}`,
+                icon: <FileText className="w-4 h-4" />,
+                data: article
+            };
+        })
+    ];
+
+    // --- 2. 搜索逻辑 (带防抖) ---
+    useEffect(() => {
+        const timer = setTimeout(async () => {
+            if (!keyword.trim()) {
+                setArticleResults([]);
+                return;
+            }
+
+            setIsSearching(true);
+            try {
+                const res = await getArticles({ keyword });
+                setArticleResults(res.slice(0, 8));
+            } catch (error) {
+                console.error("搜索失败", error);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [keyword]);
+
+    // --- 版本检查 ---
     useEffect(() => {
         const checkUpdate = async () => {
             try {
@@ -82,7 +169,7 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
         checkUpdate();
     }, []);
 
-    // 键盘事件处理
+    // --- 键盘事件处理 ---
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -98,27 +185,28 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
 
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                setSearchIndex(prev => (prev + 1) % searchSuggestions.length);
+                setSearchIndex(prev => (prev + 1) % suggestions.length);
             }
             if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                setSearchIndex(prev => (prev - 1 + searchSuggestions.length) % searchSuggestions.length);
+                setSearchIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
             }
 
-            // 处理回车：选中菜单项
             if (e.key === 'Enter') {
                 e.preventDefault();
-                handleSelectSuggestion(searchSuggestions[searchIndex]);
+                handleSelectSuggestion(suggestions[searchIndex]);
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isSearchOpen, searchIndex]);
+    }, [isSearchOpen, searchIndex, suggestions]);
 
     useEffect(() => {
         if (isSearchOpen) {
             setSearchIndex(0);
+            setKeyword('');
+            setArticleResults([]);
             setTimeout(() => searchInputRef.current?.focus(), 50);
         }
     }, [isSearchOpen]);
@@ -127,19 +215,22 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
         window.open('https://github.com/TangerineSpecter/O-Doc', '_blank');
     };
 
-    // --- 核心逻辑：处理搜索建议点击 ---
-    const handleSelectSuggestion = (item: typeof searchSuggestions[0]) => {
-        if (item.id === 'ai-chat') {
-            setIsSearchOpen(false); // 关闭搜索框
-            setIsChatOpen(true);    // 打开 AI 窗口
+    // --- 3. 处理选中逻辑 ---
+    const handleSelectSuggestion = (item: SuggestionItem) => {
+        setIsSearchOpen(false);
+
+        if (item.type === 'ai') {
+            setIsChatOpen(true);
+        } else if (item.type === 'article' && item.data) {
+            if (onNavigate) {
+                onNavigate('article', item.data);
+            }
         }
-        // 这里可以扩展其他搜索逻辑，比如跳转到文档详情
     };
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-orange-100 selection:text-orange-900">
 
-            {/* 全局 AI 对话窗口 */}
             <AIChatWindow isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
             {/* Search Modal */}
@@ -156,44 +247,68 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                             <input
                                 ref={searchInputRef}
                                 type="text"
-                                placeholder="输入问题唤起 AI，或搜索文档..."
+                                value={keyword}
+                                onChange={(e) => setKeyword(e.target.value)}
+                                placeholder="输入问题唤起 AI，或搜索文档标题..."
                                 className="flex-1 text-lg bg-transparent border-none outline-none text-slate-800 placeholder:text-slate-400 h-8"
                             />
+                            {isSearching && <Loader2 className="w-4 h-4 text-orange-500 animate-spin" />}
                             <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-mono">ESC</span>
                         </div>
 
                         <div className="max-h-[60vh] overflow-y-auto p-2">
-                            <div className="space-y-1">
-                                {searchSuggestions.map((item, index) => (
-                                    <div
-                                        key={item.id}
-                                        onClick={() => handleSelectSuggestion(item)}
-                                        onMouseEnter={() => setSearchIndex(index)}
-                                        className={`flex items-center justify-between px-3 py-3 rounded-lg cursor-pointer transition-colors ${index === searchIndex ? 'bg-orange-50' : 'hover:bg-slate-50'
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${index === searchIndex ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
-                                                {item.icon}
-                                            </div>
-                                            <div className="flex flex-col">
-                                                <span className={`text-sm ${index === searchIndex ? 'text-slate-900 font-medium' : 'text-slate-700'}`}>
-                                                    {item.title}
-                                                </span>
-                                                {/* 如果是 AI 选项，可以在这里显示一些提示词 */}
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className={`text-xs ${index === searchIndex ? 'text-orange-600' : 'text-slate-400'}`}>
-                                                {item.subtitle}
-                                            </span>
-                                            {index === searchIndex && (
-                                                <CornerDownLeft className="w-3.5 h-3.5 text-orange-400" />
+                            {suggestions.length === 0 ? (
+                                <div className="p-8 text-center text-slate-400 text-sm">暂无搜索结果</div>
+                            ) : (
+                                <div className="space-y-1">
+                                    {suggestions.map((item, index) => (
+                                        <div key={item.id}>
+                                            {/* 分栏标题：仅在 AI 选项(index 0) 之后的第一个文章项显示 */}
+                                            {index === 1 && item.type === 'article' && (
+                                                <div className="px-3 pt-3 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 border-t border-slate-100 mt-1">
+                                                    <Library className="w-3 h-3" />
+                                                    文章检索结果
+                                                </div>
                                             )}
+
+                                            <div
+                                                onClick={() => handleSelectSuggestion(item)}
+                                                onMouseEnter={() => setSearchIndex(index)}
+                                                className={`flex items-center justify-between px-3 py-3 rounded-lg cursor-pointer transition-colors ${
+                                                    index === searchIndex ? 'bg-orange-50' : 'hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3 overflow-hidden">
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                                        item.type === 'ai' 
+                                                            ? (index === searchIndex ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-orange-500')
+                                                            : (index === searchIndex ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500')
+                                                    }`}>
+                                                        {item.icon}
+                                                    </div>
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className={`text-sm truncate ${index === searchIndex ? 'text-slate-900 font-medium' : 'text-slate-700'}`}>
+                                                            {item.title}
+                                                        </span>
+                                                        <span className="text-xs text-slate-400 truncate">
+                                                            {item.subtitle}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {index === searchIndex && (
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <span className="text-xs text-orange-600 font-medium">
+                                                            {item.type === 'ai' ? '开始对话' : '跳转文档'}
+                                                        </span>
+                                                        <CornerDownLeft className="w-3.5 h-3.5 text-orange-400" />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         <div className="bg-slate-50 border-t border-slate-100 px-4 py-2 flex justify-between items-center text-xs text-slate-500">
@@ -201,18 +316,17 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                                 <span className="flex items-center gap-1"><ArrowUpDown className="w-3 h-3" /> 选择</span>
                                 <span className="flex items-center gap-1"><CornerDownLeft className="w-3 h-3" /> 确认</span>
                             </div>
-                            <div>小橘文档 AI 助手</div>
+                            <div>小橘文档 Search Pro</div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Navbar */}
+            {/* Navbar (保持原有逻辑) */}
             <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-16">
 
-                        {/* Logo Section */}
                         <div className="flex items-center gap-3">
                             <div onClick={() => onNavigate && onNavigate('home')} className="w-9 h-9 rounded-xl flex items-center justify-center bg-orange-50 border border-orange-100/50 shadow-[0_2px_8px_-2px_rgba(249,115,22,0.3)] p-0.5 overflow-hidden relative group hover:shadow-[0_4px_12px_-2px_rgba(249,115,22,0.4)] transition-shadow duration-300 cursor-pointer">
                                 <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8">
@@ -227,19 +341,23 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                                 <span className="text-xl font-bold tracking-tight text-slate-900">
                                     小橘<span className="text-orange-600">文档</span>
                                 </span>
-                                {/* 版本号保持不变 */}
                                 <button
                                     className={`group flex items-center gap-1.5 px-2 py-0.5 ml-1 rounded-[4px] shadow-[0_0_8px_rgba(132,204,22,0.2)] hover:shadow-[0_0_15px_rgba(132,204,22,0.4)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer relative overflow-hidden ${hasNewVersion ? 'bg-orange-50 border border-orange-200 text-orange-700' : 'bg-lime-50 border border-lime-200 text-lime-800'}`}
                                     onClick={handleVersionClick}
                                 >
                                     {hasNewVersion ? <ArrowUpCircle className="w-3 h-3 text-orange-500 animate-bounce" /> : <Leaf className="w-3 h-3 text-lime-600" />}
                                     <span className="text-[11px] font-bold tracking-wide font-mono relative z-10">v{packageJson.version}</span>
+                                    {hasNewVersion && (
+                                        <span className="absolute top-0 right-0 -mt-0.5 -mr-0.5 flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                        </span>
+                                    )}
                                 </button>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-4 sm:gap-6">
-                            {/* 修改：搜索按钮文案 */}
                             <div
                                 className="hidden md:flex relative group cursor-pointer"
                                 onClick={() => setIsSearchOpen(true)}
@@ -264,7 +382,6 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                                 <Search className="w-5 h-5" />
                             </button>
 
-                            {/* ... 其他 Nav Items (Bell, User) 保持不变 ... */}
                             <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
                                 <button className="p-2 text-slate-500 hover:text-orange-600 transition-colors relative">
                                     <Bell className="w-5 h-5" />
@@ -305,7 +422,6 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
             {children}
             <FloatingActionMenu />
 
-            {/* Background Effects */}
             <div className="fixed inset-0 pointer-events-none z-[-1] opacity-40">
                 <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-orange-50/50 to-transparent"></div>
                 <div className="absolute right-0 top-20 w-96 h-96 bg-blue-100/30 rounded-full blur-3xl"></div>
