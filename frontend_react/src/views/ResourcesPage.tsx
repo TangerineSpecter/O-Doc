@@ -6,7 +6,7 @@ import {
     BookOpen
 } from 'lucide-react';
 
-import { getResources, deleteResource, ResourceItem, GetResourcesParams } from '../api/resources';
+import { getResources, deleteResource, ResourceItem, GetResourcesParams, FormattedSize } from '../api/resources';
 
 interface SelectionBox {
     left: number;
@@ -27,7 +27,7 @@ interface TypeConfigItem {
 const TYPE_CONFIG: Record<string, TypeConfigItem> = {
     all: { label: '全部', icon: <HardDrive />, color: 'text-slate-500 bg-slate-100' },
     image: { label: '图片', icon: <ImageIcon />, color: 'text-purple-600 bg-purple-50' },
-    doc: { label: '文档', icon: <FileText />, color: 'text-blue-600 bg-blue-50' },
+    document: { label: '文档', icon: <FileText />, color: 'text-blue-600 bg-blue-50' },
     video: { label: '视频', icon: <Video />, color: 'text-rose-600 bg-rose-50' },
     audio: { label: '音频', icon: <Music />, color: 'text-amber-600 bg-amber-50' },
     code: { label: '代码', icon: <FileCode />, color: 'text-slate-700 bg-slate-200' },
@@ -52,6 +52,9 @@ export default function ResourcesPage() {
     const [hasMore, setHasMore] = useState(true);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [totalCount, setTotalCount] = useState(0); // 添加总数状态
+    const [totalSize, setTotalSize] = useState<number>(0); // 总文件大小（字节）
+    const [formattedTotalSize, setFormattedTotalSize] = useState<FormattedSize>({ size: 0, unit: 'B' }); // 格式化的总文件大小
+    const [typeSizes, setTypeSizes] = useState<Record<string, FormattedSize>>({}); // 按类型统计的空间大小
 
     // --- Delete Modal State ---
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -96,13 +99,16 @@ export default function ResourcesPage() {
 
             // --- 核心修复：解构响应对象 ---
             // 后端返回结构: { list: [], total: 100, hasMore: true, ... }
-            const { list, total, hasMore: backendHasMore } = response;
+            const { list, total, hasMore: backendHasMore, totalSize: backendTotalSize, formattedTotalSize: backendFormattedTotalSize, typeSizes: backendTypeSizes } = response;
 
             if (filterVersion.current !== currentVersion) return;
 
             if (pageNum === 1) {
                 setVisibleData(list);
                 setTotalCount(total);
+                setTotalSize(backendTotalSize || 0);
+                setFormattedTotalSize(backendFormattedTotalSize || { size: 0, unit: 'B' });
+                setTypeSizes(backendTypeSizes || {});
             } else {
                 setVisibleData(prev => [...prev, ...list]);
                 setTotalCount(total); // 更新总数以防变化
@@ -372,7 +378,7 @@ export default function ResourcesPage() {
                         <div className="flex flex-col">
                             <span className="text-[10px] text-slate-400 font-medium">已用空间</span>
                             <div className="flex items-end gap-1">
-                                <span className="text-sm font-bold text-slate-800">12.5 GB</span>
+                                <span className="text-sm font-bold text-slate-800">{formattedTotalSize.size} {formattedTotalSize.unit}</span>
                                 <span className="text-[10px] text-slate-400 mb-0.5">/ 50 GB</span>
                             </div>
                         </div>

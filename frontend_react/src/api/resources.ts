@@ -41,12 +41,20 @@ export interface ResourceUploadResponse {
     sourceType?: string; // 资源来源类型
 }
 
+export interface FormattedSize {
+    size: number;
+    unit: string;
+}
+
 export interface ResourceListResponse {
     list: ResourceItem[];
     total: number;
     page: number;
     pageSize: number;
     hasMore: boolean;
+    totalSize: number; // 总文件大小（字节）
+    formattedTotalSize: FormattedSize; // 格式化的总文件大小
+    typeSizes: Record<string, FormattedSize>; // 按类型统计的空间大小
 }
 
 // 获取资源列表接口

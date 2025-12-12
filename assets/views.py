@@ -4,7 +4,7 @@ import os
 
 from django.conf import settings
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.http import HttpResponse
 from rest_framework.views import APIView
 
@@ -69,12 +69,33 @@ class ResourceListView(APIView):
                 }
                 resources.append(resource_data)
 
+            # 计算总文件大小
+            total_size = queryset.aggregate(total=Sum('file_size'))['total'] or 0
+            
+            # 格式化总文件大小
+            def format_size(size):
+                """格式化文件大小"""
+                for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+                    if size < 1024.0:
+                        return {'size': round(size, 1), 'unit': unit}
+                    size /= 1024.0
+                return {'size': round(size, 1), 'unit': 'PB'}
+            
+            formatted_total_size = format_size(total_size)
+
+            # 按类型计算空间大小
+            type_sizes = queryset.values('file_type').annotate(size=Sum('file_size'))
+            formatted_type_sizes = {item['file_type']: format_size(item['size']) for item in type_sizes}
+            
             return success_result({
                 'list': resources,
                 'total': paginator.count,
                 'page': page,
                 'pageSize': page_size,
-                'hasMore': page_obj.has_next()
+                'hasMore': page_obj.has_next(),
+                'totalSize': total_size,  # 总文件大小（字节）
+                'formattedTotalSize': formatted_total_size,  # 格式化的总文件大小
+                'typeSizes': formatted_type_sizes  # 按类型统计的空间大小
             })
 
         except Exception as e:
