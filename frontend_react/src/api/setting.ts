@@ -83,5 +83,30 @@ export const MOCK_PROVIDERS: AIProvider[] = [
 ];
 
 // 这里预留后续对接真实接口的位置
-// export const getSettings = () => request.get('/settings');
-// export const updateSettings = (data: any) => request.put('/settings', data);
+// 1. 获取所有服务商列表
+export const getProviders = () => request.get<AIProvider[]>('/settings/providers/');
+
+// 2. 保存服务商 (新增或更新)
+export const saveProvider = (data: Partial<AIProvider>) => {
+    if (data.id) {
+        return request.put<AIProvider>(`/settings/providers/${data.id}/`, data);
+    }
+    return request.post<AIProvider>('/settings/providers/', data);
+};
+
+// 3. 删除服务商
+export const deleteProvider = (id: string) => request.delete(`/settings/providers/${id}/`);
+
+// 4. 添加/保存模型
+export const saveModel = (data: { provider: string, name: string, type: ModelType }) => {
+    return request.post<AIModel>('/settings/models/', data);
+};
+
+// 5. 删除模型
+export const deleteModel = (id: string) => request.delete(`/settings/models/${id}/`);
+
+// 6. 获取系统 AI 配置
+export const getSystemAIConfig = () => request.get<SystemAIConfig>('/settings/config/get_ai_config/');
+
+// 7. 保存系统 AI 配置
+export const saveSystemAIConfig = (data: SystemAIConfig) => request.post('/settings/config/save_ai_config/', data);

@@ -26,6 +26,7 @@ urlpatterns = [
     path('api/category/', include('categories.urls')),  # 分类接口
     path('api/tag/', include('tags.urls')),  # 标签接口
     path('api/', include('assets.urls')),  # 资源管理接口
+    path('api/settings/', include('system_settings.urls')),  # 系统设置接口
 ]
 
 # 在开发环境中提供媒体文件服务

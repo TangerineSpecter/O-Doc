@@ -50,3 +50,20 @@ def generate_tag_id() -> str:
     :return: 带tag前缀的唯一ID字符串
     """
     return generate_unique_id("tag")
+
+# 为 AI 提供商生成带 prov 前缀的 ID
+def generate_provider_id() -> str:
+    """
+    生成带 prov 前缀的提供商ID
+    :return: 带 prov 前缀的唯一ID字符串
+    """
+    return generate_unique_id("prov")
+
+
+# 为 AI 模型生成带 mod 前缀的 ID
+def generate_model_id() -> str:
+    """
+    生成带 mod 前缀的模型ID
+    :return: 带 mod 前缀的唯一ID字符串
+    """
+    return generate_unique_id("mod")

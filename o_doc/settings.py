@@ -41,7 +41,8 @@ INSTALLED_APPS = [
     'categories.apps.CategoriesConfig',
     'user.apps.UserConfig',
     'stats.apps.StatsConfig',
-    'assets.apps.AssetsConfig'
+    'assets.apps.AssetsConfig',
+    'system_settings'
 ]
 
 # DRF全局配置
