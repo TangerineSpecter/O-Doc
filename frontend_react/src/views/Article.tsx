@@ -5,15 +5,13 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
-import { Paperclip, Download } from 'lucide-react';
+import { Download, Paperclip } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import { articleDemoData } from "../mocks/articleDemoData";
 import { useArticle } from '../hooks/useArticle';
-import { ArticleIcons, MermaidChart, CodeBlock, CUSTOM_STYLES } from '../components/Article/MarkdownElements';
+import { ArticleIcons, CodeBlock, CUSTOM_STYLES, MermaidChart } from '../components/Article/MarkdownElements';
 import { TableOfContents } from '../components/Article/TableOfContents';
 
-// 2. 在这里直接定义 AttachmentItem 接口 (解耦依赖)
 export interface AttachmentItem {
     id: string;
     name: string;
@@ -32,12 +30,10 @@ interface ArticleProps {
     categoryId?: string;
     tags?: string[];
     date?: string;
-    attachments?: AttachmentItem[]; // 使用本地定义的接口
+    attachments?: AttachmentItem[];
     onEdit?: () => void;
     onDelete?: () => void;
 }
-
-const DEFAULT_ARTICLE_DATA = articleDemoData;
 
 export default function Article({
     isEmbedded,
@@ -54,14 +50,16 @@ export default function Article({
     onDelete
 }: ArticleProps) {
     const navigate = useNavigate();
-    // 1. 准备数据
-    const displayTitle = title || DEFAULT_ARTICLE_DATA.title;
-    const displayCategory = category || DEFAULT_ARTICLE_DATA.category;
-    const displayDate = date || DEFAULT_ARTICLE_DATA.date;
-    const displayTags = tags && tags.length > 0 ? tags : DEFAULT_ARTICLE_DATA.tags;
-    const displayMarkdown = content !== undefined ? content : DEFAULT_ARTICLE_DATA.content;
 
-    // 2. 使用 Hook
+    // 1. 准备数据
+    const displayTitle = title || "";
+    const displayCategory = category || "未分类";
+    const displayDate = date || "";
+    const displayTags = tags || [];
+    const displayMarkdown = content || "";
+
+    // 2. 核心修复：必须先执行 Hook，不能在 Hook 前面 return！
+    // 即使内容为空，也要让 useArticle 正常执行（传入空字符串即可）
     const {
         contentWithSyntax,
         headers,
@@ -71,7 +69,7 @@ export default function Article({
         handleScrollToTop
     } = useArticle(displayMarkdown, scrollContainerId);
 
-    // 3. 配置 Markdown 组件映射
+    // 3. 配置 Markdown 组件 (Hook: useMemo)
     const components = useMemo(() => ({
         pre: (props: any) => <div className="not-prose">{props.children}</div>,
         p: (props: any) => {
@@ -127,6 +125,11 @@ export default function Article({
         td: ({ children }: { children: ReactNode }) => <td className="px-4 py-3 border-b border-gray-100 text-gray-600">{children}</td>
     }), []);
 
+    // 4. 所有的 Hook 执行完毕后，再进行条件渲染
+    if (!content && !title) {
+        return <div className="min-h-[60vh]"></div>;
+    }
+
     return (
         <>
             <style>{CUSTOM_STYLES}</style>
@@ -178,19 +181,11 @@ export default function Article({
 
                         {/* Markdown Render */}
                         <article className="
-                            mx-auto                /* 水平居中 */
-                            prose prose-lg         /* 使用上面配置好的 typography 样式 */
-                            prose-slate            /* 基础色系 */
-                            max-w-[75ch]           /* 强制限制内容最大宽度，75字符是阅读舒适区 */
-                            
-                            /* 针对图片的优化 */
-                            prose-img:rounded-xl   /* 图片圆角 */
-                            prose-img:shadow-lg    /* 图片阴影 */
-                            prose-img:my-8         /* 图片垂直间距 */
-                            
-                            /* 针对段落的优化 */
-                            prose-p:text-justify   /* 两端对齐 (中文排版更整齐) */
-                            prose-p:my-6           /* 增加段落间距 */
+                            mx-auto
+                            prose prose-lg prose-slate
+                            max-w-[75ch]
+                            prose-img:rounded-xl prose-img:shadow-lg prose-img:my-8
+                            prose-p:text-justify prose-p:my-6
                         ">
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm, remarkMath]}
