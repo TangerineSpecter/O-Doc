@@ -249,3 +249,4 @@ Apache License 2.0 - 详见 [LICENSE](frontend_react/LICENSE) 文件
 ---
 
 **小橘文档** - 让知识管理更简单、更高效！ 🍊
+**项目地址** - [点击跳转](https://github.com/TangerineSpecter/O-Doc)
