@@ -2,13 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* --- 1. 定义自定义字体 --- */
+@font-face {
+  font-family: 'MyCustomFont'; /* 给字体起个名字，后面要用 */
+  src: url('./assets/fonts/MiSans-Semibold.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap; /* 推荐加上：防止字体加载慢时文字隐形 */
+}
+
+@font-face {
+  font-family: 'MyCustomFont';
+  src: url('./assets/fonts/MiSans-Semibold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  /* 使用 tailwind 配置的 sans 字体 */
+  font-family: theme('fontFamily.sans'); 
+  line-height: 1.6;
   font-weight: 400;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  /* 优化字体渲染，让文字在 Mac 上不发虚 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -17,4 +34,10 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background-color: #f8fafc; /* 统一设置一个柔和的背景色 */
+}
+
+/* 专门针对代码块内部的字体优化 */
+code, pre {
+  font-family: theme('fontFamily.mono') !important;
 }
