@@ -139,16 +139,16 @@ export default function Article({
                         {/* Header */}
                         <header className="mb-10 pb-8 border-b border-slate-100">
                             <div className="flex flex-wrap items-center gap-3 mb-6">
-                            <button 
-                                onClick={() => navigate(`/categories?catId=${categoryId || displayCategory}`)}
-                                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/30 cursor-pointer hover:bg-blue-700 transition-colors"
-                            >
-                                {displayCategory}
-                            </button>
+                                <button
+                                    onClick={() => navigate(`/categories?catId=${categoryId || displayCategory}`)}
+                                    className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/30 cursor-pointer hover:bg-blue-700 transition-colors"
+                                >
+                                    {displayCategory}
+                                </button>
 
                                 {displayTags.map(tag => (
-                                    <button 
-                                        key={tag} 
+                                    <button
+                                        key={tag}
                                         onClick={() => navigate(`/tags?tagId=${tag}`)}
                                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 cursor-pointer hover:bg-indigo-100 transition-colors"
                                     >
@@ -177,7 +177,21 @@ export default function Article({
                         </header>
 
                         {/* Markdown Render */}
-                        <article className="max-w-none prose prose-slate prose-lg prose-p:[&:has(>.katex:only-child)]:text-center prose-a:text-[#0ea5e9] prose-a:no-underline hover:prose-a:underline">
+                        <article className="
+                            mx-auto                /* 水平居中 */
+                            prose prose-lg         /* 使用上面配置好的 typography 样式 */
+                            prose-slate            /* 基础色系 */
+                            max-w-[75ch]           /* 强制限制内容最大宽度，75字符是阅读舒适区 */
+                            
+                            /* 针对图片的优化 */
+                            prose-img:rounded-xl   /* 图片圆角 */
+                            prose-img:shadow-lg    /* 图片阴影 */
+                            prose-img:my-8         /* 图片垂直间距 */
+                            
+                            /* 针对段落的优化 */
+                            prose-p:text-justify   /* 两端对齐 (中文排版更整齐) */
+                            prose-p:my-6           /* 增加段落间距 */
+                        ">
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm, remarkMath]}
                                 rehypePlugins={[rehypeKatex, rehypeRaw]}
@@ -203,7 +217,7 @@ export default function Article({
                                                 </div>
                                                 <div className="min-w-0">
                                                     <div className="text-sm font-medium text-slate-700 truncate group-hover:text-orange-600 transition-colors">{att.name}</div>
-                                                <div className="text-xs text-slate-400">{att.size ? `${att.size}B` : '-'}</div>
+                                                    <div className="text-xs text-slate-400">{att.size ? `${att.size}B` : '-'}</div>
                                                 </div>
                                             </div>
                                             <a href={att.url} download={att.name} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="点击下载">
