@@ -67,10 +67,7 @@ const COMMANDS_CONFIG: Omit<CommandItem, 'icon'>[] = [
         label: '表格',
         value: '\n| 表头1 | 表头2 |\n| --- | --- |\n| 内容1 | 内容2 |\n',
         desc: '插入简单的表格'
-    },
-    {id: 'underline', label: '下划线', value: '++红色下划线重点++', cursorOffset: -2, desc: '添加红色下划线重点标记'},
-    {id: 'wave', label: '波浪线', value: '^^天蓝色波浪线^^', cursorOffset: -2, desc: '添加天蓝色波浪线标记'},
-    {id: 'watercolor', label: '水彩标记', value: '==重点水彩标记==', cursorOffset: -2, desc: '添加重点水彩标记'},
+    }
 ];
 
 // Helper to add icons
@@ -177,12 +174,20 @@ export const useEditor = () => {
         cmd.id.includes(searchQuery.toLowerCase())
     );
 
+    // --- 新增 State: 气泡菜单 ---
+    const [showBubbleMenu, setShowBubbleMenu] = useState(false);
+    const [bubbleMenuPosition, setBubbleMenuPosition] = useState({ top: 0, left: 0 });
+
     // --- Helpers ---
 
-    const getCaretCoordinates = () => {
+    // 增加 index 参数，允许计算任意位置的坐标（默认是当前光标）
+    const getCaretCoordinates = (index: number | null = null) => {
         const textarea = textareaRef.current;
-        if (!textarea) return {top: 0, left: 0};
-        const {selectionStart} = textarea;
+        if (!textarea) return { top: 0, left: 0 };
+        
+        // 如果未传入 index，则使用当前光标位置
+        const cursorPos = index !== null ? index : textarea.selectionStart;
+        
         const div = document.createElement('div');
         const style = window.getComputedStyle(textarea);
         Array.from(style).forEach(prop => div.style[prop as any] = style.getPropertyValue(prop));
@@ -190,20 +195,83 @@ export const useEditor = () => {
         div.style.visibility = 'hidden';
         div.style.whiteSpace = 'pre-wrap';
         div.style.width = style.width;
-        div.textContent = textarea.value.substring(0, selectionStart);
+        
+        // 截取到目标位置的文本
+        div.textContent = textarea.value.substring(0, cursorPos);
+        
         const span = document.createElement('span');
-        span.textContent = '|';
+        span.textContent = '|'; // 模拟光标字符
         div.appendChild(span);
         document.body.appendChild(div);
-        const {offsetLeft, offsetTop} = span;
+        
+        const { offsetLeft, offsetTop } = span;
         const rect = textarea.getBoundingClientRect();
         document.body.removeChild(div);
 
-        let top = rect.top + offsetTop - textarea.scrollTop + 30;
-        const MENU_HEIGHT = 300;
-        if (top + MENU_HEIGHT > window.innerHeight) top -= (MENU_HEIGHT + 40);
+        // 计算绝对坐标
+        let top = rect.top + offsetTop - textarea.scrollTop;
+        let left = rect.left + offsetLeft - textarea.scrollLeft;
 
-        return {top, left: rect.left + offsetLeft - textarea.scrollLeft};
+        return { top, left };
+    };
+
+    // --- 新增：处理选区变化 ---
+    // 在 onSelect, onKeyUp, onMouseUp 时触发
+    const handleSelectionChange = () => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const { selectionStart, selectionEnd } = textarea;
+
+        // 如果没有选中文本，或者正在显示 Slash 菜单，则隐藏气泡菜单
+        if (selectionStart === selectionEnd || showMenu) {
+            setShowBubbleMenu(false);
+            return;
+        }
+
+        // 计算选区结束位置的坐标，作为菜单显示位置
+        // 为了体验更好，我们取 selectionEnd（选区尾部）或者计算选区中心（比较复杂，这里先用尾部优化）
+        // 优化：计算选区中心大概位置。这里简单实现为选区结尾位置上方。
+        const coords = getCaretCoordinates(selectionEnd);
+        
+        // 稍微向上偏移，留出菜单高度空间
+        setBubbleMenuPosition({ 
+            top: coords.top, 
+            left: coords.left 
+        });
+        setShowBubbleMenu(true);
+    };
+
+    // --- 新增：应用格式 ---
+    const applyFormat = (type: string) => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = content.substring(start, end);
+        let formattedText = selectedText;
+        let cursorOffset = 0;
+
+        switch (type) {
+            case 'bold': formattedText = `**${selectedText}**`; cursorOffset = 2; break;
+            case 'italic': formattedText = `*${selectedText}*`; cursorOffset = 1; break;
+            case 'strike': formattedText = `~~${selectedText}~~`; cursorOffset = 2; break;
+            case 'code': formattedText = `\`${selectedText}\``; cursorOffset = 1; break;
+        }
+
+        // 执行替换
+        const newContent = content.substring(0, start) + formattedText + content.substring(end);
+        setContent(newContent);
+        
+        // 恢复焦点并保持选中（可选）或者将光标移到末尾
+        // 这里选择将光标移到格式化后的文本末尾
+        setTimeout(() => {
+            textarea.focus();
+            const newEnd = start + formattedText.length;
+            textarea.setSelectionRange(newEnd, newEnd);
+            setShowBubbleMenu(false); // 应用后隐藏菜单
+        }, 0);
     };
 
     const insertTextAtCursor = (text: string, cursorOffset = 0) => {
@@ -478,6 +546,9 @@ export const useEditor = () => {
             return;
         }
 
+        // 输入文字时隐藏气泡
+        setShowBubbleMenu(false);
+
         if (val.charAt(pos - 1) === '/' && (!val.charAt(pos - 2) || /\s/.test(val.charAt(pos - 2)))) {
             const coords = getCaretCoordinates();
             setMenuPosition(coords);
@@ -685,6 +756,10 @@ export const useEditor = () => {
         isImageLinkModalOpen, isVideoLinkModalOpen,
         showMenu, menuPosition, selectedIndex, setSelectedIndex,
         commands,
+        showBubbleMenu,
+        bubbleMenuPosition,
+        handleSelectionChange,
+        applyFormat,
         // Actions
         onSave: handleSave,
         onTogglePreview: handleTogglePreview,

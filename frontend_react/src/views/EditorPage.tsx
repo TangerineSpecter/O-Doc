@@ -5,6 +5,7 @@ import { SlashMenu } from '../components/Editor/SlashMenu';
 import ImageLinkModal from '../components/common/ImageLinkModal';
 import VideoLinkModal from '../components/common/VideoLinkModal';
 import { useEditor } from '../hooks/useEditor';
+import { BubbleMenu } from '../components/Editor/BubbleMenu';
 
 export default function EditorPage() {
     const {
@@ -23,7 +24,11 @@ export default function EditorPage() {
         isImageLinkModalOpen, onImageLinkConfirm, onImageLinkCancel,
         isVideoLinkModalOpen, onVideoLinkConfirm, onVideoLinkCancel,
         showMenu, menuPosition, commands, selectedIndex, setSelectedIndex, onExecuteCommand,
-        onImageUpload, onTextChange, onKeyDown, onPaste
+        onImageUpload, onTextChange, onKeyDown, onPaste,
+        showBubbleMenu,          // 新增
+        bubbleMenuPosition,      // 新增
+        handleSelectionChange,   // 新增
+        applyFormat,             // 新增
     } = useEditor();
 
     // 获取今日日期用于预览
@@ -81,6 +86,15 @@ export default function EditorPage() {
                             onChange={onTextChange}
                             onKeyDown={onKeyDown}
                             onPaste={onPaste}
+                            // 新增监听：选区变化
+                            onSelect={handleSelectionChange} 
+                            onMouseUp={handleSelectionChange}
+                            onKeyUp={(e) => {
+                                // 移动光标时也检查选区
+                                if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Shift'].includes(e.key)) {
+                                    handleSelectionChange();
+                                }
+                            }}
                             className="flex-1 w-full p-6 sm:px-12 resize-none outline-none text-slate-700 text-lg leading-relaxed selection:bg-orange-100 selection:text-orange-900 font-mono overflow-y-auto"
                             placeholder="输入 / 呼出命令菜单，支持粘贴图片..."
                             spellCheck={false}
@@ -95,6 +109,13 @@ export default function EditorPage() {
                             selectedIndex={selectedIndex}
                             onSelect={onExecuteCommand}
                             setSelectedIndex={setSelectedIndex}
+                        />
+
+                        {/* 新增：Bubble Menu */}
+                        <BubbleMenu
+                            isOpen={showBubbleMenu}
+                            position={bubbleMenuPosition}
+                            onFormat={applyFormat}
                         />
 
                         {/* Footer Status */}
