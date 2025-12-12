@@ -42,7 +42,8 @@ INSTALLED_APPS = [
     'user.apps.UserConfig',
     'stats.apps.StatsConfig',
     'assets.apps.AssetsConfig',
-    'system_settings'
+    'system_settings',
+    'ai_assistant'
 ]
 
 # DRF全局配置

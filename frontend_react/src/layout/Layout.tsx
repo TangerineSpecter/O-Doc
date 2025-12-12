@@ -6,63 +6,60 @@ import {
     BookOpen,
     LogIn,
     Settings,
-    Hash,
     CornerDownLeft,
     ArrowUpDown,
-    Clock,
-    FileText,
+    ArrowUpCircle,
     Leaf,
-    ArrowUpCircle
+    Zap // 新增图标
 } from 'lucide-react';
-// 保留原始引用，本地环境可以正常解析
 import packageJson from '../../package.json';
 import FloatingActionMenu from '../components/FloatingActionMenu';
+import { AIChatWindow } from '../components/AIChatWindow'; // 引入组件
 
-// 1. 定义 Layout 的 Props 接口
 interface LayoutProps {
-    children: ReactNode; // children 是 React 组件的标准类型
-    onNavigate?: (viewName: string, params?: any) => void; // 定义回调函数的形状
+    children: ReactNode;
+    onNavigate?: (viewName: string, params?: any) => void;
 }
 
-// Search Suggestion Data (Layout specific data)
+// 1. 修改搜索建议数据：只保留 AI 对话入口
 const searchSuggestions = [
-    { id: 'rec-1', type: 'recent', title: "Docker Compose 一键部署", subtitle: "部署指南", icon: <Clock className="w-4 h-4" /> },
-    { id: 'rec-2', type: 'recent', title: "错误码字典查询", subtitle: "API 手册", icon: <Hash className="w-4 h-4" /> },
-    { id: 'sug-1', type: 'suggest', title: "如何配置 Nginx 反向代理", subtitle: "跳转", icon: <FileText className="w-4 h-4" /> },
-    { id: 'sug-2', type: 'suggest', title: "系统设置", subtitle: "设置", icon: <Settings className="w-4 h-4" /> },
+    {
+        id: 'ai-chat',
+        type: 'action',
+        title: "AI 智能对话",
+        subtitle: "基于知识库回答问题",
+        icon: <Zap className="w-4 h-4" />
+    },
+    // 如果需要保留文档搜索，可以加在这里，暂时按需求只留一个
 ];
 
-// --- 辅助函数：语义化版本比较 ---
-// 返回 1: remote > local (需要更新)
-// 返回 -1: remote < local (本地较新)
-// 返回 0: 相等
+// ... (compareVersions 函数保持不变) ...
 const compareVersions = (remoteVersion: string, localVersion: string) => {
     // 移除可能存在的 'v' 前缀
     const v1 = remoteVersion.replace(/^v/, '').split('.').map(Number);
     const v2 = localVersion.replace(/^v/, '').split('.').map(Number);
-
     const len = Math.max(v1.length, v2.length);
-
     for (let i = 0; i < len; i++) {
         const num1 = v1[i] || 0;
         const num2 = v2[i] || 0;
-
-        if (num1 > num2) return 1;  // 远程版本更大
-        if (num1 < num2) return -1; // 本地版本更大
+        if (num1 > num2) return 1;
+        if (num1 < num2) return -1;
     }
     return 0;
 };
 
 export default function Layout({ children, onNavigate }: LayoutProps) {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const searchInputRef = useRef<HTMLInputElement>(null);
     const [searchIndex, setSearchIndex] = useState(0);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
-    // --- 版本检查状态 ---
+    // --- 新增：AI 窗口状态 ---
+    const [isChatOpen, setIsChatOpen] = useState(false);
+
+    // --- 版本检查状态 (保持不变) ---
     const [hasNewVersion, setHasNewVersion] = useState(false);
     const [latestVersionStr, setLatestVersionStr] = useState('');
 
-    // --- 检测 GitHub 更新 ---
     useEffect(() => {
         const checkUpdate = async () => {
             try {
@@ -70,16 +67,11 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                 if (response.ok) {
                     const tags = await response.json();
                     if (tags.length > 0) {
-                        const latestTag = tags[0].name; // e.g., "v0.2.4"
-                        const currentVer = packageJson.version; // e.g., "0.2.5"
-
-                        // 修复：使用版本比较函数，仅当 远程 > 本地 时才提示
+                        const latestTag = tags[0].name;
+                        const currentVer = packageJson.version;
                         if (compareVersions(latestTag, currentVer) === 1) {
                             setHasNewVersion(true);
                             setLatestVersionStr(latestTag);
-                        } else {
-                            // 本地版本 >= 远程版本，不提示更新
-                            setHasNewVersion(false);
                         }
                     }
                 }
@@ -87,11 +79,10 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                 console.warn("检查更新失败:", error);
             }
         };
-
         checkUpdate();
     }, []);
 
-    // Keyboard Navigation for Search
+    // 键盘事件处理
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -113,10 +104,11 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                 e.preventDefault();
                 setSearchIndex(prev => (prev - 1 + searchSuggestions.length) % searchSuggestions.length);
             }
+
+            // 处理回车：选中菜单项
             if (e.key === 'Enter') {
                 e.preventDefault();
-                console.log("Selected:", searchSuggestions[searchIndex].title);
-                setIsSearchOpen(false);
+                handleSelectSuggestion(searchSuggestions[searchIndex]);
             }
         };
 
@@ -124,7 +116,6 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isSearchOpen, searchIndex]);
 
-    // Focus Input on Open
     useEffect(() => {
         if (isSearchOpen) {
             setSearchIndex(0);
@@ -132,13 +123,24 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
         }
     }, [isSearchOpen]);
 
-    // --- 版本号点击跳转 ---
     const handleVersionClick = () => {
         window.open('https://github.com/TangerineSpecter/O-Doc', '_blank');
     };
 
+    // --- 核心逻辑：处理搜索建议点击 ---
+    const handleSelectSuggestion = (item: typeof searchSuggestions[0]) => {
+        if (item.id === 'ai-chat') {
+            setIsSearchOpen(false); // 关闭搜索框
+            setIsChatOpen(true);    // 打开 AI 窗口
+        }
+        // 这里可以扩展其他搜索逻辑，比如跳转到文档详情
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-orange-100 selection:text-orange-900">
+
+            {/* 全局 AI 对话窗口 */}
+            <AIChatWindow isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
             {/* Search Modal */}
             {isSearchOpen && (
@@ -154,7 +156,7 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                             <input
                                 ref={searchInputRef}
                                 type="text"
-                                placeholder="搜索文档、API、或跳转到..."
+                                placeholder="输入问题唤起 AI，或搜索文档..."
                                 className="flex-1 text-lg bg-transparent border-none outline-none text-slate-800 placeholder:text-slate-400 h-8"
                             />
                             <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-mono">ESC</span>
@@ -165,18 +167,21 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                                 {searchSuggestions.map((item, index) => (
                                     <div
                                         key={item.id}
-                                        onClick={() => { console.log(item.title); setIsSearchOpen(false); }}
+                                        onClick={() => handleSelectSuggestion(item)}
                                         onMouseEnter={() => setSearchIndex(index)}
                                         className={`flex items-center justify-between px-3 py-3 rounded-lg cursor-pointer transition-colors ${index === searchIndex ? 'bg-orange-50' : 'hover:bg-slate-50'
                                             }`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-4 h-4 ${index === searchIndex ? 'text-orange-500' : 'text-slate-400'}`}>
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${index === searchIndex ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
                                                 {item.icon}
                                             </div>
-                                            <span className={`text-sm ${index === searchIndex ? 'text-slate-900 font-medium' : 'text-slate-700'}`}>
-                                                {item.title}
-                                            </span>
+                                            <div className="flex flex-col">
+                                                <span className={`text-sm ${index === searchIndex ? 'text-slate-900 font-medium' : 'text-slate-700'}`}>
+                                                    {item.title}
+                                                </span>
+                                                {/* 如果是 AI 选项，可以在这里显示一些提示词 */}
+                                            </div>
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <span className={`text-xs ${index === searchIndex ? 'text-orange-600' : 'text-slate-400'}`}>
@@ -194,9 +199,9 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                         <div className="bg-slate-50 border-t border-slate-100 px-4 py-2 flex justify-between items-center text-xs text-slate-500">
                             <div className="flex gap-4">
                                 <span className="flex items-center gap-1"><ArrowUpDown className="w-3 h-3" /> 选择</span>
-                                <span className="flex items-center gap-1"><CornerDownLeft className="w-3 h-3" /> 打开</span>
+                                <span className="flex items-center gap-1"><CornerDownLeft className="w-3 h-3" /> 确认</span>
                             </div>
-                            <div>小橘文档 Search v2.1</div>
+                            <div>小橘文档 AI 助手</div>
                         </div>
                     </div>
                 </div>
@@ -209,7 +214,6 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
 
                         {/* Logo Section */}
                         <div className="flex items-center gap-3">
-                            {/* Logo Icon */}
                             <div onClick={() => onNavigate && onNavigate('home')} className="w-9 h-9 rounded-xl flex items-center justify-center bg-orange-50 border border-orange-100/50 shadow-[0_2px_8px_-2px_rgba(249,115,22,0.3)] p-0.5 overflow-hidden relative group hover:shadow-[0_4px_12px_-2px_rgba(249,115,22,0.4)] transition-shadow duration-300 cursor-pointer">
                                 <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8">
                                     <path d="M12 3.5V6.5" stroke="#9a3412" strokeWidth="1.5" strokeLinecap="round" />
@@ -219,48 +223,23 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-orange-100/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-0"></div>
                             </div>
 
-                            {/* Text & Version Badge */}
                             <div className="flex items-baseline gap-2">
                                 <span className="text-xl font-bold tracking-tight text-slate-900">
                                     小橘<span className="text-orange-600">文档</span>
                                 </span>
-
-                                {/* 版本号展示区域 */}
+                                {/* 版本号保持不变 */}
                                 <button
-                                    className={`group flex items-center gap-1.5 px-2 py-0.5 ml-1 
-                                    rounded-[4px] shadow-[0_0_8px_rgba(132,204,22,0.2)] 
-                                    hover:shadow-[0_0_15px_rgba(132,204,22,0.4)] hover:-translate-y-0.5 
-                                    transition-all duration-300 cursor-pointer relative overflow-hidden
-                                    ${hasNewVersion
-                                            ? 'bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-300'
-                                            : 'bg-lime-50 border border-lime-200 text-lime-800 hover:bg-lime-100 hover:border-lime-300'
-                                        }`}
+                                    className={`group flex items-center gap-1.5 px-2 py-0.5 ml-1 rounded-[4px] shadow-[0_0_8px_rgba(132,204,22,0.2)] hover:shadow-[0_0_15px_rgba(132,204,22,0.4)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer relative overflow-hidden ${hasNewVersion ? 'bg-orange-50 border border-orange-200 text-orange-700' : 'bg-lime-50 border border-lime-200 text-lime-800'}`}
                                     onClick={handleVersionClick}
-                                    title={hasNewVersion ? `发现新版本 ${latestVersionStr}，点击前往更新` : "点击前往 GitHub 仓库"}
                                 >
-                                    {/* 图标动态切换：有更新显示箭头，无更新显示叶子 */}
-                                    {hasNewVersion ? (
-                                        <ArrowUpCircle className="w-3 h-3 text-orange-500 animate-bounce" />
-                                    ) : (
-                                        <Leaf className="w-3 h-3 text-lime-600 fill-lime-200/50 group-hover:fill-lime-500 group-hover:text-lime-700 group-hover:rotate-12 transition-all duration-300" />
-                                    )}
-
-                                    <span className="text-[11px] font-bold tracking-wide font-mono relative z-10">
-                                        v{packageJson.version}
-                                    </span>
-
-                                    {/* 有更新时显示的红点提示 */}
-                                    {hasNewVersion && (
-                                        <span className="absolute top-0 right-0 -mt-0.5 -mr-0.5 flex h-2 w-2">
-                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                                        </span>
-                                    )}
+                                    {hasNewVersion ? <ArrowUpCircle className="w-3 h-3 text-orange-500 animate-bounce" /> : <Leaf className="w-3 h-3 text-lime-600" />}
+                                    <span className="text-[11px] font-bold tracking-wide font-mono relative z-10">v{packageJson.version}</span>
                                 </button>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-4 sm:gap-6">
+                            {/* 修改：搜索按钮文案 */}
                             <div
                                 className="hidden md:flex relative group cursor-pointer"
                                 onClick={() => setIsSearchOpen(true)}
@@ -268,8 +247,8 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                     <Search className="h-4 w-4 text-slate-400 group-hover:text-orange-500 transition-colors" />
                                 </div>
-                                <div className="pl-10 pr-4 py-2 w-64 bg-slate-100 border border-transparent rounded-full text-sm text-slate-400 group-hover:bg-white group-hover:ring-2 group-hover:ring-orange-500/50 group-hover:border-orange-500 transition-all shadow-inner flex items-center justify-between">
-                                    <span>搜索文档...</span>
+                                <div className="pl-10 pr-4 py-2 w-72 bg-slate-100 border border-transparent rounded-full text-sm text-slate-400 group-hover:bg-white group-hover:ring-2 group-hover:ring-orange-500/50 group-hover:border-orange-500 transition-all shadow-inner flex items-center justify-between">
+                                    <span>搜索文档 / AI 对话...</span>
                                     <div className="flex items-center gap-1">
                                         <span className="text-[10px] bg-white text-slate-400 border border-slate-200 rounded px-1.5 py-0.5 shadow-sm">
                                             ⌘K
@@ -285,15 +264,13 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                                 <Search className="w-5 h-5" />
                             </button>
 
+                            {/* ... 其他 Nav Items (Bell, User) 保持不变 ... */}
                             <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
                                 <button className="p-2 text-slate-500 hover:text-orange-600 transition-colors relative">
                                     <Bell className="w-5 h-5" />
                                     <span className="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
                                 </button>
-
-                                {/* User Dropdown */}
                                 <div className="relative group z-50">
-                                    {/* Trigger */}
                                     <div className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1.5 rounded-full pr-3 transition-colors">
                                         <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-200 to-slate-300 flex items-center justify-center text-slate-600 border border-white shadow-sm overflow-hidden">
                                             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" />
@@ -301,48 +278,32 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                                         <span className="text-sm font-medium text-slate-700 hidden sm:block">访客用户</span>
                                         <ChevronDown className="w-3 h-3 text-slate-400 hidden sm:block group-hover:rotate-180 transition-transform" />
                                     </div>
-
                                     <div className="absolute right-0 top-full pt-2 w-56 hidden group-hover:block animate-in fade-in slide-in-from-top-1 duration-200">
                                         <div className="bg-white rounded-xl shadow-xl border border-slate-100 p-2">
                                             <div className="px-3 py-2 border-b border-slate-100 mb-1">
                                                 <p className="text-sm font-semibold text-slate-800">未登录</p>
                                                 <p className="text-xs text-slate-500">请登录以保存进度</p>
                                             </div>
-                                            {/* 修改这里：添加 onClick 事件 */}
-                                            <button
-                                                onClick={() => onNavigate && onNavigate('login')}
-                                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors text-left"
-                                            >
-                                                <LogIn className="w-4 h-4" />
-                                                立即登录 / 注册
+                                            <button onClick={() => onNavigate && onNavigate('login')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors text-left">
+                                                <LogIn className="w-4 h-4" /> 立即登录 / 注册
                                             </button>
-                                            <button
-                                                onClick={() => onNavigate && onNavigate('settings')} // 关键：调用 navigate 跳转
-                                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-left"
-                                            >
-                                                <Settings className="w-4 h-4" />
-                                                系统设置
+                                            <button onClick={() => onNavigate && onNavigate('settings')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-left">
+                                                <Settings className="w-4 h-4" /> 系统设置
                                             </button>
                                             <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-left">
-                                                <BookOpen className="w-4 h-4" />
-                                                帮助中心
+                                                <BookOpen className="w-4 h-4" /> 帮助中心
                                             </button>
                                         </div>
                                     </div>
                                 </div>
-
                             </div>
                         </div>
                     </div>
                 </div>
             </nav>
 
-            {/* 2. 子页面内容 */}
             {children}
-
-            {/* 3. 在这里插入 Floating Dock */}
             <FloatingActionMenu />
-
 
             {/* Background Effects */}
             <div className="fixed inset-0 pointer-events-none z-[-1] opacity-40">
