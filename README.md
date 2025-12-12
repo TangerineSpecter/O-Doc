@@ -1,6 +1,6 @@
 # 小橘文档 (O-Doc) 🍊
 
-[![版本](https://img.shields.io/badge/version-0.4.2-blue.svg)](https://github.com/your-username/o-doc)
+[![版本](https://img.shields.io/badge/version-0.4.3-blue.svg)](https://github.com/your-username/o-doc)
 [![Django](https://img.shields.io/badge/Django-5.x-092e20.svg?logo=django)](https://www.djangoproject.com/)
 [![React](https://img.shields.io/badge/React-19.x-61dafb.svg?logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-7.x-646cff.svg?logo=vite)](https://vitejs.dev/)
@@ -83,6 +83,12 @@
 - **一体化项目结构** - Django 后端与 React 前端统一管理
 - **静态资源自动处理** - 前端构建产物自动集成到 Django 静态目录
 
+## 📚 相关文档
+
+项目的详细结构信息请参考独立文档：
+- **[项目结构文档](PROJECT_STRUCTURE.md)** - 完整的项目结构说明
+- **[接口文档](API_DOCUMENTATION.md)** - 详细的 API 接口说明
+
 ## 🚀 快速开始
 
 ### 环境要求
@@ -149,11 +155,6 @@ docker build -t o-doc .
 docker run -p 8000:11800 o-doc
 ```
 访问 http://localhost:8000 查看应用
-
-## 📁 项目结构
-
-项目的详细结构信息请参考独立文档：
-- **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - 完整的项目结构说明
 
 ## ✨ 核心功能
 
