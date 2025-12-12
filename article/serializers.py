@@ -20,7 +20,7 @@ class ArticleSerializer(serializers.ModelSerializer):
         required=False,
         write_only=True
     )
-    
+
     # 附件字段，接收前端传递的附件ID数组（写入）
     assets = serializers.ListField(
         child=serializers.CharField(max_length=32),
@@ -29,10 +29,10 @@ class ArticleSerializer(serializers.ModelSerializer):
         required=False,
         write_only=True
     )
-    
+
     # 标签详情，用于返回标签完整信息（读取）
     tag_details = TagSerializer(source='tags', many=True, read_only=True)
-    
+
     # 分类详情，用于返回分类完整信息（读取）
     category_detail = serializers.SerializerMethodField(read_only=True)
 
@@ -55,10 +55,10 @@ class ArticleSerializer(serializers.ModelSerializer):
         required=False,
         write_only=True
     )
-    
+
     # 父级文章详情，用于返回父级文章信息（读取）
     parent_detail = serializers.SerializerMethodField(read_only=True)
-    
+
     # 附件列表，用于返回关联的附件信息（读取）
     attachments = serializers.SerializerMethodField(read_only=True)
 
@@ -67,11 +67,11 @@ class ArticleSerializer(serializers.ModelSerializer):
         # 它将 tags 和 assets 从验证数据中取出，防止 DRF 的默认 create 方法尝试直接保存它导致报错
         tags_names = validated_data.pop('tags', [])
         assets_ids = validated_data.pop('assets', [])
-        
+
         # 处理category_id和parent_id字段映射
         category_id = validated_data.pop('category_id', None)
         parent_id = validated_data.pop('parent_id', None)
-        
+
         # 设置外键关系
         if category_id:
             validated_data['category_id'] = category_id
@@ -83,7 +83,7 @@ class ArticleSerializer(serializers.ModelSerializer):
 
         # 3. 手动处理标签逻辑
         self._handle_tags(article, tags_names)
-        
+
         # 4. 手动处理附件逻辑
         self._handle_assets(article, assets_ids)
 
@@ -93,11 +93,11 @@ class ArticleSerializer(serializers.ModelSerializer):
         # 更新时同样需要接管 tags 和 assets
         tags_names = validated_data.pop('tags', None)
         assets_ids = validated_data.pop('assets', None)
-        
+
         # 处理category_id和parent_id字段映射
         category_id = validated_data.pop('category_id', None)
         parent_id = validated_data.pop('parent_id', None)
-        
+
         # 设置外键关系
         if category_id is not None:
             validated_data['category_id'] = category_id
@@ -108,7 +108,7 @@ class ArticleSerializer(serializers.ModelSerializer):
 
         if tags_names is not None:
             self._handle_tags(article, tags_names)
-        
+
         if assets_ids is not None:
             self._handle_assets(article, assets_ids)
 
@@ -160,13 +160,13 @@ class ArticleSerializer(serializers.ModelSerializer):
 
         # 3. 建立关联
         article.tags.set(tag_objects)
-        
+
     def _handle_assets(self, article, assets_ids):
         """
         统一处理附件的关联逻辑
         """
         from assets.models import Asset
-        
+
         if not assets_ids:
             # 清空所有附件关联
             assets = Asset.objects.filter(linked_article=article)
@@ -175,14 +175,14 @@ class ArticleSerializer(serializers.ModelSerializer):
                 asset.is_linked = False
                 asset.save()
             return
-        
+
         # 先移除所有现有关联
         assets = Asset.objects.filter(linked_article=article)
         for asset in assets:
             asset.linked_article = None
             asset.is_linked = False
             asset.save()
-            
+
         # 关联新的附件
         for asset_id in assets_ids:
             try:
@@ -234,7 +234,7 @@ class ArticleSerializer(serializers.ModelSerializer):
             Article.objects.get(article_id=value)
         except Article.DoesNotExist:
             raise serializers.ValidationError(f"父级文章不存在：'{value}'")
-        
+
         # 检查父级文章ID是否与当前编辑的文章ID相同，防止循环引用
         if self.instance and self.instance.article_id == value:
             raise serializers.ValidationError("父级文章不能是当前文章自身")
@@ -251,7 +251,7 @@ class ArticleSerializer(serializers.ModelSerializer):
                 'name': obj.category.name
             }
         return None
-        
+
     def get_parent_detail(self, obj):
         """
         返回父级文章详情信息
@@ -262,16 +262,17 @@ class ArticleSerializer(serializers.ModelSerializer):
                 'title': obj.parent.title
             }
         return None
-    
+
     def get_attachments(self, obj):
         """
         返回关联的附件列表
         """
         from assets.models import Asset
-        
+
         # 获取关联的附件
-        assets = Asset.objects.filter(linked_article=obj, is_valid=True)
-        
+        # 修改：增加 source_type='attachment' 过滤，排除内容资源（如正文图片）
+        assets = Asset.objects.filter(linked_article=obj, is_valid=True, source_type='attachment')
+
         # 构造附件数据
         assets_data = []
         for asset in assets:
@@ -285,7 +286,7 @@ class ArticleSerializer(serializers.ModelSerializer):
                 'sourceType': asset.source_type,
                 'url': f'/api/resource/download/{asset.id}'  # 添加下载链接
             })
-        
+
         return assets_data
 
 

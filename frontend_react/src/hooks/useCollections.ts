@@ -123,6 +123,7 @@ export const useCollections = () => {
     };
 
     // 5. 处理更新 (集成后端接口)
+    // 5. 处理更新 (集成后端接口)
     const updateCollection = async (collId: string, data: any) => {
         try {
             const collection = collections.find(c => c.collId === collId);
@@ -139,20 +140,11 @@ export const useCollections = () => {
                 isTop: data.isTop
             };
 
-            const response = await updateAnthology(collection.collId, params);
+            await updateAnthology(collection.collId, params);
 
-            // 更新本地数据
-            setCollections(prev => prev.map(c => {
-                if (c.collId === collId) {
-                    return {
-                        ...c,
-                        ...response,
-                        isTop: response.isTop || false,
-                        icon: getIconComponent(response.iconId)
-                    };
-                }
-                return c;
-            }));
+            // 修改：不再手动 map 更新本地 state，而是直接刷新列表
+            // 这样可以保证置顶等改变顺序的操作能立即在 UI 上体现
+            await fetchCollections();
 
             toast.success("文集已更新");
             return true;

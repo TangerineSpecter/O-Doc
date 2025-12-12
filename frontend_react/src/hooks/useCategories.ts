@@ -7,7 +7,8 @@ import { useSearchParams } from 'react-router-dom';
 export const useCategories = () => {
     // --- State ---
     const [categories, setCategories] = useState<CategoryItem[]>([]);
-    const [selectedCatId, setSelectedCatId] = useState('');
+    // 修改：默认选中 'all'
+    const [selectedCatId, setSelectedCatId] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [displayArticles, setDisplayArticles] = useState<ArticleItem[]>([]);
@@ -18,8 +19,38 @@ export const useCategories = () => {
     // --- Data Fetching ---
     const fetchCategories = useCallback(async () => {
         try {
-            const data = await getCategoryList();
-            setCategories(data);
+            // 修改：传入 true 获取包含“未分类”的列表
+            const data = await getCategoryList(true);
+
+            // 处理后端返回的数据，为未分类设置默认属性和系统标识
+            const processedData = data.map(cat => {
+                if (cat.categoryId === 'uncategorized') {
+                    return {
+                        ...cat,
+                        iconKey: 'Inbox', // 默认图标
+                        themeId: 'slate', // 默认主题
+                        isSystem: true    // 标记为系统分类（不可编辑/删除）
+                    };
+                }
+                return cat;
+            });
+
+            // 计算所有文章总数
+            const totalCount = processedData.reduce((sum, cat) => sum + (cat.articleCount || 0), 0);
+
+            // 构造“所有分类”对象
+            const allCategory: CategoryItem = {
+                categoryId: 'all',
+                name: '所有分类',
+                articleCount: totalCount,
+                description: '查看所有文档',
+                iconKey: 'LayoutGrid',
+                themeId: 'blue',
+                isSystem: true
+            };
+
+            // 将“所有分类”放在列表首位
+            setCategories([allCategory, ...processedData]);
         } catch (error) {
             console.error('获取分类列表失败:', error);
         }
@@ -92,7 +123,12 @@ export const useCategories = () => {
                 setCategories(prev => prev.map(c => c.categoryId === editingCategory.categoryId ? updatedCategory : c));
             } else {
                 const newCategory = await createCategory(formData);
+                // 插入到 "所有分类" 和 "未分类" (如果存在) 之后，或者直接 append
+                // 这里简单处理，追加到列表末尾，或者你需要刷新列表
+                // 为了保持顺序，最简单的办法是重新 fetch，或者手动插入
+                // 鉴于目前逻辑，直接追加即可
                 setCategories(prev => [...prev, newCategory]);
+                await fetchCategories(); // 刷新以确保排序和统计正确
             }
             return true; // Success
         } catch (error) {
@@ -105,10 +141,12 @@ export const useCategories = () => {
         try {
             await deleteCategory(catId);
             setCategories(prev => prev.filter(c => c.categoryId !== catId));
+            // 如果删除的是当前选中的，重置为 'all'
             if (selectedCatId === catId) {
-                setSelectedCatId('');
-                setDisplayArticles([]);
+                setSelectedCatId('all');
             }
+            // 刷新以更新“所有分类”的计数
+            fetchCategories();
             return true;
         } catch (error) {
             console.error('删除分类失败:', error);
@@ -131,7 +169,8 @@ export const useCategories = () => {
         return filteredCategories.find(c => c.categoryId === selectedCatId) || filteredCategories[0] || {
             categoryId: 'all',
             name: '所有分类',
-            count: 0
+            count: 0,
+            isSystem: true // 兜底对象也要标记为 system
         };
     }, [filteredCategories, selectedCatId]);
 

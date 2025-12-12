@@ -176,18 +176,18 @@ export const useEditor = () => {
 
     // --- 新增 State: 气泡菜单 ---
     const [showBubbleMenu, setShowBubbleMenu] = useState(false);
-    const [bubbleMenuPosition, setBubbleMenuPosition] = useState({ top: 0, left: 0 });
+    const [bubbleMenuPosition, setBubbleMenuPosition] = useState({top: 0, left: 0});
 
     // --- Helpers ---
 
     // 增加 index 参数，允许计算任意位置的坐标（默认是当前光标）
     const getCaretCoordinates = (index: number | null = null) => {
         const textarea = textareaRef.current;
-        if (!textarea) return { top: 0, left: 0 };
-        
+        if (!textarea) return {top: 0, left: 0};
+
         // 如果未传入 index，则使用当前光标位置
         const cursorPos = index !== null ? index : textarea.selectionStart;
-        
+
         const div = document.createElement('div');
         const style = window.getComputedStyle(textarea);
         Array.from(style).forEach(prop => div.style[prop as any] = style.getPropertyValue(prop));
@@ -195,16 +195,16 @@ export const useEditor = () => {
         div.style.visibility = 'hidden';
         div.style.whiteSpace = 'pre-wrap';
         div.style.width = style.width;
-        
+
         // 截取到目标位置的文本
         div.textContent = textarea.value.substring(0, cursorPos);
-        
+
         const span = document.createElement('span');
         span.textContent = '|'; // 模拟光标字符
         div.appendChild(span);
         document.body.appendChild(div);
-        
-        const { offsetLeft, offsetTop } = span;
+
+        const {offsetLeft, offsetTop} = span;
         const rect = textarea.getBoundingClientRect();
         document.body.removeChild(div);
 
@@ -212,7 +212,7 @@ export const useEditor = () => {
         let top = rect.top + offsetTop - textarea.scrollTop;
         let left = rect.left + offsetLeft - textarea.scrollLeft;
 
-        return { top, left };
+        return {top, left};
     };
 
     // --- 新增：处理选区变化 ---
@@ -221,7 +221,7 @@ export const useEditor = () => {
         const textarea = textareaRef.current;
         if (!textarea) return;
 
-        const { selectionStart, selectionEnd } = textarea;
+        const {selectionStart, selectionEnd} = textarea;
 
         // 如果没有选中文本，或者正在显示 Slash 菜单，则隐藏气泡菜单
         if (selectionStart === selectionEnd || showMenu) {
@@ -233,11 +233,11 @@ export const useEditor = () => {
         // 为了体验更好，我们取 selectionEnd（选区尾部）或者计算选区中心（比较复杂，这里先用尾部优化）
         // 优化：计算选区中心大概位置。这里简单实现为选区结尾位置上方。
         const coords = getCaretCoordinates(selectionEnd);
-        
+
         // 稍微向上偏移，留出菜单高度空间
-        setBubbleMenuPosition({ 
-            top: coords.top, 
-            left: coords.left 
+        setBubbleMenuPosition({
+            top: coords.top,
+            left: coords.left
         });
         setShowBubbleMenu(true);
     };
@@ -254,16 +254,28 @@ export const useEditor = () => {
         let cursorOffset = 0;
 
         switch (type) {
-            case 'bold': formattedText = `**${selectedText}**`; cursorOffset = 2; break;
-            case 'italic': formattedText = `*${selectedText}*`; cursorOffset = 1; break;
-            case 'strike': formattedText = `~~${selectedText}~~`; cursorOffset = 2; break;
-            case 'code': formattedText = `\`${selectedText}\``; cursorOffset = 1; break;
+            case 'bold':
+                formattedText = `**${selectedText}**`;
+                cursorOffset = 2;
+                break;
+            case 'italic':
+                formattedText = `*${selectedText}*`;
+                cursorOffset = 1;
+                break;
+            case 'strike':
+                formattedText = `~~${selectedText}~~`;
+                cursorOffset = 2;
+                break;
+            case 'code':
+                formattedText = `\`${selectedText}\``;
+                cursorOffset = 1;
+                break;
         }
 
         // 执行替换
         const newContent = content.substring(0, start) + formattedText + content.substring(end);
         setContent(newContent);
-        
+
         // 恢复焦点并保持选中（可选）或者将光标移到末尾
         // 这里选择将光标移到格式化后的文本末尾
         setTimeout(() => {
@@ -371,12 +383,10 @@ export const useEditor = () => {
 
         // Check if this is from slash command
         if (imageInsertPosition !== null) {
-            // Clean up slash command text first
+            // 修改 2：简化逻辑，直接在记录的位置插入占位符
+            // 因为 content 中的命令文本已经在 executeCommand 中被移除了，这里不需要再处理 residue
             setContent(prev => {
-                // Remove the slash command text
-                const cleanContent = prev.substring(0, imageInsertPosition) + prev.substring(textareaRef.current!.selectionEnd);
-                // Insert placeholder at the correct position
-                return cleanContent.substring(0, imageInsertPosition) + placeholder + cleanContent.substring(imageInsertPosition);
+                return prev.substring(0, imageInsertPosition) + placeholder + prev.substring(imageInsertPosition);
             });
             // Reset the insert position
             setImageInsertPosition(null);
@@ -461,8 +471,18 @@ export const useEditor = () => {
     // --- Command Handling ---
     const executeCommand = (cmd: CommandItem) => {
         if (cmd.id === 'image') {
-            // 保存斜杠命令位置，用于后续清理
+            // 修改 1：在打开文件选择框前，先从 content 中移除斜杠命令文本
+            const textarea = textareaRef.current;
+            if (textarea) {
+                const beforeSlash = content.substring(0, slashIndex);
+                const afterCursor = content.substring(textarea.selectionEnd);
+                const newContent = beforeSlash + afterCursor;
+                setContent(newContent);
+            }
+
+            // 保存斜杠命令位置（即现在的插入点）
             setImageInsertPosition(slashIndex);
+
             // 触发文件选择
             fileInputRef.current?.click();
             closeMenu();
