@@ -69,7 +69,6 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
 
     // 版本检查状态
     const [hasNewVersion, setHasNewVersion] = useState(false);
-    const [latestVersionStr, setLatestVersionStr] = useState('');
 
     // --- 0. 初始化加载文集列表 (用于 ID 转 Name) ---
     useEffect(() => {
@@ -158,7 +157,6 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                         const currentVer = packageJson.version;
                         if (compareVersions(latestTag, currentVer) === 1) {
                             setHasNewVersion(true);
-                            setLatestVersionStr(latestTag);
                         }
                     }
                 }

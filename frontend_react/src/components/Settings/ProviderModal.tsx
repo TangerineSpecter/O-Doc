@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { AIProvider } from '../../api/setting';
 import { Server } from 'lucide-react';
 

@@ -18,7 +18,7 @@ export default function SettingsPage() {
     const {
         providers, systemConfig, webDavConfig, isSaving,
         setSystemConfig, setWebDavConfig,
-        getModelsByType, handleSave, handleSaveProvider, handleSaveModel, handleDelete
+        getModelsByType, handleSaveProvider, handleSaveModel, handleDelete
     } = useSettings();
 
     // 页面内部的模态框状态 (UI State)
@@ -87,7 +87,7 @@ export default function SettingsPage() {
                     <p className="text-slate-500 text-sm mt-1">管理 AI 模型接入、数据同步及系统偏好。</p>
                 </div>
                 <button
-                    onClick={handleSave}
+                    onClick={() => { /* WebDAV save functionality not implemented yet */ }}
                     disabled={isSaving}
                     className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-medium transition-colors shadow-sm disabled:opacity-70"
                 >

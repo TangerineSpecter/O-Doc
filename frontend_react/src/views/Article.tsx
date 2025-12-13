@@ -15,7 +15,7 @@ import { TableOfContents } from '../components/Article/TableOfContents';
 export interface AttachmentItem {
     id: string;
     name: string;
-    size?: number;
+    size?: string;
     url: string;
     type?: string;
 }

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Server, Plus, Zap, Edit2, Trash2, Globe, Key, Layers, X, ChevronDown } from 'lucide-react';
 import { AIProvider, SystemAIConfig, ModelType, AIModel } from '../../api/setting';
 

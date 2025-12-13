@@ -52,9 +52,7 @@ export default function ResourcesPage() {
     const [hasMore, setHasMore] = useState(true);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [totalCount, setTotalCount] = useState(0); // 添加总数状态
-    const [totalSize, setTotalSize] = useState<number>(0); // 总文件大小（字节）
     const [formattedTotalSize, setFormattedTotalSize] = useState<FormattedSize>({ size: 0, unit: 'B' }); // 格式化的总文件大小
-    const [typeSizes, setTypeSizes] = useState<Record<string, FormattedSize>>({}); // 按类型统计的空间大小
 
     // --- Delete Modal State ---
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -99,16 +97,14 @@ export default function ResourcesPage() {
 
             // --- 核心修复：解构响应对象 ---
             // 后端返回结构: { list: [], total: 100, hasMore: true, ... }
-            const { list, total, hasMore: backendHasMore, totalSize: backendTotalSize, formattedTotalSize: backendFormattedTotalSize, typeSizes: backendTypeSizes } = response;
+            const { list, total, hasMore: backendHasMore, formattedTotalSize: backendFormattedTotalSize } = response;
 
             if (filterVersion.current !== currentVersion) return;
 
             if (pageNum === 1) {
                 setVisibleData(list);
                 setTotalCount(total);
-                setTotalSize(backendTotalSize || 0);
                 setFormattedTotalSize(backendFormattedTotalSize || { size: 0, unit: 'B' });
-                setTypeSizes(backendTypeSizes || {});
             } else {
                 setVisibleData(prev => [...prev, ...list]);
                 setTotalCount(total); // 更新总数以防变化

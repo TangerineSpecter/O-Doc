@@ -7,7 +7,7 @@
 - 接口基础URL：`http://localhost:11800/api/v1`
 - 请求方式：支持GET、POST、PUT、DELETE等HTTP方法
 - 响应格式：统一返回JSON格式数据
-- 认证方式：JWT Token认证（待实现）
+- 认证方式：JWT Token认证
 
 [TOC]
 
@@ -1114,7 +1114,7 @@
 
 ## 🚀 认证方式
 
-### JWT Token认证（待实现）
+### JWT Token认证
 
 1. 用户登录成功后获取Token
 2. 在请求头中添加Authorization字段：`Authorization: Bearer {token}`

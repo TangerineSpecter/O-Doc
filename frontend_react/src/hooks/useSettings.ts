@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '../components/common/ToastProvider';
 import { 
-    AIProvider, AIModel, SystemAIConfig, WebDavConfig, ModelType,
+    AIProvider, SystemAIConfig, WebDavConfig, ModelType,
     getProviders, saveProvider, deleteProvider, saveModel, deleteModel,
     getSystemAIConfig, saveSystemAIConfig
 } from '../api/setting';
@@ -32,8 +32,8 @@ export const useSettings = () => {
                 getProviders(),
                 getSystemAIConfig()
             ]);
-            setProviders(providersRes);
-            setSystemConfig(configRes);
+            setProviders(providersRes.data);
+            setSystemConfig(configRes.data);
         } catch (error) {
             console.error("加载设置失败", error);
             toast.error("加载设置失败");
@@ -78,11 +78,11 @@ export const useSettings = () => {
         try {
             const res = await saveProvider(providerData);
             if (isEdit) {
-                setProviders(prev => prev.map(p => p.id === res.id ? { ...p, ...res, models: p.models } : p));
+                setProviders(prev => prev.map(p => p.id === res.data.id ? { ...p, ...res.data, models: p.models } : p));
                 toast.success('服务商已更新');
             } else {
                 // 新增时，models 肯定是空的
-                setProviders(prev => [{ ...res, models: [] }, ...prev]);
+                setProviders(prev => [{ ...res.data, models: [] }, ...prev]);
                 toast.success('服务商已添加');
             }
             return true; // 返回成功标志
@@ -100,7 +100,7 @@ export const useSettings = () => {
             const res = await saveModel({ provider: providerId, ...modelData });
             setProviders(prev => prev.map(p => {
                 if (p.id === providerId) {
-                    return { ...p, models: [...p.models, res] };
+                    return { ...p, models: [...p.models, res.data] };
                 }
                 return p;
             }));

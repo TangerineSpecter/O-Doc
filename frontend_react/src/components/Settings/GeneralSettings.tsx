@@ -1,4 +1,3 @@
-import React from 'react';
 import { Monitor, Shield } from 'lucide-react';
 
 export const GeneralSettings = () => {

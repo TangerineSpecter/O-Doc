@@ -1,4 +1,3 @@
-import React from 'react';
 import { HardDrive, RefreshCw } from 'lucide-react';
 import { WebDavConfig } from '../../api/setting';
 

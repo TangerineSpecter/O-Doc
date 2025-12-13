@@ -251,24 +251,19 @@ export const useEditor = () => {
         const end = textarea.selectionEnd;
         const selectedText = content.substring(start, end);
         let formattedText = selectedText;
-        let cursorOffset = 0;
 
         switch (type) {
             case 'bold':
                 formattedText = `**${selectedText}**`;
-                cursorOffset = 2;
                 break;
             case 'italic':
                 formattedText = `*${selectedText}*`;
-                cursorOffset = 1;
                 break;
             case 'strike':
                 formattedText = `~~${selectedText}~~`;
-                cursorOffset = 2;
                 break;
             case 'code':
                 formattedText = `\`${selectedText}\``;
-                cursorOffset = 1;
                 break;
         }
 
