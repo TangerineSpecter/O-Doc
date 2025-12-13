@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="128" height="128">
+  <!-- 小树枝/果柄 -->
+  <path d="M12 3.5V6.5" stroke="#9a3412" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- 橘子主体 (使用 orange-500 填充) -->
+  <circle cx="12" cy="14" r="8.5" fill="#f97316"/>
+  <!-- 可爱的高光 (半透明白色) -->
+  <ellipse cx="9" cy="11" rx="2.5" ry="1.5" fill="rgba(255,255,255,0.5)" transform="rotate(-20 9 11)"/>
+  <!-- 绿叶 (使用 lime-500 填充) -->
+  <path d="M12 6.5C12 6.5 10 1 5 3C1 5 4 10 12 6.5Z" fill="#84cc16"/>
+</svg>

@@ -40,7 +40,7 @@ service.interceptors.request.use(
         // 示例：从 localStorage 获取 token 并添加到 headers
         const token = localStorage.getItem('token');
         if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+            config.headers.Authorization = `Token ${token}`;
         }
 
         return config;

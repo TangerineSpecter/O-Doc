@@ -21,11 +21,12 @@ from django.views.generic import TemplateView
 
 urlpatterns = [
     path('', TemplateView.as_view(template_name='index.html')),
+    path('api/', include('user.urls')),
     path('api/anthology/', include('anthology.urls')),  # 文集接口
     path('api/article/', include('article.urls')),  # 文章接口
     path('api/category/', include('categories.urls')),  # 分类接口
     path('api/tag/', include('tags.urls')),  # 标签接口
-    path('api/', include('assets.urls')),  # 资源管理接口
+    path('api/resource/', include('assets.urls')),  # 资源管理接口
     path('api/settings/', include('system_settings.urls')),  # 系统设置接口
     path('api/ai/', include('ai_assistant.urls')),  # ai对话接口
 

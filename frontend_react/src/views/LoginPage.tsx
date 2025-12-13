@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, Leaf } from 'lucide-react';
-import { login } from '../api/user';
+import React, {useState} from 'react';
+import {useNavigate} from 'react-router-dom';
+import {Mail, Lock, ArrowRight, Leaf} from 'lucide-react';
+import {login} from '../api/user';
+import {useToast} from '../components/common/ToastProvider';
 
 // 1. 定义子组件的 Props 类型
 interface FloatingCitrusProps {
@@ -12,7 +13,7 @@ interface FloatingCitrusProps {
 }
 
 // 2. 给子组件加上类型注解
-const FloatingCitrus = ({ className, size = 200, rotation = 0, delay = 0 }: FloatingCitrusProps) => (
+const FloatingCitrus = ({className, size = 200, rotation = 0, delay = 0}: FloatingCitrusProps) => (
     <div
         className={`absolute pointer-events-none opacity-10 select-none ${className || ''}`}
         style={{
@@ -25,20 +26,20 @@ const FloatingCitrus = ({ className, size = 200, rotation = 0, delay = 0 }: Floa
             height={size}
             viewBox="0 0 100 100"
             fill="none"
-            style={{ transform: `rotate(${rotation}deg)` }}
+            style={{transform: `rotate(${rotation}deg)`}}
         >
-            <circle cx="50" cy="50" r="48" fill="#FDBA74" />
-            <circle cx="50" cy="50" r="42" fill="#FFF7ED" />
-            <circle cx="50" cy="50" r="40" fill="#FB923C" />
+            <circle cx="50" cy="50" r="48" fill="#FDBA74"/>
+            <circle cx="50" cy="50" r="42" fill="#FFF7ED"/>
+            <circle cx="50" cy="50" r="40" fill="#FB923C"/>
             <g stroke="#FFF7ED" strokeWidth="2">
-                <line x1="50" y1="50" x2="50" y2="10" />
-                <line x1="50" y1="50" x2="90" y2="50" />
-                <line x1="50" y1="50" x2="50" y2="90" />
-                <line x1="50" y1="50" x2="10" y2="50" />
-                <line x1="50" y1="50" x2="22" y2="22" />
-                <line x1="50" y1="50" x2="78" y2="22" />
-                <line x1="50" y1="50" x2="78" y2="78" />
-                <line x1="50" y1="50" x2="22" y2="78" />
+                <line x1="50" y1="50" x2="50" y2="10"/>
+                <line x1="50" y1="50" x2="90" y2="50"/>
+                <line x1="50" y1="50" x2="50" y2="90"/>
+                <line x1="50" y1="50" x2="10" y2="50"/>
+                <line x1="50" y1="50" x2="22" y2="22"/>
+                <line x1="50" y1="50" x2="78" y2="22"/>
+                <line x1="50" y1="50" x2="78" y2="78"/>
+                <line x1="50" y1="50" x2="22" y2="78"/>
             </g>
         </svg>
     </div>
@@ -48,7 +49,10 @@ export default function LoginPage() {
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
     // 3. 这里的 formData 不需要显式定义接口，TS 会自动推断为 { email: string, password: string }
-    const [formData, setFormData] = useState({ email: '', password: '' });
+    const [formData, setFormData] = useState({email: '', password: ''});
+
+    // 2. 获取 toast 方法
+    const {success, error} = useToast();
 
     // 4. 给表单提交事件加类型
     const handleLogin = async (e: React.FormEvent) => {
@@ -63,9 +67,18 @@ export default function LoginPage() {
             // 保存 token
             localStorage.setItem('token', res.token);
 
+            success('欢迎回来！登录成功');
+
+            // 延迟一点跳转，让用户看清提示（可选）
+            setTimeout(() => {
+                navigate('/');
+            }, 500);
+
             navigate('/');
-        } catch (error) {
-            console.error('登录失败');
+        } catch (err: any) {
+            console.error('登录失败', err);
+            const errorMsg = err.response?.data?.msg || err.message || '登录失败，请检查账号密码';
+            error(errorMsg);
             // 这里可以加一个 Toast 提示错误
         } finally {
             setIsLoading(false);
@@ -73,25 +86,34 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+        <div
+            className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
             {/* 背景装饰层 */}
-            <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-orange-100/40 to-transparent pointer-events-none"></div>
-            <div className="absolute -left-20 top-20 w-72 h-72 bg-orange-200/20 rounded-full blur-3xl pointer-events-none"></div>
-            <div className="absolute -right-20 bottom-20 w-96 h-96 bg-blue-200/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div
+                className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-orange-100/40 to-transparent pointer-events-none"></div>
+            <div
+                className="absolute -left-20 top-20 w-72 h-72 bg-orange-200/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div
+                className="absolute -right-20 bottom-20 w-96 h-96 bg-blue-200/20 rounded-full blur-3xl pointer-events-none"></div>
 
-            <FloatingCitrus className="-top-10 -left-10 text-orange-400 opacity-20" size={260} rotation={-15} delay={0} />
-            <FloatingCitrus className="bottom-10 -right-10 text-orange-300 opacity-20" size={180} rotation={30} delay={2} />
-            <Leaf className="absolute top-1/4 right-20 w-12 h-12 text-lime-500/20 rotate-45 animate-pulse pointer-events-none" />
-            <Leaf className="absolute bottom-1/4 left-10 w-8 h-8 text-lime-600/10 -rotate-12 animate-pulse delay-700 pointer-events-none" />
+            <FloatingCitrus className="-top-10 -left-10 text-orange-400 opacity-20" size={260} rotation={-15}
+                            delay={0}/>
+            <FloatingCitrus className="bottom-10 -right-10 text-orange-300 opacity-20" size={180} rotation={30}
+                            delay={2}/>
+            <Leaf
+                className="absolute top-1/4 right-20 w-12 h-12 text-lime-500/20 rotate-45 animate-pulse pointer-events-none"/>
+            <Leaf
+                className="absolute bottom-1/4 left-10 w-8 h-8 text-lime-600/10 -rotate-12 animate-pulse delay-700 pointer-events-none"/>
 
             {/* 主内容区 */}
             <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
                 <div className="flex justify-center mb-6 cursor-pointer" onClick={() => navigate('/')}>
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-orange-50 border border-orange-100 shadow-md">
+                    <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center bg-orange-50 border border-orange-100 shadow-md">
                         <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8">
-                            <path d="M12 3.5V6.5" stroke="#9a3412" strokeWidth="1.5" strokeLinecap="round" />
-                            <circle cx="12" cy="14" r="8.5" className="fill-orange-500" />
-                            <path d="M12 6.5C12 6.5 10 1 5 3C1 5 4 10 12 6.5Z" className="fill-lime-500" />
+                            <path d="M12 3.5V6.5" stroke="#9a3412" strokeWidth="1.5" strokeLinecap="round"/>
+                            <circle cx="12" cy="14" r="8.5" className="fill-orange-500"/>
+                            <path d="M12 6.5C12 6.5 10 1 5 3C1 5 4 10 12 6.5Z" className="fill-lime-500"/>
                         </svg>
                     </div>
                 </div>
@@ -104,7 +126,8 @@ export default function LoginPage() {
             </div>
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-                <div className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 sm:rounded-2xl sm:px-10 border border-slate-100">
+                <div
+                    className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 sm:rounded-2xl sm:px-10 border border-slate-100">
                     <form className="space-y-6" onSubmit={handleLogin}>
                         <div>
                             <label htmlFor="email" className="block text-sm font-medium text-slate-700">
@@ -112,7 +135,7 @@ export default function LoginPage() {
                             </label>
                             <div className="mt-1 relative rounded-md shadow-sm">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Mail className="h-5 w-5 text-slate-400" />
+                                    <Mail className="h-5 w-5 text-slate-400"/>
                                 </div>
                                 <input
                                     id="email"
@@ -121,7 +144,7 @@ export default function LoginPage() {
                                     autoComplete="email"
                                     required
                                     value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    onChange={(e) => setFormData({...formData, email: e.target.value})}
                                     className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-lg py-2.5 transition-all"
                                     placeholder="name@company.com"
                                 />
@@ -134,7 +157,7 @@ export default function LoginPage() {
                             </label>
                             <div className="mt-1 relative rounded-md shadow-sm">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Lock className="h-5 w-5 text-slate-400" />
+                                    <Lock className="h-5 w-5 text-slate-400"/>
                                 </div>
                                 <input
                                     id="password"
@@ -143,7 +166,7 @@ export default function LoginPage() {
                                     autoComplete="current-password"
                                     required
                                     value={formData.password}
-                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    onChange={(e) => setFormData({...formData, password: e.target.value})}
                                     className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-lg py-2.5 transition-all"
                                     placeholder="••••••••"
                                 />
@@ -158,7 +181,8 @@ export default function LoginPage() {
                                     type="checkbox"
                                     className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded cursor-pointer"
                                 />
-                                <label htmlFor="remember-me" className="ml-2 block text-sm text-slate-600 cursor-pointer select-none">
+                                <label htmlFor="remember-me"
+                                       className="ml-2 block text-sm text-slate-600 cursor-pointer select-none">
                                     记住我
                                 </label>
                             </div>
@@ -177,10 +201,11 @@ export default function LoginPage() {
                                 className={`w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-all ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
                             >
                                 {isLoading ? (
-                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    <div
+                                        className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                 ) : (
                                     <span className="flex items-center">
-                                        立即登录 <ArrowRight className="ml-2 h-4 w-4" />
+                                        立即登录 <ArrowRight className="ml-2 h-4 w-4"/>
                                     </span>
                                 )}
                             </button>

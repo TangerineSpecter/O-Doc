@@ -9,6 +9,9 @@ python manage.py migrate
 echo "开始收集静态文件..."
 python manage.py collectstatic --noinput
 
+# === 初始化管理员账号 ===
+python init_admin.py
+
 # 启动 Gunicorn 服务器
 # exec 命令会用后面的命令替换掉当前的 shell 进程
 # 这样做是 Docker 推荐的最佳实践，可以正确地处理信号

@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'article.apps.ArticleConfig',
     'anthology.apps.AnthologyConfig',
     'tags.apps.TagsConfig',
@@ -62,6 +63,10 @@ REST_FRAMEWORK = {
         'djangorestframework_camel_case.render.CamelCaseJSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ),
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',  # 启用 Token 认证
+        'rest_framework.authentication.SessionAuthentication',  # 可选：保留 Session 认证方便后台调试
+    ],
 }
 
 MIDDLEWARE = [
