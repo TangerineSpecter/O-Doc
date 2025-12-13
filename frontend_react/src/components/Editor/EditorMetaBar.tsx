@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import {
     Folder, ChevronDown, FileText, Minus, Tag, Plus, X, Paperclip, Loader2, File
 } from 'lucide-react';
+import { formatFileSize } from '@/utils/format.ts';
+
+
 
 // 编辑器元数据栏组件
 
@@ -14,7 +17,7 @@ export interface Category {
 export interface AttachmentItem {
     id: string;
     name: string;
-    size: string;
+    size: number;
     url: string;
     type: string;
 }
@@ -177,7 +180,9 @@ export const EditorMetaBar = ({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="text-[11px] font-medium text-slate-700 truncate leading-tight mb-0.5" title={att.name}>{att.name}</div>
-                                    <div className="text-[9px] text-slate-400 font-mono">{att.size}</div>
+                                    <div className="text-[9px] text-slate-400 font-mono">
+                                        {formatFileSize(att.size)}
+                                    </div>
                                 </div>
                                 <button
                                     onClick={() => onRemoveAttachment(att.id)}

@@ -1,9 +1,17 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useToast } from '../components/common/ToastProvider';
-import { 
-    AIProvider, SystemAIConfig, WebDavConfig, ModelType,
-    getProviders, saveProvider, deleteProvider, saveModel, deleteModel,
-    getSystemAIConfig, saveSystemAIConfig
+import {useEffect, useMemo, useState} from 'react';
+import {useToast} from '../components/common/ToastProvider';
+import {
+    AIProvider,
+    deleteModel,
+    deleteProvider,
+    getProviders,
+    getSystemAIConfig,
+    ModelType,
+    saveModel,
+    saveProvider,
+    saveSystemAIConfig,
+    SystemAIConfig,
+    WebDavConfig
 } from '../api/setting';
 
 export const useSettings = () => {
@@ -18,7 +26,7 @@ export const useSettings = () => {
         defaultEmbeddingModelId: '',
         defaultRerankModelId: ''
     });
-    
+
     // WebDav 配置暂时略过，逻辑类似
     const [webDavConfig, setWebDavConfig] = useState<WebDavConfig>({
         enabled: false, url: '', username: '', password: '', interval: 30
@@ -32,8 +40,8 @@ export const useSettings = () => {
                 getProviders(),
                 getSystemAIConfig()
             ]);
-            setProviders(providersRes.data);
-            setSystemConfig(configRes.data);
+            setProviders(providersRes as unknown as AIProvider[]);
+            setSystemConfig(configRes as unknown as SystemAIConfig);
         } catch (error) {
             console.error("加载设置失败", error);
             toast.error("加载设置失败");
@@ -51,7 +59,7 @@ export const useSettings = () => {
         return providers.flatMap(p => p.models.map(m => ({
             ...m,
             providerName: p.name,
-            uniqueId: m.id 
+            uniqueId: m.id
         })));
     }, [providers]);
 
@@ -62,7 +70,7 @@ export const useSettings = () => {
     // 1. 保存系统默认配置 (下拉框选择后自动保存或手动保存)
     const handleSaveSystemConfig = async (newConfig: SystemAIConfig) => {
         // 先乐观更新 UI
-        setSystemConfig(newConfig); 
+        setSystemConfig(newConfig);
         try {
             await saveSystemAIConfig(newConfig);
             // toast.success('默认模型配置已更新'); // 可选：太频繁可以不提示
@@ -78,11 +86,11 @@ export const useSettings = () => {
         try {
             const res = await saveProvider(providerData);
             if (isEdit) {
-                setProviders(prev => prev.map(p => p.id === res.data.id ? { ...p, ...res.data, models: p.models } : p));
+                setProviders(prev => prev.map(p => p.id === res.data.id ? {...p, ...res.data, models: p.models} : p));
                 toast.success('服务商已更新');
             } else {
                 // 新增时，models 肯定是空的
-                setProviders(prev => [{ ...res.data, models: [] }, ...prev]);
+                setProviders(prev => [{...res.data, models: []}, ...prev]);
                 toast.success('服务商已添加');
             }
             return true; // 返回成功标志
@@ -97,10 +105,10 @@ export const useSettings = () => {
     // 3. 添加模型
     const handleSaveModel = async (providerId: string, modelData: { name: string, type: ModelType }) => {
         try {
-            const res = await saveModel({ provider: providerId, ...modelData });
+            const res = await saveModel({provider: providerId, ...modelData});
             setProviders(prev => prev.map(p => {
                 if (p.id === providerId) {
-                    return { ...p, models: [...p.models, res.data] };
+                    return {...p, models: [...p.models, res.data]};
                 }
                 return p;
             }));
@@ -125,7 +133,7 @@ export const useSettings = () => {
                 await deleteModel(target.modelId);
                 setProviders(prev => prev.map(p => {
                     if (p.id === target.providerId) {
-                        return { ...p, models: p.models.filter(m => m.id !== target.modelId) };
+                        return {...p, models: p.models.filter(m => m.id !== target.modelId)};
                     }
                     return p;
                 }));
@@ -143,9 +151,9 @@ export const useSettings = () => {
         isSaving,
         isLoading,
         allModels,
-        
+
         // 修改这里：setSystemConfig 现在直接调用带保存逻辑的函数
-        setSystemConfig: handleSaveSystemConfig, 
+        setSystemConfig: handleSaveSystemConfig,
         setWebDavConfig,
 
         getModelsByType,
@@ -153,6 +161,6 @@ export const useSettings = () => {
         handleSaveModel,
         handleDelete,
         // 重新加载
-        refresh: loadSettings 
+        refresh: loadSettings
     };
 };

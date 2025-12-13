@@ -11,7 +11,7 @@ export interface ResourceItem {
     id: string;
     name: string;
     type: string;
-    size: string;
+    size: number;
     date: string;
     linked: boolean;
     sourceArticle: ArticleSource | null;
@@ -33,7 +33,7 @@ export interface ResourceUploadResponse {
     id: string;
     name: string;
     type: string;
-    size: string;
+    size: number;
     date: string;
     linked: boolean;
     sourceArticle: ArticleSource | null;

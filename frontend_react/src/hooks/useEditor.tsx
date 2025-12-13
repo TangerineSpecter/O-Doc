@@ -1,8 +1,8 @@
 import {useEffect, useRef, useState} from 'react';
-import {useNavigate, useLocation, useParams} from 'react-router-dom';
+import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {CommandItem} from '../components/Editor/SlashMenu';
 import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
-import {createArticle, updateArticle, getArticlesByAnthology, getArticleDetail} from '../api/article';
+import {createArticle, getArticleDetail, getArticlesByAnthology, updateArticle} from '../api/article';
 import {getCategoryList} from '../api/category';
 import {useToast} from '../components/common/ToastProvider';
 import {uploadResource} from '../api/resources';
@@ -14,6 +14,7 @@ import {
     Heading3,
     Heading4,
     Heading5,
+    Highlighter,
     ImageIcon,
     List,
     Minus,
@@ -21,10 +22,9 @@ import {
     Sigma,
     Table as TableIcon,
     Type,
-    Video as VideoIcon,
-    Workflow,
     Underline,
-    Highlighter
+    Video as VideoIcon,
+    Workflow
 } from 'lucide-react';
 
 // --- Constants ---
@@ -399,7 +399,7 @@ export const useEditor = () => {
             setAttachments(prev => [...prev, {
                 id: response.id,
                 name: file.name,
-                size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+                size: file.size,
                 type: file.name.split('.').pop()?.toUpperCase() || 'IMAGE',
                 url: `/api/resource/download/${response.id}`
             }]);
@@ -432,7 +432,7 @@ export const useEditor = () => {
                 newAtts.push({
                     id: response.id,
                     name: files[i].name,
-                    size: (files[i].size / 1024 / 1024).toFixed(2) + ' MB',
+                    size: files[i].size,
                     type: files[i].name.split('.').pop()?.toUpperCase() || 'FILE',
                     url: `/api/resource/download/${response.id}`
                 });
@@ -629,7 +629,7 @@ export const useEditor = () => {
                     const mappedAttachments = articleDetail.attachments.map(att => ({
                         id: att.id,
                         name: att.name,
-                        size: att.size ? `${att.size} MB` : '未知大小',
+                        size: att.size || 0,
                         type: att.type || 'FILE',
                         url: att.url
                     }));

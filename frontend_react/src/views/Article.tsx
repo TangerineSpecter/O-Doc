@@ -1,21 +1,22 @@
-import React, { useMemo, ReactNode } from 'react';
+import React, {ReactNode, useMemo} from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
-import { Download, Paperclip } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import {Download, Paperclip} from 'lucide-react';
+import {useNavigate} from 'react-router-dom';
 
-import { useArticle } from '../hooks/useArticle';
-import { ArticleIcons, CodeBlock, CUSTOM_STYLES, MermaidChart } from '../components/Article/MarkdownElements';
-import { TableOfContents } from '../components/Article/TableOfContents';
+import {useArticle} from '../hooks/useArticle';
+import {ArticleIcons, CodeBlock, CUSTOM_STYLES, MermaidChart} from '../components/Article/MarkdownElements';
+import {TableOfContents} from '../components/Article/TableOfContents';
+import {formatFileSize} from '@/utils/format';
 
 export interface AttachmentItem {
     id: string;
     name: string;
-    size?: string;
+    size?: number;
     url: string;
     type?: string;
 }
@@ -36,19 +37,19 @@ interface ArticleProps {
 }
 
 export default function Article({
-    isEmbedded,
-    scrollContainerId,
-    onBack,
-    content,
-    title,
-    category,
-    categoryId,
-    tags,
-    date,
-    attachments,
-    onEdit,
-    onDelete
-}: ArticleProps) {
+                                    isEmbedded,
+                                    scrollContainerId,
+                                    onBack,
+                                    content,
+                                    title,
+                                    category,
+                                    categoryId,
+                                    tags,
+                                    date,
+                                    attachments,
+                                    onEdit,
+                                    onDelete
+                                }: ArticleProps) {
     const navigate = useNavigate();
 
     // 1. 准备数据
@@ -73,7 +74,7 @@ export default function Article({
     const components = useMemo(() => ({
         pre: (props: any) => <div className="not-prose">{props.children}</div>,
         p: (props: any) => {
-            const { children } = props;
+            const {children} = props;
             const childrenArray = React.Children.toArray(children);
             const isMathBlock = childrenArray.length > 0 && childrenArray.every(child => {
                 if (React.isValidElement(child)) {
@@ -89,40 +90,53 @@ export default function Article({
             return <p className="mb-4 leading-7 text-justify">{children}</p>;
         },
         code(props: any) {
-            const { inline, className, children, ...rest } = props;
+            const {inline, className, children, ...rest} = props;
             const match = /language-(\w+)/.exec(className || '');
             const lang = match ? match[1] : '';
             const codeStr = String(children).replace(/\n$/, '');
 
             if (!inline && lang === 'mermaid') {
-                return <MermaidChart chart={codeStr} />;
+                return <MermaidChart chart={codeStr}/>;
             }
 
             if (!inline && match) {
                 return <CodeBlock language={lang} code={codeStr} {...rest} />;
             }
             return (
-                <code className="bg-pink-50 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] mx-1 break-words" {...props}>
+                <code
+                    className="bg-pink-50 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] mx-1 break-words" {...props}>
                     {children}
                 </code>
             );
         },
-        blockquote: ({ children }: { children: ReactNode }) => (
-            <blockquote className="not-prose relative my-8 pl-6 pr-10 pt-4 border-l-4 border-violet-500 bg-gradient-to-r from-violet-50 to-transparent rounded-r-lg text-violet-800 italic flex items-center min-h-[60px]">
-                <div className="absolute top-0 right-4 text-6xl text-violet-500/10 font-serif leading-none select-none">”</div>
+        blockquote: ({children}: { children: ReactNode }) => (
+            <blockquote
+                className="not-prose relative my-8 pl-6 pr-10 pt-4 border-l-4 border-violet-500 bg-gradient-to-r from-violet-50 to-transparent rounded-r-lg text-violet-800 italic flex items-center min-h-[60px]">
+                <div
+                    className="absolute top-0 right-4 text-6xl text-violet-500/10 font-serif leading-none select-none">”
+                </div>
                 <div className="relative z-10 w-full">{children}</div>
             </blockquote>
         ),
         input: (props: any) => {
-            if (props.type === 'checkbox') return <input type="checkbox" defaultChecked={props.checked} className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded cursor-pointer" />;
+            if (props.type === 'checkbox') return <input type="checkbox" defaultChecked={props.checked}
+                                                         className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded cursor-pointer"/>;
             return <input {...props} />;
         },
-        h2: ({ children }: { children: ReactNode }) => <h2 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h2>,
-        h3: ({ children }: { children: ReactNode }) => <h3 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h3>,
-        h4: ({ children }: { children: ReactNode }) => <h4 id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h4>,
-        table: ({ children }: { children: ReactNode }) => <div className="overflow-x-auto my-8 border border-gray-200 rounded-lg"><table className="w-full text-sm text-left my-0">{children}</table></div>,
-        th: ({ children }: { children: ReactNode }) => <th className="bg-gray-50 px-4 py-3 font-semibold text-gray-700 border-b border-gray-200">{children}</th>,
-        td: ({ children }: { children: ReactNode }) => <td className="px-4 py-3 border-b border-gray-100 text-gray-600">{children}</td>
+        h2: ({children}: { children: ReactNode }) => <h2
+            id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h2>,
+        h3: ({children}: { children: ReactNode }) => <h3
+            id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h3>,
+        h4: ({children}: { children: ReactNode }) => <h4
+            id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h4>,
+        table: ({children}: { children: ReactNode }) => <div
+            className="overflow-x-auto my-8 border border-gray-200 rounded-lg">
+            <table className="w-full text-sm text-left my-0">{children}</table>
+        </div>,
+        th: ({children}: { children: ReactNode }) => <th
+            className="bg-gray-50 px-4 py-3 font-semibold text-gray-700 border-b border-gray-200">{children}</th>,
+        td: ({children}: { children: ReactNode }) => <td
+            className="px-4 py-3 border-b border-gray-100 text-gray-600">{children}</td>
     }), []);
 
     // 4. 所有的 Hook 执行完毕后，再进行条件渲染
@@ -134,9 +148,11 @@ export default function Article({
         <>
             <style>{CUSTOM_STYLES}</style>
 
-            <div className={`min-h-screen bg-white transition-colors duration-300 ${isEmbedded ? '!bg-transparent !min-h-full' : ''}`}>
+            <div
+                className={`min-h-screen bg-white transition-colors duration-300 ${isEmbedded ? '!bg-transparent !min-h-full' : ''}`}>
 
-                <main className={`relative z-10 max-w-5xl mx-auto xl:mx-0 xl:ml-28 px-4 ${isEmbedded ? 'py-6' : 'py-20'}`}>
+                <main
+                    className={`relative z-10 max-w-5xl mx-auto xl:mx-0 xl:ml-28 px-4 ${isEmbedded ? 'py-6' : 'py-20'}`}>
                     <div className="bg-white rounded-2xl p-8 sm:p-14 shadow-none ring-1 ring-slate-900/5">
 
                         {/* Header */}
@@ -155,14 +171,15 @@ export default function Article({
                                         onClick={() => navigate(`/tags?tagId=${tag}`)}
                                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 cursor-pointer hover:bg-indigo-100 transition-colors"
                                     >
-                                        <ArticleIcons.Tag className="w-3 h-3 mr-1 opacity-50" />
+                                        <ArticleIcons.Tag className="w-3 h-3 mr-1 opacity-50"/>
                                         {tag}
                                     </button>
                                 ))}
 
                                 {onBack && (
-                                    <button onClick={onBack} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                                        <ArticleIcons.ArrowLeft className="w-4 h-4" />
+                                    <button onClick={onBack}
+                                            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                                        <ArticleIcons.ArrowLeft className="w-4 h-4"/>
                                         返回文集
                                     </button>
                                 )}
@@ -173,9 +190,12 @@ export default function Article({
                             </h1>
 
                             <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500 font-medium">
-                                <div className="flex items-center gap-2"><ArticleIcons.FileText className="w-4 h-4 text-slate-400" /><span>{stats.wordCount} 字</span></div>
-                                <div className="flex items-center gap-2"><ArticleIcons.Clock className="w-4 h-4 text-slate-400" /><span>{stats.readTime} 分钟阅读</span></div>
-                                <div className="flex items-center gap-2"><ArticleIcons.Calendar className="w-4 h-4 text-slate-400" /><span>{displayDate}</span></div>
+                                <div className="flex items-center gap-2"><ArticleIcons.FileText
+                                    className="w-4 h-4 text-slate-400"/><span>{stats.wordCount} 字</span></div>
+                                <div className="flex items-center gap-2"><ArticleIcons.Clock
+                                    className="w-4 h-4 text-slate-400"/><span>{stats.readTime} 分钟阅读</span></div>
+                                <div className="flex items-center gap-2"><ArticleIcons.Calendar
+                                    className="w-4 h-4 text-slate-400"/><span>{displayDate}</span></div>
                             </div>
                         </header>
 
@@ -200,23 +220,30 @@ export default function Article({
                         {attachments && attachments.length > 0 && (
                             <div className="mt-16 pt-8 border-t border-slate-100">
                                 <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-                                    <Paperclip className="w-4 h-4 text-slate-500" />
+                                    <Paperclip className="w-4 h-4 text-slate-500"/>
                                     附件下载 ({attachments.length})
                                 </h3>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {attachments.map(att => (
-                                        <div key={att.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-orange-300 hover:shadow-sm transition-all group">
+                                        <div key={att.id}
+                                             className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-orange-300 hover:shadow-sm transition-all group">
                                             <div className="flex items-center gap-3 overflow-hidden">
-                                                <div className="w-10 h-10 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0">
-                                                    <ArticleIcons.FileText className="w-5 h-5 text-blue-500" />
+                                                <div
+                                                    className="w-10 h-10 rounded-lg bg-white border border-slate-100 flex items-center justify-center shrink-0">
+                                                    <ArticleIcons.FileText className="w-5 h-5 text-blue-500"/>
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <div className="text-sm font-medium text-slate-700 truncate group-hover:text-orange-600 transition-colors">{att.name}</div>
-                                                    <div className="text-xs text-slate-400">{att.size ? `${att.size}B` : '-'}</div>
+                                                    <div
+                                                        className="text-sm font-medium text-slate-700 truncate group-hover:text-orange-600 transition-colors">{att.name}</div>
+                                                    <div className="text-xs text-slate-400">
+                                                        {formatFileSize(att.size)}
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <a href={att.url} download={att.name} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="点击下载">
-                                                <Download className="w-4 h-4" />
+                                            <a href={att.url} download={att.name}
+                                               className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                               title="点击下载">
+                                                <Download className="w-4 h-4"/>
                                             </a>
                                         </div>
                                     ))}
@@ -246,7 +273,7 @@ export default function Article({
                     `}
                     title="返回顶部"
                 >
-                    <ArticleIcons.ArrowUp className="w-5 h-5 group-hover:animate-bounce" />
+                    <ArticleIcons.ArrowUp className="w-5 h-5 group-hover:animate-bounce"/>
                 </button>
             </div>
         </>

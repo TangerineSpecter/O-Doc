@@ -280,7 +280,7 @@ class ArticleSerializer(serializers.ModelSerializer):
                 'id': asset.id,
                 'name': asset.name,
                 'type': asset.file_type,
-                'size': asset.formatted_size,
+                'size': asset.file_size,
                 'date': asset.upload_time.strftime('%Y-%m-%d %H:%M:%S'),
                 'linked': asset.is_linked,
                 'sourceType': asset.source_type,

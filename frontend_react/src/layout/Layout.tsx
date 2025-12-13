@@ -74,7 +74,6 @@ export default function Layout({children, onNavigate}: LayoutProps) {
 
     // --- 用户信息状态 ---
     const [userInfo, setUserInfo] = useState<any>(null);
-    const {success} = useToast();
 
     // 初始化时获取用户信息
     useEffect(() => {
