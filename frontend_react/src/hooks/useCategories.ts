@@ -67,7 +67,7 @@ export const useCategories = () => {
                 desc: article.desc || '',
                 date: article.createdAt,
                 readTime: article.readTime || 0,
-                tags: article.tags?.map(tag => tag.name) || [],
+                tags: article.tagDetails?.map(tag => tag.name) || [],
                 collId: article.collId,
                 collection: article.collection
             }));

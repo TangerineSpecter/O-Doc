@@ -203,7 +203,8 @@ class ArticleSerializer(serializers.ModelSerializer):
             'tag_details', 'category_detail', 'parent_detail', 'attachments'
         ]
         # 只读字段
-        read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'tag_details', 'category_detail', 'parent_detail', 'attachments']
+        read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'tag_details', 'category_detail',
+                            'parent_detail', 'attachments']
 
         validators = [
             UniqueTogetherValidator(
@@ -248,7 +249,8 @@ class ArticleSerializer(serializers.ModelSerializer):
         if obj.category:
             return {
                 'category_id': obj.category.category_id,
-                'name': obj.category.name
+                'name': obj.category.name,
+                'theme_id': obj.category.theme_id
             }
         return None
 

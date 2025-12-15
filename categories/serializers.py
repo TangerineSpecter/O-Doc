@@ -13,7 +13,9 @@ class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ['category_id', 'name', 'description', 'userid', 'is_valid', 'sort', 'created_at', 'updated_at']
+        fields = ['category_id', 'name', 'description', 'userid', 'theme_id', 'icon_key', 'is_valid', 'sort',
+                  'created_at',
+                  'updated_at']
 
         validators = [
             UniqueTogetherValidator(

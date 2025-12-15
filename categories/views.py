@@ -79,6 +79,8 @@ class CategoryListView(APIView):
                     'category_id': category.category_id,
                     'name': category.name,
                     'description': category.description,
+                    'icon_key': category.icon_key,
+                    'theme_id': category.theme_id,
                     'sort': category.sort,
                     'article_count': article_count,
                     'created_at': category.created_at,

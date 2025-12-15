@@ -50,6 +50,11 @@ export interface ArticleItem {
     tags: string[];
     collId: string;
     collection?: boolean;
+    category?: {
+        id: string;
+        name: string;
+        themeId?: string;
+    };
 }
 
 // 文章树形节点结构

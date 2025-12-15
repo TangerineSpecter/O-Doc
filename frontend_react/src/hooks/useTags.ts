@@ -45,9 +45,14 @@ export const useTags = () => {
                 desc: article.desc || '',
                 date: article.createdAt,
                 readTime: article.readTime || 0,
-                tags: article.tags?.map(tag => tag.name) || [],
+                tags: article.tagDetails?.map(tag => tag.name) || [],
                 collId: article.collId,
-                collection: article.collection
+                collection: article.collection,
+                category: article.categoryDetail ? {
+                    id: article.categoryDetail.categoryId,
+                    name: article.categoryDetail.name,
+                    themeId: (article.categoryDetail as any).theme_id || 'blue'
+                } : undefined
             }));
             setDisplayArticles(formattedData);
         } catch (error) {
