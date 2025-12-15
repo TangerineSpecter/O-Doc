@@ -265,14 +265,27 @@ export const useEditor = () => {
             case 'code':
                 formattedText = `\`${selectedText}\``;
                 break;
+            // --------- 修改这里：匹配你 useArticle.ts 中的正则 ---------
+            case 'underline':
+                // 对应正则：/\+\+(.*?)\+\+/ -> custom-underline-red
+                formattedText = `++${selectedText}++`;
+                break;
+            case 'wave':
+                // 对应正则：/\^\^(.*?)\^\^/ -> custom-underline-wavy
+                formattedText = `^^${selectedText}^^`;
+                break;
+            case 'watercolor':
+                // 对应正则：/==(.*?)==/ -> custom-watercolor
+                formattedText = `==${selectedText}==`;
+                break;
+            // --------------------------------------------------------
         }
 
         // 执行替换
         const newContent = content.substring(0, start) + formattedText + content.substring(end);
         setContent(newContent);
 
-        // 恢复焦点并保持选中（可选）或者将光标移到末尾
-        // 这里选择将光标移到格式化后的文本末尾
+        // 恢复焦点并保持选中
         setTimeout(() => {
             textarea.focus();
             const newEnd = start + formattedText.length;
