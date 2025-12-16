@@ -204,6 +204,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
                                 scrollContainerId="right-content-window"
                                 onEdit={handleEditArticle}
                                 onDelete={handleDeleteArticle}
+                                articleId={activeDocId}
                                 content={articleDetail?.content}
                                 title={articleDetail?.title}
                                 category={articleDetail?.categoryDetail?.name || '未分类'}

@@ -104,6 +104,11 @@ class Article(models.Model):
         help_text="预计阅读时长(分钟)"
     )
 
+    total_read_seconds = models.PositiveIntegerField(
+        default=0,
+        help_text="累计阅读时长(秒)"
+    )
+
     # 分类（外键）
     category = models.ForeignKey(
         'categories.Category',

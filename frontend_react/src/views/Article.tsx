@@ -12,6 +12,7 @@ import {useArticle} from '../hooks/useArticle';
 import {ArticleIcons, CodeBlock, CUSTOM_STYLES, MermaidChart} from '../components/Article/MarkdownElements';
 import {TableOfContents} from '../components/Article/TableOfContents';
 import {formatFileSize} from '@/utils/format';
+import { useReadStats } from '../hooks/useReadStats';
 
 export interface AttachmentItem {
     id: string;
@@ -43,6 +44,7 @@ interface ArticleProps {
     category?: string;
     categoryId?: string;
     themeId?: string;
+    articleId?: string;
     tags?: string[];
     date?: string;
     attachments?: AttachmentItem[];
@@ -58,7 +60,8 @@ export default function Article({
                                     title,
                                     category,
                                     categoryId,
-                                    themeId, // 解构新增的属性
+                                    themeId, 
+                                    articleId, 
                                     tags,
                                     date,
                                     attachments,
@@ -158,6 +161,9 @@ export default function Article({
         td: ({children}: { children: ReactNode }) => <td
             className="px-4 py-3 border-b border-gray-100 text-gray-600">{children}</td>
     }), []);
+
+    // 只要传入了 articleId，组件挂载后就会自动开始计时并上报
+    useReadStats(articleId);
 
     // 4. 所有的 Hook 执行完毕后，再进行条件渲染
     if (!content && !title) {
