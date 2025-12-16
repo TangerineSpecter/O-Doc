@@ -101,36 +101,36 @@ export default function FloatingActionMenu() {
     };
 
     // 🟢 核心修改：蜂巢交错算法
-  const getPosition = (index: number, total: number) => {
-    if (!isOpen) return { x: 0, y: 0 };
+    const getPosition = (index: number, total: number) => {
+        if (!isOpen) return {x: 0, y: 0};
 
-    // 针对 6 个按钮的特殊布局：3外 + 3内
-    if (total === 6) {
-        // 第一排（外圈）：Index 0, 2, 4 -> 保持原有的间隔 (-90, -135, -180)
-        if (index % 2 === 0) {
-            const farIndex = index / 2; // 0, 1, 2
-            // 角度：-90(上), -135(斜), -180(左)
-            const angle = (-90 - (farIndex * 45)) * (Math.PI / 180);
-            return { x: RADIUS_FAR * Math.cos(angle), y: RADIUS_FAR * Math.sin(angle) };
+        // 针对 6 个按钮的特殊布局：3外 + 3内
+        if (total === 6) {
+            // 第一排（外圈）：Index 0, 2, 4 -> 保持原有的间隔 (-90, -135, -180)
+            if (index % 2 === 0) {
+                const farIndex = index / 2; // 0, 1, 2
+                // 角度：-90(上), -135(斜), -180(左)
+                const angle = (-90 - (farIndex * 45)) * (Math.PI / 180);
+                return {x: RADIUS_FAR * Math.cos(angle), y: RADIUS_FAR * Math.sin(angle)};
+            }
+            // 第二排（内圈）：Index 1, 3, 5 -> 按照“左到右”排序 (-180, -135, -90)
+            else {
+                const nearIndex = (index - 1) / 2; // 0(对应1), 1(对应3), 2(对应5)
+                // 原本顺序是 -90, -135, -180 (从上到左)
+                // 您需要“左到右”，即反过来：-180, -135, -90
+                const angle = (-180 + (nearIndex * 45)) * (Math.PI / 180);
+                return {x: RADIUS_NEAR * Math.cos(angle), y: RADIUS_NEAR * Math.sin(angle)};
+            }
         }
-        // 第二排（内圈）：Index 1, 3, 5 -> 按照“左到右”排序 (-180, -135, -90)
-        else {
-            const nearIndex = (index - 1) / 2; // 0(对应1), 1(对应3), 2(对应5)
-            // 原本顺序是 -90, -135, -180 (从上到左)
-            // 您需要“左到右”，即反过来：-180, -135, -90
-            const angle = (-180 + (nearIndex * 45)) * (Math.PI / 180);
-            return { x: RADIUS_NEAR * Math.cos(angle), y: RADIUS_NEAR * Math.sin(angle) };
-        }
-    }
 
-    // 少于6个时的默认逻辑 (Zigzag)
-    const startAngle = -Math.PI / 2;
-    const endAngle = -Math.PI;
-    const step = (endAngle - startAngle) / (total - 1);
-    const angle = startAngle + (index * step);
-    const currentRadius = index % 2 === 0 ? RADIUS_FAR : RADIUS_NEAR;
-    return { x: currentRadius * Math.cos(angle), y: currentRadius * Math.sin(angle) };
-  };
+        // 少于6个时的默认逻辑 (Zigzag)
+        const startAngle = -Math.PI / 2;
+        const endAngle = -Math.PI;
+        const step = (endAngle - startAngle) / (total - 1);
+        const angle = startAngle + (index * step);
+        const currentRadius = index % 2 === 0 ? RADIUS_FAR : RADIUS_NEAR;
+        return {x: currentRadius * Math.cos(angle), y: currentRadius * Math.sin(angle)};
+    };
 
     // --- 1. 眼神跟随 ---
     useEffect(() => {
@@ -264,13 +264,13 @@ export default function FloatingActionMenu() {
                     const pos = getPosition(index, menuItems.length);
                     return (
                         <div key={item.id}
-                             className="absolute transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)" style={{
-                            transform: `translate(${pos.x}px, ${pos.y}px)`,
-                            opacity: isOpen ? 1 : 0,
-                            pointerEvents: isOpen ? 'auto' : 'none',
-                            zIndex: isOpen ? 10 : -1,
-                            transitionDelay: isOpen ? `${index * 40}ms` : '0ms'
-                        }}>
+                             className="absolute hover:z-[100] transition-transform opacity-transition duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)"
+                             style={{
+                                 transform: `translate(${pos.x}px, ${pos.y}px)`,
+                                 opacity: isOpen ? 1 : 0,
+                                 pointerEvents: isOpen ? 'auto' : 'none',
+                                 transitionDelay: isOpen ? `${index * 40}ms` : '0ms'
+                             }}>
                             <div className="relative group flex flex-col items-center">
                                 <div
                                     className={`absolute -top-10 px-3 py-1.5 bg-slate-700 text-white text-xs font-bold rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap pointer-events-none shadow-xl scale-90 group-hover:scale-100 z-20 tracking-wide ${isOpen ? 'translate-y-0' : 'translate-y-2'}`}>{item.label}</div>
