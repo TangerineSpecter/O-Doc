@@ -25,10 +25,12 @@ export default function EditorPage() {
         isVideoLinkModalOpen, onVideoLinkConfirm, onVideoLinkCancel,
         showMenu, menuPosition, commands, selectedIndex, setSelectedIndex, onExecuteCommand,
         onImageUpload, onTextChange, onKeyDown, onPaste,
-        showBubbleMenu,          // 新增
-        bubbleMenuPosition,      // 新增
-        handleSelectionChange,   // 新增
-        applyFormat,             // 新增
+        showBubbleMenu,
+        bubbleMenuPosition,
+        handleSelectionChange,
+        applyFormat,
+        isGeneratingTags,
+        onGenerateTags,
     } = useEditor();
 
     // 获取今日日期用于预览
@@ -77,6 +79,8 @@ export default function EditorPage() {
                             onUploadClick={() => attachmentInputRef.current?.click()}
                             onRemoveAttachment={onRemoveAttachment}
                             isUploadingAttachment={isUploadingAttachment}
+                            isGeneratingTags={isGeneratingTags}
+                            onGenerateTags={onGenerateTags}
                         />
 
                         {/* Textarea */}
@@ -87,7 +91,7 @@ export default function EditorPage() {
                             onKeyDown={onKeyDown}
                             onPaste={onPaste}
                             // 新增监听：选区变化
-                            onSelect={handleSelectionChange} 
+                            onSelect={handleSelectionChange}
                             onMouseUp={handleSelectionChange}
                             onKeyUp={(e) => {
                                 // 移动光标时也检查选区
@@ -152,7 +156,7 @@ export default function EditorPage() {
                 onClose={onImageLinkCancel}
                 onConfirm={onImageLinkConfirm}
             />
-            
+
             {/* Video Link Modal */}
             <VideoLinkModal
                 isOpen={isVideoLinkModalOpen}

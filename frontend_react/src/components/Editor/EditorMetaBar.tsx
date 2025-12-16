@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-    Folder, ChevronDown, FileText, Minus, Tag, Plus, X, Paperclip, Loader2, File
+    Folder, ChevronDown, FileText, Minus, Tag, Plus, X, Paperclip, Sparkles, Loader2, File
 } from 'lucide-react';
 import { formatFileSize } from '@/utils/format.ts';
 
@@ -46,6 +46,8 @@ export interface EditorMetaBarProps {
     onUploadClick: () => void;
     onRemoveAttachment: (id: string) => void;
     isUploadingAttachment: boolean;
+    onGenerateTags?: () => void; // 新增回调
+    isGeneratingTags?: boolean;  // 新增加载状态
 }
 
 export const EditorMetaBar = ({
@@ -63,7 +65,9 @@ export const EditorMetaBar = ({
     attachments,
     onUploadClick,
     onRemoveAttachment,
-    isUploadingAttachment
+    isUploadingAttachment,
+    onGenerateTags,
+    isGeneratingTags = false
 }: EditorMetaBarProps) => {
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const [isParentOpen, setIsParentOpen] = useState(false);
@@ -141,6 +145,27 @@ export const EditorMetaBar = ({
                             <button onClick={() => onRemoveTag(tag)} className="ml-1 text-indigo-400 hover:text-indigo-800 focus:outline-none"><X className="w-3 h-3" /></button>
                         </span>
                     ))}
+                    {/* 🟢 新增：AI 生成按钮 (放在输入框前面或后面) */}
+                    <button
+                        onClick={onGenerateTags}
+                        disabled={isGeneratingTags}
+                        className={`
+                            flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium 
+                            border transition-all duration-300
+                            ${isGeneratingTags
+                                ? 'bg-purple-100 text-purple-600 border-purple-200 cursor-wait'
+                                : 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white border-transparent hover:shadow-md hover:scale-105'
+                            }
+                        `}
+                        title="AI 自动生成标签"
+                    >
+                        {isGeneratingTags ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                            <Sparkles className="w-3 h-3" />
+                        )}
+                        <span className="hidden sm:inline">{isGeneratingTags ? '生成中...' : 'AI 标签'}</span>
+                    </button>
                     <div className="relative flex items-center">
                         <Plus className="w-3 h-3 text-slate-400 absolute left-2 pointer-events-none" />
                         <input

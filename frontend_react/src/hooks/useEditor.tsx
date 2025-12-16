@@ -1,11 +1,12 @@
-import {useEffect, useRef, useState} from 'react';
-import {useLocation, useNavigate, useParams} from 'react-router-dom';
-import {CommandItem} from '../components/Editor/SlashMenu';
-import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
-import {createArticle, getArticleDetail, getArticlesByAnthology, updateArticle} from '../api/article';
-import {getCategoryList} from '../api/category';
-import {useToast} from '../components/common/ToastProvider';
-import {uploadResource} from '../api/resources';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { CommandItem } from '../components/Editor/SlashMenu';
+import { AttachmentItem, Category, ParentArticleItem } from '../components/Editor/EditorMetaBar';
+import { createArticle, getArticleDetail, getArticlesByAnthology, updateArticle } from '../api/article';
+import { getCategoryList } from '../api/category';
+import { useToast } from '../components/common/ToastProvider';
+import { uploadResource } from '../api/resources';
+import { generateTagsWithAI } from '../api/ai';
 import {
     CheckSquare,
     Code,
@@ -47,9 +48,9 @@ const THEME_DOT_COLORS: Record<string, string> = {
 // React Node 需要在组件中渲染，这里定义配置，图标在组件中实例化或者这里直接用
 // 这里直接用 React Node 是可以的，只要 Hook 文件是 .tsx 或者引入了 React
 const COMMANDS_CONFIG: Omit<CommandItem, 'icon'>[] = [
-    {id: 'image', label: '图片', value: '', desc: '上传并插入图片 (Max 5MB)'},
-    {id: 'imageLink', label: '图片链接', value: '', desc: '通过URL插入图片'},
-    {id: 'video', label: '视频', value: '', desc: '插入视频地址'},
+    { id: 'image', label: '图片', value: '', desc: '上传并插入图片 (Max 5MB)' },
+    { id: 'imageLink', label: '图片链接', value: '', desc: '通过URL插入图片' },
+    { id: 'video', label: '视频', value: '', desc: '插入视频地址' },
     {
         id: 'mermaid',
         label: 'Mermaid 图表',
@@ -57,19 +58,19 @@ const COMMANDS_CONFIG: Omit<CommandItem, 'icon'>[] = [
         cursorOffset: 0,
         desc: '插入流程图/时序图等'
     },
-    {id: 'text', label: '文本', value: '', desc: '开始像往常一样输入'},
-    {id: 'h1', label: '标题 1', value: '# ', desc: '一级大标题'},
-    {id: 'h2', label: '标题 2', value: '## ', desc: '二级中标题'},
-    {id: 'h3', label: '标题 3', value: '### ', desc: '三级小标题'},
-    {id: 'h4', label: '标题 4', value: '#### ', desc: '四级小标题'},
-    {id: 'h5', label: '标题 5', value: '##### ', desc: '五级小标题'},
-    {id: 'ul', label: '项目符号列表', value: '- ', desc: '创建一个简单的列表'},
-    {id: 'ol', label: '有序列表', value: '1. ', desc: '创建一个带序号的列表'},
-    {id: 'todo', label: '待办清单', value: '- [ ] ', desc: '跟踪任务完成情况'},
-    {id: 'quote', label: '引用', value: '> ', desc: '引用一段话'},
-    {id: 'code', label: '代码块', value: '```\n\n```', cursorOffset: -4, desc: '插入代码片段'},
-    {id: 'math', label: '数学公式', value: '$$\n\n$$', cursorOffset: -3, desc: '插入 KaTex 公式'},
-    {id: 'divider', label: '分割线', value: '---\n', desc: '视觉分割线'},
+    { id: 'text', label: '文本', value: '', desc: '开始像往常一样输入' },
+    { id: 'h1', label: '标题 1', value: '# ', desc: '一级大标题' },
+    { id: 'h2', label: '标题 2', value: '## ', desc: '二级中标题' },
+    { id: 'h3', label: '标题 3', value: '### ', desc: '三级小标题' },
+    { id: 'h4', label: '标题 4', value: '#### ', desc: '四级小标题' },
+    { id: 'h5', label: '标题 5', value: '##### ', desc: '五级小标题' },
+    { id: 'ul', label: '项目符号列表', value: '- ', desc: '创建一个简单的列表' },
+    { id: 'ol', label: '有序列表', value: '1. ', desc: '创建一个带序号的列表' },
+    { id: 'todo', label: '待办清单', value: '- [ ] ', desc: '跟踪任务完成情况' },
+    { id: 'quote', label: '引用', value: '> ', desc: '引用一段话' },
+    { id: 'code', label: '代码块', value: '```\n\n```', cursorOffset: -4, desc: '插入代码片段' },
+    { id: 'math', label: '数学公式', value: '$$\n\n$$', cursorOffset: -3, desc: '插入 KaTex 公式' },
+    { id: 'divider', label: '分割线', value: '---\n', desc: '视觉分割线' },
     {
         id: 'table',
         label: '表格',
@@ -82,29 +83,29 @@ const COMMANDS_CONFIG: Omit<CommandItem, 'icon'>[] = [
 const getCommandsWithIcons = (): CommandItem[] => {
     // 简单映射，实际项目中可以更优
     const icons: Record<string, React.ReactNode> = {
-        image: <ImageIcon size={18}/>,
-        imageLink: <ImageIcon size={18}/>,
-        video: <VideoIcon size={18}/>,
-        mermaid: <Workflow size={18}/>,
-        text: <Type size={18}/>,
-        h1: <Heading1 size={18}/>,
-        h2: <Heading2 size={18}/>,
-        h3: <Heading3 size={18}/>,
-        h4: <Heading4 size={18}/>,
-        h5: <Heading5 size={18}/>,
-        ul: <List size={18}/>,
-        ol: <List size={18}/>,
-        todo: <CheckSquare size={18}/>,
-        quote: <Quote size={18}/>,
-        code: <Code size={18}/>,
-        math: <Sigma size={18}/>,
-        divider: <Minus size={18}/>,
-        table: <TableIcon size={18}/>,
-        underline: <Underline size={18}/>,
-        wave: <Sigma size={18}/>,
-        watercolor: <Highlighter size={18}/>
+        image: <ImageIcon size={18} />,
+        imageLink: <ImageIcon size={18} />,
+        video: <VideoIcon size={18} />,
+        mermaid: <Workflow size={18} />,
+        text: <Type size={18} />,
+        h1: <Heading1 size={18} />,
+        h2: <Heading2 size={18} />,
+        h3: <Heading3 size={18} />,
+        h4: <Heading4 size={18} />,
+        h5: <Heading5 size={18} />,
+        ul: <List size={18} />,
+        ol: <List size={18} />,
+        todo: <CheckSquare size={18} />,
+        quote: <Quote size={18} />,
+        code: <Code size={18} />,
+        math: <Sigma size={18} />,
+        divider: <Minus size={18} />,
+        table: <TableIcon size={18} />,
+        underline: <Underline size={18} />,
+        wave: <Sigma size={18} />,
+        watercolor: <Highlighter size={18} />
     };
-    return COMMANDS_CONFIG.map(c => ({...c, icon: icons[c.id] || <Type size={18}/>}));
+    return COMMANDS_CONFIG.map(c => ({ ...c, icon: icons[c.id] || <Type size={18} /> }));
 };
 
 export const useEditor = () => {
@@ -112,6 +113,7 @@ export const useEditor = () => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const attachmentInputRef = useRef<HTMLInputElement>(null);
+    const [isGeneratingTags, setIsGeneratingTags] = useState(false);
 
     // Router
     const navigate = useNavigate();
@@ -170,7 +172,7 @@ export const useEditor = () => {
 
     // State: Slash Menu
     const [showMenu, setShowMenu] = useState(false);
-    const [menuPosition, setMenuPosition] = useState({top: 0, left: 0});
+    const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [slashIndex, setSlashIndex] = useState(-1);
@@ -184,14 +186,14 @@ export const useEditor = () => {
 
     // --- 新增 State: 气泡菜单 ---
     const [showBubbleMenu, setShowBubbleMenu] = useState(false);
-    const [bubbleMenuPosition, setBubbleMenuPosition] = useState({top: 0, left: 0});
+    const [bubbleMenuPosition, setBubbleMenuPosition] = useState({ top: 0, left: 0 });
 
     // --- Helpers ---
 
     // 增加 index 参数，允许计算任意位置的坐标（默认是当前光标）
     const getCaretCoordinates = (index: number | null = null) => {
         const textarea = textareaRef.current;
-        if (!textarea) return {top: 0, left: 0};
+        if (!textarea) return { top: 0, left: 0 };
 
         // 如果未传入 index，则使用当前光标位置
         const cursorPos = index !== null ? index : textarea.selectionStart;
@@ -212,7 +214,7 @@ export const useEditor = () => {
         div.appendChild(span);
         document.body.appendChild(div);
 
-        const {offsetLeft, offsetTop} = span;
+        const { offsetLeft, offsetTop } = span;
         const rect = textarea.getBoundingClientRect();
         document.body.removeChild(div);
 
@@ -220,7 +222,7 @@ export const useEditor = () => {
         let top = rect.top + offsetTop - textarea.scrollTop;
         let left = rect.left + offsetLeft - textarea.scrollLeft;
 
-        return {top, left};
+        return { top, left };
     };
 
     // --- 新增：处理选区变化 ---
@@ -229,7 +231,7 @@ export const useEditor = () => {
         const textarea = textareaRef.current;
         if (!textarea) return;
 
-        const {selectionStart, selectionEnd} = textarea;
+        const { selectionStart, selectionEnd } = textarea;
 
         // 如果没有选中文本，或者正在显示 Slash 菜单，则隐藏气泡菜单
         if (selectionStart === selectionEnd || showMenu) {
@@ -733,7 +735,7 @@ export const useEditor = () => {
             const articles = await getArticlesByAnthology(collId);
             // 转换文章列表为父级文章选项格式
             const parentOptions = [
-                {id: 'root', title: '无 (作为顶级文章)'},
+                { id: 'root', title: '无 (作为顶级文章)' },
                 ...articles.map(article => ({
                     id: article.articleId,
                     title: article.title
@@ -743,7 +745,7 @@ export const useEditor = () => {
         } catch (error) {
             console.error('加载父级文章失败:', error);
             toast.error('加载父级文章失败');
-            setParentArticles([{id: 'root', title: '无 (作为顶级文章)'}]);
+            setParentArticles([{ id: 'root', title: '无 (作为顶级文章)' }]);
         } finally {
             setLoadingParentArticles(false);
         }
@@ -759,7 +761,7 @@ export const useEditor = () => {
         const loadParentArticles = async () => {
             const collId = getCollId();
             if (!collId) {
-                setParentArticles([{id: 'root', title: '无 (作为顶级文章)'}]);
+                setParentArticles([{ id: 'root', title: '无 (作为顶级文章)' }]);
                 setLoadingParentArticles(false);
                 return;
             }
@@ -781,6 +783,35 @@ export const useEditor = () => {
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
     }, []);
+
+    // 新增：处理 AI 生成标签
+    const handleGenerateTags = async () => {
+        // 简单校验：如果没有标题和内容，不生成
+        if (!title && content.length < 10) {
+            toast.error('请先输入一些内容再生成标签');
+            return;
+        }
+
+        setIsGeneratingTags(true);
+
+        try {
+            const newTags = await generateTagsWithAI(title, content);
+
+            if (newTags.length === 0) {
+                toast.error('AI 未能生成有效标签，请重试');
+                return;
+            }
+
+            // 合并标签：去重
+            const mergedTags = Array.from(new Set([...tags, ...newTags]));
+            setTags(mergedTags);
+            toast.success(`已生成 ${newTags.length} 个标签`);
+        } catch (error) {
+            toast.error('AI 生成标签失败');
+        } finally {
+            setIsGeneratingTags(false);
+        }
+    };
 
     return {
         // Refs
@@ -824,6 +855,8 @@ export const useEditor = () => {
         onImageLinkCancel: handleImageLinkCancel,
         // Video Link Actions
         onVideoLinkConfirm: handleVideoLinkConfirm,
-        onVideoLinkCancel: handleVideoLinkCancel
+        onVideoLinkCancel: handleVideoLinkCancel,
+        isGeneratingTags,
+        onGenerateTags: handleGenerateTags,
     };
 };
