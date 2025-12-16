@@ -1,6 +1,6 @@
 import React from 'react';
-import { ChevronDown, ChevronRight, Search, X, Plus, BookOpen } from 'lucide-react';
-import { ArticleNode } from '../../api/article';
+import {ChevronDown, ChevronRight, Search, X, Plus, BookOpen, RefreshCw} from 'lucide-react';
+import {ArticleNode} from '@/api/article.ts';
 
 interface OutlineSidebarProps {
     title?: string;
@@ -13,22 +13,26 @@ interface OutlineSidebarProps {
     onSelectDoc: (articleId: string) => void;
     onCreateDoc: () => void;
     onReset?: () => void;
-    className?: string; // 支持外部样式注入
+    className?: string;
+    onSyncCollection?: () => void;
+    isCollectionSyncing?: boolean;
 }
 
 export default function OutlineSidebar({
-    title = '文档目录',
-    docs,
-    activeDocId,
-    expandedIds,
-    searchQuery,
-    onSearchChange,
-    onToggleExpand,
-    onSelectDoc,
-    onCreateDoc,
-    onReset,
-    className = ''
-}: OutlineSidebarProps) {
+                                           title = '文档目录',
+                                           docs,
+                                           activeDocId,
+                                           expandedIds,
+                                           searchQuery,
+                                           onSearchChange,
+                                           onToggleExpand,
+                                           onSelectDoc,
+                                           onCreateDoc,
+                                           onReset,
+                                           onSyncCollection,
+                                           isCollectionSyncing = false,
+                                           className = ''
+                                       }: OutlineSidebarProps) {
 
     // 递归渲染树节点
     const renderItem = (item: ArticleNode, level = 0) => {
@@ -44,10 +48,10 @@ export default function OutlineSidebar({
                     className={`
                         group flex items-center justify-between py-1.5 pr-2 cursor-pointer text-sm transition-colors border-l-2
                         ${isActive
-                            ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium'
-                            : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'}
+                        ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium'
+                        : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'}
                     `}
-                    style={{ paddingLeft }}
+                    style={{paddingLeft}}
                 >
                     <span className="truncate">{item.title}</span>
                     {hasChildren && (
@@ -55,7 +59,7 @@ export default function OutlineSidebar({
                             onClick={(e) => onToggleExpand(e, item.id)}
                             className="p-1 rounded-sm hover:bg-black/5 text-slate-400 transition-colors"
                         >
-                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            {isExpanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
                         </div>
                     )}
                 </div>
@@ -74,10 +78,29 @@ export default function OutlineSidebar({
             {/* Title Header */}
             <div
                 onClick={onReset}
-                className="h-14 flex items-center px-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors flex-shrink-0"
-            >
-                <BookOpen size={16} className="text-orange-500 mr-2" />
-                <span className="font-bold text-slate-700 text-sm truncate">{title}</span>
+                className="h-14 flex items-center justify-between px-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors flex-shrink-0 group">
+                <div className="flex items-center gap-2 overflow-hidden">
+                    <BookOpen size={16} className="text-orange-500 flex-shrink-0"/>
+                    <span className="font-bold text-slate-700 text-sm truncate">{title}</span>
+                </div>
+
+                {/* [新增] 右侧：文集同步按钮 */}
+                {onSyncCollection && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation(); // 防止触发 onReset
+                            onSyncCollection();
+                        }}
+                        disabled={isCollectionSyncing}
+                        className={`
+                            p-1.5 rounded-md text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all
+                            ${isCollectionSyncing ? 'cursor-not-allowed opacity-100' : 'opacity-0 group-hover:opacity-100'}
+                        `}
+                        title="同步整个文集到知识库"
+                    >
+                        <RefreshCw size={14} className={isCollectionSyncing ? 'animate-spin text-indigo-600' : ''}/>
+                    </button>
+                )}
             </div>
 
             {/* Search & Actions */}
@@ -90,13 +113,13 @@ export default function OutlineSidebar({
                         onChange={(e) => onSearchChange(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 text-xs py-1.5 pl-8 pr-8 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 transition-all text-slate-600"
                     />
-                    <Search size={12} className="absolute left-2.5 top-2 text-slate-400" />
+                    <Search size={12} className="absolute left-2.5 top-2 text-slate-400"/>
                     {searchQuery && (
                         <button
                             onClick={() => onSearchChange('')}
                             className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 transition-colors"
                         >
-                            <X size={12} />
+                            <X size={12}/>
                         </button>
                     )}
                 </div>
@@ -105,7 +128,7 @@ export default function OutlineSidebar({
                     onClick={onCreateDoc}
                     className="w-full flex items-center justify-center gap-1.5 py-1.5 bg-white border border-dashed border-slate-300 rounded-md text-xs text-slate-500 hover:text-orange-600 hover:border-orange-300 hover:bg-orange-50 transition-all"
                 >
-                    <Plus size={12} />
+                    <Plus size={12}/>
                     <span>新建文档</span>
                 </button>
             </div>
@@ -119,7 +142,8 @@ export default function OutlineSidebar({
                 )}
             </div>
 
-            <div className="p-3 border-t border-slate-100 text-xs text-slate-400 flex justify-between items-center flex-shrink-0 bg-white">
+            <div
+                className="p-3 border-t border-slate-100 text-xs text-slate-400 flex justify-between items-center flex-shrink-0 bg-white">
                 {/* 底部保留位置，可放置设置按钮等 */}
             </div>
         </aside>

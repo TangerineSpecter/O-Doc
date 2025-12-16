@@ -1,16 +1,17 @@
-import { useEffect, useState, useRef } from 'react';
-import { Menu } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import {useEffect, useState, useRef} from 'react';
+import {Menu} from 'lucide-react';
+import {useNavigate} from 'react-router-dom';
 import Article from './Article';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import OutlineSidebar from '../components/Outline/OutlineSidebar';
 import OutlineContent from '../components/Outline/OutlineContent';
-import { useArticleTree } from '../hooks/useArticleTree';
-import { Article as ArticleType, deleteArticle, getArticleDetail } from '../api/article';
-import { useToast } from '../components/common/ToastProvider';
-import { getAnthologyDetail, Anthology } from '../api/anthology';
-import { getIconComponent } from '../constants/iconList';
+import {useArticleTree} from '../hooks/useArticleTree';
+import {Article as ArticleType, deleteArticle, getArticleDetail} from '../api/article';
+import {useToast} from '../components/common/ToastProvider';
+import {getAnthologyDetail, Anthology} from '../api/anthology';
+import {getIconComponent} from '../constants/iconList';
 import StarLoader from '../components/common/StarLoader';
+import {syncCollectionToRag} from '../api/rag';
 
 // 定义最小 Loading 时间 (毫秒)，防止闪烁
 const MIN_LOADING_TIME = 500;
@@ -22,7 +23,7 @@ interface ArticleOutlineProps {
     articleId?: string;
 }
 
-export default function ArticleOutline({ onNavigate, collId, title, articleId }: ArticleOutlineProps) {
+export default function ArticleOutline({onNavigate, collId, title, articleId}: ArticleOutlineProps) {
     const navigate = useNavigate();
 
     const {
@@ -41,6 +42,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
     const [articleDetail, setArticleDetail] = useState<ArticleType | null>(null);
     const [articleLoading, setArticleLoading] = useState(false);
     const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
+    const [isCollectionSyncing, setIsCollectionSyncing] = useState(false);
 
     const toast = useToast();
 
@@ -74,7 +76,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
                 // 无论数据返回多快，至少等待 MIN_LOADING_TIME
                 const [detail] = await Promise.all([
                     getArticleDetail(activeDocId),
-                    new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME)) 
+                    new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME))
                 ]);
 
                 // 3. 更新数据
@@ -95,13 +97,13 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
         setActiveDocId(docArticleId);
         if (window.innerWidth < 768) setIsSidebarOpen(false);
         const mainContainer = document.getElementById('right-content-window');
-        if (mainContainer) mainContainer.scrollTo({ top: 0, behavior: 'smooth' });
-        if (onNavigate) onNavigate('article', { collId, articleId: docArticleId });
+        if (mainContainer) mainContainer.scrollTo({top: 0, behavior: 'smooth'});
+        if (onNavigate) onNavigate('article', {collId, articleId: docArticleId});
     };
 
     const handleResetView = () => {
         setActiveDocId(undefined);
-        if (onNavigate) onNavigate('article', { collId });
+        if (onNavigate) onNavigate('article', {collId});
     };
 
     const handleCreateDoc = () => navigate(`/editor?collId=${collId}`);
@@ -122,7 +124,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
             await deleteArticle(activeDocId);
             toast.success('文章删除成功');
             setActiveDocId(undefined);
-            if (onNavigate) onNavigate('article', { collId });
+            if (onNavigate) onNavigate('article', {collId});
             setIsDeleteModalOpen(false);
             window.location.reload();
         } catch (error: any) {
@@ -135,7 +137,7 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
     if (loading && flatDocs.length === 0) {
         return (
             <div className="flex h-screen items-center justify-center bg-[#F9FAFB] flex-col">
-                <StarLoader />
+                <StarLoader/>
                 <span className="text-xs text-slate-400 mt-2 font-medium">正在加载知识库...</span>
             </div>
         );
@@ -143,6 +145,26 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
 
     const displayTitle = anthologyInfo?.title || title || '文档目录';
     const anthologyIcon = anthologyInfo ? getIconComponent(anthologyInfo.iconId, "w-6 h-6") : null;
+
+    // [新增] 处理文集同步
+    const handleSyncCollection = async () => {
+        if (!collId || isCollectionSyncing) return;
+
+        if (!confirm('确定要将该文集下的所有文章同步至知识库吗？这可能需要一些时间。')) {
+            return;
+        }
+
+        try {
+            setIsCollectionSyncing(true);
+            await syncCollectionToRag(collId);
+            toast.success('文集同步任务已提交，后台处理中...');
+        } catch (error) {
+            console.error(error);
+            toast.error('同步失败，请重试');
+        } finally {
+            setIsCollectionSyncing(false);
+        }
+    };
 
     return (
         <div className="flex h-[calc(100vh-64px)] bg-[#F9FAFB] text-slate-800 font-sans overflow-hidden">
@@ -168,12 +190,16 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
                 onSelectDoc={handleSelectDoc}
                 onCreateDoc={handleCreateDoc}
                 onReset={handleResetView}
+                onSyncCollection={handleSyncCollection}
+                isCollectionSyncing={isCollectionSyncing}
             />
 
-            <main id="right-content-window" className="flex-1 bg-white relative overflow-y-auto overflow-x-hidden scroll-smooth">
-                <div className="md:hidden sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 h-12 flex items-center">
+            <main id="right-content-window"
+                  className="flex-1 bg-white relative overflow-y-auto overflow-x-hidden scroll-smooth">
+                <div
+                    className="md:hidden sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 h-12 flex items-center">
                     <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="mr-3 text-slate-600">
-                        <Menu size={20} />
+                        <Menu size={20}/>
                     </button>
                     <span className="font-bold text-slate-700">{activeDocId ? '文章详情' : '目录大纲'}</span>
                 </div>
@@ -190,14 +216,16 @@ export default function ArticleOutline({ onNavigate, collId, title, articleId }:
                                 ${articleLoading ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}
                             `}
                         >
-                            <div className={`transition-all duration-500 transform ${articleLoading ? 'translate-y-0 scale-100' : 'translate-y-4 scale-95'}`}>
-                                <StarLoader />
+                            <div
+                                className={`transition-all duration-500 transform ${articleLoading ? 'translate-y-0 scale-100' : 'translate-y-4 scale-95'}`}>
+                                <StarLoader/>
                             </div>
                         </div>
 
                         {/* --- 文章内容 --- */}
                         {/* 内容在加载时轻微变透明和模糊，营造呼吸感 */}
-                        <div className={`transition-all duration-500 ease-out ${articleLoading ? 'opacity-30 blur-[1px]' : 'opacity-100 blur-0'}`}>
+                        <div
+                            className={`transition-all duration-500 ease-out ${articleLoading ? 'opacity-30 blur-[1px]' : 'opacity-100 blur-0'}`}>
                             <Article
                                 onBack={handleResetView}
                                 isEmbedded={true}

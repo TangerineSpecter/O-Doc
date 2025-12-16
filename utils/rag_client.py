@@ -90,10 +90,19 @@ class RagClient:
         return embeddings
 
     @classmethod
-    def add_article(cls, article_id, title, content):
+    def add_article(cls, article_id, title, content, coll_id):
         """添加文章到向量库"""
         if not content:
             return 0
+
+        collection = cls.get_collection()
+
+        # 【关键步骤】先删除旧数据，防止重复和残留
+        # filter 语法可能因 ChromaDB 版本略有差异，通常是 where
+        try:
+            collection.delete(where={"article_id": str(article_id)})
+        except Exception as e:
+            print(f"删除旧向量失败(可能是首次同步): {e}")
 
         # 1. 文本分块 (简单的按字符长度分块，可根据需要优化)
         chunk_size = 500
@@ -109,7 +118,11 @@ class RagClient:
             return 0
 
         # 3. 准备元数据 (关键：存入 article_id 和 title)
-        metadatas = [{"article_id": str(article_id), "title": title} for _ in chunks]
+        metadatas = [{
+            "article_id": str(article_id),
+            "title": title,
+            "coll_id": str(coll_id)
+        } for _ in chunks]
         ids = [f"{article_id}_{i}" for i in range(len(chunks))]
 
         # 4. 入库
@@ -178,7 +191,8 @@ class RagClient:
                 if meta:  # 确保 meta 不为空
                     sources.append({
                         'id': meta.get('article_id'),
-                        'title': meta.get('title', '未命名文档')
+                        'title': meta.get('title', '未命名文档'),
+                        'coll_id': meta.get('coll_id')
                     })
 
         return docs, sources
