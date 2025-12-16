@@ -1,5 +1,5 @@
-import {BrowserRouter, Routes, Route, useNavigate, useParams} from 'react-router-dom';
-import {ToastProvider} from './components/common/ToastProvider'; // 1. 引入 Provider
+import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
+import { ToastProvider } from './components/common/ToastProvider'; // 1. 引入 Provider
 import Layout from './layout/Layout';
 import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';
@@ -10,6 +10,7 @@ import StatisticsPage from './views/StatisticsPage';
 import CategoriesPage from './views/CategoriesPage';
 import TagsPage from './views/TagsPage';
 import SettingsPage from './views/SettingsPage';
+import TodoPage from './views/TodoPage';
 
 
 // HomePage的路由包装组件
@@ -22,7 +23,7 @@ function HomeRoute() {
         if (viewName === 'home') {
             navigate('/');
         } else if (viewName === 'article') {
-            const {collId, articleId} = params as { collId: string, articleId?: string };
+            const { collId, articleId } = params as { collId: string, articleId?: string };
             if (articleId) {
                 navigate(`/article/${collId}/${articleId}`);
             } else {
@@ -35,7 +36,7 @@ function HomeRoute() {
         }
     };
 
-    return <HomePage onNavigate={handleNavigate}/>;
+    return <HomePage onNavigate={handleNavigate} />;
 }
 
 // 文章页面组件，用于接收路由参数
@@ -53,7 +54,7 @@ function ArticleRoute() {
         if (viewName === 'home') {
             navigate('/');
         } else if (viewName === 'article') {
-            const {collId, articleId} = params as { collId: string, articleId?: string };
+            const { collId, articleId } = params as { collId: string, articleId?: string };
             if (articleId) {
                 navigate(`/article/${collId}/${articleId}`);
             } else {
@@ -83,7 +84,7 @@ function AppWithRouter() {
         if (viewName === 'home') {
             navigate('/');
         } else if (viewName === 'article') {
-            const {collId, articleId} = params as { collId: string, articleId?: string };
+            const { collId, articleId } = params as { collId: string, articleId?: string };
             if (articleId) {
                 navigate(`/article/${collId}/${articleId}`);
             } else {
@@ -100,46 +101,51 @@ function AppWithRouter() {
         <Routes>
             <Route path="/" element={
                 <Layout onNavigate={handleNavigate}>
-                    <HomeRoute/>
+                    <HomeRoute />
                 </Layout>
-            }/>
+            } />
             {/* 核心修复：合并路由
              使用 /* 通配符匹配后续路径，这样切换文章时不会卸载 Layout 和 ArticleRoute 组件
             */}
             <Route path="/article/:collId/*" element={
                 <Layout onNavigate={handleNavigate}>
-                    <ArticleRoute/>
+                    <ArticleRoute />
                 </Layout>
-            }/>
-            <Route path="/login" element={<LoginPage/>}/> {/* 新增路由：登录页不使用Layout */}
+            } />
+            <Route path="/login" element={<LoginPage />} /> {/* 新增路由：登录页不使用Layout */}
             {/* 新增编辑器路由 - 不使用 Layout，提供全屏体验 */}
-            <Route path="/editor" element={<EditorPage/>}/>
-            <Route path="/editor/:docId" element={<EditorPage/>}/>
+            <Route path="/editor" element={<EditorPage />} />
+            <Route path="/editor/:docId" element={<EditorPage />} />
             <Route path="/resources" element={
                 <Layout onNavigate={handleNavigate}>
-                    <ResourcesPage/>
+                    <ResourcesPage />
                 </Layout>
-            }/>
+            } />
             <Route path="/stats" element={
                 <Layout onNavigate={handleNavigate}>
-                    <StatisticsPage/>
+                    <StatisticsPage />
                 </Layout>
-            }/>
+            } />
             <Route path="/tags" element={
                 <Layout onNavigate={handleNavigate}>
-                    <TagsPage/>
+                    <TagsPage />
                 </Layout>
-            }/>
+            } />
             <Route path="/categories" element={
                 <Layout onNavigate={handleNavigate}>
-                    <CategoriesPage/>
+                    <CategoriesPage />
                 </Layout>
-            }/>
+            } />
             <Route path="/settings" element={
                 <Layout onNavigate={handleNavigate}>
-                    <SettingsPage/>
+                    <SettingsPage />
                 </Layout>
-            }/>
+            } />
+            <Route path="/todo" element={
+                <Layout onNavigate={handleNavigate}>
+                    <TodoPage />
+                </Layout>
+            } />
         </Routes>
     );
 }
@@ -148,7 +154,7 @@ export default function App() {
     return (
         <BrowserRouter>
             <ToastProvider>
-                <AppWithRouter/>
+                <AppWithRouter />
             </ToastProvider>
         </BrowserRouter>
     );
