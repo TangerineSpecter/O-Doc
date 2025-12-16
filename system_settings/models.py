@@ -13,6 +13,7 @@ class AIProvider(models.Model):
         ('Doubao', '豆包 (Doubao)'),
         ('DeepSeek', 'DeepSeek'),
         ('Ollama', 'Ollama'),
+        ('SiliconFlow', 'SiliconFlow (硅基流动)'),
         ('custom', '自定义 (Custom)'),
     ]
 

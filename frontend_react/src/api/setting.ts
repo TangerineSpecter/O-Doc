@@ -13,7 +13,7 @@ export interface AIModel {
 export interface AIProvider {
     id: string;
     name: string;
-    type: 'OpenAi' | 'Google AI' | 'Qwen' | 'Doubao' | 'DeepSeek' | 'Ollama' | 'custom';
+    type: 'OpenAi' | 'Google AI' | 'Qwen' | 'Doubao' | 'DeepSeek' | 'Ollama' | 'SiliconFlow' | 'custom';
     baseUrl: string;
     apiKey: string;
     models: AIModel[];
