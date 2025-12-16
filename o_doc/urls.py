@@ -30,7 +30,7 @@ urlpatterns = [
     path('api/settings/', include('system_settings.urls')),  # 系统设置接口
     path('api/ai/', include('ai_assistant.urls')),  # ai对话接口
     path('api/stats/', include('stats.urls')),  # 统计接口
-
+    path('api/rag/', include('rag.urls')),  # RAG接口
 ]
 
 # 在开发环境中提供媒体文件服务

@@ -5,14 +5,15 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
-import {Download, Paperclip} from 'lucide-react';
+import {Download, Paperclip, RefreshCw} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
-
+import {useToast} from '../components/common/ToastProvider';
 import {useArticle} from '../hooks/useArticle';
 import {ArticleIcons, CodeBlock, CUSTOM_STYLES, MermaidChart} from '../components/Article/MarkdownElements';
 import {TableOfContents} from '../components/Article/TableOfContents';
 import {formatFileSize} from '@/utils/format';
 import {useReadStats} from '../hooks/useReadStats';
+import request from '../utils/request';
 
 export interface AttachmentItem {
     id: string;
@@ -94,6 +95,27 @@ export default function Article({
         showScrollTop,
         handleScrollToTop
     } = useArticle(displayMarkdown, scrollContainerId);
+
+    const toast = useToast();
+    const [isSyncing, setIsSyncing] = React.useState(false);
+
+    const handleSyncToKB = async () => {
+        if (!articleId || !content) return;
+
+        setIsSyncing(true);
+        try {
+            // 调用我们在 Step 2 创建的 API
+            await request.post('/rag/sync', {
+                article_id: articleId
+            });
+            toast.success('同步知识库成功！');
+        } catch (error) {
+            console.error(error);
+            toast.error('同步失败，请检查后端日志');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     // 3. 配置 Markdown 组件 (Hook: useMemo)
     const components = useMemo(() => ({
@@ -280,6 +302,23 @@ export default function Article({
                             </div>
                         )}
 
+                    </div>
+
+                    <div className="mb-4 flex justify-end">
+                        <button
+                            onClick={handleSyncToKB}
+                            disabled={isSyncing}
+                            className={`
+                                    flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all
+                                    ${isSyncing
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:shadow-sm'
+                            }
+                                `}
+                        >
+                            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`}/>
+                            {isSyncing ? '同步中...' : '同步至知识库'}
+                        </button>
                     </div>
 
                     <TableOfContents

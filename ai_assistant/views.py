@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from system_settings.models import SystemSetting, AIModel  # 确保导入正确
+from utils.rag_client import RagClient
 
 
 class ChatView(APIView):
@@ -46,9 +47,20 @@ class ChatView(APIView):
 
         # 3. 构建请求
         system_prompt = "你是“小橘文档”知识库助手。"
-        if use_kb:
-            # TODO: 这里后续接入 RAG 检索逻辑
-            system_prompt += " (已开启知识库模式，但检索功能暂未连接)"
+        if use_kb and message:
+            try:
+                # 1. 检索相关文档
+                # TODO: 如果有配置重排序模型(Rerank)，可以在这里对 retrieved_docs 进行二次排序
+                retrieved_docs = RagClient.search(message, n_results=4)
+
+                if retrieved_docs:
+                    context_str = "\n\n".join(retrieved_docs)
+                    system_prompt += f"\n\n请基于以下参考资料回答用户的问题。如果参考资料不足以回答，请说明。\n\n[参考资料]:\n{context_str}\n"
+                else:
+                    system_prompt += "\n(知识库未检索到相关内容，请基于通用知识回答)"
+            except Exception as e:
+                print(f"RAG Search Error: {e}")
+                system_prompt += "\n(知识库检索服务暂时不可用)"
 
         # 构建 OpenAI 格式的消息列表
         messages = [{'role': 'system', 'content': system_prompt}] + history + [{'role': 'user', 'content': message}]
