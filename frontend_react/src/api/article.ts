@@ -13,6 +13,8 @@ export interface Article {
     isValid: boolean;
     permission: 'public' | 'private';
     readCount: number;
+    wordCount?: number;
+    readTime?: number;
     categoryId?: string;
     categoryDetail?: {
         categoryId: string;
@@ -31,7 +33,6 @@ export interface Article {
     tags?: Array<{ tagId: string, name: string }>;
     tagDetails?: Array<{ tagId: string; name: string }>;
     desc?: string;
-    readTime?: number;
     collection?: boolean;
     attachments?: Array<{
         id: string;

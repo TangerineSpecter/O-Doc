@@ -1,5 +1,9 @@
+import math
+import re
+
 from django.db import models
 from django.utils import timezone
+
 from utils.id_generator import generate_article_id
 
 
@@ -89,6 +93,17 @@ class Article(models.Model):
         help_text="阅读次数"
     )
 
+    # --- 新增字段 ---
+    word_count = models.PositiveIntegerField(
+        default=0,
+        help_text="文章字数"
+    )
+
+    read_time = models.PositiveIntegerField(
+        default=0,
+        help_text="预计阅读时长(分钟)"
+    )
+
     # 分类（外键）
     category = models.ForeignKey(
         'categories.Category',
@@ -130,4 +145,23 @@ class Article(models.Model):
         # 如果article_id为空，生成一个新的
         if not self.article_id:
             self.article_id = generate_article_id()
+
+        # 2. 自动计算字数和阅读时长
+        if self.content:
+            # 简单去除 Markdown 常用符号，尽量与前端算法保持一致
+            # 前端逻辑：textContent.replace(/[#*`>~-]/g, '')
+            text_content = re.sub(r'[#*`>~-]', '', self.content)
+            # 去除首尾空白
+            text_content = text_content.strip()
+
+            # 计算字数 (中文通常按字符数统计)
+            self.word_count = len(text_content)
+
+            # 计算阅读时长 (按每分钟 400 字计算，向上取整)
+            # 防止除以 0，虽然 len 为 0 时分子也是 0
+            self.read_time = math.ceil(self.word_count / 400) if self.word_count > 0 else 0
+        else:
+            self.word_count = 0
+            self.read_time = 0
+
         super().save(*args, **kwargs)
