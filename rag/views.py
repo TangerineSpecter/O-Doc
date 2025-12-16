@@ -10,7 +10,7 @@ from utils.response_utils import success_result, error_result
 class SyncArticleView(APIView):
     """同步文章到知识库"""
     # 根据你的需求设置权限
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    # permission_classes = [IsAuthenticatedOrReadOnly]
 
     def post(self, request):
         article_id = request.data.get('article_id')
@@ -18,10 +18,10 @@ class SyncArticleView(APIView):
             return Response({'error': 'Article ID is required'}, status=400)
 
         try:
-            article = Article.objects.get(id=article_id)
+            article = Article.objects.get(article_id=article_id)
             # 调用 RagClient 进行处理
             chunk_count = RagClient.add_article(
-                article_id=article.id,
+                article_id=article.article_id,
                 title=article.title,
                 content=article.content  # 假设文章内容字段叫 content
             )

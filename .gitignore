@@ -13,6 +13,7 @@ dist-ssr
 *.local
 package-lock.json
 db.sqlite3
+chroma_data/*
 
 # 忽略所有migrations目录（保留__init__.py，避免破坏Python包结构）
 **/migrations/

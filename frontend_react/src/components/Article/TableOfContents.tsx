@@ -1,5 +1,5 @@
-import { Edit3, Trash2 } from 'lucide-react';
-import { HeaderItem } from '../../hooks/useArticle';
+import { Edit3, Trash2, RefreshCw } from 'lucide-react'; // [修改] 引入 RefreshCw
+import { HeaderItem } from '@/hooks/useArticle.ts';
 
 interface TableOfContentsProps {
     headers: HeaderItem[];
@@ -7,6 +7,8 @@ interface TableOfContentsProps {
     isEmbedded: boolean;
     onEdit?: () => void;
     onDelete?: () => void;
+    onSync?: () => void;      // [新增] 同步回调
+    isSyncing?: boolean;      // [新增] 同步状态
 }
 
 export const TableOfContents = ({
@@ -14,7 +16,9 @@ export const TableOfContents = ({
     activeId,
     isEmbedded,
     onEdit,
-    onDelete
+    onDelete,
+    onSync,                   // [新增]
+    isSyncing = false         // [新增]
 }: TableOfContentsProps) => {
     if (!headers?.length) return null;
 
@@ -24,7 +28,8 @@ export const TableOfContents = ({
         <div className={`${visibilityClass} absolute left-full top-0 ml-4 h-full w-64`}>
             <div className="sticky top-6">
 
-                {(onEdit || onDelete) && (
+                {/* 操作按钮组 */}
+                {(onEdit || onDelete || onSync) && (
                     <div className="flex items-center gap-2 mb-4">
                         {onEdit && (
                             <button
@@ -35,6 +40,19 @@ export const TableOfContents = ({
                                 <span>编辑文档</span>
                             </button>
                         )}
+
+                        {/* [新增] 同步按钮 - 仅图标 */}
+                        {onSync && (
+                            <button
+                                onClick={onSync}
+                                disabled={isSyncing}
+                                className={`flex items-center justify-center p-1.5 bg-white border border-slate-200 rounded-md text-slate-400 shadow-sm hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 hover:shadow transition-all duration-200 ${isSyncing ? 'cursor-not-allowed' : ''}`}
+                                title="同步至知识库"
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                            </button>
+                        )}
+
                         {onDelete && (
                             <button
                                 onClick={onDelete}
