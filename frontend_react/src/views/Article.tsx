@@ -12,7 +12,7 @@ import {useArticle} from '../hooks/useArticle';
 import {ArticleIcons, CodeBlock, CUSTOM_STYLES, MermaidChart} from '../components/Article/MarkdownElements';
 import {TableOfContents} from '../components/Article/TableOfContents';
 import {formatFileSize} from '@/utils/format';
-import { useReadStats } from '../hooks/useReadStats';
+import {useReadStats} from '../hooks/useReadStats';
 
 export interface AttachmentItem {
     id: string;
@@ -50,6 +50,7 @@ interface ArticleProps {
     attachments?: AttachmentItem[];
     onEdit?: () => void;
     onDelete?: () => void;
+    disableLinks?: boolean;
 }
 
 export default function Article({
@@ -60,13 +61,14 @@ export default function Article({
                                     title,
                                     category,
                                     categoryId,
-                                    themeId, 
-                                    articleId, 
+                                    themeId,
+                                    articleId,
                                     tags,
                                     date,
                                     attachments,
                                     onEdit,
-                                    onDelete
+                                    onDelete,
+                                    disableLinks = false,
                                 }: ArticleProps) {
     const navigate = useNavigate();
 
@@ -185,7 +187,7 @@ export default function Article({
                         <header className="mb-10 pb-8 border-b border-slate-100">
                             <div className="flex flex-wrap items-center gap-3 mb-6">
                                 <button
-                                    onClick={() => navigate(`/categories?catId=${categoryId || displayCategory}`)}
+                                    onClick={() => !disableLinks && navigate(`/categories?catId=${categoryId || displayCategory}`)}
                                     // 修改：使用动态计算的 className 替代硬编码的 blue-600
                                     className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold shadow-sm cursor-pointer hover:opacity-90 transition-all ${categoryThemeClass}`}
                                 >
@@ -195,7 +197,7 @@ export default function Article({
                                 {displayTags.map(tag => (
                                     <button
                                         key={tag}
-                                        onClick={() => navigate(`/tags?tagId=${tag}`)}
+                                        onClick={() => !disableLinks && navigate(`/tags?tagId=${tag}`)}
                                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 cursor-pointer hover:bg-indigo-100 transition-colors"
                                     >
                                         <ArticleIcons.Tag className="w-3 h-3 mr-1 opacity-50"/>
@@ -203,7 +205,7 @@ export default function Article({
                                     </button>
                                 ))}
 
-                                {onBack && (
+                                {onBack && !disableLinks && (
                                     <button onClick={onBack}
                                             className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
                                         <ArticleIcons.ArrowLeft className="w-4 h-4"/>

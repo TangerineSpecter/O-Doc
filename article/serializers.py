@@ -68,16 +68,6 @@ class ArticleSerializer(serializers.ModelSerializer):
         tags_names = validated_data.pop('tags', [])
         assets_ids = validated_data.pop('assets', [])
 
-        # 处理category_id和parent_id字段映射
-        category_id = validated_data.pop('category_id', None)
-        parent_id = validated_data.pop('parent_id', None)
-
-        # 设置外键关系
-        if category_id:
-            validated_data['category_id'] = category_id
-        if parent_id:
-            validated_data['parent_id'] = parent_id
-
         # 2. 创建文章实例
         article = super().create(validated_data)
 
@@ -93,16 +83,6 @@ class ArticleSerializer(serializers.ModelSerializer):
         # 更新时同样需要接管 tags 和 assets
         tags_names = validated_data.pop('tags', None)
         assets_ids = validated_data.pop('assets', None)
-
-        # 处理category_id和parent_id字段映射
-        category_id = validated_data.pop('category_id', None)
-        parent_id = validated_data.pop('parent_id', None)
-
-        # 设置外键关系
-        if category_id is not None:
-            validated_data['category_id'] = category_id
-        if parent_id is not None:
-            validated_data['parent_id'] = parent_id
 
         article = super().update(instance, validated_data)
 

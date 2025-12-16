@@ -48,12 +48,11 @@ export const useTags = () => {
                 tags: article.tagDetails?.map(tag => tag.name) || [],
                 collId: article.collId,
                 collection: article.collection,
-                // 修复：增加对 themeId 驼峰命名的支持，防止取不到颜色
                 category: article.categoryDetail ? {
                     id: article.categoryDetail.categoryId,
                     name: article.categoryDetail.name,
-                    themeId: (article.categoryDetail as any).theme_id || (article.categoryDetail as any).themeId || 'blue',
-                    iconKey: (article.categoryDetail as any).icon_key || 'Folder'
+                    themeId: (article.categoryDetail as any).themeId || 'blue',
+                    iconKey: (article.categoryDetail as any).iconKey || 'Folder'
                 } : undefined
             }));
             setDisplayArticles(formattedData);

@@ -31,11 +31,19 @@ import {
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
-export const CATEGORIES: Category[] = [];
+// 1. 定义颜色映射 (与 CategoriesPage/Article 保持一致)
+const THEME_DOT_COLORS: Record<string, string> = {
+    blue: 'bg-blue-600',
+    emerald: 'bg-emerald-600',
+    orange: 'bg-orange-600',
+    pink: 'bg-pink-600',
+    violet: 'bg-violet-600',
+    cyan: 'bg-cyan-600',
+    sky: 'bg-sky-600',
+    amber: 'bg-amber-600',
+    slate: 'bg-slate-500',
+};
 
-// 移除模拟数据，改为从API获取
-
-// --- Commands Config ---
 // React Node 需要在组件中渲染，这里定义配置，图标在组件中实例化或者这里直接用
 // 这里直接用 React Node 是可以的，只要 Hook 文件是 .tsx 或者引入了 React
 const COMMANDS_CONFIG: Omit<CommandItem, 'icon'>[] = [
@@ -314,13 +322,17 @@ export const useEditor = () => {
     const handleSave = async () => {
         setIsSaving(true);
         try {
+            // 处理分类ID：如果是 'uncategorized'，则传 undefined 给后端
+            const categoryIdToSave = category?.id === 'uncategorized' ? '' : category?.id;
+            const parentIdToSave = parentArticle?.id === 'root' ? '' : parentArticle?.id;
+
             if (articleId) {
                 // 更新现有文章 - 不需要文集ID
                 const articleData = {
                     title,
                     content,
-                    parentId: parentArticle?.id === 'root' ? undefined : parentArticle?.id,
-                    categoryId: category?.id, // 转换为undefined而不是null以匹配接口类型
+                    parentId: parentIdToSave,
+                    categoryId: categoryIdToSave,
                     tags: tags.length > 0 ? tags : ['笔记'], // 默认为['笔记']，如果用户未添加任何标签
                     assets: attachments.map(att => att.id) // 传递附件ID数组
                 };
@@ -342,8 +354,8 @@ export const useEditor = () => {
                     title,
                     content,
                     collId,
-                    parentId: parentArticle?.id === 'root' ? undefined : parentArticle?.id,
-                    categoryId: category?.id, // 转换为undefined而不是null以匹配接口类型
+                    parentId: parentIdToSave,
+                    categoryId: categoryIdToSave,
                     tags: tags.length > 0 ? tags : ['笔记'], // 默认为['笔记']，如果用户未添加任何标签
                     assets: attachments.map(att => att.id) // 传递附件ID数组
                 };
@@ -686,15 +698,19 @@ export const useEditor = () => {
         const loadCategories = async () => {
             try {
                 const data = await getCategoryList(true); // 获取包含未分类的分类列表
-                // 映射API返回的CategoryItem到前端Category接口
-                // 添加color属性（可以基于themeId或其他字段生成，这里使用默认颜色方案）
-                const colorMap = ['bg-blue-600', 'bg-violet-600', 'bg-pink-600', 'bg-orange-600', 'bg-teal-600'];
 
-                const mappedCategories = data.map((item, index) => ({
-                    id: item.categoryId, // 映射categoryId到id
-                    name: item.name,
-                    color: item.categoryId === 'uncategorized' ? 'bg-slate-400' : colorMap[index % colorMap.length] // 未分类使用灰色
-                }));
+                const mappedCategories = data.map((item) => {
+                    // 获取主题色，默认为蓝色
+                    const themeId = item.themeId || 'blue';
+                    const dotColor = THEME_DOT_COLORS[themeId] || THEME_DOT_COLORS['blue'];
+
+                    return {
+                        id: item.categoryId,
+                        name: item.name,
+                        // 使用映射后的颜色，如果是未分类则使用灰色
+                        color: item.categoryId === 'uncategorized' ? 'bg-slate-400' : dotColor
+                    };
+                });
                 setCategories(mappedCategories);
 
                 // 只有在新建文章且没有设置分类的情况下才设置默认分类
