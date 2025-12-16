@@ -2,6 +2,9 @@
 
 import {useEffect, useRef, useState} from 'react';
 import {BookOpen, Bot, Maximize2, Minimize2, Send, Trash2, User, X} from 'lucide-react';
+import {useNavigate} from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
     role: 'user' | 'assistant';
@@ -14,6 +17,8 @@ interface AIChatWindowProps {
 }
 
 export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
+    const navigate = useNavigate();
+
     // 窗口状态
     const [isMinimized, setIsMinimized] = useState(false);
 
@@ -32,7 +37,8 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     useEffect(() => {
         const interval = setInterval(() => {
             if (tokenQueueRef.current.length > 0) {
-                const nextChars = tokenQueueRef.current.splice(0, 2).join('');
+                // 每次取出少量字符，模拟打字机效果
+                const nextChars = tokenQueueRef.current.splice(0, 3).join(''); // 稍微调快了一点速度 (2->3)
 
                 setMessages(prev => {
                     const newMsgs = [...prev];
@@ -74,6 +80,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         setIsLoading(true);
         isThinkingRef.current = true;
 
+        // 预先添加一个空的 assistant 消息用于接收流
         setMessages(prev => [...prev, {role: 'assistant', content: ''}]);
 
         try {
@@ -97,7 +104,10 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 if (done) break;
 
                 const chunk = decoder.decode(value, {stream: true});
-                tokenQueueRef.current.push(...chunk.split(''));
+                // 将 chunk 拆解入队
+                for (const char of chunk) {
+                    tokenQueueRef.current.push(char);
+                }
             }
         } catch (error) {
             console.error(error);
@@ -133,14 +143,13 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
 
     // --- 正常窗口状态 (居中大屏) ---
     return (
-        // 1. 添加全屏遮罩层，实现居中
         <div
             className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] animate-in fade-in duration-200">
 
-            {/* 2. 主对话框容器：大幅增加宽高 */}
+            {/* 主对话框容器 */}
             <div
                 className="relative w-[900px] max-w-[95vw] h-[80vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 ring-1 ring-slate-900/5 overflow-hidden"
-                onClick={(e) => e.stopPropagation()} // 防止点击对话框关闭遮罩
+                onClick={(e) => e.stopPropagation()}
             >
 
                 {/* Header */}
@@ -205,6 +214,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                     {messages.map((msg, idx) => (
                         <div key={idx}
                              className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                            {/* 头像 */}
                             <div
                                 className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${
                                     msg.role === 'user'
@@ -214,13 +224,56 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                 {msg.role === 'user' ? <User className="w-5 h-5"/> : <Bot className="w-5 h-5"/>}
                             </div>
 
+                            {/* 消息气泡 */}
                             <div
-                                className={`max-w-[85%] px-5 py-3.5 text-[15px] leading-relaxed shadow-sm break-words ${
+                                className={`max-w-[85%] px-5 py-3.5 text-[15px] leading-relaxed shadow-sm break-words overflow-hidden ${
                                     msg.role === 'user'
                                         ? 'bg-slate-800 text-white rounded-2xl rounded-tr-none'
                                         : 'bg-white border border-slate-100 text-slate-700 rounded-2xl rounded-tl-none'
                                 }`}>
-                                {msg.content}
+
+                                {msg.role === 'assistant' ? (
+                                    /* AI 回复使用 ReactMarkdown 渲染，支持引用链接点击跳转 */
+                                    <ReactMarkdown
+                                        className="prose prose-sm max-w-none prose-slate prose-p:my-1 prose-ul:my-2 prose-li:my-0 prose-headings:text-slate-700 prose-a:no-underline"
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{
+                                            // 自定义链接渲染，实现路由跳转
+                                            a: ({node, href, children, ...props}) => {
+                                                const isInternal = href?.startsWith('/');
+                                                return (
+                                                    <a
+                                                        href={href}
+                                                        onClick={(e) => {
+                                                            if (isInternal) {
+                                                                e.preventDefault();
+                                                                if (href) navigate(href);
+                                                                // 如果希望跳转后自动最小化聊天窗口，取消下面注释
+                                                                // setIsMinimized(true);
+                                                            }
+                                                        }}
+                                                        target={isInternal ? undefined : "_blank"}
+                                                        rel={isInternal ? undefined : "noopener noreferrer"}
+                                                        className="text-orange-600 hover:text-orange-700 font-medium hover:underline decoration-orange-300 underline-offset-2 cursor-pointer transition-colors"
+                                                        {...props}
+                                                    >
+                                                        {children}
+                                                    </a>
+                                                );
+                                            },
+                                            // 优化列表样式
+                                            ul: ({children}) => <ul className="list-disc pl-4 space-y-1">{children}</ul>,
+                                            ol: ({children}) => <ol className="list-decimal pl-4 space-y-1">{children}</ol>,
+                                        }}
+                                    >
+                                        {msg.content}
+                                    </ReactMarkdown>
+                                ) : (
+                                    /* 用户消息保持纯文本渲染 */
+                                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                                )}
+
+                                {/* Loading 动画 */}
                                 {msg.role === 'assistant' && isLoading && msg.content.length === 0 && (
                                     <span className="flex gap-1 items-center h-6">
                                         <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>

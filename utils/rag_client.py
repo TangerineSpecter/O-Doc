@@ -1,17 +1,19 @@
 import os
-
 import chromadb
-import requests
 from chromadb.config import Settings
 from django.conf import settings
-
 from system_settings.models import SystemSetting, AIModel
+import requests  # 假设 create_embeddings 需要用到 requests
 
 CHROMA_DB_PATH = os.path.join(settings.BASE_DIR, 'chroma_data')
 
 
 class RagClient:
+    collection = None
     _instance = None
+    """
+    向量数据库采用：ChromaDB
+    """
 
     @classmethod
     def get_client(cls):
@@ -24,8 +26,9 @@ class RagClient:
 
     @classmethod
     def get_collection(cls, name="odoc_knowledge_base"):
+        """获取或创建集合"""
         client = cls.get_client()
-        # 使用余弦相似度 (cosine) 比较通用
+        # 使用 cosine 相似度，适合大多数 RAG 场景
         return client.get_or_create_collection(name=name, metadata={"hnsw:space": "cosine"})
 
     @staticmethod
@@ -33,115 +36,149 @@ class RagClient:
         """获取系统配置的 Embedding 模型"""
         try:
             config = SystemSetting.objects.get(key='system_ai_config').value
-            # 假设你在设置里存的 key 是 default_embedding_model_id
-            model_id = config.get('default_embedding_model_id')
+            model_id = config.get('default_embedding_model_id') or config.get('defaultEmbeddingModelId')
             if not model_id:
-                raise Exception("未配置默认 Embedding 模型")
+                # 如果没配置，可以在这里返回 None 或抛出异常
+                print("Warning: 未配置默认 Embedding 模型")
+                return None
             return AIModel.objects.get(id=model_id)
         except Exception as e:
             print(f"获取 Embedding 模型失败: {e}")
             return None
 
-    @staticmethod
-    def create_embeddings(texts, model=None):
-        """调用厂商 API 生成向量"""
-        if not texts:
+    @classmethod
+    def create_embeddings(cls, texts):
+        """调用硅基流动/OpenAI等接口生成向量"""
+        model = cls.get_embedding_model()
+        if not model:
             return []
 
-        if not model:
-            model = RagClient.get_embedding_model()
-            if not model:
-                raise Exception("找不到可用的 Embedding 模型")
-
+        # 这里复用您原有的 embedding 生成逻辑
+        # 假设 provider 是标准的 OpenAI 格式 (硅基流动兼容 OpenAI 格式)
         provider = model.provider
         headers = {
             "Authorization": f"Bearer {provider.api_key}",
             "Content-Type": "application/json"
         }
 
-        # 兼容 OpenAI 格式的 Embedding 接口
-        api_url = f"{provider.base_url.rstrip('/')}/embeddings"
+        # 修正 Base URL
+        base_url = provider.base_url.rstrip('/')
+        api_url = f"{base_url}/embeddings"
 
         embeddings = []
-        # 简单批处理，避免一次发太大
-        batch_size = 10
-        for i in range(0, len(texts), batch_size):
-            batch_texts = texts[i:i + batch_size]
-            payload = {
-                "model": model.name,
-                "input": batch_texts
-            }
-            try:
-                resp = requests.post(api_url, json=payload, headers=headers, timeout=60)
-                resp.raise_for_status()
-                data = resp.json()
-                # 提取向量，按 index 排序确保顺序一致
-                batch_embeddings = [item['embedding'] for item in sorted(data['data'], key=lambda x: x['index'])]
-                embeddings.extend(batch_embeddings)
-            except Exception as e:
-                print(f"Embedding API Error: {e}")
-                raise e
+        try:
+            for text in texts:
+                # 简单处理换行符，很多 embedding 模型对换行敏感
+                text = text.replace("\n", " ")
+                payload = {
+                    "model": model.name,
+                    "input": text
+                }
+                response = requests.post(api_url, json=payload, headers=headers, timeout=30)
+                if response.status_code == 200:
+                    data = response.json()
+                    # 兼容 OpenAI 格式返回
+                    if 'data' in data and len(data['data']) > 0:
+                        embeddings.append(data['data'][0]['embedding'])
+                    else:
+                        print(f"Embedding API返回格式异常: {data}")
+                else:
+                    print(f"Embedding API Error: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"生成 Embedding 异常: {e}")
 
         return embeddings
 
     @classmethod
-    def split_text(cls, text, chunk_size=500, overlap=50):
-        """简单的文本切片工具"""
-        chunks = []
-        if not text:
-            return chunks
-
-        start = 0
-        while start < len(text):
-            end = start + chunk_size
-            chunk = text[start:end]
-            chunks.append(chunk)
-            start += chunk_size - overlap
-        return chunks
-
-    @classmethod
     def add_article(cls, article_id, title, content):
-        """将文章切片并存入 ChromaDB"""
-        collection = cls.get_collection()
+        """添加文章到向量库"""
+        if not content:
+            return 0
 
-        # 1. 清理旧数据 (如果支持更新，也可以先删后加)
-        collection.delete(where={"article_id": str(article_id)})
+        # 1. 文本分块 (简单的按字符长度分块，可根据需要优化)
+        chunk_size = 500
+        chunks = [content[i:i + chunk_size] for i in range(0, len(content), chunk_size)]
 
-        # 2. 文本切片
-        chunks = cls.split_text(content)
         if not chunks:
-            return
+            return 0
 
-        # 3. 生成向量
+        # 2. 生成向量
         embeddings = cls.create_embeddings(chunks)
+        if not embeddings or len(embeddings) != len(chunks):
+            print("向量生成失败或数量不匹配，跳过入库")
+            return 0
 
-        # 4. 准备写入数据
+        # 3. 准备元数据 (关键：存入 article_id 和 title)
+        metadatas = [{"article_id": str(article_id), "title": title} for _ in chunks]
         ids = [f"{article_id}_{i}" for i in range(len(chunks))]
-        metadatas = [{"article_id": str(article_id), "title": title, "chunk_index": i} for i in range(len(chunks))]
 
+        # 4. 入库
+        collection = cls.get_collection()
         collection.add(
-            ids=ids,
-            embeddings=embeddings,
             documents=chunks,
-            metadatas=metadatas
+            embeddings=embeddings,
+            metadatas=metadatas,
+            ids=ids
         )
         return len(chunks)
 
     @classmethod
     def search(cls, query, n_results=3):
-        """检索相关片段"""
+        """检索相关片段 (仅返回文本)"""
         # 1. 生成查询向量
         query_embeddings = cls.create_embeddings([query])
         if not query_embeddings:
             return []
 
+        # 2. 获取集合 (修复 AttributeError)
         collection = cls.get_collection()
+
         results = collection.query(
             query_embeddings=query_embeddings,
             n_results=n_results
         )
 
-        # 整理返回格式
-        documents = results['documents'][0] if results['documents'] else []
-        # metadatas = results['metadatas'][0] if results['metadatas'] else []
-        return documents
+        return results['documents'][0] if results['documents'] else []
+
+    @classmethod
+    def search_with_sources(cls, query_text, n_results=4):
+        """
+        检索并返回 (文档内容列表, 来源元数据列表)
+        """
+        # 1. 生成查询向量 (修复：必须使用 create_embeddings，否则无法匹配硅基流动的向量空间)
+        query_embeddings = cls.create_embeddings([query_text])
+        if not query_embeddings:
+            return [], []
+
+        # 2. 获取集合对象 (修复：原代码报错 AttributeError: 'NoneType' object has no attribute 'query')
+        collection = cls.get_collection()
+
+        # 3. 执行查询
+        results = collection.query(
+            query_embeddings=query_embeddings,  # 使用向量查询
+            n_results=n_results,
+            include=['documents', 'metadatas']  # 必须包含 metadatas
+        )
+
+        docs = []
+        sources = []
+
+        if results and results.get('documents'):
+            docs = results['documents'][0]
+            # 安全获取 metadatas，防止为 None
+            metadatas = results['metadatas'][0] if results['metadatas'] else []
+
+            for i in range(len(docs)):
+                doc_content = docs[i]
+                # 收集文档内容
+                docs[i] = doc_content
+
+                # 收集来源信息
+                meta = metadatas[i] if i < len(metadatas) else {}
+                if meta:  # 确保 meta 不为空
+                    sources.append({
+                        'id': meta.get('article_id'),
+                        'title': meta.get('title', '未命名文档')
+                    })
+
+        return docs, sources
