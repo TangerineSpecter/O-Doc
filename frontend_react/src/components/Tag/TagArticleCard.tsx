@@ -1,18 +1,21 @@
 import React from 'react';
 import {
-    FileText, MoreHorizontal, Edit, Trash, Clock, Folder
+    FileText, MoreHorizontal, Edit, Trash, Clock
 } from 'lucide-react';
 import { ArticleItem } from '@/api/article';
 
-// --- 颜色主题配置 (与 CategoriesPage 保持一致) ---
-const THEME_STYLES: Record<string, { bg: string, text: string, border: string }> = {
-    blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100' },
-    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
-    orange: { bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100' },
-    pink: { bg: 'bg-pink-50', text: 'text-pink-600', border: 'border-pink-100' },
-    violet: { bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-100' },
-    cyan: { bg: 'bg-cyan-50', text: 'text-cyan-600', border: 'border-cyan-100' },
-    slate: { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' },
+// --- 颜色主题配置 (修改为实心样式，匹配 Article.tsx 风格) ---
+// 补充了 TagsPage 中定义的所有颜色 (sky, amber 等)
+const THEME_STYLES: Record<string, string> = {
+    blue: 'bg-blue-600 text-white shadow-blue-500/30',
+    emerald: 'bg-emerald-600 text-white shadow-emerald-500/30',
+    orange: 'bg-orange-600 text-white shadow-orange-500/30',
+    pink: 'bg-pink-600 text-white shadow-pink-500/30',
+    violet: 'bg-violet-600 text-white shadow-violet-500/30',
+    cyan: 'bg-cyan-600 text-white shadow-cyan-500/30',
+    sky: 'bg-sky-600 text-white shadow-sky-500/30',
+    amber: 'bg-amber-600 text-white shadow-amber-500/30',
+    slate: 'bg-slate-600 text-white shadow-slate-500/30',
 };
 
 interface TagArticleCardProps {
@@ -52,8 +55,8 @@ export const TagArticleCard = ({
         </div>
     );
 
-    // 获取分类主题样式
-    const categoryTheme = article.category && article.category.themeId
+    // 获取分类主题样式 (只取一个 class 字符串)
+    const categoryThemeClass = article.category && article.category.themeId
         ? THEME_STYLES[article.category.themeId] || THEME_STYLES['blue']
         : THEME_STYLES['slate'];
 
@@ -87,13 +90,12 @@ export const TagArticleCard = ({
                 <h3 className="text-lg font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors line-clamp-2">{article.title}</h3>
                 <p className="text-sm text-slate-500 line-clamp-2 mb-4 leading-relaxed flex-1">{article.desc}</p>
 
-                {/* 底部信息栏：左侧显示分类(带颜色)，右侧显示阅读时间 */}
+                {/* 底部信息栏 */}
                 <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-auto">
-                    {/* 修改：移除 TagList，改为显示 Category Badge */}
                     <div className="flex items-center gap-2">
                         {article.category ? (
-                            <span className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md border font-medium ${categoryTheme.bg} ${categoryTheme.text} ${categoryTheme.border}`}>
-                                <Folder className="w-3 h-3" />
+                            // 修改：使用实心样式，移除 Folder 图标，圆角改为 rounded-full
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold shadow-sm ${categoryThemeClass}`}>
                                 {article.category.name}
                             </span>
                         ) : (
@@ -132,8 +134,8 @@ export const TagArticleCard = ({
                 {/* 修改：移除 TagList，在标题下方或旁边显示分类 */}
                 <div className="flex items-center">
                     {article.category && (
-                        <span className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${categoryTheme.bg} ${categoryTheme.text} ${categoryTheme.border}`}>
-                            <Folder className="w-2.5 h-2.5" />
+                        // 修改：使用实心样式，移除 Folder 图标
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm ${categoryThemeClass}`}>
                             {article.category.name}
                         </span>
                     )}

@@ -250,7 +250,8 @@ class ArticleSerializer(serializers.ModelSerializer):
             return {
                 'category_id': obj.category.category_id,
                 'name': obj.category.name,
-                'theme_id': obj.category.theme_id
+                'theme_id': obj.category.theme_id,
+                'icon_key': obj.category.icon_key
             }
         return None
 

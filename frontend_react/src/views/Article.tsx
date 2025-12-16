@@ -21,6 +21,19 @@ export interface AttachmentItem {
     type?: string;
 }
 
+// 颜色主题样式映射 (与 TagArticleCard 保持一致)
+const CATEGORY_THEME_STYLES: Record<string, string> = {
+    blue: 'bg-blue-600 text-white shadow-blue-500/30',
+    emerald: 'bg-emerald-600 text-white shadow-emerald-500/30',
+    orange: 'bg-orange-600 text-white shadow-orange-500/30',
+    pink: 'bg-pink-600 text-white shadow-pink-500/30',
+    violet: 'bg-violet-600 text-white shadow-violet-500/30',
+    cyan: 'bg-cyan-600 text-white shadow-cyan-500/30',
+    sky: 'bg-sky-600 text-white shadow-sky-500/30',
+    amber: 'bg-amber-600 text-white shadow-amber-500/30',
+    slate: 'bg-slate-600 text-white shadow-slate-500/30',
+};
+
 interface ArticleProps {
     isEmbedded?: boolean;
     scrollContainerId?: string;
@@ -29,6 +42,7 @@ interface ArticleProps {
     title?: string;
     category?: string;
     categoryId?: string;
+    themeId?: string;
     tags?: string[];
     date?: string;
     attachments?: AttachmentItem[];
@@ -44,6 +58,7 @@ export default function Article({
                                     title,
                                     category,
                                     categoryId,
+                                    themeId, // 解构新增的属性
                                     tags,
                                     date,
                                     attachments,
@@ -58,6 +73,11 @@ export default function Article({
     const displayDate = date || "";
     const displayTags = tags || [];
     const displayMarkdown = content || "";
+
+    // 获取动态样式
+    const categoryThemeClass = themeId
+        ? CATEGORY_THEME_STYLES[themeId] || CATEGORY_THEME_STYLES['blue']
+        : CATEGORY_THEME_STYLES['blue']; // 默认蓝色
 
     // 2. 核心修复：必须先执行 Hook，不能在 Hook 前面 return！
     // 即使内容为空，也要让 useArticle 正常执行（传入空字符串即可）
@@ -160,7 +180,8 @@ export default function Article({
                             <div className="flex flex-wrap items-center gap-3 mb-6">
                                 <button
                                     onClick={() => navigate(`/categories?catId=${categoryId || displayCategory}`)}
-                                    className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm shadow-blue-500/30 cursor-pointer hover:bg-blue-700 transition-colors"
+                                    // 修改：使用动态计算的 className 替代硬编码的 blue-600
+                                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold shadow-sm cursor-pointer hover:opacity-90 transition-all ${categoryThemeClass}`}
                                 >
                                     {displayCategory}
                                 </button>

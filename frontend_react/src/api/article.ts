@@ -17,6 +17,8 @@ export interface Article {
     categoryDetail?: {
         categoryId: string;
         name: string;
+        themeId?: string;
+        iconKey?: string;
     };
     parent_id?: string; // 父级文章ID（写入）
     parentDetail?: { // 父级文章详情（读取）
@@ -54,6 +56,7 @@ export interface ArticleItem {
         id: string;
         name: string;
         themeId?: string;
+        iconKey?: string;
     };
 }
 

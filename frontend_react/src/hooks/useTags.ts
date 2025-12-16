@@ -9,7 +9,7 @@ export const useTags = () => {
     // URL参数 - 先获取URL参数，用于初始化selectedTagId
     const [searchParams] = useSearchParams();
     const initialTagId = searchParams.get('tagId') || 'all';
-    
+
     // --- State ---
     const [tags, setTags] = useState<TagItem[]>([]);
     const [selectedTagId, setSelectedTagId] = useState(initialTagId);
@@ -48,10 +48,12 @@ export const useTags = () => {
                 tags: article.tagDetails?.map(tag => tag.name) || [],
                 collId: article.collId,
                 collection: article.collection,
+                // 修复：增加对 themeId 驼峰命名的支持，防止取不到颜色
                 category: article.categoryDetail ? {
                     id: article.categoryDetail.categoryId,
                     name: article.categoryDetail.name,
-                    themeId: (article.categoryDetail as any).theme_id || 'blue'
+                    themeId: (article.categoryDetail as any).theme_id || (article.categoryDetail as any).themeId || 'blue',
+                    iconKey: (article.categoryDetail as any).icon_key || 'Folder'
                 } : undefined
             }));
             setDisplayArticles(formattedData);
@@ -67,11 +69,11 @@ export const useTags = () => {
     useEffect(() => {
         fetchTags();
     }, [fetchTags]);
-    
+
     // 处理URL参数中的tagId - 在标签列表加载完成后验证tagId的有效性
     useEffect(() => {
         if (tags.length === 0) return;
-        
+
         const tagId = searchParams.get('tagId');
         if (tagId) {
             // 首先尝试通过tagId匹配
