@@ -24,7 +24,7 @@ def create_initial_superuser():
     password = ''.join(secrets.choice(alphabet) for i in range(12))
 
     username = 'admin'
-    email = 'admin@example.com'
+    email = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
 
     print("=" * 60)
     print("检测到系统暂无管理员，正在初始化默认账号...")

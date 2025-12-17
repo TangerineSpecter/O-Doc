@@ -14,6 +14,9 @@ dist/
 *.log
 *.tmp
 .tmp/
+*.sqlite3
+chroma_data/
+
 
 # 忽略IDE配置
 .idea/

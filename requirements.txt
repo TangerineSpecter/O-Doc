@@ -2,3 +2,6 @@ Django==5.2.9
 gunicorn==23.0.0
 djangorestframework==3.16.0
 nanoid==2.0.0
+djangorestframework_camel_case==1.4.2
+requests==2.32.3
+chromadb==0.5.10
