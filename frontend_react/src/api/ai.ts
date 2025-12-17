@@ -20,39 +20,7 @@ export const generateTagsWithAI = async (title: string, content: string): Promis
 文章内容：${truncatedContent}`;
 
     try {
-        const response = await fetch('/api/ai/chat/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                // 如果有鉴权 token，记得带上
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({
-                message: prompt,
-                history: [], // 不需要历史记录
-                use_knowledge_base: false
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('AI 请求失败');
-        }
-
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let resultText = '';
-
-        if (reader) {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value);
-                // 处理 SSE 格式 (data: ...) 或者直接文本，取决于后端 ChatView 实现
-                // 您之前的 ChatView 是 yield content，所以前端收到的直接是 content 片段
-                resultText += chunk;
-            }
-        }
-
+        const resultText = await fetchAIResponse(prompt);
         // 清洗数据：有时候流式返回可能包含 "data: " 前缀或者换行，需要解析
         // 您的 ChatView 返回的是纯文本流（yield content），但如果是 SSE 格式 (text/event-stream)
         // 通常会有 "data: "。让我们简单处理一下
@@ -72,4 +40,96 @@ export const generateTagsWithAI = async (title: string, content: string): Promis
         console.error("AI 生成标签失败:", error);
         return [];
     }
+};
+
+/**
+ * AI 生成标题
+ */
+export const generateTitleWithAI = async (content: string): Promise<string> => {
+    // 截取前 3000 字作为参考
+    const truncatedContent = content.slice(0, 3000);
+
+    const prompt = `请根据以下文章内容，生成一个简练、概括性强且具有吸引力的标题。
+要求：
+1. 只返回标题文本，不要包含任何引号、"标题："前缀。
+2. 长度控制在 5 到 25 个字之间。
+3. 语言与文章内容保持一致（中文或英文）。
+
+文章内容：
+${truncatedContent}`;
+
+    try {
+        const result = await fetchAIResponse(prompt);
+        // 清理可能产生的多余符号
+        return result.replace(/^["'《]|["'》]$/g, '').trim();
+    } catch (error) {
+        console.error("AI 生成标题失败:", error);
+        return "";
+    }
+};
+
+/**
+ * AI 润色文章
+ */
+export const polishArticleWithAI = async (content: string): Promise<string> => {
+    // 润色可能涉及全文，暂时截取前 5000 字以防 Token 溢出（视模型能力而定）
+    // 如果是流式处理体验更好，这里保持与现有逻辑一致的非流式等待
+    const truncatedContent = content.slice(0, 5000);
+
+    const prompt = `请作为一位专业的资深编辑，对以下 Markdown 格式的文章进行润色和排版优化。
+要求：
+1. **内容润色**：修正错别字、语病，优化句子结构，使行文更流畅、专业，但严禁改变原意。
+2. **排版优化**：合理使用 Markdown 语法（标题、列表、粗体高亮、引用等）增强可读性。
+3. **结构调整**：如果段落过长，请适当分段。
+4. **输出要求**：只返回润色后的 Markdown 内容，不要包含 "好的"、"如下是润色后的内容" 等任何废话。
+
+待润色文章：
+${truncatedContent}`;
+
+    try {
+        return await fetchAIResponse(prompt);
+    } catch (error) {
+        console.error("AI 润色文章失败:", error);
+        throw error;
+    }
+};
+
+/**
+ * 提取公共的 Fetch 逻辑
+ */
+const fetchAIResponse = async (prompt: string): Promise<string> => {
+    const response = await fetch('/api/ai/chat/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+            message: prompt,
+            history: [],
+            use_knowledge_base: false
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error('AI 请求失败');
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let resultText = '';
+
+    if (reader) {
+        while (true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            resultText += chunk;
+        }
+    }
+
+    // 简单清理 SSE 格式的前缀（如果有）
+    return resultText
+        .replace(/data:\s*/g, '')
+        .trim();
 };

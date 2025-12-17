@@ -1,11 +1,11 @@
 import Article from './Article';
-import { EditorHeader } from '../components/Editor/EditorHeader';
-import { EditorMetaBar } from '../components/Editor/EditorMetaBar';
-import { SlashMenu } from '../components/Editor/SlashMenu';
+import {EditorHeader} from '../components/Editor/EditorHeader';
+import {EditorMetaBar} from '../components/Editor/EditorMetaBar';
+import {SlashMenu} from '../components/Editor/SlashMenu';
 import ImageLinkModal from '../components/common/ImageLinkModal';
 import VideoLinkModal from '../components/common/VideoLinkModal';
-import { useEditor } from '../hooks/useEditor';
-import { BubbleMenu } from '../components/Editor/BubbleMenu';
+import {useEditor} from '../hooks/useEditor';
+import {BubbleMenu} from '../components/Editor/BubbleMenu';
 
 export default function EditorPage() {
     const {
@@ -31,6 +31,10 @@ export default function EditorPage() {
         applyFormat,
         isGeneratingTags,
         onGenerateTags,
+        isGeneratingTitle,
+        onGenerateTitle,
+        isPolishing,
+        onPolish,
     } = useEditor();
 
     // 获取今日日期用于预览
@@ -41,8 +45,8 @@ export default function EditorPage() {
     return (
         <div className="h-screen flex flex-col bg-slate-50 font-sans overflow-hidden">
             {/* Hidden Inputs */}
-            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={onImageUpload} />
-            <input type="file" ref={attachmentInputRef} className="hidden" multiple onChange={onAttachmentUpload} />
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={onImageUpload}/>
+            <input type="file" ref={attachmentInputRef} className="hidden" multiple onChange={onAttachmentUpload}/>
 
             {/* Header */}
             <EditorHeader
@@ -53,14 +57,20 @@ export default function EditorPage() {
                 isPreviewMode={isPreviewMode}
                 onTogglePreview={onTogglePreview}
                 onBack={onBack}
+                isGeneratingTitle={isGeneratingTitle}
+                onGenerateTitle={onGenerateTitle}
+                isPolishing={isPolishing}
+                onPolish={onPolish}
             />
 
             {/* Main Content */}
             <div className="flex-1 relative w-full overflow-hidden">
 
                 {/* --- Edit Mode --- */}
-                <div className={`absolute inset-0 p-4 sm:p-6 lg:px-8 flex flex-col items-center transition-opacity duration-200 ${isPreviewMode ? 'opacity-0 pointer-events-none z-0' : 'opacity-100 z-10'}`}>
-                    <div className="w-full max-w-5xl h-full bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
+                <div
+                    className={`absolute inset-0 p-4 sm:p-6 lg:px-8 flex flex-col items-center transition-opacity duration-200 ${isPreviewMode ? 'opacity-0 pointer-events-none z-0' : 'opacity-100 z-10'}`}>
+                    <div
+                        className="w-full max-w-5xl h-full bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
 
                         {/* Meta Bar */}
                         <EditorMetaBar
@@ -123,7 +133,8 @@ export default function EditorPage() {
                         />
 
                         {/* Footer Status */}
-                        <div className="h-8 border-t border-slate-50 flex items-center justify-center text-[10px] text-slate-400 bg-white shrink-0">
+                        <div
+                            className="h-8 border-t border-slate-50 flex items-center justify-center text-[10px] text-slate-400 bg-white shrink-0">
                             Markdown 编辑模式 · 字数 {content.length}
                         </div>
                     </div>

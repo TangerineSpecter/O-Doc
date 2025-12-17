@@ -6,7 +6,7 @@ from article.models import Article
 from article.serializers import ArticleSerializer, ArticleTreeSerializer
 from utils.error_codes import ErrorCode
 # 导入封装工具
-from utils.response_utils import success_result, error_result, valid_result
+from utils.response_utils import success_result, error_result
 
 
 class ArticleCreateView(APIView):
