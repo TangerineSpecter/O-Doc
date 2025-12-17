@@ -1,10 +1,18 @@
 // frontend_react/src/components/AIChatWindow.tsx
 
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useRef, useState, useMemo} from 'react';
 import {BookOpen, Bot, Maximize2, Minimize2, Send, Trash2, User, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+
+// 引入自定义组件和 API
+import ConfirmationModal from './common/ConfirmationModal';
+import {getArticleDetail} from '../api/article';
+import {CodeBlock, MermaidChart} from './Article/MarkdownElements';
 
 interface Message {
     role: 'user' | 'assistant';
@@ -28,17 +36,150 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     const [isLoading, setIsLoading] = useState(false);
     const [useKb, setUseKb] = useState(false);
 
+    // 弹窗状态
+    const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+
     // --- 平滑输出相关的 Refs ---
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const tokenQueueRef = useRef<string[]>([]); // 字符缓冲队列
     const isThinkingRef = useRef(false); // 标记是否正在输出中
+
+    // --- Markdown 组件配置 (使用 useMemo 避免重复创建导致重渲染) ---
+    const markdownComponents = useMemo(() => ({
+        // 1. 处理代码块和 Mermaid 图表
+        code(props: any) {
+            const {inline, className, children, ...rest} = props;
+            const match = /language-(\w+)/.exec(className || '');
+            const lang = match ? match[1] : '';
+            const codeStr = String(children).replace(/\n$/, '');
+
+            // Mermaid 流程图渲染
+            if (!inline && lang === 'mermaid') {
+                return <MermaidChart chart={codeStr}/>;
+            }
+
+            // 代码高亮块
+            if (!inline && match) {
+                return <CodeBlock language={lang} code={codeStr} {...rest} />;
+            }
+
+            // 行内代码
+            return (
+                <code
+                    className="bg-slate-100 text-orange-600 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] mx-1 break-words border border-slate-200"
+                    {...props}
+                >
+                    {children}
+                </code>
+            );
+        },
+        // 2. 增强的链接渲染：处理路由跳转、最小化窗口、修复缺失的 collId
+        a: ({node, href, children, ...props}: any) => {
+            const isInternal = href?.startsWith('/');
+            return (
+                <a
+                    href={href}
+                    onClick={async (e) => {
+                        if (isInternal && href) {
+                            e.preventDefault();
+
+                            // 交互优化：点击链接时先最小化窗口，防止遮挡
+                            setIsMinimized(true);
+
+                            // 检查链接格式：如果是 /article/xxxx 且只有两段（缺少 collId），尝试修复
+                            const articlePathMatch = href.match(/^\/article\/([^/]+)$/);
+
+                            if (articlePathMatch) {
+                                const articleId = articlePathMatch[1];
+                                try {
+                                    // 调用 API 获取文章详情以拿到 collId
+                                    const article = await getArticleDetail(articleId);
+                                    if (article && article.collId) {
+                                        navigate(`/article/${article.collId}/${article.articleId}`);
+                                        return;
+                                    }
+                                } catch (err) {
+                                    console.warn("Auto-fix link failed, fallback to original:", err);
+                                }
+                            }
+
+                            // 默认跳转
+                            navigate(href);
+                        }
+                    }}
+                    target={isInternal ? undefined : "_blank"}
+                    rel={isInternal ? undefined : "noopener noreferrer"}
+                    className="text-orange-600 hover:text-orange-700 font-medium hover:underline decoration-orange-300 underline-offset-2 cursor-pointer transition-colors"
+                    {...props}
+                >
+                    {children}
+                </a>
+            );
+        },
+        // 3. 优化表格样式
+        table: ({children}: any) => (
+            <div className="overflow-x-auto my-4 border border-slate-200 rounded-lg bg-white/50">
+                <table className="w-full text-sm text-left">{children}</table>
+            </div>
+        ),
+        thead: ({children}: any) => (
+            <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+            {children}
+            </thead>
+        ),
+        th: ({children}: any) => (
+            <th className="px-4 py-3 whitespace-nowrap">
+                {children}
+            </th>
+        ),
+        td: ({children}: any) => (
+            <td className="px-4 py-3 border-b border-slate-100 text-slate-600 last:border-0">
+                {children}
+            </td>
+        ),
+        // 4. 数学公式支持
+        p: ({children}: any) => {
+            // 简单的检查是否包含块级公式
+            const childrenArray = Array.isArray(children) ? children : [children];
+            const hasMathBlock = childrenArray.some((child: any) =>
+                child?.props?.className?.includes('katex-display')
+            );
+
+            if (hasMathBlock) {
+                return <div className="my-4 overflow-x-auto">{children}</div>;
+            }
+            return <p className="mb-2 leading-relaxed last:mb-0">{children}</p>;
+        },
+        // 5. 列表样式
+        ul: ({children}: any) => <ul className="list-disc pl-5 space-y-1 my-2 marker:text-slate-400">{children}</ul>,
+        ol: ({children}: any) => <ol className="list-decimal pl-5 space-y-1 my-2 marker:text-slate-400">{children}</ol>,
+        blockquote: ({children}: any) => (
+            <blockquote
+                className="border-l-4 border-orange-200 pl-4 py-1 my-3 bg-orange-50/50 text-slate-600 italic rounded-r">
+                {children}
+            </blockquote>
+        ),
+    }), [navigate]);
+
+    // --- ESC 键监听：最小化窗口 ---
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isOpen && !isMinimized) {
+                // 如果当前正在输入框中，可能需要权衡是否拦截，这里默认直接最小化
+                setIsMinimized(true);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, isMinimized]);
 
     // --- 核心逻辑 1: 平滑输出定时器 ---
     useEffect(() => {
         const interval = setInterval(() => {
             if (tokenQueueRef.current.length > 0) {
                 // 每次取出少量字符，模拟打字机效果
-                const nextChars = tokenQueueRef.current.splice(0, 3).join(''); // 稍微调快了一点速度 (2->3)
+                const nextChars = tokenQueueRef.current.splice(0, 3).join('');
 
                 setMessages(prev => {
                     const newMsgs = [...prev];
@@ -61,12 +202,18 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         }
     }, [messages, isMinimized, isOpen]);
 
-    // 清空消息
+    // 打开清空确认弹窗
     const handleClearMessages = () => {
-        tokenQueueRef.current = [];
-        if (messages.length > 0 && confirm('确定要清空当前对话记录吗？')) {
-            setMessages([]);
+        if (messages.length > 0) {
+            setIsClearModalOpen(true);
         }
+    };
+
+    // 执行清空操作
+    const confirmClear = () => {
+        tokenQueueRef.current = [];
+        setMessages([]);
+        setIsClearModalOpen(false);
     };
 
     // 发送消息处理
@@ -146,6 +293,17 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         <div
             className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] animate-in fade-in duration-200">
 
+            {/* 确认弹窗 */}
+            <ConfirmationModal
+                isOpen={isClearModalOpen}
+                onClose={() => setIsClearModalOpen(false)}
+                onConfirm={confirmClear}
+                title="清空对话"
+                description="确定要清空当前所有对话记录吗？此操作无法撤销。"
+                confirmText="清空"
+                type="warning"
+            />
+
             {/* 主对话框容器 */}
             <div
                 className="relative w-[900px] max-w-[95vw] h-[80vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 ring-1 ring-slate-900/5 overflow-hidden"
@@ -166,8 +324,13 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                     <div className="flex items-center gap-1">
                         <button
                             onClick={handleClearMessages}
-                            className="p-2 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-orange-600 transition-colors mr-1"
-                            title="清空会话"
+                            disabled={messages.length === 0}
+                            className={`p-2 rounded-lg transition-colors mr-1 ${
+                                messages.length === 0
+                                    ? 'text-slate-200 cursor-not-allowed'
+                                    : 'text-slate-400 hover:bg-slate-200 hover:text-orange-600'
+                            }`}
+                            title={messages.length === 0 ? "暂无对话" : "清空会话"}
                         >
                             <Trash2 className="w-5 h-5"/>
                         </button>
@@ -235,36 +398,9 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                 {msg.role === 'assistant' ? (
                                     /* AI 回复使用 ReactMarkdown 渲染，支持引用链接点击跳转 */
                                     <ReactMarkdown
-                                        /* 2. 移除 ReactMarkdown 上的 className */
-                                        remarkPlugins={[remarkGfm]}
-                                        components={{
-                                            // 自定义链接渲染，实现路由跳转
-                                            a: ({node, href, children, ...props}) => {
-                                                const isInternal = href?.startsWith('/');
-                                                return (
-                                                    <a
-                                                        href={href}
-                                                        onClick={(e) => {
-                                                            if (isInternal) {
-                                                                e.preventDefault();
-                                                                if (href) navigate(href);
-                                                            }
-                                                        }}
-                                                        target={isInternal ? undefined : "_blank"}
-                                                        rel={isInternal ? undefined : "noopener noreferrer"}
-                                                        className="text-orange-600 hover:text-orange-700 font-medium hover:underline decoration-orange-300 underline-offset-2 cursor-pointer transition-colors"
-                                                        {...props}
-                                                    >
-                                                        {children}
-                                                    </a>
-                                                );
-                                            },
-                                            // 优化列表样式
-                                            ul: ({children}) => <ul
-                                                className="list-disc pl-4 space-y-1">{children}</ul>,
-                                            ol: ({children}) => <ol
-                                                className="list-decimal pl-4 space-y-1">{children}</ol>,
-                                        }}
+                                        remarkPlugins={[remarkGfm, remarkMath]}
+                                        rehypePlugins={[rehypeKatex]}
+                                        components={markdownComponents as any}
                                     >
                                         {msg.content}
                                     </ReactMarkdown>
