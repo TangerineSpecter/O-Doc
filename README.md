@@ -1,6 +1,6 @@
 # 小橘文档 (O-Doc) 🍊
 
-[![版本](https://img.shields.io/badge/version-0.5.2-blue.svg)](https://github.com/your-username/o-doc)
+[![版本](https://img.shields.io/badge/version-0.5.3-blue.svg)](https://github.com/your-username/o-doc)
 [![Django](https://img.shields.io/badge/Django-5.x-092e20.svg?logo=django)](https://www.djangoproject.com/)
 [![React](https://img.shields.io/badge/React-19.x-61dafb.svg?logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-7.x-646cff.svg?logo=vite)](https://vitejs.dev/)
@@ -9,7 +9,7 @@
 [![Docker](https://img.shields.io/badge/Docker-26.0+-2496ed.svg?logo=docker)](https://www.docker.com/)
 [![许可证](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](frontend_react/LICENSE)
 
-一个现代化的Ai知识管理与文档展示平台，基于 Django 5 + React + Vite + Tailwind CSS 构建的一体化项目，专为团队知识记录、文档管理和信息共享而设计，支持 AI 智能助手和RAG知识库。
+一个现代化的AI知识管理与文档展示平台，基于 Django 5 + React + Vite + Tailwind CSS 构建的一体化项目，专为团队知识记录、文档管理和信息共享而设计，支持 AI 智能助手和RAG知识库。
 
 ## 📸 软件界面
 
@@ -35,6 +35,7 @@
 
 - **📚 知识记录** - 系统化的文档分类与管理
 - **🤖 AI 智能助手** - 集成多种 AI 模型，提供智能对话和文档助手功能
+- **🧠 RAG 知识库** - 支持本地向量数据库存储和检索，实现基于文档的智能问答
 - **🔍 智能搜索** - 快速定位所需文档内容
 - **📱 响应式设计** - 完美适配各种设备尺寸
 - **🎨 优雅界面** - 现代化的视觉体验
@@ -74,6 +75,10 @@
 - **Axios** - 强大的 HTTP 客户端，用于 API 请求
 - **Day.js** - 轻量级的日期时间处理库
 - **Recharts** - 基于 React 的图表库，用于数据可视化
+
+### RAG知识库
+- **ChromaDB** - 本地向量数据库，用于存储和检索文档向量
+- **Sentence Transformers** - 文本向量化模型，用于生成文档嵌入
 
 ### 开发工具
 - **ESLint** - 代码质量检查与格式化
@@ -154,10 +159,17 @@ cd ..
 # 构建 Docker 镜像
 docker build -t o-doc .
 
-# 运行 Docker 容器
+# 运行 Docker 容器（默认配置）
 docker run -p 8000:11800 o-doc
+
+# 运行 Docker 容器（自定义管理员邮箱）
+docker run -p 8000:11800 -e ADMIN_EMAIL=admin@yourdomain.com o-doc
 ```
 访问 http://localhost:8000 查看应用
+
+**环境变量说明**：
+- `ADMIN_EMAIL` - 管理员邮箱地址（默认：admin@example.com）
+- `PORT` - 服务端口（默认：11800）
 
 ## ✨ 核心功能
 
@@ -173,6 +185,12 @@ docker run -p 8000:11800 o-doc
 - 多种 AI 模型配置
 - 智能对话功能，支持上下文理解
 - 流式响应输出，提供流畅的交互体验
+
+### RAG 知识库
+- **本地向量存储** - 使用 ChromaDB 实现本地文档向量存储
+- **智能检索** - 基于相似度的文档检索，实现精准问答
+- **文档管理** - 支持文档的添加、删除和更新操作
+- **向量配置** - 可配置的向量模型和检索参数
 
 ### 系统配置
 - AI 提供商管理
@@ -244,8 +262,11 @@ python manage.py runserver
 # 构建镜像
 docker build -t o-doc .
 
-# 运行容器
+# 运行容器（默认配置）
 docker run -d -p 8000:11800 --name o-doc-container o-doc
+
+# 运行容器（自定义管理员邮箱）
+docker run -d -p 8000:11800 -e ADMIN_EMAIL=admin@yourdomain.com --name o-doc-container o-doc
 
 # 查看日志
 docker logs -f o-doc-container
