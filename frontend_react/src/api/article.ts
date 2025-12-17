@@ -41,6 +41,8 @@ export interface Article {
         type?: string;
         url: string;
     }>;
+    is_polishing?: boolean;
+    source_url?: string;
 }
 
 //前端列表通用的文章项类型 (ViewModel)
@@ -67,9 +69,10 @@ export interface ArticleNode {
     articleId: string;
     title: string;
     date?: string;
-    type: 'doc' | 'folder'; // 节点类型
+    type: 'doc' | 'folder';
     children?: ArticleNode[];
-    parentId?: string; // 可选，方便前端处理
+    parentId?: string;
+    is_polishing?: boolean;
 }
 
 // 创建文章参数
@@ -96,6 +99,13 @@ interface UpdateArticleParams {
     parentId?: string;
     tags?: string[];
     assets?: string[];
+}
+
+//保存网页接口参数
+interface SaveWebpageParams {
+    url: string;
+    needPolishing: boolean;
+    collId: string;
 }
 
 /**
@@ -162,11 +172,8 @@ export const getArticleTreeByAnthology = async (collId: string): Promise<Article
 
 /**
  * 新增：将网页保存为文章
- * @param url 目标网页链接
- * @param needPolishing 是否需要 AI 润色
- * @param collId 文集 ID
+ * @param params 保存文章参数
  */
-export const saveWebpageAsArticle = async (data: { url: string; needPolishing: boolean; collId: string }) => {
-    // 假设后端接口路径为 /article/save-web/，请根据实际情况修改
-    return request.post('/article/save-web/', data);
+export const saveWebpageAsArticle = async (params?: SaveWebpageParams): Promise<Article> => {    // 假设后端接口路径为 /article/save-web/，请根据实际情况修改
+    return request.post('/article/save-web/', params);
 };

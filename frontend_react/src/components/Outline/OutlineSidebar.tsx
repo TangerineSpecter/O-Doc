@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {BookOpen, ChevronDown, ChevronRight, FileText, Globe, Plus, RefreshCw, Search, X} from 'lucide-react';
+import {BookOpen, ChevronDown, ChevronRight, FileText, Globe, Plus, RefreshCw, Search, X, Loader2} from 'lucide-react';
 import {ArticleNode} from '@/api/article.ts';
 
 interface OutlineSidebarProps {
@@ -72,7 +72,18 @@ export default function OutlineSidebar({
                     `}
                     style={{paddingLeft}}
                 >
-                    <span className="truncate">{item.title}</span>
+                    <div className="flex items-center gap-2 truncate">
+                        {/* [新增] 状态图标 */}
+                        {item.is_polishing ? (
+                            <div className="flex items-center gap-1 text-purple-500" title="AI 正在润色中...">
+                                <Loader2 size={12} className="animate-spin"/>
+                            </div>
+                        ) : null}
+
+                        <span className={`truncate ${item.is_polishing ? 'text-slate-400 italic' : ''}`}>
+                            {item.title}
+                        </span>
+                    </div>
                     {hasChildren && (
                         <div
                             onClick={(e) => onToggleExpand(e, item.id)}

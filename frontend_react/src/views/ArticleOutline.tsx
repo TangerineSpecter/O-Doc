@@ -1,4 +1,4 @@
-import {useEffect, useState, useRef} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {Menu} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import Article from './Article';
@@ -9,7 +9,7 @@ import OutlineContent from '../components/Outline/OutlineContent';
 import {useArticleTree} from '../hooks/useArticleTree';
 import {Article as ArticleType, deleteArticle, getArticleDetail, saveWebpageAsArticle} from '../api/article';
 import {useToast} from '../components/common/ToastProvider';
-import {getAnthologyDetail, Anthology} from '../api/anthology';
+import {Anthology, getAnthologyDetail} from '../api/anthology';
 import {getIconComponent} from '../constants/iconList';
 import StarLoader from '../components/common/StarLoader';
 import {syncCollectionToRag} from '../api/rag';
@@ -35,7 +35,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
         searchQuery,
         setSearchQuery,
         toggleExpand,
-        refreshDocs
+        refreshTree
     } = useArticleTree(collId);
 
     const [activeDocId, setActiveDocId] = useState<string | undefined>(articleId);
@@ -117,28 +117,33 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
         setIsWebpageModalOpen(true);
     };
 
-    // 新增：执行保存网页逻辑
+    // 执行保存网页逻辑
     const handleSaveWebpage = async (url: string, needPolishing: boolean) => {
         if (!collId) return;
 
         try {
-            await saveWebpageAsArticle({
+            // 1. 调用接口
+            const newArticle = await saveWebpageAsArticle({
                 url,
                 needPolishing,
                 collId
             });
-            toast.success('网页保存成功！');
+
+            toast.success(needPolishing ? '网页已保存，AI 正在后台润色...' : '网页保存成功！');
             setIsWebpageModalOpen(false);
 
-            // 刷新页面或重新获取列表
-            // 这里简单使用 reload 确保数据最新，也可以优化为只刷新树
-            window.location.reload();
+            // 2. [关键] 刷新左侧目录树，让新文章显示出来（包含 is_polishing 状态）
+            await refreshTree();
+
+            // 3. 自动选中新文章
+            if (newArticle?.articleId) {
+                handleSelectDoc(newArticle.articleId);
+            }
+
         } catch (error: any) {
             console.error(error);
-            const err = error as Error;
-            toast.error(err.message || '保存网页失败，请检查链接是否可访问');
-            // 这里 throw error 以便 Modal 组件捕获并停止 loading 状态
-            throw error;
+            // 错误由 Modal 组件捕获显示，或者在这里 toast
+            throw error; // 抛出错误让 Modal 停止 loading
         }
     };
 

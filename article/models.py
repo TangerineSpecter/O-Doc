@@ -58,6 +58,18 @@ class Article(models.Model):
         help_text="文章作者"
     )
 
+    source_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="文章来源网址"
+    )
+
+    is_polishing = models.BooleanField(
+        default=False,
+        help_text="是否正在进行AI润色"
+    )
+
     # 创建时间
     created_at = models.DateTimeField(
         default=timezone.now,

@@ -181,11 +181,12 @@ class ArticleSerializer(serializers.ModelSerializer):
             'author', 'created_at', 'updated_at', 'permission', 'is_valid',
             'read_count', 'category_id', 'sort', 'parent_id', 'tags', 'assets',
             'tag_details', 'category_detail', 'parent_detail', 'attachments',
-            'word_count', 'read_time', 'word_count', 'read_time'
+            'word_count', 'read_time', 'word_count', 'read_time',
+            'source_url', 'is_polishing'
         ]
         # 只读字段
         read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'tag_details', 'category_detail',
-                            'parent_detail', 'attachments']
+                            'parent_detail', 'attachments', 'is_polishing']
 
         validators = [
             UniqueTogetherValidator(

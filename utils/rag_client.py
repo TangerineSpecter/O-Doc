@@ -3,7 +3,7 @@ import chromadb
 from chromadb.config import Settings
 from django.conf import settings
 from system_settings.models import SystemSetting, AIModel
-import requests  # 假设 create_embeddings 需要用到 requests
+import requests
 
 CHROMA_DB_PATH = os.path.join(settings.BASE_DIR, 'chroma_data')
 
