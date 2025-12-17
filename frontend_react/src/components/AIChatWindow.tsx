@@ -235,7 +235,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                 {msg.role === 'assistant' ? (
                                     /* AI 回复使用 ReactMarkdown 渲染，支持引用链接点击跳转 */
                                     <ReactMarkdown
-                                        className="prose prose-sm max-w-none prose-slate prose-p:my-1 prose-ul:my-2 prose-li:my-0 prose-headings:text-slate-700 prose-a:no-underline"
+                                        /* 2. 移除 ReactMarkdown 上的 className */
                                         remarkPlugins={[remarkGfm]}
                                         components={{
                                             // 自定义链接渲染，实现路由跳转
@@ -248,8 +248,6 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                                             if (isInternal) {
                                                                 e.preventDefault();
                                                                 if (href) navigate(href);
-                                                                // 如果希望跳转后自动最小化聊天窗口，取消下面注释
-                                                                // setIsMinimized(true);
                                                             }
                                                         }}
                                                         target={isInternal ? undefined : "_blank"}
@@ -262,8 +260,10 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                                 );
                                             },
                                             // 优化列表样式
-                                            ul: ({children}) => <ul className="list-disc pl-4 space-y-1">{children}</ul>,
-                                            ol: ({children}) => <ol className="list-decimal pl-4 space-y-1">{children}</ol>,
+                                            ul: ({children}) => <ul
+                                                className="list-disc pl-4 space-y-1">{children}</ul>,
+                                            ol: ({children}) => <ol
+                                                className="list-decimal pl-4 space-y-1">{children}</ol>,
                                         }}
                                     >
                                         {msg.content}
