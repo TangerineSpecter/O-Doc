@@ -21,7 +21,7 @@
 
 :root {
   /* 使用 tailwind 配置的 sans 字体 */
-  font-family: theme('fontFamily.sans'); 
+  font-family: 'MyCustomFont',theme('fontFamily.sans'); 
   line-height: 1.6;
   font-weight: 400;
 

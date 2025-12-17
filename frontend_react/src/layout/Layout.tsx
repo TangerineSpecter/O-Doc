@@ -21,7 +21,6 @@ import {AIChatWindow} from '../components/AIChatWindow';
 import {Article, getArticles} from '../api/article';
 import request from '../utils/request';
 import {getUserInfo} from '../api/user';
-import {useToast} from "@/components/common/ToastProvider.tsx";
 
 interface LayoutProps {
     children: ReactNode;

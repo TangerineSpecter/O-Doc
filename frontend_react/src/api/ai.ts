@@ -1,5 +1,4 @@
 // frontend_react/src/api/ai.ts
-import request from '../utils/request';
 
 // 定义 Chat 接口的返回类型（如果需要处理流式，这里可能需要特殊处理，但简单起见我们假设非流式或手动拼接）
 // 注意：之前的 ChatView 是 StreamingHttpResponse，前端 fetch 需要处理流。

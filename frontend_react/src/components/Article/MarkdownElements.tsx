@@ -1,8 +1,10 @@
+// frontend_react/src/components/Article/MarkdownElements.tsx
+
 import React, { useState, useEffect } from 'react';
 import mermaid from 'mermaid';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow as darkTheme } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, AlertTriangle } from 'lucide-react';
 
 // --- 强制样式 ---
 export const CUSTOM_STYLES = `
@@ -51,29 +53,77 @@ export const CopyButton = ({ text }: { text: string }) => {
     );
 };
 
-// --- Mermaid Component ---
+// --- Mermaid Component (Fixed) ---
 export const MermaidChart = ({ chart }: { chart: string }) => {
     const [svg, setSvg] = useState('');
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        let isMounted = true;
+        const cleanChart = chart.trim();
+
+        if (!cleanChart) return;
+
+        // 初始化 Mermaid
         mermaid.initialize({
             startOnLoad: false,
             theme: 'neutral',
             securityLevel: 'loose',
-            fontFamily: 'Inter, sans-serif'
+            fontFamily: 'Inter, sans-serif',
+            // 关键修复：禁止 Mermaid 自动生成错误 SVG，强制抛出异常
+            suppressErrorRendering: true,
         });
 
         const render = async () => {
             try {
-                const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
-                const { svg } = await mermaid.render(id, chart);
-                setSvg(svg);
-            } catch (error) {
-                setSvg('<div class="text-red-500 text-sm p-4 bg-red-50 rounded">Mermaid Render Error</div>');
+                // 1. 预检查语法（可选，但推荐）
+                await mermaid.parse(cleanChart);
+
+                // 2. 生成唯一 ID
+                // 使用时间戳+随机数确保 React Strict Mode 下多次渲染 ID 不冲突
+                const id = `mermaid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+                // 3. 渲染
+                const { svg } = await mermaid.render(id, cleanChart);
+
+                if (isMounted) {
+                    setSvg(svg);
+                    setError(null);
+                }
+            } catch (err: any) {
+                console.warn("Mermaid Render Warning:", err);
+                if (isMounted) {
+                    // 只有在真的解析失败时才显示错误状态，而不是显示 Mermaid 的默认错误图
+                    setError('Diagram syntax error');
+                }
             }
         };
+
         render();
+
+        return () => {
+            isMounted = false;
+        };
     }, [chart]);
+
+    // 错误状态展示（比默认的 SVG 好看）
+    if (error) {
+        return (
+            <div className="my-6 p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm flex gap-3 items-start">
+                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                <div className="flex-1 overflow-hidden">
+                    <p className="font-bold mb-1">流程图渲染失败</p>
+                    <p className="opacity-80 text-xs mb-2">可能是语法错误或内容不完整</p>
+                    <details className="cursor-pointer">
+                        <summary className="text-xs hover:underline opacity-60">查看源码</summary>
+                        <pre className="mt-2 p-2 bg-red-100/50 rounded text-[10px] font-mono whitespace-pre-wrap break-all">
+                            {chart}
+                        </pre>
+                    </details>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="my-8 w-full bg-white border border-slate-200 rounded-xl shadow-sm p-6 overflow-x-auto flex justify-center">

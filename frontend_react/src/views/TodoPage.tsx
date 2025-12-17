@@ -5,9 +5,7 @@ import {
     Trash2, 
     Calendar, 
     CheckCircle2, 
-    Circle, 
     Search,
-    X,
     Clock
 } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
