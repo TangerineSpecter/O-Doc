@@ -25,6 +25,7 @@ O-Doc/
 ├── categories/          # 分类模块
 ├── stats/               # 统计模块
 ├── system_settings/     # 系统设置模块
+├── rag/                 # RAG 模块
 ├── tags/                # 标签模块
 ├── user/                # 用户模块
 ├── utils/               # 工具模块
@@ -59,18 +60,21 @@ frontend_react/src/
 │   ├── ResourcesPage.tsx # 资源管理页面
 │   ├── SettingsPage.tsx # 设置页面
 │   ├── StatisticsPage.tsx # 统计页面
-│   └── TagsPage.tsx     # 标签管理页面
+│   ├── TagsPage.tsx     # 标签管理页面
+│   └── TodoPage.tsx     # 待办事项页面
 ├── doc/                 # 文档内容目录
-│   ├── frontend_doc/    # 前端文档
 │   ├── image.png        # 示例图片
 │   ├── image-1.png      # 示例图片1
 │   └── image-2.png      # 示例图片2
 ├── api/                 # API 调用相关
+│   ├── ai.ts            # AI 相关 API
 │   ├── anthology.ts     # 文集相关 API
 │   ├── article.ts       # 文章相关 API
 │   ├── category.ts      # 分类相关 API
+│   ├── rag.ts           # RAG 相关 API
 │   ├── resources.ts     # 资源相关 API
 │   ├── setting.ts       # 设置相关 API
+│   ├── stats.ts         # 统计相关 API
 │   ├── tag.ts           # 标签相关 API
 │   └── user.ts          # 用户相关 API
 ├── hooks/               # 自定义 Hooks
@@ -79,6 +83,7 @@ frontend_react/src/
 │   ├── useCategories.ts   # 分类相关 Hook
 │   ├── useCollections.ts  # 文集相关 Hook
 │   ├── useEditor.tsx      # 编辑器相关 Hook
+│   ├── useReadStats.ts    # 阅读统计相关 Hook
 │   ├── useSettings.ts     # 设置相关 Hook
 │   └── useTags.ts         # 标签相关 Hook
 ├── components/          # 通用组件
@@ -87,6 +92,7 @@ frontend_react/src/
 │   ├── CategoryModal.tsx        # 分类创建/编辑模态框
 │   ├── TagModal.tsx             # 标签模态框组件
 │   ├── FloatingActionMenu.tsx   # 悬浮操作菜单
+│   ├── SortableCollectionCard.tsx # 可排序的文集卡片组件
 │   ├── Article/                 # 文章相关组件
 │   │   ├── MarkdownElements.tsx # Markdown 元素组件
 │   │   └── TableOfContents.tsx  # 目录组件
@@ -123,5 +129,6 @@ frontend_react/src/
 │   ├── handlers.ts            # Mock 处理函数
 │   └── homepageDemoData.json  # 首页示例数据
 └── utils/               # 工具函数
+    ├── format.ts        # 格式化工具类
     └── request.ts       # 请求工具类
 ```
