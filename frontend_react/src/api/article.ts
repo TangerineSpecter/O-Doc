@@ -159,3 +159,14 @@ export const getArticlesByAnthology = async (collId: string): Promise<Article[]>
 export const getArticleTreeByAnthology = async (collId: string): Promise<ArticleNode[]> => {
     return request.get('/article/tree-list', {params: {collId}});
 };
+
+/**
+ * 新增：将网页保存为文章
+ * @param url 目标网页链接
+ * @param needPolishing 是否需要 AI 润色
+ * @param collId 文集 ID
+ */
+export const saveWebpageAsArticle = async (data: { url: string; needPolishing: boolean; collId: string }) => {
+    // 假设后端接口路径为 /article/save-web/，请根据实际情况修改
+    return request.post('/article/save-web/', data);
+};

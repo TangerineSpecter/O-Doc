@@ -3,10 +3,11 @@ import {Menu} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import Article from './Article';
 import ConfirmationModal from '../components/common/ConfirmationModal';
+import SaveWebpageModal from '../components/common/SaveWebpageModal';
 import OutlineSidebar from '../components/Outline/OutlineSidebar';
 import OutlineContent from '../components/Outline/OutlineContent';
 import {useArticleTree} from '../hooks/useArticleTree';
-import {Article as ArticleType, deleteArticle, getArticleDetail} from '../api/article';
+import {Article as ArticleType, deleteArticle, getArticleDetail, saveWebpageAsArticle} from '../api/article';
 import {useToast} from '../components/common/ToastProvider';
 import {getAnthologyDetail, Anthology} from '../api/anthology';
 import {getIconComponent} from '../constants/iconList';
@@ -33,12 +34,15 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
         expandedIds,
         searchQuery,
         setSearchQuery,
-        toggleExpand
+        toggleExpand,
+        refreshDocs
     } = useArticleTree(collId);
 
     const [activeDocId, setActiveDocId] = useState<string | undefined>(articleId);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isWebpageModalOpen, setIsWebpageModalOpen] = useState(false); // 新增状态
+
     const [articleDetail, setArticleDetail] = useState<ArticleType | null>(null);
     const [articleLoading, setArticleLoading] = useState(false);
     const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
@@ -106,7 +110,37 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
         if (onNavigate) onNavigate('article', {collId});
     };
 
+    //新建文档
     const handleCreateDoc = () => navigate(`/editor?collId=${collId}`);
+    //新建 web 内容解析
+    const handleOpenWebpageModal = () => {
+        setIsWebpageModalOpen(true);
+    };
+
+    // 新增：执行保存网页逻辑
+    const handleSaveWebpage = async (url: string, needPolishing: boolean) => {
+        if (!collId) return;
+
+        try {
+            await saveWebpageAsArticle({
+                url,
+                needPolishing,
+                collId
+            });
+            toast.success('网页保存成功！');
+            setIsWebpageModalOpen(false);
+
+            // 刷新页面或重新获取列表
+            // 这里简单使用 reload 确保数据最新，也可以优化为只刷新树
+            window.location.reload();
+        } catch (error: any) {
+            console.error(error);
+            const err = error as Error;
+            toast.error(err.message || '保存网页失败，请检查链接是否可访问');
+            // 这里 throw error 以便 Modal 组件捕获并停止 loading 状态
+            throw error;
+        }
+    };
 
     const handleEditArticle = () => {
         if (!activeDocId) return;
@@ -178,6 +212,13 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                 type="danger"
             />
 
+            {/* 新增：保存网页弹窗 */}
+            <SaveWebpageModal
+                isOpen={isWebpageModalOpen}
+                onClose={() => setIsWebpageModalOpen(false)}
+                onConfirm={handleSaveWebpage}
+            />
+
             <OutlineSidebar
                 className={`${isSidebarOpen ? 'block' : 'hidden md:flex'} w-72`}
                 title={displayTitle}
@@ -189,6 +230,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                 onToggleExpand={toggleExpand}
                 onSelectDoc={handleSelectDoc}
                 onCreateDoc={handleCreateDoc}
+                onSaveWebpage={handleOpenWebpageModal}
                 onReset={handleResetView}
                 onSyncCollection={handleSyncCollection}
                 isCollectionSyncing={isCollectionSyncing}

@@ -1,5 +1,5 @@
-import React from 'react';
-import {ChevronDown, ChevronRight, Search, X, Plus, BookOpen, RefreshCw} from 'lucide-react';
+import React, {useEffect, useRef, useState} from 'react';
+import {BookOpen, ChevronDown, ChevronRight, FileText, Globe, Plus, RefreshCw, Search, X} from 'lucide-react';
 import {ArticleNode} from '@/api/article.ts';
 
 interface OutlineSidebarProps {
@@ -11,7 +11,10 @@ interface OutlineSidebarProps {
     onSearchChange: (query: string) => void;
     onToggleExpand: (e: React.MouseEvent, id: string) => void;
     onSelectDoc: (articleId: string) => void;
-    onCreateDoc: () => void;
+
+    onCreateDoc: () => void;       // 保留：新建文档
+    onSaveWebpage: () => void;     // 新增：新建网页
+
     onReset?: () => void;
     className?: string;
     onSyncCollection?: () => void;
@@ -28,16 +31,32 @@ export default function OutlineSidebar({
                                            onToggleExpand,
                                            onSelectDoc,
                                            onCreateDoc,
+                                           onSaveWebpage, // 解构新增的 prop
                                            onReset,
                                            onSyncCollection,
                                            isCollectionSyncing = false,
                                            className = ''
                                        }: OutlineSidebarProps) {
+    // 新增：控制新建菜单的显示
+    const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
+    const createMenuRef = useRef<HTMLDivElement>(null);
 
-    // 递归渲染树节点
+    // 点击外部关闭菜单
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (createMenuRef.current && !createMenuRef.current.contains(event.target as Node)) {
+                setIsCreateMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // ... (保留 renderItem 函数不变)
     const renderItem = (item: ArticleNode, level = 0) => {
+        // ... (原代码)
         const hasChildren = item.children && item.children.length > 0;
-        const isExpanded = expandedIds.includes(item.id) || searchQuery.length > 0; // 搜索时默认展开
+        const isExpanded = expandedIds.includes(item.id) || searchQuery.length > 0;
         const isActive = activeDocId === item.articleId;
         const paddingLeft = 12 + level * 16;
 
@@ -75,7 +94,7 @@ export default function OutlineSidebar({
 
     return (
         <aside className={`bg-white flex flex-col border-r border-slate-200 flex-shrink-0 h-full ${className}`}>
-            {/* Title Header */}
+            {/* Title Header (保留原代码) */}
             <div
                 onClick={onReset}
                 className="h-14 flex items-center justify-between px-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors flex-shrink-0 group">
@@ -84,11 +103,10 @@ export default function OutlineSidebar({
                     <span className="font-bold text-slate-700 text-sm truncate">{title}</span>
                 </div>
 
-                {/* [新增] 右侧：文集同步按钮 */}
                 {onSyncCollection && (
                     <button
                         onClick={(e) => {
-                            e.stopPropagation(); // 防止触发 onReset
+                            e.stopPropagation();
                             onSyncCollection();
                         }}
                         disabled={isCollectionSyncing}
@@ -124,16 +142,62 @@ export default function OutlineSidebar({
                     )}
                 </div>
 
-                <button
-                    onClick={onCreateDoc}
-                    className="w-full flex items-center justify-center gap-1.5 py-1.5 bg-white border border-dashed border-slate-300 rounded-md text-xs text-slate-500 hover:text-orange-600 hover:border-orange-300 hover:bg-orange-50 transition-all"
-                >
-                    <Plus size={12}/>
-                    <span>新建文档</span>
-                </button>
+                {/* --- 修改部分：新建按钮改为 Dropdown --- */}
+                <div className="relative" ref={createMenuRef}>
+                    <button
+                        onClick={() => setIsCreateMenuOpen(!isCreateMenuOpen)}
+                        className={`
+                            w-full flex items-center justify-center gap-1.5 py-1.5 border border-dashed rounded-md text-xs transition-all
+                            ${isCreateMenuOpen
+                            ? 'bg-orange-50 border-orange-300 text-orange-600'
+                            : 'bg-white border-slate-300 text-slate-500 hover:text-orange-600 hover:border-orange-300 hover:bg-orange-50'}
+                        `}
+                    >
+                        <Plus size={12}/>
+                        <span>新建内容</span>
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {isCreateMenuOpen && (
+                        <div
+                            className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                            <button
+                                onClick={() => {
+                                    onCreateDoc();
+                                    setIsCreateMenuOpen(false);
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-slate-600 hover:bg-orange-50 hover:text-orange-700 transition-colors text-left"
+                            >
+                                <FileText size={14} className="text-orange-400"/>
+                                <div>
+                                    <div className="font-medium">新建文档</div>
+                                    <div className="text-[10px] text-slate-400 scale-90 origin-left">创建空白 Markdown
+                                        文档
+                                    </div>
+                                </div>
+                            </button>
+                            <div className="h-px bg-slate-50"></div>
+                            <button
+                                onClick={() => {
+                                    onSaveWebpage();
+                                    setIsCreateMenuOpen(false);
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-slate-600 hover:bg-blue-50 hover:text-blue-700 transition-colors text-left"
+                            >
+                                <Globe size={14} className="text-blue-400"/>
+                                <div>
+                                    <div className="font-medium">保存网页</div>
+                                    <div
+                                        className="text-[10px] text-slate-400 scale-90 origin-left">抓取链接内容并保存
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Tree List */}
+            {/* Tree List (保留原代码) */}
             <div className="flex-1 overflow-y-auto custom-scrollbar py-2">
                 {docs.length > 0 ? (
                     docs.map(item => renderItem(item))
@@ -144,7 +208,6 @@ export default function OutlineSidebar({
 
             <div
                 className="p-3 border-t border-slate-100 text-xs text-slate-400 flex justify-between items-center flex-shrink-0 bg-white">
-                {/* 底部保留位置，可放置设置按钮等 */}
             </div>
         </aside>
     );
