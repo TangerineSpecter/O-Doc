@@ -298,7 +298,7 @@ class ArticleTreeSerializer(serializers.ModelSerializer):
         """
         返回格式化的日期，用于前端显示
         """
-        return obj.updated_at.strftime('%Y-%m-%d')
+        return obj.created_at.strftime('%Y-%m-%d')
 
     def get_children(self, obj):
         """

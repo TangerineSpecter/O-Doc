@@ -54,7 +54,8 @@ class ChatView(APIView):
 
                 if retrieved_docs:
                     context_str = "\n\n".join(retrieved_docs)
-                    system_prompt += f"\n\n请严格基于以下[参考资料]回答用户的问题。如果参考资料不足以回答，请说明。\n\n[参考资料]:\n{context_str}\n"
+                    system_prompt += (f"\n\n请严格基于以下[参考资料]回答用户的问题。如果参考资料不足以回答，请说明。对于代码内容务必使用 ```language 形式标注语言（如 ```python / ```bash / ```yaml …）"
+                                      f"\n\n[参考资料]:\n{context_str}\n")
 
                     # 构建 Markdown 格式的引用列表
                     if sources:
