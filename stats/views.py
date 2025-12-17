@@ -1,9 +1,15 @@
 from django.db import transaction, models
+from django.db.models import Sum, Count
+from django.db.models.functions import ExtractHour, ExtractWeekDay
+from django.utils import timezone
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
 from article.models import Article
+from assets.models import Asset
+from categories.models import Category
 from stats.models import ReadStat
+from tags.models import Tag
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 
@@ -72,4 +78,126 @@ class ReportReadDurationView(APIView):
         except Exception as e:
             # 统计接口报错不应影响主业务，打印日志即可
             print(f"Stats Error: {str(e)}")
+            return error_result(ErrorCode.SYSTEM_ERROR, str(e))
+
+
+class StatisticsView(APIView):
+    """
+    获取全站统计数据
+    """
+    permission_classes = [AllowAny]  # 根据需求，统计信息可能需要管理员权限，这里暂时放开方便展示
+
+    def get(self, request):
+        try:
+            # --- 1. 核心 KPI 数据 ---
+            valid_articles = Article.objects.filter(is_valid=True)
+
+            total_articles = valid_articles.count()
+
+            # 聚合计算字数和阅读时长
+            # 注意：total_read_seconds 是我们在上一步建议添加的字段，如果没有 migrate，这里会报错
+            # 如果尚未添加该字段，请先迁移数据库或暂时用 0 代替
+            agg_data = valid_articles.aggregate(
+                total_words=Sum('word_count'),
+                total_duration_sec=Sum('total_read_seconds')
+            )
+
+            total_words = agg_data.get('total_words') or 0
+            # 将秒转换为小时
+            total_duration_hours = round((agg_data.get('total_duration_sec') or 0) / 3600, 1)
+
+            total_assets = Asset.objects.filter(is_valid=True).count()
+
+            # --- 2. 24小时阅读趋势 (Hourly Data) ---
+            # 统计过去24小时或当天的 ReadStat
+            now = timezone.now()
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+            # 按小时分组统计访问次数(count)和时长(sum duration)
+            # 这里简单统计"当天"的数据分布
+            hourly_stats = ReadStat.objects.filter(
+                created_at__gte=today_start
+            ).annotate(
+                hour=ExtractHour('created_at')
+            ).values('hour').annotate(
+                visits=Count('id'),
+                duration=Sum('duration')
+            ).order_by('hour')
+
+            # 格式化为 0-23 的数组
+            hourly_data_map = {item['hour']: item for item in hourly_stats}
+            hourly_data = []
+            for i in range(24):
+                item = hourly_data_map.get(i, {'visits': 0, 'duration': 0})
+                hourly_data.append({
+                    'hour': f"{i:02d}:00",
+                    'visits': item['visits'],
+                    # 数据库存的是秒，图表显示分钟
+                    'duration': round(item['duration'] / 60, 1)
+                })
+
+            # --- 3. 创作习惯 (按周几发布) ---
+            # 1=Sunday, 2=Monday, ..., 7=Saturday (Django ExtractWeekDay 标准)
+            # 注意：不同数据库 week_day 定义可能不同，通常 1 是周日
+            weekly_stats = valid_articles.annotate(
+                weekday=ExtractWeekDay('created_at')
+            ).values('weekday').annotate(
+                count=Count('article_id')
+            ).order_by('weekday')
+
+            week_map = {1: '周日', 2: '周一', 3: '周二', 4: '周三', 5: '周四', 6: '周五', 7: '周六'}
+            # 初始化所有天数为0
+            weekly_data_dict = {k: 0 for k in range(1, 8)}
+            for item in weekly_stats:
+                weekly_data_dict[item['weekday']] = item['count']
+
+            # 调整顺序：周一到周日 (2,3,4,5,6,7,1)
+            sorted_week_keys = [2, 3, 4, 5, 6, 7, 1]
+            weekly_publish = [
+                {'day': week_map[k], 'count': weekly_data_dict[k]}
+                for k in sorted_week_keys
+            ]
+
+            # --- 4. 分类占比 ---
+            category_stats = Category.objects.annotate(
+                value=Count('articles')
+            ).filter(value__gt=0).values('name', 'value').order_by('-value')
+
+            # --- 5. 热门标签 ---
+            tag_stats = Tag.objects.annotate(
+                count=Count('articles')
+            ).filter(count__gt=0).values('name', 'count').order_by('-count')[:10]
+
+            # --- 6. 排行榜 ---
+            # 访问 TOP 5
+            top_visits = valid_articles.order_by('-read_count').values('article_id', 'title', 'read_count')[:5]
+            top_visits_data = [
+                {'id': i + 1, 'title': item['title'], 'value': item['read_count']}
+                for i, item in enumerate(top_visits)
+            ]
+
+            # 时长 TOP 5
+            top_duration = valid_articles.order_by('-total_read_seconds').values('article_id', 'title',
+                                                                                 'total_read_seconds')[:5]
+            top_duration_data = [
+                {'id': i + 1, 'title': item['title'], 'value': f"{round(item['total_read_seconds'] / 3600, 1)}h"}
+                for i, item in enumerate(top_duration)
+            ]
+
+            return success_result(data={
+                'kpi': {
+                    'total_articles': total_articles,
+                    'total_words': total_words,
+                    'total_assets': total_assets,
+                    'total_duration_hours': total_duration_hours
+                },
+                'hourly_data': hourly_data,
+                'weekly_publish': weekly_publish,
+                'category_stats': list(category_stats),
+                'tag_stats': list(tag_stats),
+                'top_visits': top_visits_data,
+                'top_duration': top_duration_data
+            })
+
+        except Exception as e:
             return error_result(ErrorCode.SYSTEM_ERROR, str(e))
