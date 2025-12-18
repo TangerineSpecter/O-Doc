@@ -31,6 +31,7 @@ urlpatterns = [
     path('api/ai/', include('ai_assistant.urls')),  # ai对话接口
     path('api/stats/', include('stats.urls')),  # 统计接口
     path('api/rag/', include('rag.urls')),  # RAG接口
+    path('api/message/', include('message.urls')),  # 消息模块接口
 ]
 
 # 在开发环境中提供媒体文件服务

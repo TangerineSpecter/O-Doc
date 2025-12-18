@@ -11,15 +11,18 @@ from system_settings.models import SystemSetting, AIModel
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 from utils.web_parser import parse_web_content
+from message.models import Notification
 
 
-# 新增：AI 润色后台任务函数
+# AI 润色后台任务函数
 def background_polish_task(article_id):
+    global source_url
     try:
         # 1. 获取文章
         # 重新查询数据库以获取最新状态
         from article.models import Article
         article = Article.objects.get(article_id=article_id)
+        source_url = article.source_url
 
         # 2. 获取 AI 配置 (复用 ai_assistant 的逻辑)
         config_obj = SystemSetting.objects.get(key='system_ai_config')
@@ -72,11 +75,24 @@ def background_polish_task(article_id):
             # 5. 更新文章
             article.content = polished_content
             print(f"Article {article_id} polished successfully.")
+            Notification.objects.create(
+                user='admin',
+                title=f"《{article.title}》润色完成",
+                content=f"您提交的链接：{source_url} 已成功保存到知识库。",
+                type="success",
+                link=f"/article/{article.coll_id}/{article.id}"
+            )
         else:
             print(f"AI API Error: {response.text}")
 
     except Exception as e:
         print(f"Polishing Task Exception: {e}")
+        Notification.objects.create(
+            user='admin',
+            title="网页解析失败",
+            content=f"链接 {source_url} 解析出错: {str(e)}",
+            type="error"
+        )
 
     finally:
         # 无论成功失败，都要关闭状态
