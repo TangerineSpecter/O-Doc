@@ -11,6 +11,7 @@ python manage.py collectstatic --noinput
 
 # === 初始化管理员账号 ===
 python init_admin.py
+python init_categories.py
 
 # 启动 Gunicorn 服务器
 # exec 命令会用后面的命令替换掉当前的 shell 进程

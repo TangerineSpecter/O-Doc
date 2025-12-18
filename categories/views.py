@@ -50,11 +50,11 @@ class CategoryListView(APIView):
         try:
             # 获取查询参数
             name = request.GET.get('name', '')
-            include_uncategorized = request.GET.get('include_uncategorized', 'false').lower() == 'true'
+            # 移除 include_uncategorized 参数处理
 
             # 查询admin用户的所有有效分类
             categories = Category.objects.filter(userid='admin', is_valid=True)
-            
+
             # 如果有名称过滤条件
             if name:
                 categories = categories.filter(name__icontains=name)
@@ -69,8 +69,8 @@ class CategoryListView(APIView):
             for category in categories:
                 # 统计该分类下的文章数量
                 article_count = Article.objects.filter(
-                    category=category, 
-                    author='admin', 
+                    category=category,
+                    author='admin',
                     is_valid=True
                 ).count()
 
@@ -87,24 +87,7 @@ class CategoryListView(APIView):
                 }
                 result_list.append(category_data)
 
-            # 如果需要包含未分类文章的统计
-            if include_uncategorized:
-                uncategorized_count = Article.objects.filter(
-                    author='admin', 
-                    is_valid=True,
-                    category__isnull=True
-                ).count()
-                
-                # 添加未分类的虚拟分类
-                result_list.insert(0, {
-                    'category_id': 'uncategorized',  # 使用特殊标识
-                    'name': '未分类',
-                    'description': '未关联分类的文章',
-                    'sort': 0,  # 放在最前面
-                    'article_count': uncategorized_count,
-                    'created_at': None,
-                    'updated_at': None
-                })
+            # 移除手动插入未分类的逻辑，现在统一从数据库获取
 
             return success_result(data=result_list)
 
@@ -170,17 +153,17 @@ class CategoryUpdateView(APIView):
         try:
             # 获取要编辑的分类
             category = get_object_or_404(Category, category_id=category_id, userid='admin', is_valid=True)
-            
+
             # 使用序列化器验证和更新数据
             serializer = CategorySerializer(category, data=request.data, partial=True, context={'request': request})
             serializer.is_valid(raise_exception=True)
-            
+
             # 保存更新
             updated_category = serializer.save()
-            
+
             # 返回更新后的数据
             return success_result(data=CategorySerializer(updated_category).data)
-            
+
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
 
@@ -192,15 +175,12 @@ class CategoryDeleteView(APIView):
         try:
             # 获取要删除的分类
             category = get_object_or_404(Category, category_id=category_id, userid='admin', is_valid=True)
-            
+
             # 执行逻辑删除
             category.is_valid = False
             category.save()
-            
+
             return success_result()
-            
+
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
-
-
-

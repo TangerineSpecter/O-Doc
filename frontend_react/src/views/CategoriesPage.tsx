@@ -6,7 +6,6 @@ import {
     Edit,
     Folder,
     Globe,
-    Inbox,
     Layers,
     LayoutGrid,
     List,
@@ -118,7 +117,7 @@ export default function CategoriesPage() {
     // --- Helpers ---
     const getThemeStyles = (themeId: string) => COLOR_THEMES.find(t => t.id === themeId) || COLOR_THEMES[0];
     const getCategoryIcon = (cat: CategoryItem) => {
-        if (cat.categoryId === 'uncategorized') return <Inbox className="w-5 h-5"/>;
+        // 移除: if (cat.categoryId === 'uncategorized') return <Inbox className="w-5 h-5"/>;
         // 新增：处理所有分类的图标
         if (cat.categoryId === 'all') return <LayoutGrid className="w-5 h-5"/>;
         return ICON_MAP[cat.iconKey] || <Folder className="w-5 h-5"/>;
@@ -328,7 +327,7 @@ export default function CategoriesPage() {
                         <Folder className="w-12 h-12 text-slate-200 mb-3"/>
                         <p className="text-sm font-medium">该分类下暂无文档</p>
                         {/*<button onClick={handleOpenCreate}*/}
-                        {/*    className="mt-4 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-xs rounded-lg hover:border-orange-300 hover:text-orange-600 transition-colors shadow-sm">创建新文档*/}
+                        {/* className="mt-4 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-xs rounded-lg hover:border-orange-300 hover:text-orange-600 transition-colors shadow-sm">创建新文档*/}
                         {/*</button>*/}
                     </div>
                 )}

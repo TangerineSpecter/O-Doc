@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from 'react';
 import {CategoryItem, createCategory, deleteCategory, getCategoryList, updateCategory} from '../api/category';
 import {Article, ArticleItem, getArticles} from '../api/article';
 import {CategoryFormData} from '../components/CategoryModal';
-import { useSearchParams } from 'react-router-dom';
+import {useSearchParams} from 'react-router-dom';
 
 export const useCategories = () => {
     // --- State ---
@@ -23,15 +23,13 @@ export const useCategories = () => {
     // --- Data Fetching ---
     const fetchCategories = useCallback(async () => {
         try {
+            // 不再需要传递 include_uncategorized 参数 (或者后端已忽略)
             const data = await getCategoryList(true);
-            const processedData = data.map(cat => {
-                if (cat.categoryId === 'uncategorized') {
-                    return { ...cat, iconKey: 'Inbox', themeId: 'slate', isSystem: true };
-                }
-                return cat;
-            });
 
-            const totalCount = processedData.reduce((sum, cat) => sum + (cat.articleCount || 0), 0);
+            // 移除原本针对 'uncategorized' 的特殊 map 处理逻辑
+            // 现在只负责添加前端专用的 'all' (所有分类)
+
+            const totalCount = data.reduce((sum, cat) => sum + (cat.articleCount || 0), 0);
             const allCategory: CategoryItem = {
                 categoryId: 'all',
                 name: '所有分类',
@@ -42,7 +40,7 @@ export const useCategories = () => {
                 isSystem: true
             };
 
-            setCategories([allCategory, ...processedData]);
+            setCategories([allCategory, ...data]);
         } catch (error) {
             console.error('获取分类列表失败:', error);
         }
@@ -53,7 +51,7 @@ export const useCategories = () => {
         try {
             setLoading(true);
             // 如果是 'all'，传 undefined 给后端（假设后端支持不传参数查全部）
-            const query = catId === 'all' ? undefined : { categoryId: catId };
+            const query = catId === 'all' ? undefined : {categoryId: catId};
 
             const data = await getArticles(query);
 
@@ -98,7 +96,7 @@ export const useCategories = () => {
     // 当用户在界面点击分类时，更新 URL，触发上面的 useEffect
     const handleSetSelectedCatId = (id: string) => {
         setSelectedCatId(id);
-        setSearchParams({ catId: id });
+        setSearchParams({catId: id});
     };
 
     // ... (后续 Actions 代码保持不变: handleCategorySubmit, confirmDeleteCategory 等)
@@ -156,16 +154,16 @@ export const useCategories = () => {
         // 这里需要注意：如果 categories 还没回来，selectedCatId 是 URL 里的 ID
         // 我们需要由一个临时的 fallback，避免标题闪烁或者显示错误
         return filteredCategories.find(c => c.categoryId === selectedCatId) ||
-               // 尝试用 categories 里的 name 匹配（兼容旧逻辑，如果是 name 传参）
-               filteredCategories.find(c => c.name === selectedCatId) ||
-               {
-                   categoryId: 'all',
-                   name: selectedCatId === 'all' ? '所有分类' : '加载中...',
-                   articleCount: 0,
-                   isSystem: true,
-                   themeId: 'blue',
-                   iconKey: 'Folder'
-               } as CategoryItem;
+            // 尝试用 categories 里的 name 匹配（兼容旧逻辑，如果是 name 传参）
+            filteredCategories.find(c => c.name === selectedCatId) ||
+            {
+                categoryId: 'all',
+                name: selectedCatId === 'all' ? '所有分类' : '加载中...',
+                articleCount: 0,
+                isSystem: true,
+                themeId: 'blue',
+                iconKey: 'Folder'
+            } as CategoryItem;
     }, [filteredCategories, selectedCatId]);
 
     return {
