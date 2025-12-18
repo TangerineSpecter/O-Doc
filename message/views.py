@@ -1,22 +1,27 @@
-from rest_framework import viewsets
+from django.contrib.auth import get_user_model
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 
 from utils.response_utils import success_result
 from .models import Notification
 from .serializers import NotificationSerializer
 
+User = get_user_model()
 
-class NotificationViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    serializer_class = NotificationSerializer
 
-    def get_queryset(self):
+class NotificationView(APIView):
+    # permission_classes = [IsAuthenticated]
+    # serializer_class = NotificationSerializer
+
+    def get(self, request):
         # 只看自己的通知
-        return Notification.objects.filter(user='admin')
+        admin_user = User.objects.filter(username='admin').first()
+        msg_list = Notification.objects.filter(user=admin_user)
+        json_data = NotificationSerializer(msg_list, many=True).data
+        return success_result(json_data)
 
-    @action(detail=False, methods=['post'])
-    def mark_all_read(self, request):
-        """一键已读"""
-        self.get_queryset().update(is_read=True)
+    def post(self, request):
+        # 只处理自己的通知
+        admin_user = User.objects.filter(username='admin').first()
+        Notification.objects.filter(user=admin_user).update(is_read=True)
         return success_result()

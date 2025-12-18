@@ -1,8 +1,17 @@
 from django.conf import settings  # 引用 User 模型
 from django.db import models
 
+from utils.id_generator import generate_msg_id
+
 
 class Notification(models.Model):
+    id = models.CharField(
+        max_length=40,
+        primary_key=True,
+        default=generate_msg_id,
+        verbose_name='消息 ID'
+    )
+
     """系统通知模型"""
     TYPE_CHOICES = [
         ('info', '信息'),

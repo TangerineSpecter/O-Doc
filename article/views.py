@@ -12,7 +12,9 @@ from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 from utils.web_parser import parse_web_content
 from message.models import Notification
+from django.contrib.auth import get_user_model
 
+User = get_user_model()
 
 # AI 润色后台任务函数
 def background_polish_task(article_id):
@@ -22,6 +24,8 @@ def background_polish_task(article_id):
         # 重新查询数据库以获取最新状态
         from article.models import Article
         article = Article.objects.get(article_id=article_id)
+        article.is_polishing = True
+        article.save()
         source_url = article.source_url
 
         # 2. 获取 AI 配置 (复用 ai_assistant 的逻辑)
@@ -73,14 +77,15 @@ def background_polish_task(article_id):
             polished_content = result['choices'][0]['message']['content']
 
             # 5. 更新文章
+            admin_user = User.objects.filter(username='admin').first()
             article.content = polished_content
             print(f"Article {article_id} polished successfully.")
             Notification.objects.create(
-                user='admin',
+                user=admin_user,
                 title=f"《{article.title}》润色完成",
                 content=f"您提交的链接：{source_url} 已成功保存到知识库。",
                 type="success",
-                link=f"/article/{article.coll_id}/{article.id}"
+                link=f"/article/{article.coll_id}/{article.article_id}"
             )
         else:
             print(f"AI API Error: {response.text}")
@@ -88,7 +93,7 @@ def background_polish_task(article_id):
     except Exception as e:
         print(f"Polishing Task Exception: {e}")
         Notification.objects.create(
-            user='admin',
+            user=admin_user,
             title="网页解析失败",
             content=f"链接 {source_url} 解析出错: {str(e)}",
             type="error"
@@ -293,10 +298,10 @@ class ArticleSaveWebView(APIView):
     def post(self, request):
         url = request.data.get('url')
         coll_id = request.data.get('coll_id')
-        need_polishing = request.data.get('needPolishing', False)
+        need_polishing = request.data.get('need_polishing', False)
 
         if not url or not coll_id:
-            return error_result(ErrorCode.PARAMETER_ERROR, "缺少 URL 或 文集ID")
+            return error_result()
 
         try:
             # 1. 解析网页

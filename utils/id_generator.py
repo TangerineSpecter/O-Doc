@@ -67,3 +67,11 @@ def generate_model_id() -> str:
     :return: 带 mod 前缀的唯一ID字符串
     """
     return generate_unique_id("mod")
+
+# 为 消息 生成带 msg 前缀的 ID
+def generate_msg_id() -> str:
+    """
+    生成带 msg 前缀的模型ID
+    :return: 带 msg 前缀的唯一ID字符串
+    """
+    return generate_unique_id("msg")

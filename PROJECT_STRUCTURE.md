@@ -25,6 +25,7 @@ O-Doc/
 ├── categories/          # 分类模块
 ├── stats/               # 统计模块
 ├── system_settings/     # 系统设置模块
+├── message/             # 消息模块
 ├── rag/                 # RAG 模块
 ├── tags/                # 标签模块
 ├── user/                # 用户模块
