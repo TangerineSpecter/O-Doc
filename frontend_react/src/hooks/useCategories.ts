@@ -7,38 +7,31 @@ import { useSearchParams } from 'react-router-dom';
 export const useCategories = () => {
     // --- State ---
     const [categories, setCategories] = useState<CategoryItem[]>([]);
-    // 修改：默认选中 'all'
-    const [selectedCatId, setSelectedCatId] = useState('all');
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    // 核心修改：直接从 URL 获取初始 ID，如果没有则默认为 'all'
+    // 这样组件一初始化就能拿到正确的 ID，不用等待 useEffect
+    const urlCatId = searchParams.get('catId') || 'all';
+    const [selectedCatId, setSelectedCatId] = useState(urlCatId);
+
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [displayArticles, setDisplayArticles] = useState<ArticleItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [deletedArticleIds, setDeletedArticleIds] = useState<Set<string>>(new Set());
-    const [searchParams] = useSearchParams();
 
     // --- Data Fetching ---
     const fetchCategories = useCallback(async () => {
         try {
-            // 修改：传入 true 获取包含“未分类”的列表
             const data = await getCategoryList(true);
-
-            // 处理后端返回的数据，为未分类设置默认属性和系统标识
             const processedData = data.map(cat => {
                 if (cat.categoryId === 'uncategorized') {
-                    return {
-                        ...cat,
-                        iconKey: 'Inbox', // 默认图标
-                        themeId: 'slate', // 默认主题
-                        isSystem: true    // 标记为系统分类（不可编辑/删除）
-                    };
+                    return { ...cat, iconKey: 'Inbox', themeId: 'slate', isSystem: true };
                 }
                 return cat;
             });
 
-            // 计算所有文章总数
             const totalCount = processedData.reduce((sum, cat) => sum + (cat.articleCount || 0), 0);
-
-            // 构造“所有分类”对象
             const allCategory: CategoryItem = {
                 categoryId: 'all',
                 name: '所有分类',
@@ -49,18 +42,21 @@ export const useCategories = () => {
                 isSystem: true
             };
 
-            // 将“所有分类”放在列表首位
             setCategories([allCategory, ...processedData]);
         } catch (error) {
             console.error('获取分类列表失败:', error);
         }
     }, []);
 
+    // 核心修改：fetchArticles 不再依赖内部 state，而是接收参数
     const fetchArticles = useCallback(async (catId: string) => {
         try {
             setLoading(true);
-            const data = await getArticles(catId === 'all' ? undefined : {categoryId: catId});
-            // 转换数据格式
+            // 如果是 'all'，传 undefined 给后端（假设后端支持不传参数查全部）
+            const query = catId === 'all' ? undefined : { categoryId: catId };
+
+            const data = await getArticles(query);
+
             const formattedData: ArticleItem[] = data.map((article: Article) => ({
                 articleId: article.articleId,
                 title: article.title,
@@ -80,72 +76,64 @@ export const useCategories = () => {
         }
     }, []);
 
-    // Initial Fetch
+    // Initial Fetch (Categories)
     useEffect(() => {
         fetchCategories();
     }, [fetchCategories]);
 
-    // Handle catId from URL
+    // 核心修改：监听 URL 变化并同步到 State 和 触发请求
     useEffect(() => {
-        const catIdFromUrl = searchParams.get('catId');
-        if (catIdFromUrl) {
-            // 优先使用分类 ID 查找
-            const category = categories.find(c => c.categoryId === catIdFromUrl);
-            if (category) {
-                setSelectedCatId(category.categoryId);
-            } else {
-                // 如果没有找到，尝试使用分类名称查找
-                const categoryByName = categories.find(c => c.name === catIdFromUrl);
-                if (categoryByName) {
-                    setSelectedCatId(categoryByName.categoryId);
-                }
-            }
-        }
-    }, [categories, searchParams]);
+        const catIdFromUrl = searchParams.get('catId') || 'all';
 
-    // Fetch Articles when Category changes
-    useEffect(() => {
-        if (selectedCatId) {
-            fetchArticles(selectedCatId);
-        }
-    }, [selectedCatId, fetchArticles]);
+        // 1. 同步状态（为了 UI 高亮）
+        setSelectedCatId(catIdFromUrl);
 
-    // --- Actions: Category ---
+        // 2. 立即发起请求（不再依赖 selectedCatId 的变化，直接用 URL 参数）
+        fetchArticles(catIdFromUrl);
+
+    }, [searchParams, fetchArticles]);
+    // 注意：这里去掉了 categories 依赖。文章列表的加载不需要等待分类列表加载完成。
+
+    // --- State Setters 包装器 ---
+    // 当用户在界面点击分类时，更新 URL，触发上面的 useEffect
+    const handleSetSelectedCatId = (id: string) => {
+        setSelectedCatId(id);
+        setSearchParams({ catId: id });
+    };
+
+    // ... (后续 Actions 代码保持不变: handleCategorySubmit, confirmDeleteCategory 等)
+    // ... 请直接保留原有的 Actions 代码 ...
+
     const confirmDeleteArticle = (articleId: string) => {
-        // 这里只是前端模拟删除状态，实际项目中应调用 deleteArticle API
         setDeletedArticleIds(prev => new Set(prev).add(articleId));
     };
 
     const handleCategorySubmit = async (formData: CategoryFormData, editingCategory: CategoryItem | null) => {
+        // ... (保持原样)
         try {
             if (editingCategory) {
                 const updatedCategory = await updateCategory(editingCategory.categoryId, formData);
                 setCategories(prev => prev.map(c => c.categoryId === editingCategory.categoryId ? updatedCategory : c));
             } else {
                 const newCategory = await createCategory(formData);
-                // 插入到 "所有分类" 和 "未分类" (如果存在) 之后，或者直接 append
-                // 这里简单处理，追加到列表末尾，或者你需要刷新列表
-                // 为了保持顺序，最简单的办法是重新 fetch，或者手动插入
-                // 鉴于目前逻辑，直接追加即可
                 setCategories(prev => [...prev, newCategory]);
-                await fetchCategories(); // 刷新以确保排序和统计正确
+                await fetchCategories();
             }
-            return true; // Success
+            return true;
         } catch (error) {
             console.error('操作分类失败:', error);
-            return false; // Failed
+            return false;
         }
     };
 
     const confirmDeleteCategory = async (catId: string) => {
+        // ... (保持原样)
         try {
             await deleteCategory(catId);
             setCategories(prev => prev.filter(c => c.categoryId !== catId));
-            // 如果删除的是当前选中的，重置为 'all'
             if (selectedCatId === catId) {
-                setSelectedCatId('all');
+                handleSetSelectedCatId('all'); // 使用新的 handler
             }
-            // 刷新以更新“所有分类”的计数
             fetchCategories();
             return true;
         } catch (error) {
@@ -154,8 +142,7 @@ export const useCategories = () => {
         }
     };
 
-    // --- Actions: Article ---
-    // --- Derived Data ---
+    // ... (Derived Data 保持不变)
     const filteredCategories = useMemo(() => {
         if (!searchQuery) return categories;
         return categories.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -166,28 +153,31 @@ export const useCategories = () => {
     }, [displayArticles, deletedArticleIds]);
 
     const activeCategory = useMemo(() => {
-        return filteredCategories.find(c => c.categoryId === selectedCatId) || filteredCategories[0] || {
-            categoryId: 'all',
-            name: '所有分类',
-            count: 0,
-            isSystem: true // 兜底对象也要标记为 system
-        };
+        // 这里需要注意：如果 categories 还没回来，selectedCatId 是 URL 里的 ID
+        // 我们需要由一个临时的 fallback，避免标题闪烁或者显示错误
+        return filteredCategories.find(c => c.categoryId === selectedCatId) ||
+               // 尝试用 categories 里的 name 匹配（兼容旧逻辑，如果是 name 传参）
+               filteredCategories.find(c => c.name === selectedCatId) ||
+               {
+                   categoryId: 'all',
+                   name: selectedCatId === 'all' ? '所有分类' : '加载中...',
+                   articleCount: 0,
+                   isSystem: true,
+                   themeId: 'blue',
+                   iconKey: 'Folder'
+               } as CategoryItem;
     }, [filteredCategories, selectedCatId]);
 
     return {
-        // Data
         categories,
         filteredCategories,
         activeCategory,
         displayArticles: filteredDisplayArticles,
         loading,
-
-        // State Setters
-        selectedCatId, setSelectedCatId,
+        selectedCatId,
+        setSelectedCatId: handleSetSelectedCatId, // 暴露修改了 URL 的 Setter
         searchQuery, setSearchQuery,
         viewMode, setViewMode,
-
-        // Actions
         handleCategorySubmit,
         confirmDeleteCategory,
         confirmDeleteArticle,

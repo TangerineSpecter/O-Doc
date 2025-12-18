@@ -1,7 +1,6 @@
 from django.shortcuts import get_object_or_404
-from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
-from django.db import models
+from rest_framework.views import APIView
 
 from article.models import Article
 from utils.error_codes import ErrorCode

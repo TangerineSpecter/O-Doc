@@ -34,18 +34,32 @@ export default function OutlineContent(
                     onClick={() => onSelectDoc(item.articleId)}
                     className="group flex items-baseline hover:bg-orange-50/50 cursor-pointer py-2 transition-colors"
                 >
-                    <div style={{paddingLeft}} className="flex-shrink-0 relative">
-                        <span className={`
-                 ${isTopLevel ? 'text-slate-700 font-medium' : 'text-slate-600'} 
-                 group-hover:text-orange-600 transition-colors
-               `}>
-                            {item.title}
-                        </span>
+                    {/* 修改点 1: 标题容器
+                       - 添加了 truncate (超出显示省略号)
+                       - 添加了 title 属性 (鼠标悬停显示完整标题)
+                    */}
+                    <div
+                        style={{paddingLeft}}
+                        className="relative truncate pr-2"
+                        title={item.title}
+                    >
+            <span className={`
+                ${isTopLevel ? 'text-slate-700 font-medium' : 'text-slate-600'} 
+                group-hover:text-orange-600 transition-colors
+            `}>
+                {item.title}
+            </span>
                     </div>
+
+                    {/* 添加 min-w-[1rem] 或 w-4 (保证至少显示一点点虚线，不至于完全消失) */}
                     <div
-                        className="flex-grow mx-4 border-b border-dotted border-slate-300 relative -top-1 opacity-40 group-hover:opacity-60 group-hover:border-orange-300 transition-all"></div>
+                        className="flex-grow mx-2 min-w-[1rem] border-b border-dotted border-slate-300 relative -top-1 opacity-40 group-hover:opacity-60 group-hover:border-orange-300 transition-all"
+                    ></div>
+
+                    {/* 添加 whitespace-nowrap (防止时间被挤换行) */}
                     <div
-                        className="flex-shrink-0 text-slate-400 text-sm font-mono group-hover:text-orange-500 transition-colors">
+                        className="flex-shrink-0 text-slate-400 text-sm font-mono whitespace-nowrap group-hover:text-orange-500 transition-colors"
+                    >
                         {item.date}
                     </div>
                 </div>
