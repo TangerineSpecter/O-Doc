@@ -9,6 +9,7 @@ class AIProvider(models.Model):
     PROVIDER_TYPES = [
         ('OpenAi', 'OpenAI'),
         ('Google AI', 'Google AI'),
+        ('Xiaomi', '小米 (Xiaomi)'),
         ('Qwen', '通义千问 (Qwen)'),
         ('Doubao', '豆包 (Doubao)'),
         ('DeepSeek', 'DeepSeek'),

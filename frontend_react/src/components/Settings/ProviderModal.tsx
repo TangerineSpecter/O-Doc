@@ -33,6 +33,9 @@ export const ProviderModal = ({isOpen, onClose, onSave, initialData}: ProviderMo
                 case 'DeepSeek':
                     defaultBaseUrl = 'https://api.deepseek.com/v1';
                     break;
+                case 'Xiaomi':
+                    defaultBaseUrl = 'https://api.xiaomimimo.com/v1';
+                    break;
                 case 'Qwen':
                     defaultBaseUrl = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
                     break;
@@ -76,6 +79,7 @@ export const ProviderModal = ({isOpen, onClose, onSave, initialData}: ProviderMo
                             <option value="OpenAi">OpenAI</option>
                             <option value="Google AI">Google AI (Gemini)</option>
                             <option value="DeepSeek">DeepSeek (深度求索)</option>
+                            <option value="Xiaomi">Xiaomi (小米/MiMo)</option>
                             <option value="Qwen">Qwen (通义千问)</option>
                             <option value="Doubao">Doubao (豆包)</option>
                             <option value="SiliconFlow">SiliconFlow (硅基流动)</option>

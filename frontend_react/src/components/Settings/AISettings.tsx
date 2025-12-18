@@ -8,6 +8,7 @@ import ollamaLogo from '../../../public/ollama.svg'
 import openaiLogo from '../../../public/openai.svg'
 import doubaoLogo from '../../../public/doubao.svg'
 import siliconFlowLogo from '../../../public/siliconFlow.svg'
+import xiaomiLogo from '../../../public/xiaomi.webp'
 
 
 // --- Logo Component ---
@@ -27,6 +28,7 @@ const ProviderLogo = ({type, name}: { type: string, name: string }) => {
         'SiliconFlow': 'bg-white border border-slate-200 p-1',
         'DeepSeek': 'bg-white border border-slate-200',
         'Qwen': 'bg-white border border-slate-200',
+        'Xiaomi': 'bg-white border border-slate-200',
         'Doubao': 'bg-white border border-slate-200',
     };
 
@@ -44,6 +46,8 @@ const ProviderLogo = ({type, name}: { type: string, name: string }) => {
             case 'DeepSeek':
                 return <img src={deepseekLogo} alt="DeepSeek"
                             className="w-full h-full p-0.5 object-contain translate-x-[2px] translate-y-[2px] p-0.5"/>;
+            case 'Xiaomi':
+                return <img src={xiaomiLogo} alt="Xiaomi" className="w-full h-full object-contain p-0.5"/>;
             case 'Qwen':
                 return <img src={qwenLogo} alt="Qwen" className="w-full h-full object-contain p-0.5"/>;
             case 'Doubao':
