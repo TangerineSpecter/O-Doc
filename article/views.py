@@ -1,114 +1,97 @@
+import logging
 import threading
 
-import requests
-from django.db import transaction, models
+from django.contrib.auth import get_user_model
+from django.db import transaction, models, close_old_connections
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 
 from article.models import Article
+from article.prompts import POLISH_ARTICLE_PROMPT_TEMPLATE
 from article.serializers import ArticleSerializer, ArticleTreeSerializer
-from system_settings.models import SystemSetting, AIModel
+from utils.ai_service import AIService
 from utils.error_codes import ErrorCode
+from utils.notification_service import NotificationService
 from utils.response_utils import success_result, error_result
 from utils.web_parser import parse_web_content
-from message.models import Notification
-from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
-# AI 润色后台任务函数
-def background_polish_task(article_id):
-    global source_url
-    try:
-        # 1. 获取文章
-        # 重新查询数据库以获取最新状态
-        from article.models import Article
-        article = Article.objects.get(article_id=article_id)
-        article.is_polishing = True
-        article.save()
-        source_url = article.source_url
+logger = logging.getLogger(__name__)
 
-        # 2. 获取 AI 配置 (复用 ai_assistant 的逻辑)
-        config_obj = SystemSetting.objects.get(key='system_ai_config')
-        config = config_obj.value
-        model_id = config.get('default_chat_model_id')
 
-        if not model_id:
-            print("AI Polishing Error: No default model configured.")
-            article.is_polishing = False
-            article.save()
-            return
+class ArticlePolisher:
+    """文章润色任务封装类"""
 
-        ai_model = AIModel.objects.get(id=model_id)
-        provider = ai_model.provider
+    def __init__(self, article_id):
+        self.article_id = article_id
+        self.source_url = ""
 
-        # 3. 构造 Prompt
-        prompt = f"""
-请作为一位专业的资深编辑，对以下技术文章进行润色。
-要求：
-1. 优化排版（合理使用标题、列表、代码块、加粗等Markdown语法）。
-2. 修正错别字和语病，使行文更加流畅专业。
-3. **严禁**改变文章原意和核心代码逻辑。
-4. 只返回润色后的 Markdown 内容，不要包含任何“好的”、“如下所示”等废话。
-
-待润色内容：
-{article.content[:8000]} 
-"""
-        # 注意：截取前8000字符防止超长，实际生产可根据模型上下文调整
-
-        # 4. 调用 AI 接口 (同步请求)
-        headers = {
-            "Authorization": f"Bearer {provider.api_key}",
-            "Content-Type": "application/json"
-        }
-        base_url = provider.base_url.rstrip('/')
-        api_url = f"{base_url}/chat/completions"
-
-        payload = {
-            "model": ai_model.name,
-            "messages": [{"role": "user", "content": prompt}],
-            "stream": False  # 后台任务不需要流式
-        }
-
-        response = requests.post(api_url, headers=headers, json=payload, timeout=120)
-
-        if response.status_code == 200:
-            result = response.json()
-            polished_content = result['choices'][0]['message']['content']
-
-            # 5. 更新文章
-            admin_user = User.objects.filter(username='admin').first()
-            article.content = polished_content
-            print(f"Article {article_id} polished successfully.")
-            Notification.objects.create(
-                user=admin_user,
-                title=f"《{article.title}》润色完成",
-                content=f"您提交的链接：{source_url} 已成功保存到知识库。",
-                type="success",
-                link=f"/article/{article.coll_id}/{article.article_id}"
-            )
-        else:
-            print(f"AI API Error: {response.text}")
-
-    except Exception as e:
-        print(f"Polishing Task Exception: {e}")
-        Notification.objects.create(
-            user=admin_user,
-            title="网页解析失败",
-            content=f"链接 {source_url} 解析出错: {str(e)}",
-            type="error"
-        )
-
-    finally:
-        # 无论成功失败，都要关闭状态
-        # 需要重新获取 article 对象或者确保当前对象是最新的，这里简单处理
+    def run(self):
+        # 线程中确保数据库连接正常
+        close_old_connections()
         try:
-            from article.models import Article
-            a = Article.objects.get(article_id=article_id)
-            a.is_polishing = False
-            a.save()
-        except:
-            pass
+            logger.info(f"Starting polish task for article {self.article_id}")
+
+            # 1. 获取文章
+            article = Article.objects.get(article_id=self.article_id)
+            article.is_polishing = True
+            article.save()
+            self.source_url = article.source_url
+
+            # 2. 准备 Prompt
+            # 截取前8000字符防止超长
+            content_snippet = article.content[:8000]
+            prompt = POLISH_ARTICLE_PROMPT_TEMPLATE.format(content=content_snippet)
+
+            # 3. 调用 AI 服务
+            polished_content = AIService.chat_completion(prompt)
+
+            # 4. 更新文章
+            if polished_content:
+                article.content = polished_content
+                article.save()
+
+                logger.info(f"Article {self.article_id} polished successfully.")
+
+                # 5. 发送成功通知
+                NotificationService.send(
+                    user='admin',
+                    title=f"《{article.title}》润色完成",
+                    content=f"您提交的链接：{self.source_url} 已成功保存到知识库。",
+                    level="success",
+                    link=f"/article/{article.coll_id}/{article.article_id}"
+                )
+
+        except Exception as e:
+            logger.error(f"Polishing Task Exception for article {self.article_id}: {e}", exc_info=True)
+            # 发送失败通知
+            NotificationService.send(
+                user='admin',
+                title="网页解析/润色失败",
+                content=f"链接 {self.source_url} 处理出错: {str(e)}",
+                level="error"
+            )
+        finally:
+            self._finalize_status()
+            close_old_connections()
+
+    def _finalize_status(self):
+        try:
+            article = Article.objects.get(article_id=self.article_id)
+            if article.is_polishing:
+                article.is_polishing = False
+                article.save()
+        except Article.DoesNotExist:
+            logger.warning(f"Article {self.article_id} deleted during polishing.")
+        except Exception as e:
+            logger.error(f"Error finalizing status: {e}")
+
+
+# 包装函数供线程调用
+def run_polish_task(article_id):
+    polisher = ArticlePolisher(article_id)
+    polisher.run()
 
 
 class ArticleCreateView(APIView):
@@ -272,7 +255,7 @@ class ArticleTreeListView(APIView):
 
             # 验证文集ID是否存在
             if not coll_id:
-                return error_result(error=ErrorCode.PARAMETER_ERROR, data="文集ID不能为空")
+                return error_result()
 
             # 构建查询集：只获取文集下的主文章（parent为空），并按sort和更新时间排序
             root_articles = Article.objects.filter(
@@ -324,7 +307,7 @@ class ArticleSaveWebView(APIView):
 
             # 3. 如果需要润色，启动异步线程
             if need_polishing:
-                thread = threading.Thread(target=background_polish_task, args=(article.article_id,))
+                thread = threading.Thread(target=run_polish_task, args=(article.article_id,))
                 thread.daemon = True  # 设置为守护线程
                 thread.start()
 
