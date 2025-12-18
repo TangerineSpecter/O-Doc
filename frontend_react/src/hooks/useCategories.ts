@@ -24,7 +24,7 @@ export const useCategories = () => {
     const fetchCategories = useCallback(async () => {
         try {
             // 不再需要传递 include_uncategorized 参数 (或者后端已忽略)
-            const data = await getCategoryList(true);
+            const data = await getCategoryList();
 
             // 移除原本针对 'uncategorized' 的特殊 map 处理逻辑
             // 现在只负责添加前端专用的 'all' (所有分类)

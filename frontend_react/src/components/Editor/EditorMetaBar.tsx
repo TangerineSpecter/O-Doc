@@ -94,7 +94,7 @@ export const EditorMetaBar = ({
                     >
                         <Folder className="w-3.5 h-3.5" />
                         {loadingCategories ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                        <span className="truncate">{category?.name || '无分类'}</span>
+                        <span className="truncate">{category?.name || ''}</span>
                         <ChevronDown className="w-3 h-3 opacity-50" />
                     </button>
                     {isCategoryOpen && (

@@ -326,8 +326,8 @@ export const useEditor = () => {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            // 处理分类ID：如果是 'uncategorized'，则传 undefined 给后端
-            const categoryIdToSave = category?.id === 'uncategorized' ? '' : category?.id;
+            // 总是传递实际的分类ID，包括未分类（'uncategorized'）
+            const categoryIdToSave = category?.id;
             const parentIdToSave = parentArticle?.id === 'root' ? '' : parentArticle?.id;
 
             if (articleId) {
@@ -701,7 +701,7 @@ export const useEditor = () => {
     useEffect(() => {
         const loadCategories = async () => {
             try {
-                const data = await getCategoryList(true); // 获取包含未分类的分类列表
+                const data = await getCategoryList(); // 获取分类列表（包含未分类，因为未分类已入库）
 
                 const mappedCategories = data.map((item) => {
                     // 获取主题色，默认为蓝色
@@ -717,9 +717,12 @@ export const useEditor = () => {
                 });
                 setCategories(mappedCategories);
 
-                // 只有在新建文章且没有设置分类的情况下才设置默认分类
-                if (!articleId && !category && mappedCategories.length > 0) {
-                    setCategory(mappedCategories[0]);
+                // 如果没有分类，默认选中未分类（如果存在），否则选中第一个分类
+                if (!category && mappedCategories.length > 0) {
+                    // 优先查找未分类
+                    const uncategorized = mappedCategories.find(cat => cat.id === 'uncategorized');
+                    // 如果找到未分类则选中，否则选中第一个分类
+                    setCategory(uncategorized || mappedCategories[0]);
                 }
             } catch {
                 toast.error('加载分类失败');
