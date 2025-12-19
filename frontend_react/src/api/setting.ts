@@ -28,6 +28,7 @@ export interface SystemAIConfig {
 export interface WebDavConfig {
     enabled: boolean;
     url: string;
+    remotePath: string;
     username: string;
     password: string;
     interval: number;
