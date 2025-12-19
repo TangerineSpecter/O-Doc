@@ -29,7 +29,7 @@ export const useSettings = () => {
 
     // WebDav 配置暂时略过，逻辑类似
     const [webDavConfig, setWebDavConfig] = useState<WebDavConfig>({
-        enabled: false, url: '', username: '', password: '', interval: 30
+        enabled: false, url: '', remotePath: '', username: '', password: '', interval: 30
     });
 
     // --- 初始化加载 ---
@@ -56,7 +56,7 @@ export const useSettings = () => {
 
     // --- Helpers ---
     const allModels = useMemo(() => {
-        return providers.flatMap(p => p.models.map(m => ({
+        return providers.flatMap(p => (p.models || []).map(m => ({
             ...m,
             providerName: p.name,
             uniqueId: m.id
@@ -111,7 +111,8 @@ export const useSettings = () => {
             const newModel = res as unknown as any;
             setProviders(prev => prev.map(p => {
                 if (p.id === providerId) {
-                    return {...p, models: [...p.models, newModel]};
+                    const currentModels = p.models || [];
+                    return {...p, models: [...currentModels, newModel]};
                 }
                 return p;
             }));

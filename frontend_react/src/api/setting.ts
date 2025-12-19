@@ -111,3 +111,17 @@ export const getSystemAIConfig = () => request.get<SystemAIConfig>('/settings/co
 
 // 7. 保存系统 AI 配置
 export const saveSystemAIConfig = (data: SystemAIConfig) => request.post('/settings/config/save_ai_config/', data);
+
+// --- WebDAV 相关接口 ---
+
+// 1. 获取 WebDAV 配置 (如果需要单独获取)
+export const getWebDavConfig = () => request.get<WebDavConfig>('/settings/config/get_webdav_config/');
+
+// 2. 测试连接并保存配置
+export const saveWebDavConfig = (data: WebDavConfig) => request.post('/settings/config/save_webdav_config/', data);
+
+// 3. 触发上传 (备份到 WebDAV)
+export const syncToWebDav = () => request.post<{ msg: string }>('/settings/config/sync_to_webdav/');
+
+// 4. 触发下载 (从 WebDAV 恢复)
+export const syncFromWebDav = () => request.post<{ msg: string }>('/settings/config/sync_from_webdav/');
