@@ -1,5 +1,5 @@
-import { HardDrive, RefreshCw } from 'lucide-react';
-import { WebDavConfig } from '../../api/setting';
+import {HardDrive, RefreshCw} from 'lucide-react';
+import {WebDavConfig} from '@/api/setting.ts';
 
 interface SyncSettingsProps {
     config: WebDavConfig;

@@ -4,6 +4,7 @@ import request from '../utils/request';
 export interface ArticleSource {
     id: string;
     title: string;
+    collId: string;
 }
 
 // 定义资源项类型
@@ -59,7 +60,7 @@ export interface ResourceListResponse {
 
 // 获取资源列表接口
 export const getResources = (params: GetResourcesParams) => {
-    return request.get<any, ResourceListResponse>('/resource/list', { params });
+    return request.get<any, ResourceListResponse>('/resource/list', {params});
 };
 
 // 创建资源接口
@@ -79,7 +80,7 @@ export const deleteResource = (resourceId: string) => {
 
 // 下载资源接口
 export const downloadResource = (resourceId: string) => {
-    return request.get<any, Blob>(`/resource/download/${resourceId}`, { responseType: 'blob' });
+    return request.get<any, Blob>(`/resource/download/${resourceId}`, {responseType: 'blob'});
 };
 
 // 上传资源接口

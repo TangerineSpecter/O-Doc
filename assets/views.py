@@ -23,11 +23,11 @@ class ResourceListView(APIView):
         try:
             # 获取查询参数
             file_type = request.GET.get('type')
-            search_query = request.GET.get('searchQuery')
+            search_query = request.GET.get('search_query')
             linked = request.GET.get('linked')
-            source_type = request.GET.get('sourceType')
+            source_type = request.GET.get('source_type')
             page = int(request.GET.get('page', 1))
-            page_size = int(request.GET.get('pageSize', 20))
+            page_size = int(request.GET.get('page_size', 20))
 
             # 基础查询集 - 直接写死admin用户
             queryset = Asset.objects.filter(is_valid=True, uploader='admin')
@@ -71,7 +71,7 @@ class ResourceListView(APIView):
 
             # 计算总文件大小
             total_size = queryset.aggregate(total=Sum('file_size'))['total'] or 0
-            
+
             # 格式化总文件大小
             def format_size(size):
                 """格式化文件大小"""
@@ -80,13 +80,13 @@ class ResourceListView(APIView):
                         return {'size': round(size, 1), 'unit': unit}
                     size /= 1024.0
                 return {'size': round(size, 1), 'unit': 'PB'}
-            
+
             formatted_total_size = format_size(total_size)
 
             # 按类型计算空间大小
             type_sizes = queryset.values('file_type').annotate(size=Sum('file_size'))
             formatted_type_sizes = {item['file_type']: format_size(item['size']) for item in type_sizes}
-            
+
             return success_result({
                 'list': resources,
                 'total': paginator.count,
@@ -188,15 +188,30 @@ class ResourceDeleteView(APIView):
     """删除资源视图"""
 
     def delete(self, request, resource_id):
-        """删除资源（软删除）"""
+        """删除资源（硬删除 + 物理文件删除）"""
         try:
             try:
                 asset = Asset.objects.get(id=resource_id, is_valid=True, uploader='admin')  # 直接写死admin用户
             except Asset.DoesNotExist:
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
-            # 执行软删除
-            asset.soft_delete()
+            # 检查是否已关联文章
+            if asset.is_linked:
+                return error_result(ErrorCode.RESOURCE_IS_LINKED)
+
+            # 物理删除文件
+            try:
+                if asset.file_path:
+                    # 拼接绝对路径
+                    file_abs_path = os.path.join(settings.MEDIA_ROOT, asset.file_path)
+                    if os.path.exists(file_abs_path):
+                        os.remove(file_abs_path)
+            except Exception as e:
+                print(f"删除文件失败: {e}")
+                # 即使文件删除失败，我们也继续删除数据库记录，或者您可以选择抛出异常
+
+            # 执行删除 (硬删除)
+            asset.delete()
 
             return success_result()
 
@@ -218,7 +233,7 @@ class ResourceDownloadView(APIView):
             # 检查文件是否存在并读取文件
             abs_file_path = os.path.join(settings.MEDIA_ROOT, asset.file_path)
             if not os.path.exists(abs_file_path):
-                return error_result(ErrorCode.ARTICLE_NOT_EXIST)
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
             with open(abs_file_path, 'rb') as f:
                 file_content = f.read()
@@ -272,7 +287,7 @@ class ResourceUploadView(APIView):
                     source_article = None
                     if existing_asset.linked_article:
                         source_article = existing_asset.get_source_info()
-                    
+
                     return success_result({
                         'id': existing_asset.id,
                         'name': existing_asset.name,
@@ -347,7 +362,7 @@ class ResourceUploadView(APIView):
                 'uploader': 'admin',  # 直接写死admin用户
                 'source_type': source_type
             }
-            
+
             # 处理关联文章
             if linked_article_id:
                 asset_data['linked_article'] = linked_article_id

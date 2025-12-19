@@ -20,6 +20,7 @@ class ErrorCode(Enum):
     # 资源错误
     RESOURCE_NOT_FOUND = (404, '资源不存在')
     RESOURCE_EXISTED = (409, '资源已存在')
+    RESOURCE_IS_LINKED = (4091, '资源已关联文章，无法删除')
     UPLOAD_RESOURCE_NOT_FOUND = (410, '上传文件不存在')
     UPLOAD_RESOURCE_MORE_THAN_MAX_SIZE = (411, '文件大小超过50MB限制')
 

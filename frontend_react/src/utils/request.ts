@@ -1,4 +1,4 @@
-import { ResultEnum } from '@/constants/httpEnum';
+import {ResultEnum} from '@/constants/httpEnum';
 import axios, {
     AxiosInstance,
     AxiosError,
@@ -54,7 +54,12 @@ service.interceptors.request.use(
 
 // 4. 响应拦截器
 service.interceptors.response.use(
-    (response: AxiosResponse<ApiResponse>) => {
+    (response: AxiosResponse<any>) => {
+        // 检查响应类型，如果是 blob 或 arraybuffer (下载文件)，直接返回 data
+        if (response.config.responseType === 'blob' || response.config.responseType === 'arraybuffer') {
+            return response.data;
+        }
+        
         // 2xx 范围内的状态码都会触发该函数
         const res = response.data;
 
@@ -73,7 +78,7 @@ service.interceptors.response.use(
                 localStorage.removeItem('token');
                 window.location.href = '/login';
             }
-            
+
             return Promise.reject(new Error(res.msg || 'Error'));
         }
     },
@@ -82,10 +87,26 @@ service.interceptors.response.use(
         // 安全获取错误信息
         let errorMsg = '网络请求错误';
         if (error.response) {
+            // --- 针对 Blob 类型的错误处理优化 ---
+            // 如果下载接口报错(比如404)，返回的是 Blob 类型的 json，需要转成文本才能看到错误信息
+            if (error.request.responseType === 'blob' && error.response.data instanceof Blob) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try {
+                        const errorData = JSON.parse(reader.result as string);
+                        console.error('Download Error:', errorData.msg || errorMsg);
+                    } catch (e) {
+                        console.error('Download Error:', errorMsg);
+                    }
+                };
+                reader.readAsText(error.response.data);
+                return Promise.reject(error);
+            }
+            // ------------------------------------
             // 服务器返回了错误响应
             errorMsg = error.response.data?.msg || error.response.statusText || errorMsg;
             console.error('Response Error:', errorMsg);
-            
+
             // 可以根据 status code 做统一提示
             switch (error.response.status) {
                 case 404:

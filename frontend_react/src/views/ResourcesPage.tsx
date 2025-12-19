@@ -1,5 +1,6 @@
 import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {useToast} from '../components/common/ToastProvider';
+import {useNavigate} from 'react-router-dom';
 
 import {
     Search, Filter, Download, Trash2, FileText,
@@ -8,7 +9,7 @@ import {
     BookOpen
 } from 'lucide-react';
 
-import {getResources, deleteResource, ResourceItem, GetResourcesParams, FormattedSize} from '../api/resources';
+import {getResources, deleteResource, downloadResource, ResourceItem, GetResourcesParams, FormattedSize} from '../api/resources';
 import {formatFileSize} from '@/utils/format';
 
 interface SelectionBox {
@@ -22,7 +23,6 @@ const PAGE_SIZE = 24;
 
 interface TypeConfigItem {
     label: string;
-    // 修复关键点：指定 ReactElement 接受 className 属性
     icon: React.ReactElement<{ className?: string }>;
     color: string;
 }
@@ -38,7 +38,6 @@ const TYPE_CONFIG: Record<string, TypeConfigItem> = {
     design: {label: '设计', icon: <File/>, color: 'text-pink-600 bg-pink-50'},
 };
 
-// 修复关键点：显式声明返回类型
 const getFileIcon = (type: string): React.ReactElement<{ className?: string }> =>
     (TYPE_CONFIG[type] || TYPE_CONFIG.design).icon;
 
@@ -46,8 +45,10 @@ const getFileStyle = (type: string) => (TYPE_CONFIG[type] || TYPE_CONFIG.design)
 
 export default function ResourcesPage() {
     const toast = useToast();
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(''); // 防抖后的搜索词
     const [showUnlinkedOnly, setShowUnlinkedOnly] = useState(false);
 
     const [visibleData, setVisibleData] = useState<ResourceItem[]>([]);
@@ -55,11 +56,12 @@ export default function ResourcesPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [hasMore, setHasMore] = useState(true);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    const [totalCount, setTotalCount] = useState(0); // 添加总数状态
-    const [formattedTotalSize, setFormattedTotalSize] = useState<FormattedSize>({size: 0, unit: 'B'}); // 格式化的总文件大小
+    const [totalCount, setTotalCount] = useState(0);
+    const [formattedTotalSize, setFormattedTotalSize] = useState<FormattedSize>({size: 0, unit: 'B'});
 
     // --- Delete Modal State ---
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [deletingId, setDeletingId] = useState<string | null>(null); // 单个删除的ID
 
     // Refs
     const isLoadingRef = useRef(false);
@@ -72,8 +74,15 @@ export default function ResourcesPage() {
     const initialSelectionRef = useRef<Set<string>>(new Set());
     const [dragSelectionBox, setDragSelectionBox] = useState<SelectionBox | null>(null);
 
-    // ... Data Loading Logic ...
-    // 移除本地过滤，改用API获取数据
+    // --- 1. 防抖逻辑 ---
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery);
+        }, 500); // 500ms 防抖
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
+    // 加载数据：监听 debouncedSearchQuery 而不是 searchQuery
     useEffect(() => {
         filterVersion.current += 1;
         isLoadingRef.current = true;
@@ -83,7 +92,7 @@ export default function ResourcesPage() {
         setSelectedIds(new Set());
         setVisibleData([]);
         fetchResources(1);
-    }, [activeTab, searchQuery, showUnlinkedOnly]);
+    }, [activeTab, debouncedSearchQuery, showUnlinkedOnly]);
 
     // 获取资源列表数据
     const fetchResources = async (pageNum: number) => {
@@ -94,13 +103,10 @@ export default function ResourcesPage() {
                 pageSize: PAGE_SIZE,
                 type: activeTab === 'all' ? undefined : activeTab,
                 linked: showUnlinkedOnly ? false : undefined,
-                searchQuery: searchQuery || undefined
+                searchQuery: debouncedSearchQuery || undefined
             };
 
             const response = await getResources(params);
-
-            // --- 核心修复：解构响应对象 ---
-            // 后端返回结构: { list: [], total: 100, hasMore: true, ... }
             const {list, total, hasMore: backendHasMore, formattedTotalSize: backendFormattedTotalSize} = response;
 
             if (filterVersion.current !== currentVersion) return;
@@ -111,11 +117,10 @@ export default function ResourcesPage() {
                 setFormattedTotalSize(backendFormattedTotalSize || {size: 0, unit: 'B'});
             } else {
                 setVisibleData(prev => [...prev, ...list]);
-                setTotalCount(total); // 更新总数以防变化
+                setTotalCount(total);
             }
 
             setPage(pageNum);
-            // 使用后端返回的 hasMore 字段
             setHasMore(backendHasMore);
 
         } catch (error) {
@@ -132,7 +137,7 @@ export default function ResourcesPage() {
         isLoadingRef.current = true;
         setIsLoading(true);
         fetchResources(page + 1);
-    }, [page, hasMore, activeTab, searchQuery, showUnlinkedOnly]);
+    }, [page, hasMore, activeTab, debouncedSearchQuery, showUnlinkedOnly]);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -145,52 +150,33 @@ export default function ResourcesPage() {
     }, [loadMore]);
 
     // --- Drag Selection Handlers ---
-
     const handleMouseMove = useCallback((e: MouseEvent) => {
         if (!isDraggingRef.current || !dragStartRef.current) return;
-
         const currentX = e.clientX;
         const currentY = e.clientY;
         const startX = dragStartRef.current.x;
         const startY = dragStartRef.current.y;
-
-        // 1. Update UI Box
         setDragSelectionBox({
             left: Math.min(startX, currentX),
             top: Math.min(startY, currentY),
             width: Math.abs(currentX - startX),
             height: Math.abs(currentY - startY),
         });
-
-        // 2. Logic: Collision Detection
         const selectRect = {
             left: Math.min(startX, currentX),
             top: Math.min(startY, currentY),
             right: Math.max(startX, currentX),
             bottom: Math.max(startY, currentY),
         };
-
         const newSelectedIds = new Set(initialSelectionRef.current);
         const cards = document.querySelectorAll('.resource-card');
-
         cards.forEach(card => {
             const rect = card.getBoundingClientRect();
             const id = card.getAttribute('data-id');
-
-            const isIntersecting = !(
-                rect.right < selectRect.left ||
-                rect.left > selectRect.right ||
-                rect.bottom < selectRect.top ||
-                rect.top > selectRect.bottom
-            );
-
-            if (isIntersecting && id) {
-                newSelectedIds.add(id);
-            } else if (id && !initialSelectionRef.current.has(id)) {
-                newSelectedIds.delete(id);
-            }
+            const isIntersecting = !(rect.right < selectRect.left || rect.left > selectRect.right || rect.bottom < selectRect.top || rect.top > selectRect.bottom);
+            if (isIntersecting && id) newSelectedIds.add(id);
+            else if (id && !initialSelectionRef.current.has(id)) newSelectedIds.delete(id);
         });
-
         setSelectedIds(newSelectedIds);
     }, []);
 
@@ -204,13 +190,10 @@ export default function ResourcesPage() {
     }, [handleMouseMove]);
 
     const handleMouseDown = (e: React.MouseEvent) => {
-        // 绑定在全宽容器上，忽略卡片内部点击
         const target = e.target as HTMLElement;
         if (e.button !== 0 || target.closest('.resource-card') || target.closest('button')) return;
-
         isDraggingRef.current = true;
         dragStartRef.current = {x: e.clientX, y: e.clientY};
-
         const isAdditive = e.shiftKey || e.ctrlKey || e.metaKey;
         if (!isAdditive) {
             setSelectedIds(new Set());
@@ -218,17 +201,11 @@ export default function ResourcesPage() {
         } else {
             initialSelectionRef.current = new Set(selectedIds);
         }
-
-        setDragSelectionBox({
-            left: e.clientX, top: e.clientY, width: 0, height: 0
-        });
-
+        setDragSelectionBox({left: e.clientX, top: e.clientY, width: 0, height: 0});
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
         document.body.style.userSelect = 'none';
     };
-
-    // --- End Drag Selection Logic ---
 
     const toggleSelection = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
@@ -246,63 +223,129 @@ export default function ResourcesPage() {
         }
     };
 
+    // --- 3. 删除逻辑 ---
+    // 点击批量删除
     const handleBatchDeleteClick = () => {
         if (selectedIds.size > 0) {
+            setDeletingId(null); // 标记为批量删除
             setIsDeleteModalOpen(true);
         }
     };
 
-    const confirmBatchDelete = async () => {
+    // 点击单个删除
+    const handleSingleDeleteClick = (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        setDeletingId(id);
+        setIsDeleteModalOpen(true);
+    };
+
+    // 确认删除（通用）
+    const confirmDelete = async () => {
+        const idsToDelete = deletingId ? [deletingId] : Array.from(selectedIds);
+        let successCount = 0;
+        let failCount = 0;
+
         try {
-            for (const id of selectedIds) {
-                await deleteResource(id);
+            for (const id of idsToDelete) {
+                try {
+                    await deleteResource(id);
+                    successCount++;
+                } catch (error: any) {
+                    failCount++;
+                    console.error(`Delete failed for ${id}:`, error);
+                }
             }
 
-            // 重新请求第一页数据
-            const currentVersion = filterVersion.current;
-            const response = await getResources({
-                page: 1,
-                pageSize: PAGE_SIZE,
-                type: activeTab === 'all' ? undefined : activeTab,
-                linked: showUnlinkedOnly ? false : undefined,
-                searchQuery: searchQuery || undefined
-            });
-
-            // --- 核心修复：同样解构响应对象 ---
-            const {list, total, hasMore: backendHasMore} = response;
-
-            if (filterVersion.current === currentVersion) {
-                setVisibleData(list);
-                setTotalCount(total);
-                setHasMore(backendHasMore);
-                setPage(1);
+            if (successCount > 0) {
+                toast.success(`成功删除 ${successCount} 个文件`);
+                // 重新请求第一页数据
+                const currentVersion = filterVersion.current;
+                const response = await getResources({
+                    page: 1,
+                    pageSize: PAGE_SIZE,
+                    type: activeTab === 'all' ? undefined : activeTab,
+                    linked: showUnlinkedOnly ? false : undefined,
+                    searchQuery: debouncedSearchQuery || undefined
+                });
+                const {list, total, hasMore: backendHasMore} = response;
+                if (filterVersion.current === currentVersion) {
+                    setVisibleData(list);
+                    setTotalCount(total);
+                    setHasMore(backendHasMore);
+                    setPage(1);
+                }
+                setSelectedIds(new Set());
             }
 
-            setSelectedIds(new Set());
+            if (failCount > 0) {
+                toast.error(`${failCount} 个文件删除失败 (可能已关联文章)`);
+            }
+
             setIsDeleteModalOpen(false);
+            setDeletingId(null);
+
         } catch (error) {
             console.error('Failed to delete resources:', error);
-            toast.error('删除失败，请重试');
+            toast.error('删除过程发生错误');
         }
     };
 
-    const handleBatchDownload = () => {
-        toast.info(`开始批量下载 ${selectedIds.size} 个文件...`);
+    // --- 2. 下载逻辑 ---
+    const handleDownloadFile = async (id: string, fileName: string) => {
+        try {
+            const blob = await downloadResource(id);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            return true;
+        } catch (error) {
+            console.error(`Failed to download ${fileName}:`, error);
+            toast.error(`下载 ${fileName} 失败`);
+            return false;
+        }
+    };
+
+    const handleSingleDownload = async (e: React.MouseEvent, file: ResourceItem) => {
+        e.stopPropagation();
+        toast.info(`开始下载文件: ${file.name}`);
+        await handleDownloadFile(file.id, file.name);
+    };
+
+    const handleBatchDownload = async () => {
+        const ids = Array.from(selectedIds);
+        toast.info(`开始批量下载 ${ids.length} 个文件...`);
+
+        // 串行下载以避免浏览器限制并发
+        for (const id of ids) {
+            const file = visibleData.find(f => f.id === id);
+            if (file) {
+                await handleDownloadFile(file.id, file.name);
+                // 简单的延时，给浏览器喘息时间
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
         setSelectedIds(new Set());
     };
 
-    const handleSingleDownload = (e: React.MouseEvent, file: ResourceItem) => {
-        e.stopPropagation();
-        toast.info(`开始下载文件: ${file.name}`);
+    // --- 4. 关联文章跳转 (修复版) ---
+    const handleArticleClick = (collId: string, articleId: string) => {
+        if (!collId || !articleId) {
+            console.warn("Cannot navigate: missing collId or articleId", {collId, articleId});
+            return;
+        }
+        navigate(`/article/${collId}/${articleId}`);
     };
 
     return (
         <div
-            className="w-full min-h-[calc(100vh-80px)] select-none" // 最外层全宽容器
+            className="w-full min-h-[calc(100vh-80px)] select-none"
             onMouseDown={handleMouseDown}
         >
-
-            {/* 1. 拖拽选框 UI */}
             {dragSelectionBox && (
                 <div
                     className="fixed border border-blue-500 bg-blue-500/10 z-50 pointer-events-none"
@@ -315,7 +358,7 @@ export default function ResourcesPage() {
                 ></div>
             )}
 
-            {/* Delete Modal (Overlay placed at root) */}
+            {/* Delete Modal */}
             {isDeleteModalOpen && (
                 <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
@@ -331,18 +374,19 @@ export default function ResourcesPage() {
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-bold text-slate-900">确认删除资源?</h3>
-                                    <p className="text-sm text-slate-500">此操作无法撤销。</p>
+                                    <p className="text-sm text-slate-500">此操作将永久删除文件，无法撤销。</p>
                                 </div>
                             </div>
                             <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-                                确定要删除选中的 <span
-                                className="font-bold text-slate-900">{selectedIds.size}</span> 个资源文件吗？
+                                确定要删除 {deletingId ? '该' : `选中的 ${selectedIds.size} 个`} 资源文件吗？
+                                <br/>
+                                <span className="text-xs text-orange-500 mt-2 block">* 已关联文章的资源将无法删除。</span>
                             </p>
                             <div className="flex justify-end gap-3">
                                 <button onClick={() => setIsDeleteModalOpen(false)}
                                         className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">取消
                                 </button>
-                                <button onClick={confirmBatchDelete}
+                                <button onClick={confirmDelete}
                                         className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm">确认删除
                                 </button>
                             </div>
@@ -351,7 +395,7 @@ export default function ResourcesPage() {
                 </div>
             )}
 
-            {/* Batch Actions Bar (Floating) */}
+            {/* Batch Actions Bar */}
             {selectedIds.size > 0 && (
                 <div
                     className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-6 z-50 animate-in slide-in-from-bottom-6 duration-300"
@@ -380,11 +424,11 @@ export default function ResourcesPage() {
                 </div>
             )}
 
-            {/* Main Content (Centered) */}
+            {/* Main Content */}
             <div
                 className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24 relative">
 
-                {/* Header */}
+                {/* Header (Same as before) */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div onMouseDown={e => e.stopPropagation()}>
                         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -476,21 +520,31 @@ export default function ResourcesPage() {
                                             <CheckCircle2 className="w-3 h-3"/>
                                         </div>
                                     </div>
-                                    <div className="absolute top-2 right-2 z-20" onClick={(e) => e.stopPropagation()}>
-                                        {!file.linked && !isSelected ? (
+                                    <div className="absolute top-2 right-2 z-20 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                                        {/* 未关联标签：未选中且未关联时显示，group-hover时隐藏 */}
+                                        {!file.linked && !isSelected && (
                                             <div
-                                                className="px-1.5 py-0.5 bg-red-100/90 text-red-600 text-[10px] font-bold rounded backdrop-blur-sm">未关联</div>
-                                        ) : (
+                                                className="group-hover:hidden px-1.5 py-0.5 bg-red-100/90 text-red-600 text-[10px] font-bold rounded backdrop-blur-sm">未关联</div>
+                                        )}
+
+                                        {/* 操作按钮：选中时显示，或hover时显示 */}
+                                        <div className={`flex gap-1 ${isSelected ? 'flex' : 'hidden group-hover:flex'}`}>
+                                            {/* Download Button */}
                                             <button onClick={(e) => handleSingleDownload(e, file)}
-                                                    className="p-1 rounded-md bg-white/90 text-slate-400 hover:text-blue-600 hover:bg-blue-50 shadow-sm border border-slate-200 opacity-0 group-hover:opacity-100 transition-all"
+                                                    className="p-1 rounded-md bg-white/90 text-slate-400 hover:text-blue-600 hover:bg-blue-50 shadow-sm border border-slate-200 transition-all"
                                                     title="下载文件">
                                                 <Download className="w-3.5 h-3.5"/>
                                             </button>
-                                        )}
+                                            {/* Delete Button */}
+                                            <button onClick={(e) => handleSingleDeleteClick(e, file.id)}
+                                                    className="p-1 rounded-md bg-white/90 text-slate-400 hover:text-red-600 hover:bg-red-50 shadow-sm border border-slate-200 transition-all"
+                                                    title="删除文件">
+                                                <Trash2 className="w-3.5 h-3.5"/>
+                                            </button>
+                                        </div>
                                     </div>
                                     <div
                                         className="aspect-[16/10] bg-slate-50/50 border-b border-slate-100/50 flex items-center justify-center relative">
-                                        {/* 修复关键点：使用 cloneElement 动态注入 className */}
                                         <div
                                             className={`w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 duration-300 ${getFileStyle(file.type)}`}>
                                             {React.cloneElement(getFileIcon(file.type), {className: "w-5 h-5"})}
@@ -503,13 +557,12 @@ export default function ResourcesPage() {
                                             <span>{formatFileSize(file.size)}</span>
                                             <span>{file.date}</span>
                                         </div>
-                                        {/* 2. 来源笔记样式 */}
-                                        {file.sourceArticle && (
+                                        {file.sourceArticle ? (
                                             <div
                                                 className="mt-2 pt-2 border-t border-slate-50 flex items-center gap-1.5 text-[10px] text-slate-400 group/source"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    console.log('Go to article', file.sourceArticle?.id)
+                                                    handleArticleClick(file.sourceArticle!.collId, file.sourceArticle!.id);
                                                 }}>
                                                 <BookOpen
                                                     className="w-3 h-3 text-slate-300 group-hover/source:text-orange-400 transition-colors"/>
@@ -517,6 +570,10 @@ export default function ResourcesPage() {
                                                     className="truncate group-hover/source:text-orange-600 group-hover/source:underline cursor-pointer transition-colors"
                                                     title={file.sourceArticle.title}>{file.sourceArticle.title}</span>
                                             </div>
+                                        ) : (
+                                           <div className="mt-2 pt-2 border-t border-slate-50 h-6 flex items-center">
+                                                <span className="text-[10px] text-slate-300">未关联</span>
+                                           </div>
                                         )}
                                     </div>
                                 </div>
