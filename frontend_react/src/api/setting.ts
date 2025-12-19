@@ -121,7 +121,7 @@ export const getWebDavConfig = () => request.get<WebDavConfig>('/settings/config
 export const saveWebDavConfig = (data: WebDavConfig) => request.post('/settings/config/save_webdav_config/', data);
 
 // 3. 触发上传 (备份到 WebDAV)
-export const syncToWebDav = () => request.post<{ msg: string }>('/settings/config/sync_to_webdav/');
+export const syncToWebDav = () => request.post<any, { msg: string }>('/settings/config/sync_to_webdav/');
 
 // 4. 触发下载 (从 WebDAV 恢复)
-export const syncFromWebDav = () => request.post<{ msg: string }>('/settings/config/sync_from_webdav/');
+export const syncFromWebDav = () => request.post<any, { msg: string }>('/settings/config/sync_from_webdav/');

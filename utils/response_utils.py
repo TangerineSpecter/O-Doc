@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from .error_codes import ErrorCode
 
 
-def success_result(msg=ErrorCode.SUCCESS.message, data=None):
+def success_result(data=None, msg=ErrorCode.SUCCESS.message, ):
     """
     统一的成功响应格式化函数
     :param msg: 响应信息

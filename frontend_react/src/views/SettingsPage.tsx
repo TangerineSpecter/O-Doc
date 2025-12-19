@@ -18,7 +18,8 @@ export default function SettingsPage() {
     const {
         providers, systemConfig, webDavConfig, isSaving,
         setSystemConfig, setWebDavConfig,
-        getModelsByType, handleSaveProvider, handleSaveModel, handleDelete
+        getModelsByType, handleSaveProvider, handleSaveModel, handleDelete,
+        fetchWebDavConfig
     } = useSettings();
 
     // 页面内部的模态框状态 (UI State)
@@ -39,6 +40,13 @@ export default function SettingsPage() {
             {label}
         </button>
     );
+
+    React.useEffect(() => {
+        if (activeTab === 'sync') {
+            // 这里建议每次切换都刷一下，或者加个 flag 判断是否已加载
+            fetchWebDavConfig();
+        }
+    }, [activeTab]);
 
     return (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">

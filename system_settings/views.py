@@ -106,6 +106,32 @@ class SystemConfigViewSet(viewsets.ViewSet):
         except SystemSetting.DoesNotExist:
             return None
 
+    @action(detail=False, methods=['get'])
+    def get_webdav_config(self, request):
+        """获取 WebDAV 配置"""
+        config, _ = SystemSetting.objects.get_or_create(
+            key='system_webdav_config',
+            defaults={'value': {
+                'enabled': False,
+                'url': '',
+                'username': '',
+                'password': '',
+                'remotePath': '/o-doc-backup/',
+                'interval': 30
+            }}
+        )
+        return success_result(config.value)
+
+    @action(detail=False, methods=['post'])
+    def save_webdav_config(self, request):
+        """保存 WebDAV 配置"""
+        data = request.data
+        SystemSetting.objects.update_or_create(
+            key='system_webdav_config',
+            defaults={'value': data}
+        )
+        return success_result()
+
     @action(detail=False, methods=['post'])
     def sync_to_webdav(self, request):
         """

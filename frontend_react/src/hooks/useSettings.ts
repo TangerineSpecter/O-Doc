@@ -6,6 +6,7 @@ import {
     deleteProvider,
     getProviders,
     getSystemAIConfig,
+    getWebDavConfig,
     ModelType,
     saveModel,
     saveProvider,
@@ -36,17 +37,30 @@ export const useSettings = () => {
     const loadSettings = async () => {
         setIsLoading(true);
         try {
-            const [providersRes, configRes] = await Promise.all([
+            const [providersRes] = await Promise.all([
                 getProviders(),
                 getSystemAIConfig()
             ]);
             setProviders(providersRes as unknown as AIProvider[]);
-            setSystemConfig(configRes as unknown as SystemAIConfig);
         } catch (error) {
             console.error("加载设置失败", error);
             toast.error("加载设置失败");
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    // 独立加载 WebDAV 的函数 ---
+    const fetchWebDavConfig = async () => {
+        try {
+            const res = await getWebDavConfig();
+            if (res) {
+                // 加个类型断言防止 TS 报错
+                setWebDavConfig(res as unknown as WebDavConfig);
+            }
+        } catch (error) {
+            // 404 也不要弹窗报错，静默失败即可，因为用户可能还没配置后端
+            console.warn("WebDAV 配置加载失败或未实现:", error);
         }
     };
 
@@ -164,6 +178,8 @@ export const useSettings = () => {
         handleSaveProvider,
         handleSaveModel,
         handleDelete,
+
+        fetchWebDavConfig,
         // 重新加载
         refresh: loadSettings
     };
