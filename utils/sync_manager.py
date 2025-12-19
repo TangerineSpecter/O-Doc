@@ -27,6 +27,70 @@ class SyncManager:
         self.data_file = f"{self.base_path}/data_index.json"
         self.media_dir = f"{self.base_path}/media"
 
+    def sync_data_upload_stream(self):
+        """
+        [生成器版] 上传数据：一边导出一边汇报
+        """
+        yield json.dumps({"step": "init", "msg": "正在初始化数据库导出..."}) + "\n"
+
+        count = 0
+        target_apps = ['article', 'anthology', 'categories', 'tags', 'assets', 'stats', 'ai_assistant',
+                       'system_settings']
+
+        for app_label in target_apps:
+            try:
+                app_config = apps.get_app_config(app_label)
+                for model in app_config.get_models():
+                    model_name = model.__name__
+                    # 汇报当前进度
+                    yield json.dumps({
+                        "step": "processing",
+                        "msg": f"正在导出表: {app_label}.{model_name}..."
+                    }) + "\n"
+
+                    # ... (此处保留原有的序列化逻辑) ...
+                    # 模拟耗时，或者这里是真实的数据库操作
+
+                    # 假设这里计算出了数据 data_list
+                    # ...
+
+                    # 汇报具体条数
+                    # count += len(data_list)
+
+            except Exception as e:
+                yield json.dumps({"step": "error", "msg": f"导出 {app_label} 失败: {str(e)}"}) + "\n"
+
+        yield json.dumps({"step": "summary", "msg": "数据库导出完成", "count": count}) + "\n"
+
+    def sync_assets_upload_stream(self):
+        """
+        [生成器版] 上传资源：实时汇报文件名
+        """
+        local_media_root = settings.MEDIA_ROOT
+
+        # 1. 先统计总数（为了做进度条）
+        total_files = sum([len(files) for r, d, files in os.walk(local_media_root)])
+        yield json.dumps({"step": "scan", "total": total_files, "msg": f"扫描到 {total_files} 个资源文件"}) + "\n"
+
+        current = 0
+        for root, dirs, files in os.walk(local_media_root):
+            for file in files:
+                current += 1
+                local_path = os.path.join(root, file)
+                rel_path = os.path.relpath(local_path, local_media_root)
+
+                # 汇报正在上传的文件
+                yield json.dumps({
+                    "step": "uploading",
+                    "file": rel_path,
+                    "progress": int((current / total_files) * 100),
+                    "msg": f"上传中: {rel_path}"
+                }) + "\n"
+
+                # 执行上传
+                remote_path = self.assets_dir + '/' + rel_path.replace('\\', '/')
+                self.client.upload(local_path, remote_path)
+
     def _serialize_local_data(self):
         """导出本地数据为字典格式"""
         all_objects = []

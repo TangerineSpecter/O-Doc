@@ -1,3 +1,6 @@
+import json
+
+from django.http import StreamingHttpResponse
 from rest_framework import viewsets
 from rest_framework.decorators import action
 
@@ -126,32 +129,50 @@ class SystemConfigViewSet(viewsets.ViewSet):
     def save_webdav_config(self, request):
         """保存 WebDAV 配置"""
         data = request.data
-        SystemSetting.objects.update_or_create(
-            key='system_webdav_config',
-            defaults={'value': data}
-        )
-        return success_result()
+
+        # 1. 简单校验
+        url = data.get('url')
+        username = data.get('username')
+        password = data.get('password')
+        if not all([url, username, password]):
+            return error_result()
+
+        try:
+            # 2. 实例化并测试连接
+            client = WebDavClient(url, username, password)
+            if not client.check_connection():
+                raise Exception("验证失败，无法连接到 WebDAV 服务器")
+
+            # 3. 保存
+            SystemSetting.objects.update_or_create(
+                key='system_webdav_config',
+                defaults={'value': data}
+            )
+            return success_result(msg="连接测试通过并保存成功")
+        except Exception as e:
+            # 5. 捕获连接错误（如 401 Unauthorized, 404 Not Found, Connection Error）
+            print(f"WebDAV连接测试失败: {e}")
+            return error_result(ErrorCode.WEBDEV_LOGIN_FAIL)
 
     @action(detail=False, methods=['post'])
     def sync_to_webdav(self, request):
-        """
-        [上传/推送]
-        1. 数据库：本地与云端合并后，推送到云端。
-        2. 资源：上传本地有但云端没有的文件。
-        """
         manager = self._get_sync_manager()
         if not manager:
             return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
 
-        try:
-            # 1. 同步数据
-            data_count = manager.sync_data_upload()
-            # 2. 同步资源
-            file_count = manager.sync_assets_upload()
+        def stream_generator():
+            # 1. 数据库阶段
+            for chunk in manager.sync_data_upload_stream():
+                yield chunk
 
-            return success_result(msg=f"同步完成：更新 {data_count} 条数据记录，上传 {file_count} 个新文件")
-        except Exception as e:
-            return error_result(ErrorCode.WEBDEV_UPLOAD_FAIL)
+            # 2. 资源文件阶段
+            for chunk in manager.sync_assets_upload_stream():
+                yield chunk
+
+            # 3. 结束信号
+            yield json.dumps({"step": "done", "msg": "✅ 所有同步已完成！"}) + "\n"
+
+        return StreamingHttpResponse(stream_generator(), content_type='application/x-ndjson')
 
     @action(detail=False, methods=['post'])
     def sync_from_webdav(self, request):

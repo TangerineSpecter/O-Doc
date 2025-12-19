@@ -33,6 +33,7 @@ class ErrorCode(Enum):
     WEBDEV_NOT_CONFIG = (6001, 'WebDAV 未配置或未开启')
     WEBDEV_DOWNLOAD_FAIL = (6002, 'WebDev下载失败')
     WEBDEV_UPLOAD_FAIL = (6003, 'WebDev上传失败')
+    WEBDEV_LOGIN_FAIL = (6004, '连接失败: 请检查服务器地址和密码')
 
     def __init__(self, code: int, message: str):
         self.code = code

@@ -1,91 +1,73 @@
-from urllib.parse import urljoin, quote
+from io import BytesIO
 
-import requests
+from webdav3.client import Client
 
 
 class WebDavClient:
     def __init__(self, base_url, username, password):
-        # 确保 base_url 以 / 结尾
-        self.base_url = base_url if base_url.endswith('/') else base_url + '/'
-        self.auth = (username, password)
-        self.timeout = 30
-
-    def _get_full_url(self, path):
-        # 移除开头的 /，并进行 URL 编码处理 (防止中文路径报错)
-        clean_path = path.lstrip('/')
-        # 简单处理：将路径分段编码
-        parts = [quote(p) for p in clean_path.split('/')]
-        return urljoin(self.base_url, '/'.join(parts))
+        # webdavclient3 需要的配置格式
+        self.options = {
+            'webdav_hostname': base_url if not base_url.endswith('/') else base_url[:-1],
+            'webdav_login': username,
+            'webdav_password': password,
+            'disable_check': True,  # 初始化时不立即检查，提高响应速度
+            'timeout': 300
+        }
+        self.client = Client(self.options)
 
     def check_connection(self):
-        """测试连接"""
+        """测试连接 (尝试列出根目录)"""
         try:
-            response = requests.request('PROPFIND', self.base_url, auth=self.auth, headers={'Depth': '0'},
-                                        timeout=self.timeout)
-            return 200 <= response.status_code < 300
-        except Exception:
+            # 只有真正的 WebDAV 服务器，且账号密码正确，才能返回正确的 XML 结构。
+            self.client.info('/')
+            return True
+        except Exception as e:
             return False
 
     def exists(self, remote_path):
-        """检查远程文件/目录是否存在"""
-        full_url = self._get_full_url(remote_path)
-        try:
-            response = requests.head(full_url, auth=self.auth, timeout=self.timeout)
-            # 部分 WebDAV 服务器不支持 HEAD，改用 PROPFIND
-            if response.status_code == 405:
-                response = requests.request('PROPFIND', full_url, auth=self.auth, headers={'Depth': '0'},
-                                            timeout=self.timeout)
-            return 200 <= response.status_code < 300
-        except Exception:
-            return False
+        """检查远程路径是否存在"""
+        return self.client.check(remote_path)
 
     def ensure_directory(self, remote_dir):
         """递归创建目录"""
         if not remote_dir or remote_dir == '.' or remote_dir == '/':
             return
 
-        # 逐级检查/创建目录逻辑简化版
-        # 实际生产中可能需要 split('/') 循环检查，这里假设父级通常存在或服务器支持递归创建
-        # 为稳妥起见，我们简单尝试直接 MKCOL
-        full_url = self._get_full_url(remote_dir)
-        try:
-            if not self.exists(remote_dir):
-                requests.request('MKCOL', full_url, auth=self.auth, timeout=self.timeout)
-        except Exception:
-            pass
+        # webdavclient3 的 mkdir 默认不支持递归，所以要一级级检查
+        # 也可以直接用 client.mkdir(remote_dir) 捕获父级不存在的异常，但循环更稳妥
+        parts = remote_dir.strip('/').split('/')
+        current_path = ""
+        for part in parts:
+            current_path += part + "/"
+            if not self.client.check(current_path):
+                self.client.mkdir(current_path)
 
     def upload_file(self, local_path, remote_path):
         """上传文件"""
-        full_url = self._get_full_url(remote_path)
         try:
-            with open(local_path, 'rb') as f:
-                requests.put(full_url, data=f, auth=self.auth, timeout=300)  # 大文件超时设置长一点
+            # webdavclient3 的 upload_sync 会自动覆盖
+            # 注意参数顺序：webdavclient3 是 (remote_path, local_path)
+            self.client.upload_sync(remote_path=remote_path, local_path=local_path)
             return True
         except Exception as e:
-            print(f"Upload error: {e}")
+            print(f"WebDAV upload failed: {e}")
             return False
 
     def download_file(self, remote_path, local_path):
         """下载文件"""
-        full_url = self._get_full_url(remote_path)
         try:
-            response = requests.get(full_url, auth=self.auth, stream=True, timeout=300)
-            if response.status_code == 200:
-                with open(local_path, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                return True
-            return False
-        except Exception:
+            self.client.download_sync(remote_path=remote_path, local_path=local_path)
+            return True
+        except Exception as e:
+            print(f"WebDAV download failed: {e}")
             return False
 
     def get_file_content(self, remote_path):
-        """直接获取文件文本内容 (用于读取 json)"""
-        full_url = self._get_full_url(remote_path)
+        """直接获取文件内容字符串"""
         try:
-            response = requests.get(full_url, auth=self.auth, timeout=60)
-            if response.status_code == 200:
-                return response.text
-            return None
-        except Exception:
+            buffer = BytesIO()
+            self.client.download_from(buffer, remote_path)
+            return buffer.getvalue().decode('utf-8')
+        except Exception as e:
+            print(f"WebDAV read content failed: {e}")
             return None

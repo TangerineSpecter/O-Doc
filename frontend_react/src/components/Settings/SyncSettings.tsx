@@ -1,5 +1,5 @@
-import {useState} from 'react';
-import {DownloadCloud, HardDrive, Loader2, Save, UploadCloud} from 'lucide-react';
+import {useEffect, useRef, useState} from 'react';
+import {DownloadCloud, HardDrive, Loader2, Play, Save, Terminal, UploadCloud} from 'lucide-react';
 import {saveWebDavConfig, syncFromWebDav, syncToWebDav, WebDavConfig} from '@/api/setting.ts';
 import {useToast} from '../common/ToastProvider'; // 引入 Toast
 
@@ -9,27 +9,32 @@ interface SyncSettingsProps {
 }
 
 export const SyncSettings = ({config, onChange}: SyncSettingsProps) => {
-    const {success, error, warning} = useToast();
+    const toast = useToast();
 
     // 独立的 Loading 状态，避免按钮互斥锁定
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
 
+    // UI 状态
+    const [logs, setLogs] = useState<string[]>([]);
+    const [progress, setProgress] = useState(0);
+    const [isSyncing, setIsSyncing] = useState(false);
+
     // 1. 测试连接并保存
     const handleSave = async () => {
         if (!config.url || !config.username || !config.password) {
-            warning('请填写完整的服务器地址、用户名和密码');
+            toast.warning('请填写完整的服务器地址、用户名和密码');
             return;
         }
         setIsSaving(true);
         try {
             await saveWebDavConfig(config);
-            success('连接成功，配置已保存');
-        } catch (err: any) {
+            toast.success('连接成功，配置已保存');
+        } catch (error: any) {
+            const err = error as Error;
             console.error(err);
-            // 假设 request 拦截器已经处理了部分错误，这里可以补充处理
-            error(err.response?.data?.msg || '连接失败，请检查配置');
+            toast.error(err.message || '连接失败，请检查配置');
         } finally {
             setIsSaving(false);
         }
@@ -38,15 +43,15 @@ export const SyncSettings = ({config, onChange}: SyncSettingsProps) => {
     // 2. 上传到 WebDAV
     const handleUpload = async () => {
         if (!config.enabled) {
-            warning('请先开启 WebDAV 同步开关并保存配置');
+            toast.warning('请先开启 WebDAV 同步开关并保存配置');
             return;
         }
         setIsUploading(true);
         try {
             const res = await syncToWebDav();
-            success(res.msg || '备份上传成功');
+            toast.success(res.msg || '备份上传成功');
         } catch (err: any) {
-            error(err.response?.data?.msg || '上传失败');
+            toast.error(err.response?.data?.msg || '上传失败');
         } finally {
             setIsUploading(false);
         }
@@ -55,7 +60,7 @@ export const SyncSettings = ({config, onChange}: SyncSettingsProps) => {
     // 3. 从 WebDAV 同步 (下载)
     const handleDownload = async () => {
         if (!config.enabled) {
-            warning('请先开启 WebDAV 同步开关并保存配置');
+            toast.warning('请先开启 WebDAV 同步开关并保存配置');
             return;
         }
         // 增加二次确认，防止误操作覆盖数据
@@ -66,13 +71,82 @@ export const SyncSettings = ({config, onChange}: SyncSettingsProps) => {
         setIsDownloading(true);
         try {
             const res = await syncFromWebDav();
-            success(res.msg || '数据同步成功');
+            toast.success(res.msg || '数据同步成功');
             // 可选：同步成功后刷新页面以加载最新数据
             setTimeout(() => window.location.reload(), 1500);
         } catch (err: any) {
-            error(err.response?.data?.msg || '同步失败');
+            toast.error(err.response?.data?.msg || '同步失败');
         } finally {
             setIsDownloading(false);
+        }
+    };
+
+    // 自动滚动到底部的 Ref
+    const logContainerRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (logContainerRef.current) {
+            logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+        }
+    }, [logs]);
+
+    // --- 核心流式请求函数 ---
+    const startSyncStream = async (direction: 'upload' | 'download') => {
+        if (!config.enabled) return;
+
+        setIsSyncing(true);
+        setLogs([`🚀 开始${direction === 'upload' ? '上传' : '下载'}同步任务...`]);
+        setProgress(0);
+
+        try {
+            const url = `/api/settings/config/sync_${direction === 'upload' ? 'to' : 'from'}_webdav/`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // 如果有 token 鉴权，记得带上
+                    // 'Authorization': `Token ${localStorage.getItem('token')}`
+                },
+            });
+
+            if (!response.body) throw new Error("ReadableStream not supported");
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, {stream: true});
+                // 处理可能粘包的情况（多行数据一起过来）
+                const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+                for (const line of lines) {
+                    try {
+                        const data = JSON.parse(line);
+
+                        // 更新日志
+                        if (data.msg) {
+                            setLogs(prev => [...prev, `> ${data.msg}`]);
+                        }
+
+                        // 更新进度条
+                        if (data.progress) {
+                            setProgress(data.progress);
+                        }
+
+                        if (data.step === 'done') {
+                            setLogs(prev => [...prev, "✨ 同步任务成功结束。"]);
+                        }
+                    } catch (e) {
+                        console.error("解析流数据失败", e);
+                    }
+                }
+            }
+        } catch (err) {
+            setLogs(prev => [...prev, `❌ 错误: ${err}`]);
+        } finally {
+            setIsSyncing(false);
         }
     };
 
@@ -198,6 +272,69 @@ export const SyncSettings = ({config, onChange}: SyncSettingsProps) => {
                         {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> :
                             <DownloadCloud className="w-3.5 h-3.5"/>}
                         {isDownloading ? '同步中...' : '从 WebDAV 同步'}
+                    </button>
+                </div>
+            </div>
+
+            {/* --- 新增：同步控制台区域 --- */}
+            <div className="mt-8 pt-6 border-t border-slate-100">
+                <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <Terminal className="w-4 h-4"/>
+                    同步控制台
+                </h4>
+
+                {/* 进度条 */}
+                <div className="mb-4">
+                    <div className="flex justify-between text-xs text-slate-500 mb-1">
+                        <span>总进度</span>
+                        <span>{progress}%</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-orange-500 transition-all duration-300 ease-out"
+                            style={{width: `${progress}%`}}
+                        />
+                    </div>
+                </div>
+
+                {/* 黑客风格日志窗口 */}
+                <div
+                    ref={logContainerRef}
+                    className="bg-slate-900 rounded-lg p-4 h-48 overflow-y-auto font-mono text-xs shadow-inner space-y-1"
+                >
+                    {logs.length === 0 ? (
+                        <div className="text-slate-500 italic text-center mt-16">等待任务开始...</div>
+                    ) : (
+                        logs.map((log, index) => (
+                            <div key={index}
+                                 className="text-green-400 break-all animate-in fade-in slide-in-from-left-2 duration-300">
+                                <span className="text-slate-500 mr-2">[{new Date().toLocaleTimeString()}]</span>
+                                {log}
+                            </div>
+                        ))
+                    )}
+                    {/* 闪烁的光标 */}
+                    {isSyncing && (
+                        <div className="w-2 h-4 bg-green-500 animate-pulse mt-1 inline-block"/>
+                    )}
+                </div>
+
+                {/* 按钮组 */}
+                <div className="mt-4 flex gap-3 justify-end">
+                    <button
+                        onClick={() => startSyncStream('download')}
+                        disabled={isSyncing}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                    >
+                        从云端下载
+                    </button>
+                    <button
+                        onClick={() => startSyncStream('upload')}
+                        disabled={isSyncing}
+                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {isSyncing ? <Loader2 className="w-3 h-3 animate-spin"/> : <Play className="w-3 h-3"/>}
+                        开始上传同步
                     </button>
                 </div>
             </div>
