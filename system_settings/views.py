@@ -1,7 +1,10 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
 
-from utils.response_utils import success_result
+from utils.error_codes import ErrorCode
+from utils.response_utils import success_result, error_result
+from utils.sync_manager import SyncManager
+from utils.webdav import WebDavClient
 from .models import AIProvider, AIModel, SystemSetting
 from .serializers import AIProviderSerializer, AIModelSerializer
 
@@ -88,3 +91,59 @@ class SystemConfigViewSet(viewsets.ViewSet):
             defaults={'value': data}
         )
         return success_result()
+
+    def _get_sync_manager(self):
+        """辅助函数：初始化 SyncManager"""
+        try:
+            setting = SystemSetting.objects.get(key='system_webdav_config')
+            config = setting.value
+            if not config.get('enabled'):
+                return None
+
+            client = WebDavClient(config['url'], config['username'], config['password'])
+            remote_path = config.get('remotePath', '/o-doc-sync/')
+            return SyncManager(client, remote_path)
+        except SystemSetting.DoesNotExist:
+            return None
+
+    @action(detail=False, methods=['post'])
+    def sync_to_webdav(self, request):
+        """
+        [上传/推送]
+        1. 数据库：本地与云端合并后，推送到云端。
+        2. 资源：上传本地有但云端没有的文件。
+        """
+        manager = self._get_sync_manager()
+        if not manager:
+            return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
+
+        try:
+            # 1. 同步数据
+            data_count = manager.sync_data_upload()
+            # 2. 同步资源
+            file_count = manager.sync_assets_upload()
+
+            return success_result(msg=f"同步完成：更新 {data_count} 条数据记录，上传 {file_count} 个新文件")
+        except Exception as e:
+            return error_result(ErrorCode.WEBDEV_UPLOAD_FAIL)
+
+    @action(detail=False, methods=['post'])
+    def sync_from_webdav(self, request):
+        """
+        [下载/拉取]
+        1. 数据库：拉取云端数据合并到本地。
+        2. 资源：下载本地缺失的文件。
+        """
+        manager = self._get_sync_manager()
+        if not manager:
+            return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
+
+        try:
+            # 1. 拉取数据
+            data_count = manager.sync_data_download()
+            # 2. 拉取资源
+            file_count = manager.sync_assets_download()
+
+            return success_result(msg=f"同步完成：本地合并 {data_count} 条记录，下载 {file_count} 个文件")
+        except Exception as e:
+            return error_result(ErrorCode.WEBDEV_DOWNLOAD_FAIL)

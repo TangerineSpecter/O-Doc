@@ -1,20 +1,20 @@
 from rest_framework.response import Response
 
+from .error_codes import ErrorCode
 
-def success_result(data=None):
+
+def success_result(msg=ErrorCode.SUCCESS.message, data=None):
     """
     统一的成功响应格式化函数
+    :param msg: 响应信息
     :param data: 响应数据
     :return: JsonResponse对象
     """
     return Response({
         'code': ErrorCode.SUCCESS.code,
-        'msg': ErrorCode.SUCCESS.message,
+        'msg': msg,
         'data': data
     })
-
-
-from .error_codes import ErrorCode
 
 
 def valid_result(msg=ErrorCode.PARAM_ERROR.message, data=None):

@@ -29,6 +29,11 @@ class ErrorCode(Enum):
     DATABASE_ERROR = (5001, '数据库错误')
     NETWORK_ERROR = (5002, '网络错误')
 
+    WEBDEV_ERROR = (600, 'WebDev异常')
+    WEBDEV_NOT_CONFIG = (6001, 'WebDAV 未配置或未开启')
+    WEBDEV_DOWNLOAD_FAIL = (6002, 'WebDev下载失败')
+    WEBDEV_UPLOAD_FAIL = (6003, 'WebDev上传失败')
+
     def __init__(self, code: int, message: str):
         self.code = code
         self.message = message
