@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ImageIcon, X, Loader2 } from 'lucide-react';
+import { useToast } from './ToastProvider';
 
 interface ImageLinkModalProps {
     isOpen: boolean;
@@ -15,6 +16,7 @@ export default function ImageLinkModal({
     const [url, setUrl] = useState('https://');
     const [altText, setAltText] = useState('图片');
     const [isLoading, setIsLoading] = useState(false);
+    const toast = useToast();
 
     if (!isOpen) return null;
 
@@ -27,7 +29,7 @@ export default function ImageLinkModal({
             new URL(url);
             onConfirm(url, altText);
         } catch (error) {
-            alert('请输入有效的图片URL');
+            toast.error('请输入有效的图片URL');
         } finally {
             setIsLoading(false);
         }

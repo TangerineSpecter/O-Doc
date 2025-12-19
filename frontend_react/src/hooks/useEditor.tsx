@@ -349,7 +349,7 @@ export const useEditor = () => {
                 // 创建新文章 - 需要文集ID
                 const collId = getCollId();
                 if (!collId) {
-                    alert("请选择文集！");
+                    toast.error("请选择文集！");
                     setIsSaving(false);
                     return;
                 }
@@ -398,7 +398,7 @@ export const useEditor = () => {
         const file = e.target.files?.[0];
         if (!file) return;
         if (file.size > MAX_IMAGE_SIZE) {
-            alert("图片大小不能超过 5MB");
+            toast.error("图片大小不能超过 5MB");
             return;
         }
 
@@ -448,7 +448,7 @@ export const useEditor = () => {
 
         for (let i = 0; i < files.length; i++) {
             if (files[i].size > MAX_ATTACHMENT_SIZE) {
-                alert(`文件 ${files[i].name} 超过 10MB`);
+                toast.error(`文件 ${files[i].name} 超过 10MB`);
                 return;
             }
         }
@@ -466,7 +466,7 @@ export const useEditor = () => {
                     url: `/api/resource/download/${response.id}`
                 });
             } catch {
-                alert("上传失败");
+                toast.error("上传失败");
             }
         }
         setAttachments(prev => [...prev, ...newAtts]);

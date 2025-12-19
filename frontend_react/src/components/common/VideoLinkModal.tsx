@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Video, X, Loader2 } from 'lucide-react';
+import { useToast } from './ToastProvider';
 
 interface VideoLinkModalProps {
     isOpen: boolean;
@@ -14,19 +15,20 @@ export default function VideoLinkModal({
 }: VideoLinkModalProps) {
     const [url, setUrl] = useState('https://');
     const [isLoading, setIsLoading] = useState(false);
+    const toast = useToast();
 
     if (!isOpen) return null;
 
     const handleConfirm = async () => {
         if (!url.trim()) return;
-        
+
         setIsLoading(true);
         try {
             // 简单的URL验证
             new URL(url);
             onConfirm(url);
         } catch (error) {
-            alert('请输入有效的视频URL');
+            toast.error('请输入有效的视频URL');
         } finally {
             setIsLoading(false);
         }
@@ -41,16 +43,16 @@ export default function VideoLinkModal({
     return (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-in fade-in duration-200">
             {/* Backdrop */}
-            <div 
-                className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" 
+            <div
+                className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
                 onClick={() => !isLoading && onClose()}
             ></div>
 
             {/* Modal Content */}
             <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-2 duration-200" onClick={e => e.stopPropagation()}>
                 {/* Close Button */}
-                <button 
-                    onClick={onClose} 
+                <button
+                    onClick={onClose}
                     disabled={isLoading}
                     className="absolute top-4 right-4 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
                 >
@@ -66,7 +68,7 @@ export default function VideoLinkModal({
                             <h3 className="text-lg font-bold text-slate-900">插入视频链接</h3>
                         </div>
                     </div>
-                    
+
                     <div className="space-y-4 mb-6">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">视频地址</label>

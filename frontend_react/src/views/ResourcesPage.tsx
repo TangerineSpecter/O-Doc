@@ -1,4 +1,6 @@
 import React, {useState, useEffect, useCallback, useRef} from 'react';
+import {useToast} from '../components/common/ToastProvider';
+
 import {
     Search, Filter, Download, Trash2, FileText,
     Image as ImageIcon, Music, Video, Box, FileCode, File,
@@ -43,6 +45,7 @@ const getFileIcon = (type: string): React.ReactElement<{ className?: string }> =
 const getFileStyle = (type: string) => (TYPE_CONFIG[type] || TYPE_CONFIG.design).color;
 
 export default function ResourcesPage() {
+    const toast = useToast();
     const [activeTab, setActiveTab] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [showUnlinkedOnly, setShowUnlinkedOnly] = useState(false);
@@ -279,18 +282,18 @@ export default function ResourcesPage() {
             setIsDeleteModalOpen(false);
         } catch (error) {
             console.error('Failed to delete resources:', error);
-            alert('删除失败，请重试');
+            toast.error('删除失败，请重试');
         }
     };
 
     const handleBatchDownload = () => {
-        alert(`开始批量下载 ${selectedIds.size} 个文件...`);
+        toast.info(`开始批量下载 ${selectedIds.size} 个文件...`);
         setSelectedIds(new Set());
     };
 
     const handleSingleDownload = (e: React.MouseEvent, file: ResourceItem) => {
         e.stopPropagation();
-        alert(`开始下载文件: ${file.name}`);
+        toast.info(`开始下载文件: ${file.name}`);
     };
 
     return (
