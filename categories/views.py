@@ -175,6 +175,16 @@ class CategoryDeleteView(APIView):
         try:
             # 获取要删除的分类
             category = get_object_or_404(Category, category_id=category_id, userid='admin', is_valid=True)
+            
+            # 获取未分类分类
+            uncategorized = get_object_or_404(Category, category_id='uncategorized', userid='admin', is_valid=True)
+            
+            # 将该分类下的所有文章转移到未分类
+            Article.objects.filter(
+                category=category,
+                author='admin',
+                is_valid=True
+            ).update(category=uncategorized)
 
             # 执行逻辑删除
             category.is_valid = False

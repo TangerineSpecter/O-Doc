@@ -26,8 +26,11 @@ export const useCategories = () => {
             // 不再需要传递 include_uncategorized 参数 (或者后端已忽略)
             const data = await getCategoryList();
 
-            // 移除原本针对 'uncategorized' 的特殊 map 处理逻辑
-            // 现在只负责添加前端专用的 'all' (所有分类)
+            // 为未分类添加isSystem属性
+            const processedCategories = data.map(cat => ({
+                ...cat,
+                isSystem: cat.categoryId === 'uncategorized' || false
+            }));
 
             const totalCount = data.reduce((sum, cat) => sum + (cat.articleCount || 0), 0);
             const allCategory: CategoryItem = {
@@ -40,7 +43,7 @@ export const useCategories = () => {
                 isSystem: true
             };
 
-            setCategories([allCategory, ...data]);
+            setCategories([allCategory, ...processedCategories]);
         } catch (error) {
             console.error('获取分类列表失败:', error);
         }
