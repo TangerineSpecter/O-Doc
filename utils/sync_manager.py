@@ -1,238 +1,178 @@
 import json
 import os
-
+import tempfile
 from django.apps import apps
 from django.conf import settings
 from django.core import serializers
 from django.db import transaction
 from django.utils.dateparse import parse_datetime
 
-# 需要同步的模型列表
-SYNC_MODELS = [
-    'article.Article',
-    'assets.Asset',
-    'categories.Category',
-    'tags.Tag',
-    'anthology.Anthology',
-    'system_settings.AIProvider',
-    'system_settings.AIModel',
-    'system_settings.SystemSetting',
-]
-
 
 class SyncManager:
     def __init__(self, webdav_client, remote_base_path):
         self.client = webdav_client
-        self.base_path = remote_base_path.rstrip('/')
+        # 确保远程路径以 / 开头，并不以 / 结尾
+        path = remote_base_path.strip('/')
+        self.base_path = f"/{path}"
+
         self.data_file = f"{self.base_path}/data_index.json"
         self.media_dir = f"{self.base_path}/media"
 
     def sync_data_upload_stream(self):
         """
-        [生成器版] 上传数据：一边导出一边汇报
+        [生成器] 1. 备份数据库
         """
+        # 1. 确保基础目录存在
+        self.client.ensure_directory(self.base_path)
+
         yield json.dumps({"step": "init", "msg": "正在初始化数据库导出..."}) + "\n"
 
-        count = 0
-        target_apps = ['article', 'anthology', 'categories', 'tags', 'assets', 'stats', 'ai_assistant',
-                       'system_settings']
+        all_data = []
+        target_apps = [
+            'article', 'anthology', 'categories', 'tags',
+            'assets', 'stats', 'ai_assistant', 'system_settings', 'user'
+        ]
 
+        total_count = 0
+
+        # 2. 遍历并序列化数据
         for app_label in target_apps:
             try:
                 app_config = apps.get_app_config(app_label)
                 for model in app_config.get_models():
                     model_name = model.__name__
-                    # 汇报当前进度
-                    yield json.dumps({
-                        "step": "processing",
-                        "msg": f"正在导出表: {app_label}.{model_name}..."
-                    }) + "\n"
 
-                    # ... (此处保留原有的序列化逻辑) ...
-                    # 模拟耗时，或者这里是真实的数据库操作
+                    # 序列化当前模型的所有数据
+                    queryset = model.objects.all()
+                    count = queryset.count()
+                    if count > 0:
+                        yield json.dumps({
+                            "step": "processing",
+                            "msg": f"正在导出 {model_name} ({count}条)..."
+                        }) + "\n"
 
-                    # 假设这里计算出了数据 data_list
-                    # ...
-
-                    # 汇报具体条数
-                    # count += len(data_list)
+                        json_str = serializers.serialize('json', queryset)
+                        data_list = json.loads(json_str)
+                        all_data.extend(data_list)
+                        total_count += count
 
             except Exception as e:
+                # 遇到个别 APP 错误不中断，记录日志即可
                 yield json.dumps({"step": "error", "msg": f"导出 {app_label} 失败: {str(e)}"}) + "\n"
 
-        yield json.dumps({"step": "summary", "msg": "数据库导出完成", "count": count}) + "\n"
+        # 3. 写入临时文件并上传
+        yield json.dumps({"step": "processing", "msg": f"正在打包上传 {total_count} 条数据..."}) + "\n"
+
+        try:
+            # 创建临时文件
+            with tempfile.NamedTemporaryFile(mode='w+', encoding='utf-8', delete=False, suffix='.json') as tmp:
+                json.dump(all_data, tmp, ensure_ascii=False)
+                tmp_path = tmp.name
+
+            # 上传
+            self.client.upload_file(tmp_path, self.data_file)
+
+            # 删除临时文件
+            os.remove(tmp_path)
+
+            yield json.dumps({"step": "data_done", "msg": "✅ 数据库备份完成！"}) + "\n"
+
+        except Exception as e:
+            yield json.dumps({"step": "error", "msg": f"❌ 数据上传失败: {str(e)}"}) + "\n"
 
     def sync_assets_upload_stream(self):
-        """
-        [生成器版] 上传资源：实时汇报文件名
-        """
+        """资源备份"""
         local_media_root = settings.MEDIA_ROOT
 
-        # 1. 先统计总数（为了做进度条）
-        total_files = sum([len(files) for r, d, files in os.walk(local_media_root)])
-        yield json.dumps({"step": "scan", "total": total_files, "msg": f"扫描到 {total_files} 个资源文件"}) + "\n"
-
-        current = 0
-        for root, dirs, files in os.walk(local_media_root):
-            for file in files:
-                current += 1
-                local_path = os.path.join(root, file)
-                rel_path = os.path.relpath(local_path, local_media_root)
-
-                # 汇报正在上传的文件
-                yield json.dumps({
-                    "step": "uploading",
-                    "file": rel_path,
-                    "progress": int((current / total_files) * 100),
-                    "msg": f"上传中: {rel_path}"
-                }) + "\n"
-
-                # 执行上传
-                remote_path = self.assets_dir + '/' + rel_path.replace('\\', '/')
-                self.client.upload(local_path, remote_path)
-
-    def _serialize_local_data(self):
-        """导出本地数据为字典格式"""
-        all_objects = []
-        for model_str in SYNC_MODELS:
-            app_label, model_name = model_str.split('.')
-            model = apps.get_model(app_label, model_name)
-            # 使用 Django 内置序列化器转为 JSON 字符串再转回对象，方便处理
-            json_str = serializers.serialize('json', model.objects.all())
-            all_objects.extend(json.loads(json_str))
-        return all_objects
-
-    def _merge_data(self, local_list, remote_list):
-        """
-        合并策略：
-        1. 这是一个列表，每个元素是 {'model': '...', 'pk': '...', 'fields': {...}}
-        2. 将列表转为字典索引： keys = (model, pk)
-        3. 冲突解决：比较 updated_at (如果有)，谁新用谁。
-        """
-        merged_map = {}
-
-        # 1. 先载入远程数据
-        for item in remote_list:
-            key = (item['model'], item['pk'])
-            merged_map[key] = item
-
-        # 2. 合并本地数据
-        for item in local_list:
-            key = (item['model'], item['pk'])
-            if key not in merged_map:
-                merged_map[key] = item
-            else:
-                remote_item = merged_map[key]
-                # 尝试比较更新时间
-                local_time = item['fields'].get('updated_at') or item['fields'].get('update_time')
-                remote_time = remote_item['fields'].get('updated_at') or remote_item['fields'].get('update_time')
-
-                # 如果都有时间字段，且本地更新，则覆盖
-                if local_time and remote_time:
-                    if parse_datetime(local_time) > parse_datetime(remote_time):
-                        merged_map[key] = item
-                else:
-                    # 如果没有时间字段比较，默认“本地覆盖远程”作为一种简单的冲突解决
-                    merged_map[key] = item
-
-        return list(merged_map.values())
-
-    def _save_data_to_db(self, data_list):
-        """将合并后的数据保存回本地数据库"""
-        # 为了保证外键引用完整性，可以考虑先保存父级对象，或简单地利用 Django Deserializer 处理依赖
-        # 简单起见，直接使用 Django deserialize
-        # 注意：deserialize 返回的是 DeserializedObject 生成器
-        json_str = json.dumps(data_list)
-        try:
-            with transaction.atomic():
-                for obj in serializers.deserialize('json', json_str):
-                    obj.save()
-        except Exception as e:
-            print(f"DB Import Error: {e}")
-            raise e
-
-    def sync_data_upload(self):
-        """
-        上传流程 (Safe Push):
-        1. 下载远程 JSON (如果存在)
-        2. Local Merge Remote -> Merged Data
-        3. Upload Merged Data
-        """
-        self.client.ensure_directory(self.base_path)
-
-        # 1. 获取远程数据
-        remote_content = self.client.get_file_content(self.data_file)
-        remote_data = json.loads(remote_content) if remote_content else []
-
-        # 2. 获取本地数据
-        local_data = self._serialize_local_data()
-
-        # 3. 合并 (Local + Remote)
-        final_data = self._merge_data(local_data, remote_data)
-
-        # 4. 上传合并后的数据 (作为新的源)
-        # 写入临时文件再上传
-        temp_path = os.path.join(settings.BASE_DIR, 'temp_sync_data.json')
-        with open(temp_path, 'w', encoding='utf-8') as f:
-            json.dump(final_data, f, ensure_ascii=False)
-
-        self.client.upload_file(temp_path, self.data_file)
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-
-        return len(final_data)
-
-    def sync_data_download(self):
-        """
-        下载流程 (Pull):
-        1. 下载远程 JSON
-        2. Save to DB (Django update_or_create logic inside save)
-        """
-        remote_content = self.client.get_file_content(self.data_file)
-        if not remote_content:
-            return 0
-
-        remote_data = json.loads(remote_content)
-        self._save_data_to_db(remote_data)
-        return len(remote_data)
-
-    def sync_assets_upload(self):
-        """上传本地新增的资源文件"""
-        from assets.models import Asset
+        # 1. 重要：先确保 media 根目录存在！
+        # 即使 /o-doc-dev 存在，/o-doc-dev/media 此时可能还不存在
         self.client.ensure_directory(self.media_dir)
 
-        count = 0
-        assets = Asset.objects.filter(is_valid=True)
-        for asset in assets:
-            local_path = os.path.join(settings.MEDIA_ROOT, asset.file_path)
-            # 兼容：asset.file_path 可能是 'resources/xxx.png'
-            # 远程路径：'/remote/path/media/resources/xxx.png'
-            remote_asset_path = f"{self.media_dir}/{asset.file_path}"
-            remote_asset_dir = os.path.dirname(remote_asset_path)
+        # 扫描文件
+        file_list = []
+        for root, dirs, files in os.walk(local_media_root):
+            for file in files:
+                # 过滤垃圾文件
+                if file.startswith('.') or file == 'Thumbs.db':
+                    continue
+                file_list.append(os.path.join(root, file))
 
-            if os.path.exists(local_path):
-                # 简单优化：如果远程文件已存在，跳过
-                # 注意：这会产生一次网络请求，大量文件时会慢。
-                # 更好的方式是依靠 WebDAV 客户端的缓存或 "data_index.json" 里的 hash 对比
-                # 这里为了稳健性，先检查是否存在
-                if not self.client.exists(remote_asset_path):
-                    self.client.ensure_directory(remote_asset_dir)
-                    if self.client.upload_file(local_path, remote_asset_path):
-                        count += 1
-        return count
+        total_files = len(file_list)
+        yield json.dumps({"step": "scan", "total": total_files, "msg": f"扫描到 {total_files} 个文件"}) + "\n"
+
+        # 遍历上传
+        for index, local_path in enumerate(file_list):
+            rel_path = os.path.relpath(local_path, local_media_root)
+            # 统一路径分隔符为 /
+            rel_path_fwd = rel_path.replace('\\', '/')
+
+            # 拼接完整远程路径: /sata1.../o-doc-dev/media/image/xxx.png
+            remote_path = f"{self.media_dir}/{rel_path_fwd}"
+
+            # 计算并汇报进度
+            progress = int(((index + 1) / total_files) * 100)
+            if index % 5 == 0 or index == total_files - 1:
+                yield json.dumps({
+                    "step": "uploading",
+                    "file": rel_path_fwd,
+                    "progress": progress,
+                    "msg": f"上传: {rel_path_fwd}"
+                }) + "\n"
+
+            try:
+                # 2. 关键修复：确保这个文件的父文件夹存在！
+                # 比如文件是 media/image/1.png，必须确保 media/image 存在
+                remote_dir = os.path.dirname(remote_path)
+                self.client.ensure_directory(remote_dir)
+
+                # 上传
+                self.client.upload_file(local_path, remote_path)
+            except Exception as e:
+                print(f"Error: {e}")
+
+        yield json.dumps({"step": "assets_done", "msg": "✅ 资源同步完成"}) + "\n"
+
+    # ---------------- 下面是下载/恢复逻辑 (Sync From WebDAV) ----------------
+
+    def sync_data_download(self):
+        """下载并恢复数据库"""
+        content = self.client.get_file_content(self.data_file)
+        if not content:
+            return 0
+
+        data_list = json.loads(content)
+
+        # 保存回数据库
+        # 注意：这里会覆盖本地同 ID 的数据
+        with transaction.atomic():
+            for obj in serializers.deserialize('json', json.dumps(data_list)):
+                obj.save()
+
+        return len(data_list)
 
     def sync_assets_download(self):
-        """下载本地缺失的资源文件"""
+        """下载缺失的资源文件"""
+        # 简单策略：遍历数据库里的 Asset 记录，下载不存在的文件
+        # 更好的策略是：遍历云端文件结构下载（webdav list），这里为了简单先只下载数据库里引用了的文件
         from assets.models import Asset
         count = 0
-        assets = Asset.objects.filter(is_valid=True)
+        local_media_root = settings.MEDIA_ROOT
+
+        assets = Asset.objects.all()
         for asset in assets:
-            local_path = os.path.join(settings.MEDIA_ROOT, asset.file_path)
-            remote_asset_path = f"{self.media_dir}/{asset.file_path}"
+            if not asset.file_path:
+                continue
+
+            local_path = os.path.join(local_media_root, asset.file_path)
+            remote_path = f"{self.media_dir}/{asset.file_path}"
 
             if not os.path.exists(local_path):
-                # 确保本地目录存在
-                os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                if self.client.download_file(remote_asset_path, local_path):
-                    count += 1
+                try:
+                    # 确保本地目录存在
+                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    if self.client.download_file(remote_path, local_path):
+                        count += 1
+                except Exception as e:
+                    print(f"Download failed {asset.file_path}: {e}")
+
         return count

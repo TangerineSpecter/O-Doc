@@ -1,60 +1,84 @@
 from io import BytesIO
 
 from webdav3.client import Client
+from webdav3.exceptions import ResponseErrorCode
 
 
 class WebDavClient:
     def __init__(self, base_url, username, password):
-        # webdavclient3 需要的配置格式
+        # 去除 url 末尾的斜杠
+        base_url = base_url[:-1] if base_url.endswith('/') else base_url
+
         self.options = {
-            'webdav_hostname': base_url if not base_url.endswith('/') else base_url[:-1],
+            'webdav_hostname': base_url,
             'webdav_login': username,
             'webdav_password': password,
-            'disable_check': True,  # 初始化时不立即检查，提高响应速度
+            'disable_check': True,
             'timeout': 300
         }
         self.client = Client(self.options)
 
     def check_connection(self):
-        """测试连接 (尝试列出根目录)"""
         try:
-            # 只有真正的 WebDAV 服务器，且账号密码正确，才能返回正确的 XML 结构。
             self.client.info('/')
             return True
         except Exception as e:
+            print(f"WebDAV connection check failed: {e}")
             return False
 
     def exists(self, remote_path):
-        """检查远程路径是否存在"""
         return self.client.check(remote_path)
 
     def ensure_directory(self, remote_dir):
-        """递归创建目录"""
-        if not remote_dir or remote_dir == '.' or remote_dir == '/':
+        """
+        递归创建目录（激进模式）
+        既然 check() 不可靠，那就直接尝试 mkdir。
+        如果目录已存在，mkdir 会失败（通常报 405），我们捕获并忽略这个错误。
+        """
+        if not remote_dir or remote_dir == '/' or remote_dir == '.':
             return
 
-        # webdavclient3 的 mkdir 默认不支持递归，所以要一级级检查
-        # 也可以直接用 client.mkdir(remote_dir) 捕获父级不存在的异常，但循环更稳妥
-        parts = remote_dir.strip('/').split('/')
+        # 统一转为以 / 开头的绝对路径
+        if not remote_dir.startswith('/'):
+            remote_dir = '/' + remote_dir
+
+        parts = remote_dir.split('/')
         current_path = ""
+
         for part in parts:
-            current_path += part + "/"
-            if not self.client.check(current_path):
+            if not part: continue  # 防止空字符串
+
+            current_path += "/" + part
+
+            # --- 核心修改 ---
+            # 不再使用 self.client.check(current_path) 进行预判
+            # 直接尝试创建
+            try:
                 self.client.mkdir(current_path)
+            except ResponseErrorCode as e:
+                # 405 Method Not Allowed: 资源已存在 (标准 WebDAV 行为)
+                # 301/302: 有些服务器会对已存在的目录做重定向
+                # 我们假设这些错误都意味着“不用创建了”
+                if e.code == 405:
+                    pass
+                else:
+                    # 如果是 409 Conflict，说明上一级目录没创建成功（不应该发生，因为我们是循环下来的）
+                    # 打印日志方便调试，但不抛出异常中断整个流程，万一服务器抽风呢
+                    print(f"Mkdir warning at {current_path}: {e}")
+            except Exception as e:
+                # 捕获其他未知异常，防止中断
+                print(f"Mkdir error at {current_path}: {e}")
 
     def upload_file(self, local_path, remote_path):
-        """上传文件"""
         try:
-            # webdavclient3 的 upload_sync 会自动覆盖
-            # 注意参数顺序：webdavclient3 是 (remote_path, local_path)
+            # 参数顺序：(remote_path, local_path)
             self.client.upload_sync(remote_path=remote_path, local_path=local_path)
             return True
         except Exception as e:
-            print(f"WebDAV upload failed: {e}")
+            print(f"WebDAV upload failed: {remote_path}. Error: {e}")
             return False
 
     def download_file(self, remote_path, local_path):
-        """下载文件"""
         try:
             self.client.download_sync(remote_path=remote_path, local_path=local_path)
             return True
@@ -63,7 +87,6 @@ class WebDavClient:
             return False
 
     def get_file_content(self, remote_path):
-        """直接获取文件内容字符串"""
         try:
             buffer = BytesIO()
             self.client.download_from(buffer, remote_path)

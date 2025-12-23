@@ -104,7 +104,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 return None
 
             client = WebDavClient(config['url'], config['username'], config['password'])
-            remote_path = config.get('remotePath', '/o-doc-sync/')
+            remote_path = config.get('remote_path', '/o-doc-sync/')
             return SyncManager(client, remote_path)
         except SystemSetting.DoesNotExist:
             return None
