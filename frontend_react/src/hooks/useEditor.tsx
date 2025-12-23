@@ -116,6 +116,8 @@ export const useEditor = () => {
     const [isGeneratingTags, setIsGeneratingTags] = useState(false);
     const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
     const [isPolishing, setIsPolishing] = useState(false);
+    // 新增：AI润色确认弹窗状态
+    const [isPolishConfirmOpen, setIsPolishConfirmOpen] = useState(false);
 
     // Router
     const navigate = useNavigate();
@@ -840,19 +842,20 @@ export const useEditor = () => {
         }
     };
 
-    // 新增：处理 AI 润色
-    const handlePolish = async () => {
+    // 修改：点击润色按钮，仅打开确认弹窗
+    const handlePolish = () => {
         if (!content || content.length < 10) {
             toast.error('内容为空，无法润色');
             return;
         }
+        setIsPolishConfirmOpen(true);
+    };
 
-        // 可以在这里加一个确认弹窗，防止用户误点覆盖内容
-        if (!window.confirm('AI 润色将覆盖当前编辑器内容（建议先保存），确定继续吗？')) {
-            return;
-        }
+    // 新增：确认润色后执行的逻辑
+    const handlePolishConfirm = async () => {
+        setIsPolishConfirmOpen(false); // 关闭弹窗
+        setIsPolishing(true); // 开启加载状态（魔法动画）
 
-        setIsPolishing(true);
         try {
             const polishedContent = await polishArticleWithAI(content);
             if (polishedContent) {
@@ -915,7 +918,12 @@ export const useEditor = () => {
         onGenerateTags: handleGenerateTags,
         isGeneratingTitle,
         onGenerateTitle: handleGenerateTitle,
+
+        // AI Polish related (Updated)
         isPolishing,
-        onPolish: handlePolish,
+        onPolish: handlePolish, // 点击按钮打开弹窗
+        isPolishConfirmOpen,
+        onPolishConfirm: handlePolishConfirm, // 弹窗确认后执行
+        onPolishCancel: () => setIsPolishConfirmOpen(false) // 弹窗取消
     };
 };

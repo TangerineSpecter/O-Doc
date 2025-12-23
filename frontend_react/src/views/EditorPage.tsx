@@ -6,6 +6,8 @@ import ImageLinkModal from '../components/common/ImageLinkModal';
 import VideoLinkModal from '../components/common/VideoLinkModal';
 import {useEditor} from '../hooks/useEditor';
 import {BubbleMenu} from '../components/Editor/BubbleMenu';
+import ConfirmationModal from '../components/common/ConfirmationModal';
+import { Sparkles } from 'lucide-react';
 
 export default function EditorPage() {
     const {
@@ -33,8 +35,12 @@ export default function EditorPage() {
         onGenerateTags,
         isGeneratingTitle,
         onGenerateTitle,
+        // AI Polish related (Updated)
         isPolishing,
         onPolish,
+        isPolishConfirmOpen,
+        onPolishConfirm,
+        onPolishCancel
     } = useEditor();
 
     // 获取今日日期用于预览
@@ -70,7 +76,27 @@ export default function EditorPage() {
                 <div
                     className={`absolute inset-0 p-4 sm:p-6 lg:px-8 flex flex-col items-center transition-opacity duration-200 ${isPreviewMode ? 'opacity-0 pointer-events-none z-0' : 'opacity-100 z-10'}`}>
                     <div
-                        className="w-full max-w-5xl h-full bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
+                        className={`w-full max-w-5xl h-full bg-white rounded-xl shadow-sm border flex flex-col relative overflow-hidden transition-all duration-300 ${isPolishing ? 'border-purple-400 shadow-[0_0_20px_rgba(192,132,252,0.3)]' : 'border-slate-200'}`}>
+
+                        {/* Magic Overlay - Displayed when polishing */}
+                        {isPolishing && (
+                            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/40 backdrop-blur-sm animate-in fade-in duration-500">
+                                {/* Glowing orb effect */}
+                                <div className="relative">
+                                    <div className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-500 via-fuchsia-500 to-orange-500 blur-xl animate-pulse opacity-70"></div>
+                                    <div className="relative bg-white/90 p-4 rounded-full shadow-2xl border border-white/50">
+                                        <Sparkles className="w-8 h-8 text-purple-600 animate-spin" style={{ animationDuration: '3s' }} />
+                                    </div>
+                                </div>
+                                <div className="mt-6 space-y-2 text-center">
+                                    <h3 className="text-xl font-bold bg-gradient-to-r from-purple-600 via-fuchsia-600 to-orange-600 bg-clip-text text-transparent animate-pulse">
+                                        AI 正在施展魔法...
+                                    </h3>
+                                    <p className="text-sm text-slate-500 font-medium">正在优化文章结构与文笔</p>
+                                </div>
+                                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-fuchsia-500 to-orange-500 opacity-50"></div>
+                            </div>
+                        )}
 
                         {/* Meta Bar */}
                         <EditorMetaBar
@@ -173,6 +199,24 @@ export default function EditorPage() {
                 isOpen={isVideoLinkModalOpen}
                 onClose={onVideoLinkCancel}
                 onConfirm={onVideoLinkConfirm}
+            />
+
+            {/* AI Polish Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={isPolishConfirmOpen}
+                onClose={onPolishCancel}
+                onConfirm={onPolishConfirm}
+                title="确认 AI 润色"
+                description={
+                    <div className="space-y-2">
+                        <p>AI 润色将重新生成并<span className="font-bold text-red-600">覆盖当前编辑器中的所有内容</span>。</p>
+                        <p>此操作不可撤销，建议您先保存当前版本。</p>
+                        <p>确定要继续吗？</p>
+                    </div>
+                }
+                confirmText="开始施法"
+                cancelText="再想想"
+                type="warning"
             />
         </div>
     );
