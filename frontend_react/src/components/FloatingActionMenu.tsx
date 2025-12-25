@@ -97,6 +97,7 @@ export default function FloatingActionMenu() {
         else if (item.id === 'tags') navigate('/tags');
         else if (item.id === 'categories') navigate('/categories');
         else if (item.id === 'todo') navigate('/todo');
+        else if (item.id === 'whiteboard') navigate('/whiteboard');
         setIsOpen(false);
     };
 

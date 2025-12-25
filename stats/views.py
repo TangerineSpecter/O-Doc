@@ -103,11 +103,7 @@ class StatisticsView(APIView):
             total_assets = Asset.objects.filter(is_valid=True).count()
 
             # --- 2. 24小时阅读趋势 (Hourly Data) ---
-            # 统计过去24小时或当天的 ReadStat
-            # now = timezone.now()
-            # today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-
-            # 修改后逻辑：统计全站历史数据，按小时提取并分组 (ExtractHour)
+            # 统计全站历史数据，按小时提取并分组 (ExtractHour)
             # 这里的 hour=ExtractHour('created_at') 会自动把所有日期的 "created_at" 提取为 0-23 的数字
             hourly_stats = ReadStat.objects.annotate(
                 hour=ExtractHour('created_at')
