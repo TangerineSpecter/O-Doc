@@ -1,9 +1,6 @@
-import React, { useState } from 'react';
-import {
-    Folder, ChevronDown, FileText, Minus, Tag, Plus, X, Paperclip, Sparkles, Loader2, File
-} from 'lucide-react';
-import { formatFileSize } from '@/utils/format.ts';
-
+import React, {useState} from 'react';
+import {ChevronDown, File, FileText, Folder, Loader2, Minus, Paperclip, Plus, Sparkles, Tag, X} from 'lucide-react';
+import {formatFileSize} from '@/utils/format.ts';
 
 
 // 编辑器元数据栏组件
@@ -86,7 +83,7 @@ export const EditorMetaBar = ({
             {/* Row 1: Meta Selectors */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 {/* Category Selector */}
-                <div className="relative z-20">
+                <div className="relative z-50">
                     <button
                         onClick={() => setIsCategoryOpen(!isCategoryOpen)}
                         disabled={loadingCategories}
@@ -100,7 +97,7 @@ export const EditorMetaBar = ({
                     {isCategoryOpen && (
                         <>
                             <div className="fixed inset-0 z-20" onClick={() => setIsCategoryOpen(false)}></div>
-                            <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100 z-20">
+                            <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100 z-[100]">
                                 {categories.map(cat => (
                                     <button key={cat.id} onClick={() => { setCategory(cat); setIsCategoryOpen(false); }} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 text-slate-700 flex items-center gap-2 ${category?.id === cat.id ? 'bg-slate-50' : ''}`}>
                                         <span className={`w-2 h-2 rounded-full ${cat.color}`}></span>{cat.name}
@@ -112,7 +109,7 @@ export const EditorMetaBar = ({
                 </div>
 
                 {/* Parent Article Selector */}
-                <div className="relative z-20">
+                <div className="relative z-50">
                     <button onClick={() => !loadingParentArticles && setIsParentOpen(!isParentOpen)} disabled={loadingParentArticles} className={`flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-medium transition-colors border border-slate-200 max-w-[200px] ${loadingParentArticles ? 'opacity-50 cursor-not-allowed' : ''}`}>
                         <FileText className="w-3.5 h-3.5" />
                         {loadingParentArticles && <Loader2 className="w-3 h-3 animate-spin" />}
@@ -122,7 +119,7 @@ export const EditorMetaBar = ({
                     {isParentOpen && (
                         <>
                             <div className="fixed inset-0 z-20" onClick={() => setIsParentOpen(false)}></div>
-                            <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100 overflow-hidden z-20">
+                            <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100 overflow-hidden z-[100]">
                                 <div className="max-h-60 overflow-y-auto">
                                     {parentArticles.map(p => (
                                         <button key={p.id} onClick={() => { setParentArticle(p); setIsParentOpen(false); }} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex items-center gap-2 ${p.id === parentArticle?.id ? 'text-orange-600 bg-orange-50 font-medium' : 'text-slate-700'}`}>

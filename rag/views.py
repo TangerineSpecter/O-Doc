@@ -2,6 +2,7 @@ from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from anthology.models import Anthology
 from article.models import Article  # 假设你的文章模型在这里
 from utils.rag_client import RagClient
 from utils.response_utils import success_result, error_result
@@ -33,6 +34,9 @@ class SyncArticleView(APIView):
             article.last_rag_synced_at = timezone.now()
             article.save(update_fields=['is_rag_synced', 'last_rag_synced_at'])
             # -----------------------
+
+            # 更新文集统计
+            Anthology.objects.get(coll_id=article.coll_id).update_stats()
 
             return success_result({
                 'message': '同步成功',

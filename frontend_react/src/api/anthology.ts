@@ -22,6 +22,7 @@ export interface Anthology {
     collId: string;
     title: string;
     count: number;
+    ragNotSyncedCount?: number;
     iconId: string;
     isTop: boolean;
     description: string;

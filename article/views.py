@@ -14,10 +14,22 @@ from utils.error_codes import ErrorCode
 from utils.notification_service import NotificationService
 from utils.response_utils import success_result, error_result
 from utils.web_parser import parse_web_content
+from anthology.models import Anthology
 
 User = get_user_model()
 
 logger = logging.getLogger(__name__)
+
+
+def refresh_anthology_stats(coll_id):
+    """辅助函数：刷新指定文集的统计数据"""
+    if not coll_id:
+        return
+    try:
+        anthology = Anthology.objects.get(coll_id=coll_id)
+        anthology.update_stats()
+    except Anthology.DoesNotExist:
+        pass
 
 
 class ArticlePolisher:
@@ -104,12 +116,10 @@ class ArticleCreateView(APIView):
         with transaction.atomic():
             serializer = ArticleSerializer(data=request.data, context={'request': request})
             serializer.is_valid(raise_exception=True)
-
             article = serializer.save()
 
-            # 更新文集文章数量
-            from anthology.models import Anthology
-            Anthology.objects.filter(coll_id=article.coll_id).update(count=models.F('count') + 1)
+            # 更新统计
+            refresh_anthology_stats(article.coll_id)
 
             return success_result(data=ArticleSerializer(article).data)
 
@@ -154,13 +164,13 @@ class ArticleUpdateView(APIView):
         # 保存更新
         article = serializer.save(is_rag_synced=False)
 
-        # 如果文集ID发生变化，更新两个文集的文章数量
+        # 必然更新当前文集
+        refresh_anthology_stats(article.coll_id)
+
+        # 如果文集ID发生变化，更新旧文集的文章数量
         from anthology.models import Anthology
         if old_coll_id != article.coll_id:
-            # 减少旧文集的文章数量
-            Anthology.objects.filter(coll_id=old_coll_id).update(count=models.F('count') - 1)
-            # 增加新文集的文章数量
-            Anthology.objects.filter(coll_id=article.coll_id).update(count=models.F('count') + 1)
+            refresh_anthology_stats(old_coll_id)
 
         # 序列化响应数据
         response_data = ArticleSerializer(article).data
@@ -188,8 +198,7 @@ class ArticleDeleteView(APIView):
             article.save()
 
             # 更新文集文章数量
-            from anthology.models import Anthology
-            Anthology.objects.filter(coll_id=article.coll_id).update(count=models.F('count') - 1)
+            refresh_anthology_stats(article.coll_id)
 
             return success_result(data=None)
 

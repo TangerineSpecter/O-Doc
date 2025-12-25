@@ -259,7 +259,7 @@ export default function EditorPage() {
 
                             {/* Meta Bar - 润色时隐藏 */}
                             <div
-                                className={`transition-all duration-500 ${isPolishing ? 'opacity-0 translate-y-[-10px]' : 'opacity-100 translate-y-0'}`}>
+                                className={`transition-all duration-500 ${isPolishing ? 'opacity-0 translate-y-[-10px]' : 'opacity-100 translate-y-0'} relative z-20`}>
                                 <EditorMetaBar
                                     category={category} setCategory={setCategory} categories={categories}
                                     loadingCategories={loadingCategories}

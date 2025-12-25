@@ -65,6 +65,11 @@ class Anthology(models.Model):
         verbose_name='文章数量'
     )
 
+    rag_not_synced_count = models.IntegerField(
+        default=0,
+        verbose_name='未同步RAG文章数量'
+    )
+
     sort = models.IntegerField(
         default=0,
         verbose_name='排序值，值越小越靠前'
@@ -95,6 +100,27 @@ class Anthology(models.Model):
         if not self.coll_id:
             self.coll_id = generate_coll_id("coll")
         super().save(*args, **kwargs)
+
+    def update_stats(self):
+        """
+        重新计算统计数据：
+        1. 有效文章总数
+        2. 未同步RAG的文章数量
+        """
+        # 延迟导入，避免与 article.models 循环引用
+        from article.models import Article
+
+        # 基础查询：当前文集下的所有有效文章
+        base_qs = Article.objects.filter(coll_id=self.coll_id, is_valid=True)
+
+        # 1. 统计文章总数
+        self.count = base_qs.count()
+
+        # 2. 统计未同步 RAG 的文章数
+        self.rag_not_synced_count = base_qs.filter(is_rag_synced=False).count()
+
+        # 原子更新字段，避免覆盖其他并发修改
+        self.save(update_fields=['count', 'rag_not_synced_count'])
 
     def __str__(self):
         return self.title

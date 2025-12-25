@@ -1,5 +1,16 @@
 import React from 'react';
-import {ArrowUp, ChevronDown, Edit, FileText, GripHorizontal, Lock, MoreHorizontal, Plus, Trash} from 'lucide-react';
+import {
+    ArrowUp,
+    ChevronDown,
+    CloudOff,
+    Edit,
+    FileText,
+    GripHorizontal,
+    Lock,
+    MoreHorizontal,
+    Plus,
+    Trash
+} from 'lucide-react';
 import {useSortable} from '@dnd-kit/sortable';
 import {CSS} from '@dnd-kit/utilities';
 import {Anthology} from '../api/anthology';
@@ -105,6 +116,7 @@ export const SortableCollectionCard = ({
             {/* 卡片头部信息 */}
             <div className="p-3 pb-2 pt-6">
                 <div className="flex justify-between items-start mb-2 pr-6">
+                    {/* 左侧：图标和标题 */}
                     <div className="flex items-center gap-2.5">
                         <div
                             className="p-1.5 bg-slate-50 rounded-md border border-slate-100 group-hover:bg-orange-50 group-hover:border-orange-100 transition-colors">
@@ -125,8 +137,23 @@ export const SortableCollectionCard = ({
                                 className="w-2.5 h-2.5"/></span>}
                         </div>
                     </div>
-                    <span
-                        className="bg-slate-50 text-slate-400 text-[10px] font-semibold px-1.5 py-0.5 rounded min-w-[1.5rem] text-center">{item.count}</span>
+
+                    {/* === 修改开始：右侧计数区域（添加了外层 div） === */}
+                    <div className="flex items-center gap-1.5">
+                        {item.ragNotSyncedCount && item.ragNotSyncedCount > 0 ? (
+                            <div
+                                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-orange-50 border border-orange-100 text-[10px] font-medium text-orange-600"
+                                title={`${item.ragNotSyncedCount} 篇文档未同步到知识库`}
+                            >
+                                <CloudOff className="w-2.5 h-2.5" />
+                                <span>{item.ragNotSyncedCount}</span>
+                            </div>
+                        ) : null}
+                        <span
+                            className="bg-slate-50 text-slate-400 text-[10px] font-semibold px-1.5 py-0.5 rounded min-w-[1.5rem] text-center">
+                            {item.count}
+                        </span>
+                    </div>
                 </div>
                 <p className="text-slate-500 text-xs line-clamp-2 leading-relaxed mb-2 h-9">{item.description}</p>
             </div>
