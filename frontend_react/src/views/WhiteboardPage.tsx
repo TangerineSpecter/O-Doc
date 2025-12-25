@@ -1,229 +1,221 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-    ArrowLeft, MousePointer2, FileText, StickyNote, Square, 
-    Trash2, Maximize2, X, Circle, Diamond, GripVertical
-} from 'lucide-react';
+import { ArrowLeft, MousePointer2, FileText, StickyNote, Square, Circle, Diamond, GripVertical, Maximize2, Trash2, X, Minus, Plus } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import { getArticles, Article } from '../api/article';
-// 引入与 Article 页一致的组件和样式
-import { CodeBlock, MermaidChart, CUSTOM_STYLES } from '../components/Article/MarkdownElements';
+import { CodeBlock, MermaidChart, CUSTOM_STYLES, ArticleIcons } from '../components/Article/MarkdownElements';
 import 'katex/dist/katex.min.css';
 
-// --- 类型定义 ---
-type NodeType = 'article' | 'note' | 'shape';
-type ShapeType = 'rectangle' | 'circle' | 'diamond';
-type HandlePosition = 'top' | 'right' | 'bottom' | 'left';
-
-interface WhiteboardNode {
-    id: string;
-    type: NodeType;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    zIndex: number;
-    // 数据字段
-    title?: string;
-    content?: string;
-    articleId?: string;
-    color?: string;
-    shapeType?: ShapeType;
-}
-
-interface WhiteboardEdge {
-    id: string;
-    sourceId: string;
-    targetId: string;
-    sourceHandle: HandlePosition;
-    targetHandle: HandlePosition;
-}
-
-// --- 几何计算与连线算法 ---
-
-// 获取节点某个锚点的世界坐标
-const getHandleCoords = (node: WhiteboardNode, handle: HandlePosition) => {
-    const { x, y, width, height } = node;
-    switch (handle) {
-        case 'top': return { x: x + width / 2, y: y };
-        case 'right': return { x: x + width, y: y + height / 2 };
-        case 'bottom': return { x: x + width / 2, y: y + height };
-        case 'left': return { x: x, y: y + height / 2 };
-    }
-};
-
-// 生成正交折线路径 (Orthogonal Connector)
-const getEdgePath = (start: {x: number, y: number}, end: {x: number, y: number}, startPos: HandlePosition) => {
-    const midX = (start.x + end.x) / 2;
-    const midY = (start.y + end.y) / 2;
-
-    let path = `M ${start.x} ${start.y}`;
-
-    // 简单折线策略：根据出发方向决定第一段走向
-    if (startPos === 'right' || startPos === 'left') {
-        // 如果是左右出发，先水平走到中间，再垂直
-        path += ` L ${midX} ${start.y} L ${midX} ${end.y} L ${end.x} ${end.y}`;
-    } else { 
-        // 如果是上下出发，先垂直走到中间，再水平
-        path += ` L ${start.x} ${midY} L ${end.x} ${midY} L ${end.x} ${end.y}`;
-    }
-    return path;
-};
-
-// 自动计算目标节点最近的锚点 (吸附效果)
-const getClosestHandle = (pos: {x: number, y: number}, node: WhiteboardNode): HandlePosition => {
-    const handles: HandlePosition[] = ['top', 'right', 'bottom', 'left'];
-    let minDest = Infinity;
-    let closest: HandlePosition = 'top';
-    
-    handles.forEach(h => {
-        const coords = getHandleCoords(node, h);
-        const dist = Math.hypot(coords.x - pos.x, coords.y - pos.y);
-        if (dist < minDest) {
-            minDest = dist;
-            closest = h;
-        }
-    });
-    return closest;
-};
+// 引入新拆分的组件和工具
+import { WhiteboardNode, WhiteboardEdge, HandlePosition } from '../types/whiteboard';
+import { getHandleCoords, getClosestHandle, screenToWorld } from '../utils/whiteboardUtils';
+import { NoteNode } from '../components/Whiteboard/NoteNode';
+import { EdgeLayer } from '../components/Whiteboard/EdgeLayer';
 
 export default function WhiteboardPage() {
     const navigate = useNavigate();
     const canvasRef = useRef<HTMLDivElement>(null);
 
-    // --- 状态管理 ---
+    // --- State ---
     const [articles, setArticles] = useState<Article[]>([]);
     const [nodes, setNodes] = useState<WhiteboardNode[]>([]);
     const [edges, setEdges] = useState<WhiteboardEdge[]>([]);
-    const [viewOffset, setViewOffset] = useState({ x: 0, y: 0 }); // 画布平移
-    
-    // UI 开关
+
+    // 视图状态 (支持缩放!)
+    const [viewOffset, setViewOffset] = useState({ x: 0, y: 0 });
+    const [scale, setScale] = useState(1);
+
+    // 交互状态
     const [isArticlePickerOpen, setIsArticlePickerOpen] = useState(false);
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-    const [activeTool, setActiveTool] = useState<'select' | 'connect'>('select');
+    const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null); // 新增：连线选择
+    const [activeTool, setActiveTool] = useState<'select' | 'hand'>('select');
 
-    // 交互过程状态
+    // 拖拽/连线状态
     const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
     const [resizingNodeId, setResizingNodeId] = useState<string | null>(null);
+    const [connectionStart, setConnectionStart] = useState<{ nodeId: string, handle: HandlePosition, startCoords: { x: number, y: number } } | null>(null);
+    const [mouseWorldPos, setMouseWorldPos] = useState({ x: 0, y: 0 });
+
     const [isPanning, setIsPanning] = useState(false);
-    
-    // 连线过程状态
-    const [connectionStart, setConnectionStart] = useState<{ nodeId: string, handle: HandlePosition } | null>(null);
-    const [mousePos, setMousePos] = useState({ x: 0, y: 0 }); // 鼠标的世界坐标
-    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [maxZIndex, setMaxZIndex] = useState(1);
 
-    // 加载文章数据
-    useEffect(() => {
-        getArticles({}).then(setArticles).catch(console.error);
-    }, []);
+    // 加载数据
+    useEffect(() => { getArticles({}).then(setArticles).catch(console.error); }, []);
 
-    // --- 添加节点逻辑 ---
-    const addNode = (type: NodeType, data: any = {}) => {
-        // 在视野中心生成
-        const centerX = -viewOffset.x + window.innerWidth / 2 - 150;
-        const centerY = -viewOffset.y + window.innerHeight / 2 - 200;
+    // --- 核心逻辑：添加节点 ---
+    const addNode = (type: any, data: any = {}) => {
+        const centerX = (-viewOffset.x + window.innerWidth / 2) / scale;
+        const centerY = (-viewOffset.y + window.innerHeight / 2) / scale;
 
         const baseNode = {
             id: `node-${Date.now()}`,
-            x: centerX + Math.random() * 40,
-            y: centerY + Math.random() * 40,
+            x: centerX - 100 + Math.random() * 40,
+            y: centerY - 100 + Math.random() * 40,
             zIndex: maxZIndex + 1,
+            rotation: 0 // 默认不旋转
         };
         setMaxZIndex(prev => prev + 1);
 
+        let newNode: WhiteboardNode;
+
         if (type === 'article') {
-            setNodes(prev => [...prev, {
-                ...baseNode, type: 'article',
-                width: 500, height: 600, // 稍微大一点，适应文章阅读
-                title: data.title, content: data.content, articleId: data.articleId
-            }]);
+            newNode = { ...baseNode, type: 'article', width: 500, height: 600, title: data.title, content: data.content, articleId: data.articleId } as WhiteboardNode;
             setIsArticlePickerOpen(false);
         } else if (type === 'note') {
-            setNodes(prev => [...prev, {
-                ...baseNode, type: 'note',
-                width: 260, height: 260,
-                content: '', color: '#fef3c7'
-            }]);
-        } else if (type === 'shape') {
-            setNodes(prev => [...prev, {
-                ...baseNode, type: 'shape',
-                width: 200, height: 200,
-                shapeType: data.shapeType || 'rectangle'
-            }]);
+            // 关键修改：默认颜色改回淡黄色
+            newNode = { ...baseNode, type: 'note', width: 280, height: 320, content: '', color: '#fef3c7' } as WhiteboardNode;
+        } else {
+            newNode = { ...baseNode, type: 'shape', width: 200, height: 200, shapeType: data.shapeType || 'rectangle' } as WhiteboardNode;
+        }
+        setNodes(prev => [...prev, newNode]);
+    };
+
+    // --- 核心逻辑：缩放 (Zoom) ---
+    const handleWheel = (e: React.WheelEvent) => {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            const zoomSensitivity = 0.001;
+            const delta = -e.deltaY * zoomSensitivity;
+            const newScale = Math.min(Math.max(scale + delta, 0.1), 3); // 限制缩放范围
+
+            // 鼠标为中心缩放计算
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const newX = mouseX - (mouseX - viewOffset.x) * (newScale / scale);
+            const newY = mouseY - (mouseY - viewOffset.y) * (newScale / scale);
+
+            setScale(newScale);
+            setViewOffset({ x: newX, y: newY });
+        } else {
+            // 普通滚动 -> 平移
+            setViewOffset(prev => ({ x: prev.x - e.deltaX, y: prev.y - e.deltaY }));
         }
     };
 
-    // --- 交互事件 ---
+    // --- 核心逻辑：键盘删除 (Del/Backspace) ---
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedNodeId) {
+                    // 只有当不是在输入框里的时候才删除
+                    const activeTag = document.activeElement?.tagName.toLowerCase();
+                    if (activeTag !== 'textarea' && activeTag !== 'input') {
+                        setNodes(prev => prev.filter(n => n.id !== selectedNodeId));
+                        setEdges(prev => prev.filter(edge => edge.sourceId !== selectedNodeId && edge.targetId !== selectedNodeId));
+                        setSelectedNodeId(null);
+                    }
+                }
+                if (selectedEdgeId) {
+                    setEdges(prev => prev.filter(edge => edge.id !== selectedEdgeId));
+                    setSelectedEdgeId(null);
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedNodeId, selectedEdgeId]);
 
-    // 1. 画布平移
+
+    // --- 交互处理 ---
+
     const handleCanvasMouseDown = (e: React.MouseEvent) => {
-        if (e.target === canvasRef.current || e.target === e.currentTarget) {
-            setSelectedNodeId(null); // 点击空白取消选中
-            setIsPanning(true);
-            setPanStart({ x: e.clientX, y: e.clientY });
+        // 如果点击的是画布本身，开始平移或取消选择
+        if (e.target === canvasRef.current || (e.target as HTMLElement).id === 'canvas-bg') {
+            setSelectedNodeId(null);
+            setSelectedEdgeId(null);
+            if (e.button === 0 || e.button === 1) { // 左键或中键
+                setIsPanning(true);
+                setPanStart({ x: e.clientX, y: e.clientY });
+            }
         }
     };
 
-    // 2. 节点选中
     const handleNodeMouseDown = (e: React.MouseEvent, id: string) => {
-        e.stopPropagation(); // 阻止画布平移
+        e.stopPropagation();
         setSelectedNodeId(id);
+        setSelectedEdgeId(null);
     };
 
-    // 3. 节点拖拽 (仅限 Header 触发)
     const handleDragStart = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         const node = nodes.find(n => n.id === id);
         if (!node) return;
+
         setDraggingNodeId(id);
-        setDragOffset({ x: e.clientX - node.x, y: e.clientY - node.y });
-        // 选中并提层级
+        // 计算点击点相对于节点左上角的偏移 (考虑缩放)
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (rect) {
+            const worldMouse = screenToWorld(e.clientX - rect.left, e.clientY - rect.top, viewOffset, scale);
+            setDragOffset({ x: worldMouse.x - node.x, y: worldMouse.y - node.y });
+        }
+
         setSelectedNodeId(id);
         setNodes(prev => prev.map(n => n.id === id ? { ...n, zIndex: maxZIndex + 1 } : n));
         setMaxZIndex(prev => prev + 1);
     };
 
-    // 4. 调整大小
-    const handleResizeStart = (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
-        setResizingNodeId(id);
-    };
-
-    // 5. 开始连线 (从锚点触发)
     const handleConnectStart = (e: React.MouseEvent, nodeId: string, handle: HandlePosition) => {
         e.stopPropagation();
-        setConnectionStart({ nodeId, handle });
         const node = nodes.find(n => n.id === nodeId);
-        if(node) {
-             setMousePos(getHandleCoords(node, handle)); // 初始坐标
+        if (node) {
+            const startCoords = getHandleCoords(node, handle);
+            setConnectionStart({ nodeId, handle, startCoords });
+            setMouseWorldPos(startCoords);
         }
     };
 
-    // 6. 结束连线 (鼠标松开)
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        // 实时计算鼠标在画布的世界坐标
+        const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top, viewOffset, scale);
+
+        if (isPanning) {
+            const dx = e.clientX - panStart.x;
+            const dy = e.clientY - panStart.y;
+            setViewOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+            setPanStart({ x: e.clientX, y: e.clientY });
+        } else if (draggingNodeId) {
+            setNodes(prev => prev.map(n =>
+                n.id === draggingNodeId ? { ...n, x: worldPos.x - dragOffset.x, y: worldPos.y - dragOffset.y } : n
+            ));
+        } else if (resizingNodeId) {
+            setNodes(prev => prev.map(n => {
+                if (n.id === resizingNodeId) {
+                    return { ...n, width: Math.max(200, worldPos.x - n.x), height: Math.max(150, worldPos.y - n.y) };
+                }
+                return n;
+            }));
+        } else if (connectionStart) {
+            setMouseWorldPos(worldPos);
+        }
+    };
+
     const handleGlobalMouseUp = (e: React.MouseEvent) => {
         if (connectionStart) {
-            // 查找鼠标下方的节点（简化逻辑：遍历节点判断是否在范围内）
-            // 注意：这里需要考虑 viewOffset 转换鼠标坐标到世界坐标
             const rect = canvasRef.current?.getBoundingClientRect();
-            if(rect) {
-                const worldX = e.clientX - rect.left - viewOffset.x;
-                const worldY = e.clientY - rect.top - viewOffset.y;
-                
-                // 简单的碰撞检测
-                const targetNode = nodes.find(n => 
-                    worldX >= n.x && worldX <= n.x + n.width &&
-                    worldY >= n.y && worldY <= n.y + n.height &&
+            if (rect) {
+                const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top, viewOffset, scale);
+                // 碰撞检测
+                const targetNode = nodes.find(n =>
+                    worldPos.x >= n.x && worldPos.x <= n.x + n.width &&
+                    worldPos.y >= n.y && worldPos.y <= n.y + n.height &&
                     n.id !== connectionStart.nodeId
                 );
 
                 if (targetNode) {
-                    const targetHandle = getClosestHandle({x: worldX, y: worldY}, targetNode);
+                    const targetHandle = getClosestHandle(worldPos, targetNode);
                     setEdges(prev => [...prev, {
                         id: `edge-${Date.now()}`,
                         sourceId: connectionStart.nodeId,
@@ -234,104 +226,57 @@ export default function WhiteboardPage() {
                 }
             }
         }
-        
-        // 重置所有交互状态
         setDraggingNodeId(null);
         setResizingNodeId(null);
         setConnectionStart(null);
         setIsPanning(false);
     };
 
-    // 全局移动逻辑
-    const handleMouseMove = (e: React.MouseEvent) => {
-        // 计算世界坐标
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        const worldX = e.clientX - rect.left - viewOffset.x;
-        const worldY = e.clientY - rect.top - viewOffset.y;
-
-        if (isPanning) {
-            const dx = e.clientX - panStart.x;
-            const dy = e.clientY - panStart.y;
-            setViewOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
-            setPanStart({ x: e.clientX, y: e.clientY });
-        } else if (draggingNodeId) {
-            setNodes(prev => prev.map(n => 
-                n.id === draggingNodeId 
-                    ? { ...n, x: e.clientX - dragOffset.x, y: e.clientY - dragOffset.y } 
-                    : n
-            ));
-        } else if (resizingNodeId) {
-            setNodes(prev => prev.map(n => {
-                if (n.id === resizingNodeId) {
-                    return { 
-                        ...n, 
-                        width: Math.max(200, worldX - n.x), 
-                        height: Math.max(150, worldY - n.y) 
-                    };
-                }
-                return n;
-            }));
-        } else if (connectionStart) {
-            setMousePos({ x: worldX, y: worldY });
-        }
-    };
-
-    const deleteNode = (id: string) => {
-        setNodes(prev => prev.filter(n => n.id !== id));
-        setEdges(prev => prev.filter(e => e.sourceId !== id && e.targetId !== id));
-        setSelectedNodeId(null);
-    };
-
-    // --- Markdown 配置 (复用 Article 页配置) ---
-    const markdownComponents = useMemo(() => ({
-        code: CodeBlock,
-        // 拦截 div 渲染 Mermaid
-        div: ({node, className, ...props}: any) => {
-             if (className?.includes('mermaid')) {
-                 return <MermaidChart chart={props.children} />;
-             }
-             return <div className={className} {...props} />;
-        }
+    // --- Markdown 配置 (复用 Article 页) ---
+    const markdownComponents = React.useMemo(() => ({
+        pre: (props: any) => <div className="not-prose">{props.children}</div>,
+        p: (props: any) => <p className="mb-4 leading-7 text-slate-700">{props.children}</p>,
+        code(props: any) {
+            const { inline, className, children, ...rest } = props;
+            const match = /language-(\w+)/.exec(className || '');
+            if (!inline && match?.[1] === 'mermaid') return <MermaidChart chart={String(children)} />;
+            if (!inline && match) return <CodeBlock language={match[1]} code={String(children)} {...rest} />;
+            return <code className="bg-pink-50 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-md font-mono text-sm" {...rest}>{children}</code>;
+        },
+        blockquote: ({ children }: any) => (
+            <blockquote className="not-prose relative my-4 pl-4 border-l-4 border-violet-500 bg-violet-50/50 p-2 text-violet-800 italic rounded-r">{children}</blockquote>
+        ),
+        // ... 其他 ArticleIcon 相关配置可以按需加入
     }), []);
 
     return (
-        <div 
-            className="h-screen w-screen bg-slate-50 flex overflow-hidden relative select-none font-sans"
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleGlobalMouseUp}
-        >
+        <div className="h-screen w-screen bg-[#f0f2f5] flex overflow-hidden relative select-none font-sans">
             <style>{CUSTOM_STYLES}</style>
 
-            {/* 顶部导航 */}
-            <div className="absolute top-4 left-4 z-50 flex items-center gap-3 pointer-events-auto">
-                <button onClick={() => navigate('/')} className="p-2 bg-white rounded-xl shadow border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors">
-                    <ArrowLeft className="w-5 h-5" />
-                </button>
-                <div className="px-4 py-2 bg-white rounded-xl shadow border border-slate-200 font-bold text-slate-700 flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></div>
-                    灵感白板
+            {/* 顶部工具栏 */}
+            <div className="absolute top-4 left-4 z-[100] flex gap-3">
+                <button onClick={() => navigate('/')} className="p-2 bg-white rounded-xl shadow border border-slate-200 hover:bg-slate-50"><ArrowLeft className="w-5 h-5 text-slate-600" /></button>
+                <div className="bg-white rounded-xl shadow border border-slate-200 flex items-center p-1">
+                    <button onClick={() => setScale(s => Math.max(0.1, s - 0.1))} className="p-1.5 hover:bg-slate-100 rounded-lg"><Minus className="w-4 h-4" /></button>
+                    <span className="w-12 text-center text-xs font-mono text-slate-500">{Math.round(scale * 100)}%</span>
+                    <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="p-1.5 hover:bg-slate-100 rounded-lg"><Plus className="w-4 h-4" /></button>
                 </div>
             </div>
 
-            {/* 左侧工具栏 */}
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2 p-1.5 bg-white rounded-2xl shadow-xl border border-slate-200 pointer-events-auto">
+            {/* 左侧创建栏 */}
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 z-[100] flex flex-col gap-2 p-1.5 bg-white rounded-2xl shadow-xl border border-slate-200">
                 <ToolbarBtn icon={<MousePointer2 className="w-5 h-5" />} label="选择 / 移动" active={activeTool === 'select'} onClick={() => setActiveTool('select')} />
                 <div className="h-px bg-slate-100 w-full my-1" />
-                <ToolbarBtn 
-                    icon={<FileText className="w-5 h-5" />} 
-                    label="插入文章" 
-                    active={isArticlePickerOpen} 
-                    onClick={() => setIsArticlePickerOpen(!isArticlePickerOpen)} 
-                />
-                <ToolbarBtn icon={<StickyNote className="w-5 h-5" />} label="便签" onClick={() => addNode('note')} />
+                <ToolbarBtn icon={<FileText className="w-5 h-5" />} label="插入文章" active={isArticlePickerOpen} onClick={() => setIsArticlePickerOpen(!isArticlePickerOpen)} />
+                <ToolbarBtn icon={<StickyNote className="w-5 h-5" />} label="便签 (截图风)" onClick={() => addNode('note')} />
                 <ToolbarBtn icon={<Square className="w-5 h-5" />} label="矩形" onClick={() => addNode('shape', { shapeType: 'rectangle' })} />
                 <ToolbarBtn icon={<Circle className="w-5 h-5" />} label="圆形" onClick={() => addNode('shape', { shapeType: 'circle' })} />
                 <ToolbarBtn icon={<Diamond className="w-5 h-5" />} label="菱形" onClick={() => addNode('shape', { shapeType: 'diamond' })} />
             </div>
 
-            {/* 文章选择器弹出层 */}
-            <div className={`absolute left-20 top-20 bottom-20 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[60] transition-all duration-300 origin-left pointer-events-auto ${isArticlePickerOpen ? 'scale-100 opacity-100' : 'scale-90 opacity-0 pointer-events-none'}`}>
+            {/* 文章选择器 (保持原样，略) */}
+            {/* ... ArticlePicker UI ... */}
+            <div className={`absolute left-20 top-20 bottom-20 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[90] transition-all duration-300 origin-left ${isArticlePickerOpen ? 'scale-100 opacity-100' : 'scale-90 opacity-0 pointer-events-none'}`}>
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center">
                     <h3 className="font-bold text-slate-700">选择文章</h3>
                     <button onClick={() => setIsArticlePickerOpen(false)}><X className="w-4 h-4 text-slate-400" /></button>
@@ -340,184 +285,93 @@ export default function WhiteboardPage() {
                     {articles.map(article => (
                         <div key={article.articleId} onClick={() => addNode('article', article)} className="p-3 hover:bg-orange-50 rounded-xl cursor-pointer group border border-transparent hover:border-orange-100 transition-all">
                             <h4 className="font-medium text-slate-700 text-sm group-hover:text-orange-700">{article.title}</h4>
-                            <p className="text-xs text-slate-400 mt-1 line-clamp-2">{article.content?.slice(0, 50)}</p>
                         </div>
                     ))}
                 </div>
             </div>
 
-            {/* 核心画布 */}
-            <div 
+            {/* 主画布 Canvas */}
+            <div
                 ref={canvasRef}
-                className="flex-1 relative overflow-hidden bg-[#f8fafc] cursor-default"
+                className="flex-1 relative overflow-hidden bg-[#f0f2f5] cursor-default"
                 onMouseDown={handleCanvasMouseDown}
-                style={{
-                    backgroundImage: 'radial-gradient(#cbd5e1 1.5px, transparent 1.5px)',
-                    backgroundSize: '24px 24px',
-                    backgroundPosition: `${viewOffset.x}px ${viewOffset.y}px`
-                }}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleGlobalMouseUp}
+                onWheel={handleWheel}
             >
-                {/* 统一变换容器 */}
-                <div 
-                    className="absolute top-0 left-0 w-full h-full pointer-events-none origin-top-left"
-                    style={{ transform: `translate(${viewOffset.x}px, ${viewOffset.y}px)` }}
+                {/* Transform Layer: 应用平移和缩放 */}
+                <div
+                    id="canvas-bg"
+                    className="absolute top-0 left-0 w-full h-full origin-top-left will-change-transform"
+                    style={{
+                        transform: `translate(${viewOffset.x}px, ${viewOffset.y}px) scale(${scale})`,
+                        backgroundImage: 'radial-gradient(#cbd5e1 1.5px, transparent 1.5px)',
+                        backgroundSize: '24px 24px', // 背景网格不随缩放改变大小，产生视差感，或者可以改为 backgroundSize: `${24*scale}px`
+                    }}
                 >
-                    {/* 1. 连线层 (SVG) */}
-                    <svg className="overflow-visible absolute top-0 left-0 w-full h-full z-0">
-                        <defs>
-                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                                <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
-                            </marker>
-                        </defs>
-                        {edges.map(edge => {
-                            const sNode = nodes.find(n => n.id === edge.sourceId);
-                            const tNode = nodes.find(n => n.id === edge.targetId);
-                            if (!sNode || !tNode) return null;
-                            
-                            const start = getHandleCoords(sNode, edge.sourceHandle);
-                            const end = getHandleCoords(tNode, edge.targetHandle);
-                            const d = getEdgePath(start, end, edge.sourceHandle);
-                            
-                            return (
-                                <g key={edge.id} className="group pointer-events-auto cursor-pointer">
-                                    <path d={d} fill="none" stroke="#cbd5e1" strokeWidth="2" markerEnd="url(#arrowhead)" className="group-hover:stroke-orange-400 transition-colors" />
-                                    <path d={d} fill="none" stroke="transparent" strokeWidth="15" /> {/* 扩大点击区域 */}
-                                    <circle cx={(start.x + end.x)/2} cy={(start.y + end.y)/2} r="0" className="group-hover:r-3 fill-red-400 cursor-pointer" onClick={(e) => { e.stopPropagation(); setEdges(prev => prev.filter(ed => ed.id !== edge.id)); }} />
-                                </g>
-                            )
-                        })}
-                        {/* 拖拽中的虚线 */}
-                        {connectionStart && (
-                            <path 
-                                d={(() => {
-                                    const sNode = nodes.find(n => n.id === connectionStart.nodeId);
-                                    if(!sNode) return '';
-                                    return getEdgePath(getHandleCoords(sNode, connectionStart.handle), mousePos, connectionStart.handle);
-                                })()}
-                                fill="none" stroke="#f97316" strokeWidth="2" strokeDasharray="5,5" 
-                            />
-                        )}
-                    </svg>
+                    {/* 连线层 */}
+                    <EdgeLayer
+                        edges={edges}
+                        nodes={nodes}
+                        selectedEdgeId={selectedEdgeId}
+                        onSelectEdge={setSelectedEdgeId}
+                        tempConnection={connectionStart ? { start: connectionStart.startCoords, end: mouseWorldPos, startHandle: connectionStart.handle } : null}
+                    />
 
-                    {/* 2. 节点层 */}
+                    {/* 节点层 */}
                     {nodes.map(node => (
                         <div
                             key={node.id}
-                            className={`absolute pointer-events-auto flex flex-col transition-shadow duration-200
-                                ${node.type === 'shape' ? '' : 'rounded-xl shadow-sm bg-white'}
-                                ${selectedNodeId === node.id ? 'ring-2 ring-orange-400 shadow-xl z-30' : 'hover:shadow-md border border-slate-200/0'}
-                            `}
+                            className="absolute"
                             style={{
                                 transform: `translate(${node.x}px, ${node.y}px)`,
                                 width: node.width,
                                 height: node.height,
                                 zIndex: node.zIndex,
-                                ...(node.type === 'shape' ? {} : { border: '1px solid #e2e8f0' })
                             }}
                             onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                         >
-                            {/* --- Article Node --- */}
-                            {node.type === 'article' && (
-                                <>
-                                    {/* 标题栏: 唯一的拖拽区 */}
-                                    <div 
-                                        className="h-11 flex-shrink-0 border-b border-slate-100 flex items-center justify-between px-3 bg-slate-50/80 backdrop-blur-sm rounded-t-xl cursor-grab active:cursor-grabbing select-none"
-                                        onMouseDown={(e) => handleDragStart(e, node.id)}
-                                    >
-                                        <div className="flex items-center gap-2 overflow-hidden">
-                                            <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg"><FileText className="w-3.5 h-3.5" /></div>
-                                            <span className="font-bold text-sm text-slate-700 truncate">{node.title}</span>
-                                        </div>
-                                        {selectedNodeId === node.id && (
-                                            <button className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-md transition-colors" onClick={() => deleteNode(node.id)}>
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        )}
-                                    </div>
-                                    
-                                    {/* 内容区: 自由滚动，不拦截鼠标 */}
-                                    <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent bg-white rounded-b-xl cursor-text selection:bg-orange-100">
-                                        {/* 使用标准的 prose 类，移除 -sm 以匹配详情页大小 */}
-                                        <div className="prose prose-slate max-w-none prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-p:text-slate-600 prose-pre:bg-slate-900 prose-pre:text-slate-50">
-                                            <ReactMarkdown 
-                                                remarkPlugins={[remarkGfm, remarkMath]} 
-                                                rehypePlugins={[rehypeRaw, rehypeKatex]}
-                                                components={markdownComponents}
-                                            >
-                                                {node.content || ''}
-                                            </ReactMarkdown>
-                                        </div>
-                                    </div>
-                                </>
+                            {/* --- Note Node (新风格) --- */}
+                            {node.type === 'note' && (
+                                <NoteNode
+                                    node={node}
+                                    selected={selectedNodeId === node.id}
+                                    onDelete={(id) => { setNodes(prev => prev.filter(n => n.id !== id)); }}
+                                    onDragStart={handleDragStart}
+                                />
                             )}
 
-                            {/* --- Note Node --- */}
-                            {node.type === 'note' && (
-                                <>
+                            {/* --- Article Node (保持窗口风格) --- */}
+                            {node.type === 'article' && (
+                                <div className={`flex flex-col h-full bg-white rounded-xl shadow-lg border border-slate-200 transition-shadow ${selectedNodeId === node.id ? 'ring-2 ring-orange-400 shadow-2xl' : ''}`}>
+                                    <div className="h-10 bg-slate-50 border-b border-slate-100 flex items-center justify-between px-3 rounded-t-xl cursor-grab active:cursor-grabbing" onMouseDown={(e) => handleDragStart(e, node.id)}>
+                                        <span className="font-bold text-sm text-slate-700 truncate max-w-[80%]">{node.title}</span>
+                                        {selectedNodeId === node.id && <button onClick={() => setNodes(prev => prev.filter(n => n.id !== node.id))}><Trash2 className="w-4 h-4 text-slate-400 hover:text-red-500" /></button>}
+                                    </div>
                                     <div 
-                                        className="h-8 w-full absolute top-0 left-0 cursor-grab active:cursor-grabbing z-10 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
-                                        onMouseDown={(e) => handleDragStart(e, node.id)} 
-                                    >
-                                        <GripVertical className="w-4 h-4 text-slate-400" />
-                                    </div>
-                                    <div className="w-full h-full p-5 pt-8 relative flex flex-col" style={{ backgroundColor: node.color }}>
-                                        <textarea 
-                                            className="w-full h-full bg-transparent resize-none outline-none text-slate-800 font-handwriting text-lg leading-relaxed placeholder:text-slate-500/30"
-                                            defaultValue={node.content}
-                                            placeholder="写点什么..."
-                                            onMouseDown={(e) => e.stopPropagation()} 
-                                        />
-                                        {selectedNodeId === node.id && (
-                                            <button className="absolute top-2 right-2 p-1 text-slate-500/50 hover:text-red-600 z-20" onClick={() => deleteNode(node.id)}>
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        )}
-                                    </div>
-                                </>
+                                        className="flex-1 overflow-y-auto p-4 prose prose-slate max-w-none prose-sm bg-white rounded-b-xl"
+                                        onWheel={(e) => e.stopPropagation()} // 关键：在这里阻止冒泡！
+                                     >
+                                         <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeRaw, rehypeKatex]} components={markdownComponents as any}>{node.content || ''}</ReactMarkdown>
+                                     </div>
+                                </div>
                             )}
 
                             {/* --- Shape Node --- */}
                             {node.type === 'shape' && (
-                                <div 
-                                    className="w-full h-full relative cursor-move flex items-center justify-center group"
-                                    onMouseDown={(e) => handleDragStart(e, node.id)}
-                                >
-                                    <div className={`w-full h-full border-4 border-slate-300 bg-transparent flex items-center justify-center transition-colors group-hover:border-slate-400 ${
-                                        node.shapeType === 'circle' ? 'rounded-full' : 
-                                        node.shapeType === 'diamond' ? 'rotate-45 scale-75' : 'rounded-none'
-                                    }`}>
-                                    </div>
-                                    {selectedNodeId === node.id && (
-                                        <button className="absolute -top-8 bg-white shadow rounded-full p-1.5 text-slate-400 hover:text-red-500" onClick={() => deleteNode(node.id)}>
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    )}
+                                <div className={`w-full h-full border-4 border-slate-400 bg-transparent cursor-move flex items-center justify-center ${node.shapeType === 'circle' ? 'rounded-full' : node.shapeType === 'diamond' ? 'rotate-45 scale-75' : ''} ${selectedNodeId === node.id ? 'border-orange-400' : ''}`} onMouseDown={(e) => handleDragStart(e, node.id)}>
+                                    {selectedNodeId === node.id && <button className="absolute -top-6" onClick={() => setNodes(prev => prev.filter(n => n.id !== node.id))}><Trash2 className="w-4 h-4 text-slate-400 hover:text-red-500" /></button>}
                                 </div>
                             )}
 
-                            {/* --- 控制手柄 (仅选中显示) --- */}
+                            {/* 控制手柄: 缩放 + 连线锚点 (只在选中时显示) */}
                             {selectedNodeId === node.id && (
                                 <>
-                                    {/* 调整大小手柄 */}
-                                    <div 
-                                        className="absolute -bottom-3 -right-3 w-6 h-6 bg-white border border-slate-200 shadow-md rounded-full flex items-center justify-center cursor-nwse-resize z-50 hover:scale-110 transition-transform"
-                                        onMouseDown={(e) => handleResizeStart(e, node.id)}
-                                    >
-                                        <Maximize2 className="w-3 h-3 text-slate-500 rotate-90" />
-                                    </div>
-
-                                    {/* 4个方向的连线锚点 */}
-                                    {(['top', 'right', 'bottom', 'left'] as HandlePosition[]).map(pos => (
-                                        <div
-                                            key={pos}
-                                            className={`absolute w-3.5 h-3.5 bg-white border-2 border-orange-500 rounded-full z-50 hover:scale-125 hover:bg-orange-50 transition-all cursor-crosshair
-                                                ${pos === 'top' ? '-top-1.5 left-1/2 -translate-x-1/2' : 
-                                                  pos === 'bottom' ? '-bottom-1.5 left-1/2 -translate-x-1/2' :
-                                                  pos === 'left' ? '-left-1.5 top-1/2 -translate-y-1/2' :
-                                                  '-right-1.5 top-1/2 -translate-y-1/2'}
-                                            `}
+                                    <div className="absolute -bottom-3 -right-3 w-6 h-6 bg-white border shadow rounded-full cursor-nwse-resize flex items-center justify-center z-[60]" onMouseDown={(e) => { e.stopPropagation(); setResizingNodeId(node.id); }}><Maximize2 className="w-3 h-3 rotate-90" /></div>
+                                    {(['top', 'right', 'bottom', 'left'] as const).map(pos => (
+                                        <div key={pos}
+                                            className={`absolute w-3 h-3 bg-white border-2 border-orange-500 rounded-full z-[60] cursor-crosshair hover:scale-150 transition-transform ${pos === 'top' ? 'left-1/2 -top-1.5 -translate-x-1/2' : pos === 'bottom' ? 'left-1/2 -bottom-1.5 -translate-x-1/2' : pos === 'left' ? 'top-1/2 -left-1.5 -translate-y-1/2' : 'top-1/2 -right-1.5 -translate-y-1/2'}`}
                                             onMouseDown={(e) => handleConnectStart(e, node.id, pos)}
-                                            title="拖拽连线"
                                         />
                                     ))}
                                 </>
@@ -530,22 +384,10 @@ export default function WhiteboardPage() {
     );
 }
 
-// 简单的工具栏按钮
 function ToolbarBtn({ icon, label, onClick, active }: any) {
     return (
-        <div className="relative group">
-            <button 
-                onClick={onClick}
-                className={`p-3 rounded-xl transition-all duration-200 flex items-center justify-center
-                    ${active ? 'bg-orange-100 text-orange-600 shadow-inner ring-1 ring-orange-200' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}
-                `}
-            >
-                {icon}
-            </button>
-            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[70] shadow-xl">
-                {label}
-                <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 border-4 border-transparent border-r-slate-800"></div>
-            </div>
-        </div>
+        <button onClick={onClick} className={`p-3 rounded-xl transition-all flex items-center justify-center relative group ${active ? 'bg-orange-100 text-orange-600' : 'text-slate-500 hover:bg-slate-50'}`} title={label}>
+            {icon}
+        </button>
     );
 }
