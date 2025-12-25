@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, GripVertical } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { WhiteboardNode } from '../../types/whiteboard';
 
 interface NoteNodeProps {
@@ -11,51 +11,49 @@ interface NoteNodeProps {
 
 export const NoteNode: React.FC<NoteNodeProps> = ({ node, selected, onDelete, onDragStart }) => {
     return (
-        <div 
+        <div
             className={`
                 group relative h-full w-full flex flex-col
-                bg-white shadow-xl transition-all duration-200
-                ${selected ? 'ring-2 ring-orange-400 z-50' : 'hover:shadow-2xl hover:z-40'}
+                transition-all duration-200 rounded-sm
+                ${selected ? 'ring-2 ring-orange-400 z-50 shadow-2xl' : 'shadow-lg hover:shadow-xl hover:z-40 cursor-move'}
             `}
             style={{
-                // 1. 移除了旋转 transform
-                // 2. 保留底部留白，模拟拍立得/截图卡片的感觉
-                padding: '12px 12px 40px 12px', 
+                backgroundColor: node.color || '#fef3c7',
+            }}
+            // 只有未选中时，点击外层 div 才会触发拖拽。
+            // 选中后，点击事件通常由 textarea 捕获（除非点在边框上），这里主要兜底
+            onMouseDown={(e) => {
+                if (!selected) {
+                    onDragStart(e, node.id);
+                }
             }}
         >
-            {/* 拖拽把手 */}
-            <div 
-                className="absolute -top-3 left-1/2 -translate-x-1/2 w-8 h-8 cursor-grab active:cursor-grabbing z-20 flex items-center justify-center bg-white border border-slate-100 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
-                onMouseDown={(e) => onDragStart(e, node.id)} 
-            >
-                <GripVertical className="w-4 h-4 text-slate-400" />
-            </div>
-
             {/* 内容区域 */}
-            <div 
-                className="flex-1 w-full h-full relative overflow-hidden transition-colors" 
-                style={{ 
-                    // 确保使用传入的颜色，如果是黄色便签则显示黄色
-                    backgroundColor: node.color || '#fef3c7' 
-                }}
-            >
-                <textarea 
-                    className="w-full h-full bg-transparent resize-none outline-none text-slate-800 font-handwriting text-lg leading-relaxed p-4 placeholder:text-slate-500/30"
+            <div className="flex-1 w-full h-full relative overflow-hidden">
+                <textarea
+                    className={`
+                        w-full h-full bg-transparent resize-none outline-none 
+                        text-slate-800 font-handwriting text-lg leading-relaxed p-4 
+                        placeholder:text-slate-500/30
+                        ${selected ? 'cursor-text pointer-events-auto' : 'cursor-move pointer-events-none'}
+                    `}
                     defaultValue={node.content}
                     placeholder="写点什么..."
-                    onMouseDown={(e) => e.stopPropagation()} 
+                    // 只有选中状态下，textarea 才拦截事件用于输入
+                    // 未选中状态下 pointer-events-none 会让事件穿透到父 div 触发拖拽
+                    onMouseDown={(e) => e.stopPropagation()}
                 />
             </div>
 
-            {/* 底部装饰：日期 */}
-            <div className="absolute bottom-2 right-4 text-xs text-slate-300 font-serif italic select-none">
+            {/* 底部日期装饰 */}
+            <div className="absolute bottom-1 right-2 text-[10px] text-slate-400/60 font-serif italic select-none pointer-events-none">
                {new Date().toLocaleDateString()}
             </div>
 
-            {/* 删除按钮 */}
+            {/* 删除按钮 - 仅在选中时显示 */}
             {selected && (
-                <button 
-                    className="absolute -top-2 -right-2 p-1.5 bg-red-50 text-red-500 border border-red-100 rounded-full shadow hover:bg-red-500 hover:text-white transition-colors z-30" 
+                <button
+                    className="absolute -top-3 -right-3 p-1.5 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600 transition-transform hover:scale-110 z-50"
                     onClick={(e) => { e.stopPropagation(); onDelete(node.id); }}
                 >
                     <Trash2 className="w-3 h-3" />
