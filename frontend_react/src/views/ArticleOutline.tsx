@@ -288,6 +288,9 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                                 tags={articleDetail?.tagDetails?.map(tag => tag.name) || []}
                                 date={articleDetail?.updatedAt}
                                 attachments={articleDetail?.attachments}
+                                updatedAt={articleDetail?.updatedAt}
+                                lastRagSyncedAt={articleDetail?.lastRagSyncedAt}
+                                isRagSynced={articleDetail?.isRagSynced}
                             />
                         </div>
                     </div>

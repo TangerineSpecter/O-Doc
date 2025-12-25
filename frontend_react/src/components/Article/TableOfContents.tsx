@@ -1,5 +1,8 @@
-import {Edit3, Trash2, RefreshCw} from 'lucide-react'; // [修改] 引入 RefreshCw
+import {AlertTriangle, CheckCircle2, Edit3, RefreshCw, Trash2} from 'lucide-react'; // [修改] 引入 RefreshCw
 import {HeaderItem} from '@/hooks/useArticle.ts';
+
+// 定义三种状态类型
+export type SyncStatusType = 'synced' | 'outdated' | 'not_synced';
 
 interface TableOfContentsProps {
     headers: HeaderItem[];
@@ -7,8 +10,10 @@ interface TableOfContentsProps {
     isEmbedded: boolean;
     onEdit?: () => void;
     onDelete?: () => void;
-    onSync?: () => void;      // [新增] 同步回调
-    isSyncing?: boolean;      // [新增] 同步状态
+    onSync?: () => void;
+    isSyncing?: boolean;
+    syncStatus?: SyncStatusType;
+    lastSyncedTime?: string;
 }
 
 export const TableOfContents = ({
@@ -17,11 +22,54 @@ export const TableOfContents = ({
                                     isEmbedded,
                                     onEdit,
                                     onDelete,
-                                    onSync,                   // [新增]
-                                    isSyncing = false         // [新增]
+                                    onSync,
+                                    isSyncing = false,
+                                    syncStatus = 'not_synced', // 默认为未同步
+                                    lastSyncedTime
                                 }: TableOfContentsProps) => {
+    // 根据状态计算按钮样式和提示文案
+    const getSyncButtonState = () => {
+        if (isSyncing) return {
+            color: 'text-blue-500',
+            bg: 'bg-blue-50',
+            icon: RefreshCw,
+            spin: true,
+            title: '正在同步...'
+        };
+
+        switch (syncStatus) {
+            case 'synced':
+                return {
+                    color: 'text-emerald-600',
+                    bg: 'bg-emerald-50 hover:bg-emerald-100',
+                    border: 'border-emerald-200',
+                    icon: CheckCircle2,
+                    title: `已同步 (上次: ${lastSyncedTime ? new Date(lastSyncedTime).toLocaleString() : '刚刚'})`
+                };
+            case 'outdated':
+                return {
+                    color: 'text-orange-600',
+                    bg: 'bg-orange-50 hover:bg-orange-100',
+                    border: 'border-orange-200',
+                    icon: AlertTriangle,
+                    title: '内容已更新，点击同步'
+                };
+            case 'not_synced':
+            default:
+                return {
+                    color: 'text-slate-400',
+                    bg: 'bg-white hover:text-indigo-600 hover:bg-indigo-50',
+                    border: 'border-slate-200',
+                    icon: RefreshCw,
+                    title: '同步至知识库'
+                };
+        }
+    };
+
     // if (!headers?.length) return null;
 
+    const btnState = getSyncButtonState();
+    const Icon = btnState.icon;
     const visibilityClass = isEmbedded ? 'hidden 2xl:block' : 'hidden xl:block';
 
     return (
@@ -41,15 +89,16 @@ export const TableOfContents = ({
                             </button>
                         )}
 
-                        {/* [新增] 同步按钮 - 仅图标 */}
                         {onSync && (
                             <button
                                 onClick={onSync}
                                 disabled={isSyncing}
-                                className={`flex items-center justify-center p-1.5 bg-white border border-slate-200 rounded-md text-slate-400 shadow-sm hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 hover:shadow transition-all duration-200 ${isSyncing ? 'cursor-not-allowed' : ''}`}
-                                title="同步至知识库"
+                                className={`flex items-center justify-center p-1.5 border rounded-md shadow-sm transition-all duration-200 
+                    ${btnState.bg} ${btnState.color} ${btnState.border || 'border-slate-200'} 
+                    ${isSyncing ? 'cursor-not-allowed' : ''}`}
+                                title={btnState.title}
                             >
-                                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`}/>
+                                <Icon className={`w-3.5 h-3.5 ${btnState.spin ? 'animate-spin' : ''}`}/>
                             </button>
                         )}
 

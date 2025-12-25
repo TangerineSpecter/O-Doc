@@ -1,4 +1,4 @@
-import React, {ReactNode, useMemo} from 'react';
+import React, {ReactNode, useEffect, useMemo, useState} from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -10,7 +10,7 @@ import {useNavigate} from 'react-router-dom';
 import {useToast} from '../components/common/ToastProvider';
 import {useArticle} from '../hooks/useArticle';
 import {ArticleIcons, CodeBlock, CUSTOM_STYLES, MermaidChart} from '../components/Article/MarkdownElements';
-import {TableOfContents} from '../components/Article/TableOfContents';
+import {SyncStatusType, TableOfContents} from '../components/Article/TableOfContents';
 import {formatFileSize} from '@/utils/format';
 import {useReadStats} from '../hooks/useReadStats';
 import {syncArticleToRag} from '../api/rag';
@@ -52,6 +52,9 @@ interface ArticleProps {
     onEdit?: () => void;
     onDelete?: () => void;
     disableLinks?: boolean;
+    updatedAt?: string;
+    lastRagSyncedAt?: string;
+    isRagSynced?: boolean;
 }
 
 export default function Article({
@@ -70,6 +73,8 @@ export default function Article({
                                     onEdit,
                                     onDelete,
                                     disableLinks = false,
+                                    lastRagSyncedAt,
+                                    isRagSynced
                                 }: ArticleProps) {
     const navigate = useNavigate();
 
@@ -96,8 +101,34 @@ export default function Article({
         handleScrollToTop
     } = useArticle(displayMarkdown, scrollContainerId);
 
+    // 1. 本地状态管理同步时间，以便同步成功后即时刷新 UI，无需重新请求接口
+    const [localSyncedTime, setLocalSyncedTime] = useState<string | undefined>(lastRagSyncedAt);
+    const [localIsSynced, setLocalIsSynced] = useState<boolean>(!!isRagSynced);
+
+    // 监听 props 变化，同步更新本地状态 (响应父组件的数据刷新)
+    useEffect(() => {
+        setLocalSyncedTime(lastRagSyncedAt);
+        setLocalIsSynced(!!isRagSynced);
+    }, [lastRagSyncedAt, isRagSynced]);
+
     const toast = useToast();
     const [isSyncing, setIsSyncing] = React.useState(false);
+
+    // 2. 计算同步状态逻辑
+    const syncStatus: SyncStatusType = useMemo(() => {
+        // 1. 如果状态是 true，直接已同步 (绿色)
+        if (localIsSynced) {
+            return 'synced';
+        }
+
+        // 2. 如果状态是 false，但有上次同步时间 -> 说明是“过期/需更新” (橙色)
+        if (!localIsSynced && localSyncedTime) {
+            return 'outdated';
+        }
+
+        // 3. 既没同步过，状态也是 false -> 未同步 (灰色)
+        return 'not_synced';
+    }, [localIsSynced, localSyncedTime]);
 
     const handleSyncToKB = async () => {
         if (!articleId || !content) return;
@@ -107,6 +138,9 @@ export default function Article({
             // 调用我们在 Step 2 创建的 API
             await syncArticleToRag(articleId);
             toast.success('同步知识库成功！');
+            // 用当前时间兜底
+            setLocalIsSynced(true);
+            setLocalSyncedTime(new Date().toISOString());
         } catch (error) {
             console.error(error);
             toast.error('同步失败，请检查后端日志');
@@ -310,6 +344,8 @@ export default function Article({
                         onDelete={onDelete}
                         onSync={handleSyncToKB}
                         isSyncing={isSyncing}
+                        syncStatus={syncStatus}
+                        lastSyncedTime={localSyncedTime}
                     />
                 </main>
 

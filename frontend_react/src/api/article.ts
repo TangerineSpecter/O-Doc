@@ -22,8 +22,8 @@ export interface Article {
         themeId?: string;
         iconKey?: string;
     };
-    parent_id?: string; // 父级文章ID（写入）
-    parentDetail?: { // 父级文章详情（读取）
+    parent_id?: string;
+    parentDetail?: {
         articleId: string;
         title: string;
     };
@@ -43,6 +43,8 @@ export interface Article {
     }>;
     is_polishing?: boolean;
     source_url?: string;
+    isRagSynced?: boolean;
+    lastRagSyncedAt?: string;
 }
 
 //前端列表通用的文章项类型 (ViewModel)
@@ -61,6 +63,9 @@ export interface ArticleItem {
         themeId?: string;
         iconKey?: string;
     };
+    isRagSynced?: boolean;
+    lastRagSyncedAt?: string;
+    updatedAt?: string;
 }
 
 // 文章树形节点结构

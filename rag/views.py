@@ -1,4 +1,4 @@
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -28,9 +28,16 @@ class SyncArticleView(APIView):
                 coll_id=article.coll_id
             )
 
+            # --- 更新同步状态 ---
+            article.is_rag_synced = True
+            article.last_rag_synced_at = timezone.now()
+            article.save(update_fields=['is_rag_synced', 'last_rag_synced_at'])
+            # -----------------------
+
             return success_result({
                 'message': '同步成功',
-                'chunks_count': chunk_count
+                'chunks_count': chunk_count,
+                'last_rag_synced_at': article.last_rag_synced_at
             })
 
         except Article.DoesNotExist:

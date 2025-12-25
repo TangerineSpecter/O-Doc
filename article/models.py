@@ -147,6 +147,18 @@ class Article(models.Model):
         help_text="文章排序值，值越小越靠前"
     )
 
+    # --- RAG 同步相关字段 ---
+    is_rag_synced = models.BooleanField(
+        default=False,
+        help_text="是否已同步到RAG知识库"
+    )
+
+    last_rag_synced_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="上次同步到RAG的时间"
+    )
+
     class Meta:
         verbose_name = '文章'
         verbose_name_plural = '文章管理'

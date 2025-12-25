@@ -152,7 +152,7 @@ class ArticleUpdateView(APIView):
         serializer.is_valid(raise_exception=True)
 
         # 保存更新
-        article = serializer.save()
+        article = serializer.save(is_rag_synced=False)
 
         # 如果文集ID发生变化，更新两个文集的文章数量
         from anthology.models import Anthology
