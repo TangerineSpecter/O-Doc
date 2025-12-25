@@ -1,6 +1,6 @@
 # 小橘文档 (O-Doc) 🍊
 
-[![版本](https://img.shields.io/badge/version-0.5.4-blue.svg)](https://github.com/your-username/o-doc)
+[![版本](https://img.shields.io/badge/version-0.5.5-blue.svg)](https://github.com/your-username/o-doc)
 [![Django](https://img.shields.io/badge/Django-5.x-092e20.svg?logo=django)](https://www.djangoproject.com/)
 [![React](https://img.shields.io/badge/React-19.x-61dafb.svg?logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-7.x-646cff.svg?logo=vite)](https://vitejs.dev/)
@@ -94,8 +94,9 @@
 ## 📚 相关文档
 
 项目的详细结构信息请参考独立文档：
-- **[项目结构文档](PROJECT_STRUCTURE.md)** - 完整的项目结构说明
-- **[接口文档](API_DOCUMENTATION.md)** - 详细的 API 接口说明
+- **[项目结构文档](项目结构文档.md)** - 完整的项目结构说明
+- **[接口文档](接口文档.md)** - 详细的 API 接口说明
+- **[代码规范文档](代码规范文档.md)** - 项目的代码规范和风格指南
 
 ## 🚀 快速开始
 
