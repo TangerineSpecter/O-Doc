@@ -1,7 +1,6 @@
 from django.db import transaction, models
 from django.db.models import Sum, Count
 from django.db.models.functions import ExtractHour, ExtractWeekDay
-from django.utils import timezone
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
@@ -68,11 +67,6 @@ class ReportReadDurationView(APIView):
                 stat.duration = models.F('duration') + duration
                 stat.save()
 
-                # 需要在 Article 模型里先加一个 total_read_seconds 字段
-                Article.objects.filter(article_id=article_id).update(
-                    total_read_seconds=models.F('total_read_seconds') + duration
-                )
-
             return success_result()
 
         except Exception as e:
@@ -110,14 +104,12 @@ class StatisticsView(APIView):
 
             # --- 2. 24小时阅读趋势 (Hourly Data) ---
             # 统计过去24小时或当天的 ReadStat
-            now = timezone.now()
-            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            # now = timezone.now()
+            # today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-            # 按小时分组统计访问次数(count)和时长(sum duration)
-            # 这里简单统计"当天"的数据分布
-            hourly_stats = ReadStat.objects.filter(
-                created_at__gte=today_start
-            ).annotate(
+            # 修改后逻辑：统计全站历史数据，按小时提取并分组 (ExtractHour)
+            # 这里的 hour=ExtractHour('created_at') 会自动把所有日期的 "created_at" 提取为 0-23 的数字
+            hourly_stats = ReadStat.objects.annotate(
                 hour=ExtractHour('created_at')
             ).values('hour').annotate(
                 visits=Count('id'),
@@ -132,8 +124,7 @@ class StatisticsView(APIView):
                 hourly_data.append({
                     'hour': f"{i:02d}:00",
                     'visits': item['visits'],
-                    # 数据库存的是秒，图表显示分钟
-                    'duration': round(item['duration'] / 60, 1)
+                    'duration': round(item['duration'] / 60, 1)  # 转换为分钟
                 })
 
             # --- 3. 创作习惯 (按周几发布) ---
@@ -177,12 +168,30 @@ class StatisticsView(APIView):
             ]
 
             # 时长 TOP 5
-            top_duration = valid_articles.order_by('-total_read_seconds').values('article_id', 'title',
-                                                                                 'total_read_seconds')[:5]
-            top_duration_data = [
-                {'id': i + 1, 'title': item['title'], 'value': f"{round(item['total_read_seconds'] / 3600, 1)}h"}
-                for i, item in enumerate(top_duration)
-            ]
+            top_duration_qs = ReadStat.objects.filter(
+                article__is_valid=True
+            ).values(
+                'article__article_id',
+                'article__title'
+            ).annotate(
+                total_actual_seconds=Sum('duration')
+            ).order_by('-total_actual_seconds')[:5]
+
+            top_duration_data = []
+            for i, item in enumerate(top_duration_qs):
+                seconds = item['total_actual_seconds'] or 0
+
+                # 动态单位逻辑：小于 1 小时 (3600秒) 显示分钟，否则显示小时
+                if seconds < 3600:
+                    val_str = f"{round(seconds / 60, 1)} 分钟"
+                else:
+                    val_str = f"{round(seconds / 3600, 1)} 小时"
+
+                top_duration_data.append({
+                    'id': i + 1,
+                    'title': item['article__title'],
+                    'value': val_str
+                })
 
             return success_result(data={
                 'kpi': {
