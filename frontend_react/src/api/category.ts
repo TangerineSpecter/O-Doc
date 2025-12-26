@@ -1,23 +1,8 @@
 import request from '../utils/request';
+import type { CategoryItem, CreateCategoryParams } from '../types/api/category';
 
-// 定义分类项类型
-export interface CategoryItem {
-    categoryId: string;
-    name: string;
-    articleCount: number;
-    description: string;
-    iconKey: string;
-    themeId: string;
-    isSystem?: boolean;
-}
-
-// 定义创建分类参数类型
-export interface CreateCategoryParams {
-    name: string;
-    description: string;
-    themeId: string;
-    iconKey: string;
-}
+// 重新导出类型以便其他组件使用
+export type { CategoryItem, CreateCategoryParams };
 
 
 // 获取分类列表接口

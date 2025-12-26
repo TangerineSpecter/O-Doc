@@ -1,14 +1,8 @@
 import request from '../utils/request';
+import type { NotificationItem } from '../types/api/message';
 
-export interface NotificationItem {
-    id: number;
-    title: string;
-    content: string;
-    type: 'info' | 'success' | 'warning' | 'error';
-    link?: string;
-    isRead: boolean;
-    createdAt: string;
-}
+// 重新导出类型以便其他组件使用
+export type { NotificationItem };
 
 // 获取通知列表
 export const getNotifications = () => {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, BookOpen, Leaf, ArrowUpCircle } from 'lucide-react';
+import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, ArrowUpCircle } from 'lucide-react';
 import packageJson from '../../package.json';
 import NotificationPopover from '../components/NotificationPopover';
 import { getNotifications } from '../api/message';

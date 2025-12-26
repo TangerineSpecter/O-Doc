@@ -1,117 +1,8 @@
 import request from '../utils/request';
+import type { Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams } from '../types/api/article';
 
-// 文章接口定义
-export interface Article {
-    id: number;
-    articleId: string;
-    title: string;
-    content: string;
-    collId: string;
-    author: string;
-    createdAt: string;
-    updatedAt: string;
-    isValid: boolean;
-    permission: 'public' | 'private';
-    readCount: number;
-    wordCount?: number;
-    readTime?: number;
-    categoryId?: string;
-    categoryDetail?: {
-        categoryId: string;
-        name: string;
-        themeId?: string;
-        iconKey?: string;
-    };
-    parent_id?: string;
-    parentDetail?: {
-        articleId: string;
-        title: string;
-    };
-    sort: number;
-    parent?: number | null;
-    children?: Article[];
-    tags?: Array<{ tagId: string, name: string }>;
-    tagDetails?: Array<{ tagId: string; name: string }>;
-    desc?: string;
-    collection?: boolean;
-    attachments?: Array<{
-        id: string;
-        name: string;
-        size?: number;
-        type?: string;
-        url: string;
-    }>;
-    is_polishing?: boolean;
-    source_url?: string;
-    isRagSynced?: boolean;
-    lastRagSyncedAt?: string;
-}
-
-//前端列表通用的文章项类型 (ViewModel)
-export interface ArticleItem {
-    articleId: string;
-    title: string;
-    desc: string;
-    date: string;
-    readTime: number;
-    tags: string[];
-    collId: string;
-    collection?: boolean;
-    category?: {
-        id: string;
-        name: string;
-        themeId?: string;
-        iconKey?: string;
-    };
-    isRagSynced?: boolean;
-    lastRagSyncedAt?: string;
-    updatedAt?: string;
-}
-
-// 文章树形节点结构
-export interface ArticleNode {
-    id: string;
-    articleId: string;
-    title: string;
-    date?: string;
-    type: 'doc' | 'folder';
-    children?: ArticleNode[];
-    parentId?: string;
-    is_polishing?: boolean;
-}
-
-// 创建文章参数
-interface CreateArticleParams {
-    title: string;
-    content: string;
-    collId: string;
-    parentId?: string;
-    permission?: 'public' | 'private';
-    categoryId?: string;
-    sort?: number;
-    tags?: string[];
-    assets?: string[];
-}
-
-// 更新文章参数
-interface UpdateArticleParams {
-    title?: string;
-    content?: string;
-    isValid?: boolean;
-    permission?: 'public' | 'private';
-    categoryId?: string;
-    sort?: number;
-    parentId?: string;
-    tags?: string[];
-    assets?: string[];
-}
-
-//保存网页接口参数
-interface SaveWebpageParams {
-    url: string;
-    needPolishing: boolean;
-    collId: string;
-}
+// 重新导出类型以便其他组件使用
+export type { Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams };
 
 /**
  * 创建文章
@@ -144,14 +35,6 @@ export const deleteArticle = async (articleId: string): Promise<void> => {
     // 修改：直接返回 request 结果
     return request.delete(`/article/delete/${articleId}`);
 };
-
-// 定义文章列表查询参数
-export interface GetArticlesParams {
-    collId?: string;
-    tagId?: string;
-    categoryId?: string;
-    keyword?: string;
-}
 
 /**
  * 文章列表查询，支持多条件

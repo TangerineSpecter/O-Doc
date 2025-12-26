@@ -1,62 +1,22 @@
 import request from '../utils/request';
+import type { 
+    ArticleSource, 
+    ResourceItem, 
+    GetResourcesParams, 
+    ResourceUploadResponse, 
+    FormattedSize, 
+    ResourceListResponse 
+} from '../types/api/resources';
 
-// 定义文章来源类型
-export interface ArticleSource {
-    id: string;
-    title: string;
-    collId: string;
-}
-
-// 定义资源项类型
-export interface ResourceItem {
-    id: string;
-    name: string;
-    type: string;
-    size: number;
-    date: string;
-    linked: boolean;
-    sourceArticle: ArticleSource | null;
-    duplicate?: boolean; // 标记是否为重复文件
-    sourceType?: string; // 资源来源类型：attachment(附件)、content(内容)
-}
-
-// 定义获取资源列表参数类型
-export interface GetResourcesParams {
-    type?: string;
-    searchQuery?: string;
-    linked?: boolean;
-    page?: number;
-    pageSize?: number;
-}
-
-// 定义资源上传响应类型
-export interface ResourceUploadResponse {
-    id: string;
-    name: string;
-    type: string;
-    size: number;
-    date: string;
-    linked: boolean;
-    sourceArticle: ArticleSource | null;
-    duplicate?: boolean;
-    sourceType?: string; // 资源来源类型
-}
-
-export interface FormattedSize {
-    size: number;
-    unit: string;
-}
-
-export interface ResourceListResponse {
-    list: ResourceItem[];
-    total: number;
-    page: number;
-    pageSize: number;
-    hasMore: boolean;
-    totalSize: number; // 总文件大小（字节）
-    formattedTotalSize: FormattedSize; // 格式化的总文件大小
-    typeSizes: Record<string, FormattedSize>; // 按类型统计的空间大小
-}
+// 重新导出类型以便其他组件使用
+export type { 
+    ArticleSource, 
+    ResourceItem, 
+    GetResourcesParams, 
+    ResourceUploadResponse, 
+    FormattedSize, 
+    ResourceListResponse 
+};
 
 // 获取资源列表接口
 export const getResources = (params: GetResourcesParams) => {

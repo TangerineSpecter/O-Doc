@@ -1,17 +1,8 @@
 import request from '../utils/request';
+import type { LoginParams, LoginResult } from '../types/api/user';
 
-// 定义登录参数类型
-interface LoginParams {
-    email: string;
-    password: string;
-}
-
-// 定义登录返回数据类型
-interface LoginResult {
-    token: string;
-    username: string;
-    avatar: string;
-}
+// 重新导出类型以便其他组件使用
+export type { LoginParams, LoginResult };
 
 // 登录接口
 export const login = (data: LoginParams) => {

@@ -1,40 +1,8 @@
 import request from '../utils/request';
+import type { StatsDashboardData } from '../types/api/stats';
 
-export interface StatsDashboardData {
-    kpi: {
-        totalArticles: number;
-        totalWords: number;
-        totalAssets: number;
-        totalDurationHours: number;
-    };
-    hourlyData: {
-        hour: string;
-        visits: number;
-        duration: number;
-    }[];
-    weeklyPublish: {
-        day: string;
-        count: number;
-    }[];
-    categoryStats: {
-        name: string;
-        value: number;
-    }[];
-    tagStats: {
-        name: string;
-        count: number;
-    }[];
-    topVisits: {
-        id: number;
-        title: string;
-        value: number | string;
-    }[];
-    topDuration: {
-        id: number;
-        title: string;
-        value: string;
-    }[];
-}
+// 重新导出类型以便其他组件使用
+export type { StatsDashboardData };
 
 /**
  * 上报阅读时长

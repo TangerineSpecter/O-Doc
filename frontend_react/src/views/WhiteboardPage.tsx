@@ -129,6 +129,7 @@ export default function WhiteboardPage() {
         if (save) saveHistory(newNodes, edges);
     };
 
+    // @ts-ignore
     const updateEdges = (newEdges: WhiteboardEdge[], save = false) => {
         setEdges(newEdges);
         if (save) saveHistory(nodes, newEdges);
@@ -323,7 +324,6 @@ export default function WhiteboardPage() {
             }));
         } else if (connectionStart) {
             // --- 磁吸逻辑 ---
-            let snapped = false;
             let tempPos = worldPos;
             let targetHandle: HandlePosition | null = null;
 
@@ -342,7 +342,6 @@ export default function WhiteboardPage() {
                     if (closest.distance < 30) {
                         tempPos = {x: closest.x, y: closest.y};
                         targetHandle = closest.handle; // 这里现在可以正确获取到 handle
-                        snapped = true;
                     }
                 }
             });
@@ -352,7 +351,7 @@ export default function WhiteboardPage() {
         }
     };
 
-    const handleGlobalMouseUp = (e: React.MouseEvent) => {
+    const handleGlobalMouseUp = (_: React.MouseEvent) => {
         let hasChanges = false;
 
         if (connectionStart) {

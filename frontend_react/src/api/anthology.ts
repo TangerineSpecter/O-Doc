@@ -1,35 +1,8 @@
 import request from '../utils/request';
+import type { ArticleSummary, CreateAnthologyParams, Anthology } from '../types/api/anthology';
 
-// 定义文章摘要类型
-export interface ArticleSummary {
-    articleId: string;
-    title: string;
-    date: string;
-}
-
-// 定义创建文集参数类型
-export interface CreateAnthologyParams {
-    title: string;
-    description: string;
-    iconId: string;
-    permission: 'public' | 'private';
-    isTop?: boolean;
-    sort?: number;
-}
-
-// 定义文集返回数据类型
-export interface Anthology {
-    collId: string;
-    title: string;
-    count: number;
-    ragNotSyncedCount?: number;
-    iconId: string;
-    isTop: boolean;
-    description: string;
-    articles: ArticleSummary[];
-    permission: 'public' | 'private';
-    sort?: number;
-}
+// 重新导出类型以便其他组件使用
+export type { ArticleSummary, CreateAnthologyParams, Anthology };
 
 // 创建文集接口
 export const createAnthology = (data: CreateAnthologyParams) => {

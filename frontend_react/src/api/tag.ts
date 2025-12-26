@@ -1,18 +1,8 @@
 import request from '../utils/request';
+import type { TagItem, CreateTagParams } from '../types/api/tag';
 
-// 定义标签项类型
-export interface TagItem {
-    tagId: string;
-    name: string;
-    articleCount: number;
-    themeId: string;
-}
-
-// 定义创建标签参数类型
-export interface CreateTagParams {
-    name: string;
-    themeId: string;
-}
+// 重新导出类型以便其他组件使用
+export type { TagItem, CreateTagParams };
 
 
 // 获取标签列表接口
