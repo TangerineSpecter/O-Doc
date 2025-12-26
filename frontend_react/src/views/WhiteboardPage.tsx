@@ -10,6 +10,7 @@ import {
     MousePointer2,
     Plus,
     Redo2,
+    Shapes,
     Square,
     StickyNote,
     Trash2,
@@ -52,6 +53,12 @@ export default function WhiteboardPage() {
     const [viewOffset, setViewOffset] = useState({x: 0, y: 0});
     const [scale, setScale] = useState(1);
 
+    // 使用 Ref 追踪最新的视图状态，以便在原生事件监听器中访问
+    const viewStateRef = useRef({ scale: 1, viewOffset: { x: 0, y: 0 } });
+    useEffect(() => {
+        viewStateRef.current = { scale, viewOffset };
+    }, [scale, viewOffset]);
+
     // 交互状态
     const [isArticlePickerOpen, setIsArticlePickerOpen] = useState(false);
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -67,12 +74,8 @@ export default function WhiteboardPage() {
         startCoords: { x: number, y: number }
     } | null>(null);
 
-    // 鼠标世界坐标 (可能被磁吸修正)
     const [mouseWorldPos, setMouseWorldPos] = useState({x: 0, y: 0});
-
-    // 临时记录吸附的句柄 (用于EdgeLayer显示)
     const [tempTargetHandle, setTempTargetHandle] = useState<HandlePosition | null>(null);
-
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState({x: 0, y: 0});
     const [dragOffset, setDragOffset] = useState({x: 0, y: 0});
@@ -81,7 +84,6 @@ export default function WhiteboardPage() {
     // 加载数据
     useEffect(() => {
         getArticles({}).then(setArticles).catch(console.error);
-        // 初始化历史
         saveHistory([], []);
     }, []);
 
@@ -123,22 +125,23 @@ export default function WhiteboardPage() {
         }
     }, [history, historyIndex]);
 
-    // --- 辅助更新 ---
     const updateNodes = (newNodes: WhiteboardNode[], save = false) => {
         setNodes(newNodes);
         if (save) saveHistory(newNodes, edges);
     };
 
-    // @ts-ignore
-    const updateEdges = (newEdges: WhiteboardEdge[], save = false) => {
-        setEdges(newEdges);
-        if (save) saveHistory(nodes, newEdges);
-    };
-
     // --- 添加节点 ---
     const addNode = (type: any, data: any = {}) => {
-        const centerX = (-viewOffset.x + window.innerWidth / 2) / scale;
-        const centerY = (-viewOffset.y + window.innerHeight / 2) / scale;
+        let containerWidth = window.innerWidth;
+        let containerHeight = window.innerHeight;
+
+        if (canvasRef.current) {
+            containerWidth = canvasRef.current.clientWidth;
+            containerHeight = canvasRef.current.clientHeight;
+        }
+
+        const centerX = (-viewOffset.x + containerWidth / 2) / scale;
+        const centerY = (-viewOffset.y + containerHeight / 2) / scale;
 
         const baseNode = {
             id: `node-${Date.now()}`,
@@ -185,28 +188,41 @@ export default function WhiteboardPage() {
         updateNodes(nextNodes, true);
     };
 
-    // --- 缩放 ---
-    const handleWheel = (e: React.WheelEvent) => {
-        if (e.ctrlKey || e.metaKey) {
+    // --- 核心修复：原生 Wheel 事件监听 ---
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const handleWheel = (e: WheelEvent) => {
             e.preventDefault();
-            const zoomSensitivity = 0.001;
-            const delta = -e.deltaY * zoomSensitivity;
-            const newScale = Math.min(Math.max(scale + delta, 0.1), 3);
 
-            const rect = canvasRef.current?.getBoundingClientRect();
-            if (!rect) return;
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
+            const { scale: currentScale, viewOffset: currentOffset } = viewStateRef.current;
 
-            const newX = mouseX - (mouseX - viewOffset.x) * (newScale / scale);
-            const newY = mouseY - (mouseY - viewOffset.y) * (newScale / scale);
+            if (e.ctrlKey || e.metaKey) {
+                const zoomSensitivity = 0.005;
+                const delta = -e.deltaY * zoomSensitivity;
+                const newScale = Math.min(Math.max(currentScale + delta, 0.1), 3);
 
-            setScale(newScale);
-            setViewOffset({x: newX, y: newY});
-        } else {
-            setViewOffset(prev => ({x: prev.x - e.deltaX, y: prev.y - e.deltaY}));
-        }
-    };
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                const newX = mouseX - (mouseX - currentOffset.x) * (newScale / currentScale);
+                const newY = mouseY - (mouseY - currentOffset.y) * (newScale / currentScale);
+
+                setScale(newScale);
+                setViewOffset({x: newX, y: newY});
+            } else {
+                setViewOffset(prev => ({x: prev.x - e.deltaX, y: prev.y - e.deltaY}));
+            }
+        };
+
+        canvas.addEventListener('wheel', handleWheel, { passive: false });
+
+        return () => {
+            canvas.removeEventListener('wheel', handleWheel);
+        };
+    }, []);
 
     // --- 键盘事件 ---
     useEffect(() => {
@@ -249,7 +265,6 @@ export default function WhiteboardPage() {
 
 
     // --- 鼠标交互 ---
-
     const handleCanvasMouseDown = (e: React.MouseEvent) => {
         if (e.target === canvasRef.current || (e.target as HTMLElement).id === 'canvas-bg') {
             setSelectedNodeId(null);
@@ -264,13 +279,12 @@ export default function WhiteboardPage() {
     const handleNodeMouseDown = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         setSelectedNodeId(id);
-        setSelectedEdgeId(null); // 互斥：选节点时清空连线
+        setSelectedEdgeId(null);
     };
 
-    // EdgeLayer 回调：点击连线
     const handleEdgeClick = (id: string) => {
         setSelectedEdgeId(id);
-        setSelectedNodeId(null); // 互斥：选连线时清空节点
+        setSelectedNodeId(null);
     };
 
     const handleDragStart = (e: React.MouseEvent, id: string) => {
@@ -303,7 +317,6 @@ export default function WhiteboardPage() {
     const handleMouseMove = (e: React.MouseEvent) => {
         const rect = canvasRef.current?.getBoundingClientRect();
         if (!rect) return;
-
         const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top, viewOffset, scale);
 
         if (isPanning) {
@@ -323,29 +336,19 @@ export default function WhiteboardPage() {
                 return n;
             }));
         } else if (connectionStart) {
-            // --- 磁吸逻辑 ---
             let tempPos = worldPos;
             let targetHandle: HandlePosition | null = null;
-
-            // 遍历其他节点寻找最近锚点
             nodes.forEach(node => {
                 if (node.id === connectionStart.nodeId) return;
-
-                // 简单的范围过滤优化
                 if (worldPos.x > node.x - 50 && worldPos.x < node.x + node.width + 50 &&
                     worldPos.y > node.y - 50 && worldPos.y < node.y + node.height + 50) {
-
-                    // 使用新的 getClosestHandle (返回对象)
                     const closest = getClosestHandle(worldPos, node);
-
-                    // 如果距离小于阈值（例如 30px），则吸附
                     if (closest.distance < 30) {
                         tempPos = {x: closest.x, y: closest.y};
-                        targetHandle = closest.handle; // 这里现在可以正确获取到 handle
+                        targetHandle = closest.handle;
                     }
                 }
             });
-
             setMouseWorldPos(tempPos);
             setTempTargetHandle(targetHandle);
         }
@@ -353,22 +356,16 @@ export default function WhiteboardPage() {
 
     const handleGlobalMouseUp = (_: React.MouseEvent) => {
         let hasChanges = false;
-
         if (connectionStart) {
             const rect = canvasRef.current?.getBoundingClientRect();
             if (rect) {
-                // 如果在 mouseMove 过程中已经找到了 targetHandle，直接使用
                 const worldPos = mouseWorldPos;
-
-                // 再次确认目标节点
                 let targetNode = nodes.find(n =>
                     n.id !== connectionStart.nodeId &&
                     worldPos.x >= n.x - 20 && worldPos.x <= n.x + n.width + 20 &&
                     worldPos.y >= n.y - 20 && worldPos.y <= n.y + n.height + 20
                 );
-
                 if (targetNode) {
-                    // 再次计算以确保安全，或者直接复用状态
                     const closest = getClosestHandle(worldPos, targetNode);
                     if (closest.distance < 40) {
                         const newEdges = [...edges, {
@@ -376,7 +373,7 @@ export default function WhiteboardPage() {
                             sourceId: connectionStart.nodeId,
                             targetId: targetNode.id,
                             sourceHandle: connectionStart.handle,
-                            targetHandle: closest.handle // 正确使用属性
+                            targetHandle: closest.handle
                         }];
                         setEdges(newEdges);
                         saveHistory(nodes, newEdges);
@@ -386,11 +383,7 @@ export default function WhiteboardPage() {
         } else if (draggingNodeId || resizingNodeId) {
             hasChanges = true;
         }
-
-        if (hasChanges) {
-            saveHistory(nodes, edges);
-        }
-
+        if (hasChanges) saveHistory(nodes, edges);
         setDraggingNodeId(null);
         setResizingNodeId(null);
         setConnectionStart(null);
@@ -398,7 +391,6 @@ export default function WhiteboardPage() {
         setTempTargetHandle(null);
     };
 
-    // Markdown配置 (略简)
     const markdownComponents = React.useMemo(() => ({
         pre: (props: any) => <div className="not-prose">{props.children}</div>,
         code(props: any) {
@@ -412,10 +404,10 @@ export default function WhiteboardPage() {
     }), []);
 
     return (
-        <div className="h-screen w-screen bg-[#f0f2f5] flex overflow-hidden relative select-none font-sans">
+        <div className="w-full h-[calc(100vh-64px)] bg-[#f0f2f5] flex overflow-hidden relative select-none font-sans">
             <style>{CUSTOM_STYLES}</style>
 
-            {/* 顶部工具栏 */}
+            {/* 顶部工具栏 (缩放控制) */}
             <div className="absolute top-4 left-4 z-[100] flex gap-3">
                 <button onClick={() => navigate('/')}
                         className="p-2 bg-white rounded-xl shadow border border-slate-200 hover:bg-slate-50"><ArrowLeft
@@ -451,20 +443,31 @@ export default function WhiteboardPage() {
             </div>
 
             {/* 左侧创建栏 */}
-            <div
-                className="absolute left-4 top-1/2 -translate-y-1/2 z-[100] flex flex-col gap-2 p-1.5 bg-white rounded-2xl shadow-xl border border-slate-200">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 z-[100] flex flex-col gap-2 p-1.5 bg-white rounded-2xl shadow-xl border border-slate-200">
                 <ToolbarBtn icon={<MousePointer2 className="w-5 h-5"/>} label="选择 / 移动"
                             active={activeTool === 'select'} onClick={() => setActiveTool('select')}/>
                 <div className="h-px bg-slate-100 w-full my-1"/>
                 <ToolbarBtn icon={<FileText className="w-5 h-5"/>} label="插入文章" active={isArticlePickerOpen}
                             onClick={() => setIsArticlePickerOpen(!isArticlePickerOpen)}/>
                 <ToolbarBtn icon={<StickyNote className="w-5 h-5"/>} label="便签" onClick={() => addNode('note')}/>
-                <ToolbarBtn icon={<Square className="w-5 h-5"/>} label="矩形"
-                            onClick={() => addNode('shape', {shapeType: 'rectangle'})}/>
-                <ToolbarBtn icon={<Circle className="w-5 h-5"/>} label="圆形"
-                            onClick={() => addNode('shape', {shapeType: 'circle'})}/>
-                <ToolbarBtn icon={<Diamond className="w-5 h-5"/>} label="菱形"
-                            onClick={() => addNode('shape', {shapeType: 'diamond'})}/>
+
+                {/* 图形集合按钮 (Hover 展开) */}
+                <div className="relative group">
+                    <ToolbarBtn icon={<Shapes className="w-5 h-5"/>} label="图形" active={false} onClick={() => {}} />
+
+                    {/* 侧边展开的图形选择器 */}
+                    {/* 修改点：使用 pl-3 替代 ml-3 作为外层容器内边距，确保鼠标移动时不中断 hover 状态 */}
+                    <div className="absolute left-full top-0 pl-3 hidden group-hover:flex">
+                        <div className="flex flex-col gap-2 p-1.5 bg-white rounded-2xl shadow-xl border border-slate-200 transition-all animate-in fade-in slide-in-from-left-2">
+                            <ToolbarBtn icon={<Square className="w-5 h-5"/>} label="矩形"
+                                        onClick={() => addNode('shape', {shapeType: 'rectangle'})}/>
+                            <ToolbarBtn icon={<Circle className="w-5 h-5"/>} label="圆形"
+                                        onClick={() => addNode('shape', {shapeType: 'circle'})}/>
+                            <ToolbarBtn icon={<Diamond className="w-5 h-5"/>} label="菱形"
+                                        onClick={() => addNode('shape', {shapeType: 'diamond'})}/>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* 文章选择器 (UI部分) */}
@@ -488,11 +491,10 @@ export default function WhiteboardPage() {
             {/* 画布 */}
             <div
                 ref={canvasRef}
-                className="flex-1 relative overflow-hidden bg-[#f0f2f5] cursor-default"
+                className="flex-1 relative overflow-hidden bg-[#f0f2f5] cursor-default w-full h-full"
                 onMouseDown={handleCanvasMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleGlobalMouseUp}
-                onWheel={handleWheel}
             >
                 {/* Transform Layer */}
                 <div
@@ -538,7 +540,6 @@ export default function WhiteboardPage() {
                                     selected={selectedNodeId === node.id}
                                     onDelete={(id) => {
                                         const nextNodes = nodes.filter(n => n.id !== id);
-                                        // 删除相关的连线（虽然便签现在没连线了，为了健壮性保留）
                                         const nextEdges = edges.filter(e => e.sourceId !== id && e.targetId !== id);
                                         updateNodes(nextNodes, true);
                                     }}
@@ -587,8 +588,8 @@ export default function WhiteboardPage() {
                                 </div>
                             )}
 
-                            {/* 锚点控制 (只在选中时显示) */}
-                            {selectedNodeId === node.id && node.type !== 'note' && (
+                            {/* 锚点控制 (选中时显示) */}
+                            {selectedNodeId === node.id && (
                                 <>
                                     <div
                                         className="absolute -bottom-3 -right-3 w-6 h-6 bg-white border shadow rounded-full cursor-nwse-resize flex items-center justify-center z-[60]"
