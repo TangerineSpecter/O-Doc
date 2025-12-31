@@ -34,14 +34,21 @@ export const useSettings = () => {
     });
 
     // --- 初始化加载 ---
+    // --- 初始化加载 ---
     const loadSettings = async () => {
         setIsLoading(true);
         try {
-            const [providersRes] = await Promise.all([
+            // ✅ 同时解构出第二个返回值 (systemConfigRes)
+            const [providersRes, systemConfigRes] = await Promise.all([
                 getProviders(),
                 getSystemAIConfig()
             ]);
+
             setProviders(providersRes as unknown as AIProvider[]);
+
+            // ✅ 修复 2：将获取到的配置存入 State
+            setSystemConfig(systemConfigRes as unknown as SystemAIConfig);
+
         } catch (error) {
             console.error("加载设置失败", error);
             toast.error("加载设置失败");
