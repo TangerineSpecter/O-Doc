@@ -28,6 +28,7 @@ class ErrorCode(Enum):
     SYSTEM_ERROR = (500, '系统异常')
     DATABASE_ERROR = (5001, '数据库错误')
     NETWORK_ERROR = (5002, '网络错误')
+    AI_SERVICE_ERROR = (5003, 'AI服务错误')
 
     WEBDEV_ERROR = (600, 'WebDev异常')
     WEBDEV_NOT_CONFIG = (6001, 'WebDAV 未配置或未开启')

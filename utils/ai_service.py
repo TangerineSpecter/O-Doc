@@ -23,9 +23,21 @@ class AIService:
             ai_model = AIModel.objects.get(id=model_id)
             provider = ai_model.provider
 
+            base_url = provider.base_url.strip().rstrip('/')
+
+            # 1. 如果用户误填了完整路径 /chat/completions，先去掉它
+            if base_url.endswith('/chat/completions'):
+                base_url = base_url.replace('/chat/completions', '')
+                base_url = base_url.rstrip('/')
+
+            # 2. 关键修复：如果 URL 不以 /v1 (或 /v1beta) 结尾，自动补全 /v1
+            # 这一步是为了模拟 Cherry Studio 的行为，解决 405 错误
+            if not base_url.endswith('/v1') and not base_url.endswith('/v1beta'):
+                base_url += '/v1'
+
             return {
                 "api_key": provider.api_key,
-                "base_url": provider.base_url.rstrip('/'),
+                "base_url": base_url,
                 "model_name": ai_model.name
             }
         except Exception as e:

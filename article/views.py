@@ -106,6 +106,38 @@ def run_polish_task(article_id):
     polisher.run()
 
 
+class ArticlePolishView(APIView):
+    """
+    文章润色同步API
+    接收文章内容，返回润色后的内容
+    """
+
+    def post(self, request):
+        try:
+            # 获取请求参数
+            content = request.data.get('content', '')
+            if not content:
+                return error_result(ErrorCode.PARAM_ERROR, "文章内容不能为空")
+
+            # 截取内容防止超长
+            content_snippet = content[:8000]
+            
+            # 准备Prompt
+            prompt = POLISH_ARTICLE_PROMPT_TEMPLATE.format(content=content_snippet)
+            
+            # 调用AI服务
+            polished_content = AIService.chat_completion(prompt)
+            
+            if not polished_content:
+                return error_result(ErrorCode.AI_SERVICE_ERROR, "AI润色失败")
+            
+            return success_result(data={"polished_content": polished_content})
+            
+        except Exception as e:
+            logger.error(f"ArticlePolishView Exception: {e}", exc_info=True)
+            return error_result(ErrorCode.SYSTEM_ERROR, str(e))
+
+
 class ArticleCreateView(APIView):
     """
     创建文章视图

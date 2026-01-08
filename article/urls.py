@@ -3,7 +3,7 @@ from article.views import (
     ArticleCreateView, ArticleDetailView,
     ArticleUpdateView, ArticleDeleteView,
     ArticleListView, ArticleTreeListView,
-    ArticleSaveWebView
+    ArticleSaveWebView, ArticlePolishView
 )
 
 urlpatterns = [
@@ -26,4 +26,6 @@ urlpatterns = [
     path('tree-list', ArticleTreeListView.as_view(), name='article-tree-list'),
     # 保存网页文章并解析
     path('save-web/', ArticleSaveWebView.as_view(), name='save_web_article'),
+    # 文章润色同步API
+    path('polish', ArticlePolishView.as_view(), name='polish-article'),
 ]

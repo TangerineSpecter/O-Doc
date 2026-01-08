@@ -72,38 +72,28 @@ ${truncatedContent}`;
  * AI 润色文章
  */
 export const polishArticleWithAI = async (content: string): Promise<string> => {
-    // 润色可能涉及全文，暂时截取前 5000 字以防 Token 溢出（视模型能力而定）
-    // 如果是流式处理体验更好，这里保持与现有逻辑一致的非流式等待
-    const truncatedContent = content.slice(0, 20000);
-
-    const prompt = `请充当一位「技术文章御用编辑」，对下文进行「专业级润色 + 排版重构」。  
-要求如下，必须逐条严格执行：
-
-1. 错别字、语病、口语化表达一律修正；句子保持技术准确性的同时做到简洁、流畅、正式。  
-2. 代码块必须：  
-   - 使用 \`\`\`language 形式标注语言（如 \`\`\`python / \`\`\`bash / \`\`\`yaml …）；  
-   - 若原文未给出语言，则根据上下文推断并补全；  
-   - 行内代码统一用 \`code\` 包裹。  
-   - 错误日志之类的内容也要用代码块的格式展示。
-3. 结构优化：  
-   - 超过 120 字或出现并列观点必须分段；  
-   - 采用二级、三级标题（##、###）划分逻辑块，禁止出现一级标题；  
-   - 关键术语、警告、最佳实践等用 **加粗** 提示；  
-   - 引用第三方资料或官方文档时使用 > 引用块。  
-4. 列表与表格：  
-   - 并列步骤用有序列表 1. 2. 3.；  
-   - 并列要素用无序列表 - ；  
-   - 配置项或参数优先用表格呈现，表头为| 参数 | 说明 | 默认值 |。  
-5. 禁止增删原意，禁止任何广告或“如下是润色结果”等废话。  
-6. 只需返回 markdown 的内容，无需带上\`\`\`markdown的代码块格式。
-
-直接返回润色后的 Markdown，全文使用中文全角标点，英文与数字两侧留半格空格。
-
-待润色文章：
-${truncatedContent}`;
-
     try {
-        return await fetchAIResponse(prompt);
+        const response = await fetch('/api/article/polish', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+                content: content
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('AI 润色请求失败');
+        }
+
+        const result = await response.json();
+        if (result.code !== 200) {
+            throw new Error(result.msg || 'AI 润色失败');
+        }
+
+        return result.data.polishedContent;
     } catch (error) {
         console.error("AI 润色文章失败:", error);
         throw error;
