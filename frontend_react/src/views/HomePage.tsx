@@ -1,17 +1,17 @@
-import React, {useCallback, useMemo, useState} from 'react';
-import {ArrowUpDown, Check, ChevronDown, Filter, Plus, Search} from 'lucide-react';
-import CreateAnthologyModal, {AnthologyFormData} from '../components/AnthologyModal';
+import React, { useCallback, useMemo, useState } from 'react';
+import { ArrowUpDown, Check, ChevronDown, Filter, Plus, Search } from 'lucide-react';
+import CreateAnthologyModal, { AnthologyFormData } from '../components/AnthologyModal';
 import ConfirmationModal from '../components/common/ConfirmationModal';
-import {SortableCollectionCard} from '../components/SortableCollectionCard'; // 引入新组件
-import {useCollections} from '../hooks/useCollections'; // 引入新 Hook
-import {closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors} from '@dnd-kit/core';
-import {rectSortingStrategy, SortableContext, sortableKeyboardCoordinates} from '@dnd-kit/sortable';
+import { SortableCollectionCard } from '../components/SortableCollectionCard'; // 引入新组件
+import { useCollections } from '../hooks/useCollections'; // 引入新 Hook
+import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 
 interface HomePageProps {
     onNavigate: (viewName: string, params?: any) => void;
 }
 
-export default function HomePage({onNavigate}: HomePageProps) {
+export default function HomePage({ onNavigate }: HomePageProps) {
     // 1. 使用 Custom Hook 接管核心逻辑
     const {
         displayCollections,
@@ -21,7 +21,8 @@ export default function HomePage({onNavigate}: HomePageProps) {
         handleDragEnd,
         addCollection,
         updateCollection,
-        removeCollection
+        removeCollection,
+        refresh: fetchCollections
     } = useCollections();
 
     // 2. UI 状态
@@ -34,6 +35,16 @@ export default function HomePage({onNavigate}: HomePageProps) {
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isSortOpen, setIsSortOpen] = useState(false);
 
+    // Filter by type (Header dropdown)
+    const [isTypeFilterOpen, setIsTypeFilterOpen] = useState(false);
+    const [selectedType, setSelectedType] = useState<'all' | 'article' | 'image'>('all');
+
+    const handleTypeSelect = (type: 'all' | 'article' | 'image') => {
+        setSelectedType(type);
+        fetchCollections(type === 'all' ? undefined : type);
+        setIsTypeFilterOpen(false);
+    };
+
     // 滚动加载逻辑 (纯UI逻辑)
     const [visibleCount, setVisibleCount] = useState(12);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -43,8 +54,8 @@ export default function HomePage({onNavigate}: HomePageProps) {
 
     // DnD 传感器
     const sensors = useSensors(
-        useSensor(PointerSensor, {activationConstraint: {distance: 0}}),
-        useSensor(KeyboardSensor, {coordinateGetter: sortableKeyboardCoordinates})
+        useSensor(PointerSensor, { activationConstraint: { distance: 0 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
     );
 
     // 滚动监听
@@ -92,6 +103,7 @@ export default function HomePage({onNavigate}: HomePageProps) {
         <div onClick={() => {
             setIsFilterOpen(false);
             setIsSortOpen(false);
+            setIsTypeFilterOpen(false);
             setActiveMenuId(null);
         }}>
 
@@ -124,16 +136,43 @@ export default function HomePage({onNavigate}: HomePageProps) {
                     className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-white p-3 rounded-xl shadow-sm border border-slate-100">
                     <div className="relative">
                         <button
-                            className="flex items-center gap-2 text-slate-700 font-semibold text-base hover:text-orange-600 transition-colors pl-2">
-                            所有文集 ({displayCollections.length})
-                            <ChevronDown className="w-4 h-4"/>
+                            className="flex items-center gap-2 text-slate-700 font-semibold text-base hover:text-orange-600 transition-colors pl-2"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsTypeFilterOpen(!isTypeFilterOpen);
+                                setIsSortOpen(false);
+                                setIsFilterOpen(false);
+                            }}
+                        >
+                            {selectedType === 'all' ? '所有文集' : selectedType === 'article' ? '文章文集' : '图片文集'} ({displayCollections.length})
+                            <ChevronDown className={`w-4 h-4 transition-transform ${isTypeFilterOpen ? 'rotate-180' : ''}`} />
                         </button>
+
+                        {isTypeFilterOpen && (
+                            <div className="absolute left-0 top-full mt-2 w-40 bg-white rounded-lg shadow-xl border border-slate-100 z-50 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                                <button onClick={() => handleTypeSelect('all')}
+                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">
+                                    所有文集
+                                    {selectedType === 'all' && <Check className="w-4 h-4 text-orange-500" />}
+                                </button>
+                                <button onClick={() => handleTypeSelect('article')}
+                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">
+                                    文章文集
+                                    {selectedType === 'article' && <Check className="w-4 h-4 text-orange-500" />}
+                                </button>
+                                <button onClick={() => handleTypeSelect('image')}
+                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">
+                                    图片文集
+                                    {selectedType === 'image' && <Check className="w-4 h-4 text-orange-500" />}
+                                </button>
+                            </div>
+                        )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         <div className="relative flex-grow sm:flex-grow-0">
                             <input type="text" placeholder="筛选文集..."
-                                   className="pl-3 pr-8 py-1 bg-slate-50 border border-slate-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 w-full sm:w-40"/>
-                            <Search className="w-3 h-3 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2"/>
+                                className="pl-3 pr-8 py-1 bg-slate-50 border border-slate-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 w-full sm:w-40" />
+                            <Search className="w-3 h-3 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
                         </div>
                         <div className="h-5 w-px bg-slate-200 hidden sm:block mx-1"></div>
 
@@ -146,18 +185,18 @@ export default function HomePage({onNavigate}: HomePageProps) {
                                     setIsFilterOpen(!isFilterOpen);
                                     setIsSortOpen(false);
                                 }}>
-                                <Filter className="w-3.5 h-3.5"/>
+                                <Filter className="w-3.5 h-3.5" />
                                 <span>{filterType === 'all' ? '筛选' : filterType === 'top' ? '仅置顶' : '筛选'}</span>
                             </button>
                             {isFilterOpen && (
                                 <div
                                     className="absolute right-0 top-full mt-2 w-32 bg-white rounded-lg shadow-xl border border-slate-100 z-50 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                                     <button onClick={() => setFilterType('all')}
-                                            className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center">全部{filterType === 'all' &&
-                                        <Check className="w-3 h-3 text-orange-500"/>}</button>
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center">全部{filterType === 'all' &&
+                                            <Check className="w-3 h-3 text-orange-500" />}</button>
                                     <button onClick={() => setFilterType('top')}
-                                            className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center">只看置顶{filterType === 'top' &&
-                                        <Check className="w-3 h-3 text-orange-500"/>}</button>
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center">只看置顶{filterType === 'top' &&
+                                            <Check className="w-3 h-3 text-orange-500" />}</button>
                                 </div>
                             )}
                         </div>
@@ -171,23 +210,23 @@ export default function HomePage({onNavigate}: HomePageProps) {
                                     setIsSortOpen(!isSortOpen);
                                     setIsFilterOpen(false);
                                 }}>
-                                <ArrowUpDown className="w-3.5 h-3.5"/>
+                                <ArrowUpDown className="w-3.5 h-3.5" />
                                 <span>{sortType === 'default' ? '排序' : sortType === 'count' ? '按数量' : '按名称'}</span>
                             </button>
                             {isSortOpen && (
                                 <div
                                     className="absolute right-0 top-full mt-2 w-32 bg-white rounded-lg shadow-xl border border-slate-100 z-50 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                                     <button onClick={() => setSortType('default')}
-                                            className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center">默认排序{sortType === 'default' &&
-                                        <Check className="w-3 h-3 text-orange-500"/>}</button>
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center">默认排序{sortType === 'default' &&
+                                            <Check className="w-3 h-3 text-orange-500" />}</button>
                                     <button onClick={() => setSortType('count')}
-                                            className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center">按数量
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center">按数量
                                         (多→少){sortType === 'count' &&
-                                            <Check className="w-3 h-3 text-orange-500"/>}</button>
+                                            <Check className="w-3 h-3 text-orange-500" />}</button>
                                     <button onClick={() => setSortType('az')}
-                                            className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center">按名称
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-between items-center">按名称
                                         (A-Z){sortType === 'az' &&
-                                            <Check className="w-3 h-3 text-orange-500"/>}</button>
+                                            <Check className="w-3 h-3 text-orange-500" />}</button>
                                 </div>
                             )}
                         </div>
@@ -196,9 +235,9 @@ export default function HomePage({onNavigate}: HomePageProps) {
                             setEditingCollection(null);
                             setIsModalOpen(true);
                         }}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-xs font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95">
-                            <Plus className="w-3.5 h-3.5" strokeWidth={3}/><span
-                            className="hidden sm:inline">新建文集</span><span className="sm:hidden">新建</span>
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-xs font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95">
+                            <Plus className="w-3.5 h-3.5" strokeWidth={3} /><span
+                                className="hidden sm:inline">新建文集</span><span className="sm:hidden">新建</span>
                         </button>
                     </div>
                 </div>
@@ -236,7 +275,7 @@ export default function HomePage({onNavigate}: HomePageProps) {
                 {/* Empty & Loader */}
                 {visibleCollections.length === 0 && !loading && (
                     <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400">
-                        <div className="bg-slate-50 p-4 rounded-full mb-3"><Search className="w-6 h-6"/></div>
+                        <div className="bg-slate-50 p-4 rounded-full mb-3"><Search className="w-6 h-6" /></div>
                         <p>没有找到符合条件的文集</p>
                         <button onClick={() => {
                             setFilterType('all');

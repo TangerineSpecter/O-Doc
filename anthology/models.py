@@ -38,6 +38,16 @@ class Anthology(models.Model):
         verbose_name='创建者ID'
     )
 
+    type = models.CharField(
+        max_length=10,
+        choices=[
+            ('article', '文章文集'),
+            ('image', '图片文集')
+        ],
+        default='article',
+        verbose_name='文集类型'
+    )
+
     permission = models.CharField(
         max_length=10,
         choices=[

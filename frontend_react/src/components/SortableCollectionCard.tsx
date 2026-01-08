@@ -11,9 +11,9 @@ import {
     Plus,
     Trash
 } from 'lucide-react';
-import {useSortable} from '@dnd-kit/sortable';
-import {CSS} from '@dnd-kit/utilities';
-import {Anthology} from '../api/anthology';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Anthology } from '../api/anthology';
 
 // 扩展 Anthology 类型以包含前端渲染所需的 icon 组件
 export interface Collection extends Anthology {
@@ -30,13 +30,13 @@ interface SortableCollectionCardProps {
 }
 
 export const SortableCollectionCard = ({
-                                           item,
-                                           onNavigate,
-                                           isMenuOpen,
-                                           onToggleMenu,
-                                           onEdit,
-                                           onDelete
-                                       }: SortableCollectionCardProps) => {
+    item,
+    onNavigate,
+    isMenuOpen,
+    onToggleMenu,
+    onEdit,
+    onDelete
+}: SortableCollectionCardProps) => {
     const {
         attributes,
         listeners,
@@ -75,7 +75,7 @@ export const SortableCollectionCard = ({
                     className="absolute top-1.5 left-1/2 -translate-x-1/2 w-12 h-5 flex items-center justify-center rounded-full text-slate-300 hover:text-orange-500 hover:bg-orange-50 cursor-grab active:cursor-grabbing z-30 transition-colors opacity-0 group-hover:opacity-100"
                     title="按住拖动排序"
                 >
-                    <GripHorizontal className="w-4 h-4"/>
+                    <GripHorizontal className="w-4 h-4" />
                 </div>
             )}
 
@@ -85,7 +85,7 @@ export const SortableCollectionCard = ({
                     onClick={onToggleMenu}
                     className={`p-1.5 rounded-md transition-colors ${isMenuOpen ? 'bg-orange-50 text-orange-600' : 'text-slate-300 hover:bg-slate-50 hover:text-slate-600 opacity-0 group-hover:opacity-100'}`}
                 >
-                    <MoreHorizontal className="w-4 h-4"/>
+                    <MoreHorizontal className="w-4 h-4" />
                 </button>
 
                 {isMenuOpen && (
@@ -98,7 +98,7 @@ export const SortableCollectionCard = ({
                             }}
                             className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 hover:text-orange-600 flex items-center gap-2"
                         >
-                            <Edit className="w-3.5 h-3.5"/> 编辑
+                            <Edit className="w-3.5 h-3.5" /> 编辑
                         </button>
                         <button
                             onClick={(e) => {
@@ -107,7 +107,7 @@ export const SortableCollectionCard = ({
                             }}
                             className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
                         >
-                            <Trash className="w-3.5 h-3.5"/> 删除
+                            <Trash className="w-3.5 h-3.5" /> 删除
                         </button>
                     </div>
                 )}
@@ -124,17 +124,17 @@ export const SortableCollectionCard = ({
                         </div>
                         <div className="flex items-center gap-2">
                             <h3
-                                onClick={() => onNavigate('article', {collId: item.collId, title: item.title})}
+                                onClick={() => onNavigate('article', { collId: item.collId, title: item.title })}
                                 className="font-bold text-slate-800 text-base leading-tight group-hover:text-orange-600 transition-colors cursor-pointer line-clamp-1"
                             >
                                 {item.title}
                             </h3>
                             {item.isTop && <span
                                 className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-50 border border-red-100 text-[10px] font-bold text-red-600 leading-none"><ArrowUp
-                                className="w-2.5 h-2.5" strokeWidth={3}/>置顶</span>}
+                                    className="w-2.5 h-2.5" strokeWidth={3} />置顶</span>}
                             {item.permission === 'private' && <span
                                 className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-medium text-slate-500 leading-none"><Lock
-                                className="w-2.5 h-2.5"/></span>}
+                                    className="w-2.5 h-2.5" /></span>}
                         </div>
                     </div>
 
@@ -174,7 +174,7 @@ export const SortableCollectionCard = ({
                             >
                                 <div className="flex items-center gap-2 overflow-hidden">
                                     <FileText
-                                        className="w-3 h-3 text-slate-300 group-hover/item:text-orange-500 flex-shrink-0"/>
+                                        className="w-3 h-3 text-slate-300 group-hover/item:text-orange-500 flex-shrink-0" />
                                     <span
                                         className="text-xs text-slate-600 truncate group-hover/item:text-slate-900 transition-colors">{article.title}</span>
                                 </div>
@@ -186,7 +186,7 @@ export const SortableCollectionCard = ({
                 ) : (
                     <div className="h-full flex flex-col items-center justify-center text-slate-400 py-4 gap-2">
                         <div className="bg-white p-2 rounded-full border border-dashed border-slate-300"><Plus
-                            className="w-4 h-4 text-slate-300"/></div>
+                            className="w-4 h-4 text-slate-300" /></div>
                         <span className="text-[10px]">暂无文档，点击创建</span>
                     </div>
                 )}
@@ -196,10 +196,10 @@ export const SortableCollectionCard = ({
             <div
                 className="bg-white border-t border-slate-50 h-0 group-hover:h-8 transition-all duration-300 overflow-hidden flex items-center justify-center">
                 <button
-                    onClick={() => onNavigate('article', {collId: item.collId, title: item.title})}
+                    onClick={() => onNavigate('article', { collId: item.collId, title: item.title })}
                     className="text-[10px] font-medium text-orange-600 hover:text-orange-700 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity delay-75"
                 >
-                    查看全部 <ChevronDown className="w-2.5 h-2.5 -rotate-90"/>
+                    查看全部 <ChevronDown className="w-2.5 h-2.5 -rotate-90" />
                 </button>
             </div>
         </div>

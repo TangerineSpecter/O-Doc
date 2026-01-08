@@ -47,8 +47,19 @@ class AnthologyListView(APIView):
 
     def get(self, request):
         try:
+            # 获取筛选参数
+            coll_type = request.query_params.get('type')
+
+            # 构建查询条件
+            query_kwargs = {
+                'userid': 'admin',
+                'is_valid': True
+            }
+            if coll_type:
+                query_kwargs['type'] = coll_type
+
             # 查询admin用户的所有有效文集，按置顶、更新时间降序、排序升序排序
-            anthologies = Anthology.objects.filter(userid='admin', is_valid=True).order_by('-is_top', 'sort')
+            anthologies = Anthology.objects.filter(**query_kwargs).order_by('-is_top', 'sort')
 
             # 准备返回数据
             result_list = []

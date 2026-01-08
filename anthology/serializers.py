@@ -14,7 +14,7 @@ class AnthologySerializer(serializers.ModelSerializer):
     class Meta:
         model = Anthology
         fields = ['coll_id', 'title', 'description', 'icon_id', 'userid', 'permission', 'is_top',
-                  'rag_not_synced_count', 'count', 'created_at', 'updated_at']
+                  'rag_not_synced_count', 'count', 'created_at', 'updated_at', 'type']
 
         validators = [
             UniqueTogetherValidator(

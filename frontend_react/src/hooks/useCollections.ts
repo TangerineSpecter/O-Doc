@@ -1,5 +1,5 @@
-import {useCallback, useEffect, useMemo, useState} from 'react';
-import {useToast} from '../components/common/ToastProvider';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useToast } from '../components/common/ToastProvider';
 import {
     Anthology,
     createAnthology,
@@ -9,10 +9,10 @@ import {
     sortAnthology,
     updateAnthology
 } from '../api/anthology';
-import {getIconComponent} from '../constants/iconList';
-import {Collection} from '../components/SortableCollectionCard';
-import {DragEndEvent} from '@dnd-kit/core';
-import {arrayMove} from '@dnd-kit/sortable';
+import { getIconComponent } from '../constants/iconList';
+import { Collection } from '../components/SortableCollectionCard';
+import { DragEndEvent } from '@dnd-kit/core';
+import { arrayMove } from '@dnd-kit/sortable';
 
 export const useCollections = () => {
     const toast = useToast();
@@ -24,10 +24,10 @@ export const useCollections = () => {
     const [sortType, setSortType] = useState('default');
 
     // 1. 获取数据
-    const fetchCollections = useCallback(async () => {
+    const fetchCollections = useCallback(async (type?: 'article' | 'image') => {
         setLoading(true);
         try {
-            const data: Anthology[] = await getAnthologyList();
+            const data: Anthology[] = await getAnthologyList(type);
             const processedData: Collection[] = data.map((anthology: Anthology) => ({
                 ...anthology,
                 articles: anthology.articles || [],
@@ -62,7 +62,7 @@ export const useCollections = () => {
 
     // 3. 处理拖拽排序
     const handleDragEnd = async (event: DragEndEvent) => {
-        const {active, over} = event;
+        const { active, over } = event;
         if (!over || active.id === over.id) return;
 
         const oldIndex = collections.findIndex((c) => c.collId === active.id);
