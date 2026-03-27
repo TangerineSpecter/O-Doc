@@ -13,6 +13,7 @@ export interface CreateAnthologyParams {
     permission: 'public' | 'private';
     isTop?: boolean;
     sort?: number;
+    type?: 'article' | 'image';
 }
 
 // 定义文集返回数据类型
@@ -27,4 +28,5 @@ export interface Anthology {
     articles: ArticleSummary[];
     permission: 'public' | 'private';
     sort?: number;
+    type?: 'article' | 'image'; // Added type field
 }

@@ -6,6 +6,7 @@ import {
     Edit,
     FileText,
     GripHorizontal,
+    Image as ImageIcon,
     Lock,
     MoreHorizontal,
     Plus,
@@ -158,37 +159,67 @@ export const SortableCollectionCard = ({
                 <p className="text-slate-500 text-xs line-clamp-2 leading-relaxed mb-2 h-9">{item.description}</p>
             </div>
 
-            {/* 文章列表预览 */}
+            {/* 列表/图片预览区域 */}
             <div className="flex-1 bg-slate-50/30 border-t border-slate-100 p-1">
-                {item.articles && item.articles.length > 0 ? (
-                    <ul className="space-y-0.5">
-                        {item.articles.map((article, idx) => (
-                            <li key={idx}
-                                onClick={() => onNavigate('article', {
-                                    collId: item.collId,
-                                    articleId: article.articleId,
-                                    title: item.title,
-                                    articleTitle: article.title
-                                })}
-                                className="group/item flex items-center justify-between py-1.5 px-2 rounded hover:bg-white hover:shadow-sm transition-all cursor-pointer"
-                            >
-                                <div className="flex items-center gap-2 overflow-hidden">
-                                    <FileText
-                                        className="w-3 h-3 text-slate-300 group-hover/item:text-orange-500 flex-shrink-0" />
-                                    <span
-                                        className="text-xs text-slate-600 truncate group-hover/item:text-slate-900 transition-colors">{article.title}</span>
+                {item.type === 'image' ? (
+                    // 图片文集展示：九宫格缩略图 (模拟)
+                    item.articles && item.articles.length > 0 ? (
+                        <div className="grid grid-cols-3 gap-1 p-1">
+                            {item.articles.slice(0, 6).map((article, idx) => (
+                                <div key={idx}
+                                    className="aspect-square bg-slate-100 rounded-md overflow-hidden relative group/img cursor-pointer hover:ring-2 hover:ring-orange-200"
+                                    onClick={() => onNavigate('article', {
+                                        collId: item.collId,
+                                        articleId: article.articleId,
+                                        title: item.title,
+                                        articleTitle: article.title
+                                    })}
+                                >
+                                    {/* 实际应该是展示图片，这里暂时用 icon 代替 */}
+                                    <div className="w-full h-full flex items-center justify-center bg-slate-200/50 text-slate-300">
+                                        <ImageIcon className="w-4 h-4" />
+                                    </div>
                                 </div>
-                                <span
-                                    className="text-xs text-slate-300 font-mono whitespace-nowrap pl-2">{article.date}</span>
-                            </li>
-                        ))}
-                    </ul>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400 py-4 gap-2">
+                            <div className="bg-white p-2 rounded-full border border-dashed border-slate-300"><ImageIcon className="w-4 h-4 text-slate-300" /></div>
+                            <span className="text-[10px]">暂无图片</span>
+                        </div>
+                    )
                 ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 py-4 gap-2">
-                        <div className="bg-white p-2 rounded-full border border-dashed border-slate-300"><Plus
-                            className="w-4 h-4 text-slate-300" /></div>
-                        <span className="text-[10px]">暂无文档，点击创建</span>
-                    </div>
+                    // 文章文集展示：列表
+                    item.articles && item.articles.length > 0 ? (
+                        <ul className="space-y-0.5">
+                            {item.articles.map((article, idx) => (
+                                <li key={idx}
+                                    onClick={() => onNavigate('article', {
+                                        collId: item.collId,
+                                        articleId: article.articleId,
+                                        title: item.title,
+                                        articleTitle: article.title
+                                    })}
+                                    className="group/item flex items-center justify-between py-1.5 px-2 rounded hover:bg-white hover:shadow-sm transition-all cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-2 overflow-hidden">
+                                        <FileText
+                                            className="w-3 h-3 text-slate-300 group-hover/item:text-orange-500 flex-shrink-0" />
+                                        <span
+                                            className="text-xs text-slate-600 truncate group-hover/item:text-slate-900 transition-colors">{article.title}</span>
+                                    </div>
+                                    <span
+                                        className="text-xs text-slate-300 font-mono whitespace-nowrap pl-2">{article.date}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400 py-4 gap-2">
+                            <div className="bg-white p-2 rounded-full border border-dashed border-slate-300"><Plus
+                                className="w-4 h-4 text-slate-300" /></div>
+                            <span className="text-[10px]">暂无文档，点击创建</span>
+                        </div>
+                    )
                 )}
             </div>
 

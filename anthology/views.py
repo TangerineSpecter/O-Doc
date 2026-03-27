@@ -90,7 +90,8 @@ class AnthologyListView(APIView):
                     'isTop': anthology.is_top,
                     'description': anthology.description,
                     'articles': article_summaries,
-                    'permission': anthology.permission
+                    'permission': anthology.permission,
+                    'type': anthology.type
                 }
 
                 result_list.append(anthology_data)
