@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 import os
 from pathlib import Path
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -18,13 +19,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
+DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() in {'1', 'true', 'yes', 'on'}
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-30$7ep7l9i7jkm)5dxo(e5$#k7plbwdg!na3l^j5@)ci%$rfiy'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = 'django-insecure-30$7ep7l9i7jkm)5dxo(e5$#k7plbwdg!na3l^j5@)ci%$rfiy'
+    else:
+        raise ImproperlyConfigured('DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is false')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+    if host.strip()
+]
 
 # Application definition
 DEFAULT_PORT = "11800"
@@ -74,6 +83,7 @@ REST_FRAMEWORK = {
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'djangorestframework_camel_case.middleware.CamelCaseMiddleWare',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -105,7 +115,7 @@ WSGI_APPLICATION = 'o_doc.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',  # 数据库文件将保存在项目根目录
+        'NAME': os.getenv('DJANGO_DB_PATH', str(BASE_DIR / 'db.sqlite3')),
     }
 }
 
@@ -145,13 +155,23 @@ STATIC_URL = '/static/'  # 静态文件访问 URL
 STATICFILES_DIRS = [
     BASE_DIR / 'static',  # 指向项目根目录的 static 文件夹
 ]
-STATIC_ROOT = BASE_DIR / 'staticfiles'  # 生产环境静态文件收集目录
+STATIC_ROOT = Path(os.getenv('DJANGO_STATIC_ROOT', str(BASE_DIR / 'staticfiles')))
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+    },
+}
 
 # Media files (Uploaded files)
 # https://docs.djangoproject.com/en/5.1/ref/settings/#media-root
 
-MEDIA_ROOT = BASE_DIR / 'media'  # 媒体文件存储目录
+MEDIA_ROOT = Path(os.getenv('DJANGO_MEDIA_ROOT', str(BASE_DIR / 'media')))
 MEDIA_URL = '/media/'  # 媒体文件访问 URL
+
+CHROMA_DB_PATH = Path(os.getenv('ODOC_CHROMA_PATH', str(BASE_DIR / 'chroma_data')))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

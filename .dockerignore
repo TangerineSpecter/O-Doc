@@ -1,27 +1,35 @@
-# 忽略前端源码目录
-frontend_react/
-
-# 忽略版本控制目录
+# 版本控制目录
 .git/
 .gitignore
 
-# 忽略依赖和构建目录
-frontend_react/
+# 前端依赖和构建产物
+frontend_react/node_modules/
+frontend_react/dist/
 
-# 忽略临时文件
+# Python 缓存与本地数据
+__pycache__/
+*.pyc
+db.sqlite3
+chroma_data/
+media/
+staticfiles/
+deploy/runtime/
+
+# 本地生成的静态产物
+templates/index.html
+static/
+
+# 临时文件
 *.log
 *.tmp
 .tmp/
-*.sqlite3
-chroma_data/
 
-
-# 忽略IDE配置
+# IDE 配置
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# 忽略操作系统文件
+# 操作系统文件
 .DS_Store
 Thumbs.db

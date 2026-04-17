@@ -5,7 +5,7 @@ from django.conf import settings
 from system_settings.models import SystemSetting, AIModel
 import requests
 
-CHROMA_DB_PATH = os.path.join(settings.BASE_DIR, 'chroma_data')
+CHROMA_DB_PATH = str(settings.CHROMA_DB_PATH)
 
 
 class RagClient:
