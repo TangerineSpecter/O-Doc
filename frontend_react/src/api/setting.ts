@@ -1,8 +1,8 @@
 import request from '../utils/request';
-import type { ModelType, AIModel, AIProvider, SystemAIConfig, WebDavConfig } from '../types/api/setting';
+import type { ModelType, AIModel, AIProvider, SystemAIConfig, WebDavConfig, WebDavSyncStatus } from '../types/api/setting';
 
 // 重新导出类型以便其他组件使用
-export type { ModelType, AIModel, AIProvider, SystemAIConfig, WebDavConfig };
+export type { ModelType, AIModel, AIProvider, SystemAIConfig, WebDavConfig, WebDavSyncStatus };
 
 // --- 模拟数据 ---
 export const MOCK_PROVIDERS: AIProvider[] = [
@@ -86,6 +86,9 @@ export const saveSystemAIConfig = (data: SystemAIConfig) => request.post('/setti
 
 // 1. 获取 WebDAV 配置 (如果需要单独获取)
 export const getWebDavConfig = () => request.get<WebDavConfig>('/settings/config/get_webdav_config/');
+
+// 1.1 获取 WebDAV 同步状态
+export const getWebDavStatus = () => request.get<WebDavSyncStatus>('/settings/config/get_webdav_status/');
 
 // 2. 测试连接并保存配置
 export const saveWebDavConfig = (data: WebDavConfig) => request.post('/settings/config/save_webdav_config/', data);

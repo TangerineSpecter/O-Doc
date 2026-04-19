@@ -31,3 +31,19 @@ export interface WebDavConfig {
     password: string;
     interval: number;
 }
+
+export interface WebDavSyncStatus {
+    status: 'idle' | 'running' | 'success' | 'error' | string;
+    trigger: string;
+    runnerId: string;
+    lastStartedAt: string;
+    lastSuccessAt: string;
+    lastPullAt: string;
+    lastPushAt: string;
+    lastError: string;
+    lastSummary: string[];
+    lastSyncedSnapshotId: string;
+    lastUploadedSnapshotId: string;
+    lastPulledSnapshotId: string;
+    updatedAt: string;
+}

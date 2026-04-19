@@ -1,14 +1,16 @@
 import {useEffect, useRef, useState} from 'react';
-import {DownloadCloud, HardDrive, Loader2, Play, Save, Terminal} from 'lucide-react';
-import {saveWebDavConfig, WebDavConfig} from '@/api/setting.ts';
+import {AlertCircle, CheckCircle2, Clock3, DownloadCloud, HardDrive, Loader2, Play, Save, Terminal, UploadCloud} from 'lucide-react';
+import {saveWebDavConfig, WebDavConfig, WebDavSyncStatus} from '@/api/setting.ts';
 import {useToast} from '../common/ToastProvider';
 
 interface SyncSettingsProps {
     config: WebDavConfig;
+    status: WebDavSyncStatus;
     onChange: (config: WebDavConfig) => void;
+    onRefreshStatus: () => Promise<void>;
 }
 
-export const SyncSettings = ({config, onChange}: SyncSettingsProps) => {
+export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSettingsProps) => {
     const {success, error, warning} = useToast();
 
     // 状态管理
@@ -25,6 +27,50 @@ export const SyncSettings = ({config, onChange}: SyncSettingsProps) => {
         }
     }, [logs]);
 
+    useEffect(() => {
+        onRefreshStatus();
+        const timer = window.setInterval(() => {
+            onRefreshStatus();
+        }, 15000);
+
+        return () => window.clearInterval(timer);
+    }, [onRefreshStatus]);
+
+    const formatDateTime = (value?: string) => {
+        if (!value) return '暂无';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleString();
+    };
+
+    const statusMeta = {
+        idle: {
+            icon: Clock3,
+            label: '等待同步',
+            tone: 'text-slate-600 bg-slate-100 border-slate-200'
+        },
+        running: {
+            icon: Loader2,
+            label: '同步中',
+            tone: 'text-indigo-700 bg-indigo-50 border-indigo-200'
+        },
+        success: {
+            icon: CheckCircle2,
+            label: '最近成功',
+            tone: 'text-emerald-700 bg-emerald-50 border-emerald-200'
+        },
+        error: {
+            icon: AlertCircle,
+            label: '最近失败',
+            tone: 'text-rose-700 bg-rose-50 border-rose-200'
+        }
+    }[status.status] || {
+        icon: Clock3,
+        label: status.status || '未知状态',
+        tone: 'text-slate-600 bg-slate-100 border-slate-200'
+    };
+    const StatusIcon = statusMeta.icon;
+
     // 1. 测试连接并保存 (保持原逻辑)
     const handleSave = async () => {
         if (!config.url || !config.username || !config.password) {
@@ -35,6 +81,7 @@ export const SyncSettings = ({config, onChange}: SyncSettingsProps) => {
         try {
             await saveWebDavConfig(config);
             success('连接成功，配置已保存');
+            await onRefreshStatus();
         } catch (err: any) {
             console.error(err);
             error(err.response?.data?.msg || '连接失败，请检查配置');
@@ -87,46 +134,67 @@ export const SyncSettings = ({config, onChange}: SyncSettingsProps) => {
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
+            let buffer = '';
+
+            const handleLine = (line: string) => {
+                if (!line.trim()) return;
+
+                const data = JSON.parse(line);
+
+                if (typeof data.code === 'number' && data.code !== 200) {
+                    throw new Error(data.msg || '同步失败');
+                }
+
+                if (data.msg) {
+                    let prefix = '> ';
+                    if (data.step === 'error') prefix = '❌ ';
+                    if (data.step === 'summary' || data.step === 'done') prefix = '✨ ';
+
+                    setLogs(prev => [...prev, `${prefix}${data.msg}`]);
+                }
+
+                if (data.progress !== undefined) {
+                    setProgress(data.progress);
+                }
+
+                if (data.step === 'error') {
+                    throw new Error(data.msg || '同步失败');
+                }
+
+                if (data.step === 'done') {
+                    success(`${direction === 'upload' ? '上传' : '下载'}完成`);
+                    onRefreshStatus();
+                    if (direction === 'download') {
+                        setTimeout(() => window.location.reload(), 1500);
+                    }
+                }
+            };
 
             // 循环读取流数据
             while (true) {
                 const {done, value} = await reader.read();
                 if (done) break;
 
-                const chunk = decoder.decode(value, {stream: true});
-                // 处理“粘包”：后端可能一次发过来多行数据，按换行符切割
-                const lines = chunk.split('\n').filter(line => line.trim() !== '');
+                buffer += decoder.decode(value, {stream: true});
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
 
                 for (const line of lines) {
                     try {
-                        const data = JSON.parse(line);
-
-                        // 1. 更新日志
-                        if (data.msg) {
-                            // 如果是 summary 或 error，加上特殊标记
-                            let prefix = '> ';
-                            if (data.step === 'error') prefix = '❌ ';
-                            if (data.step === 'summary' || data.step === 'done') prefix = '✨ ';
-
-                            setLogs(prev => [...prev, `${prefix}${data.msg}`]);
-                        }
-
-                        // 2. 更新进度条 (如果有 progress 字段)
-                        if (data.progress !== undefined) {
-                            setProgress(data.progress);
-                        }
-
-                        // 3. 结束信号
-                        if (data.step === 'done') {
-                            success(`${direction === 'upload' ? '上传' : '下载'}完成`);
-                            if (direction === 'download') {
-                                setTimeout(() => window.location.reload(), 1500);
-                            }
-                        }
+                        handleLine(line);
                     } catch (e) {
-                        console.warn("解析日志失败:", line);
+                        if (e instanceof SyntaxError) {
+                            console.warn("解析日志失败:", line);
+                            continue;
+                        }
+                        throw e;
                     }
                 }
+            }
+
+            const finalChunk = buffer.trim();
+            if (finalChunk) {
+                handleLine(finalChunk);
             }
         } catch (err: any) {
             setLogs(prev => [...prev, `❌ 错误: ${err.message || err}`]);
@@ -160,6 +228,45 @@ export const SyncSettings = ({config, onChange}: SyncSettingsProps) => {
                     </button>
                 </div>
             </div>
+
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`rounded-xl border px-4 py-3 ${statusMeta.tone}`}>
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                        <StatusIcon className={`w-4 h-4 ${status.status === 'running' ? 'animate-spin' : ''}`}/>
+                        {statusMeta.label}
+                    </div>
+                    <p className="mt-2 text-xs opacity-80">最近成功时间：{formatDateTime(status.lastSuccessAt)}</p>
+                    <p className="mt-1 text-xs opacity-80">最近开始时间：{formatDateTime(status.lastStartedAt)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 space-y-1">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                        <UploadCloud className="w-4 h-4"/>
+                        同步状态
+                    </div>
+                    <p>最近上传：{formatDateTime(status.lastPushAt)}</p>
+                    <p>最近拉取：{formatDateTime(status.lastPullAt)}</p>
+                    <p>触发方式：{status.trigger || '暂无'}</p>
+                    <p>远端快照：{status.lastSyncedSnapshotId || '暂无'}</p>
+                </div>
+            </div>
+
+            {status.lastError && (
+                <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    <div className="font-semibold mb-1">最近一次错误</div>
+                    <div className="break-all">{status.lastError}</div>
+                </div>
+            )}
+
+            {status.lastSummary?.length > 0 && (
+                <div className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="text-sm font-semibold text-slate-800 mb-2">最近一次同步摘要</div>
+                    <div className="space-y-1 text-xs text-slate-600">
+                        {status.lastSummary.map((item, index) => (
+                            <div key={`${item}-${index}`}>{item}</div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* 表单区域 */}
             <div

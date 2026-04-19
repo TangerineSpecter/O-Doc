@@ -29,6 +29,12 @@ class WebDavClient:
     def exists(self, remote_path):
         return self.client.check(remote_path)
 
+    @staticmethod
+    def _normalize_remote_path(remote_path):
+        if not remote_path:
+            return '/'
+        return remote_path if remote_path.startswith('/') else f'/{remote_path}'
+
     def ensure_directory(self, remote_dir):
         """
         递归创建目录（激进模式）
@@ -94,3 +100,28 @@ class WebDavClient:
         except Exception as e:
             print(f"WebDAV read content failed: {e}")
             return None
+
+    def list_directory(self, remote_dir):
+        try:
+            remote_dir = self._normalize_remote_path(remote_dir)
+            return self.client.list(remote_dir)
+        except Exception as e:
+            print(f"WebDAV list failed: {remote_dir}. Error: {e}")
+            return None
+
+    def is_directory(self, remote_path):
+        try:
+            remote_path = self._normalize_remote_path(remote_path)
+            return self.client.is_dir(remote_path)
+        except Exception as e:
+            print(f"WebDAV stat failed: {remote_path}. Error: {e}")
+            return False
+
+    def delete_path(self, remote_path):
+        try:
+            remote_path = self._normalize_remote_path(remote_path)
+            self.client.clean(remote_path)
+            return True
+        except Exception as e:
+            print(f"WebDAV delete failed: {remote_path}. Error: {e}")
+            return False

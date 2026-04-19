@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import {useToast} from '../components/common/ToastProvider';
 import {
     AIProvider,
@@ -7,12 +7,14 @@ import {
     getProviders,
     getSystemAIConfig,
     getWebDavConfig,
+    getWebDavStatus,
     ModelType,
     saveModel,
     saveProvider,
     saveSystemAIConfig,
     SystemAIConfig,
-    WebDavConfig
+    WebDavConfig,
+    WebDavSyncStatus
 } from '../api/setting';
 
 export const useSettings = () => {
@@ -31,6 +33,21 @@ export const useSettings = () => {
     // WebDav 配置暂时略过，逻辑类似
     const [webDavConfig, setWebDavConfig] = useState<WebDavConfig>({
         enabled: false, url: '', remotePath: '', username: '', password: '', interval: 30
+    });
+    const [webDavStatus, setWebDavStatus] = useState<WebDavSyncStatus>({
+        status: 'idle',
+        trigger: '',
+        runnerId: '',
+        lastStartedAt: '',
+        lastSuccessAt: '',
+        lastPullAt: '',
+        lastPushAt: '',
+        lastError: '',
+        lastSummary: [],
+        lastSyncedSnapshotId: '',
+        lastUploadedSnapshotId: '',
+        lastPulledSnapshotId: '',
+        updatedAt: ''
     });
 
     // --- 初始化加载 ---
@@ -58,18 +75,23 @@ export const useSettings = () => {
     };
 
     // 独立加载 WebDAV 的函数 ---
-    const fetchWebDavConfig = async () => {
+    const fetchWebDavConfig = useCallback(async () => {
         try {
-            const res = await getWebDavConfig();
-            if (res) {
-                // 加个类型断言防止 TS 报错
-                setWebDavConfig(res as unknown as WebDavConfig);
+            const [configRes, statusRes] = await Promise.all([
+                getWebDavConfig(),
+                getWebDavStatus()
+            ]);
+            if (configRes) {
+                setWebDavConfig(configRes as unknown as WebDavConfig);
+            }
+            if (statusRes) {
+                setWebDavStatus(statusRes as unknown as WebDavSyncStatus);
             }
         } catch (error) {
             // 404 也不要弹窗报错，静默失败即可，因为用户可能还没配置后端
             console.warn("WebDAV 配置加载失败或未实现:", error);
         }
-    };
+    }, []);
 
     useEffect(() => {
         loadSettings();
@@ -173,6 +195,7 @@ export const useSettings = () => {
         providers,
         systemConfig,
         webDavConfig,
+        webDavStatus,
         isSaving,
         isLoading,
         allModels,
@@ -187,6 +210,7 @@ export const useSettings = () => {
         handleDelete,
 
         fetchWebDavConfig,
+        fetchWebDavStatus: fetchWebDavConfig,
         // 重新加载
         refresh: loadSettings
     };

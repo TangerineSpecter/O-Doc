@@ -1,12 +1,18 @@
 import json
 
 from django.http import StreamingHttpResponse
+from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 
+from system_settings.sync_scheduler import (
+    generate_runner_id,
+    get_runtime_state,
+    update_runtime_state,
+)
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
-from utils.sync_manager import SyncManager
+from utils.sync_manager import SyncError, SyncManager
 from utils.webdav import WebDavClient
 from .models import AIProvider, AIModel, SystemSetting
 from .serializers import AIProviderSerializer, AIModelSerializer
@@ -72,6 +78,50 @@ class SystemConfigViewSet(viewsets.ViewSet):
     专门处理系统全局配置的接口 (如默认模型)
     """
 
+    @staticmethod
+    def _sync_from_remote(manager, runtime_state, remote_meta, runner_id, trigger):
+        if remote_meta and remote_meta.get('snapshot_id'):
+            remote_snapshot_id = remote_meta['snapshot_id']
+            last_synced_snapshot_id = runtime_state.get('last_synced_snapshot_id')
+            if remote_snapshot_id != last_synced_snapshot_id:
+                yield json.dumps({
+                    "step": "processing",
+                    "msg": "检测到远端快照已更新，先拉取远端数据再继续同步。"
+                }) + "\n"
+
+        yield json.dumps({"step": "init", "msg": "开始从云端拉取快照..."}) + "\n"
+
+        data_count = manager.sync_data_download()
+        yield json.dumps({
+            "step": "processing",
+            "msg": f"数据快照已恢复，共对齐 {data_count} 条记录"
+        }) + "\n"
+
+        file_count = manager.sync_assets_download()
+        yield json.dumps({
+            "step": "processing",
+            "msg": f"媒体资源已对齐，共下载/覆盖 {file_count} 个文件"
+        }) + "\n"
+
+        static_count = manager.sync_static_download()
+        yield json.dumps({
+            "step": "processing",
+            "msg": f"静态资源已对齐，共下载/覆盖 {static_count} 个文件"
+        }) + "\n"
+
+        snapshot_id = (remote_meta or {}).get('snapshot_id')
+        if snapshot_id:
+            now = timezone.now().isoformat()
+            update_runtime_state(
+                status='success',
+                trigger=trigger,
+                runner_id=runner_id,
+                last_pulled_snapshot_id=snapshot_id,
+                last_synced_snapshot_id=snapshot_id,
+                last_pull_at=now,
+                last_error='',
+            )
+
     @action(detail=False, methods=['get'])
     def get_ai_config(self, request):
         # 获取 AI 配置，如果没有则返回默认空结构
@@ -104,7 +154,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 return None
 
             client = WebDavClient(config['url'], config['username'], config['password'])
-            remote_path = config.get('remote_path', '/o-doc-sync/')
+            remote_path = config.get('remote_path') or config.get('remotePath') or '/o-doc-sync/'
             return SyncManager(client, remote_path)
         except SystemSetting.DoesNotExist:
             return None
@@ -119,11 +169,30 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 'url': '',
                 'username': '',
                 'password': '',
-                'remotePath': '/o-doc-backup/',
+                'remote_path': '/o-doc-backup/',
                 'interval': 30
             }}
         )
         return success_result(config.value)
+
+    @action(detail=False, methods=['get'])
+    def get_webdav_status(self, request):
+        runtime_state = get_runtime_state()
+        return success_result({
+            'status': runtime_state.get('status', 'idle'),
+            'trigger': runtime_state.get('trigger', ''),
+            'runner_id': runtime_state.get('runner_id', ''),
+            'last_started_at': runtime_state.get('last_started_at', ''),
+            'last_success_at': runtime_state.get('last_success_at', ''),
+            'last_pull_at': runtime_state.get('last_pull_at', ''),
+            'last_push_at': runtime_state.get('last_push_at', ''),
+            'last_error': runtime_state.get('last_error', ''),
+            'last_summary': runtime_state.get('last_summary', []),
+            'last_synced_snapshot_id': runtime_state.get('last_synced_snapshot_id', ''),
+            'last_uploaded_snapshot_id': runtime_state.get('last_uploaded_snapshot_id', ''),
+            'last_pulled_snapshot_id': runtime_state.get('last_pulled_snapshot_id', ''),
+            'updated_at': runtime_state.get('updated_at', ''),
+        })
 
     @action(detail=False, methods=['post'])
     def save_webdav_config(self, request):
@@ -161,16 +230,60 @@ class SystemConfigViewSet(viewsets.ViewSet):
             return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
 
         def stream_generator():
-            # 1. 数据库阶段
-            for chunk in manager.sync_data_upload_stream():
-                yield chunk
+            try:
+                runner_id = generate_runner_id('manual')
+                runtime_state = get_runtime_state()
+                issues = manager.validate_upload_state()
+                if issues:
+                    for issue in issues:
+                        yield json.dumps({"step": "error", "msg": issue}) + "\n"
+                    return
 
-            # 2. 资源文件阶段
-            for chunk in manager.sync_assets_upload_stream():
-                yield chunk
+                remote_meta = manager.get_remote_snapshot_meta()
+                remote_snapshot_id = (remote_meta or {}).get('snapshot_id')
+                last_synced_snapshot_id = runtime_state.get('last_synced_snapshot_id')
+                if remote_snapshot_id and remote_snapshot_id != last_synced_snapshot_id:
+                    yield from self._sync_from_remote(
+                        manager=manager,
+                        runtime_state=runtime_state,
+                        remote_meta=remote_meta,
+                        runner_id=runner_id,
+                        trigger='manual-preflight',
+                    )
 
-            # 3. 结束信号
-            yield json.dumps({"step": "done", "msg": "✅ 所有同步已完成！"}) + "\n"
+                yield json.dumps({
+                    "step": "init",
+                    "msg": "开始上传同步，当前会先同步文件，再写入数据快照，避免云端出现半同步状态。"
+                }) + "\n"
+
+                for chunk in manager.sync_static_upload_stream():
+                    yield chunk
+
+                for chunk in manager.sync_assets_upload_stream():
+                    yield chunk
+
+                for chunk in manager.sync_data_upload_stream():
+                    yield chunk
+
+                snapshot_meta = manager.write_snapshot_meta(
+                    source='manual',
+                    runner_id=runner_id,
+                )
+                update_runtime_state(
+                    status='success',
+                    trigger='manual',
+                    runner_id=runner_id,
+                    last_success_at=timezone.now().isoformat(),
+                    last_uploaded_snapshot_id=snapshot_meta['snapshot_id'],
+                    last_synced_snapshot_id=snapshot_meta['snapshot_id'],
+                    last_push_at=timezone.now().isoformat(),
+                    last_error='',
+                )
+                yield json.dumps({"step": "done", "msg": "✅ 所有同步已完成！"}) + "\n"
+            except SyncError as e:
+                yield json.dumps({"step": "error", "msg": str(e)}) + "\n"
+            except Exception as e:
+                yield json.dumps({"step": "error", "msg": f"同步失败：{str(e)}"}) + "\n"
 
         return StreamingHttpResponse(stream_generator(), content_type='application/x-ndjson')
 
@@ -185,12 +298,22 @@ class SystemConfigViewSet(viewsets.ViewSet):
         if not manager:
             return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
 
-        try:
-            # 1. 拉取数据
-            data_count = manager.sync_data_download()
-            # 2. 拉取资源
-            file_count = manager.sync_assets_download()
+        def stream_generator():
+            try:
+                runner_id = generate_runner_id('manual')
+                runtime_state = get_runtime_state()
+                remote_meta = manager.get_remote_snapshot_meta()
+                yield from self._sync_from_remote(
+                    manager=manager,
+                    runtime_state=runtime_state,
+                    remote_meta=remote_meta,
+                    runner_id=runner_id,
+                    trigger='manual-pull',
+                )
+                yield json.dumps({"step": "done", "msg": "✅ 云端同步完成，本地数据与资源已刷新"}) + "\n"
+            except SyncError as e:
+                yield json.dumps({"step": "error", "msg": str(e)}) + "\n"
+            except Exception as e:
+                yield json.dumps({"step": "error", "msg": ErrorCode.WEBDEV_DOWNLOAD_FAIL.message}) + "\n"
 
-            return success_result(msg=f"同步完成：本地合并 {data_count} 条记录，下载 {file_count} 个文件")
-        except Exception as e:
-            return error_result(ErrorCode.WEBDEV_DOWNLOAD_FAIL)
+        return StreamingHttpResponse(stream_generator(), content_type='application/x-ndjson')

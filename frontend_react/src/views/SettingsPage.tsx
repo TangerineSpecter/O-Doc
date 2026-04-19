@@ -16,7 +16,7 @@ export default function SettingsPage() {
 
     // 使用自定义 Hook
     const {
-        providers, systemConfig, webDavConfig, isSaving,
+        providers, systemConfig, webDavConfig, webDavStatus, isSaving,
         setSystemConfig, setWebDavConfig,
         getModelsByType, handleSaveProvider, handleSaveModel, handleDelete,
         fetchWebDavConfig
@@ -131,7 +131,12 @@ export default function SettingsPage() {
                         />
                     )}
                     {activeTab === 'sync' && (
-                        <SyncSettings config={webDavConfig} onChange={setWebDavConfig} />
+                        <SyncSettings
+                            config={webDavConfig}
+                            status={webDavStatus}
+                            onChange={setWebDavConfig}
+                            onRefreshStatus={fetchWebDavConfig}
+                        />
                     )}
                     {activeTab === 'general' && (
                         <GeneralSettings />
