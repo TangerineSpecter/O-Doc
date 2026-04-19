@@ -144,8 +144,16 @@ cd ..
 
 #### 使用方式
 
+Linux / macOS:
+
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/TangerineSpecter/O-Doc/master/manager.sh)"
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/TangerineSpecter/O-Doc/master/manager.ps1 | iex
 ```
 
 脚本会自动完成部署目录准备、配置生成和镜像拉取。
