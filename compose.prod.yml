@@ -1,6 +1,6 @@
 services:
   app:
-    image: ${IMAGE_NAME:?Please set IMAGE_NAME in .env.deploy}
+    image: ${IMAGE_NAME:-ghcr.io/tangerinespecter/o-doc:latest}
     container_name: ${CONTAINER_NAME:-o-doc}
     restart: unless-stopped
     ports:
@@ -9,8 +9,8 @@ services:
       PORT: 11800
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
-      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Please set DJANGO_SECRET_KEY in .env.deploy}
-      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-127.0.0.1,localhost}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-*}"
       DJANGO_DB_PATH: /app/runtime/db/db.sqlite3
       DJANGO_MEDIA_ROOT: /app/runtime/media
       DJANGO_STATIC_ROOT: /app/staticfiles
@@ -19,4 +19,3 @@ services:
       - ./deploy/runtime/db:/app/runtime/db
       - ./deploy/runtime/media:/app/runtime/media
       - ./deploy/runtime/chroma_data:/app/runtime/chroma_data
-

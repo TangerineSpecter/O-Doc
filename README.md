@@ -104,23 +104,18 @@
 - Python 3.11+
 - Node.js 22.12+
 - npm 或 yarn 包管理器
-- Docker (可选，用于容器化部署)
+- Docker 与 Docker Compose（部署时需要）
 
-### 安装依赖
+### 开发环境
 
-#### 后端依赖
+#### 安装依赖
+
 ```bash
 pip install -r requirements.txt
-```
-
-#### 前端依赖
-```bash
 cd frontend_react
 npm install
 cd ..
 ```
-
-### 开发环境
 
 #### 启动后端服务
 ```bash
@@ -136,41 +131,33 @@ npm run dev
 ```
 前端开发服务器运行在 http://localhost:5173
 
-### 一体化构建与运行
-
-#### 构建前端并集成到后端
-```bash
-cd frontend_react
-./update.sh  # 构建前端并将产物复制到 Django 目录
-cd ..
-python manage.py runserver
-```
-访问 http://localhost:11800 查看完整应用
-
 ### 代码检查
 ```bash
-# 前端代码检查
 cd frontend_react
 npm run lint
 cd ..
 ```
 
-### Docker 部署
+### 部署安装
+
+推荐使用一键安装脚本完成安装、更新和卸载。
+
+#### 使用方式
+
 ```bash
-# 构建 Docker 镜像
-docker build -t o-doc .
-
-# 运行 Docker 容器（默认配置）
-docker run -p 8000:11800 o-doc
-
-# 运行 Docker 容器（自定义管理员邮箱）
-docker run -p 8000:11800 -e ADMIN_EMAIL=admin@yourdomain.com o-doc
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/TangerineSpecter/O-Doc/master/manager.sh)"
 ```
-访问 http://localhost:8000 查看应用
 
-**环境变量说明**：
-- `ADMIN_EMAIL` - 管理员邮箱地址（默认：admin@example.com）
-- `PORT` - 服务端口（默认：11800）
+脚本会自动完成部署目录准备、配置生成和镜像拉取。
+运行后按提示选择对应操作即可：
+
+- `安装`
+- `更新`
+- `卸载`
+
+安装时如果你没有输入 `DJANGO_SECRET_KEY`，脚本会自动生成；`DJANGO_ALLOWED_HOSTS` 默认使用宽松配置，适合大多数个人部署场景。
+
+部署与维护的详细说明请查看 [部署与更新指南](docs/部署与更新指南.md)。
 
 ## ✨ 核心功能
 
@@ -228,11 +215,12 @@ docker run -p 8000:11800 -e ADMIN_EMAIL=admin@yourdomain.com o-doc
 ### 前端配置 (React + Vite)
 - **构建配置**：`vite.config.ts` 中设置了静态资源基础路径为 `/static/`
 - **Tailwind CSS**：配置文件 `tailwind.config.ts` 已预设常用配置
-- **自动集成**：`update.sh` 脚本自动构建前端并将产物复制到 Django 目录
+- **生产构建**：Docker 多阶段构建会自动编译前端并集成到 Django
 
 ### Docker 配置
-- **Dockerfile**：定义了完整的构建和运行环境
-- **启动脚本**：`start.sh` 包含数据库迁移和服务启动命令
+- **Dockerfile**：通过多阶段构建自动编译前端并打包后端
+- **Compose 文件**：`compose.prod.yml` 负责生产环境容器和数据目录映射
+- **部署脚本**：`scripts/deploy.sh` 提供安装、更新、卸载的交互入口
 
 ## 📦 部署方式
 
@@ -243,11 +231,8 @@ pip install -r requirements.txt
 cd frontend_react
 npm install
 
-# 构建前端并集成
-./update.sh
-cd ..
-
 # 初始化数据库并启动服务
+cd ..
 python manage.py migrate
 python manage.py runserver
 ```
@@ -260,17 +245,25 @@ python manage.py runserver
 
 ### Docker 容器部署
 ```bash
-# 构建镜像
-docker build -t o-doc .
+# 1. 准备配置
+cp .env.deploy.example .env.deploy
 
-# 运行容器（默认配置）
-docker run -d -p 8000:11800 --name o-doc-container o-doc
+# 2. 修改部署配置
+vim .env.deploy
 
-# 运行容器（自定义管理员邮箱）
-docker run -d -p 8000:11800 -e ADMIN_EMAIL=admin@yourdomain.com --name o-doc-container o-doc
+# 3. 启动部署脚本
+./scripts/deploy.sh
 
-# 查看日志
-docker logs -f o-doc-container
+# 4. 在菜单中选择“安装”
+```
+
+### 更新项目
+```bash
+# 拉取最新部署脚本和配置文件（仅当仓库内部署文件有变动时需要）
+git pull
+
+# 更新到最新镜像
+./scripts/deploy.sh update
 ```
 
 ## 📊 数据库说明
