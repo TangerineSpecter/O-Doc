@@ -1,14 +1,14 @@
 import {ChevronDown, Edit2, Globe, Key, Layers, Plus, Server, Trash2, X, Zap} from 'lucide-react';
 import {AIModel, AIProvider, ModelType, SystemAIConfig} from '@/api/setting';
 
-// 1. 引入图片资源 (请确保这些图片已存在于 src/assets/ 目录下)
-import deepseekLogo from '../../../public/deepseek.svg'
-import qwenLogo from '../../../public/qwen.png'
-import ollamaLogo from '../../../public/ollama.svg'
-import openaiLogo from '../../../public/openai.svg'
-import doubaoLogo from '../../../public/doubao.svg'
-import siliconFlowLogo from '../../../public/siliconFlow.svg'
-import xiaomiLogo from '../../../public/xiaomi.png'
+// 1. 引入图片资源 (public 目录的文件可直接从根路径访问)
+import deepseekLogo from '/deepseek.svg?url'
+import qwenLogo from '/qwen.png?url'
+import ollamaLogo from '/ollama.svg?url'
+import openaiLogo from '/openai.svg?url'
+import doubaoLogo from '/doubao.svg?url'
+import siliconFlowLogo from '/siliconFlow.svg?url'
+import xiaomiLogo from '/xiaomi.png?url'
 
 
 // --- Logo Component ---
