@@ -94,10 +94,10 @@
 ## 📚 相关文档
 
 项目的详细结构信息请参考独立文档：
-- **[项目结构文档](项目结构文档.md)** - 完整的项目结构说明
-- **[接口文档](接口文档.md)** - 详细的 API 接口说明
-- **[前端代码规范文档](前端代码规范文档.md)** - 前端 React + TypeScript 代码规范
-- **[后端代码规范文档](后端代码规范文档.md)** - 后端 Django + DRF 代码规范
+- **[项目结构文档](docs/项目结构文档.md)** - 完整的项目结构说明
+- **[接口文档](docs/接口文档.md)** - 详细的 API 接口说明
+- **[前端代码规范文档](docs/前端代码规范文档.md)** - 前端 React + TypeScript 代码规范
+- **[后端代码规范文档](docs/后端代码规范文档.md)** - 后端 Django + DRF 代码规范
 
 ## 🚀 快速开始
 
@@ -112,25 +112,25 @@
 #### 安装依赖
 
 ```bash
+# 安装后端依赖
 pip install -r requirements.txt
-cd frontend_react
-npm install
-cd ..
+
+# 安装前端依赖
+cd frontend_react && npm install && cd ..
 ```
 
-#### 启动后端服务
-```bash
-python manage.py migrate  # 创建数据库表
-python manage.py runserver
-```
-后端服务运行在 http://localhost:11800
+#### 启动开发环境
 
-#### 启动前端开发服务器
 ```bash
-cd frontend_react
-npm run dev
+./dev.sh
 ```
-前端开发服务器运行在 http://localhost:5173
+
+脚本会自动检查并安装所有依赖，同时启动后端和前端服务。
+
+- 后端服务：http://localhost:11800
+- 前端服务：http://localhost:5173
+
+按 `Ctrl+C` 可停止所有服务。
 
 ### 代码检查
 ```bash
