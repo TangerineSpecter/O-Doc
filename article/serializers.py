@@ -116,9 +116,9 @@ class ArticleSerializer(serializers.ModelSerializer):
                 continue
 
             # 1. 查找逻辑：优先找 admin 的公共标签，再找当前用户的私有标签
-            tag = Tag.objects.filter(name=name, userid='admin').first()
+            tag = Tag.objects.filter(name=name, user_id='admin').first()
             if not tag and current_user_id != 'admin':
-                tag = Tag.objects.filter(name=name, userid=current_user_id).first()
+                tag = Tag.objects.filter(name=name, user_id=current_user_id).first()
 
             # 2. 如果不存在，则创建新标签
             if not tag:

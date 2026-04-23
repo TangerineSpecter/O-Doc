@@ -7,19 +7,19 @@ from .models import Anthology
 
 class AnthologySerializer(serializers.ModelSerializer):
     """文集序列化器"""
-    userid = serializers.HiddenField(
+    user_id = serializers.HiddenField(
         default=CurrentUserOrAdminDefault()
     )
 
     class Meta:
         model = Anthology
-        fields = ['coll_id', 'title', 'description', 'icon_id', 'userid', 'permission', 'is_top',
+        fields = ['coll_id', 'title', 'description', 'icon_id', 'user_id', 'permission', 'is_top',
                   'rag_not_synced_count', 'count', 'created_at', 'updated_at', 'type']
 
         validators = [
             UniqueTogetherValidator(
                 queryset=Anthology.objects.all(),
-                fields=['userid', 'title'],
+                fields=['user_id', 'title'],
                 message="该文集名称已存在"  # 自定义错误提示文字
             )
         ]

@@ -4,7 +4,7 @@ from .models import Tag
 # 注册Tag模型
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
-    list_display = ('tag_id', 'name', 'userid', 'is_valid', 'sort', 'created_at', 'updated_at')
+    list_display = ('tag_id', 'name', 'user_id', 'is_valid', 'sort', 'created_at', 'updated_at')
     search_fields = ('name',)
     list_filter = ('is_valid', 'created_at')
     ordering = ('sort', '-created_at')

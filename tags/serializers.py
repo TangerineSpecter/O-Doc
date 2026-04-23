@@ -9,19 +9,19 @@ class TagSerializer(serializers.ModelSerializer):
     """标签序列化器"""
 
     # 用户ID默认值（使用当前登录用户或admin）
-    userid = serializers.HiddenField(
+    user_id = serializers.HiddenField(
         default=CurrentUserOrAdminDefault()
     )
 
     class Meta:
         model = Tag
-        fields = ['tag_id', 'name', 'theme_id', 'userid', 'is_valid', 'sort', 'created_at', 'updated_at']
+        fields = ['tag_id', 'name', 'theme_id', 'user_id', 'is_valid', 'sort', 'created_at', 'updated_at']
         read_only_fields = ['tag_id', 'is_valid', 'created_at', 'updated_at']
 
         validators = [
             UniqueTogetherValidator(
                 queryset=Tag.objects.all(),
-                fields=['userid', 'name'],
+                fields=['user_id', 'name'],
                 message="标签名称已存在"
             )
         ]

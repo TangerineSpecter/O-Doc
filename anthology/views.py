@@ -30,7 +30,7 @@ class AnthologyDetailView(APIView):
 
     def get(self, request, coll_id):
         # 使用coll_id查询文集
-        anthology = get_object_or_404(Anthology, coll_id=coll_id, userid='admin')
+        anthology = get_object_or_404(Anthology, coll_id=coll_id, user_id='admin')
 
         # 使用序列化器将文集对象转换为JSON格式
         json_data = AnthologySerializer(anthology).data
@@ -52,7 +52,7 @@ class AnthologyListView(APIView):
 
             # 构建查询条件
             query_kwargs = {
-                'userid': 'admin',
+                'user_id': 'admin',
                 'is_valid': True
             }
             if coll_type:
@@ -113,7 +113,7 @@ class AnthologySortView(APIView):
                 return error_result(error=ErrorCode.PARAM_ERROR, message="排序参数必须是大于0的整数")
 
             # 获取要排序的文集
-            anthology = get_object_or_404(Anthology, coll_id=coll_id, userid='admin', is_valid=True)
+            anthology = get_object_or_404(Anthology, coll_id=coll_id, user_id='admin', is_valid=True)
 
             # 检查是否为置顶文集，如果是则不允许排序
             if anthology.is_top:
@@ -121,7 +121,7 @@ class AnthologySortView(APIView):
 
             # 获取当前所有非置顶且有效的文集，按当前排序规则排序
             all_non_top_anthologies = list(Anthology.objects.filter(
-                userid='admin',
+                user_id='admin',
                 is_valid=True,
                 is_top=False
             ).order_by('-updated_at', 'sort'))
@@ -164,7 +164,7 @@ class AnthologyUpdateView(APIView):
     def put(self, request, coll_id):
         try:
             # 获取要编辑的文集
-            anthology = get_object_or_404(Anthology, coll_id=coll_id, userid='admin', is_valid=True)
+            anthology = get_object_or_404(Anthology, coll_id=coll_id, user_id='admin', is_valid=True)
 
             # 使用序列化器验证和更新数据
             serializer = AnthologySerializer(anthology, data=request.data, partial=True, context={'request': request})
@@ -186,7 +186,7 @@ class AnthologyDeleteView(APIView):
     def delete(self, request, coll_id):
         try:
             # 获取要删除的文集
-            anthology = get_object_or_404(Anthology, coll_id=coll_id, userid='admin', is_valid=True)
+            anthology = get_object_or_404(Anthology, coll_id=coll_id, user_id='admin', is_valid=True)
 
             # 执行逻辑删除
             anthology.is_valid = False

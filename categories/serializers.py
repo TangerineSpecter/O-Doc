@@ -7,20 +7,20 @@ from .models import Category
 
 class CategorySerializer(serializers.ModelSerializer):
     """分类序列化器"""
-    userid = serializers.HiddenField(
+    user_id = serializers.HiddenField(
         default=CurrentUserOrAdminDefault()
     )
 
     class Meta:
         model = Category
-        fields = ['category_id', 'name', 'description', 'userid', 'theme_id', 'icon_key', 'is_valid', 'sort',
+        fields = ['category_id', 'name', 'description', 'user_id', 'theme_id', 'icon_key', 'is_valid', 'sort',
                   'created_at',
                   'updated_at']
 
         validators = [
             UniqueTogetherValidator(
                 queryset=Category.objects.all(),
-                fields=['userid', 'name'],
+                fields=['user_id', 'name'],
                 message="该分类名称已存在"  # 自定义错误提示文字
             )
         ]

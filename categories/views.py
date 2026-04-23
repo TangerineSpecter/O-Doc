@@ -36,7 +36,7 @@ class CategoryDetailView(APIView):
 
     def get(self, request, category_id):
         # 使用category_id查询分类
-        category = get_object_or_404(Category, category_id=category_id, userid='admin')
+        category = get_object_or_404(Category, category_id=category_id, user_id='admin')
 
         # 返回分类详情
         return success_result(data=CategorySerializer(category).data)
@@ -53,7 +53,7 @@ class CategoryListView(APIView):
             # 移除 include_uncategorized 参数处理
 
             # 查询admin用户的所有有效分类
-            categories = Category.objects.filter(userid='admin', is_valid=True)
+            categories = Category.objects.filter(user_id='admin', is_valid=True)
 
             # 如果有名称过滤条件
             if name:
@@ -106,11 +106,11 @@ class CategorySortView(APIView):
                 return error_result(error=ErrorCode.PARAM_ERROR, message="排序参数必须是大于0的整数")
 
             # 获取要排序的分类
-            category = get_object_or_404(Category, category_id=category_id, userid='admin', is_valid=True)
+            category = get_object_or_404(Category, category_id=category_id, user_id='admin', is_valid=True)
 
             # 获取当前所有有效分类
             all_categories = list(Category.objects.filter(
-                userid='admin',
+                user_id='admin',
                 is_valid=True
             ).order_by('sort', '-created_at'))
 
@@ -152,7 +152,7 @@ class CategoryUpdateView(APIView):
     def put(self, request, category_id):
         try:
             # 获取要编辑的分类
-            category = get_object_or_404(Category, category_id=category_id, userid='admin', is_valid=True)
+            category = get_object_or_404(Category, category_id=category_id, user_id='admin', is_valid=True)
 
             # 使用序列化器验证和更新数据
             serializer = CategorySerializer(category, data=request.data, partial=True, context={'request': request})
@@ -174,10 +174,10 @@ class CategoryDeleteView(APIView):
     def delete(self, request, category_id):
         try:
             # 获取要删除的分类
-            category = get_object_or_404(Category, category_id=category_id, userid='admin', is_valid=True)
+            category = get_object_or_404(Category, category_id=category_id, user_id='admin', is_valid=True)
             
             # 获取未分类分类
-            uncategorized = get_object_or_404(Category, category_id='uncategorized', userid='admin', is_valid=True)
+            uncategorized = get_object_or_404(Category, category_id='uncategorized', user_id='admin', is_valid=True)
             
             # 将该分类下的所有文章转移到未分类
             Article.objects.filter(

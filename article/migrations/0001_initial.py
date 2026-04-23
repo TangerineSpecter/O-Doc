@@ -20,7 +20,7 @@ class Migration(migrations.Migration):
                 ('article_id', models.CharField(default=utils.id_generator.generate_article_id, editable=False, help_text='文章唯一标识', max_length=32, primary_key=True, serialize=False, unique=True)),
                 ('title', models.CharField(help_text='文章标题', max_length=255)),
                 ('content', models.TextField(help_text='文章内容（Markdown格式）')),
-                ('coll_id', models.CharField(help_text='所属文集ID，与anthology表的coll_id对应', max_length=32)),
+                ('coll_id', models.CharField(help_text='所属文集ID，与anthologies表的coll_id对应', max_length=32)),
                 ('author', models.CharField(default='admin', help_text='文章作者', max_length=50)),
                 ('source_url', models.URLField(blank=True, help_text='文章来源网址', max_length=500, null=True)),
                 ('is_polishing', models.BooleanField(default=False, help_text='是否正在进行AI润色')),

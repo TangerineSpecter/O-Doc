@@ -36,7 +36,7 @@ class TagDetailView(APIView):
 
     def get(self, request, tag_id):
         # 使用tag_id查询标签
-        tag = get_object_or_404(Tag, tag_id=tag_id, userid='admin')
+        tag = get_object_or_404(Tag, tag_id=tag_id, user_id='admin')
 
         # 返回标签详情
         return success_result(data=TagSerializer(tag).data)
@@ -51,7 +51,7 @@ class TagListView(APIView):
             name = request.GET.get('name', '')
 
             # 查询admin用户的所有有效标签
-            tags = Tag.objects.filter(userid='admin', is_valid=True)
+            tags = Tag.objects.filter(user_id='admin', is_valid=True)
             
             # 如果有名称过滤条件
             if name:
@@ -98,7 +98,7 @@ class TagSortView(APIView):
             sort = request.data.get('sort', 0)
             
             # 查询标签
-            tag = get_object_or_404(Tag, tag_id=tag_id, userid='admin', is_valid=True)
+            tag = get_object_or_404(Tag, tag_id=tag_id, user_id='admin', is_valid=True)
             
             # 更新排序值
             tag.sort = sort
@@ -116,7 +116,7 @@ class TagUpdateView(APIView):
     def put(self, request, tag_id):
         try:
             # 查询标签
-            tag = get_object_or_404(Tag, tag_id=tag_id, userid='admin', is_valid=True)
+            tag = get_object_or_404(Tag, tag_id=tag_id, user_id='admin', is_valid=True)
             
             # 使用序列化器验证和更新数据
             serializer = TagSerializer(tag, data=request.data, partial=True, context={'request': request})
@@ -137,7 +137,7 @@ class TagDeleteView(APIView):
     def delete(self, request, tag_id):
         try:
             # 查询标签
-            tag = get_object_or_404(Tag, tag_id=tag_id, userid='admin')
+            tag = get_object_or_404(Tag, tag_id=tag_id, user_id='admin')
             
             # 逻辑删除：将is_valid设置为False
             tag.is_valid = False

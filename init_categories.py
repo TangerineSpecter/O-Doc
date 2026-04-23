@@ -20,7 +20,7 @@ def init_uncategorized_category():
     defaults = {
         'name': '未分类',
         'description': '未关联分类的文章',
-        'userid': 'admin',
+        'user_id': 'admin',
         'theme_id': 'slate',  # 对应前端 slate 主题 (灰色)
         'icon_key': 'Box',  # 对应前端 Box 图标
         'sort': 0,

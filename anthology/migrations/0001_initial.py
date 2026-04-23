@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
                 ('title', models.CharField(max_length=20, verbose_name='文集名称')),
                 ('description', models.CharField(default='暂无简介', max_length=100, verbose_name='文集简介')),
                 ('icon_id', models.CharField(default='book', max_length=20, verbose_name='图标ID')),
-                ('userid', models.CharField(default='admin', max_length=50, verbose_name='创建者ID')),
+                ('user_id', models.CharField(default='admin', max_length=50, verbose_name='创建者ID')),
                 ('type', models.CharField(choices=[('article', '文章文集'), ('image', '图片文集')], default='article', max_length=10, verbose_name='文集类型')),
                 ('permission', models.CharField(choices=[('public', '公开文集'), ('private', '私密文集')], default='public', max_length=10, verbose_name='访问权限')),
                 ('is_top', models.BooleanField(default=False, verbose_name='是否置顶')),
@@ -32,7 +32,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': '文集管理',
                 'db_table': 'anthology',
                 'ordering': ['-is_top', 'sort', '-updated_at'],
-                'unique_together': {('userid', 'title')},
+                'unique_together': {('user_id', 'title')},
             },
         ),
     ]

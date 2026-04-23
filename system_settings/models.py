@@ -22,34 +22,39 @@ class AIProvider(models.Model):
         max_length=40,
         primary_key=True,
         default=generate_provider_id,
-        verbose_name='提供商ID'
+        verbose_name='提供商ID',
+        db_comment='提供商ID'
     )
 
-    name = models.CharField(max_length=50, verbose_name='提供商名称')
+    name = models.CharField(max_length=50, verbose_name='提供商名称', db_comment='提供商名称')
 
     type = models.CharField(
         max_length=20,
         choices=PROVIDER_TYPES,
-        verbose_name='提供商类型'
+        verbose_name='提供商类型',
+        db_comment='提供商类型'
     )
 
     base_url = models.CharField(
         max_length=255,
-        verbose_name='API Base URL'
+        verbose_name='API Base URL',
+        db_comment='API Base URL'
     )
 
     api_key = models.CharField(
         max_length=255,
         blank=True,
         default='',
-        verbose_name='API Key'
+        verbose_name='API Key',
+        db_comment='API Key'
     )
 
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
 
     class Meta:
         db_table = 'sys_ai_provider'
+        db_table_comment = 'AI 提供商表'
         verbose_name = 'AI提供商'
         verbose_name_plural = verbose_name
 
@@ -69,7 +74,8 @@ class AIModel(models.Model):
         max_length=40,
         primary_key=True,
         default=generate_model_id,
-        verbose_name='模型ID'
+        verbose_name='模型ID',
+        db_comment='模型ID'
     )
 
     # 级联删除：删除 Provider 时自动删除关联的 Models
@@ -77,26 +83,30 @@ class AIModel(models.Model):
         AIProvider,
         related_name='models',
         on_delete=models.CASCADE,
-        verbose_name='所属提供商'
+        verbose_name='所属提供商',
+        db_comment='所属提供商ID'
     )
 
-    name = models.CharField(max_length=100, verbose_name='模型实际名称 (Model ID)')
+    name = models.CharField(max_length=100, verbose_name='模型实际名称 (Model ID)', db_comment='模型实际名称')
 
     display_name = models.CharField(
         max_length=100,
         blank=True,
         null=True,
-        verbose_name='显示名称'
+        verbose_name='显示名称',
+        db_comment='显示名称'
     )
 
     type = models.CharField(
         max_length=20,
         choices=MODEL_TYPES,
-        verbose_name='模型类型'
+        verbose_name='模型类型',
+        db_comment='模型类型'
     )
 
     class Meta:
         db_table = 'sys_ai_model'
+        db_table_comment = 'AI 模型表'
         verbose_name = 'AI模型'
         verbose_name_plural = verbose_name
 
@@ -106,9 +116,10 @@ class AIModel(models.Model):
 
 class SystemSetting(models.Model):
     """通用系统设置存储 (Key-Value)"""
-    key = models.CharField(max_length=50, primary_key=True)
-    value = models.JSONField(default=dict)
-    description = models.CharField(max_length=200, blank=True)
+    key = models.CharField(max_length=50, primary_key=True, db_comment='设置键')
+    value = models.JSONField(default=dict, db_comment='设置值')
+    description = models.CharField(max_length=200, blank=True, db_comment='设置说明')
 
     class Meta:
         db_table = 'sys_setting'
+        db_table_comment = '系统设置表'

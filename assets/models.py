@@ -24,38 +24,39 @@ class Asset(models.Model):
     ]
 
     # 基础信息
-    id = models.CharField(max_length=32, primary_key=True, verbose_name='资源ID')
-    name = models.CharField(max_length=255, verbose_name='文件名')
-    original_name = models.CharField(max_length=255, verbose_name='原始文件名')
+    id = models.CharField(max_length=32, primary_key=True, verbose_name='资源ID', db_comment='资源ID')
+    name = models.CharField(max_length=255, verbose_name='文件名', db_comment='文件名')
+    original_name = models.CharField(max_length=255, verbose_name='原始文件名', db_comment='原始文件名')
 
     # 文件属性
-    file_type = models.CharField(max_length=20, choices=FILE_TYPE_CHOICES, verbose_name='文件类型')
-    file_size = models.BigIntegerField(verbose_name='文件大小(字节)')
-    file_path = models.CharField(max_length=500, verbose_name='文件存储路径')
-    file_extension = models.CharField(max_length=10, verbose_name='文件扩展名')
-    mime_type = models.CharField(max_length=100, verbose_name='MIME类型')
+    file_type = models.CharField(max_length=20, choices=FILE_TYPE_CHOICES, verbose_name='文件类型', db_comment='文件类型')
+    file_size = models.BigIntegerField(verbose_name='文件大小(字节)', db_comment='文件大小(字节)')
+    file_path = models.CharField(max_length=500, verbose_name='文件存储路径', db_comment='文件存储路径')
+    file_extension = models.CharField(max_length=10, verbose_name='文件扩展名', db_comment='文件扩展名')
+    mime_type = models.CharField(max_length=100, verbose_name='MIME类型', db_comment='MIME类型')
 
     # 关联信息
-    uploader = models.CharField(max_length=50, default='admin', verbose_name='上传者')
+    uploader = models.CharField(max_length=50, default='admin', verbose_name='上传者', db_comment='上传者')
     linked_article = models.ForeignKey(Article, on_delete=models.SET_NULL, null=True, blank=True,
-                                       verbose_name='关联文章')
-    is_linked = models.BooleanField(default=False, verbose_name='是否已关联')
+                                       verbose_name='关联文章', db_comment='关联文章ID')
+    is_linked = models.BooleanField(default=False, verbose_name='是否已关联', db_comment='是否已关联')
     source_type = models.CharField(max_length=20, choices=SOURCE_TYPE_CHOICES, default='other',
-                                   verbose_name='资源来源类型')
+                                   verbose_name='资源来源类型', db_comment='资源来源类型')
 
     # 状态管理
-    is_valid = models.BooleanField(default=True, verbose_name='是否有效')
-    upload_time = models.DateTimeField(auto_now_add=True, verbose_name='上传时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    is_valid = models.BooleanField(default=True, verbose_name='是否有效', db_comment='是否有效')
+    upload_time = models.DateTimeField(auto_now_add=True, verbose_name='上传时间', db_comment='上传时间')
+    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
 
     # 文件哈希（用于去重）
-    file_hash = models.CharField(max_length=64, db_index=True, verbose_name='文件哈希值')
+    file_hash = models.CharField(max_length=64, db_index=True, verbose_name='文件哈希值', db_comment='文件哈希值')
 
     # 元数据（JSON格式存储额外信息）
-    metadata = models.JSONField(default=dict, blank=True, verbose_name='文件元数据')
+    metadata = models.JSONField(default=dict, blank=True, verbose_name='文件元数据', db_comment='文件元数据')
 
     class Meta:
         db_table = 'assets'
+        db_table_comment = '资源表'
         verbose_name = '资源'
         verbose_name_plural = '资源管理'
         ordering = ['-upload_time']
