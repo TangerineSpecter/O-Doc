@@ -5,7 +5,7 @@
 [![React](https://img.shields.io/badge/React-19.x-61dafb.svg?logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-7.x-646cff.svg?logo=vite)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-3.x-06b6d4.svg?logo=tailwindcss)](https://tailwindcss.com/)
-[![SQLite](https://img.shields.io/badge/SQLite-3.x-003b57.svg?logo=sqlite)](https://www.sqlite.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169e1.svg?logo=postgresql)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-26.0+-2496ed.svg?logo=docker)](https://www.docker.com/)
 [![许可证](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](frontend_react/LICENSE)
 
@@ -46,7 +46,8 @@
 
 ### 后端框架
 - **Django 5** - 高性能 Python Web 框架，提供完整的后端功能
-- **SQLite 3** - 轻量级文件数据库，适合个人项目和小型应用
+- **PostgreSQL 16** - 生产部署数据库，便于远程管理、备份和扩展
+- **SQLite 3** - 本地开发默认数据库，无需额外服务
 - **Django REST Framework** - 构建 RESTful API 的强大工具
 
 ### 前端框架
@@ -216,7 +217,7 @@ irm https://raw.githubusercontent.com/TangerineSpecter/O-Doc/master/manager.ps1 
 ## 🔧 配置说明
 
 ### 后端配置 (Django)
-- **数据库**：默认使用 SQLite，配置在 `o_doc/settings.py` 中
+- **数据库**：本地默认 SQLite；Docker Compose 生产部署默认 PostgreSQL，配置在 `o_doc/settings.py` 中
 - **静态资源**：前端构建产物自动配置到 `/static/` 路径
 - **模板**：前端入口文件配置在 `templates/index.html`
 - **AI 配置**：系统设置模块管理 AI 提供商和模型配置
@@ -276,9 +277,9 @@ git pull
 ```
 
 ## 📊 数据库说明
-- 使用 SQLite 轻量级数据库，无需额外安装
-- 数据存储在项目根目录的 `db.sqlite3` 文件中
-- 支持 PyCharm、Navicat 等工具直接连接查看数据
+- 本地开发默认使用 SQLite，数据文件为项目根目录的 `db.sqlite3`
+- Docker Compose 生产部署默认使用 PostgreSQL，数据持久化在部署目录的 `runtime/postgres`
+- PostgreSQL 端口默认绑定到 `0.0.0.0:5432`，局域网内可用部署机器 IP 通过 Navicat 连接
 
 ## 📱 浏览器兼容性
 

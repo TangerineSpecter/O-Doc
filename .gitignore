@@ -15,9 +15,10 @@ package-lock.json
 db.sqlite3
 chroma_data/*
 
-# 忽略所有migrations目录（保留__init__.py，避免破坏Python包结构）
-**/migrations/
+# 忽略迁移目录中的缓存，但保留 Django 迁移文件
+**/migrations/*
 !**/migrations/__init__.py
+!**/migrations/[0-9][0-9][0-9][0-9]_*.py
 
 # Python compiled cache
 # 忽略所有 __pycache__ 目录

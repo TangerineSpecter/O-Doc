@@ -1,8 +1,29 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: ${POSTGRES_CONTAINER_NAME:-o-doc-postgres}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-odoc}
+      POSTGRES_USER: ${POSTGRES_USER:-odoc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_BIND_ADDRESS:-0.0.0.0}:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - ./deploy/runtime/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   app:
     image: ${IMAGE_NAME:-ghcr.io/tangerinespecter/o-doc:latest}
     container_name: ${CONTAINER_NAME:-o-doc}
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "${HOST_PORT:-11800}:11800"
     environment:
@@ -11,11 +32,15 @@ services:
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
       DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-*}"
-      DJANGO_DB_PATH: /app/runtime/db/db.sqlite3
+      DJANGO_DB_ENGINE: postgresql
+      POSTGRES_DB: ${POSTGRES_DB:-odoc}
+      POSTGRES_USER: ${POSTGRES_USER:-odoc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
       DJANGO_MEDIA_ROOT: /app/runtime/media
       DJANGO_STATIC_ROOT: /app/staticfiles
       ODOC_CHROMA_PATH: /app/runtime/chroma_data
     volumes:
-      - ./deploy/runtime/db:/app/runtime/db
       - ./deploy/runtime/media:/app/runtime/media
       - ./deploy/runtime/chroma_data:/app/runtime/chroma_data

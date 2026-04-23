@@ -13,6 +13,11 @@ $DefaultContainerName = 'o-doc'
 $DefaultHostPort = '11800'
 $DefaultAdminEmail = 'admin@example.com'
 $DefaultAllowedHosts = '*'
+$DefaultPostgresContainerName = 'o-doc-postgres'
+$DefaultPostgresDb = 'odoc'
+$DefaultPostgresUser = 'odoc'
+$DefaultPostgresBindAddress = '0.0.0.0'
+$DefaultPostgresHostPort = '5432'
 
 function Write-Color {
     param(
@@ -91,7 +96,13 @@ function Save-EnvMap {
         'DJANGO_DEBUG',
         'DJANGO_SECRET_KEY',
         'DJANGO_ALLOWED_HOSTS',
-        'ADMIN_EMAIL'
+        'ADMIN_EMAIL',
+        'POSTGRES_CONTAINER_NAME',
+        'POSTGRES_DB',
+        'POSTGRES_USER',
+        'POSTGRES_PASSWORD',
+        'POSTGRES_BIND_ADDRESS',
+        'POSTGRES_HOST_PORT'
     )
 
     $lines = foreach ($key in $orderedKeys) {
@@ -105,7 +116,7 @@ function Save-EnvMap {
 
 function Ensure-Directories {
     $null = New-Item -ItemType Directory -Force -Path $DeployDir
-    $null = New-Item -ItemType Directory -Force -Path (Join-Path $RuntimeDir 'db')
+    $null = New-Item -ItemType Directory -Force -Path (Join-Path $RuntimeDir 'postgres')
     $null = New-Item -ItemType Directory -Force -Path (Join-Path $RuntimeDir 'media')
     $null = New-Item -ItemType Directory -Force -Path (Join-Path $RuntimeDir 'chroma_data')
 }
@@ -113,10 +124,31 @@ function Ensure-Directories {
 function Write-ComposeFile {
     $composeContent = @"
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: `${POSTGRES_CONTAINER_NAME:-$DefaultPostgresContainerName}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: `${POSTGRES_DB:-$DefaultPostgresDb}
+      POSTGRES_USER: `${POSTGRES_USER:-$DefaultPostgresUser}
+      POSTGRES_PASSWORD: `${POSTGRES_PASSWORD}
+    ports:
+      - "`${POSTGRES_BIND_ADDRESS:-$DefaultPostgresBindAddress}:`${POSTGRES_HOST_PORT:-$DefaultPostgresHostPort}:5432"
+    volumes:
+      - ./runtime/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U `$`${POSTGRES_USER} -d `$`${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   app:
     image: `${IMAGE_NAME:-$DefaultImage}
     container_name: `${CONTAINER_NAME:-$DefaultContainerName}
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "`${HOST_PORT:-$DefaultHostPort}:11800"
     environment:
@@ -125,12 +157,16 @@ services:
       DJANGO_DEBUG: `${DJANGO_DEBUG:-false}
       DJANGO_SECRET_KEY: `${DJANGO_SECRET_KEY}
       DJANGO_ALLOWED_HOSTS: "`${DJANGO_ALLOWED_HOSTS:-$DefaultAllowedHosts}"
-      DJANGO_DB_PATH: /app/runtime/db/db.sqlite3
+      DJANGO_DB_ENGINE: postgresql
+      POSTGRES_DB: `${POSTGRES_DB:-$DefaultPostgresDb}
+      POSTGRES_USER: `${POSTGRES_USER:-$DefaultPostgresUser}
+      POSTGRES_PASSWORD: `${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
       DJANGO_MEDIA_ROOT: /app/runtime/media
       DJANGO_STATIC_ROOT: /app/staticfiles
       ODOC_CHROMA_PATH: /app/runtime/chroma_data
     volumes:
-      - ./runtime/db:/app/runtime/db
       - ./runtime/media:/app/runtime/media
       - ./runtime/chroma_data:/app/runtime/chroma_data
 "@
@@ -156,6 +192,12 @@ function Initialize-EnvFile {
         DJANGO_SECRET_KEY = $secret
         DJANGO_ALLOWED_HOSTS = $DefaultAllowedHosts
         ADMIN_EMAIL = $DefaultAdminEmail
+        POSTGRES_CONTAINER_NAME = $DefaultPostgresContainerName
+        POSTGRES_DB = $DefaultPostgresDb
+        POSTGRES_USER = $DefaultPostgresUser
+        POSTGRES_PASSWORD = New-Secret
+        POSTGRES_BIND_ADDRESS = $DefaultPostgresBindAddress
+        POSTGRES_HOST_PORT = $DefaultPostgresHostPort
     }
 
     Save-EnvMap -Map $map
@@ -174,6 +216,12 @@ function Ensure-EnvDefaults {
     if (-not $map.DJANGO_DEBUG) { $map.DJANGO_DEBUG = 'false' }
     if (-not $map.DJANGO_ALLOWED_HOSTS) { $map.DJANGO_ALLOWED_HOSTS = $DefaultAllowedHosts }
     if (-not $map.ADMIN_EMAIL) { $map.ADMIN_EMAIL = $DefaultAdminEmail }
+    if (-not $map.POSTGRES_CONTAINER_NAME) { $map.POSTGRES_CONTAINER_NAME = $DefaultPostgresContainerName }
+    if (-not $map.POSTGRES_DB) { $map.POSTGRES_DB = $DefaultPostgresDb }
+    if (-not $map.POSTGRES_USER) { $map.POSTGRES_USER = $DefaultPostgresUser }
+    if (-not $map.POSTGRES_PASSWORD) { $map.POSTGRES_PASSWORD = New-Secret }
+    if (-not $map.POSTGRES_BIND_ADDRESS) { $map.POSTGRES_BIND_ADDRESS = $DefaultPostgresBindAddress }
+    if (-not $map.POSTGRES_HOST_PORT) { $map.POSTGRES_HOST_PORT = $DefaultPostgresHostPort }
 
     if (-not $map.DJANGO_SECRET_KEY) {
         $secret = Read-Host '请输入 DJANGO_SECRET_KEY（直接回车将自动生成）'
@@ -235,6 +283,10 @@ function Show-Summary {
     $serverIp = Get-ServerIp
     $containerName = if ($map.CONTAINER_NAME) { $map.CONTAINER_NAME } else { $DefaultContainerName }
     $hostPort = if ($map.HOST_PORT) { $map.HOST_PORT } else { $DefaultHostPort }
+    $postgresDb = if ($map.POSTGRES_DB) { $map.POSTGRES_DB } else { $DefaultPostgresDb }
+    $postgresUser = if ($map.POSTGRES_USER) { $map.POSTGRES_USER } else { $DefaultPostgresUser }
+    $postgresBindAddress = if ($map.POSTGRES_BIND_ADDRESS) { $map.POSTGRES_BIND_ADDRESS } else { $DefaultPostgresBindAddress }
+    $postgresHostPort = if ($map.POSTGRES_HOST_PORT) { $map.POSTGRES_HOST_PORT } else { $DefaultPostgresHostPort }
 
     Write-Host ''
     Show-Divider
@@ -242,6 +294,7 @@ function Show-Summary {
     Write-Color "服务名: $containerName" White
     Write-Color "DJANGO_SECRET_KEY: $($map.DJANGO_SECRET_KEY)" White
     Write-Color "本机访问地址: http://localhost:$hostPort" White
+    Write-Color "PostgreSQL: $postgresUser@$postgresBindAddress`:$postgresHostPort/$postgresDb" White
     if ($serverIp) {
         Write-Color "局域网访问地址: http://$serverIp`:$hostPort" White
     }

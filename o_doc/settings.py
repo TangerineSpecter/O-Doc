@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 import os
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -110,14 +111,49 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'o_doc.wsgi.application'
 
-# Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-# 使用SQLite数据库，无需额外安装
-DATABASES = {
-    'default': {
+def build_database_config():
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        parsed = urlparse(database_url)
+        if parsed.scheme in {'postgres', 'postgresql'}:
+            return {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': unquote(parsed.path.lstrip('/')),
+                'USER': unquote(parsed.username or ''),
+                'PASSWORD': unquote(parsed.password or ''),
+                'HOST': parsed.hostname or '',
+                'PORT': str(parsed.port or 5432),
+                'CONN_MAX_AGE': int(os.getenv('DJANGO_DB_CONN_MAX_AGE', '60')),
+            }
+        if parsed.scheme == 'sqlite':
+            return {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': unquote(parsed.path),
+            }
+        raise ImproperlyConfigured(f'Unsupported DATABASE_URL scheme: {parsed.scheme}')
+
+    db_engine = os.getenv('DJANGO_DB_ENGINE', 'sqlite').lower()
+    if db_engine in {'postgres', 'postgresql'}:
+        return {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('POSTGRES_DB', 'odoc'),
+            'USER': os.getenv('POSTGRES_USER', 'odoc'),
+            'PASSWORD': os.getenv('POSTGRES_PASSWORD', ''),
+            'HOST': os.getenv('POSTGRES_HOST', 'db'),
+            'PORT': os.getenv('POSTGRES_PORT', '5432'),
+            'CONN_MAX_AGE': int(os.getenv('DJANGO_DB_CONN_MAX_AGE', '60')),
+        }
+
+    return {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': os.getenv('DJANGO_DB_PATH', str(BASE_DIR / 'db.sqlite3')),
     }
+
+
+# Database
+# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+DATABASES = {
+    'default': build_database_config()
 }
 
 # Password validation

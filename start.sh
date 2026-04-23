@@ -10,6 +10,49 @@ APP_PORT="${PORT:-11800}"
 
 mkdir -p "$(dirname "$DB_PATH")" "$MEDIA_DIR" "$CHROMA_DIR" "$STATIC_ROOT_DIR"
 
+if [ "${DJANGO_DB_ENGINE:-sqlite}" = "postgresql" ] || [ "${DJANGO_DB_ENGINE:-sqlite}" = "postgres" ] || [ "${DATABASE_URL#postgres://}" != "$DATABASE_URL" ] || [ "${DATABASE_URL#postgresql://}" != "$DATABASE_URL" ]; then
+  echo "等待 PostgreSQL 数据库就绪..."
+  python <<'PY'
+import os
+import sys
+import time
+
+import psycopg
+
+database_url = os.getenv("DATABASE_URL")
+host = os.getenv("POSTGRES_HOST", "db")
+port = os.getenv("POSTGRES_PORT", "5432")
+dbname = os.getenv("POSTGRES_DB", "odoc")
+user = os.getenv("POSTGRES_USER", "odoc")
+password = os.getenv("POSTGRES_PASSWORD", "")
+
+deadline = time.time() + int(os.getenv("POSTGRES_WAIT_TIMEOUT", "60"))
+last_error = None
+
+while time.time() < deadline:
+    try:
+        if database_url:
+            conn = psycopg.connect(database_url, connect_timeout=3)
+        else:
+            conn = psycopg.connect(
+                host=host,
+                port=port,
+                dbname=dbname,
+                user=user,
+                password=password,
+                connect_timeout=3,
+            )
+        conn.close()
+        sys.exit(0)
+    except Exception as exc:
+        last_error = exc
+        time.sleep(2)
+
+print(f"PostgreSQL 未能在超时时间内就绪: {last_error}", file=sys.stderr)
+sys.exit(1)
+PY
+fi
+
 # 执行数据库迁移
 # 这一步会根据你的 models.py 文件创建或更新数据库中的表
 echo "开始进行数据库更新..."

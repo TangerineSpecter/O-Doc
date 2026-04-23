@@ -12,6 +12,11 @@ DEFAULT_CONTAINER_NAME="o-doc"
 DEFAULT_HOST_PORT="11800"
 DEFAULT_ADMIN_EMAIL="admin@example.com"
 DEFAULT_ALLOWED_HOSTS="*"
+DEFAULT_POSTGRES_CONTAINER_NAME="o-doc-postgres"
+DEFAULT_POSTGRES_DB="odoc"
+DEFAULT_POSTGRES_USER="odoc"
+DEFAULT_POSTGRES_BIND_ADDRESS="0.0.0.0"
+DEFAULT_POSTGRES_HOST_PORT="5432"
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -129,7 +134,7 @@ detect_ip() {
 ensure_directories() {
     mkdir -p \
         "$DEPLOY_DIR" \
-        "$RUNTIME_DIR/db" \
+        "$RUNTIME_DIR/postgres" \
         "$RUNTIME_DIR/media" \
         "$RUNTIME_DIR/chroma_data"
 }
@@ -137,10 +142,31 @@ ensure_directories() {
 write_compose_file() {
     cat >"$COMPOSE_FILE" <<EOF
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: \${POSTGRES_CONTAINER_NAME:-$DEFAULT_POSTGRES_CONTAINER_NAME}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: \${POSTGRES_DB:-$DEFAULT_POSTGRES_DB}
+      POSTGRES_USER: \${POSTGRES_USER:-$DEFAULT_POSTGRES_USER}
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
+    ports:
+      - "\${POSTGRES_BIND_ADDRESS:-$DEFAULT_POSTGRES_BIND_ADDRESS}:\${POSTGRES_HOST_PORT:-$DEFAULT_POSTGRES_HOST_PORT}:5432"
+    volumes:
+      - ./runtime/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \$\${POSTGRES_USER} -d \$\${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   app:
     image: \${IMAGE_NAME:-$DEFAULT_IMAGE}
     container_name: \${CONTAINER_NAME:-$DEFAULT_CONTAINER_NAME}
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "\${HOST_PORT:-$DEFAULT_HOST_PORT}:11800"
     environment:
@@ -149,12 +175,16 @@ services:
       DJANGO_DEBUG: \${DJANGO_DEBUG:-false}
       DJANGO_SECRET_KEY: \${DJANGO_SECRET_KEY}
       DJANGO_ALLOWED_HOSTS: "\${DJANGO_ALLOWED_HOSTS:-$DEFAULT_ALLOWED_HOSTS}"
-      DJANGO_DB_PATH: /app/runtime/db/db.sqlite3
+      DJANGO_DB_ENGINE: postgresql
+      POSTGRES_DB: \${POSTGRES_DB:-$DEFAULT_POSTGRES_DB}
+      POSTGRES_USER: \${POSTGRES_USER:-$DEFAULT_POSTGRES_USER}
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
       DJANGO_MEDIA_ROOT: /app/runtime/media
       DJANGO_STATIC_ROOT: /app/staticfiles
       ODOC_CHROMA_PATH: /app/runtime/chroma_data
     volumes:
-      - ./runtime/db:/app/runtime/db
       - ./runtime/media:/app/runtime/media
       - ./runtime/chroma_data:/app/runtime/chroma_data
 EOF
@@ -185,6 +215,12 @@ DJANGO_DEBUG=false
 DJANGO_SECRET_KEY=$secret_value
 DJANGO_ALLOWED_HOSTS=$DEFAULT_ALLOWED_HOSTS
 ADMIN_EMAIL=$DEFAULT_ADMIN_EMAIL
+POSTGRES_CONTAINER_NAME=$DEFAULT_POSTGRES_CONTAINER_NAME
+POSTGRES_DB=$DEFAULT_POSTGRES_DB
+POSTGRES_USER=$DEFAULT_POSTGRES_USER
+POSTGRES_PASSWORD=$(generate_secret)
+POSTGRES_BIND_ADDRESS=$DEFAULT_POSTGRES_BIND_ADDRESS
+POSTGRES_HOST_PORT=$DEFAULT_POSTGRES_HOST_PORT
 EOF
 }
 
@@ -201,6 +237,12 @@ ensure_env_defaults() {
     [ -n "$(read_env_value DJANGO_DEBUG)" ] || write_env_value DJANGO_DEBUG "false"
     [ -n "$(read_env_value DJANGO_ALLOWED_HOSTS)" ] || write_env_value DJANGO_ALLOWED_HOSTS "$DEFAULT_ALLOWED_HOSTS"
     [ -n "$(read_env_value ADMIN_EMAIL)" ] || write_env_value ADMIN_EMAIL "$DEFAULT_ADMIN_EMAIL"
+    [ -n "$(read_env_value POSTGRES_CONTAINER_NAME)" ] || write_env_value POSTGRES_CONTAINER_NAME "$DEFAULT_POSTGRES_CONTAINER_NAME"
+    [ -n "$(read_env_value POSTGRES_DB)" ] || write_env_value POSTGRES_DB "$DEFAULT_POSTGRES_DB"
+    [ -n "$(read_env_value POSTGRES_USER)" ] || write_env_value POSTGRES_USER "$DEFAULT_POSTGRES_USER"
+    [ -n "$(read_env_value POSTGRES_PASSWORD)" ] || write_env_value POSTGRES_PASSWORD "$(generate_secret)"
+    [ -n "$(read_env_value POSTGRES_BIND_ADDRESS)" ] || write_env_value POSTGRES_BIND_ADDRESS "$DEFAULT_POSTGRES_BIND_ADDRESS"
+    [ -n "$(read_env_value POSTGRES_HOST_PORT)" ] || write_env_value POSTGRES_HOST_PORT "$DEFAULT_POSTGRES_HOST_PORT"
 
     existing_secret="$(read_env_value DJANGO_SECRET_KEY)"
     if [ -z "$existing_secret" ]; then
@@ -229,14 +271,26 @@ print_summary() {
     local container_name
     local django_secret_key
     local host_port
+    local postgres_db
+    local postgres_user
+    local postgres_bind_address
+    local postgres_host_port
 
     server_ip="$(detect_ip)"
     container_name="$(read_env_value CONTAINER_NAME)"
     django_secret_key="$(read_env_value DJANGO_SECRET_KEY)"
     host_port="$(read_env_value HOST_PORT)"
+    postgres_db="$(read_env_value POSTGRES_DB)"
+    postgres_user="$(read_env_value POSTGRES_USER)"
+    postgres_bind_address="$(read_env_value POSTGRES_BIND_ADDRESS)"
+    postgres_host_port="$(read_env_value POSTGRES_HOST_PORT)"
 
     [ -n "$container_name" ] || container_name="$DEFAULT_CONTAINER_NAME"
     [ -n "$host_port" ] || host_port="$DEFAULT_HOST_PORT"
+    [ -n "$postgres_db" ] || postgres_db="$DEFAULT_POSTGRES_DB"
+    [ -n "$postgres_user" ] || postgres_user="$DEFAULT_POSTGRES_USER"
+    [ -n "$postgres_bind_address" ] || postgres_bind_address="$DEFAULT_POSTGRES_BIND_ADDRESS"
+    [ -n "$postgres_host_port" ] || postgres_host_port="$DEFAULT_POSTGRES_HOST_PORT"
 
     printf "\n"
     print_divider
@@ -244,6 +298,7 @@ print_summary() {
     printf "${WHITE}服务名:${NC} %s\n" "$container_name"
     printf "${WHITE}DJANGO_SECRET_KEY:${NC} %s\n" "$django_secret_key"
     printf "${WHITE}本机访问地址:${NC} http://localhost:%s\n" "$host_port"
+    printf "${WHITE}PostgreSQL:${NC} %s@%s:%s/%s\n" "$postgres_user" "$postgres_bind_address" "$postgres_host_port" "$postgres_db"
 
     if [ -n "$server_ip" ]; then
         printf "${WHITE}局域网访问地址:${NC} http://%s:%s\n" "$server_ip" "$host_port"
