@@ -13,10 +13,11 @@ DEFAULT_HOST_PORT="11800"
 DEFAULT_ADMIN_EMAIL="admin@example.com"
 DEFAULT_ALLOWED_HOSTS="*"
 DEFAULT_POSTGRES_CONTAINER_NAME="o-doc-postgres"
+DEFAULT_POSTGRES_IMAGE="m.daocloud.io/docker.io/postgres:16-alpine"
 DEFAULT_POSTGRES_DB="odoc"
 DEFAULT_POSTGRES_USER="odoc"
 DEFAULT_POSTGRES_BIND_ADDRESS="0.0.0.0"
-DEFAULT_POSTGRES_HOST_PORT="5432"
+DEFAULT_POSTGRES_HOST_PORT="15432"
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -143,7 +144,7 @@ write_compose_file() {
     cat >"$COMPOSE_FILE" <<EOF
 services:
   db:
-    image: postgres:16-alpine
+    image: \${POSTGRES_IMAGE:-$DEFAULT_POSTGRES_IMAGE}
     container_name: \${POSTGRES_CONTAINER_NAME:-$DEFAULT_POSTGRES_CONTAINER_NAME}
     restart: unless-stopped
     environment:
@@ -216,6 +217,7 @@ DJANGO_SECRET_KEY=$secret_value
 DJANGO_ALLOWED_HOSTS=$DEFAULT_ALLOWED_HOSTS
 ADMIN_EMAIL=$DEFAULT_ADMIN_EMAIL
 POSTGRES_CONTAINER_NAME=$DEFAULT_POSTGRES_CONTAINER_NAME
+POSTGRES_IMAGE=$DEFAULT_POSTGRES_IMAGE
 POSTGRES_DB=$DEFAULT_POSTGRES_DB
 POSTGRES_USER=$DEFAULT_POSTGRES_USER
 POSTGRES_PASSWORD=$(generate_secret)
@@ -238,6 +240,7 @@ ensure_env_defaults() {
     [ -n "$(read_env_value DJANGO_ALLOWED_HOSTS)" ] || write_env_value DJANGO_ALLOWED_HOSTS "$DEFAULT_ALLOWED_HOSTS"
     [ -n "$(read_env_value ADMIN_EMAIL)" ] || write_env_value ADMIN_EMAIL "$DEFAULT_ADMIN_EMAIL"
     [ -n "$(read_env_value POSTGRES_CONTAINER_NAME)" ] || write_env_value POSTGRES_CONTAINER_NAME "$DEFAULT_POSTGRES_CONTAINER_NAME"
+    [ -n "$(read_env_value POSTGRES_IMAGE)" ] || write_env_value POSTGRES_IMAGE "$DEFAULT_POSTGRES_IMAGE"
     [ -n "$(read_env_value POSTGRES_DB)" ] || write_env_value POSTGRES_DB "$DEFAULT_POSTGRES_DB"
     [ -n "$(read_env_value POSTGRES_USER)" ] || write_env_value POSTGRES_USER "$DEFAULT_POSTGRES_USER"
     [ -n "$(read_env_value POSTGRES_PASSWORD)" ] || write_env_value POSTGRES_PASSWORD "$(generate_secret)"

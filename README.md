@@ -279,7 +279,7 @@ git pull
 ## 📊 数据库说明
 - 本地开发默认使用 SQLite，数据文件为项目根目录的 `db.sqlite3`
 - Docker Compose 生产部署默认使用 PostgreSQL，数据持久化在部署目录的 `runtime/postgres`
-- PostgreSQL 端口默认绑定到 `0.0.0.0:5432`，局域网内可用部署机器 IP 通过 Navicat 连接
+- PostgreSQL 端口默认绑定到 `0.0.0.0:15432`，局域网内可用部署机器 IP 通过 Navicat 连接
 
 ## 📱 浏览器兼容性
 

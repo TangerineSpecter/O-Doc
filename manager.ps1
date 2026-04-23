@@ -14,10 +14,11 @@ $DefaultHostPort = '11800'
 $DefaultAdminEmail = 'admin@example.com'
 $DefaultAllowedHosts = '*'
 $DefaultPostgresContainerName = 'o-doc-postgres'
+$DefaultPostgresImage = 'm.daocloud.io/docker.io/postgres:16-alpine'
 $DefaultPostgresDb = 'odoc'
 $DefaultPostgresUser = 'odoc'
 $DefaultPostgresBindAddress = '0.0.0.0'
-$DefaultPostgresHostPort = '5432'
+$DefaultPostgresHostPort = '15432'
 
 function Write-Color {
     param(
@@ -98,6 +99,7 @@ function Save-EnvMap {
         'DJANGO_ALLOWED_HOSTS',
         'ADMIN_EMAIL',
         'POSTGRES_CONTAINER_NAME',
+        'POSTGRES_IMAGE',
         'POSTGRES_DB',
         'POSTGRES_USER',
         'POSTGRES_PASSWORD',
@@ -125,7 +127,7 @@ function Write-ComposeFile {
     $composeContent = @"
 services:
   db:
-    image: postgres:16-alpine
+    image: `${POSTGRES_IMAGE:-$DefaultPostgresImage}
     container_name: `${POSTGRES_CONTAINER_NAME:-$DefaultPostgresContainerName}
     restart: unless-stopped
     environment:
@@ -193,6 +195,7 @@ function Initialize-EnvFile {
         DJANGO_ALLOWED_HOSTS = $DefaultAllowedHosts
         ADMIN_EMAIL = $DefaultAdminEmail
         POSTGRES_CONTAINER_NAME = $DefaultPostgresContainerName
+        POSTGRES_IMAGE = $DefaultPostgresImage
         POSTGRES_DB = $DefaultPostgresDb
         POSTGRES_USER = $DefaultPostgresUser
         POSTGRES_PASSWORD = New-Secret
@@ -217,6 +220,7 @@ function Ensure-EnvDefaults {
     if (-not $map.DJANGO_ALLOWED_HOSTS) { $map.DJANGO_ALLOWED_HOSTS = $DefaultAllowedHosts }
     if (-not $map.ADMIN_EMAIL) { $map.ADMIN_EMAIL = $DefaultAdminEmail }
     if (-not $map.POSTGRES_CONTAINER_NAME) { $map.POSTGRES_CONTAINER_NAME = $DefaultPostgresContainerName }
+    if (-not $map.POSTGRES_IMAGE) { $map.POSTGRES_IMAGE = $DefaultPostgresImage }
     if (-not $map.POSTGRES_DB) { $map.POSTGRES_DB = $DefaultPostgresDb }
     if (-not $map.POSTGRES_USER) { $map.POSTGRES_USER = $DefaultPostgresUser }
     if (-not $map.POSTGRES_PASSWORD) { $map.POSTGRES_PASSWORD = New-Secret }

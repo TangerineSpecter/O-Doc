@@ -16,6 +16,18 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': resolve(__dirname, 'src')
       }
+    },
+    server: {
+      proxy: {
+        '/api': {
+          target: 'http://localhost:11800',
+          changeOrigin: true
+        },
+        '/media': {
+          target: 'http://localhost:11800',
+          changeOrigin: true
+        }
+      }
     }
   }
 });

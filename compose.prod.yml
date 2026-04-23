@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-m.daocloud.io/docker.io/postgres:16-alpine}
     container_name: ${POSTGRES_CONTAINER_NAME:-o-doc-postgres}
     restart: unless-stopped
     environment:
@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-odoc}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "${POSTGRES_BIND_ADDRESS:-0.0.0.0}:${POSTGRES_HOST_PORT:-5432}:5432"
+      - "${POSTGRES_BIND_ADDRESS:-0.0.0.0}:${POSTGRES_HOST_PORT:-15432}:5432"
     volumes:
       - ./deploy/runtime/postgres:/var/lib/postgresql/data
     healthcheck:
