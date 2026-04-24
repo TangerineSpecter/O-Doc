@@ -131,6 +131,16 @@ cd frontend_react && npm install && cd ..
 - 后端服务：http://localhost:11800
 - 前端服务：http://localhost:5173
 
+日常前端开发请访问 `http://localhost:5173`。`http://localhost:11800` 是 Django 后端入口，只会加载已经构建并复制到 `templates/`、`static/` 的前端产物；`./dev.sh` 不会自动执行前端 build。
+
+前端 Mock 数据默认关闭，会通过 Vite 代理访问真实后端接口。如需启用 Mock 演示数据，可执行：
+
+```bash
+VITE_ENABLE_MOCKS=true ./dev.sh
+```
+
+更完整的开发、构建和部署流程请查看 [部署与更新指南](docs/部署与更新指南.md)。
+
 按 `Ctrl+C` 可停止所有服务。
 
 ### 代码检查

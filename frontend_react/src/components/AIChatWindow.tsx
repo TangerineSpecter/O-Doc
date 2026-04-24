@@ -10,6 +10,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
 // 引入自定义组件和 API
+import {AIConfigError} from '../api/ai';
 import ConfirmationModal from './common/ConfirmationModal';
 import {getArticleDetail} from '../api/article';
 import {CodeBlock, MermaidChart} from './Article/MarkdownElements';
@@ -241,26 +242,57 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 })
             });
 
+            if (!response.ok) {
+                if (response.status === 400) {
+                    try {
+                        const errorData = await response.json();
+                        const errorMsg = errorData.error || '';
+                        if (errorMsg.includes('No default model configured') || errorMsg.includes('model')) {
+                            throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
+                        }
+                        throw new Error(errorMsg || 'AI 配置错误');
+                    } catch (e) {
+                        if (e instanceof AIConfigError) throw e;
+                        throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
+                    }
+                }
+                throw new Error('AI 请求失败');
+            }
+
             if (!response.body) throw new Error("No response body");
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
+            let fullText = '';
 
             while (true) {
                 const {done, value} = await reader.read();
                 if (done) break;
 
                 const chunk = decoder.decode(value, {stream: true});
-                // 将 chunk 拆解入队
+                fullText += chunk;
+
+                if (/\[System Error\]/.test(fullText)) {
+                    if (fullText.includes('No default model configured')) {
+                        throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
+                    }
+                    throw new AIConfigError('AI 服务异常，请检查配置');
+                }
+
                 for (const char of chunk) {
                     tokenQueueRef.current.push(char);
                 }
             }
         } catch (error) {
             console.error(error);
+            tokenQueueRef.current = [];
             setMessages(prev => {
                 const newMsgs = [...prev];
-                newMsgs[newMsgs.length - 1].content = '网络连接异常，请检查后端服务。';
+                if (error instanceof AIConfigError) {
+                    newMsgs[newMsgs.length - 1].content = `⚠️ ${error.message}`;
+                } else {
+                    newMsgs[newMsgs.length - 1].content = '网络连接异常，请检查后端服务。';
+                }
                 return newMsgs;
             });
         } finally {

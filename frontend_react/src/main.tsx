@@ -5,8 +5,8 @@ import './index.css';
 import App from './App.tsx';
 
 async function enableMocking() {
-  // 只在开发环境启动 Mock
-  if (process.env.NODE_ENV !== 'development') {
+  // Mock 数据只在显式开启时启用，避免开发联调时拦截真实后端接口。
+  if (!import.meta.env.DEV || import.meta.env.VITE_ENABLE_MOCKS !== 'true') {
     return;
   }
 

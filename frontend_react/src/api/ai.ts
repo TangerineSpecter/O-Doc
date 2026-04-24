@@ -38,6 +38,9 @@ export const generateTagsWithAI = async (title: string, content: string): Promis
 
     } catch (error) {
         console.error("AI 生成标签失败:", error);
+        if (error instanceof AIConfigError) {
+            throw error;
+        }
         return [];
     }
 };
@@ -64,6 +67,9 @@ ${truncatedContent}`;
         return result.replace(/^["'《]|["'》]$/g, '').trim();
     } catch (error) {
         console.error("AI 生成标题失败:", error);
+        if (error instanceof AIConfigError) {
+            throw error;
+        }
         return "";
     }
 };
@@ -103,6 +109,15 @@ export const polishArticleWithAI = async (content: string): Promise<string> => {
 /**
  * 提取公共的 Fetch 逻辑
  */
+const SYSTEM_ERROR_PATTERN = /\[System Error\]/;
+
+export class AIConfigError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'AIConfigError';
+    }
+}
+
 const fetchAIResponse = async (prompt: string): Promise<string> => {
     const response = await fetch('/api/ai/chat/', {
         method: 'POST',
@@ -118,6 +133,19 @@ const fetchAIResponse = async (prompt: string): Promise<string> => {
     });
 
     if (!response.ok) {
+        if (response.status === 400) {
+            try {
+                const errorData = await response.json();
+                const errorMsg = errorData.error || '';
+                if (errorMsg.includes('No default model configured') || errorMsg.includes('model')) {
+                    throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
+                }
+                throw new AIConfigError(errorMsg || 'AI 配置错误');
+            } catch (e) {
+                if (e instanceof AIConfigError) throw e;
+                throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
+            }
+        }
         throw new Error('AI 请求失败');
     }
 
@@ -134,8 +162,16 @@ const fetchAIResponse = async (prompt: string): Promise<string> => {
         }
     }
 
-    // 简单清理 SSE 格式的前缀（如果有）
-    return resultText
+    const cleanedText = resultText
         .replace(/data:\s*/g, '')
         .trim();
+
+    if (SYSTEM_ERROR_PATTERN.test(cleanedText)) {
+        if (cleanedText.includes('No default model configured')) {
+            throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
+        }
+        throw new AIConfigError('AI 服务异常，请检查配置');
+    }
+
+    return cleanedText;
 };

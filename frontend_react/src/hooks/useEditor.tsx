@@ -6,7 +6,7 @@ import {createArticle, getArticleDetail, getArticlesByAnthology, updateArticle} 
 import {getCategoryList} from '../api/category';
 import {useToast} from '../components/common/ToastProvider';
 import {uploadResource} from '../api/resources';
-import {generateTagsWithAI, generateTitleWithAI, polishArticleWithAI} from '../api/ai';
+import {AIConfigError, generateTagsWithAI, generateTitleWithAI, polishArticleWithAI} from '../api/ai';
 import {
     CheckSquare,
     Code,
@@ -809,11 +809,14 @@ export const useEditor = () => {
                 return;
             }
 
-            // 合并标签：去重
             const mergedTags = Array.from(new Set([...tags, ...newTags]));
             setTags(mergedTags);
             toast.success(`已生成 ${newTags.length} 个标签`);
         } catch (error) {
+            if (error instanceof AIConfigError) {
+                toast.error(error.message);
+                return;
+            }
             toast.error('AI 生成标签失败');
         } finally {
             setIsGeneratingTags(false);
@@ -836,6 +839,10 @@ export const useEditor = () => {
                 toast.error('AI 未能生成标题');
             }
         } catch (error) {
+            if (error instanceof AIConfigError) {
+                toast.error(error.message);
+                return;
+            }
             toast.error('生成标题失败');
         } finally {
             setIsGeneratingTitle(false);
