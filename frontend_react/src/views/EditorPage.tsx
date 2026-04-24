@@ -7,8 +7,9 @@ import VideoLinkModal from '../components/common/VideoLinkModal';
 import {useEditor} from '../hooks/useEditor';
 import {BubbleMenu} from '../components/Editor/BubbleMenu';
 import ConfirmationModal from '../components/common/ConfirmationModal';
-import {Sparkles, Loader2} from 'lucide-react';
+import {ArrowUp, Loader2, Sparkles, Wand2} from 'lucide-react';
 import {useMemo} from 'react';
+import {getPreviewShortcutLabel} from '../utils/keyboard';
 
 // 1. 优化后的星星：更加晶莹剔透
 const MagicStar = ({styleClass, delay, top, left, size}: {
@@ -49,6 +50,68 @@ const ShootingStar = ({delay, top, left}: { delay: string, top: string, left: st
     </div>
 );
 
+const AiContinueBox = ({
+    isOpen,
+    position,
+    value,
+    onChange,
+    onSubmit,
+    onClose,
+    isLoading
+}: {
+    isOpen: boolean;
+    position: { top: number; left: number };
+    value: string;
+    onChange: (value: string) => void;
+    onSubmit: () => void;
+    onClose: () => void;
+    isLoading: boolean;
+}) => {
+    if (!isOpen) return null;
+
+    return (
+        <div
+            className="fixed z-[70] w-[min(720px,calc(100vw-32px))] rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 ring-1 ring-slate-900/5 animate-in fade-in zoom-in-95 duration-150"
+            style={{
+                top: Math.min(position.top, window.innerHeight - 120),
+                left: position.left
+            }}
+        >
+            <div className="flex items-center gap-3 px-4 py-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700">
+                    <Wand2 className="h-5 w-5"/>
+                </div>
+                <input
+                    autoFocus
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            onSubmit();
+                        }
+                        if (e.key === 'Escape') {
+                            e.preventDefault();
+                            onClose();
+                        }
+                    }}
+                    placeholder="使用 AI 编辑（@ 提醒以使用技能）"
+                    className="min-w-0 flex-1 border-none bg-transparent text-base font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:ring-0"
+                    disabled={isLoading}
+                />
+                <button
+                    onClick={onSubmit}
+                    disabled={isLoading}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-300 text-white transition-colors hover:bg-orange-500 disabled:cursor-wait disabled:bg-slate-300"
+                    title="提交 AI 续写"
+                >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : <ArrowUp className="h-4 w-4"/>}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 export default function EditorPage() {
     const {
         textareaRef, fileInputRef, attachmentInputRef,
@@ -69,8 +132,19 @@ export default function EditorPage() {
         onImageUpload, onTextChange, onKeyDown, onPaste,
         showBubbleMenu,
         bubbleMenuPosition,
+        showAiLineHint,
+        aiLineHintPosition,
+        isAiContinueOpen,
+        aiContinuePosition,
+        aiContinuePrompt,
+        setAiContinuePrompt,
+        isAiContinuing,
         handleSelectionChange,
         applyFormat,
+        onTextAreaFocus,
+        onTextAreaScroll,
+        onCloseAiContinue,
+        onSubmitAiContinue,
         isGeneratingTags,
         onGenerateTags,
         isGeneratingTitle,
@@ -86,6 +160,7 @@ export default function EditorPage() {
     const todayStr = new Date().toLocaleDateString('zh-CN', {
         year: 'numeric', month: '2-digit', day: '2-digit'
     }).replace(/\//g, '-');
+    const previewShortcutLabel = getPreviewShortcutLabel();
 
     // 星星数据
     const stars = useMemo(() => {
@@ -280,6 +355,8 @@ export default function EditorPage() {
                                 onChange={onTextChange}
                                 onKeyDown={onKeyDown}
                                 onPaste={onPaste}
+                                onFocus={onTextAreaFocus}
+                                onScroll={onTextAreaScroll}
                                 onSelect={handleSelectionChange}
                                 onMouseUp={handleSelectionChange}
                                 onKeyUp={(e) => {
@@ -292,6 +369,28 @@ export default function EditorPage() {
                                 placeholder="输入 / 呼出命令菜单，支持粘贴图片..."
                                 spellCheck={false}
                                 autoFocus
+                            />
+
+                            {showAiLineHint && !showMenu && !isAiContinueOpen && (
+                                <div
+                                    className="pointer-events-none fixed z-30 text-[17px] sm:text-[18px] leading-none text-slate-400/80"
+                                    style={{
+                                        top: aiLineHintPosition.top + 4,
+                                        left: aiLineHintPosition.left
+                                    }}
+                                >
+                                    按 space（空格）以启用 AI，按“/”启用命令，{previewShortcutLabel} 预览
+                                </div>
+                            )}
+
+                            <AiContinueBox
+                                isOpen={isAiContinueOpen}
+                                position={aiContinuePosition}
+                                value={aiContinuePrompt}
+                                onChange={setAiContinuePrompt}
+                                onSubmit={onSubmitAiContinue}
+                                onClose={onCloseAiContinue}
+                                isLoading={isAiContinuing}
                             />
 
                             <SlashMenu isOpen={showMenu} position={menuPosition} commands={commands}

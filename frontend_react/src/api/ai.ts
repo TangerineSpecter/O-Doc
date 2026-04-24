@@ -116,6 +116,31 @@ export const polishArticleWithAI = async (content: string): Promise<string> => {
 };
 
 /**
+ * AI 续写文章
+ */
+export const continueWritingWithAI = async (content: string, instruction: string): Promise<string> => {
+    const truncatedContent = content.slice(-4000);
+    const prompt = `请基于以下 Markdown 文档内容继续写作。
+要求：
+1. 只返回需要插入到光标位置的新内容。
+2. 保持原文语言、语气和 Markdown 风格。
+3. 不要解释你的写作过程，不要添加“好的”等对话文本。
+4. 如果用户给了具体要求，优先按要求续写。
+
+用户要求：${instruction || '自然续写当前内容'}
+
+当前文档末尾内容：
+${truncatedContent}`;
+
+    try {
+        return await fetchAIResponse(prompt);
+    } catch (error) {
+        console.error("AI 续写失败:", error);
+        throw error;
+    }
+};
+
+/**
  * 提取公共的 Fetch 逻辑
  */
 const SYSTEM_ERROR_PATTERN = /\[System Error\]/;

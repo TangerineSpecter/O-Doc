@@ -1,4 +1,5 @@
 import { ArrowLeft, Edit3, Eye, Type, Save, Sparkles, Wand2, Loader2 } from 'lucide-react'; // 引入新图标
+import {getPreviewShortcutLabel} from '../../utils/keyboard';
 
 // 更新 Props 接口
 interface EditorHeaderProps {
@@ -28,6 +29,8 @@ export const EditorHeader = ({
     isPolishing,
     onPolish
 }: EditorHeaderProps) => {
+    const previewShortcutLabel = getPreviewShortcutLabel();
+
     return (
         <header className="h-14 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 z-40 flex-shrink-0 relative">
             <div className="flex items-center gap-4 flex-1 mr-4">
@@ -101,7 +104,7 @@ export const EditorHeader = ({
                             ? 'bg-orange-50 text-orange-600 border border-orange-200 shadow-sm'
                             : 'text-slate-600 hover:bg-slate-100 border border-transparent'}
                     `}
-                    title="快捷键 Cmd+E / Ctrl+E，若被浏览器占用可用 Cmd+Shift+E / Ctrl+Shift+E"
+                    title={`快捷键 ${previewShortcutLabel}，若被浏览器占用可加 Shift`}
                 >
                     {isPreviewMode ? <Eye className="w-4 h-4" /> : <Type className="w-4 h-4" />}
                     <span className="hidden sm:inline">{isPreviewMode ? '预览模式' : '编辑模式'}</span>

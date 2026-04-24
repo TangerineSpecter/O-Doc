@@ -6,7 +6,7 @@ import {createArticle, getArticleDetail, getArticlesByAnthology, updateArticle} 
 import {getCategoryList} from '../api/category';
 import {useToast} from '../components/common/ToastProvider';
 import {uploadResource} from '../api/resources';
-import {AIConfigError, generateTagsWithAI, generateTitleWithAI, polishArticleWithAI} from '../api/ai';
+import {AIConfigError, continueWritingWithAI, generateTagsWithAI, generateTitleWithAI, polishArticleWithAI} from '../api/ai';
 import {
     CheckSquare,
     Code,
@@ -34,6 +34,10 @@ const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
 const isPreviewShortcut = (event: KeyboardEvent | React.KeyboardEvent) => {
     return (event.metaKey || event.ctrlKey) && event.code === 'KeyE';
+};
+
+const getLineStartIndex = (text: string, position: number) => {
+    return text.lastIndexOf('\n', Math.max(0, position - 1)) + 1;
 };
 
 // 1. 定义颜色映射 (与 CategoriesPage/Article 保持一致)
@@ -177,6 +181,13 @@ export const useEditor = () => {
     const [isPreviewMode, setIsPreviewMode] = useState(false);
     const [isImageLinkModalOpen, setIsImageLinkModalOpen] = useState(false);
     const [isVideoLinkModalOpen, setIsVideoLinkModalOpen] = useState(false);
+    const [showAiLineHint, setShowAiLineHint] = useState(false);
+    const [aiLineHintPosition, setAiLineHintPosition] = useState({top: 0, left: 0});
+    const [isAiContinueOpen, setIsAiContinueOpen] = useState(false);
+    const [aiContinuePosition, setAiContinuePosition] = useState({top: 0, left: 0});
+    const [aiContinuePrompt, setAiContinuePrompt] = useState('');
+    const [aiContinueInsertPosition, setAiContinueInsertPosition] = useState(0);
+    const [isAiContinuing, setIsAiContinuing] = useState(false);
 
     // State: Slash Menu
     const [showMenu, setShowMenu] = useState(false);
@@ -197,6 +208,12 @@ export const useEditor = () => {
     const [bubbleMenuPosition, setBubbleMenuPosition] = useState({top: 0, left: 0});
 
     // --- Helpers ---
+
+    const isCursorAtLineStart = () => {
+        const textarea = textareaRef.current;
+        if (!textarea || textarea.selectionStart !== textarea.selectionEnd) return false;
+        return textarea.selectionStart === getLineStartIndex(textarea.value, textarea.selectionStart);
+    };
 
     // 增加 index 参数，允许计算任意位置的坐标（默认是当前光标）
     const getCaretCoordinates = (index: number | null = null) => {
@@ -233,6 +250,26 @@ export const useEditor = () => {
         return {top, left};
     };
 
+    const updateAiLineHint = () => {
+        const textarea = textareaRef.current;
+        if (!textarea || showMenu || isAiContinueOpen || isPolishing) {
+            setShowAiLineHint(false);
+            return;
+        }
+
+        if (!isCursorAtLineStart()) {
+            setShowAiLineHint(false);
+            return;
+        }
+
+        const coords = getCaretCoordinates();
+        setAiLineHintPosition({
+            top: coords.top,
+            left: coords.left + 2
+        });
+        setShowAiLineHint(true);
+    };
+
     // --- 新增：处理选区变化 ---
     // 在 onSelect, onKeyUp, onMouseUp 时触发
     const handleSelectionChange = () => {
@@ -240,6 +277,7 @@ export const useEditor = () => {
         if (!textarea) return;
 
         const {selectionStart, selectionEnd} = textarea;
+        updateAiLineHint();
 
         // 如果没有选中文本，或者正在显示 Slash 菜单，则隐藏气泡菜单
         if (selectionStart === selectionEnd || showMenu) {
@@ -302,6 +340,7 @@ export const useEditor = () => {
         // 执行替换
         const newContent = content.substring(0, start) + formattedText + content.substring(end);
         setContent(newContent);
+        setShowAiLineHint(false);
 
         // 恢复焦点并保持选中
         setTimeout(() => {
@@ -325,6 +364,7 @@ export const useEditor = () => {
             const newPos = start + text.length + cursorOffset;
             textarea.setSelectionRange(newPos, newPos);
             textarea.scrollTop = scrollTop;
+            updateAiLineHint();
         }, 0);
     };
 
@@ -581,6 +621,7 @@ export const useEditor = () => {
         const val = e.target.value;
         const pos = e.target.selectionStart;
         setContent(val);
+        setShowAiLineHint(false);
 
         if (showMenu) {
             if (pos <= slashIndex) {
@@ -593,6 +634,7 @@ export const useEditor = () => {
                 setSearchQuery(query);
                 setSelectedIndex(0);
             }
+            setTimeout(updateAiLineHint, 0);
             return;
         }
 
@@ -606,6 +648,7 @@ export const useEditor = () => {
             setShowMenu(true);
             setSelectedIndex(0);
         }
+        setTimeout(updateAiLineHint, 0);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -613,6 +656,20 @@ export const useEditor = () => {
             e.preventDefault();
             e.stopPropagation();
             handleTogglePreview();
+            return;
+        }
+        if (!showMenu && e.key === ' ' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && isCursorAtLineStart()) {
+            const coords = getCaretCoordinates();
+            const textarea = textareaRef.current;
+            e.preventDefault();
+            setShowAiLineHint(false);
+            setAiContinuePrompt('');
+            setAiContinueInsertPosition(textarea?.selectionStart || 0);
+            setAiContinuePosition({
+                top: coords.top + 30,
+                left: Math.max(16, Math.min(coords.left, window.innerWidth - 720))
+            });
+            setIsAiContinueOpen(true);
             return;
         }
         if (!showMenu) return;
@@ -629,6 +686,53 @@ export const useEditor = () => {
         } else if (e.key === 'Escape') {
             e.preventDefault();
             closeMenu();
+        }
+    };
+
+    const closeAiContinue = () => {
+        setIsAiContinueOpen(false);
+        setAiContinuePrompt('');
+        setIsAiContinuing(false);
+        setTimeout(() => {
+            textareaRef.current?.focus();
+            updateAiLineHint();
+        }, 0);
+    };
+
+    const submitAiContinue = async () => {
+        if (isAiContinuing) return;
+
+        setIsAiContinuing(true);
+        try {
+            const generatedText = await continueWritingWithAI(content, aiContinuePrompt.trim());
+            if (!generatedText.trim()) {
+                toast.error('AI 没有返回可插入内容');
+                return;
+            }
+
+            const prefix = aiContinueInsertPosition > 0 && content[aiContinueInsertPosition - 1] !== '\n' ? '\n' : '';
+            const nextText = `${prefix}${generatedText.trim()}`;
+            const newContent = content.slice(0, aiContinueInsertPosition) + nextText + content.slice(aiContinueInsertPosition);
+            setContent(newContent);
+            setIsAiContinueOpen(false);
+            setAiContinuePrompt('');
+
+            setTimeout(() => {
+                const textarea = textareaRef.current;
+                if (!textarea) return;
+                const nextCursor = aiContinueInsertPosition + nextText.length;
+                textarea.focus();
+                textarea.setSelectionRange(nextCursor, nextCursor);
+                updateAiLineHint();
+            }, 0);
+        } catch (error) {
+            if (error instanceof AIConfigError) {
+                toast.error(error.message);
+            } else {
+                toast.error('AI 续写失败');
+            }
+        } finally {
+            setIsAiContinuing(false);
         }
     };
 
@@ -907,6 +1011,13 @@ export const useEditor = () => {
         commands,
         showBubbleMenu,
         bubbleMenuPosition,
+        showAiLineHint,
+        aiLineHintPosition,
+        isAiContinueOpen,
+        aiContinuePosition,
+        aiContinuePrompt,
+        setAiContinuePrompt,
+        isAiContinuing,
         handleSelectionChange,
         applyFormat,
         // Actions
@@ -923,7 +1034,11 @@ export const useEditor = () => {
         // Editor Actions
         onTextChange: handleTextChange,
         onKeyDown: handleKeyDown,
+        onTextAreaFocus: updateAiLineHint,
+        onTextAreaScroll: updateAiLineHint,
         onExecuteCommand: executeCommand,
+        onCloseAiContinue: closeAiContinue,
+        onSubmitAiContinue: submitAiContinue,
         // Image Link Actions
         onImageLinkConfirm: handleImageLinkConfirm,
         onImageLinkCancel: handleImageLinkCancel,
