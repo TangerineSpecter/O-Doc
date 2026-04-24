@@ -215,7 +215,22 @@ export default function Article({
         th: ({children}: { children: ReactNode }) => <th
             className="bg-gray-50 px-4 py-3 font-semibold text-gray-700 border-b border-gray-200">{children}</th>,
         td: ({children}: { children: ReactNode }) => <td
-            className="px-4 py-3 border-b border-gray-100 text-gray-600">{children}</td>
+            className="px-4 py-3 border-b border-gray-100 text-gray-600">{children}</td>,
+        iframe: (props: any) => (
+            <iframe
+                {...props}
+                className="my-8 aspect-video w-full rounded-xl border border-slate-200 bg-slate-950 shadow-lg"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+            />
+        ),
+        video: (props: any) => (
+            <video
+                {...props}
+                className="my-8 w-full rounded-xl border border-slate-200 bg-slate-950 shadow-lg"
+                controls
+            />
+        )
     }), []);
 
     // 只要传入了 articleId，组件挂载后就会自动开始计时并上报

@@ -40,6 +40,46 @@ const getLineStartIndex = (text: string, position: number) => {
     return text.lastIndexOf('\n', Math.max(0, position - 1)) + 1;
 };
 
+const escapeHtmlAttribute = (value: string) => {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+};
+
+const getBilibiliEmbedUrl = (url: string) => {
+    try {
+        const parsedUrl = new URL(url);
+        const host = parsedUrl.hostname.replace(/^www\./, '');
+        if (!['bilibili.com', 'm.bilibili.com', 'player.bilibili.com'].includes(host)) return null;
+
+        if (host === 'player.bilibili.com') return parsedUrl.toString();
+
+        const bvid = parsedUrl.pathname.match(/\/video\/(BV[a-zA-Z0-9]+)/)?.[1]
+            || parsedUrl.searchParams.get('bvid');
+        if (!bvid) return null;
+
+        const page = parsedUrl.searchParams.get('p') || parsedUrl.searchParams.get('page') || '1';
+        const embedUrl = new URL('https://player.bilibili.com/player.html');
+        embedUrl.searchParams.set('bvid', bvid);
+        embedUrl.searchParams.set('page', page);
+        embedUrl.searchParams.set('high_quality', '1');
+        return embedUrl.toString();
+    } catch {
+        return null;
+    }
+};
+
+const createVideoEmbedMarkup = (url: string) => {
+    const bilibiliEmbedUrl = getBilibiliEmbedUrl(url);
+    if (bilibiliEmbedUrl) {
+        return `\n<iframe src="${escapeHtmlAttribute(bilibiliEmbedUrl)}" width="100%" height="480" frameborder="0" allowfullscreen></iframe>\n`;
+    }
+
+    return `\n<video src="${escapeHtmlAttribute(url)}" controls width="100%"></video>\n`;
+};
+
 // 1. 定义颜色映射 (与 CategoriesPage/Article 保持一致)
 const THEME_DOT_COLORS: Record<string, string> = {
     blue: 'bg-blue-600',
@@ -644,7 +684,7 @@ export const useEditor = () => {
     };
 
     const handleVideoLinkConfirm = (url: string) => {
-        const videoHtml = `\n<video src="${url}" controls width="100%"></video>\n`;
+        const videoHtml = createVideoEmbedMarkup(url);
         if (linkInsertPosition !== null) {
             insertTextAtPosition(videoHtml, linkInsertPosition);
             setLinkInsertPosition(null);
