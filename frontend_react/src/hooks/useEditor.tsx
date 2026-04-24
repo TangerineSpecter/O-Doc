@@ -197,6 +197,8 @@ export const useEditor = () => {
     const [slashIndex, setSlashIndex] = useState(-1);
     // 保存使用斜杠命令上传图片时的插入位置
     const [imageInsertPosition, setImageInsertPosition] = useState<number | null>(null);
+    // 保存使用斜杠命令打开链接弹窗时的插入位置，避免弹窗抢焦点后丢失光标
+    const [linkInsertPosition, setLinkInsertPosition] = useState<number | null>(null);
 
     const commands = getCommandsWithIcons().filter(cmd =>
         cmd.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -362,6 +364,22 @@ export const useEditor = () => {
         setTimeout(() => {
             textarea.focus();
             const newPos = start + text.length + cursorOffset;
+            textarea.setSelectionRange(newPos, newPos);
+            textarea.scrollTop = scrollTop;
+            updateAiLineHint();
+        }, 0);
+    };
+
+    const insertTextAtPosition = (text: string, position: number, cursorOffset = 0) => {
+        const textarea = textareaRef.current;
+        const insertPosition = Math.max(0, Math.min(position, content.length));
+        const scrollTop = textarea?.scrollTop ?? 0;
+        const newContent = content.substring(0, insertPosition) + text + content.substring(insertPosition);
+        setContent(newContent);
+        setTimeout(() => {
+            if (!textarea) return;
+            textarea.focus();
+            const newPos = insertPosition + text.length + cursorOffset;
             textarea.setSelectionRange(newPos, newPos);
             textarea.scrollTop = scrollTop;
             updateAiLineHint();
@@ -564,14 +582,24 @@ export const useEditor = () => {
             return;
         }
         if (cmd.id === 'imageLink') {
+            const textarea = textareaRef.current;
+            if (!textarea) return;
+            const insertPosition = slashIndex;
+            const selectionEnd = textarea.selectionEnd;
             closeMenu();
-            setContent(prev => prev.substring(0, slashIndex) + prev.substring(textareaRef.current!.selectionEnd));
+            setContent(prev => prev.substring(0, insertPosition) + prev.substring(selectionEnd));
+            setLinkInsertPosition(insertPosition);
             setIsImageLinkModalOpen(true);
             return;
         }
         if (cmd.id === 'video') {
+            const textarea = textareaRef.current;
+            if (!textarea) return;
+            const insertPosition = slashIndex;
+            const selectionEnd = textarea.selectionEnd;
             closeMenu();
-            setContent(prev => prev.substring(0, slashIndex) + prev.substring(textareaRef.current!.selectionEnd));
+            setContent(prev => prev.substring(0, insertPosition) + prev.substring(selectionEnd));
+            setLinkInsertPosition(insertPosition);
             setIsVideoLinkModalOpen(true);
             return;
         }
@@ -600,20 +628,34 @@ export const useEditor = () => {
     };
 
     const handleImageLinkConfirm = (url: string, altText: string) => {
-        insertTextAtCursor(`![${altText || '图片'}](${url})`);
+        const imageMarkdown = `![${altText || '图片'}](${url})`;
+        if (linkInsertPosition !== null) {
+            insertTextAtPosition(imageMarkdown, linkInsertPosition);
+            setLinkInsertPosition(null);
+        } else {
+            insertTextAtCursor(imageMarkdown);
+        }
         setIsImageLinkModalOpen(false);
     };
 
     const handleImageLinkCancel = () => {
+        setLinkInsertPosition(null);
         setIsImageLinkModalOpen(false);
     };
 
     const handleVideoLinkConfirm = (url: string) => {
-        insertTextAtCursor(`\n<video src="${url}" controls width="100%"></video>\n`);
+        const videoHtml = `\n<video src="${url}" controls width="100%"></video>\n`;
+        if (linkInsertPosition !== null) {
+            insertTextAtPosition(videoHtml, linkInsertPosition);
+            setLinkInsertPosition(null);
+        } else {
+            insertTextAtCursor(videoHtml);
+        }
         setIsVideoLinkModalOpen(false);
     };
 
     const handleVideoLinkCancel = () => {
+        setLinkInsertPosition(null);
         setIsVideoLinkModalOpen(false);
     };
 
