@@ -872,6 +872,10 @@ export const useEditor = () => {
                 toast.error('AI 返回内容为空');
             }
         } catch (error) {
+            if (error instanceof AIConfigError) {
+                toast.error(error.message);
+                return;
+            }
             toast.error('润色失败，请稍后重试');
         } finally {
             setIsPolishing(false);

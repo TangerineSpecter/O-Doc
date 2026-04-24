@@ -91,15 +91,24 @@ export const polishArticleWithAI = async (content: string): Promise<string> => {
         });
 
         if (!response.ok) {
+            if (response.status === 400) {
+                try {
+                    const errorData = await response.json();
+                    throwAIConfigErrorIfMatched(errorData.error || errorData.msg || errorData.data || '');
+                } catch (e) {
+                    if (e instanceof AIConfigError) throw e;
+                }
+            }
             throw new Error('AI 润色请求失败');
         }
 
         const result = await response.json();
         if (result.code !== 200) {
+            throwAIConfigErrorIfMatched([result.msg, result.data].filter(Boolean).join(' '));
             throw new Error(result.msg || 'AI 润色失败');
         }
 
-        return result.data.polishedContent;
+        return result.data.polishedContent || result.data.polished_content;
     } catch (error) {
         console.error("AI 润色文章失败:", error);
         throw error;
@@ -117,6 +126,12 @@ export class AIConfigError extends Error {
         this.name = 'AIConfigError';
     }
 }
+
+const throwAIConfigErrorIfMatched = (message: string) => {
+    if (message.includes('No default model configured') || message.includes('default model')) {
+        throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
+    }
+};
 
 const fetchAIResponse = async (prompt: string): Promise<string> => {
     const response = await fetch('/api/ai/chat/', {
