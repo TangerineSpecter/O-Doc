@@ -101,7 +101,7 @@ export const EditorHeader = ({
                             ? 'bg-orange-50 text-orange-600 border border-orange-200 shadow-sm'
                             : 'text-slate-600 hover:bg-slate-100 border border-transparent'}
                     `}
-                    title="快捷键 Cmd+E"
+                    title="快捷键 Cmd+E / Ctrl+E，若被浏览器占用可用 Cmd+Shift+E / Ctrl+Shift+E"
                 >
                     {isPreviewMode ? <Eye className="w-4 h-4" /> : <Type className="w-4 h-4" />}
                     <span className="hidden sm:inline">{isPreviewMode ? '预览模式' : '编辑模式'}</span>

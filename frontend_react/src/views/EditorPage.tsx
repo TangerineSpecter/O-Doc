@@ -286,7 +286,7 @@ export default function EditorPage() {
                                     if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Shift'].includes(e.key)) handleSelectionChange();
                                 }}
                                 readOnly={isPolishing}
-                                className={`flex-1 w-full p-6 sm:px-12 resize-none outline-none text-slate-700 text-lg leading-relaxed selection:bg-purple-100 selection:text-purple-900 font-mono overflow-y-auto transition-all duration-700
+                                className={`editor-writing-text flex-1 w-full max-w-4xl mx-auto px-6 py-7 sm:px-12 sm:py-9 resize-none outline-none bg-transparent text-[#2c3e50] text-[17px] sm:text-[18px] leading-[1.75] caret-orange-500 placeholder:text-slate-300 selection:bg-orange-100 selection:text-orange-950 overflow-y-auto transition-all duration-700
                                     ${isPolishing ? 'opacity-0 blur-xl scale-95' : 'opacity-100 blur-0 scale-100'}
                                 `}
                                 placeholder="输入 / 呼出命令菜单，支持粘贴图片..."

@@ -41,3 +41,22 @@ body {
 code, pre {
   font-family: theme('fontFamily.mono') !important;
 }
+
+.editor-writing-text {
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Fira Sans",
+    "Droid Sans",
+    "Helvetica Neue",
+    sans-serif;
+  font-weight: 400;
+  letter-spacing: 0;
+  font-synthesis-weight: none;
+  text-rendering: optimizeLegibility;
+}

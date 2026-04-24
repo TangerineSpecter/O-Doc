@@ -32,6 +32,10 @@ import {
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
+const isPreviewShortcut = (event: KeyboardEvent | React.KeyboardEvent) => {
+    return (event.metaKey || event.ctrlKey) && event.code === 'KeyE';
+};
+
 // 1. 定义颜色映射 (与 CategoriesPage/Article 保持一致)
 const THEME_DOT_COLORS: Record<string, string> = {
     blue: 'bg-blue-600',
@@ -605,8 +609,9 @@ export const useEditor = () => {
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if ((e.metaKey || e.ctrlKey) && e.code === 'KeyE') {
+        if (isPreviewShortcut(e)) {
             e.preventDefault();
+            e.stopPropagation();
             handleTogglePreview();
             return;
         }
@@ -782,7 +787,7 @@ export const useEditor = () => {
     // Global shortcut
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.code === 'KeyE') {
+            if (isPreviewShortcut(e)) {
                 e.preventDefault();
                 handleTogglePreview();
             }
