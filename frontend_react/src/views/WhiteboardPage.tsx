@@ -21,6 +21,17 @@ import {EdgeLayer} from '../components/Whiteboard/EdgeLayer';
 import {useWhiteboardDocuments} from '../hooks/useWhiteboardDocuments';
 import {useToast} from '../components/common/ToastProvider';
 
+const CONNECTION_REVEAL_DISTANCE = 110;
+const CONNECTION_SNAP_DISTANCE = 48;
+const HANDLE_POSITIONS: HandlePosition[] = ['top', 'right', 'bottom', 'left'];
+
+type ConnectionTarget = {
+    nodeId: string;
+    handle: HandlePosition;
+    coords: { x: number, y: number };
+    isSnapped: boolean;
+};
+
 export default function WhiteboardPage() {
     const navigate = useNavigate();
     const {boardId} = useParams();
@@ -58,7 +69,7 @@ export default function WhiteboardPage() {
         startCoords: { x: number, y: number }
     } | null>(null);
     const [mouseWorldPos, setMouseWorldPos] = useState({x: 0, y: 0});
-    const [tempTargetHandle, setTempTargetHandle] = useState<HandlePosition | null>(null);
+    const [connectionTarget, setConnectionTarget] = useState<ConnectionTarget | null>(null);
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState({x: 0, y: 0});
     const [dragOffset, setDragOffset] = useState({x: 0, y: 0});
@@ -355,41 +366,49 @@ export default function WhiteboardPage() {
             } : n));
         } else if (connectionStart) {
             let tempPos = worldPos;
-            let targetHandle: HandlePosition | null = null;
-            nodes.forEach(node => {
-                if (node.id === connectionStart.nodeId) return;
-                // 简单的范围检测
-                if (worldPos.x > node.x - 50 && worldPos.x < node.x + node.width + 50 &&
-                    worldPos.y > node.y - 50 && worldPos.y < node.y + node.height + 50) {
-                    const closest = getClosestHandle(worldPos, node);
-                    if (closest.distance < 30) {
-                        tempPos = {x: closest.x, y: closest.y};
-                        targetHandle = closest.handle;
-                    }
+            let target: ConnectionTarget | null = null;
+            for (const node of nodes) {
+                if (node.id === connectionStart.nodeId) continue;
+                const closest = getClosestHandle(worldPos, node);
+                const targetDistance = target
+                    ? Math.hypot(target.coords.x - worldPos.x, target.coords.y - worldPos.y)
+                    : Infinity;
+
+                if (closest.distance <= CONNECTION_REVEAL_DISTANCE && closest.distance < targetDistance) {
+                    target = {
+                        nodeId: node.id,
+                        handle: closest.handle,
+                        coords: {x: closest.x, y: closest.y},
+                        isSnapped: closest.distance <= CONNECTION_SNAP_DISTANCE
+                    };
                 }
-            });
+            }
+            if (target?.isSnapped) {
+                tempPos = target.coords;
+            }
             setMouseWorldPos(tempPos);
-            setTempTargetHandle(targetHandle);
+            setConnectionTarget(target);
         }
     };
 
     const handleGlobalMouseUp = (_: React.MouseEvent) => {
         let hasChanges = false;
-        if (connectionStart && tempTargetHandle) {
-            // 只有找到了目标 Handle 才创建连接
-            const rect = canvasRef.current?.getBoundingClientRect();
-            if (rect) {
-                // 再次确认目标节点存在 (简化逻辑)
-                const newEdges = [...edges, {
-                    id: `edge-${Date.now()}`,
-                    sourceId: connectionStart.nodeId,
-                    targetId: nodes.find(n => getClosestHandle(mouseWorldPos, n).distance < 40 && n.id !== connectionStart.nodeId)?.id || '',
-                    sourceHandle: connectionStart.handle,
-                    targetHandle: tempTargetHandle
-                }].filter(e => e.targetId); // 过滤无效
-                if (newEdges.length > edges.length) {
-                    updateEdges(newEdges, true);
-                }
+        if (connectionStart && connectionTarget?.isSnapped) {
+            const newEdge = {
+                id: `edge-${Date.now()}`,
+                sourceId: connectionStart.nodeId,
+                targetId: connectionTarget.nodeId,
+                sourceHandle: connectionStart.handle,
+                targetHandle: connectionTarget.handle
+            };
+            const isDuplicate = edges.some(edge =>
+                edge.sourceId === newEdge.sourceId &&
+                edge.targetId === newEdge.targetId &&
+                edge.sourceHandle === newEdge.sourceHandle &&
+                edge.targetHandle === newEdge.targetHandle
+            );
+            if (!isDuplicate) {
+                updateEdges([...edges, newEdge], true);
             }
         } else if (draggingNodeId || resizingNodeId) {
             hasChanges = true;
@@ -399,7 +418,7 @@ export default function WhiteboardPage() {
         setResizingNodeId(null);
         setConnectionStart(null);
         setIsPanning(false);
-        setTempTargetHandle(null);
+        setConnectionTarget(null);
     };
 
     const markdownComponents = useMemo(() => ({
@@ -523,7 +542,7 @@ export default function WhiteboardPage() {
                             start: connectionStart.startCoords,
                             end: mouseWorldPos,
                             startHandle: connectionStart.handle,
-                            targetHandle: tempTargetHandle || undefined
+                            targetHandle: connectionTarget?.isSnapped ? connectionTarget.handle : undefined
                         } : null}
                     />
 
@@ -584,21 +603,33 @@ export default function WhiteboardPage() {
                             )}
 
                             {/* 锚点控制 */}
-                            {selectedNodeId === node.id && (
+                            {(selectedNodeId === node.id || connectionTarget?.nodeId === node.id) && (
                                 <>
-                                    <div
-                                        className="absolute -bottom-3 -right-3 w-6 h-6 bg-white border shadow rounded-full cursor-nwse-resize flex items-center justify-center z-[60]"
-                                        onMouseDown={(e) => {
-                                            e.stopPropagation();
-                                            setResizingNodeId(node.id);
-                                        }}>
-                                        <Maximize2 className="w-3 h-3 rotate-90"/>
-                                    </div>
-                                    {(['top', 'right', 'bottom', 'left'] as const).map(pos => (
-                                        <div key={pos}
-                                             className={`absolute w-3 h-3 bg-white border-2 border-orange-500 rounded-full z-[60] cursor-crosshair hover:scale-150 transition-transform ${pos === 'top' ? 'left-1/2 -top-1.5 -translate-x-1/2' : pos === 'bottom' ? 'left-1/2 -bottom-1.5 -translate-x-1/2' : pos === 'left' ? 'top-1/2 -left-1.5 -translate-y-1/2' : 'top-1/2 -right-1.5 -translate-y-1/2'}`}
-                                             onMouseDown={(e) => handleConnectStart(e, node.id, pos)}/>
-                                    ))}
+                                    {selectedNodeId === node.id && !connectionStart && (
+                                        <div
+                                            className="absolute -bottom-3 -right-3 w-6 h-6 bg-white border shadow rounded-full cursor-nwse-resize flex items-center justify-center z-[60]"
+                                            onMouseDown={(e) => {
+                                                e.stopPropagation();
+                                                setResizingNodeId(node.id);
+                                            }}>
+                                            <Maximize2 className="w-3 h-3 rotate-90"/>
+                                        </div>
+                                    )}
+                                    {HANDLE_POSITIONS.map(pos => {
+                                        const isTargetHandle = connectionTarget?.nodeId === node.id && connectionTarget.handle === pos;
+                                        const canStartConnection = selectedNodeId === node.id && !connectionStart;
+                                        const handleClass = isTargetHandle
+                                            ? connectionTarget?.isSnapped
+                                                ? 'w-4 h-4 bg-orange-500 border-4 border-white shadow-[0_0_0_4px_rgba(249,115,22,0.22)] scale-125'
+                                                : 'w-3.5 h-3.5 bg-white border-2 border-orange-500 shadow-[0_0_0_4px_rgba(249,115,22,0.12)]'
+                                            : 'w-3 h-3 bg-white border-2 border-orange-500';
+
+                                        return (
+                                            <div key={pos}
+                                                 className={`absolute rounded-full z-[60] transition-all ${canStartConnection ? 'cursor-crosshair hover:scale-150' : 'pointer-events-none'} ${handleClass} ${pos === 'top' ? 'left-1/2 -top-1.5 -translate-x-1/2' : pos === 'bottom' ? 'left-1/2 -bottom-1.5 -translate-x-1/2' : pos === 'left' ? 'top-1/2 -left-1.5 -translate-y-1/2' : 'top-1/2 -right-1.5 -translate-y-1/2'}`}
+                                                 onMouseDown={(e) => canStartConnection && handleConnectStart(e, node.id, pos)}/>
+                                        );
+                                    })}
                                 </>
                             )}
                         </div>
