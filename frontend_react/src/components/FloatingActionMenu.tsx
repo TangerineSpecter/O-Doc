@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useRef} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Tag, FolderOpen, PenTool, BarChart2, Library, Leaf, CheckSquare} from 'lucide-react';
+import {Tag, FolderOpen, PenTool, BarChart2, Library, Leaf, StickyNote} from 'lucide-react';
 
 // --- 右下角 导航菜单组件 ---
 
@@ -74,9 +74,9 @@ export default function FloatingActionMenu() {
             shadow: 'shadow-orange-400/40'
         },
         {
-            id: 'todo',
-            label: '待办清单',
-            icon: <CheckSquare className="w-5 h-5"/>,
+            id: 'memos',
+            label: '闪念记录',
+            icon: <StickyNote className="w-5 h-5"/>,
             color: 'bg-rose-400',
             shadow: 'shadow-rose-400/40'
         },
@@ -96,7 +96,7 @@ export default function FloatingActionMenu() {
         else if (item.id === 'stats') navigate('/stats');
         else if (item.id === 'tags') navigate('/tags');
         else if (item.id === 'categories') navigate('/categories');
-        else if (item.id === 'todo') navigate('/todo');
+        else if (item.id === 'memos') navigate('/memos');
         else if (item.id === 'whiteboard') navigate('/whiteboard');
         setIsOpen(false);
     };

@@ -56,7 +56,8 @@ INSTALLED_APPS = [
     'system_settings',
     'ai_assistant',
     'rag.apps.RagConfig',
-    'message.apps.MessageConfig'
+    'message.apps.MessageConfig',
+    'memos.apps.MemosConfig'
 ]
 
 # DRF全局配置

@@ -77,6 +77,15 @@ def generate_msg_id() -> str:
     return generate_unique_id("msg")
 
 
+# 为闪念备忘生成带 memo 前缀的 ID
+def generate_memo_id() -> str:
+    """
+    生成带 memo 前缀的备忘ID
+    :return: 带 memo 前缀的唯一ID字符串
+    """
+    return generate_unique_id("memo")
+
+
 # 为图片生成带img前缀的ID
 def generate_image_id() -> str:
     """

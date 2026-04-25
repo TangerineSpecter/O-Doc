@@ -32,6 +32,7 @@ urlpatterns = [
     path('api/stats/', include('stats.urls')),  # 统计接口
     path('api/rag/', include('rag.urls')),  # RAG接口
     path('api/message/', include('message.urls')),  # 消息模块接口
+    path('api/memo/', include('memos.urls')),  # 闪念备忘接口
 ]
 
 # 在开发环境中提供媒体文件服务

@@ -1,4 +1,4 @@
-import {BrowserRouter, Routes, Route, useNavigate, useParams} from 'react-router-dom';
+import {BrowserRouter, Navigate, Routes, Route, useNavigate, useParams} from 'react-router-dom';
 import {ToastProvider} from './components/common/ToastProvider'; // 1. 引入 Provider
 import Layout from './layout/Layout';
 import HomePage from './views/HomePage';
@@ -11,7 +11,7 @@ import StatisticsPage from './views/StatisticsPage';
 import CategoriesPage from './views/CategoriesPage';
 import TagsPage from './views/TagsPage';
 import SettingsPage from './views/SettingsPage';
-import TodoPage from './views/TodoPage';
+import MemosPage from './views/MemosPage';
 import WhiteboardPage from './views/WhiteboardPage'
 import WhiteboardManagePage from './views/WhiteboardManagePage';
 
@@ -194,11 +194,12 @@ function AppWithRouter() {
                     <SettingsPage/>
                 </Layout>
             }/>
-            <Route path="/todo" element={
+            <Route path="/memos" element={
                 <Layout onNavigate={handleNavigate}>
-                    <TodoPage/>
+                    <MemosPage/>
                 </Layout>
             }/>
+            <Route path="/todo" element={<Navigate to="/memos" replace/>}/>
             <Route path="/whiteboard" element={
                 <Layout onNavigate={handleNavigate}>
                     <WhiteboardManagePage/>
