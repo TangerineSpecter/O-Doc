@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react';
+import { memo, useState } from 'react';
 import { Calendar, Edit3, Eye, MapPin, Trash2 } from 'lucide-react';
 
 interface ImageCardProps {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, ChevronLeft, ChevronRight, Calendar, MapPin, Tag as TagIcon, FileText, Download } from 'lucide-react';
 
 interface ImageData {

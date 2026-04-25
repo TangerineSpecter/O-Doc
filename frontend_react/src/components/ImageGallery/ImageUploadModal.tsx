@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2, Plus, Upload, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import dayjs from 'dayjs';
+import { Calendar, ChevronLeft, ChevronRight, Clock, Loader2, Plus, Upload, X } from 'lucide-react';
 import { uploadResource } from '../../api/resources';
 import { createImage, Image, updateImage } from '../../api/image';
 import { useToast } from '../common/ToastProvider';
@@ -27,13 +29,65 @@ export default function ImageUploadModal({
   const [location, setLocation] = useState('');
   const [tags, setTags] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [pickerMonth, setPickerMonth] = useState(dayjs());
+  const [pickerPosition, setPickerPosition] = useState({ top: 0, left: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dateButtonRef = useRef<HTMLButtonElement>(null);
   const toast = useToast();
   const isEditing = Boolean(initialData);
 
   const toDateTimeLocalValue = (value?: string) => {
     if (!value) return '';
     return value.replace(' ', 'T').slice(0, 16);
+  };
+
+  const formatDateTimeLabel = (value: string) => {
+    if (!value) return '';
+    const parsed = dayjs(value);
+    return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm') : value.replace('T', ' ');
+  };
+
+  const selectedDate = shootingTime ? dayjs(shootingTime) : null;
+  const selectedHour = selectedDate?.isValid() ? selectedDate.hour() : 9;
+  const selectedMinute = selectedDate?.isValid() ? selectedDate.minute() : 0;
+  const calendarStart = pickerMonth.startOf('month').startOf('week');
+  const calendarDays = Array.from({ length: 42 }, (_, index) => calendarStart.add(index, 'day'));
+
+  const updateDatePickerPosition = () => {
+    const button = dateButtonRef.current;
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const panelWidth = 320;
+    const panelHeight = 348;
+    const margin = 16;
+    const left = Math.min(
+      Math.max(rect.left, margin),
+      window.innerWidth - panelWidth - margin
+    );
+    const belowTop = rect.bottom + 8;
+    const top = belowTop + panelHeight > window.innerHeight - margin
+      ? Math.max(margin, rect.top - panelHeight - 8)
+      : belowTop;
+
+    setPickerPosition({ top, left });
+  };
+
+  const toggleDatePicker = () => {
+    if (!isDatePickerOpen) {
+      updateDatePickerPosition();
+    }
+    setIsDatePickerOpen((open) => !open);
+  };
+
+  const updateSelectedDate = (date: dayjs.Dayjs, hour = selectedHour, minute = selectedMinute) => {
+    setShootingTime(date.hour(hour).minute(minute).second(0).millisecond(0).format('YYYY-MM-DDTHH:mm'));
+  };
+
+  const updateSelectedTime = (hour: number, minute: number) => {
+    const baseDate = selectedDate?.isValid() ? selectedDate : pickerMonth;
+    updateSelectedDate(baseDate, hour, minute);
   };
 
   const resetForm = () => {
@@ -55,12 +109,27 @@ export default function ImageUploadModal({
       setTitle(initialData.title || '');
       setDescription(initialData.description || '');
       setShootingTime(toDateTimeLocalValue(initialData.shootingTime));
+      setPickerMonth(initialData.shootingTime ? dayjs(toDateTimeLocalValue(initialData.shootingTime)) : dayjs());
       setLocation(initialData.location || '');
       setTags(initialData.tags || initialData.tagsList?.join(', ') || '');
     } else {
       resetForm();
+      setPickerMonth(dayjs());
     }
   }, [isOpen, initialData]);
+
+  useEffect(() => {
+    if (!isDatePickerOpen) return;
+
+    updateDatePickerPosition();
+    window.addEventListener('resize', updateDatePickerPosition);
+    window.addEventListener('scroll', updateDatePickerPosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updateDatePickerPosition);
+      window.removeEventListener('scroll', updateDatePickerPosition, true);
+    };
+  }, [isDatePickerOpen]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -176,10 +245,10 @@ export default function ImageUploadModal({
         onClick={() => !isUploading && handleClose()}
       />
       <div
-        className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-2 duration-200"
+        className="relative w-full max-w-lg max-h-[calc(100vh-2rem)] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 slide-in-from-bottom-2 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+        <div className="flex shrink-0 items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <h3 className="text-lg font-bold text-slate-800">
             {isEditing ? '编辑图片' : '上传图片'}
           </h3>
@@ -192,7 +261,7 @@ export default function ImageUploadModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto p-6 space-y-5">
           <div
             onDrop={handleDrop}
             onDragOver={(e) => e.preventDefault()}
@@ -264,18 +333,137 @@ export default function ImageUploadModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5 sm:col-span-2">
               <label className="text-sm font-semibold text-slate-700">
                 拍摄时间
               </label>
-              <input
-                type="datetime-local"
+              <button
+                ref={dateButtonRef}
+                type="button"
                 disabled={isUploading}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
-                value={shootingTime}
-                onChange={(e) => setShootingTime(e.target.value)}
-              />
+                onClick={toggleDatePicker}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm flex items-center justify-between gap-2 disabled:opacity-60"
+              >
+                <span className={shootingTime ? 'text-slate-800' : 'text-slate-400'}>
+                  {shootingTime ? formatDateTimeLabel(shootingTime) : '选择拍摄时间'}
+                </span>
+                <Calendar className="w-4 h-4 text-orange-500" />
+              </button>
+
+              {isDatePickerOpen && createPortal(
+                <div
+                  className="fixed z-[140] w-80 rounded-xl border border-slate-200 bg-white shadow-2xl p-3"
+                  style={{ top: pickerPosition.top, left: pickerPosition.left }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <button
+                      type="button"
+                      onClick={() => setPickerMonth((month) => month.subtract(1, 'month'))}
+                      className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-orange-600"
+                      aria-label="上个月"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <div className="text-sm font-semibold text-slate-800">
+                      {pickerMonth.format('YYYY 年 MM 月')}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPickerMonth((month) => month.add(1, 'month'))}
+                      className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-orange-600"
+                      aria-label="下个月"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-slate-400 mb-1">
+                    {['日', '一', '二', '三', '四', '五', '六'].map((day) => (
+                      <span key={day}>{day}</span>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {calendarDays.map((date) => {
+                      const isCurrentMonth = date.month() === pickerMonth.month();
+                      const isSelected = selectedDate?.isValid() && date.isSame(selectedDate, 'day');
+                      const isToday = date.isSame(dayjs(), 'day');
+
+                      return (
+                        <button
+                          key={date.format('YYYY-MM-DD')}
+                          type="button"
+                          onClick={() => updateSelectedDate(date)}
+                          className={`
+                            h-8 rounded-lg text-xs font-medium transition-colors
+                            ${isSelected ? 'bg-orange-500 text-white shadow-sm' : 'hover:bg-orange-50 hover:text-orange-600'}
+                            ${!isSelected && isToday ? 'text-orange-600 ring-1 ring-orange-200' : ''}
+                            ${!isSelected && !isToday && isCurrentMonth ? 'text-slate-700' : ''}
+                            ${!isCurrentMonth ? 'text-slate-300' : ''}
+                          `}
+                        >
+                          {date.date()}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                      <Clock className="w-3.5 h-3.5 text-orange-500" />
+                      时间
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={selectedHour}
+                        onChange={(e) => updateSelectedTime(Number(e.target.value), selectedMinute)}
+                        className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs focus:outline-none focus:border-orange-500"
+                      >
+                        {Array.from({ length: 24 }, (_, hour) => (
+                          <option key={hour} value={hour}>{String(hour).padStart(2, '0')}</option>
+                        ))}
+                      </select>
+                      <span className="text-slate-400">:</span>
+                      <select
+                        value={selectedMinute}
+                        onChange={(e) => updateSelectedTime(selectedHour, Number(e.target.value))}
+                        className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs focus:outline-none focus:border-orange-500"
+                      >
+                        {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => (
+                          <option key={minute} value={minute}>{String(minute).padStart(2, '0')}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShootingTime('');
+                        setIsDatePickerOpen(false);
+                      }}
+                      className="text-xs font-medium text-slate-500 hover:text-red-600"
+                    >
+                      清除
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!shootingTime) {
+                          updateSelectedDate(dayjs());
+                        }
+                        setIsDatePickerOpen(false);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-orange-500 text-white text-xs font-medium hover:bg-orange-600"
+                    >
+                      完成
+                    </button>
+                  </div>
+                </div>,
+                document.body
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -308,7 +496,7 @@ export default function ImageUploadModal({
           </div>
         </div>
 
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+        <div className="shrink-0 px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
           <button
             onClick={handleClose}
             disabled={isUploading}

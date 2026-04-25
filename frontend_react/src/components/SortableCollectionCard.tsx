@@ -162,18 +162,26 @@ export const SortableCollectionCard = ({
             {/* 列表/图片预览区域 */}
             <div className="flex-1 bg-slate-50/30 border-t border-slate-100 p-1">
                 {item.type === 'image' ? (
-                    // 图片文集展示：九宫格缩略图 (模拟)
+                    // 图片文集展示：九宫格缩略图
                     item.articles && item.articles.length > 0 ? (
                         <div className="grid grid-cols-3 gap-1 p-1">
-                            {item.articles.slice(0, 6).map((article, idx) => (
+                            {item.articles.slice(0, 6).map((image, idx) => (
                                 <div key={idx}
                                     className="aspect-square bg-slate-100 rounded-md overflow-hidden relative group/img cursor-pointer hover:ring-2 hover:ring-orange-200"
                                     onClick={() => onNavigate('image', { collId: item.collId, title: item.title })}
                                 >
-                                    {/* 实际应该是展示图片，这里暂时用 icon 代替 */}
-                                    <div className="w-full h-full flex items-center justify-center bg-slate-200/50 text-slate-300">
-                                        <ImageIcon className="w-4 h-4" />
-                                    </div>
+                                    {image.imageUrl ? (
+                                        <img
+                                            src={image.imageUrl}
+                                            alt={image.title}
+                                            loading="lazy"
+                                            className="h-full w-full object-cover transition-transform duration-300 group-hover/img:scale-105"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-slate-200/50 text-slate-300">
+                                            <ImageIcon className="w-4 h-4" />
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

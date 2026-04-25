@@ -1,8 +1,10 @@
 // 定义文章摘要类型
 export interface ArticleSummary {
-    articleId: string;
+    articleId?: string;
+    imageId?: string;
     title: string;
     date: string;
+    imageUrl?: string;
 }
 
 // 定义创建文集参数类型

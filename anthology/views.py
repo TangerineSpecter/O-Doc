@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 
-from article.models import Article
+from article.models import Article, Image
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 from .models import Anthology
@@ -65,20 +65,30 @@ class AnthologyListView(APIView):
             result_list = []
 
             for anthology in anthologies:
-                # 查询该文集下的前3个有效文章，按排序、更新时间排序
-                articles = Article.objects.filter(coll_id=anthology.coll_id, is_valid=True).order_by('sort',
-                                                                                                     '-updated_at')[:3]
+                item_summaries = []
+                if anthology.type == 'image':
+                    images = Image.objects.filter(coll_id=anthology.coll_id, is_valid=True).order_by('-created_at')[:6]
+                    for image in images:
+                        item_summaries.append({
+                            'image_id': image.image_id,
+                            'title': image.title,
+                            'image_url': image.image_url,
+                            'date': image.created_at.strftime('%m-%d')
+                        })
+                else:
+                    # 查询该文集下的前3个有效文章，按排序、更新时间排序
+                    articles = Article.objects.filter(coll_id=anthology.coll_id, is_valid=True).order_by('sort',
+                                                                                                         '-updated_at')[:3]
 
-                # 构建文章摘要列表
-                article_summaries = []
-                for article in articles:
-                    # 格式化日期为MM-DD格式
-                    date_str = article.updated_at.strftime('%m-%d')
-                    article_summaries.append({
-                        'article_id': article.article_id,
-                        'title': article.title,
-                        'date': date_str
-                    })
+                    # 构建文章摘要列表
+                    for article in articles:
+                        # 格式化日期为MM-DD格式
+                        date_str = article.updated_at.strftime('%m-%d')
+                        item_summaries.append({
+                            'article_id': article.article_id,
+                            'title': article.title,
+                            'date': date_str
+                        })
 
                 # 构建文集数据
                 anthology_data = {
@@ -89,7 +99,7 @@ class AnthologyListView(APIView):
                     'icon_id': anthology.icon_id,
                     'isTop': anthology.is_top,
                     'description': anthology.description,
-                    'articles': article_summaries,
+                    'articles': item_summaries,
                     'permission': anthology.permission,
                     'type': anthology.type
                 }
