@@ -112,8 +112,8 @@ class Anthology(models.Model):
         verbose_name = '文集'
         verbose_name_plural = '文集管理'
         ordering = ['-is_top', 'sort', '-updated_at']
-        # 确保同一个 user_id 下的文集标题唯一
-        unique_together = ('user_id', 'title')
+        # 确保同一个 user_id 下的同类型文集标题唯一
+        unique_together = ('user_id', 'title', 'type')
         db_table = 'anthologies'
         db_table_comment = '文集表'
 

@@ -125,7 +125,7 @@ export const SortableCollectionCard = ({
                         </div>
                         <div className="flex items-center gap-2">
                             <h3
-                                onClick={() => onNavigate('article', { collId: item.collId, title: item.title })}
+                                onClick={() => onNavigate(item.type === 'image' ? 'image' : 'article', { collId: item.collId, title: item.title })}
                                 className="font-bold text-slate-800 text-base leading-tight group-hover:text-orange-600 transition-colors cursor-pointer line-clamp-1"
                             >
                                 {item.title}
@@ -168,12 +168,7 @@ export const SortableCollectionCard = ({
                             {item.articles.slice(0, 6).map((article, idx) => (
                                 <div key={idx}
                                     className="aspect-square bg-slate-100 rounded-md overflow-hidden relative group/img cursor-pointer hover:ring-2 hover:ring-orange-200"
-                                    onClick={() => onNavigate('article', {
-                                        collId: item.collId,
-                                        articleId: article.articleId,
-                                        title: item.title,
-                                        articleTitle: article.title
-                                    })}
+                                    onClick={() => onNavigate('image', { collId: item.collId, title: item.title })}
                                 >
                                     {/* 实际应该是展示图片，这里暂时用 icon 代替 */}
                                     <div className="w-full h-full flex items-center justify-center bg-slate-200/50 text-slate-300">
@@ -227,7 +222,7 @@ export const SortableCollectionCard = ({
             <div
                 className="bg-white border-t border-slate-50 h-0 group-hover:h-8 transition-all duration-300 overflow-hidden flex items-center justify-center">
                 <button
-                    onClick={() => onNavigate('article', { collId: item.collId, title: item.title })}
+                    onClick={() => onNavigate(item.type === 'image' ? 'image' : 'article', { collId: item.collId, title: item.title })}
                     className="text-[10px] font-medium text-orange-600 hover:text-orange-700 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity delay-75"
                 >
                     查看全部 <ChevronDown className="w-2.5 h-2.5 -rotate-90" />

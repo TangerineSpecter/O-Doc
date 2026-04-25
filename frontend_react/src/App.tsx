@@ -3,6 +3,7 @@ import {ToastProvider} from './components/common/ToastProvider'; // 1. 引入 Pr
 import Layout from './layout/Layout';
 import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';
+import ImageAnthologyPage from './views/ImageAnthologyPage';
 import LoginPage from './views/LoginPage';
 import EditorPage from './views/EditorPage';
 import ResourcesPage from './views/ResourcesPage';
@@ -30,6 +31,9 @@ function HomeRoute() {
             } else {
                 navigate(`/article/${collId}`);
             }
+        } else if (viewName === 'image') {
+            const {collId} = params as { collId: string };
+            navigate(`/image/${collId}`);
         } else if (viewName === 'login') { // 新增
             navigate('/login');
         } else if (viewName === 'settings') { // 新增：处理设置页跳转
@@ -63,6 +67,9 @@ function ArticleRoute() {
             } else {
                 navigate(`/article/${collId}`);
             }
+        } else if (viewName === 'image') {
+            const {collId} = params as { collId: string };
+            navigate(`/image/${collId}`);
         } else if (viewName === 'login') { // 新增
             navigate('/login');
         }
@@ -73,6 +80,39 @@ function ArticleRoute() {
             onNavigate={handleNavigate}
             collId={params.collId}
             articleId={currentArticleId}
+        />
+    );
+}
+
+// 图片文集页面组件，用于接收路由参数
+function ImageAnthologyRoute() {
+    const params = useParams();
+    const navigate = useNavigate();
+
+    const handleNavigate = (viewName: string, params = {}) => {
+        window.scrollTo(0, 0);
+
+        if (viewName === 'home') {
+            navigate('/');
+        } else if (viewName === 'article') {
+            const {collId, articleId} = params as { collId: string, articleId?: string };
+            if (articleId) {
+                navigate(`/article/${collId}/${articleId}`);
+            } else {
+                navigate(`/article/${collId}`);
+            }
+        } else if (viewName === 'image') {
+            const {collId} = params as { collId: string };
+            navigate(`/image/${collId}`);
+        } else if (viewName === 'login') {
+            navigate('/login');
+        }
+    };
+
+    return (
+        <ImageAnthologyPage
+            onNavigate={handleNavigate}
+            collId={params.collId}
         />
     );
 }
@@ -93,6 +133,9 @@ function AppWithRouter() {
             } else {
                 navigate(`/article/${collId}`);
             }
+        } else if (viewName === 'image') {
+            const {collId} = params as { collId: string };
+            navigate(`/image/${collId}`);
         } else if (viewName === 'login') { // 新增：处理登录跳转
             navigate('/login');
         } else if (viewName === 'settings') { // 新增：处理设置页跳转
@@ -113,6 +156,12 @@ function AppWithRouter() {
             <Route path="/article/:collId/*" element={
                 <Layout onNavigate={handleNavigate}>
                     <ArticleRoute/>
+                </Layout>
+            }/>
+            {/* 图片文集路由 */}
+            <Route path="/image/:collId" element={
+                <Layout onNavigate={handleNavigate}>
+                    <ImageAnthologyRoute/>
                 </Layout>
             }/>
             <Route path="/login" element={<LoginPage/>}/> {/* 新增路由：登录页不使用Layout */}
