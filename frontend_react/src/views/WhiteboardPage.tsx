@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState, useMemo} from 'react';
-import {useNavigate} from 'react-router-dom';
-import {ArrowLeft, Trash2, Maximize2, X} from 'lucide-react';
+import {useNavigate, useParams} from 'react-router-dom';
+import {ArrowLeft, Trash2, Maximize2, X, Save, CheckCircle2} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -18,19 +18,28 @@ import {HandlePosition, WhiteboardNode} from '../types/whiteboard';
 import {getClosestHandle, getHandleCoords, screenToWorld} from '../utils/whiteboardUtils';
 import {NoteNode} from '../components/Whiteboard/NoteNode';
 import {EdgeLayer} from '../components/Whiteboard/EdgeLayer';
+import {useWhiteboardDocuments} from '../hooks/useWhiteboardDocuments';
+import {useToast} from '../components/common/ToastProvider';
 
 export default function WhiteboardPage() {
     const navigate = useNavigate();
+    const {boardId} = useParams();
     const canvasRef = useRef<HTMLDivElement>(null);
+    const toast = useToast();
+    const {getDocument, updateDocument} = useWhiteboardDocuments();
 
     // --- State: 核心数据 (使用 Hook) ---
     const {
-        nodes, edges, setNodes, updateNodes, updateEdges,
+        nodes, edges, setNodes, updateNodes, updateEdges, updateWhiteboardState, resetWhiteboardState,
         undo, redo, canUndo, canRedo, saveHistory, nextZIndex
     } = useWhiteboardState();
 
     // --- State: 视图与UI ---
     const [articles, setArticles] = useState<Article[]>([]);
+    const [title, setTitle] = useState('未命名白板');
+    const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [savedSnapshot, setSavedSnapshot] = useState('');
     const [viewOffset, setViewOffset] = useState({x: 0, y: 0});
     const [scale, setScale] = useState(1);
 
@@ -63,8 +72,72 @@ export default function WhiteboardPage() {
     // 初始化加载
     useEffect(() => {
         getArticles({}).then(setArticles).catch(console.error);
-        saveHistory([], []); // 初始化历史
     }, []);
+
+    const currentSnapshot = useMemo(() => JSON.stringify({
+        title,
+        nodes,
+        edges,
+        viewOffset,
+        scale
+    }), [title, nodes, edges, viewOffset, scale]);
+
+    const isDirty = savedSnapshot !== '' && currentSnapshot !== savedSnapshot;
+
+    useEffect(() => {
+        if (!boardId) {
+            navigate('/whiteboard');
+            return;
+        }
+
+        const document = getDocument(boardId);
+        if (!document) {
+            toast.warning('白板不存在或已被删除');
+            navigate('/whiteboard');
+            return;
+        }
+
+        setTitle(document.title);
+        setViewOffset(document.viewOffset || {x: 80, y: 80});
+        setScale(document.scale || 1);
+        resetWhiteboardState(document.nodes || [], document.edges || []);
+        setLastSavedAt(document.updatedAt);
+        setSavedSnapshot(JSON.stringify({
+            title: document.title,
+            nodes: document.nodes || [],
+            edges: document.edges || [],
+            viewOffset: document.viewOffset || {x: 80, y: 80},
+            scale: document.scale || 1
+        }));
+    }, [boardId]);
+
+    const handleSave = useCallback(() => {
+        if (!boardId) return;
+        setIsSaving(true);
+        updateDocument(boardId, {
+            title,
+            nodes,
+            edges,
+            viewOffset,
+            scale
+        });
+        const now = Date.now();
+        setLastSavedAt(now);
+        setSavedSnapshot(currentSnapshot);
+        setTimeout(() => setIsSaving(false), 250);
+        toast.success('白板已保存');
+    }, [boardId, currentSnapshot, edges, nodes, scale, title, toast, updateDocument, viewOffset]);
+
+    const deleteNode = useCallback((id: string) => {
+        const newNodes = nodes.filter(n => n.id !== id);
+        const newEdges = edges.filter(e => e.sourceId !== id && e.targetId !== id);
+        updateWhiteboardState(newNodes, newEdges, true);
+        setSelectedNodeId(null);
+    }, [edges, nodes, updateWhiteboardState]);
+
+    const updateNoteContent = useCallback((id: string, content: string) => {
+        setNodes(prev => prev.map(node => node.id === id ? {...node, content} : node));
+    }, [setNodes]);
 
     // --- 功能: 自动布局 ---
     const handleAutoLayout = useCallback(() => {
@@ -203,11 +276,7 @@ export default function WhiteboardPage() {
                 const activeTag = document.activeElement?.tagName.toLowerCase();
                 if (activeTag === 'textarea' || activeTag === 'input') return;
                 if (selectedNodeId) {
-                    const newNodes = nodes.filter(n => n.id !== selectedNodeId);
-                    const newEdges = edges.filter(e => e.sourceId !== selectedNodeId && e.targetId !== selectedNodeId);
-                    updateNodes(newNodes);
-                    updateEdges(newEdges, true);
-                    setSelectedNodeId(null);
+                    deleteNode(selectedNodeId);
                 }
                 if (selectedEdgeId) {
                     updateEdges(edges.filter(e => e.id !== selectedEdgeId), true);
@@ -217,7 +286,7 @@ export default function WhiteboardPage() {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedNodeId, selectedEdgeId, nodes, edges, undo, redo]);
+    }, [selectedNodeId, selectedEdgeId, edges, undo, redo, deleteNode, updateEdges]);
 
     // --- 交互: 鼠标事件处理 ---
     const handleCanvasMouseDown = (e: React.MouseEvent) => {
@@ -350,11 +419,37 @@ export default function WhiteboardPage() {
         <div className="w-full h-[calc(100vh-64px)] bg-[#f0f2f5] flex overflow-hidden relative select-none font-sans">
             <style>{CUSTOM_STYLES}</style>
 
-            {/* 左上返回 */}
-            <div className="absolute top-4 left-4 z-[100]">
-                <button onClick={() => navigate('/')}
-                        className="p-2 bg-white rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 transition-colors">
+            {/* 顶部标题栏 */}
+            <div className="absolute top-4 left-4 right-4 z-[100] flex items-center justify-between gap-3 pointer-events-none">
+                <div className="flex items-center gap-2 pointer-events-auto">
+                    <button onClick={() => navigate('/whiteboard')}
+                            className="p-2 bg-white rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 transition-colors">
                     <ArrowLeft className="w-5 h-5 text-slate-600"/>
+                    </button>
+                    <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-sm border border-slate-200 px-3 py-2 flex items-center gap-3">
+                        <input
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            onBlur={() => {
+                                if (!title.trim()) setTitle('未命名白板');
+                            }}
+                            className="w-48 sm:w-72 bg-transparent border-none outline-none text-sm font-bold text-slate-800 placeholder:text-slate-400"
+                            placeholder="未命名白板"
+                        />
+                        <span className={`hidden sm:inline-flex items-center gap-1 text-[11px] ${isDirty ? 'text-orange-600' : 'text-slate-400'}`}>
+                            <CheckCircle2 className="w-3.5 h-3.5"/>
+                            {isDirty ? '有未保存修改' : lastSavedAt ? `已保存 ${new Date(lastSavedAt).toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'})}` : '已保存'}
+                        </span>
+                    </div>
+                </div>
+
+                <button
+                    onClick={handleSave}
+                    disabled={!isDirty || isSaving}
+                    className="pointer-events-auto flex items-center gap-1.5 px-3 py-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95"
+                >
+                    <Save className="w-4 h-4"/>
+                    {isSaving ? '保存中' : '保存'}
                 </button>
             </div>
 
@@ -450,13 +545,10 @@ export default function WhiteboardPage() {
                                 <NoteNode
                                     node={node}
                                     selected={selectedNodeId === node.id}
-                                    onDelete={(id) => {
-                                        const newNodes = nodes.filter(n => n.id !== id);
-                                        // @ts-ignore
-                                        const newEdges = edges.filter(e => e.sourceId !== id && e.targetId !== id);
-                                        updateNodes(newNodes, true);
-                                    }}
+                                    onDelete={deleteNode}
                                     onDragStart={handleDragStart}
+                                    onContentChange={updateNoteContent}
+                                    onContentCommit={() => saveHistory(nodes, edges)}
                                 />
                             )}
 
@@ -470,10 +562,7 @@ export default function WhiteboardPage() {
                                         onMouseDown={(e) => handleDragStart(e, node.id)}>
                                         <span
                                             className="font-bold text-sm text-slate-700 truncate max-w-[80%]">{node.title}</span>
-                                        {selectedNodeId === node.id && <button onClick={() => {
-                                            const newNodes = nodes.filter(n => n.id !== node.id);
-                                            updateNodes(newNodes, true);
-                                        }}><Trash2 className="w-4 h-4 text-slate-400 hover:text-red-500"/></button>}
+                                        {selectedNodeId === node.id && <button onClick={() => deleteNode(node.id)}><Trash2 className="w-4 h-4 text-slate-400 hover:text-red-500"/></button>}
                                     </div>
                                     <div
                                         className="article-content flex-1 overflow-y-auto p-4 prose prose-slate max-w-none prose-sm bg-white rounded-b-xl"
@@ -490,10 +579,7 @@ export default function WhiteboardPage() {
                                 <div
                                     className={`w-full h-full border-4 border-slate-400 bg-transparent cursor-move flex items-center justify-center ${node.shapeType === 'circle' ? 'rounded-full' : node.shapeType === 'diamond' ? 'rotate-45 scale-75' : ''} ${selectedNodeId === node.id ? 'border-orange-400' : ''}`}
                                     onMouseDown={(e) => handleDragStart(e, node.id)}>
-                                    {selectedNodeId === node.id && <button className="absolute -top-6" onClick={() => {
-                                        const newNodes = nodes.filter(n => n.id !== node.id);
-                                        updateNodes(newNodes, true);
-                                    }}><Trash2 className="w-4 h-4 text-slate-400 hover:text-red-500"/></button>}
+                                    {selectedNodeId === node.id && <button className="absolute -top-6" onClick={() => deleteNode(node.id)}><Trash2 className="w-4 h-4 text-slate-400 hover:text-red-500"/></button>}
                                 </div>
                             )}
 

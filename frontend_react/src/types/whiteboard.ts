@@ -26,3 +26,15 @@ export interface WhiteboardEdge {
     sourceHandle: HandlePosition;
     targetHandle: HandlePosition;
 }
+
+export interface WhiteboardDocument {
+    id: string;
+    title: string;
+    description?: string;
+    nodes: WhiteboardNode[];
+    edges: WhiteboardEdge[];
+    viewOffset: { x: number; y: number };
+    scale: number;
+    createdAt: number;
+    updatedAt: number;
+}

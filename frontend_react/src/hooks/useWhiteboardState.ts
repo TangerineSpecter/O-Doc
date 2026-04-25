@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { WhiteboardNode, WhiteboardEdge } from '../types/whiteboard';
 
 const MAX_HISTORY = 50;
@@ -11,20 +11,37 @@ export function useWhiteboardState() {
     const [history, setHistory] = useState<{ nodes: WhiteboardNode[], edges: WhiteboardEdge[] }[]>([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
     const [maxZIndex, setMaxZIndex] = useState(1);
+    const historyIndexRef = useRef(-1);
+
+    const cloneState = (currentNodes: WhiteboardNode[], currentEdges: WhiteboardEdge[]) => ({
+        nodes: JSON.parse(JSON.stringify(currentNodes)),
+        edges: JSON.parse(JSON.stringify(currentEdges))
+    });
+
+    const setSafeHistoryIndex = (index: number) => {
+        historyIndexRef.current = index;
+        setHistoryIndex(index);
+    };
 
     // --- 历史记录管理 ---
     const saveHistory = useCallback((currentNodes: WhiteboardNode[], currentEdges: WhiteboardEdge[]) => {
         setHistory(prev => {
-            const newHistory = prev.slice(0, historyIndex + 1);
-            newHistory.push({
-                nodes: JSON.parse(JSON.stringify(currentNodes)),
-                edges: JSON.parse(JSON.stringify(currentEdges))
-            });
+            const newHistory = prev.slice(0, historyIndexRef.current + 1);
+            newHistory.push(cloneState(currentNodes, currentEdges));
             if (newHistory.length > MAX_HISTORY) newHistory.shift();
+            setSafeHistoryIndex(newHistory.length - 1);
             return newHistory;
         });
-        setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1));
-    }, [historyIndex]);
+    }, []);
+
+    const resetWhiteboardState = useCallback((nextNodes: WhiteboardNode[], nextEdges: WhiteboardEdge[]) => {
+        setNodes(nextNodes);
+        setEdges(nextEdges);
+        setHistory([cloneState(nextNodes, nextEdges)]);
+        setSafeHistoryIndex(0);
+        const highestZIndex = nextNodes.reduce((max, node) => Math.max(max, node.zIndex || 1), 1);
+        setMaxZIndex(highestZIndex);
+    }, []);
 
     const undo = useCallback(() => {
         if (historyIndex > 0) {
@@ -32,7 +49,7 @@ export function useWhiteboardState() {
             const prevState = history[prevIndex];
             setNodes(prevState.nodes);
             setEdges(prevState.edges);
-            setHistoryIndex(prevIndex);
+            setSafeHistoryIndex(prevIndex);
             return true; // 表示撤销成功
         }
         return false;
@@ -44,7 +61,7 @@ export function useWhiteboardState() {
             const nextState = history[nextIndex];
             setNodes(nextState.nodes);
             setEdges(nextState.edges);
-            setHistoryIndex(nextIndex);
+            setSafeHistoryIndex(nextIndex);
             return true;
         }
         return false;
@@ -61,6 +78,12 @@ export function useWhiteboardState() {
         if (save) saveHistory(nodes, newEdges);
     }, [nodes, saveHistory]);
 
+    const updateWhiteboardState = useCallback((newNodes: WhiteboardNode[], newEdges: WhiteboardEdge[], save = false) => {
+        setNodes(newNodes);
+        setEdges(newEdges);
+        if (save) saveHistory(newNodes, newEdges);
+    }, [saveHistory]);
+
     // 增加 Z-Index 并返回新值
     const nextZIndex = useCallback(() => {
         setMaxZIndex(prev => prev + 1);
@@ -74,6 +97,8 @@ export function useWhiteboardState() {
         setEdges,
         updateNodes, // 推荐使用这个，带历史记录
         updateEdges,
+        updateWhiteboardState,
+        resetWhiteboardState,
         undo,
         redo,
         canUndo: historyIndex > 0,

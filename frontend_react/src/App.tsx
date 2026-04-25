@@ -13,6 +13,7 @@ import TagsPage from './views/TagsPage';
 import SettingsPage from './views/SettingsPage';
 import TodoPage from './views/TodoPage';
 import WhiteboardPage from './views/WhiteboardPage'
+import WhiteboardManagePage from './views/WhiteboardManagePage';
 
 
 // HomePage的路由包装组件
@@ -199,6 +200,11 @@ function AppWithRouter() {
                 </Layout>
             }/>
             <Route path="/whiteboard" element={
+                <Layout onNavigate={handleNavigate}>
+                    <WhiteboardManagePage/>
+                </Layout>
+            }/>
+            <Route path="/whiteboard/:boardId" element={
                 <Layout onNavigate={handleNavigate}>
                     <WhiteboardPage/>
                 </Layout>

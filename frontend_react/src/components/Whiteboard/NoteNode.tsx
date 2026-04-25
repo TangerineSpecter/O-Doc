@@ -7,9 +7,18 @@ interface NoteNodeProps {
     selected: boolean;
     onDelete: (id: string) => void;
     onDragStart: (e: React.MouseEvent, id: string) => void;
+    onContentChange: (id: string, content: string) => void;
+    onContentCommit: () => void;
 }
 
-export const NoteNode: React.FC<NoteNodeProps> = ({ node, selected, onDelete, onDragStart }) => {
+export const NoteNode: React.FC<NoteNodeProps> = ({
+    node,
+    selected,
+    onDelete,
+    onDragStart,
+    onContentChange,
+    onContentCommit
+}) => {
     return (
         <div
             className={`
@@ -37,11 +46,13 @@ export const NoteNode: React.FC<NoteNodeProps> = ({ node, selected, onDelete, on
                         placeholder:text-slate-500/30
                         ${selected ? 'cursor-text pointer-events-auto' : 'cursor-move pointer-events-none'}
                     `}
-                    defaultValue={node.content}
+                    value={node.content || ''}
                     placeholder="写点什么..."
                     // 只有选中状态下，textarea 才拦截事件用于输入
                     // 未选中状态下 pointer-events-none 会让事件穿透到父 div 触发拖拽
                     onMouseDown={(e) => e.stopPropagation()}
+                    onChange={(e) => onContentChange(node.id, e.target.value)}
+                    onBlur={onContentCommit}
                 />
             </div>
 
