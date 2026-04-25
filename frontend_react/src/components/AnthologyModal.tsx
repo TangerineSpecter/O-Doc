@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Globe, Lock, Loader2, Save, Plus, Pin } from 'lucide-react'; // 新增 Pin 图标
+import { X, Globe, Lock, Loader2, Save, Plus, Pin, FileText, Image } from 'lucide-react';
 import { AVAILABLE_ICONS } from '../constants/iconList';
 
 export interface AnthologyFormData {
@@ -11,6 +11,7 @@ export interface AnthologyFormData {
     permission: 'public' | 'private';
     isTop: boolean;
     sort?: number;
+    type?: 'article' | 'image';
 }
 
 interface CreateAnthologyModalProps {
@@ -40,10 +41,11 @@ export default function CreateAnthologyModal({
     useEffect(() => {
         if (isOpen) {
             if (initialData) {
-                // 如果是编辑模式，确保 isTop 也有值，如果没有则默认为 false
+                // 如果是编辑模式，确保 isTop 和 type 也有值
                 setFormData({
                     ...initialData,
-                    isTop: initialData.isTop ?? false
+                    isTop: initialData.isTop ?? false,
+                    type: initialData.type ?? 'article'
                 });
             } else {
                 setFormData({
@@ -51,7 +53,8 @@ export default function CreateAnthologyModal({
                     description: "",
                     iconId: "book",
                     permission: "public",
-                    isTop: false
+                    isTop: false,
+                    type: "article"
                 });
             }
         }
@@ -178,6 +181,37 @@ export default function CreateAnthologyModal({
                                 <div>
                                     <div className="text-sm font-medium text-slate-800">私密文集</div>
                                     <div className="text-xs text-slate-500">仅团队成员可见</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 文集类型选择 */}
+                    <div className="space-y-2">
+                        <label className="text-sm font-semibold text-slate-700">文集类型</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div
+                                onClick={() => !isSubmitting && setFormData({ ...formData, type: 'article' })}
+                                className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.type === 'article' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                <div
+                                    className={`p-2 rounded-full ${formData.type === 'article' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                                    <FileText className="w-4 h-4" /></div>
+                                <div>
+                                    <div className="text-sm font-medium text-slate-800">文章文集</div>
+                                    <div className="text-xs text-slate-500">存储文章内容</div>
+                                </div>
+                            </div>
+                            <div
+                                onClick={() => !isSubmitting && setFormData({ ...formData, type: 'image' })}
+                                className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.type === 'image' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                <div
+                                    className={`p-2 rounded-full ${formData.type === 'image' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                                    <Image className="w-4 h-4" /></div>
+                                <div>
+                                    <div className="text-sm font-medium text-slate-800">图片文集</div>
+                                    <div className="text-xs text-slate-500">存储图片资源</div>
                                 </div>
                             </div>
                         </div>

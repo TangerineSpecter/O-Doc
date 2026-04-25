@@ -98,7 +98,8 @@ export const useCollections = () => {
                 iconId: data.iconId,
                 permission: data.permission,
                 isTop: data.isTop,
-                sort: collections.length + 1
+                sort: collections.length + 1,
+                type: data.type
             };
             const response = await createAnthology(params);
             const newItem: Collection = {
@@ -123,7 +124,6 @@ export const useCollections = () => {
     };
 
     // 5. 处理更新 (集成后端接口)
-    // 5. 处理更新 (集成后端接口)
     const updateCollection = async (collId: string, data: any) => {
         try {
             const collection = collections.find(c => c.collId === collId);
@@ -137,7 +137,8 @@ export const useCollections = () => {
                 description: data.description,
                 iconId: data.iconId,
                 permission: data.permission,
-                isTop: data.isTop
+                isTop: data.isTop,
+                type: data.type
             };
 
             await updateAnthology(collection.collId, params);

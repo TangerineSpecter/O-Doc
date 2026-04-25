@@ -45,6 +45,13 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         setIsTypeFilterOpen(false);
     };
 
+    const handleCreateFromFilter = () => {
+        setIsTypeFilterOpen(false);
+        const defaultType = selectedType === 'all' ? 'article' : selectedType;
+        setEditingCollection({ type: defaultType } as any);
+        setIsModalOpen(true);
+    };
+
     // 滚动加载逻辑 (纯UI逻辑)
     const [visibleCount, setVisibleCount] = useState(12);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -52,7 +59,6 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     const visibleCollections = useMemo(() => displayCollections.slice(0, visibleCount), [displayCollections, visibleCount]);
     const hasMore = visibleCollections.length < displayCollections.length;
 
-    // DnD 传感器
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 0 } }),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -149,7 +155,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                         </button>
 
                         {isTypeFilterOpen && (
-                            <div className="absolute left-0 top-full mt-2 w-40 bg-white rounded-lg shadow-xl border border-slate-100 z-50 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                            <div className="absolute left-0 top-full mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-100 z-50 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                                 <button onClick={() => handleTypeSelect('all')}
                                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">
                                     所有文集
@@ -164,6 +170,12 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">
                                     图片文集
                                     {selectedType === 'image' && <Check className="w-4 h-4 text-orange-500" />}
+                                </button>
+                                <div className="border-t border-slate-100 my-1"></div>
+                                <button onClick={handleCreateFromFilter}
+                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex items-center gap-2 text-orange-600 font-medium">
+                                    <Plus className="w-4 h-4" strokeWidth={3} />
+                                    <span>新建文集</span>
                                 </button>
                             </div>
                         )}
@@ -245,7 +257,6 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
-                    onDragStart={() => setActiveMenuId(null)}
                     onDragEnd={handleDragEnd}
                 >
                     <SortableContext items={visibleCollections.map(c => c.collId)} strategy={rectSortingStrategy}>

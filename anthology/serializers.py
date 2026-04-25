@@ -19,8 +19,8 @@ class AnthologySerializer(serializers.ModelSerializer):
         validators = [
             UniqueTogetherValidator(
                 queryset=Anthology.objects.all(),
-                fields=['user_id', 'title'],
-                message="该文集名称已存在"  # 自定义错误提示文字
+                fields=['user_id', 'title', 'type'],
+                message="同类型下文集名称不能重复"  # 自定义错误提示文字
             )
         ]
 
