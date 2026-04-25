@@ -270,13 +270,22 @@ class Image(models.Model):
         db_comment="拍摄时间"
     )
 
-    # 拍摄地点
-    location = models.CharField(
-        max_length=255,
+    # 拍摄国家
+    country = models.CharField(
+        max_length=100,
         blank=True,
         default='',
-        help_text="拍摄地点",
-        db_comment="拍摄地点"
+        help_text="拍摄国家",
+        db_comment="拍摄国家"
+    )
+
+    # 拍摄城市
+    city = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="拍摄城市",
+        db_comment="拍摄城市"
     )
 
     # 标签（存储为逗号分隔的字符串）

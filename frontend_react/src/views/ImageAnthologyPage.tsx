@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, Image as ImageIcon, Plus } from 'lucide-react';
 import ImageCard from '../components/ImageGallery/ImageCard';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
@@ -109,22 +109,6 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     }
   };
 
-  // 瀑布流：将图片分成两列
-  const { leftColumn, rightColumn } = useMemo(() => {
-    const left: Image[] = [];
-    const right: Image[] = [];
-    
-    images.forEach((image, index) => {
-      if (index % 2 === 0) {
-        left.push(image);
-      } else {
-        right.push(image);
-      }
-    });
-    
-    return { leftColumn: left, rightColumn: right };
-  }, [images]);
-
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-orange-50 flex-col">
@@ -185,7 +169,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="mx-auto max-w-[1480px] px-5 py-7 lg:px-6">
         {/* Empty State */}
         {images.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-6">
@@ -200,55 +184,28 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
             </p>
           </div>
         ) : (
-          /* Masonry Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Left Column */}
-            <div className="space-y-6">
-              {leftColumn.map((image, index) => (
-                <div
-                  key={image.imageId}
-                  className="animate-fade-in-up"
-                  style={{
-                    animationDelay: `${index * 100}ms`,
-                    animationFillMode: 'both'
-                  }}
-                >
-                  <ImageCard
-                    imageUrl={image.imageUrl}
-                    title={image.title}
-                    shootingTime={image.shootingTimeStr}
-                    location={image.location}
-                    onClick={() => handleImageClick(images.indexOf(image))}
-                    onEdit={() => handleOpenEditModal(image)}
-                    onDelete={() => setDeleteTarget(image)}
-                  />
-                </div>
-              ))}
-            </div>
-
-            {/* Right Column */}
-            <div className="space-y-6 md:mt-12">
-              {rightColumn.map((image, index) => (
-                <div
-                  key={image.imageId}
-                  className="animate-fade-in-up"
-                  style={{
-                    animationDelay: `${(index + 1) * 100}ms`,
-                    animationFillMode: 'both'
-                  }}
-                >
-                  <ImageCard
-                    imageUrl={image.imageUrl}
-                    title={image.title}
-                    shootingTime={image.shootingTimeStr}
-                    location={image.location}
-                    onClick={() => handleImageClick(images.indexOf(image))}
-                    onEdit={() => handleOpenEditModal(image)}
-                    onDelete={() => setDeleteTarget(image)}
-                  />
-                </div>
-              ))}
-            </div>
+          <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 2xl:columns-4">
+            {images.map((image, index) => (
+              <div
+                key={image.imageId}
+                className="break-inside-avoid animate-fade-in-up"
+                style={{
+                  animationDelay: `${index * 60}ms`,
+                  animationFillMode: 'both'
+                }}
+              >
+                <ImageCard
+                  imageUrl={image.imageUrl}
+                  title={image.title}
+                  shootingTime={image.shootingTimeStr}
+                  country={image.country}
+                  city={image.city}
+                  onClick={() => handleImageClick(index)}
+                  onEdit={() => handleOpenEditModal(image)}
+                  onDelete={() => setDeleteTarget(image)}
+                />
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -261,7 +218,8 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
           title: images[selectedIndex].title,
           description: images[selectedIndex].description,
           shootingTime: images[selectedIndex].shootingTimeStr,
-          location: images[selectedIndex].location,
+          country: images[selectedIndex].country,
+          city: images[selectedIndex].city,
           tags: images[selectedIndex].tagsList,
           author: images[selectedIndex].author,
           createdAt: images[selectedIndex].createdAt

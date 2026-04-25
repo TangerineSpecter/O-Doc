@@ -14,58 +14,92 @@ interface ImageUploadModalProps {
   initialData?: Image | null;
 }
 
-const LOCATION_OPTIONS = [
-  '中国 北京',
-  '中国 上海',
-  '中国 广州',
-  '中国 深圳',
-  '中国 成都',
-  '中国 杭州',
-  '中国 西安',
-  '中国 香港',
-  '中国 澳门',
-  '中国 台北',
-  '日本 东京',
-  '日本 京都',
-  '日本 大阪',
-  '韩国 首尔',
-  '泰国 曼谷',
-  '新加坡 新加坡',
-  '马来西亚 吉隆坡',
-  '印度尼西亚 巴厘岛',
-  '越南 河内',
-  '越南 胡志明市',
-  '阿联酋 迪拜',
-  '土耳其 伊斯坦布尔',
-  '英国 伦敦',
-  '法国 巴黎',
-  '意大利 罗马',
-  '意大利 威尼斯',
-  '西班牙 巴塞罗那',
-  '德国 柏林',
-  '荷兰 阿姆斯特丹',
-  '瑞士 苏黎世',
-  '奥地利 维也纳',
-  '捷克 布拉格',
-  '希腊 雅典',
-  '冰岛 雷克雅未克',
-  '美国 纽约',
-  '美国 洛杉矶',
-  '美国 旧金山',
-  '美国 西雅图',
-  '美国 芝加哥',
-  '美国 迈阿密',
-  '加拿大 多伦多',
-  '加拿大 温哥华',
-  '墨西哥 墨西哥城',
-  '巴西 里约热内卢',
-  '阿根廷 布宜诺斯艾利斯',
-  '澳大利亚 悉尼',
-  '澳大利亚 墨尔本',
-  '新西兰 奥克兰',
-  '埃及 开罗',
-  '摩洛哥 马拉喀什',
-  '南非 开普敦'
+const COUNTRY_OPTIONS = [
+  '中国',
+  '日本',
+  '韩国',
+  '泰国',
+  '新加坡',
+  '马来西亚',
+  '印度尼西亚',
+  '越南',
+  '阿联酋',
+  '土耳其',
+  '英国',
+  '法国',
+  '意大利',
+  '西班牙',
+  '德国',
+  '荷兰',
+  '瑞士',
+  '奥地利',
+  '捷克',
+  '希腊',
+  '冰岛',
+  '美国',
+  '加拿大',
+  '墨西哥',
+  '巴西',
+  '阿根廷',
+  '澳大利亚',
+  '新西兰',
+  '埃及',
+  '摩洛哥',
+  '南非'
+];
+
+const CITY_OPTIONS = [
+  '北京',
+  '上海',
+  '广州',
+  '深圳',
+  '成都',
+  '杭州',
+  '西安',
+  '香港',
+  '澳门',
+  '台北',
+  '东京',
+  '京都',
+  '大阪',
+  '首尔',
+  '曼谷',
+  '新加坡',
+  '吉隆坡',
+  '巴厘岛',
+  '河内',
+  '胡志明市',
+  '迪拜',
+  '伊斯坦布尔',
+  '伦敦',
+  '巴黎',
+  '罗马',
+  '威尼斯',
+  '巴塞罗那',
+  '柏林',
+  '阿姆斯特丹',
+  '苏黎世',
+  '维也纳',
+  '布拉格',
+  '雅典',
+  '雷克雅未克',
+  '纽约',
+  '洛杉矶',
+  '旧金山',
+  '西雅图',
+  '芝加哥',
+  '迈阿密',
+  '多伦多',
+  '温哥华',
+  '墨西哥城',
+  '里约热内卢',
+  '布宜诺斯艾利斯',
+  '悉尼',
+  '墨尔本',
+  '奥克兰',
+  '开罗',
+  '马拉喀什',
+  '开普敦'
 ];
 
 export default function ImageUploadModal({
@@ -80,7 +114,8 @@ export default function ImageUploadModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [shootingTime, setShootingTime] = useState('');
-  const [location, setLocation] = useState('');
+  const [country, setCountry] = useState('');
+  const [city, setCity] = useState('');
   const [tags, setTags] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
@@ -150,7 +185,8 @@ export default function ImageUploadModal({
     setTitle('');
     setDescription('');
     setShootingTime('');
-    setLocation('');
+    setCountry('');
+    setCity('');
     setTags('');
   };
 
@@ -164,7 +200,8 @@ export default function ImageUploadModal({
       setDescription(initialData.description || '');
       setShootingTime(toDateTimeLocalValue(initialData.shootingTime));
       setPickerMonth(initialData.shootingTime ? dayjs(toDateTimeLocalValue(initialData.shootingTime)) : dayjs());
-      setLocation(initialData.location || '');
+      setCountry(initialData.country || '');
+      setCity(initialData.city || '');
       setTags(initialData.tags || initialData.tagsList?.join(', ') || '');
     } else {
       resetForm();
@@ -184,6 +221,24 @@ export default function ImageUploadModal({
       window.removeEventListener('scroll', updateDatePickerPosition, true);
     };
   }, [isDatePickerOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (isDatePickerOpen) {
+        setIsDatePickerOpen(false);
+        return;
+      }
+      if (!isUploading) {
+        handleClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isDatePickerOpen, isUploading]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -259,7 +314,8 @@ export default function ImageUploadModal({
           description: description.trim(),
           imageUrl,
           shootingTime: shootingTime || undefined,
-          location: location.trim(),
+          country: country.trim(),
+          city: city.trim(),
           tags: tags.trim(),
         });
       } else {
@@ -269,7 +325,8 @@ export default function ImageUploadModal({
           imageUrl: imageUrl || '',
           collId,
           shootingTime: shootingTime || undefined,
-          location: location.trim(),
+          country: country.trim(),
+          city: city.trim(),
           tags: tags.trim(),
         });
       }
@@ -524,17 +581,33 @@ export default function ImageUploadModal({
               <label className="text-sm font-semibold text-slate-700">
                 拍摄地点
               </label>
-              <input
-                type="text"
-                list="image-location-options"
-                disabled={isUploading}
-                placeholder="如：中国 北京"
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-              />
-              <datalist id="image-location-options">
-                {LOCATION_OPTIONS.map((option) => (
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  list="image-country-options"
+                  disabled={isUploading}
+                  placeholder="国家"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                />
+                <input
+                  type="text"
+                  list="image-city-options"
+                  disabled={isUploading}
+                  placeholder="城市"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                />
+              </div>
+              <datalist id="image-country-options">
+                {COUNTRY_OPTIONS.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+              <datalist id="image-city-options">
+                {CITY_OPTIONS.map((option) => (
                   <option key={option} value={option} />
                 ))}
               </datalist>

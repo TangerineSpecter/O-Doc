@@ -5,7 +5,8 @@ interface ImageCardProps {
   imageUrl: string;
   title: string;
   shootingTime?: string;
-  location?: string;
+  country?: string;
+  city?: string;
   onClick?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -15,20 +16,22 @@ const ImageCard = memo(({
   imageUrl, 
   title, 
   shootingTime, 
-  location,
+  country,
+  city,
   onClick,
   onEdit,
   onDelete
 }: ImageCardProps) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const location = [country, city].filter(Boolean).join(' ');
 
   return (
     <div
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="group relative bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-500 cursor-pointer mb-6 break-inside-avoid"
+      className="group relative mb-5 break-inside-avoid cursor-pointer overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-100 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl"
     >
       {/* Image Container */}
       <div className="relative overflow-hidden bg-gradient-to-br from-slate-100 to-slate-50">
@@ -45,7 +48,7 @@ const ImageCard = memo(({
           className={`
             w-full h-auto object-cover transition-all duration-700 ease-out
             ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}
-            ${isHovered ? 'scale-110' : 'scale-100'}
+            ${isHovered ? 'scale-[1.04]' : 'scale-100'}
           `}
         />
 
@@ -59,8 +62,8 @@ const ImageCard = memo(({
         >
           {/* Center Icon */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 transform transition-transform duration-300 hover:scale-110">
-              <Eye className="w-7 h-7 text-white" />
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/30 bg-white/20 backdrop-blur-sm transition-transform duration-300 hover:scale-105">
+              <Eye className="h-5 w-5 text-white" />
             </div>
           </div>
 
@@ -72,7 +75,7 @@ const ImageCard = memo(({
                   e.stopPropagation();
                   onEdit();
                 }}
-                className="p-2 rounded-full bg-white/90 hover:bg-white text-slate-700 hover:text-orange-600 shadow-sm transition-all"
+                className="rounded-lg bg-white/90 p-2 text-slate-700 shadow-sm transition-all hover:bg-white hover:text-orange-600"
                 aria-label="编辑图片"
                 title="编辑图片"
               >
@@ -86,7 +89,7 @@ const ImageCard = memo(({
                   e.stopPropagation();
                   onDelete();
                 }}
-                className="p-2 rounded-full bg-white/90 hover:bg-white text-slate-700 hover:text-red-600 shadow-sm transition-all"
+                className="rounded-lg bg-white/90 p-2 text-slate-700 shadow-sm transition-all hover:bg-white hover:text-red-600"
                 aria-label="删除图片"
                 title="删除图片"
               >
@@ -98,9 +101,9 @@ const ImageCard = memo(({
       </div>
 
       {/* Info Section */}
-      <div className="p-4 space-y-3">
+      <div className="space-y-2.5 p-3.5">
         {/* Title */}
-        <h3 className="text-base font-semibold text-slate-800 line-clamp-2 group-hover:text-orange-600 transition-colors duration-300 leading-relaxed">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-6 text-slate-800 transition-colors duration-300 group-hover:text-orange-600">
           {title}
         </h3>
 

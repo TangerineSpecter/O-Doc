@@ -3,7 +3,7 @@ from article.models import Image
 
 @admin.register(Image)
 class ImageAdmin(admin.ModelAdmin):
-    list_display = ['image_id', 'title', 'coll_id', 'location', 'author', 'created_at']
-    search_fields = ['title', 'description', 'location']
+    list_display = ['image_id', 'title', 'coll_id', 'country', 'city', 'author', 'created_at']
+    search_fields = ['title', 'description', 'country', 'city']
     list_filter = ['created_at', 'is_valid']
     readonly_fields = ['image_id', 'created_at', 'updated_at']

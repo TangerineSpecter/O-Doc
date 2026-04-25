@@ -8,7 +8,8 @@ export interface Image {
   collId: string;
   shootingTime?: string;
   shootingTimeStr?: string;
-  location?: string;
+  country?: string;
+  city?: string;
   tags?: string;
   tagsList?: string[];
   author?: string;
@@ -24,7 +25,8 @@ export interface CreateImageParams {
   imageUrl: string;
   collId: string;
   shootingTime?: string;
-  location?: string;
+  country?: string;
+  city?: string;
   tags?: string;
 }
 
@@ -33,7 +35,8 @@ export interface UpdateImageParams {
   description?: string;
   imageUrl?: string;
   shootingTime?: string;
-  location?: string;
+  country?: string;
+  city?: string;
   tags?: string;
 }
 

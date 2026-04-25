@@ -60,6 +60,19 @@ export default function CreateAnthologyModal({
         }
     }, [isOpen, initialData]);
 
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && !isSubmitting) {
+                onClose();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, isSubmitting, onClose]);
+
     const handleSubmit = async () => {
         if (!formData.title) return;
         if (!formData.description) return;
