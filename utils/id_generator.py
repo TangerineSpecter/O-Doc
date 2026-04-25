@@ -75,3 +75,12 @@ def generate_msg_id() -> str:
     :return: 带 msg 前缀的唯一ID字符串
     """
     return generate_unique_id("msg")
+
+
+# 为图片生成带img前缀的ID
+def generate_image_id() -> str:
+    """
+    生成带img前缀的图片ID
+    :return: 带img前缀的唯一ID字符串
+    """
+    return generate_unique_id("img")

@@ -6,9 +6,9 @@ from django.db import transaction, models, close_old_connections
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 
-from article.models import Article
+from article.models import Article, Image
 from article.prompts import POLISH_ARTICLE_PROMPT_TEMPLATE
-from article.serializers import ArticleSerializer, ArticleTreeSerializer
+from article.serializers import ArticleSerializer, ArticleTreeSerializer, ImageSerializer
 from utils.ai_service import AIService
 from utils.error_codes import ErrorCode
 from utils.notification_service import NotificationService
@@ -353,6 +353,113 @@ class ArticleSaveWebView(APIView):
                 thread.start()
 
             return success_result(data=ArticleSerializer(article).data)
+
+        except Exception as e:
+            return error_result(ErrorCode.SYSTEM_ERROR, str(e))
+
+
+class ImageListView(APIView):
+    """
+    图片列表视图 - 获取指定文集下的所有图片
+    """
+
+    def get(self, request, coll_id):
+        try:
+            if not Anthology.objects.filter(coll_id=coll_id, type='image', is_valid=True).exists():
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+            # 获取文集下的所有有效图片
+            images = Image.objects.filter(
+                is_valid=True,
+                coll_id=coll_id
+            ).order_by('-created_at')
+
+            serializer = ImageSerializer(images, many=True)
+            return success_result(data=serializer.data)
+
+        except Exception as e:
+            return error_result(ErrorCode.SYSTEM_ERROR, str(e))
+
+
+class ImageDetailView(APIView):
+    """
+    图片详情视图 - 获取单张图片详情
+    """
+
+    def get(self, request, image_id):
+        try:
+            image = get_object_or_404(Image, image_id=image_id, is_valid=True)
+            serializer = ImageSerializer(image)
+            return success_result(data=serializer.data)
+
+        except Exception as e:
+            return error_result(ErrorCode.SYSTEM_ERROR, str(e))
+
+
+class ImageCreateView(APIView):
+    """
+    创建图片
+    """
+
+    def post(self, request):
+        try:
+            serializer = ImageSerializer(data=request.data)
+            if serializer.is_valid():
+                if not Anthology.objects.filter(coll_id=serializer.validated_data['coll_id'], type='image',
+                                                is_valid=True).exists():
+                    return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+                image = serializer.save()
+
+                # 更新文集计数
+                Anthology.objects.filter(coll_id=image.coll_id).update(count=models.F('count') + 1)
+
+                return success_result(data=ImageSerializer(image).data)
+            else:
+                # 改进错误信息返回
+                errors = serializer.errors
+                error_msg = {field: str(error[0]) if isinstance(error, list) else str(error) for field, error in errors.items()}
+                logger.error(f"Image validation errors: {error_msg}")
+                return error_result(ErrorCode.PARAM_ERROR, error_msg)
+
+        except Exception as e:
+            logger.error(f"Image create error: {str(e)}", exc_info=True)
+            return error_result(ErrorCode.SYSTEM_ERROR, str(e))
+
+
+class ImageUpdateView(APIView):
+    """
+    更新图片
+    """
+
+    def put(self, request, image_id):
+        try:
+            image = get_object_or_404(Image, image_id=image_id, is_valid=True)
+            serializer = ImageSerializer(image, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return success_result(data=serializer.data)
+            else:
+                return error_result(ErrorCode.PARAM_ERROR, str(serializer.errors))
+
+        except Exception as e:
+            return error_result(ErrorCode.SYSTEM_ERROR, str(e))
+
+
+class ImageDeleteView(APIView):
+    """
+    删除图片（软删除）
+    """
+
+    def delete(self, request, image_id):
+        try:
+            image = get_object_or_404(Image, image_id=image_id, is_valid=True)
+            image.is_valid = False
+            image.save()
+
+            # 更新文集计数
+            Anthology.objects.filter(coll_id=image.coll_id).update(count=models.F('count') - 1)
+
+            return success_result(msg="删除成功")
 
         except Exception as e:
             return error_result(ErrorCode.SYSTEM_ERROR, str(e))

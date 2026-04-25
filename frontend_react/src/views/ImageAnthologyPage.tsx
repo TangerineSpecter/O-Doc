@@ -4,20 +4,11 @@ import ImageCard from '../components/ImageGallery/ImageCard';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
 import { getAnthologyDetail, Anthology } from '../api/anthology';
+import { deleteImage, getImagesByAnthology, Image } from '../api/image';
 import { getIconComponent } from '../constants/iconList';
 import StarLoader from '../components/common/StarLoader';
-
-interface ImageItem {
-  articleId: string;
-  title: string;
-  imageUrl: string;
-  description?: string;
-  shootingTime?: string;
-  location?: string;
-  tags?: string[];
-  author?: string;
-  createdAt?: string;
-}
+import ConfirmationModal from '../components/common/ConfirmationModal';
+import { useToast } from '../components/common/ToastProvider';
 
 interface ImageAnthologyPageProps {
   onNavigate?: (viewName: string, params?: any) => void;
@@ -27,10 +18,13 @@ interface ImageAnthologyPageProps {
 
 export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageAnthologyPageProps) {
   const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
-  const [images, setImages] = useState<ImageItem[]>([]);
+  const [images, setImages] = useState<Image[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [editingImage, setEditingImage] = useState<Image | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Image | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     if (collId) {
@@ -43,65 +37,21 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     
     try {
       setLoading(true);
-      const data = await getAnthologyDetail(collId);
-      setAnthologyInfo(data);
-      
-      // 将 articles 转换为 ImageItem 格式
-      // 注意：这里需要根据实际的数据结构进行调整
-      const imageList: ImageItem[] = (data.articles || []).map((article: any) => ({
-        articleId: article.articleId,
-        title: article.title,
-        imageUrl: article.imageUrl || extractImageFromContent(article.content) || '',
-        description: article.description || extractDescription(article.content),
-        shootingTime: article.shootingTime || extractShootingTime(article.content),
-        location: article.location || extractLocation(article.content),
-        tags: article.tags || extractTags(article.content),
-        author: article.author,
-        createdAt: article.date || article.created_at
-      }));
 
-      setImages(imageList);
+      // 并行获取文集详情和图片列表
+      const [anthologyData, imagesData] = await Promise.all([
+        getAnthologyDetail(collId),
+        getImagesByAnthology(collId)
+      ]);
+
+      setAnthologyInfo(anthologyData);
+
+      setImages(imagesData);
     } catch (error) {
       console.error('加载图片文集失败:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  // 从 content 中提取图片 URL（假设使用 Markdown 图片语法）
-  const extractImageFromContent = (content?: string): string => {
-    if (!content) return '';
-    const match = content.match(/!\[.*?\]\((.*?)\)/);
-    return match ? match[1] : '';
-  };
-
-  // 从 content 中提取描述
-  const extractDescription = (content?: string): string => {
-    if (!content) return '';
-    // 移除图片语法，返回剩余文本
-    const withoutImages = content.replace(/!\[.*?\]\(.*?\)/g, '');
-    return withoutImages.trim().substring(0, 500);
-  };
-
-  // 从 content 中提取拍摄时间（假设格式为 <shooting_time>xxx</shooting_time>）
-  const extractShootingTime = (content?: string): string => {
-    if (!content) return '';
-    const match = content.match(/<shooting_time>(.*?)<\/shooting_time>/);
-    return match ? match[1] : '';
-  };
-
-  // 从 content 中提取地点
-  const extractLocation = (content?: string): string => {
-    if (!content) return '';
-    const match = content.match(/<location>(.*?)<\/location>/);
-    return match ? match[1] : '';
-  };
-
-  // 从 content 中提取标签
-  const extractTags = (content?: string): string[] => {
-    if (!content) return [];
-    const match = content.match(/<tags>(.*?)<\/tags>/);
-    return match ? match[1].split(',').map(t => t.trim()) : [];
   };
 
   const handleBack = () => {
@@ -130,10 +80,39 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     }
   };
 
+  const handleOpenCreateModal = () => {
+    setEditingImage(null);
+    setIsUploadModalOpen(true);
+  };
+
+  const handleOpenEditModal = (image: Image) => {
+    setEditingImage(image);
+    setIsUploadModalOpen(true);
+  };
+
+  const handleCloseUploadModal = () => {
+    setIsUploadModalOpen(false);
+    setEditingImage(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    try {
+      await deleteImage(deleteTarget.imageId);
+      toast.success('图片已删除');
+      setDeleteTarget(null);
+      await loadAnthologyData();
+    } catch (error) {
+      console.error('删除图片失败:', error);
+      toast.error('删除失败，请重试');
+    }
+  };
+
   // 瀑布流：将图片分成两列
   const { leftColumn, rightColumn } = useMemo(() => {
-    const left: ImageItem[] = [];
-    const right: ImageItem[] = [];
+    const left: Image[] = [];
+    const right: Image[] = [];
     
     images.forEach((image, index) => {
       if (index % 2 === 0) {
@@ -193,7 +172,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
             {/* Right Section */}
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setIsUploadModalOpen(true)}
+                onClick={handleOpenCreateModal}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-xs font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95"
                 aria-label="添加图片"
               >
@@ -227,7 +206,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
             <div className="space-y-6">
               {leftColumn.map((image, index) => (
                 <div
-                  key={image.articleId}
+                  key={image.imageId}
                   className="animate-fade-in-up"
                   style={{
                     animationDelay: `${index * 100}ms`,
@@ -237,9 +216,11 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   <ImageCard
                     imageUrl={image.imageUrl}
                     title={image.title}
-                    shootingTime={image.shootingTime}
+                    shootingTime={image.shootingTimeStr}
                     location={image.location}
                     onClick={() => handleImageClick(images.indexOf(image))}
+                    onEdit={() => handleOpenEditModal(image)}
+                    onDelete={() => setDeleteTarget(image)}
                   />
                 </div>
               ))}
@@ -249,7 +230,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
             <div className="space-y-6 md:mt-12">
               {rightColumn.map((image, index) => (
                 <div
-                  key={image.articleId}
+                  key={image.imageId}
                   className="animate-fade-in-up"
                   style={{
                     animationDelay: `${(index + 1) * 100}ms`,
@@ -259,9 +240,11 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   <ImageCard
                     imageUrl={image.imageUrl}
                     title={image.title}
-                    shootingTime={image.shootingTime}
+                    shootingTime={image.shootingTimeStr}
                     location={image.location}
                     onClick={() => handleImageClick(images.indexOf(image))}
+                    onEdit={() => handleOpenEditModal(image)}
+                    onDelete={() => setDeleteTarget(image)}
                   />
                 </div>
               ))}
@@ -273,7 +256,16 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
       {/* Image Viewer Modal */}
       <ImageViewer
         isOpen={selectedIndex !== null}
-        image={selectedIndex !== null ? images[selectedIndex] : null}
+        image={selectedIndex !== null ? {
+          imageUrl: images[selectedIndex].imageUrl,
+          title: images[selectedIndex].title,
+          description: images[selectedIndex].description,
+          shootingTime: images[selectedIndex].shootingTimeStr,
+          location: images[selectedIndex].location,
+          tags: images[selectedIndex].tagsList,
+          author: images[selectedIndex].author,
+          createdAt: images[selectedIndex].createdAt
+        } : null}
         onClose={handleCloseViewer}
         onPrevious={handlePrevious}
         onNext={handleNext}
@@ -284,11 +276,26 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
       {/* Upload Modal */}
       <ImageUploadModal
         isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
+        onClose={handleCloseUploadModal}
         collId={collId || ''}
+        initialData={editingImage}
         onSuccess={() => {
           loadAnthologyData();
         }}
+      />
+
+      <ConfirmationModal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        title="确认删除图片?"
+        description={
+          <span>
+            确定要删除图片<strong className="text-red-600">「{deleteTarget?.title}」</strong>吗？此操作无法恢复。
+          </span>
+        }
+        confirmText="确认删除"
+        type="danger"
       />
 
       {/* Animation Styles */}

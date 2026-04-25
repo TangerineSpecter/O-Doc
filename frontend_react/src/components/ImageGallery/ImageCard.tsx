@@ -1,5 +1,5 @@
 import React, { memo, useState } from 'react';
-import { Calendar, MapPin } from 'lucide-react';
+import { Calendar, Edit3, Eye, MapPin, Trash2 } from 'lucide-react';
 
 interface ImageCardProps {
   imageUrl: string;
@@ -7,6 +7,8 @@ interface ImageCardProps {
   shootingTime?: string;
   location?: string;
   onClick?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 const ImageCard = memo(({ 
@@ -14,7 +16,9 @@ const ImageCard = memo(({
   title, 
   shootingTime, 
   location,
-  onClick 
+  onClick,
+  onEdit,
+  onDelete
 }: ImageCardProps) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -56,10 +60,39 @@ const ImageCard = memo(({
           {/* Center Icon */}
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 transform transition-transform duration-300 hover:scale-110">
-              <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-              </svg>
+              <Eye className="w-7 h-7 text-white" />
             </div>
+          </div>
+
+          <div className="absolute right-3 top-3 flex items-center gap-2">
+            {onEdit && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+                className="p-2 rounded-full bg-white/90 hover:bg-white text-slate-700 hover:text-orange-600 shadow-sm transition-all"
+                aria-label="编辑图片"
+                title="编辑图片"
+              >
+                <Edit3 className="w-4 h-4" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                className="p-2 rounded-full bg-white/90 hover:bg-white text-slate-700 hover:text-red-600 shadow-sm transition-all"
+                aria-label="删除图片"
+                title="删除图片"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>

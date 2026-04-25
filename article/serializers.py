@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 
-from article.models import Article
+from article.models import Article, Image
 from categories.models import Category
 from tags.models import Tag
 from tags.serializers import TagSerializer
@@ -307,3 +307,42 @@ class ArticleTreeSerializer(serializers.ModelSerializer):
         # 获取当前文章的所有有效子文章，并按sort和更新时间排序
         children = Article.objects.filter(parent=obj, is_valid=True).order_by('sort', '-updated_at')
         return ArticleTreeSerializer(children, many=True).data
+
+
+class ImageSerializer(serializers.ModelSerializer):
+    """
+    图片序列化器
+    """
+    image_url = serializers.CharField(max_length=500)
+    shooting_time = serializers.DateTimeField(required=False, allow_null=True)
+    tags_list = serializers.SerializerMethodField(read_only=True)
+    shooting_time_str = serializers.SerializerMethodField(read_only=True)
+
+    # 标签字段，接收前端传递的逗号分隔字符串（写入）
+    tags = serializers.CharField(
+        allow_blank=True,
+        required=False,
+        write_only=True
+    )
+
+    def get_tags_list(self, obj):
+        """返回标签列表"""
+        return obj.get_tags_list()
+
+    def get_shooting_time_str(self, obj):
+        """返回格式化的拍摄时间"""
+        if obj.shooting_time:
+            return obj.shooting_time.strftime('%Y-%m-%d %H:%M')
+        return None
+
+    class Meta:
+        model = Image
+        fields = [
+            'image_id', 'title', 'description', 'image_url', 'coll_id',
+            'shooting_time', 'shooting_time_str', 'location', 'tags', 'tags_list',
+            'author', 'created_at', 'updated_at', 'is_valid'
+        ]
+        read_only_fields = [
+            'image_id', 'author', 'created_at', 'updated_at',
+            'is_valid', 'tags_list', 'shooting_time_str'
+        ]

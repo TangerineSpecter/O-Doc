@@ -4,7 +4,7 @@ import re
 from django.db import models
 from django.utils import timezone
 
-from utils.id_generator import generate_article_id
+from utils.id_generator import generate_article_id, generate_image_id
 
 
 # Create your models here.
@@ -215,3 +215,126 @@ class Article(models.Model):
             self.read_time = 0
 
         super().save(*args, **kwargs)
+
+
+class Image(models.Model):
+    """
+    图片模型 - 用于存储图片文集中的图片
+    """
+
+    # 图片唯一标识
+    image_id = models.CharField(
+        max_length=32,
+        unique=True,
+        primary_key=True,
+        default=generate_image_id,
+        editable=False,
+        help_text="图片唯一标识",
+        db_comment="图片唯一标识"
+    )
+
+    # 标题
+    title = models.CharField(
+        max_length=255,
+        help_text="图片标题",
+        db_comment="图片标题"
+    )
+
+    # 图片描述
+    description = models.TextField(
+        blank=True,
+        default='',
+        help_text="图片描述",
+        db_comment="图片描述"
+    )
+
+    # 图片URL（存储在资源服务器上的路径）
+    image_url = models.CharField(
+        max_length=500,
+        help_text="图片URL",
+        db_comment="图片URL"
+    )
+
+    # 所属文集ID
+    coll_id = models.CharField(
+        max_length=32,
+        help_text="所属文集ID，与anthologies表的coll_id对应",
+        db_comment="所属文集ID"
+    )
+
+    # 拍摄时间
+    shooting_time = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="拍摄时间",
+        db_comment="拍摄时间"
+    )
+
+    # 拍摄地点
+    location = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="拍摄地点",
+        db_comment="拍摄地点"
+    )
+
+    # 标签（存储为逗号分隔的字符串）
+    tags = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        help_text="标签，多个标签用逗号分隔",
+        db_comment="标签"
+    )
+
+    # 作者
+    author = models.CharField(
+        max_length=50,
+        default="admin",
+        help_text="图片作者",
+        db_comment="图片作者"
+    )
+
+    # 创建时间
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="创建时间",
+        db_comment="创建时间"
+    )
+
+    # 更新时间
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="更新时间",
+        db_comment="更新时间"
+    )
+
+    # 有效性标记
+    is_valid = models.BooleanField(
+        default=True,
+        help_text="是否有效",
+        db_comment="是否有效"
+    )
+
+    class Meta:
+        verbose_name = '图片'
+        verbose_name_plural = '图片管理'
+        ordering = ['-created_at']
+        db_table = 'images'
+        db_table_comment = '图片表'
+
+    def __str__(self):
+        return self.title
+
+    def save(self, *args, **kwargs):
+        # 如果image_id为空，生成一个新的
+        if not self.image_id:
+            self.image_id = generate_image_id()
+        super().save(*args, **kwargs)
+
+    def get_tags_list(self):
+        """将逗号分隔的标签字符串转换为列表"""
+        if not self.tags:
+            return []
+        return [tag.strip() for tag in self.tags.split(',') if tag.strip()]

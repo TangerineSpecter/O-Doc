@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
-import { X, Upload, Image as ImageIcon, Calendar, MapPin, Tag as TagIcon, FileText, Loader2, Plus } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Loader2, Plus, Upload, X } from 'lucide-react';
 import { uploadResource } from '../../api/resources';
-import { createArticle } from '../../api/article';
+import { createImage, Image, updateImage } from '../../api/image';
 import { useToast } from '../common/ToastProvider';
 
 interface ImageUploadModalProps {
@@ -9,11 +9,18 @@ interface ImageUploadModalProps {
   onClose: () => void;
   collId: string;
   onSuccess: () => void;
+  initialData?: Image | null;
 }
 
-export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }: ImageUploadModalProps) {
+export default function ImageUploadModal({
+  isOpen,
+  onClose,
+  collId,
+  onSuccess,
+  initialData
+}: ImageUploadModalProps) {
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string>('');
+  const [preview, setPreview] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [shootingTime, setShootingTime] = useState('');
@@ -22,24 +29,60 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
+  const isEditing = Boolean(initialData);
+
+  const toDateTimeLocalValue = (value?: string) => {
+    if (!value) return '';
+    return value.replace(' ', 'T').slice(0, 16);
+  };
+
+  const resetForm = () => {
+    setFile(null);
+    setPreview('');
+    setTitle('');
+    setDescription('');
+    setShootingTime('');
+    setLocation('');
+    setTags('');
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (initialData) {
+      setFile(null);
+      setPreview(initialData.imageUrl || '');
+      setTitle(initialData.title || '');
+      setDescription(initialData.description || '');
+      setShootingTime(toDateTimeLocalValue(initialData.shootingTime));
+      setLocation(initialData.location || '');
+      setTags(initialData.tags || initialData.tagsList?.join(', ') || '');
+    } else {
+      resetForm();
+    }
+  }, [isOpen, initialData]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      if (!selectedFile.type.startsWith('image/')) {
-        toast.error('请选择图片文件');
-        return;
-      }
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        toast.error('图片大小不能超过 10MB');
-        return;
-      }
-      setFile(selectedFile);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setPreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(selectedFile);
+    if (!selectedFile) return;
+
+    if (!selectedFile.type.startsWith('image/')) {
+      toast.error('请选择图片文件');
+      return;
+    }
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      toast.error('图片大小不能超过 10MB');
+      return;
+    }
+
+    setFile(selectedFile);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setPreview(event.target?.result as string);
+    };
+    reader.readAsDataURL(selectedFile);
+
+    if (!title.trim()) {
       setTitle(selectedFile.name.replace(/\.[^/.]+$/, ''));
     }
   };
@@ -47,25 +90,29 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files?.[0];
-    if (droppedFile && droppedFile.type.startsWith('image/')) {
-      if (droppedFile.size > 10 * 1024 * 1024) {
-        toast.error('图片大小不能超过 10MB');
-        return;
-      }
-      setFile(droppedFile);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setPreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(droppedFile);
-      setTitle(droppedFile.name.replace(/\.[^/.]+$/, ''));
-    } else {
+    if (!droppedFile || !droppedFile.type.startsWith('image/')) {
       toast.error('请拖拽图片文件');
+      return;
+    }
+    if (droppedFile.size > 10 * 1024 * 1024) {
+      toast.error('图片大小不能超过 10MB');
+      return;
+    }
+
+    setFile(droppedFile);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setPreview(event.target?.result as string);
+    };
+    reader.readAsDataURL(droppedFile);
+
+    if (!title.trim()) {
+      setTitle(droppedFile.name.replace(/\.[^/.]+$/, ''));
     }
   };
 
   const handleSubmit = async () => {
-    if (!file) {
+    if (!file && !isEditing) {
       toast.error('请选择图片');
       return;
     }
@@ -76,36 +123,47 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
 
     try {
       setIsUploading(true);
-      
-      const uploadResponse = await uploadResource(file, 'image');
-      
-      const content = `![${title}](/api/resource/view/${uploadResponse.id})\n\n${description ? `<description>${description}</description>\n\n` : ''}${shootingTime ? `<shooting_time>${shootingTime}</shooting_time>\n\n` : ''}${location ? `<location>${location}</location>\n\n` : ''}${tags ? `<tags>${tags}</tags>\n\n` : ''}`;
-      
-      await createArticle({
-        collId,
-        title: title.trim(),
-        content: content.trim(),
-      });
 
-      toast.success('图片上传成功');
+      let imageUrl = initialData?.imageUrl;
+      if (file) {
+        const uploadResponse = await uploadResource(file, 'image');
+        imageUrl = `/api/resource/view/${uploadResponse.id}`;
+      }
+
+      if (isEditing && initialData) {
+        await updateImage(initialData.imageId, {
+          title: title.trim(),
+          description: description.trim(),
+          imageUrl,
+          shootingTime: shootingTime || undefined,
+          location: location.trim(),
+          tags: tags.trim(),
+        });
+      } else {
+        await createImage({
+          title: title.trim(),
+          description: description.trim(),
+          imageUrl: imageUrl || '',
+          collId,
+          shootingTime: shootingTime || undefined,
+          location: location.trim(),
+          tags: tags.trim(),
+        });
+      }
+
+      toast.success(isEditing ? '图片已更新' : '图片上传成功');
       onSuccess();
       handleClose();
     } catch (error) {
-      console.error('上传失败:', error);
-      toast.error('上传失败，请重试');
+      console.error(isEditing ? '更新失败:' : '上传失败:', error);
+      toast.error(isEditing ? '更新失败，请重试' : '上传失败，请重试');
     } finally {
       setIsUploading(false);
     }
   };
 
   const handleClose = () => {
-    setFile(null);
-    setPreview('');
-    setTitle('');
-    setDescription('');
-    setShootingTime('');
-    setLocation('');
-    setTags('');
+    resetForm();
     onClose();
   };
 
@@ -113,27 +171,28 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-           onClick={() => !isUploading && handleClose()}></div>
+      <div
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+        onClick={() => !isUploading && handleClose()}
+      />
       <div
         className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-2 duration-200"
-        onClick={(e) => e.stopPropagation()}>
-
-        {/* Header */}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <h3 className="text-lg font-bold text-slate-800">
-            上传图片
+            {isEditing ? '编辑图片' : '上传图片'}
           </h3>
-          <button onClick={handleClose} disabled={isUploading}
-                  className="p-1 rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors">
+          <button
+            onClick={handleClose}
+            disabled={isUploading}
+            className="p-1 rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Body */}
         <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-
-          {/* Upload Area */}
           <div
             onDrop={handleDrop}
             onDragOver={(e) => e.preventDefault()}
@@ -150,7 +209,7 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
               onChange={handleFileSelect}
               className="hidden"
             />
-            
+
             {preview ? (
               <div className="p-3">
                 <img
@@ -159,7 +218,7 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
                   className="w-full h-48 object-contain rounded-lg"
                 />
                 <p className="text-center text-xs text-slate-500 mt-3">
-                  点击或拖拽更换图片
+                  点击或拖拽{isEditing ? '替换' : '更换'}图片
                 </p>
               </div>
             ) : (
@@ -177,7 +236,6 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
             )}
           </div>
 
-          {/* Title */}
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-slate-700">
               图片标题 <span className="text-red-500">*</span>
@@ -185,14 +243,13 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
             <input
               type="text"
               disabled={isUploading}
-              placeholder='请输入图片标题'
+              placeholder="请输入图片标题"
               className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
 
-          {/* Description */}
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-slate-700">
               描述说明
@@ -200,14 +257,13 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
             <textarea
               disabled={isUploading}
               rows={2}
-              placeholder='请输入图片描述（可选）'
+              placeholder="请输入图片描述（可选）"
               className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm resize-none"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
 
-          {/* Shooting Time & Location */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-semibold text-slate-700">
@@ -229,7 +285,7 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
               <input
                 type="text"
                 disabled={isUploading}
-                placeholder='如：北京'
+                placeholder="如：北京"
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
@@ -237,7 +293,6 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
             </div>
           </div>
 
-          {/* Tags */}
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-slate-700">
               标签
@@ -245,7 +300,7 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
             <input
               type="text"
               disabled={isUploading}
-              placeholder='多个标签用逗号分隔'
+              placeholder="多个标签用逗号分隔"
               className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
@@ -253,7 +308,6 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
           </div>
         </div>
 
-        {/* Footer */}
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
           <button
             onClick={handleClose}
@@ -264,13 +318,13 @@ export default function ImageUploadModal({ isOpen, onClose, collId, onSuccess }:
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isUploading || !file || !title.trim()}
+            disabled={isUploading || (!file && !isEditing) || !title.trim()}
             className="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 active:bg-orange-700 rounded-lg transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isUploading ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> 上传中...</>
+              <><Loader2 className="w-4 h-4 animate-spin" /> {isEditing ? '保存中...' : '上传中...'}</>
             ) : (
-              <><Plus className="w-4 h-4" /> 上传图片</>
+              <><Plus className="w-4 h-4" /> {isEditing ? '保存修改' : '上传图片'}</>
             )}
           </button>
         </div>
