@@ -14,6 +14,60 @@ interface ImageUploadModalProps {
   initialData?: Image | null;
 }
 
+const LOCATION_OPTIONS = [
+  '中国 北京',
+  '中国 上海',
+  '中国 广州',
+  '中国 深圳',
+  '中国 成都',
+  '中国 杭州',
+  '中国 西安',
+  '中国 香港',
+  '中国 澳门',
+  '中国 台北',
+  '日本 东京',
+  '日本 京都',
+  '日本 大阪',
+  '韩国 首尔',
+  '泰国 曼谷',
+  '新加坡 新加坡',
+  '马来西亚 吉隆坡',
+  '印度尼西亚 巴厘岛',
+  '越南 河内',
+  '越南 胡志明市',
+  '阿联酋 迪拜',
+  '土耳其 伊斯坦布尔',
+  '英国 伦敦',
+  '法国 巴黎',
+  '意大利 罗马',
+  '意大利 威尼斯',
+  '西班牙 巴塞罗那',
+  '德国 柏林',
+  '荷兰 阿姆斯特丹',
+  '瑞士 苏黎世',
+  '奥地利 维也纳',
+  '捷克 布拉格',
+  '希腊 雅典',
+  '冰岛 雷克雅未克',
+  '美国 纽约',
+  '美国 洛杉矶',
+  '美国 旧金山',
+  '美国 西雅图',
+  '美国 芝加哥',
+  '美国 迈阿密',
+  '加拿大 多伦多',
+  '加拿大 温哥华',
+  '墨西哥 墨西哥城',
+  '巴西 里约热内卢',
+  '阿根廷 布宜诺斯艾利斯',
+  '澳大利亚 悉尼',
+  '澳大利亚 墨尔本',
+  '新西兰 奥克兰',
+  '埃及 开罗',
+  '摩洛哥 马拉喀什',
+  '南非 开普敦'
+];
+
 export default function ImageUploadModal({
   isOpen,
   onClose,
@@ -334,7 +388,7 @@ export default function ImageUploadModal({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5">
               <label className="text-sm font-semibold text-slate-700">
                 拍摄时间
               </label>
@@ -472,12 +526,18 @@ export default function ImageUploadModal({
               </label>
               <input
                 type="text"
+                list="image-location-options"
                 disabled={isUploading}
-                placeholder="如：北京"
+                placeholder="如：中国 北京"
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
               />
+              <datalist id="image-location-options">
+                {LOCATION_OPTIONS.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
             </div>
           </div>
 
