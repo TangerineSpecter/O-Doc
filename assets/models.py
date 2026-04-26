@@ -20,6 +20,7 @@ class Asset(models.Model):
     SOURCE_TYPE_CHOICES = [
         ('attachment', '附件'),
         ('content', '内容'),
+        ('image', '图片文集'),
         ('other', '其他'),
     ]
 

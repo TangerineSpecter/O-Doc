@@ -6,6 +6,12 @@ export interface ArticleSource {
     collId: string;
 }
 
+export interface ImageSource {
+    id: string;
+    title: string;
+    collId: string;
+}
+
 export interface ResourceItem {
     id: string;
     name: string;
@@ -14,8 +20,9 @@ export interface ResourceItem {
     date: string;
     linked: boolean;
     sourceArticle: ArticleSource | null;
+    sourceImage?: ImageSource | null;
     duplicate?: boolean; // 标记是否为重复文件
-    sourceType?: string; // 资源来源类型：attachment(附件)、content(内容)
+    sourceType?: string; // 资源来源类型：attachment(附件)、content(内容)、image(图片文集)
 }
 
 export interface GetResourcesParams {
@@ -34,6 +41,7 @@ export interface ResourceUploadResponse {
     date: string;
     linked: boolean;
     sourceArticle: ArticleSource | null;
+    sourceImage?: ImageSource | null;
     duplicate?: boolean;
     sourceType?: string; // 资源来源类型
 }

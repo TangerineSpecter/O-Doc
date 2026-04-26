@@ -12,6 +12,11 @@ from article.serializers import ArticleSerializer, ArticleTreeSerializer, ImageS
 from utils.ai_service import AIService
 from utils.error_codes import ErrorCode
 from utils.notification_service import NotificationService
+from utils.resource_assets import (
+    delete_asset_record_and_file,
+    extract_resource_id_from_view_url,
+    is_asset_used_by_image,
+)
 from utils.response_utils import success_result, error_result
 from utils.web_parser import parse_web_content
 from anthology.models import Anthology
@@ -453,8 +458,16 @@ class ImageDeleteView(APIView):
     def delete(self, request, image_id):
         try:
             image = get_object_or_404(Image, image_id=image_id, is_valid=True)
+            resource_id = extract_resource_id_from_view_url(image.image_url)
             image.is_valid = False
             image.save()
+
+            if resource_id and not is_asset_used_by_image(resource_id, exclude_image_id=image.image_id):
+                from assets.models import Asset
+
+                asset = Asset.objects.filter(id=resource_id, is_valid=True, linked_article__isnull=True).first()
+                if asset:
+                    delete_asset_record_and_file(asset)
 
             # 更新文集计数
             Anthology.objects.filter(coll_id=image.coll_id).update(count=models.F('count') - 1)

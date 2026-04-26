@@ -27,6 +27,9 @@ interface TypeConfigItem {
     color: string;
 }
 
+const getResourcePreviewUrl = (file: ResourceItem) =>
+    file.type === 'image' ? `/api/resource/view/${file.id}` : '';
+
 const TYPE_CONFIG: Record<string, TypeConfigItem> = {
     all: {label: '全部', icon: <HardDrive/>, color: 'text-slate-500 bg-slate-100'},
     image: {label: '图片', icon: <ImageIcon/>, color: 'text-purple-600 bg-purple-50'},
@@ -341,6 +344,14 @@ export default function ResourcesPage() {
         navigate(`/article/${collId}/${articleId}`);
     };
 
+    const handleImageClick = (collId: string) => {
+        if (!collId) {
+            console.warn("Cannot navigate: missing image anthology collId", {collId});
+            return;
+        }
+        navigate(`/image/${collId}`);
+    };
+
     return (
         <div
             className="w-full min-h-[calc(100vh-80px)] select-none"
@@ -545,10 +556,20 @@ export default function ResourcesPage() {
                                     </div>
                                     <div
                                         className="aspect-[16/10] bg-slate-50/50 border-b border-slate-100/50 flex items-center justify-center relative">
-                                        <div
-                                            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 duration-300 ${getFileStyle(file.type)}`}>
-                                            {React.cloneElement(getFileIcon(file.type), {className: "w-5 h-5"})}
-                                        </div>
+                                        {getResourcePreviewUrl(file) ? (
+                                            <img
+                                                src={getResourcePreviewUrl(file)}
+                                                alt={file.name}
+                                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                loading="lazy"
+                                                draggable={false}
+                                            />
+                                        ) : (
+                                            <div
+                                                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 duration-300 ${getFileStyle(file.type)}`}>
+                                                {React.cloneElement(getFileIcon(file.type), {className: "w-5 h-5"})}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="p-2.5 flex-1 flex flex-col">
                                         <h3 className="text-xs font-medium text-slate-700 truncate mb-1"
@@ -569,6 +590,19 @@ export default function ResourcesPage() {
                                                 <span
                                                     className="truncate group-hover/source:text-orange-600 group-hover/source:underline cursor-pointer transition-colors"
                                                     title={file.sourceArticle.title}>{file.sourceArticle.title}</span>
+                                            </div>
+                                        ) : file.sourceImage ? (
+                                            <div
+                                                className="mt-2 pt-2 border-t border-slate-50 flex items-center gap-1.5 text-[10px] text-slate-400 group/source"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleImageClick(file.sourceImage!.collId);
+                                                }}>
+                                                <ImageIcon
+                                                    className="w-3 h-3 text-slate-300 group-hover/source:text-orange-400 transition-colors"/>
+                                                <span
+                                                    className="truncate group-hover/source:text-orange-600 group-hover/source:underline cursor-pointer transition-colors"
+                                                    title={file.sourceImage.title}>{file.sourceImage.title}</span>
                                             </div>
                                         ) : (
                                            <div className="mt-2 pt-2 border-t border-slate-50 h-6 flex items-center">

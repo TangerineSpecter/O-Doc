@@ -10,6 +10,11 @@ from rest_framework.views import APIView
 
 from article.models import Article
 from utils.error_codes import ErrorCode
+from utils.resource_assets import (
+    delete_asset_record_and_file,
+    get_image_resource_usage,
+    is_asset_used_by_image,
+)
 from utils.response_utils import success_result, error_result
 from .models import Asset
 from .serializers import AssetSerializer
@@ -31,6 +36,8 @@ class ResourceListView(APIView):
 
             # 基础查询集 - 直接写死admin用户
             queryset = Asset.objects.filter(is_valid=True, uploader='admin')
+            image_usage = get_image_resource_usage()
+            image_linked_resource_ids = set(image_usage.keys())
 
             # 筛选条件
             if file_type:
@@ -44,7 +51,10 @@ class ResourceListView(APIView):
 
             if linked:
                 is_linked = linked.lower() == 'true'
-                queryset = queryset.filter(is_linked=is_linked)
+                if is_linked:
+                    queryset = queryset.filter(Q(is_linked=True) | Q(id__in=image_linked_resource_ids))
+                else:
+                    queryset = queryset.filter(is_linked=False).exclude(id__in=image_linked_resource_ids)
 
             if source_type:
                 queryset = queryset.filter(source_type=source_type)
@@ -55,16 +65,20 @@ class ResourceListView(APIView):
 
             # 序列化数据
             serializer = AssetSerializer(page_obj, many=True)
+            page_resource_ids = {asset['id'] for asset in serializer.data}
+            page_image_usage = get_image_resource_usage(page_resource_ids)
             resources = []
             for asset in serializer.data:
+                source_image = page_image_usage.get(asset['id'])
                 resource_data = {
                     'id': asset['id'],
                     'name': asset['name'],
                     'type': asset['file_type'],
                     'size': asset['file_size'],
                     'date': asset['upload_time'],
-                    'linked': asset['is_linked'],
+                    'linked': asset['is_linked'] or bool(source_image),
                     'sourceArticle': asset['sourceArticle'],
+                    'sourceImage': source_image,
                     'sourceType': asset['source_type']
                 }
                 resources.append(resource_data)
@@ -199,19 +213,11 @@ class ResourceDeleteView(APIView):
             if asset.is_linked:
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
 
-            # 物理删除文件
-            try:
-                if asset.file_path:
-                    # 拼接绝对路径
-                    file_abs_path = os.path.join(settings.MEDIA_ROOT, asset.file_path)
-                    if os.path.exists(file_abs_path):
-                        os.remove(file_abs_path)
-            except Exception as e:
-                print(f"删除文件失败: {e}")
-                # 即使文件删除失败，我们也继续删除数据库记录，或者您可以选择抛出异常
+            if is_asset_used_by_image(asset.id):
+                return error_result(ErrorCode.RESOURCE_IS_LINKED)
 
             # 执行删除 (硬删除)
-            asset.delete()
+            delete_asset_record_and_file(asset)
 
             return success_result()
 
