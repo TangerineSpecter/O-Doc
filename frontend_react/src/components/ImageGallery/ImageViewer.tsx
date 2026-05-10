@@ -86,6 +86,7 @@ export default function ImageViewer({
     link.click();
   };
   const location = [image.country, image.city].filter(Boolean).join(' ');
+  const shootingDate = image.shootingTime ? image.shootingTime.replace('T', ' ').slice(0, 10) : '';
 
   return (
     <div
@@ -196,15 +197,15 @@ export default function ImageViewer({
                   </section>
                 )}
 
-                {(image.shootingTime || location) && (
+                {(shootingDate || location) && (
                   <section className="divide-y divide-slate-100 border-y border-slate-100">
-                    {image.shootingTime && (
+                    {shootingDate && (
                       <div className="grid grid-cols-[104px_minmax(0,1fr)] gap-4 py-4">
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
                           <Calendar className="h-4 w-4 text-orange-500" />
-                          <span>拍摄时间</span>
+                          <span>拍摄日期</span>
                         </div>
-                        <p className="break-words text-sm font-semibold text-slate-800">{image.shootingTime}</p>
+                        <p className="break-words text-sm font-semibold text-slate-800">{shootingDate}</p>
                       </div>
                     )}
 

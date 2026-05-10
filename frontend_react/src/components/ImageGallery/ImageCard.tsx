@@ -25,6 +25,7 @@ const ImageCard = memo(({
   const [isLoaded, setIsLoaded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const location = [country, city].filter(Boolean).join(' ');
+  const shootingDate = shootingTime ? shootingTime.replace('T', ' ').slice(0, 10) : '';
 
   return (
     <div
@@ -109,10 +110,10 @@ const ImageCard = memo(({
 
         {/* Meta Info */}
         <div className="space-y-2">
-          {shootingTime && (
+          {shootingDate && (
             <div className="flex items-center gap-2 text-xs text-slate-500 group-hover:text-slate-600 transition-colors">
               <Calendar className="w-3.5 h-3.5 text-orange-400" />
-              <span>{shootingTime}</span>
+              <span>{shootingDate}</span>
             </div>
           )}
           

@@ -330,9 +330,9 @@ class ImageSerializer(serializers.ModelSerializer):
         return obj.get_tags_list()
 
     def get_shooting_time_str(self, obj):
-        """返回格式化的拍摄时间"""
+        """返回格式化的拍摄日期"""
         if obj.shooting_time:
-            return obj.shooting_time.strftime('%Y-%m-%d %H:%M')
+            return obj.shooting_time.strftime('%Y-%m-%d')
         return None
 
     def validate(self, attrs):
