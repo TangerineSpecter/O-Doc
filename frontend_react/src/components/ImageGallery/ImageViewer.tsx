@@ -91,7 +91,7 @@ export default function ImageViewer({
   return (
     <div
       className={`
-        fixed inset-0 z-50 bg-slate-900/28 p-3 text-slate-900 backdrop-blur-sm md:p-8
+        fixed inset-x-0 bottom-0 top-16 z-50 bg-slate-900/28 p-3 text-slate-900 backdrop-blur-sm md:p-6
         transition-opacity duration-300
         ${isVisible ? 'opacity-100' : 'opacity-0'}
       `}
@@ -107,7 +107,7 @@ export default function ImageViewer({
         `}
       >
         <main className="grid min-h-0 w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <section className="relative min-h-[360px] bg-[#fbfaf8] lg:min-h-0">
+          <section className="relative flex min-h-[360px] bg-[#fbfaf8] lg:min-h-0">
             <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-3 px-4 py-4 md:px-6">
               <div className="flex min-w-0 items-center gap-2">
                 <button
@@ -137,7 +137,7 @@ export default function ImageViewer({
               </div>
             </div>
 
-            <div className="flex h-full min-h-[360px] items-center justify-center p-5 pt-16 md:p-8 md:pt-20 lg:min-h-0">
+            <div className="flex min-h-0 w-full items-center justify-center p-5 md:p-8">
               <img
                 src={image.imageUrl}
                 alt={image.title}

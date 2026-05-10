@@ -166,7 +166,7 @@ export const SortableCollectionCard = ({
                     // 图片文集展示：九宫格缩略图
                     item.articles && item.articles.length > 0 ? (
                         <div className="grid grid-cols-3 gap-1 p-1">
-                            {item.articles.slice(0, 6).map((image, idx) => (
+                            {item.articles.slice(0, 3).map((image, idx) => (
                                 <div key={idx}
                                     className="aspect-square bg-slate-100 rounded-md overflow-hidden relative group/img cursor-pointer hover:ring-2 hover:ring-orange-200"
                                     onClick={() => onNavigate('image', { collId: item.collId, title: item.title })}

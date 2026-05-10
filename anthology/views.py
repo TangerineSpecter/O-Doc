@@ -70,7 +70,7 @@ class AnthologyListView(APIView):
                 if anthology.type == 'image':
                     image_qs = Image.objects.filter(coll_id=anthology.coll_id, is_valid=True)
                     item_count = image_qs.count()
-                    images = image_qs.order_by('-created_at')[:6]
+                    images = image_qs.order_by('-created_at')[:3]
                     for image in images:
                         item_summaries.append({
                             'image_id': image.image_id,
