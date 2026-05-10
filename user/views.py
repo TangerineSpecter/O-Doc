@@ -38,6 +38,19 @@ def serialize_user(user):
     }
 
 
+PASSWORD_ERROR_TRANSLATIONS = {
+    'This password is too short. It must contain at least 8 characters.': '密码长度不能少于 8 位。',
+    'This password is too common.': '这个密码太常见了。',
+    'This password is entirely numeric.': '密码不能只包含数字。',
+    'The password is too similar to the username.': '密码不能和用户名太相似。',
+    'The password is too similar to the email address.': '密码不能和邮箱太相似。',
+}
+
+
+def format_password_errors(messages):
+    return ' '.join(PASSWORD_ERROR_TRANSLATIONS.get(message, message) for message in messages)
+
+
 class LoginView(APIView):
     """
     用户登录接口
@@ -172,7 +185,7 @@ class ChangePasswordView(APIView):
         try:
             validate_password(new_password, request.user)
         except ValidationError as exc:
-            return valid_result(msg='；'.join(exc.messages))
+            return valid_result(msg=format_password_errors(exc.messages))
 
         request.user.set_password(new_password)
         request.user.save(update_fields=['password'])

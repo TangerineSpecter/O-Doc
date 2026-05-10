@@ -1,6 +1,6 @@
 import React, {useState} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Mail, Lock, ArrowRight, Leaf} from 'lucide-react';
+import {Mail, Lock, ArrowRight, Leaf, ArrowLeft} from 'lucide-react';
 import {login} from '../api/user';
 import {useToast} from '../components/common/ToastProvider';
 
@@ -105,6 +105,15 @@ export default function LoginPage() {
                 className="absolute -left-20 top-20 w-72 h-72 bg-orange-200/20 rounded-full blur-3xl pointer-events-none"></div>
             <div
                 className="absolute -right-20 bottom-20 w-96 h-96 bg-blue-200/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="absolute left-4 top-4 sm:left-6 sm:top-6 z-20 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:text-orange-600 hover:bg-white/80 rounded-lg transition-colors"
+            >
+                <ArrowLeft className="w-4 h-4"/>
+                返回首页
+            </button>
 
             <FloatingCitrus className="-top-10 -left-10 text-orange-400 opacity-20" size={260} rotation={-15}
                             delay={0}/>
