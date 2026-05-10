@@ -15,6 +15,7 @@ class AIProvider(models.Model):
         ('DeepSeek', 'DeepSeek'),
         ('Ollama', 'Ollama'),
         ('SiliconFlow', 'SiliconFlow (硅基流动)'),
+        ('MiniMax', 'MiniMax'),
         ('custom', '自定义 (Custom)'),
     ]
 

@@ -41,6 +41,17 @@ export const MOCK_PROVIDERS: AIProvider[] = [
         ]
     },
     {
+        id: 'p_minimax',
+        name: 'MiniMax',
+        type: 'MiniMax',
+        baseUrl: 'https://api.minimaxi.com/v1',
+        apiKey: 'sk-********************',
+        models: [
+            {id: 'm_minimax_m27', name: 'MiniMax-M2.7', type: 'chat'},
+            {id: 'm_minimax_m27_fast', name: 'MiniMax-M2.7-highspeed', type: 'chat'}
+        ]
+    },
+    {
         id: 'p_ollama',
         name: 'Ollama',
         type: 'Ollama',

@@ -1,6 +1,7 @@
 import {useState, useEffect} from 'react';
 import {AIProvider} from '../../api/setting';
-import {Server} from 'lucide-react';
+import {Server, X} from 'lucide-react';
+import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
 
 interface ProviderModalProps {
     isOpen: boolean;
@@ -13,6 +14,19 @@ export const ProviderModal = ({isOpen, onClose, onSave, initialData}: ProviderMo
     // 默认值设为 OpenAi
     const [form, setForm] = useState<Partial<AIProvider>>({name: '', type: 'OpenAi', baseUrl: '', apiKey: ''});
 
+    const providerOptions: SettingsSelectOption<AIProvider['type']>[] = [
+        {value: 'OpenAi', label: 'OpenAI', description: 'https://api.openai.com/v1'},
+        {value: 'MiniMax', label: 'MiniMax', description: 'Token Plan, OpenAI compatible'},
+        {value: 'Google AI', label: 'Google AI (Gemini)', description: 'OpenAI-compatible endpoint'},
+        {value: 'DeepSeek', label: 'DeepSeek (深度求索)', description: 'https://api.deepseek.com/v1'},
+        {value: 'Xiaomi', label: 'Xiaomi (小米/MiMo)', description: 'https://api.xiaomimimo.com/v1'},
+        {value: 'Qwen', label: 'Qwen (通义千问)', description: 'DashScope compatible mode'},
+        {value: 'Doubao', label: 'Doubao (豆包)', description: 'Volcengine Ark'},
+        {value: 'SiliconFlow', label: 'SiliconFlow (硅基流动)', description: 'https://api.siliconflow.cn/v1'},
+        {value: 'Ollama', label: 'Ollama (Local)', description: 'http://localhost:11434/v1'},
+        {value: 'custom', label: 'Custom', description: 'OpenAI compatible'},
+    ];
+
     useEffect(() => {
         if (isOpen) {
             setForm(initialData || {name: '', type: 'OpenAi', baseUrl: '', apiKey: ''});
@@ -22,13 +36,16 @@ export const ProviderModal = ({isOpen, onClose, onSave, initialData}: ProviderMo
     if (!isOpen) return null;
 
     // 预设的 Base URL 逻辑
-    const handleTypeChange = (newType: any) => {
+    const handleTypeChange = (newType: AIProvider['type']) => {
         let defaultBaseUrl = form.baseUrl;
         // 如果用户没填或者填的是旧的默认值，则自动切换 BaseURL
-        if (!form.baseUrl || form.baseUrl.includes('api.')) {
+        if (!form.baseUrl || form.baseUrl.includes('api.') || form.baseUrl.includes('localhost') || form.baseUrl.includes('dashscope')) {
             switch (newType) {
                 case 'OpenAi':
                     defaultBaseUrl = 'https://api.openai.com/v1';
+                    break;
+                case 'MiniMax':
+                    defaultBaseUrl = 'https://api.minimaxi.com/v1';
                     break;
                 case 'DeepSeek':
                     defaultBaseUrl = 'https://api.deepseek.com/v1';
@@ -60,32 +77,29 @@ export const ProviderModal = ({isOpen, onClose, onSave, initialData}: ProviderMo
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose}></div>
             <div
-                className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative z-10 animate-in zoom-in-95 duration-200">
+                className="bg-white rounded-lg shadow-xl shadow-slate-900/15 ring-1 ring-slate-900/5 w-full max-w-md p-6 relative z-10 animate-in zoom-in-95 duration-200">
                 <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
                     <div className="p-2 bg-slate-100 rounded-lg">
                         <Server className="w-5 h-5 text-slate-600"/>
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900">{initialData?.id ? '编辑服务商' : '添加模型服务商'}</h3>
+                    <h3 className="text-lg font-bold text-slate-900 flex-1">{initialData?.id ? '编辑服务商' : '添加模型服务商'}</h3>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                        <X className="w-4 h-4"/>
+                    </button>
                 </div>
 
                 <div className="space-y-4">
                     <div>
                         <label className="block text-xs font-medium text-slate-600 mb-1.5">模型类型 (Type)</label>
-                        <select
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none bg-white"
-                            value={form.type}
-                            onChange={e => handleTypeChange(e.target.value)}
-                        >
-                            <option value="OpenAi">OpenAI</option>
-                            <option value="Google AI">Google AI (Gemini)</option>
-                            <option value="DeepSeek">DeepSeek (深度求索)</option>
-                            <option value="Xiaomi">Xiaomi (小米/MiMo)</option>
-                            <option value="Qwen">Qwen (通义千问)</option>
-                            <option value="Doubao">Doubao (豆包)</option>
-                            <option value="SiliconFlow">SiliconFlow (硅基流动)</option>
-                            <option value="Ollama">Ollama (Local)</option>
-                            <option value="custom">Custom (OpenAI Compatible)</option>
-                        </select>
+                        <SettingsSelect
+                            value={form.type || 'OpenAi'}
+                            options={providerOptions}
+                            onChange={handleTypeChange}
+                        />
                     </div>
 
                     <div>

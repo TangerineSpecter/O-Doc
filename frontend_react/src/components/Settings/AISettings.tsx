@@ -1,5 +1,6 @@
-import {ChevronDown, Edit2, Globe, Key, Layers, Plus, Server, Trash2, X, Zap} from 'lucide-react';
+import {Edit2, Globe, Key, Layers, Plus, Server, Trash2, X, Zap} from 'lucide-react';
 import {AIModel, AIProvider, ModelType, SystemAIConfig} from '@/api/setting';
+import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
 
 // 1. 引入图片资源 (public 目录的文件可直接从根路径访问)
 import deepseekLogo from '/deepseek.svg?url'
@@ -30,6 +31,7 @@ const ProviderLogo = ({type, name}: { type: string, name: string }) => {
         'Qwen': 'bg-white border border-slate-200',
         'Xiaomi': 'bg-white border border-slate-200',
         'Doubao': 'bg-white border border-slate-200',
+        'MiniMax': 'bg-slate-950 text-white',
     };
 
     // 3. 图标渲染逻辑
@@ -54,6 +56,8 @@ const ProviderLogo = ({type, name}: { type: string, name: string }) => {
                 return <img src={doubaoLogo} alt="Doubao" className="w-full h-full object-cover"/>;
             case 'SiliconFlow':
                 return <img src={siliconFlowLogo} alt="SiliconFlowLogo" className="w-full h-full object-contain"/>;
+            case 'MiniMax':
+                return <span className="text-[11px] font-bold tracking-normal">MM</span>;
 
             default:
                 // 默认兜底：首字母
@@ -94,6 +98,14 @@ export const AISettings = ({
                                onDelete
                            }: AISettingsProps) => {
 
+    const buildModelOptions = (type: ModelType): SettingsSelectOption<string>[] => {
+        return getModelsByType(type).map(model => ({
+            value: model.id,
+            label: `${model.providerName} / ${model.name}`,
+            description: model.name,
+        }));
+    };
+
     const ModelTypeBadge = ({type}: { type: ModelType }) => {
         const styles = {
             chat: 'bg-blue-50 text-blue-600 border-blue-100',
@@ -130,18 +142,15 @@ export const AISettings = ({
                             主对话模型 (Chat)
                         </label>
                         <div className="relative">
-                            <select
-                                className="w-full appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 px-3 py-2 pr-8 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                            <SettingsSelect
                                 value={systemConfig.defaultChatModelId}
-                                onChange={e => setSystemConfig({...systemConfig, defaultChatModelId: e.target.value})}
-                            >
-                                <option value="" disabled>请选择模型...</option>
-                                {getModelsByType('chat').map(m => (
-                                    <option key={m.uniqueId} value={m.id}>{m.providerName} / {m.name}</option>
-                                ))}
-                            </select>
-                            <ChevronDown
-                                className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"/>
+                                options={buildModelOptions('chat')}
+                                onChange={value => setSystemConfig({...systemConfig, defaultChatModelId: value})}
+                                placeholder="请选择模型..."
+                                emptyMessage="暂无对话模型，请先在下方服务商中添加 chat 模型"
+                                accentClassName="bg-blue-50 text-blue-700"
+                                buttonClassName="bg-slate-50 focus:ring-blue-500/20 focus:border-blue-500"
+                            />
                         </div>
                     </div>
 
@@ -152,21 +161,18 @@ export const AISettings = ({
                             向量模型 (Embedding)
                         </label>
                         <div className="relative">
-                            <select
-                                className="w-full appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 px-3 py-2 pr-8 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
+                            <SettingsSelect
                                 value={systemConfig.defaultEmbeddingModelId}
-                                onChange={e => setSystemConfig({
+                                options={buildModelOptions('embedding')}
+                                onChange={value => setSystemConfig({
                                     ...systemConfig,
-                                    defaultEmbeddingModelId: e.target.value
+                                    defaultEmbeddingModelId: value
                                 })}
-                            >
-                                <option value="" disabled>请选择模型...</option>
-                                {getModelsByType('embedding').map(m => (
-                                    <option key={m.uniqueId} value={m.id}>{m.providerName} / {m.name}</option>
-                                ))}
-                            </select>
-                            <ChevronDown
-                                className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"/>
+                                placeholder="请选择模型..."
+                                emptyMessage="暂无向量模型，请先在下方服务商中添加 embedding 模型"
+                                accentClassName="bg-emerald-50 text-emerald-700"
+                                buttonClassName="bg-slate-50 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            />
                         </div>
                     </div>
 
@@ -177,18 +183,14 @@ export const AISettings = ({
                             重排模型 (Rerank)
                         </label>
                         <div className="relative">
-                            <select
-                                className="w-full appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 px-3 py-2 pr-8 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all cursor-pointer"
+                            <SettingsSelect
                                 value={systemConfig.defaultRerankModelId}
-                                onChange={e => setSystemConfig({...systemConfig, defaultRerankModelId: e.target.value})}
-                            >
-                                <option value="">如果不选择，则跳过重排步骤</option>
-                                {getModelsByType('rerank').map(m => (
-                                    <option key={m.uniqueId} value={m.id}>{m.providerName} / {m.name}</option>
-                                ))}
-                            </select>
-                            <ChevronDown
-                                className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"/>
+                                options={[{value: '', label: '跳过重排步骤'}, ...buildModelOptions('rerank')]}
+                                onChange={value => setSystemConfig({...systemConfig, defaultRerankModelId: value})}
+                                placeholder="跳过重排步骤"
+                                accentClassName="bg-purple-50 text-purple-700"
+                                buttonClassName="bg-slate-50 focus:ring-purple-500/20 focus:border-purple-500"
+                            />
                         </div>
                     </div>
                 </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ModelType } from '../../api/setting';
+import { Layers, X } from 'lucide-react';
 
 interface ModelModalProps {
     isOpen: boolean;
@@ -19,8 +20,20 @@ export const ModelModal = ({ isOpen, onClose, onSave }: ModelModalProps) => {
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose}></div>
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative z-10 animate-in zoom-in-95 duration-200">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">添加模型</h3>
+            <div className="bg-white rounded-lg shadow-xl shadow-slate-900/15 ring-1 ring-slate-900/5 w-full max-w-sm p-6 relative z-10 animate-in zoom-in-95 duration-200">
+                <div className="flex items-center gap-3 mb-5 border-b border-slate-100 pb-4">
+                    <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
+                        <Layers className="w-5 h-5"/>
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 flex-1">添加模型</h3>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                        <X className="w-4 h-4"/>
+                    </button>
+                </div>
                 <div className="space-y-4">
                     <div>
                         <label className="block text-xs font-medium text-slate-600 mb-1.5">模型名称 (Model ID)</label>

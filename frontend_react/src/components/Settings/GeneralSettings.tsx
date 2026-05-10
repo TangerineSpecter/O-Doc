@@ -1,6 +1,10 @@
+import {useState} from 'react';
 import { Monitor, Shield } from 'lucide-react';
+import {SettingsSelect} from './SettingsSelect';
 
 export const GeneralSettings = () => {
+    const [defaultAccess, setDefaultAccess] = useState<'public' | 'private'>('public');
+
     return (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
             <div className="flex items-center justify-between">
@@ -28,10 +32,17 @@ export const GeneralSettings = () => {
                         <p className="text-xs text-slate-500">文集默认访问权限设置</p>
                     </div>
                 </div>
-                <select className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-orange-500/20">
-                    <option>默认为公开</option>
-                    <option>默认为私有</option>
-                </select>
+                <div className="w-40">
+                    <SettingsSelect
+                        value={defaultAccess}
+                        options={[
+                            {value: 'public', label: '默认为公开'},
+                            {value: 'private', label: '默认为私有'},
+                        ]}
+                        onChange={setDefaultAccess}
+                        buttonClassName="min-h-9 bg-slate-50 text-xs"
+                    />
+                </div>
             </div>
         </div>
     );

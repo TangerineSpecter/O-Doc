@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Save, Cpu, RefreshCw, Settings } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useSettings } from '../hooks/useSettings';
-import { AIProvider } from '../api/setting';
+import { AIProvider, saveSystemAIConfig, saveWebDavConfig } from '../api/setting';
+import { useToast } from '../components/common/ToastProvider';
 
 // 子组件
 import { AISettings } from '../components/Settings/AISettings';
@@ -13,6 +14,8 @@ import { ModelModal } from '../components/Settings/ModelModal';
 
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState<'ai' | 'sync' | 'general'>('ai');
+    const toast = useToast();
+    const [headerSaving, setHeaderSaving] = useState(false);
 
     // 使用自定义 Hook
     const {
@@ -47,6 +50,41 @@ export default function SettingsPage() {
             fetchWebDavConfig();
         }
     }, [activeTab]);
+
+    const handleSaveChanges = async () => {
+        setHeaderSaving(true);
+        try {
+            if (activeTab === 'ai') {
+                await saveSystemAIConfig(systemConfig);
+                toast.success('默认模型配置已保存');
+                return;
+            }
+
+            if (activeTab === 'sync') {
+                if (!webDavConfig.enabled) {
+                    toast.info('WebDAV 同步未开启，暂无需要保存的同步配置');
+                    return;
+                }
+
+                if (!webDavConfig.url || !webDavConfig.username || !webDavConfig.password) {
+                    toast.warning('请填写完整的 WebDAV 地址、用户名和密码');
+                    return;
+                }
+
+                await saveWebDavConfig(webDavConfig);
+                toast.success('WebDAV 配置已保存');
+                await fetchWebDavConfig();
+                return;
+            }
+
+            toast.info('常规设置暂无可保存项');
+        } catch (error: any) {
+            console.error('保存设置失败', error);
+            toast.error(error?.response?.data?.msg || error?.message || '保存失败，请稍后重试');
+        } finally {
+            setHeaderSaving(false);
+        }
+    };
 
     return (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -95,11 +133,11 @@ export default function SettingsPage() {
                     <p className="text-slate-500 text-sm mt-1">管理 AI 模型接入、数据同步及系统偏好。</p>
                 </div>
                 <button
-                    onClick={() => { /* WebDAV save functionality not implemented yet */ }}
-                    disabled={isSaving}
+                    onClick={handleSaveChanges}
+                    disabled={isSaving || headerSaving}
                     className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-medium transition-colors shadow-sm disabled:opacity-70"
                 >
-                    {isSaving ? (
+                    {isSaving || headerSaving ? (
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
                         <Save className="w-4 h-4" />
