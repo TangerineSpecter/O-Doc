@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useState } from 'react';
+import { Bot, MessageCircle } from 'lucide-react';
 import FloatingActionMenu from '../components/FloatingActionMenu';
 import { AIChatWindow } from '../components/AIChatWindow';
 import { getUserInfo } from '../api/user';
@@ -52,6 +53,21 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
         <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-orange-100 selection:text-orange-900">
 
             <AIChatWindow isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+
+            {!isChatOpen && (
+                <button
+                    type="button"
+                    onClick={() => setIsChatOpen(true)}
+                    className="fixed right-0 top-1/2 -translate-y-1/2 z-[80] bg-gradient-to-r from-orange-500 to-orange-600 text-white p-3 rounded-l-xl shadow-lg cursor-pointer hover:w-20 transition-all w-12 flex flex-col items-center gap-3 group border-y border-l border-white/20"
+                    title="打开小橘 AI助手"
+                >
+                    <Bot className="w-6 h-6"/>
+                    <div className="flex flex-col items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <span className="text-[10px] font-bold writing-vertical-rl tracking-widest">AI</span>
+                        <MessageCircle className="w-3 h-3 mt-1"/>
+                    </div>
+                </button>
+            )}
 
             <SearchModal
                 isOpen={isSearchOpen}
