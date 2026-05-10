@@ -139,9 +139,8 @@ export const SortableCollectionCard = ({
                         </div>
                     </div>
 
-                    {/* === 修改开始：右侧计数区域（添加了外层 div） === */}
                     <div className="flex items-center gap-1.5">
-                        {item.ragNotSyncedCount && item.ragNotSyncedCount > 0 ? (
+                        {item.type !== 'image' && item.ragNotSyncedCount && item.ragNotSyncedCount > 0 ? (
                             <div
                                 className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-orange-50 border border-orange-100 text-[10px] font-medium text-orange-600"
                                 title={`${item.ragNotSyncedCount} 篇文档未同步到知识库`}
@@ -151,7 +150,9 @@ export const SortableCollectionCard = ({
                             </div>
                         ) : null}
                         <span
-                            className="bg-slate-50 text-slate-400 text-[10px] font-semibold px-1.5 py-0.5 rounded min-w-[1.5rem] text-center">
+                            className="bg-slate-50 text-slate-400 text-[10px] font-semibold px-1.5 py-0.5 rounded min-w-[1.5rem] text-center"
+                            title={item.type === 'image' ? `${item.count} 张图片` : `${item.count} 篇文档`}
+                        >
                             {item.count}
                         </span>
                     </div>
