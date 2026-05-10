@@ -192,14 +192,47 @@ const fetchAIResponse = async (prompt: string): Promise<string> => {
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
     let resultText = '';
+    let buffer = '';
+
+    const appendLine = (line: string) => {
+        if (!line.trim()) return;
+
+        try {
+            const event = JSON.parse(line);
+            if (event.type === 'error') {
+                resultText += `\n\n[System Error]: ${event.content || ''}`;
+                return;
+            }
+
+            if (event.type === 'answer') {
+                resultText += event.content || '';
+            }
+        } catch (error) {
+            if (error instanceof SyntaxError) {
+                resultText += line;
+            } else {
+                throw error;
+            }
+        }
+    };
 
     if (reader) {
         while (true) {
             const {done, value} = await reader.read();
             if (done) break;
             const chunk = decoder.decode(value);
-            resultText += chunk;
+            buffer += chunk;
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                appendLine(line);
+            }
         }
+    }
+
+    if (buffer.trim()) {
+        appendLine(buffer);
     }
 
     const cleanedText = resultText

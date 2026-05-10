@@ -1,11 +1,14 @@
 # utils/ai_service.py
 import logging
+import re
 
 from openai import OpenAI
 
 from system_settings.models import SystemSetting, AIModel
 
 logger = logging.getLogger(__name__)
+
+THINK_BLOCK_RE = re.compile(r'<think(?:ing)?>.*?</think(?:ing)?>', re.IGNORECASE | re.DOTALL)
 
 
 class AIService:
@@ -67,23 +70,195 @@ class AIService:
             raise e
 
     @classmethod
-    def stream_chat_completion(cls, messages):
+    def stream_chat_completion(cls, messages, include_thinking=False):
         """流式对话 (用于前端 Chat 界面)"""
         try:
             config = cls.get_default_client_config()
             client = OpenAI(api_key=config['api_key'], base_url=config['base_url'])
+
+            extra_body = {}
+            if include_thinking:
+                extra_body["reasoning_split"] = True
 
             stream = client.chat.completions.create(
                 model=config['model_name'],
                 messages=messages,
                 stream=True,
                 # temperature=0.5, # 可根据需要通过参数传入
+                extra_body=extra_body or None,
             )
 
+            previous_content = ''
+            previous_thinking = ''
+            strip_state = {'in_thinking': False, 'tag_buffer': ''}
+
             for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                if not chunk.choices:
+                    continue
+
+                delta = chunk.choices[0].delta
+                reasoning_delta = getattr(delta, 'reasoning_details', None) or getattr(delta, 'reasoning_content', None)
+                if include_thinking and reasoning_delta:
+                    thinking_delta, previous_thinking = cls._normalize_stream_delta(
+                        previous_thinking,
+                        cls._stringify_reasoning_delta(reasoning_delta)
+                    )
+                    if thinking_delta:
+                        yield {
+                            'type': 'thinking',
+                            'content': thinking_delta
+                        }
+                    continue
+
+                if delta.content:
+                    content_delta, previous_content = cls._normalize_stream_delta(previous_content, delta.content)
+                    if not content_delta:
+                        continue
+
+                    if not include_thinking:
+                        yield from cls._split_thinking_stream_chunk(content_delta, strip_state, include_thinking=False)
+                        continue
+
+                    yield from cls._split_thinking_stream_chunk(content_delta, strip_state, include_thinking=True)
+
+            if not include_thinking:
+                visible_content = cls._flush_thinking_stream_state(strip_state)
+                if visible_content:
+                    yield {
+                        'type': 'answer',
+                        'content': visible_content
+                    }
+                return
+
+            yield from cls._flush_split_thinking_stream_state(strip_state, include_thinking=True)
 
         except Exception as e:
             logger.error(f"AI Stream Error: {e}")
             raise e
+
+    @staticmethod
+    def _normalize_stream_delta(previous_text, next_text):
+        if not next_text:
+            return '', previous_text
+
+        # Some compatible endpoints stream cumulative text when extra fields are enabled.
+        if previous_text and next_text.startswith(previous_text):
+            return next_text[len(previous_text):], next_text
+
+        return next_text, previous_text + next_text
+
+    @staticmethod
+    def _stringify_reasoning_delta(reasoning_delta):
+        if isinstance(reasoning_delta, str):
+            return reasoning_delta
+
+        if isinstance(reasoning_delta, list):
+            parts = []
+            for item in reasoning_delta:
+                if isinstance(item, dict):
+                    parts.append(item.get('text') or item.get('thinking') or item.get('content') or '')
+                else:
+                    parts.append(str(item))
+            return ''.join(parts)
+
+        return str(reasoning_delta)
+
+    @staticmethod
+    def _split_thinking_from_content(content):
+        thinking_parts = []
+
+        def collect(match):
+            thinking_parts.append(match.group(0))
+            return ''
+
+        answer = THINK_BLOCK_RE.sub(collect, content)
+        thinking = '\n\n'.join(
+            re.sub(r'</?think(?:ing)?>', '', part, flags=re.IGNORECASE).strip()
+            for part in thinking_parts
+        ).strip()
+
+        return thinking, answer.strip()
+
+    @staticmethod
+    def _strip_thinking_stream_chunk(content, state):
+        return ''.join(event['content'] for event in AIService._split_thinking_stream_chunk(
+            content,
+            state,
+            include_thinking=False
+        ) if event['type'] == 'answer')
+
+    @staticmethod
+    def _split_thinking_stream_chunk(content, state, include_thinking=False):
+        events = []
+        bucket_type = 'thinking' if state['in_thinking'] else 'answer'
+        bucket = []
+
+        def flush():
+            nonlocal bucket, bucket_type
+            if not bucket:
+                return
+            if bucket_type == 'answer' or include_thinking:
+                events.append({'type': bucket_type, 'content': ''.join(bucket)})
+            bucket = []
+
+        def switch(next_type):
+            nonlocal bucket_type
+            flush()
+            bucket_type = next_type
+
+        for char in content:
+            if state['tag_buffer'] or char == '<':
+                state['tag_buffer'] += char
+
+                if char != '>':
+                    if len(state['tag_buffer']) > 32:
+                        if not state['in_thinking']:
+                            bucket.append(state['tag_buffer'])
+                        state['tag_buffer'] = ''
+                    continue
+
+                tag = state['tag_buffer']
+                state['tag_buffer'] = ''
+
+                if re.fullmatch(r'<think(?:ing)?>', tag, flags=re.IGNORECASE):
+                    state['in_thinking'] = True
+                    switch('thinking')
+                    continue
+
+                if re.fullmatch(r'</think(?:ing)?>', tag, flags=re.IGNORECASE):
+                    state['in_thinking'] = False
+                    switch('answer')
+                    continue
+
+                if not state['in_thinking']:
+                    bucket.append(tag)
+                continue
+
+            if state['in_thinking']:
+                if include_thinking:
+                    bucket.append(char)
+            else:
+                bucket.append(char)
+
+        flush()
+        return events
+
+    @staticmethod
+    def _flush_thinking_stream_state(state):
+        if state['tag_buffer'] and not state['in_thinking']:
+            tag_buffer = state['tag_buffer']
+            state['tag_buffer'] = ''
+            return tag_buffer
+
+        state['tag_buffer'] = ''
+        return ''
+
+    @staticmethod
+    def _flush_split_thinking_stream_state(state, include_thinking=False):
+        if state['tag_buffer']:
+            content = state['tag_buffer']
+            state['tag_buffer'] = ''
+            if not state['in_thinking']:
+                yield {'type': 'answer', 'content': content}
+            elif include_thinking:
+                yield {'type': 'thinking', 'content': content}

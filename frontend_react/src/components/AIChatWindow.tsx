@@ -1,7 +1,7 @@
 // frontend_react/src/components/AIChatWindow.tsx
 
 import {useEffect, useRef, useState, useMemo} from 'react';
-import {BookOpen, Bot, Maximize2, Minimize2, Send, Trash2, User, X} from 'lucide-react';
+import {BookOpen, Bot, BrainCircuit, ChevronDown, Maximize2, Minimize2, Send, Trash2, User, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,6 +18,7 @@ import {CodeBlock, MermaidChart} from './Article/MarkdownElements';
 interface Message {
     role: 'user' | 'assistant';
     content: string;
+    thinking?: string;
 }
 
 interface AIChatWindowProps {
@@ -36,14 +37,17 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [useKb, setUseKb] = useState(false);
+    const [useThinking, setUseThinking] = useState(false);
 
     // 弹窗状态
     const [isClearModalOpen, setIsClearModalOpen] = useState(false);
 
     // --- 平滑输出相关的 Refs ---
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const tokenQueueRef = useRef<string[]>([]); // 字符缓冲队列
+    const tokenQueueRef = useRef<string[]>([]); // 回答字符缓冲队列
+    const thinkingQueueRef = useRef<string[]>([]); // 思考字符缓冲队列
     const isThinkingRef = useRef(false); // 标记是否正在输出中
+    const streamFinishedRef = useRef(true);
 
     // --- Markdown 组件配置 (使用 useMemo 避免重复创建导致重渲染) ---
     const markdownComponents = useMemo(() => ({
@@ -177,21 +181,43 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
 
     // --- 核心逻辑 1: 平滑输出定时器 ---
     useEffect(() => {
-        const interval = setInterval(() => {
-            if (tokenQueueRef.current.length > 0) {
-                // 每次取出少量字符，模拟打字机效果
-                const nextChars = tokenQueueRef.current.splice(0, 3).join('');
+        const takeSmoothChars = (queue: string[]) => {
+            const length = queue.length;
+            if (length === 0) return '';
 
+            const count = length > 240 ? 6 : length > 120 ? 4 : length > 48 ? 2 : 1;
+            return queue.splice(0, count).join('');
+        };
+
+        const interval = setInterval(() => {
+            const nextAnswerChars = takeSmoothChars(tokenQueueRef.current);
+            const nextThinkingChars = takeSmoothChars(thinkingQueueRef.current);
+
+            if (nextAnswerChars || nextThinkingChars) {
                 setMessages(prev => {
                     const newMsgs = [...prev];
                     const lastMsg = newMsgs[newMsgs.length - 1];
                     if (lastMsg && lastMsg.role === 'assistant') {
-                        lastMsg.content += nextChars;
+                        newMsgs[newMsgs.length - 1] = {
+                            ...lastMsg,
+                            content: `${lastMsg.content}${nextAnswerChars}`,
+                            thinking: `${lastMsg.thinking || ''}${nextThinkingChars}`
+                        };
                     }
                     return newMsgs;
                 });
             }
-        }, 30);
+
+            if (
+                streamFinishedRef.current &&
+                isThinkingRef.current &&
+                tokenQueueRef.current.length === 0 &&
+                thinkingQueueRef.current.length === 0
+            ) {
+                isThinkingRef.current = false;
+                setIsLoading(false);
+            }
+        }, 24);
 
         return () => clearInterval(interval);
     }, []);
@@ -213,7 +239,11 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     // 执行清空操作
     const confirmClear = () => {
         tokenQueueRef.current = [];
+        thinkingQueueRef.current = [];
+        streamFinishedRef.current = true;
+        isThinkingRef.current = false;
         setMessages([]);
+        setIsLoading(false);
         setIsClearModalOpen(false);
     };
 
@@ -224,12 +254,15 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         const userMsg = input;
         setInput('');
 
+        tokenQueueRef.current = [];
+        thinkingQueueRef.current = [];
+        streamFinishedRef.current = false;
         setMessages(prev => [...prev, {role: 'user', content: userMsg}]);
         setIsLoading(true);
         isThinkingRef.current = true;
 
         // 预先添加一个空的 assistant 消息用于接收流
-        setMessages(prev => [...prev, {role: 'assistant', content: ''}]);
+        setMessages(prev => [...prev, {role: 'assistant', content: '', thinking: ''}]);
 
         try {
             const response = await fetch('/api/ai/chat/', {
@@ -238,7 +271,8 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 body: JSON.stringify({
                     message: userMsg,
                     history: messages.map(m => ({role: m.role, content: m.content})),
-                    use_knowledge_base: useKb
+                    use_knowledge_base: useKb,
+                    include_thinking: useThinking
                 })
             });
 
@@ -264,6 +298,45 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let fullText = '';
+            let buffer = '';
+
+            const appendAnswer = (content: string) => {
+                for (const char of content) {
+                    tokenQueueRef.current.push(char);
+                }
+            };
+
+            const appendThinking = (content: string) => {
+                for (const char of content) {
+                    thinkingQueueRef.current.push(char);
+                }
+            };
+
+            const handleStreamLine = (line: string) => {
+                if (!line.trim()) return;
+
+                try {
+                    const event = JSON.parse(line);
+                    const content = event.content || '';
+
+                    if (event.type === 'error') {
+                        throw new Error(content || 'AI 服务异常，请检查配置');
+                    }
+
+                    if (event.type === 'thinking') {
+                        appendThinking(content);
+                        return;
+                    }
+
+                    appendAnswer(content);
+                } catch (error) {
+                    if (error instanceof SyntaxError) {
+                        appendAnswer(line);
+                        return;
+                    }
+                    throw error;
+                }
+            };
 
             while (true) {
                 const {done, value} = await reader.read();
@@ -279,25 +352,36 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                     throw new AIConfigError('AI 服务异常，请检查配置');
                 }
 
-                for (const char of chunk) {
-                    tokenQueueRef.current.push(char);
+                buffer += chunk;
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    handleStreamLine(line);
                 }
+            }
+
+            if (buffer.trim()) {
+                handleStreamLine(buffer);
             }
         } catch (error) {
             console.error(error);
             tokenQueueRef.current = [];
+            thinkingQueueRef.current = [];
+            streamFinishedRef.current = true;
+            isThinkingRef.current = false;
+            setIsLoading(false);
             setMessages(prev => {
                 const newMsgs = [...prev];
                 if (error instanceof AIConfigError) {
                     newMsgs[newMsgs.length - 1].content = `⚠️ ${error.message}`;
                 } else {
-                    newMsgs[newMsgs.length - 1].content = '网络连接异常，请检查后端服务。';
+                    newMsgs[newMsgs.length - 1].content = error instanceof Error ? error.message : '网络连接异常，请检查后端服务。';
                 }
                 return newMsgs;
             });
         } finally {
-            setIsLoading(false);
-            isThinkingRef.current = false;
+            streamFinishedRef.current = true;
         }
     };
 
@@ -338,7 +422,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
 
             {/* 主对话框容器 */}
             <div
-                className="relative w-[900px] max-w-[95vw] h-[80vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 ring-1 ring-slate-900/5 overflow-hidden"
+                className="relative w-[900px] max-w-[95vw] h-[80vh] max-h-[820px] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 ring-1 ring-slate-900/5 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
 
@@ -384,7 +468,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 </div>
 
                 {/* Chat Body */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30 scroll-smooth">
+                <div className="flex-1 min-h-0 overflow-y-auto p-6 pb-10 space-y-6 bg-slate-50/30 scroll-smooth">
                     {messages.length === 0 && (
                         <div
                             className="h-full flex flex-col items-center justify-center text-slate-400 space-y-6 -mt-10">
@@ -429,13 +513,33 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
 
                                 {msg.role === 'assistant' ? (
                                     /* AI 回复使用 ReactMarkdown 渲染，支持引用链接点击跳转 */
-                                    <ReactMarkdown
-                                        remarkPlugins={[remarkGfm, remarkMath]}
-                                        rehypePlugins={[rehypeKatex]}
-                                        components={markdownComponents as any}
-                                    >
-                                        {msg.content}
-                                    </ReactMarkdown>
+                                    <>
+                                        {msg.thinking && (
+                                            <details
+                                                open={isLoading && idx === messages.length - 1}
+                                                className="mb-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-amber-900 group"
+                                            >
+                                                <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold">
+                                                    <BrainCircuit className="w-3.5 h-3.5"/>
+                                                    <span>思考过程</span>
+                                                    <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-200/70">
+                                                        {isLoading && idx === messages.length - 1 ? '生成中' : `${msg.thinking.length} 字`}
+                                                    </span>
+                                                    <ChevronDown className="ml-auto w-3.5 h-3.5 transition-transform group-open:rotate-180"/>
+                                                </summary>
+                                                <div className="mt-2 max-h-52 overflow-y-auto whitespace-pre-wrap border-t border-amber-200/70 pt-2 text-xs leading-5 text-amber-800/90">
+                                                    {msg.thinking}
+                                                </div>
+                                            </details>
+                                        )}
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm, remarkMath]}
+                                            rehypePlugins={[rehypeKatex]}
+                                            components={markdownComponents as any}
+                                        >
+                                            {msg.content}
+                                        </ReactMarkdown>
+                                    </>
                                 ) : (
                                     /* 用户消息保持纯文本渲染 */
                                     <div className="whitespace-pre-wrap">{msg.content}</div>
@@ -454,23 +558,36 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                             </div>
                         </div>
                     ))}
-                    <div ref={messagesEndRef}/>
+                    <div ref={messagesEndRef} className="h-6"/>
                 </div>
 
                 {/* Footer */}
                 <div className="p-5 bg-white border-t border-slate-100">
                     <div className="flex items-center justify-between mb-3 px-1">
-                        <button
-                            onClick={() => setUseKb(!useKb)}
-                            className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
-                                useKb
-                                    ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-sm ring-1 ring-blue-100'
-                                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
-                            }`}
-                        >
-                            <BookOpen className="w-3.5 h-3.5"/>
-                            {useKb ? '知识库模式：已开启' : '知识库模式：未开启'}
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                onClick={() => setUseKb(!useKb)}
+                                className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                                    useKb
+                                        ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-sm ring-1 ring-blue-100'
+                                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                                }`}
+                            >
+                                <BookOpen className="w-3.5 h-3.5"/>
+                                {useKb ? '知识库模式：已开启' : '知识库模式：未开启'}
+                            </button>
+                            <button
+                                onClick={() => setUseThinking(!useThinking)}
+                                className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                                    useThinking
+                                        ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm ring-1 ring-amber-100'
+                                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                                }`}
+                            >
+                                <BrainCircuit className="w-3.5 h-3.5"/>
+                                {useThinking ? '思考模式：已开启' : '思考模式：未开启'}
+                            </button>
+                        </div>
                         <span className="text-[11px] text-slate-300 font-mono flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                             Model: Auto
