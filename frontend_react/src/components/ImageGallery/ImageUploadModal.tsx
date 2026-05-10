@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
-import { Calendar, ChevronLeft, ChevronRight, Clock, Loader2, Plus, Upload, X } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Loader2, Plus, Upload, X } from 'lucide-react';
 import { uploadResource } from '../../api/resources';
 import { createImage, Image, updateImage } from '../../api/image';
 import { useToast } from '../common/ToastProvider';
@@ -126,20 +126,18 @@ export default function ImageUploadModal({
   const toast = useToast();
   const isEditing = Boolean(initialData);
 
-  const toDateTimeLocalValue = (value?: string) => {
+  const toDateValue = (value?: string) => {
     if (!value) return '';
-    return value.replace(' ', 'T').slice(0, 16);
+    return value.replace(' ', 'T').slice(0, 10);
   };
 
-  const formatDateTimeLabel = (value: string) => {
+  const formatDateLabel = (value: string) => {
     if (!value) return '';
     const parsed = dayjs(value);
-    return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm') : value.replace('T', ' ');
+    return parsed.isValid() ? parsed.format('YYYY-MM-DD') : value.replace('T', ' ').slice(0, 10);
   };
 
   const selectedDate = shootingTime ? dayjs(shootingTime) : null;
-  const selectedHour = selectedDate?.isValid() ? selectedDate.hour() : 9;
-  const selectedMinute = selectedDate?.isValid() ? selectedDate.minute() : 0;
   const calendarStart = pickerMonth.startOf('month').startOf('week');
   const calendarDays = Array.from({ length: 42 }, (_, index) => calendarStart.add(index, 'day'));
 
@@ -149,7 +147,7 @@ export default function ImageUploadModal({
 
     const rect = button.getBoundingClientRect();
     const panelWidth = 320;
-    const panelHeight = 348;
+    const panelHeight = 296;
     const margin = 16;
     const left = Math.min(
       Math.max(rect.left, margin),
@@ -170,13 +168,8 @@ export default function ImageUploadModal({
     setIsDatePickerOpen((open) => !open);
   };
 
-  const updateSelectedDate = (date: dayjs.Dayjs, hour = selectedHour, minute = selectedMinute) => {
-    setShootingTime(date.hour(hour).minute(minute).second(0).millisecond(0).format('YYYY-MM-DDTHH:mm'));
-  };
-
-  const updateSelectedTime = (hour: number, minute: number) => {
-    const baseDate = selectedDate?.isValid() ? selectedDate : pickerMonth;
-    updateSelectedDate(baseDate, hour, minute);
+  const updateSelectedDate = (date: dayjs.Dayjs) => {
+    setShootingTime(date.format('YYYY-MM-DD'));
   };
 
   const resetForm = () => {
@@ -198,8 +191,8 @@ export default function ImageUploadModal({
       setPreview(initialData.imageUrl || '');
       setTitle(initialData.title || '');
       setDescription(initialData.description || '');
-      setShootingTime(toDateTimeLocalValue(initialData.shootingTime));
-      setPickerMonth(initialData.shootingTime ? dayjs(toDateTimeLocalValue(initialData.shootingTime)) : dayjs());
+      setShootingTime(toDateValue(initialData.shootingTime));
+      setPickerMonth(initialData.shootingTime ? dayjs(toDateValue(initialData.shootingTime)) : dayjs());
       setCountry(initialData.country || '');
       setCity(initialData.city || '');
       setTags(initialData.tags || initialData.tagsList?.join(', ') || '');
@@ -447,7 +440,7 @@ export default function ImageUploadModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-semibold text-slate-700">
-                拍摄时间
+                拍摄日期
               </label>
               <button
                 ref={dateButtonRef}
@@ -457,7 +450,7 @@ export default function ImageUploadModal({
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm flex items-center justify-between gap-2 disabled:opacity-60"
               >
                 <span className={shootingTime ? 'text-slate-800' : 'text-slate-400'}>
-                  {shootingTime ? formatDateTimeLabel(shootingTime) : '选择拍摄时间'}
+                  {shootingTime ? formatDateLabel(shootingTime) : '选择拍摄日期'}
                 </span>
                 <Calendar className="w-4 h-4 text-orange-500" />
               </button>
@@ -518,34 +511,6 @@ export default function ImageUploadModal({
                         </button>
                       );
                     })}
-                  </div>
-
-                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                      <Clock className="w-3.5 h-3.5 text-orange-500" />
-                      时间
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={selectedHour}
-                        onChange={(e) => updateSelectedTime(Number(e.target.value), selectedMinute)}
-                        className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs focus:outline-none focus:border-orange-500"
-                      >
-                        {Array.from({ length: 24 }, (_, hour) => (
-                          <option key={hour} value={hour}>{String(hour).padStart(2, '0')}</option>
-                        ))}
-                      </select>
-                      <span className="text-slate-400">:</span>
-                      <select
-                        value={selectedMinute}
-                        onChange={(e) => updateSelectedTime(selectedHour, Number(e.target.value))}
-                        className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs focus:outline-none focus:border-orange-500"
-                      >
-                        {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((minute) => (
-                          <option key={minute} value={minute}>{String(minute).padStart(2, '0')}</option>
-                        ))}
-                      </select>
-                    </div>
                   </div>
 
                   <div className="mt-3 flex items-center justify-between">

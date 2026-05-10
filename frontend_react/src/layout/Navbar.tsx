@@ -59,7 +59,7 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
     const handleVersionClick = () => window.open('https://github.com/TangerineSpecter/O-Doc', '_blank');
 
     return (
-        <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
+        <nav className="sticky top-0 z-[90] bg-white/80 backdrop-blur-md border-b border-slate-200">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
 
@@ -127,7 +127,7 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                             </div>
 
                             {/* User Dropdown */}
-                            <div className="relative group z-50">
+                            <div className="relative group z-[100]">
                                 <div className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1.5 rounded-full pr-3 transition-colors">
                                     <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-200 to-slate-300 flex items-center justify-center text-slate-600 border border-white shadow-sm overflow-hidden">
                                         <img src={userInfo?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Visitor"} alt="User" />
@@ -139,7 +139,7 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                                 </div>
 
                                 {/* Dropdown Menu */}
-                                <div className="absolute right-0 top-full pt-2 w-56 hidden group-hover:block animate-in fade-in slide-in-from-top-1 duration-200">
+                                <div className="absolute right-0 top-full z-[110] pt-2 w-56 hidden group-hover:block animate-in fade-in slide-in-from-top-1 duration-200">
                                     <div className="bg-white rounded-xl shadow-xl border border-slate-100 p-2">
                                         <div className="px-3 py-2 border-b border-slate-100 mb-1">
                                             <p className="text-sm font-semibold text-slate-800">{userInfo ? '已登录' : '未登录'}</p>
