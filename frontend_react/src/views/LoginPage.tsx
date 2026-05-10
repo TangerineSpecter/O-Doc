@@ -50,6 +50,7 @@ export default function LoginPage() {
     const [isLoading, setIsLoading] = useState(false);
     // 3. 这里的 formData 不需要显式定义接口，TS 会自动推断为 { email: string, password: string }
     const [formData, setFormData] = useState({email: '', password: ''});
+    const [rememberMe, setRememberMe] = useState(false);
 
     // 2. 获取 toast 方法
     const {success, error, warning} = useToast();
@@ -64,8 +65,14 @@ export default function LoginPage() {
             const res = await login(formData);
             console.log('登录成功:', res);
 
-            // 保存 token
-            localStorage.setItem('token', res.token);
+            // 保存 token：勾选“记住我”跨浏览器会话保存，否则仅当前标签会话有效
+            localStorage.removeItem('token');
+            sessionStorage.removeItem('token');
+            if (rememberMe) {
+                localStorage.setItem('token', res.token);
+            } else {
+                sessionStorage.setItem('token', res.token);
+            }
 
             success('欢迎回来！登录成功');
 
@@ -73,8 +80,6 @@ export default function LoginPage() {
             setTimeout(() => {
                 navigate('/');
             }, 500);
-
-            navigate('/');
         } catch (err: any) {
             console.error('登录失败', err);
             const errorMsg = err.response?.data?.msg || err.message || '登录失败，请检查账号密码';
@@ -184,6 +189,8 @@ export default function LoginPage() {
                                     id="remember-me"
                                     name="remember-me"
                                     type="checkbox"
+                                    checked={rememberMe}
+                                    onChange={(e) => setRememberMe(e.target.checked)}
                                     className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded cursor-pointer"
                                 />
                                 <label htmlFor="remember-me"

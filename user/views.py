@@ -1,9 +1,17 @@
+import os
+from uuid import uuid4
+
+from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from rest_framework.authtoken.models import Token
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
+from .models import UserProfile
 from utils.response_utils import success_result, valid_result
 
 
@@ -11,6 +19,23 @@ def get_user_role(user):
     if user.is_superuser or user.is_staff:
         return 'admin', '管理员'
     return 'user', '普通用户'
+
+
+def serialize_user(user):
+    role, role_name = get_user_role(user)
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    avatar = profile.avatar or f'https://api.dicebear.com/7.x/avataaars/svg?seed={user.username}'
+    return {
+        'username': user.username,
+        'nickname': profile.nickname or user.first_name or user.username,
+        'email': user.email,
+        'avatar': avatar,
+        'is_superuser': user.is_superuser,
+        'is_staff': user.is_staff,
+        'role': role,
+        'role_name': role_name,
+        'is_admin': role == 'admin'
+    }
 
 
 class LoginView(APIView):
@@ -44,17 +69,12 @@ class LoginView(APIView):
         user = authenticate(username=username, password=password)
 
         if user:
-            role, role_name = get_user_role(user)
+            user_data = serialize_user(user)
             # 获取或创建 Token
             token, _ = Token.objects.get_or_create(user=user)
             return success_result(data={
                 'token': token.key,
-                'username': user.username,
-                'role': role,
-                'role_name': role_name,
-                'is_admin': role == 'admin',
-                # 使用 DiceBear 生成一个基于用户名的随机头像
-                'avatar': f'https://api.dicebear.com/7.x/avataaars/svg?seed={user.username}'
+                **user_data
             })
         else:
             return valid_result(msg="账号或密码错误")
@@ -68,15 +88,94 @@ class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
-        role, role_name = get_user_role(user)
-        return success_result(data={
-            'username': user.username,
-            'email': user.email,
-            'avatar': f'https://api.dicebear.com/7.x/avataaars/svg?seed={user.username}',
-            'is_superuser': user.is_superuser,
-            'is_staff': user.is_staff,
-            'role': role,
-            'role_name': role_name,
-            'is_admin': role == 'admin'
-        })
+        return success_result(data=serialize_user(request.user))
+
+    def patch(self, request):
+        nickname = request.data.get('nickname')
+        email = request.data.get('email')
+
+        if nickname is not None:
+            nickname = nickname.strip()
+            if not nickname:
+                return valid_result(msg="昵称不能为空")
+            profile, _ = UserProfile.objects.get_or_create(user=request.user)
+            profile.nickname = nickname[:150]
+            profile.save(update_fields=['nickname', 'updated_at'])
+
+        if email is not None:
+            email = email.strip()
+            if email and User.objects.exclude(id=request.user.id).filter(email=email).exists():
+                return valid_result(msg="邮箱已被其他账号使用")
+            request.user.email = email
+            request.user.save(update_fields=['email'])
+
+        return success_result(data=serialize_user(request.user), msg="个人资料已更新")
+
+
+class UserAvatarUploadView(APIView):
+    """
+    上传当前用户头像
+    POST /api/user/avatar
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        avatar = request.FILES.get('avatar')
+        if not avatar:
+            return valid_result(msg="请选择头像文件")
+
+        if avatar.size > 2 * 1024 * 1024:
+            return valid_result(msg="头像文件不能超过 2MB")
+
+        ext = os.path.splitext(avatar.name)[1].lower()
+        if ext not in ['.jpg', '.jpeg', '.png', '.webp', '.gif']:
+            return valid_result(msg="仅支持 jpg、png、webp、gif 格式头像")
+
+        avatar_dir = settings.MEDIA_ROOT / 'avatars'
+        avatar_dir.mkdir(parents=True, exist_ok=True)
+        file_name = f'user_{request.user.id}_{uuid4().hex}{ext}'
+        file_path = avatar_dir / file_name
+
+        with open(file_path, 'wb+') as destination:
+            for chunk in avatar.chunks():
+                destination.write(chunk)
+
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        profile.avatar = f'{settings.MEDIA_URL}avatars/{file_name}'
+        profile.save(update_fields=['avatar', 'updated_at'])
+
+        return success_result(data=serialize_user(request.user), msg="头像已更新")
+
+
+class ChangePasswordView(APIView):
+    """
+    修改当前用户密码
+    POST /api/user/change-password
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        old_password = request.data.get('old_password')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+
+        if not old_password or not new_password or not confirm_password:
+            return valid_result(msg="请完整填写密码信息")
+
+        if not request.user.check_password(old_password):
+            return valid_result(msg="当前密码不正确")
+
+        if new_password != confirm_password:
+            return valid_result(msg="两次输入的新密码不一致")
+
+        try:
+            validate_password(new_password, request.user)
+        except ValidationError as exc:
+            return valid_result(msg='；'.join(exc.messages))
+
+        request.user.set_password(new_password)
+        request.user.save(update_fields=['password'])
+        Token.objects.filter(user=request.user).delete()
+
+        return success_result(msg="密码已修改，请重新登录")

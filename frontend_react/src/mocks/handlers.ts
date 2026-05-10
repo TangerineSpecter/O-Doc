@@ -370,12 +370,73 @@ export const handlers = [
       data: {
         token: 'mock-jwt-token-123456',
         username: 'admin',
+        nickname: '管理员',
+        email: 'admin@example.com',
         role: 'admin',
         roleName: '管理员',
         isAdmin: true,
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
       }
     });
+  }),
+
+  http.get('/api/user/profile', () => {
+    return HttpResponse.json({
+      code: 200,
+      msg: 'success',
+      data: {
+        username: 'admin',
+        nickname: '管理员',
+        email: 'admin@example.com',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+        role: 'admin',
+        roleName: '管理员',
+        isAdmin: true,
+        isSuperuser: true,
+        isStaff: true
+      }
+    });
+  }),
+
+  http.patch('/api/user/profile', async ({ request }) => {
+    const body = await request.json() as any;
+    return HttpResponse.json({
+      code: 200,
+      msg: 'success',
+      data: {
+        username: 'admin',
+        nickname: body.nickname || '管理员',
+        email: body.email || 'admin@example.com',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+        role: 'admin',
+        roleName: '管理员',
+        isAdmin: true,
+        isSuperuser: true,
+        isStaff: true
+      }
+    });
+  }),
+
+  http.post('/api/user/avatar', () => {
+    return HttpResponse.json({
+      code: 200,
+      msg: 'success',
+      data: {
+        username: 'admin',
+        nickname: '管理员',
+        email: 'admin@example.com',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+        role: 'admin',
+        roleName: '管理员',
+        isAdmin: true,
+        isSuperuser: true,
+        isStaff: true
+      }
+    });
+  }),
+
+  http.post('/api/user/change-password', () => {
+    return HttpResponse.json({ code: 200, msg: 'success', data: null });
   }),
 
   // 新增：23. 获取文章大纲树

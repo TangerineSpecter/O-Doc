@@ -38,7 +38,7 @@ service.interceptors.request.use(
         // 在发送请求之前做些什么
 
         // 示例：从 localStorage 获取 token 并添加到 headers
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Token ${token}`;
         }
@@ -76,6 +76,7 @@ service.interceptors.response.use(
             if (res.code === ResultEnum.TIMEOUT) {
                 // 清除本地信息并跳转登录
                 localStorage.removeItem('token');
+                sessionStorage.removeItem('token');
                 window.location.href = '/login';
             }
 

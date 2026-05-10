@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, ArrowUpCircle } from 'lucide-react';
+import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, ArrowUpCircle, UserRound } from 'lucide-react';
 import packageJson from '../../package.json';
 import NotificationPopover from '../components/NotificationPopover';
 import { getNotifications } from '../api/message';
@@ -10,9 +10,10 @@ interface NavbarProps {
     onOpenSearch: () => void;
     userInfo: UserInfo | null;
     onLogout: () => void;
+    onOpenProfile: () => void;
 }
 
-export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout }: NavbarProps) {
+export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, onOpenProfile }: NavbarProps) {
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [hasNewVersion, setHasNewVersion] = useState(false);
@@ -132,7 +133,7 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout }:
                                         <img src={userInfo?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Visitor"} alt="User" />
                                     </div>
                                     <span className="text-sm font-medium text-slate-700 hidden sm:block">
-                                        {userInfo ? (userInfo.username || '管理员') : '访客用户'}
+                                        {userInfo ? (userInfo.nickname || userInfo.username || '管理员') : '访客用户'}
                                     </span>
                                     <ChevronDown className="w-3 h-3 text-slate-400 hidden sm:block group-hover:rotate-180 transition-transform" />
                                 </div>
@@ -153,13 +154,20 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout }:
                                                 <LogIn className="w-4 h-4" /> 立即登录 / 注册
                                             </button>
                                         ) : (
-                                            <button onClick={onLogout} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left">
-                                                <LogOut className="w-4 h-4" /> 退出登录
-                                            </button>
+                                            <>
+                                                <button onClick={onOpenProfile} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors text-left">
+                                                    <UserRound className="w-4 h-4" /> 个人中心
+                                                </button>
+                                                {userInfo.isAdmin && (
+                                                    <button onClick={() => onNavigate && onNavigate('settings')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-left">
+                                                        <Settings className="w-4 h-4" /> 系统设置
+                                                    </button>
+                                                )}
+                                                <button onClick={onLogout} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left">
+                                                    <LogOut className="w-4 h-4" /> 退出登录
+                                                </button>
+                                            </>
                                         )}
-                                        <button onClick={() => onNavigate && onNavigate('settings')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-left">
-                                            <Settings className="w-4 h-4" /> 系统设置
-                                        </button>
                                     </div>
                                 </div>
                             </div>
