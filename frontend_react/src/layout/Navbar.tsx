@@ -3,11 +3,12 @@ import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, ArrowUpCircle
 import packageJson from '../../package.json';
 import NotificationPopover from '../components/NotificationPopover';
 import { getNotifications } from '../api/message';
+import type { UserInfo } from '../types/api/user';
 
 interface NavbarProps {
     onNavigate?: (viewName: string, params?: any) => void;
     onOpenSearch: () => void;
-    userInfo: any;
+    userInfo: UserInfo | null;
     onLogout: () => void;
 }
 
@@ -141,6 +142,11 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout }:
                                     <div className="bg-white rounded-xl shadow-xl border border-slate-100 p-2">
                                         <div className="px-3 py-2 border-b border-slate-100 mb-1">
                                             <p className="text-sm font-semibold text-slate-800">{userInfo ? '已登录' : '未登录'}</p>
+                                            {userInfo && (
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    身份：{userInfo.roleName}
+                                                </p>
+                                            )}
                                         </div>
                                         {!userInfo ? (
                                             <button onClick={() => onNavigate && onNavigate('login')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors text-left">

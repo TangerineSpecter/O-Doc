@@ -370,6 +370,9 @@ export const handlers = [
       data: {
         token: 'mock-jwt-token-123456',
         username: 'admin',
+        role: 'admin',
+        roleName: '管理员',
+        isAdmin: true,
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
       }
     });

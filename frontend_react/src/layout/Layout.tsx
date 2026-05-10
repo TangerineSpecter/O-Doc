@@ -3,6 +3,7 @@ import { Bot, MessageCircle } from 'lucide-react';
 import FloatingActionMenu from '../components/FloatingActionMenu';
 import { AIChatWindow } from '../components/AIChatWindow';
 import { getUserInfo } from '../api/user';
+import type { UserInfo } from '../types/api/user';
 import Navbar from './Navbar';
 import SearchModal from '../components/SearchModal';
 
@@ -15,7 +16,7 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
     // --- 状态管理 ---
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
-    const [userInfo, setUserInfo] = useState<any>(null);
+    const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
     // --- 用户信息获取 ---
     useEffect(() => {
