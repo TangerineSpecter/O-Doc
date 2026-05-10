@@ -52,7 +52,7 @@ export default function LoginPage() {
     const [formData, setFormData] = useState({email: '', password: ''});
 
     // 2. 获取 toast 方法
-    const {success, error} = useToast();
+    const {success, error, warning} = useToast();
 
     // 4. 给表单提交事件加类型
     const handleLogin = async (e: React.FormEvent) => {
@@ -83,6 +83,11 @@ export default function LoginPage() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleRegisterClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+        e.preventDefault();
+        warning('暂未开放注册');
     };
 
     return (
@@ -215,7 +220,7 @@ export default function LoginPage() {
 
                 <p className="mt-6 text-center text-sm text-slate-500">
                     还没有账号?{' '}
-                    <a href="#" className="font-medium text-orange-600 hover:text-orange-500">
+                    <a href="#" onClick={handleRegisterClick} className="font-medium text-orange-600 hover:text-orange-500">
                         免费注册
                     </a>
                 </p>
