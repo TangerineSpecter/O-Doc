@@ -26,6 +26,7 @@ static/
 
 # IDE 配置
 .idea/
+.trae/
 .vscode/
 *.swp
 *.swo

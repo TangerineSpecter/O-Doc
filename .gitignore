@@ -48,3 +48,4 @@ deploy/runtime/*
 *.njsproj
 *.sln
 *.sw?
+.trae/
