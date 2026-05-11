@@ -4,6 +4,7 @@ import { feature as topojsonFeature } from 'topojson-client';
 import { LocationPoint } from '../../types/imageAnthology';
 import {
   findRegionByCoordinate,
+  getAdm1DisplayName,
   getCityRegionAliases,
   getCountryDisplayName,
   getCountryIso3,
@@ -64,7 +65,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
     : 'photo-world-map';
 
   const selectedCityRegions = useMemo(() => {
-    const summaries = new Map<string, { name: string; city: string; value: number }>();
+    const summaries = new Map<string, { name: string; displayName: string; city: string; value: number }>();
     visiblePoints.forEach(point => {
       const aliases = getCityRegionAliases(point.city);
       const features = countryGeoJson?.features || [];
@@ -83,13 +84,14 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
         }
         summaries.set(name, {
           name,
+          displayName: getAdm1DisplayName(selectedCountryIso, name),
           city: point.city,
           value: point.count,
         });
       });
     });
     return Array.from(summaries.values());
-  }, [countryGeoJson, visiblePoints]);
+  }, [countryGeoJson, selectedCountryIso, visiblePoints]);
 
   const displayNameByRegionKey = useMemo(() => {
     const names = new Map<string, string>();
@@ -103,6 +105,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
     if (selectedCountryIso && countryMapReady) {
       return selectedCityRegions.map(item => ({
         name: item.name,
+        displayName: item.displayName,
         locationNames: item.city,
         value: item.value,
       }));
@@ -225,9 +228,17 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
     const chart = instanceRef.current || echarts.init(chartRef.current);
     instanceRef.current = chart;
     const regionDataByName = new Map(chartData.map((item: any) => [item.id || item.name, item]));
+    const adm1DisplayNameByName = new Map(
+      (countryGeoJson?.features || [])
+        .map((feature: any) => feature?.properties?.shapeName)
+        .filter(Boolean)
+        .map((name: string) => [name, getAdm1DisplayName(selectedCountryIso, name)])
+    );
     const formatRegionName = (name: string) => {
       const data = regionDataByName.get(name) as any;
       if (data?.displayName) return data.displayName;
+      const adm1DisplayName = adm1DisplayNameByName.get(name);
+      if (adm1DisplayName) return adm1DisplayName;
       return displayNameByRegionKey.get(name) || getCountryDisplayName(name, name);
     };
     const highlightedRegions = chartData.map((item: any) => ({
@@ -339,6 +350,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
   }, [
     chartData,
     countryMapReady,
+    countryGeoJson,
     countrySummaries,
     currentMapName,
     displayNameByRegionKey,
