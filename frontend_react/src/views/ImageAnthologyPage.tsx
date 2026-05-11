@@ -58,6 +58,8 @@ const COUNTRY_MAP_NAMES: Record<string, string> = {
   埃及: 'Egypt',
   摩洛哥: 'Morocco',
   南非: 'South Africa',
+  俄罗斯: 'Russia',
+  蒙古: 'Mongolia',
 };
 
 const MAP_COUNTRY_CN_NAMES = Object.fromEntries(
@@ -96,6 +98,8 @@ const COUNTRY_ISO3: Record<string, string> = {
   埃及: 'EGY',
   摩洛哥: 'MAR',
   南非: 'ZAF',
+  俄罗斯: 'RUS',
+  蒙古: 'MNG',
 };
 
 const CITY_REGION_ALIASES: Record<string, string[]> = {
@@ -120,6 +124,39 @@ const getTopoJsonObjectName = (topoJson: any, preferredObjectName?: string) => {
   return objectName;
 };
 
+const isPointInRing = ([longitude, latitude]: [number, number], ring: number[][]) => {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    const intersects = ((yi > latitude) !== (yj > latitude))
+      && (longitude < ((xj - xi) * (latitude - yi)) / (yj - yi) + xi);
+    if (intersects) inside = !inside;
+  }
+  return inside;
+};
+
+const isPointInPolygon = (point: [number, number], polygon: number[][][]) => {
+  if (!polygon.length || !isPointInRing(point, polygon[0])) return false;
+  return !polygon.slice(1).some(ring => isPointInRing(point, ring));
+};
+
+const isPointInGeometry = (point: [number, number], geometry: any) => {
+  if (!geometry) return false;
+  if (geometry.type === 'Polygon') {
+    return isPointInPolygon(point, geometry.coordinates);
+  }
+  if (geometry.type === 'MultiPolygon') {
+    return geometry.coordinates.some((polygon: number[][][]) => isPointInPolygon(point, polygon));
+  }
+  return false;
+};
+
+const findRegionByCoordinate = (geoJson: any, longitude: number, latitude: number) => {
+  const features = geoJson?.features || [];
+  return features.find((feature: any) => isPointInGeometry([longitude, latitude], feature.geometry));
+};
+
 function LocationChartMap({ points }: { points: LocationPoint[] }) {
   const chartRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.EChartsType | null>(null);
@@ -130,6 +167,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
   const [boundaryLoading, setBoundaryLoading] = useState(false);
   const [boundaryError, setBoundaryError] = useState('');
   const [worldNamesByIso3, setWorldNamesByIso3] = useState<Record<string, string>>({});
+  const [countryGeoJson, setCountryGeoJson] = useState<any | null>(null);
   const countrySummaries = useMemo(() => {
     const summaries = new Map<string, { country: string; mapName: string; iso3: string; count: number }>();
     points.forEach(point => {
@@ -166,21 +204,30 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
   const selectedCityRegions = useMemo(() => {
     const summaries = new Map<string, { name: string; city: string; value: number }>();
     visiblePoints.forEach(point => {
-      getCityRegionAliases(point.city).forEach(name => {
+      const aliases = getCityRegionAliases(point.city);
+      const features = countryGeoJson?.features || [];
+      const matchedFeature = features.find((feature: any) => aliases.includes(feature?.properties?.shapeName))
+        || findRegionByCoordinate(countryGeoJson, point.longitude, point.latitude);
+      const regionNames = matchedFeature?.properties?.shapeName ? [matchedFeature.properties.shapeName] : aliases;
+
+      regionNames.forEach(name => {
         const current = summaries.get(name);
         if (current) {
           current.value += point.count;
-        } else {
-          summaries.set(name, {
-            name,
-            city: point.city,
-            value: point.count,
-          });
+          if (!current.city.split('、').includes(point.city)) {
+            current.city = `${current.city}、${point.city}`;
+          }
+          return;
         }
+        summaries.set(name, {
+          name,
+          city: point.city,
+          value: point.count,
+        });
       });
     });
     return Array.from(summaries.values());
-  }, [selectedCountry, visiblePoints]);
+  }, [countryGeoJson, selectedCountry, visiblePoints]);
   const displayNameByRegionKey = useMemo(() => {
     const names = new Map<string, string>();
     countrySummaries.forEach(summary => {
@@ -189,16 +236,13 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
       }
       names.set(summary.mapName, summary.country);
     });
-    selectedCityRegions.forEach(item => {
-      names.set(item.name, item.city);
-    });
     return names;
-  }, [countrySummaries, selectedCityRegions]);
+  }, [countrySummaries]);
   const chartData = useMemo(() => {
     if (selectedCountry && countryMapReady) {
       return selectedCityRegions.map(item => ({
         name: item.name,
-        displayName: item.city,
+        locationNames: item.city,
         value: item.value,
       }));
     }
@@ -279,6 +323,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
   useEffect(() => {
     if (!selectedCountry || !selectedCountryIso) {
       setCountryMapReady(false);
+      setCountryGeoJson(null);
       setBoundaryError('');
       setBoundaryLoading(false);
       return;
@@ -299,12 +344,14 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
         const objectName = getTopoJsonObjectName(topoJson);
         const geoJson = topojsonFeature(topoJson, topoJson.objects[objectName]) as any;
         echarts.registerMap(registeredMapName, geoJson);
+        setCountryGeoJson(geoJson);
         setCountryMapReady(true);
       })
       .catch(error => {
         if (cancelled) return;
         console.error('加载本地国家行政区边界失败:', error);
         setCountryMapReady(false);
+        setCountryGeoJson(null);
         setBoundaryError('未找到本地行政区边界，已使用城市点视图');
       })
       .finally(() => {
@@ -344,7 +391,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
         show: isCountryDetailMap,
         color: '#334155',
         fontWeight: 700,
-        formatter: () => item.displayName || formatRegionName(item.id || item.name),
+        formatter: () => formatRegionName(item.id || item.name),
       },
     }));
     const scatterData = visiblePoints.map(point => ({
@@ -363,7 +410,8 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
           const displayName = datum.displayName || formatRegionName(params.name);
           const count = datum.count || (Array.isArray(datum.value) ? datum.value[2] : datum.value);
           const countText = count ? `<br/>${count} 张图片` : '';
-          return `${displayName}${countText}`;
+          const locationText = datum.locationNames ? `<br/>地点：${datum.locationNames}` : '';
+          return `${displayName}${locationText}${countText}`;
         },
       },
       geo: {
