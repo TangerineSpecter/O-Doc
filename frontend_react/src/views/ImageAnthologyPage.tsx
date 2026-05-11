@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ArrowLeft, Image as ImageIcon, Plus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Aperture, ArrowLeft, Image as ImageIcon, Plus } from 'lucide-react';
 import ImageCard from '../components/ImageGallery/ImageCard';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
@@ -109,6 +109,24 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     }
   };
 
+  const focalLengthStats = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    images.forEach((image) => {
+      const focalLength = image.focalLength?.trim();
+      if (!focalLength) return;
+      counts.set(focalLength, (counts.get(focalLength) || 0) + 1);
+    });
+
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [images]);
+
+  const focalLengthTotal = focalLengthStats.reduce((total, item) => total + item.count, 0);
+  const missingFocalLengthCount = images.length - focalLengthTotal;
+  const maxFocalLengthCount = focalLengthStats[0]?.count || 0;
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-orange-50 flex-col">
@@ -184,28 +202,73 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
             </p>
           </div>
         ) : (
-          <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 2xl:columns-4">
-            {images.map((image, index) => (
-              <div
-                key={image.imageId}
-                className="break-inside-avoid animate-fade-in-up"
-                style={{
-                  animationDelay: `${index * 60}ms`,
-                  animationFillMode: 'both'
-                }}
-              >
-                <ImageCard
-                  imageUrl={image.imageUrl}
-                  title={image.title}
-                  shootingTime={image.shootingTimeStr}
-                  country={image.country}
-                  city={image.city}
-                  onClick={() => handleImageClick(index)}
-                  onEdit={() => handleOpenEditModal(image)}
-                  onDelete={() => setDeleteTarget(image)}
-                />
+          <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
+            <aside className="self-start rounded-xl border border-slate-200 bg-white/85 p-4 shadow-sm backdrop-blur lg:sticky lg:top-24">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">焦段统计</h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {focalLengthTotal} / {images.length} 张已记录
+                  </p>
+                </div>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
+                  <Aperture className="h-4 w-4" />
+                </div>
               </div>
-            ))}
+
+              {focalLengthStats.length > 0 ? (
+                <div className="space-y-3">
+                  {focalLengthStats.map((item) => (
+                    <div key={item.name} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3 text-xs">
+                        <span className="truncate font-semibold text-slate-700">{item.name}mm</span>
+                        <span className="shrink-0 font-medium text-slate-400">{item.count} 张</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-sky-500"
+                          style={{ width: `${Math.max((item.count / maxFocalLengthCount) * 100, 8)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {missingFocalLengthCount > 0 && (
+                    <div className="border-t border-slate-100 pt-3 text-xs text-slate-400">
+                      未记录焦段 {missingFocalLengthCount} 张
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs leading-5 text-slate-500">
+                  暂无焦段数据
+                </div>
+              )}
+            </aside>
+
+            <div className="min-w-0 columns-1 gap-5 sm:columns-2 xl:columns-3 2xl:columns-4">
+              {images.map((image, index) => (
+                <div
+                  key={image.imageId}
+                  className="break-inside-avoid animate-fade-in-up"
+                  style={{
+                    animationDelay: `${index * 60}ms`,
+                    animationFillMode: 'both'
+                  }}
+                >
+                  <ImageCard
+                    imageUrl={image.imageUrl}
+                    title={image.title}
+                    shootingTime={image.shootingTimeStr}
+                    country={image.country}
+                    city={image.city}
+                    focalLength={image.focalLength}
+                    onClick={() => handleImageClick(index)}
+                    onEdit={() => handleOpenEditModal(image)}
+                    onDelete={() => setDeleteTarget(image)}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -220,6 +283,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
           shootingTime: images[selectedIndex].shootingTimeStr,
           country: images[selectedIndex].country,
           city: images[selectedIndex].city,
+          focalLength: images[selectedIndex].focalLength,
           tags: images[selectedIndex].tagsList,
           author: images[selectedIndex].author,
           createdAt: images[selectedIndex].createdAt

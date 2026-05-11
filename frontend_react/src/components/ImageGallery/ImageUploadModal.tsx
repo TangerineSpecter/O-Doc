@@ -116,6 +116,7 @@ export default function ImageUploadModal({
   const [shootingTime, setShootingTime] = useState('');
   const [country, setCountry] = useState('');
   const [city, setCity] = useState('');
+  const [focalLength, setFocalLength] = useState('');
   const [tags, setTags] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
@@ -172,6 +173,10 @@ export default function ImageUploadModal({
     setShootingTime(date.format('YYYY-MM-DD'));
   };
 
+  const updateFocalLength = (value: string) => {
+    setFocalLength(value.replace(/\D/g, ''));
+  };
+
   const resetForm = () => {
     setFile(null);
     setPreview('');
@@ -180,6 +185,7 @@ export default function ImageUploadModal({
     setShootingTime('');
     setCountry('');
     setCity('');
+    setFocalLength('');
     setTags('');
   };
 
@@ -195,6 +201,7 @@ export default function ImageUploadModal({
       setPickerMonth(initialData.shootingTime ? dayjs(toDateValue(initialData.shootingTime)) : dayjs());
       setCountry(initialData.country || '');
       setCity(initialData.city || '');
+      setFocalLength(initialData.focalLength || '');
       setTags(initialData.tags || initialData.tagsList?.join(', ') || '');
     } else {
       resetForm();
@@ -309,6 +316,7 @@ export default function ImageUploadModal({
           shootingTime: shootingTime || undefined,
           country: country.trim(),
           city: city.trim(),
+          focalLength: focalLength.trim(),
           tags: tags.trim(),
         });
       } else {
@@ -320,6 +328,7 @@ export default function ImageUploadModal({
           shootingTime: shootingTime || undefined,
           country: country.trim(),
           city: city.trim(),
+          focalLength: focalLength.trim(),
           tags: tags.trim(),
         });
       }
@@ -577,6 +586,22 @@ export default function ImageUploadModal({
                 ))}
               </datalist>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">
+              焦段
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              disabled={isUploading}
+              placeholder="例如 35"
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+              value={focalLength}
+              onChange={(e) => updateFocalLength(e.target.value)}
+            />
           </div>
 
           <div className="space-y-1.5">

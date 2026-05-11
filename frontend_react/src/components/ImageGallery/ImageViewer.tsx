@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  Aperture,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -17,6 +18,7 @@ interface ImageData {
   shootingTime?: string;
   country?: string;
   city?: string;
+  focalLength?: string;
   tags?: string[];
   author?: string;
   createdAt?: string;
@@ -87,6 +89,7 @@ export default function ImageViewer({
   };
   const location = [image.country, image.city].filter(Boolean).join(' ');
   const shootingDate = image.shootingTime ? image.shootingTime.replace('T', ' ').slice(0, 10) : '';
+  const focalLengthLabel = image.focalLength ? `${image.focalLength}mm` : '';
 
   return (
     <div
@@ -197,7 +200,7 @@ export default function ImageViewer({
                   </section>
                 )}
 
-                {(shootingDate || location) && (
+                {(shootingDate || location || focalLengthLabel) && (
                   <section className="divide-y divide-slate-100 border-y border-slate-100">
                     {shootingDate && (
                       <div className="grid grid-cols-[104px_minmax(0,1fr)] gap-4 py-4">
@@ -216,6 +219,16 @@ export default function ImageViewer({
                           <span>拍摄地点</span>
                         </div>
                         <p className="break-words text-sm font-semibold text-slate-800">{location}</p>
+                      </div>
+                    )}
+
+                    {focalLengthLabel && (
+                      <div className="grid grid-cols-[104px_minmax(0,1fr)] gap-4 py-4">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                          <Aperture className="h-4 w-4 text-sky-500" />
+                          <span>焦段</span>
+                        </div>
+                        <p className="break-words text-sm font-semibold text-slate-800">{focalLengthLabel}</p>
                       </div>
                     )}
                   </section>

@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { Calendar, Edit3, Eye, MapPin, Trash2 } from 'lucide-react';
+import { Aperture, Calendar, Edit3, Eye, MapPin, Trash2 } from 'lucide-react';
 
 interface ImageCardProps {
   imageUrl: string;
@@ -7,6 +7,7 @@ interface ImageCardProps {
   shootingTime?: string;
   country?: string;
   city?: string;
+  focalLength?: string;
   onClick?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -18,6 +19,7 @@ const ImageCard = memo(({
   shootingTime, 
   country,
   city,
+  focalLength,
   onClick,
   onEdit,
   onDelete
@@ -26,6 +28,7 @@ const ImageCard = memo(({
   const [isHovered, setIsHovered] = useState(false);
   const location = [country, city].filter(Boolean).join(' ');
   const shootingDate = shootingTime ? shootingTime.replace('T', ' ').slice(0, 10) : '';
+  const focalLengthLabel = focalLength ? `${focalLength}mm` : '';
 
   return (
     <div
@@ -121,6 +124,13 @@ const ImageCard = memo(({
             <div className="flex items-center gap-2 text-xs text-slate-500 group-hover:text-slate-600 transition-colors">
               <MapPin className="w-3.5 h-3.5 text-emerald-400" />
               <span className="truncate">{location}</span>
+            </div>
+          )}
+
+          {focalLengthLabel && (
+            <div className="flex items-center gap-2 text-xs text-slate-500 group-hover:text-slate-600 transition-colors">
+              <Aperture className="w-3.5 h-3.5 text-sky-400" />
+              <span className="truncate">{focalLengthLabel}</span>
             </div>
           )}
         </div>

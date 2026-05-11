@@ -338,11 +338,16 @@ class ImageSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         country = attrs.get('country')
         city = attrs.get('city')
+        focal_length = attrs.get('focal_length')
 
         if country is not None:
             attrs['country'] = country.strip()
         if city is not None:
             attrs['city'] = city.strip()
+        if focal_length is not None:
+            attrs['focal_length'] = focal_length.strip()
+            if attrs['focal_length'] and not attrs['focal_length'].isdigit():
+                raise serializers.ValidationError({'focal_length': '焦段只能输入数字'})
 
         return attrs
 
@@ -350,7 +355,7 @@ class ImageSerializer(serializers.ModelSerializer):
         model = Image
         fields = [
             'image_id', 'title', 'description', 'image_url', 'coll_id',
-            'shooting_time', 'shooting_time_str', 'country', 'city', 'tags', 'tags_list',
+            'shooting_time', 'shooting_time_str', 'country', 'city', 'focal_length', 'tags', 'tags_list',
             'author', 'created_at', 'updated_at', 'is_valid'
         ]
         read_only_fields = [

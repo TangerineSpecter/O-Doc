@@ -288,6 +288,15 @@ class Image(models.Model):
         db_comment="拍摄城市"
     )
 
+    # 焦段
+    focal_length = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        help_text="焦段",
+        db_comment="焦段"
+    )
+
     # 标签（存储为逗号分隔的字符串）
     tags = models.CharField(
         max_length=500,
