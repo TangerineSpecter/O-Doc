@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Aperture, ArrowLeft, Globe2, Image as ImageIcon, MapPin, Plus } from 'lucide-react';
+import * as echarts from 'echarts';
+import { feature as topojsonFeature } from 'topojson-client';
 import ImageCard from '../components/ImageGallery/ImageCard';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
@@ -14,6 +16,480 @@ interface ImageAnthologyPageProps {
   onNavigate?: (viewName: string, params?: any) => void;
   collId?: string;
   title?: string;
+}
+
+interface LocationPoint {
+  country: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  count: number;
+}
+
+const COUNTRY_MAP_NAMES: Record<string, string> = {
+  中国: 'China',
+  日本: 'Japan',
+  韩国: 'South Korea',
+  泰国: 'Thailand',
+  新加坡: 'Singapore',
+  马来西亚: 'Malaysia',
+  印度尼西亚: 'Indonesia',
+  越南: 'Vietnam',
+  阿联酋: 'United Arab Emirates',
+  土耳其: 'Turkey',
+  英国: 'United Kingdom',
+  法国: 'France',
+  意大利: 'Italy',
+  西班牙: 'Spain',
+  德国: 'Germany',
+  荷兰: 'Netherlands',
+  瑞士: 'Switzerland',
+  奥地利: 'Austria',
+  捷克: 'Czechia',
+  希腊: 'Greece',
+  冰岛: 'Iceland',
+  美国: 'United States of America',
+  加拿大: 'Canada',
+  墨西哥: 'Mexico',
+  巴西: 'Brazil',
+  阿根廷: 'Argentina',
+  澳大利亚: 'Australia',
+  新西兰: 'New Zealand',
+  埃及: 'Egypt',
+  摩洛哥: 'Morocco',
+  南非: 'South Africa',
+};
+
+const MAP_COUNTRY_CN_NAMES = Object.fromEntries(
+  Object.entries(COUNTRY_MAP_NAMES).map(([cnName, mapName]) => [mapName, cnName])
+);
+
+const COUNTRY_ISO3: Record<string, string> = {
+  中国: 'CHN',
+  日本: 'JPN',
+  韩国: 'KOR',
+  泰国: 'THA',
+  新加坡: 'SGP',
+  马来西亚: 'MYS',
+  印度尼西亚: 'IDN',
+  越南: 'VNM',
+  阿联酋: 'ARE',
+  土耳其: 'TUR',
+  英国: 'GBR',
+  法国: 'FRA',
+  意大利: 'ITA',
+  西班牙: 'ESP',
+  德国: 'DEU',
+  荷兰: 'NLD',
+  瑞士: 'CHE',
+  奥地利: 'AUT',
+  捷克: 'CZE',
+  希腊: 'GRC',
+  冰岛: 'ISL',
+  美国: 'USA',
+  加拿大: 'CAN',
+  墨西哥: 'MEX',
+  巴西: 'BRA',
+  阿根廷: 'ARG',
+  澳大利亚: 'AUS',
+  新西兰: 'NZL',
+  埃及: 'EGY',
+  摩洛哥: 'MAR',
+  南非: 'ZAF',
+};
+
+const CITY_REGION_ALIASES: Record<string, string[]> = {
+  伊斯坦布尔: ['İstanbul', 'Istanbul'],
+};
+
+const toMapCountryName = (country: string) => COUNTRY_MAP_NAMES[country] || country;
+const toDisplayCountryName = (mapName: string) => MAP_COUNTRY_CN_NAMES[mapName] || mapName;
+const toCountryIso3 = (country: string) => COUNTRY_ISO3[country] || '';
+const toCountryByIso3 = (iso3: string) => (
+  Object.entries(COUNTRY_ISO3).find(([, value]) => value === iso3)?.[0] || ''
+);
+const getCityRegionAliases = (city: string) => CITY_REGION_ALIASES[city] || [city];
+const getTopoJsonObjectName = (topoJson: any, preferredObjectName?: string) => {
+  if (preferredObjectName && topoJson.objects?.[preferredObjectName]) {
+    return preferredObjectName;
+  }
+  const objectName = Object.keys(topoJson.objects || {})[0];
+  if (!objectName) {
+    throw new Error('TopoJSON 缺少 objects 数据');
+  }
+  return objectName;
+};
+
+function LocationChartMap({ points }: { points: LocationPoint[] }) {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const instanceRef = useRef<echarts.EChartsType | null>(null);
+  const [worldMapReady, setWorldMapReady] = useState(false);
+  const [worldMapError, setWorldMapError] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [countryMapReady, setCountryMapReady] = useState(false);
+  const [boundaryLoading, setBoundaryLoading] = useState(false);
+  const [boundaryError, setBoundaryError] = useState('');
+  const [worldNamesByIso3, setWorldNamesByIso3] = useState<Record<string, string>>({});
+  const countrySummaries = useMemo(() => {
+    const summaries = new Map<string, { country: string; mapName: string; iso3: string; count: number }>();
+    points.forEach(point => {
+      const mapName = toMapCountryName(point.country);
+      const current = summaries.get(mapName);
+      if (current) {
+        current.count += point.count;
+      } else {
+        summaries.set(mapName, {
+          country: point.country,
+          mapName,
+          iso3: toCountryIso3(point.country),
+          count: point.count,
+        });
+      }
+    });
+    return Array.from(summaries.values());
+  }, [points]);
+  const visitedCountryIds = useMemo(
+    () => new Set(countrySummaries.map(summary => summary.iso3).filter(Boolean)),
+    [countrySummaries]
+  );
+  const visiblePoints = useMemo(() => {
+    if (!selectedCountry) return points;
+    return points.filter(point => toMapCountryName(point.country) === selectedCountry);
+  }, [points, selectedCountry]);
+  const selectedSummary = selectedCountry
+    ? countrySummaries.find(summary => summary.mapName === selectedCountry)
+    : null;
+  const selectedCountryIso = selectedSummary ? toCountryIso3(selectedSummary.country) : '';
+  const currentMapName = selectedCountry && countryMapReady
+    ? `country-${selectedCountryIso}`
+    : 'photo-world-map';
+  const selectedCityRegions = useMemo(() => {
+    const summaries = new Map<string, { name: string; city: string; value: number }>();
+    visiblePoints.forEach(point => {
+      getCityRegionAliases(point.city).forEach(name => {
+        const current = summaries.get(name);
+        if (current) {
+          current.value += point.count;
+        } else {
+          summaries.set(name, {
+            name,
+            city: point.city,
+            value: point.count,
+          });
+        }
+      });
+    });
+    return Array.from(summaries.values());
+  }, [selectedCountry, visiblePoints]);
+  const displayNameByRegionKey = useMemo(() => {
+    const names = new Map<string, string>();
+    countrySummaries.forEach(summary => {
+      if (summary.iso3) {
+        names.set(summary.iso3, summary.country);
+      }
+      names.set(summary.mapName, summary.country);
+    });
+    selectedCityRegions.forEach(item => {
+      names.set(item.name, item.city);
+    });
+    return names;
+  }, [countrySummaries, selectedCityRegions]);
+  const chartData = useMemo(() => {
+    if (selectedCountry && countryMapReady) {
+      return selectedCityRegions.map(item => ({
+        name: item.name,
+        displayName: item.city,
+        value: item.value,
+      }));
+    }
+
+    return countrySummaries.map(summary => ({
+      id: summary.iso3,
+      name: summary.mapName,
+      displayName: summary.country,
+      value: summary.count,
+      country: summary.country,
+    }));
+  }, [countryMapReady, countrySummaries, selectedCityRegions, selectedCountry]);
+  const mapView = useMemo(() => {
+    if (!selectedCountry) {
+      return { center: [104, 35], zoom: 3.2 };
+    }
+
+    if (visiblePoints.length === 0) {
+      return { center: [20, 28], zoom: 1.15 };
+    }
+
+    const longitudes = visiblePoints.map(point => point.longitude);
+    const latitudes = visiblePoints.map(point => point.latitude);
+    const minLng = Math.min(...longitudes);
+    const maxLng = Math.max(...longitudes);
+    const minLat = Math.min(...latitudes);
+    const maxLat = Math.max(...latitudes);
+    const center: [number, number] = [
+      (minLng + maxLng) / 2,
+      (minLat + maxLat) / 2,
+    ];
+
+    if (visiblePoints.length === 1) {
+      return { center, zoom: 5.8 };
+    }
+
+    const lngRange = Math.max(maxLng - minLng, 8);
+    const latRange = Math.max(maxLat - minLat, 6);
+    const zoom = Math.min(Math.max(180 / Math.max(lngRange, latRange * 1.8), 1.2), 5);
+    return { center, zoom };
+  }, [selectedCountry, visiblePoints]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setWorldMapReady(false);
+    setWorldMapError('');
+
+    fetch('/maps/world.json')
+      .then(response => {
+        if (!response.ok) throw new Error('世界地图文件不存在');
+        return response.json();
+      })
+      .then(geoJson => {
+        if (cancelled) return;
+        echarts.registerMap('photo-world-map', geoJson);
+        setWorldMapReady(true);
+        const names = (geoJson.features || []).reduce((result: Record<string, string>, feature: any) => {
+          const id = feature?.properties?.id;
+          const name = feature?.properties?.name;
+          if (id && name) {
+            result[id] = name;
+          }
+          return result;
+        }, {});
+        setWorldNamesByIso3(names);
+      })
+      .catch(error => {
+        if (cancelled) return;
+        console.error('加载世界地图失败:', error);
+        setWorldMapError('世界地图加载失败');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCountry || !selectedCountryIso) {
+      setCountryMapReady(false);
+      setBoundaryError('');
+      setBoundaryLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const registeredMapName = `country-${selectedCountryIso}`;
+    setBoundaryLoading(true);
+    setBoundaryError('');
+
+    fetch(`/maps/${selectedCountryIso}_ADM1.topojson`)
+      .then(response => {
+        if (!response.ok) throw new Error('本地边界文件不存在');
+        return response.json();
+      })
+      .then(topoJson => {
+        if (cancelled) return;
+        const objectName = getTopoJsonObjectName(topoJson);
+        const geoJson = topojsonFeature(topoJson, topoJson.objects[objectName]) as any;
+        echarts.registerMap(registeredMapName, geoJson);
+        setCountryMapReady(true);
+      })
+      .catch(error => {
+        if (cancelled) return;
+        console.error('加载本地国家行政区边界失败:', error);
+        setCountryMapReady(false);
+        setBoundaryError('未找到本地行政区边界，已使用城市点视图');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setBoundaryLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCountry, selectedCountryIso]);
+
+  useEffect(() => {
+    if (!chartRef.current || !worldMapReady) return;
+
+    const isCountryDetailMap = Boolean(selectedCountry && countryMapReady);
+    const chart = instanceRef.current || echarts.init(chartRef.current);
+    instanceRef.current = chart;
+    const regionDataByName = new Map(chartData.map((item: any) => [item.id || item.name, item]));
+    const formatRegionName = (name: string) => {
+      const data = regionDataByName.get(name) as any;
+      if (data?.displayName) return data.displayName;
+      if (!isCountryDetailMap && worldNamesByIso3[name]) {
+        return toDisplayCountryName(worldNamesByIso3[name]);
+      }
+      return displayNameByRegionKey.get(name) || toCountryByIso3(name) || toDisplayCountryName(name);
+    };
+    const highlightedRegions = chartData.map((item: any) => ({
+      name: isCountryDetailMap ? item.name : item.id,
+      itemStyle: {
+        areaColor: '#fde68a',
+        borderColor: '#f59e0b',
+        borderWidth: 1.2,
+      },
+      label: {
+        show: isCountryDetailMap,
+        color: '#334155',
+        fontWeight: 700,
+        formatter: () => item.displayName || formatRegionName(item.id || item.name),
+      },
+    }));
+    const scatterData = visiblePoints.map(point => ({
+      name: `${point.country} · ${point.city}`,
+      value: [point.longitude, point.latitude, point.count],
+      displayName: `${point.country} · ${point.city}`,
+      count: point.count,
+    }));
+
+    const option: echarts.EChartsOption = {
+      backgroundColor: '#f8fbfb',
+      tooltip: {
+        trigger: 'item',
+        formatter: (params: any) => {
+          const datum = params.data || {};
+          const displayName = datum.displayName || formatRegionName(params.name);
+          const count = datum.count || (Array.isArray(datum.value) ? datum.value[2] : datum.value);
+          const countText = count ? `<br/>${count} 张图片` : '';
+          return `${displayName}${countText}`;
+        },
+      },
+      geo: {
+        map: currentMapName,
+        nameProperty: isCountryDetailMap ? 'shapeName' : 'id',
+        roam: true,
+        center: mapView.center,
+        zoom: isCountryDetailMap ? Math.max(mapView.zoom, 4.5) : mapView.zoom,
+        scaleLimit: {
+          min: 1,
+          max: 20,
+        },
+        regions: highlightedRegions,
+        itemStyle: {
+          areaColor: '#eef2f7',
+          borderColor: '#cbd5e1',
+          borderWidth: 0.7,
+        },
+        emphasis: {
+          label: {
+            show: true,
+            color: '#334155',
+            fontWeight: 700,
+            formatter: (params: any) => formatRegionName(params.name),
+          },
+          itemStyle: {
+            areaColor: '#e2e8f0',
+            borderColor: '#94a3b8',
+          },
+        },
+        label: {
+          show: false,
+        },
+      },
+      series: [
+        {
+          type: 'effectScatter',
+          coordinateSystem: 'geo',
+          data: scatterData,
+          symbolSize: (value: number[]) => Math.min(16 + (value?.[2] || 1) * 3, 34),
+          showEffectOn: 'render',
+          rippleEffect: {
+            brushType: 'stroke',
+            scale: 3,
+          },
+          itemStyle: {
+            color: '#f97316',
+            borderColor: '#ffffff',
+            borderWidth: 2,
+            shadowBlur: 14,
+            shadowColor: 'rgba(249,115,22,0.35)',
+          },
+          zlevel: 2,
+        },
+      ],
+    };
+
+    chart.setOption(option, true);
+
+    const handleClick = (params: any) => {
+      if (!selectedCountry) {
+        const countryId = params?.name;
+        const summary = countrySummaries.find(item => (
+          (countryId && item.iso3 === countryId)
+          || item.mapName === countryId
+        ));
+        if (summary && visitedCountryIds.has(summary.iso3)) {
+          setSelectedCountry(summary.mapName);
+        }
+      }
+    };
+
+    chart.on('click', handleClick);
+
+    return () => {
+      chart.off('click', handleClick);
+    };
+  }, [chartData, countryMapReady, countrySummaries, currentMapName, displayNameByRegionKey, mapView, selectedCountry, visiblePoints, visitedCountryIds, worldMapReady, worldNamesByIso3]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      instanceRef.current?.resize();
+    };
+    window.addEventListener('resize', handleResize);
+    window.requestAnimationFrame(handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      instanceRef.current?.dispose();
+      instanceRef.current = null;
+    };
+  }, []);
+
+  return (
+    <div className="relative">
+      <div ref={chartRef} className="h-[calc(100vh-260px)] min-h-[560px] w-full overflow-hidden rounded-[28px] border border-emerald-100 bg-[#f8fbfb]" />
+      <div className="pointer-events-none absolute left-5 top-5 flex flex-wrap items-center gap-2">
+        <span className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200">
+          {selectedSummary ? `${selectedSummary.country} · ${countryMapReady ? '行政区/城市明细' : '城市明细'}` : '世界地图 · 点击高亮国家钻入'}
+        </span>
+        {boundaryLoading && (
+          <span className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-emerald-600 shadow-sm ring-1 ring-emerald-100">
+            正在加载行政区边界...
+          </span>
+        )}
+        {boundaryError && (
+          <span className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-amber-600 shadow-sm ring-1 ring-amber-100">
+            {boundaryError}
+          </span>
+        )}
+        {worldMapError && (
+          <span className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-600 shadow-sm ring-1 ring-red-100">
+            {worldMapError}
+          </span>
+        )}
+        {selectedSummary && (
+          <button
+            type="button"
+            onClick={() => setSelectedCountry(null)}
+            className="pointer-events-auto rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-slate-800"
+          >
+            返回世界地图
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageAnthologyPageProps) {
@@ -298,9 +774,9 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
               </div>
             </aside>
 
-            <div className="min-w-0 space-y-6">
-              {isLocationMapOpen && (
-                <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="min-w-0">
+              {isLocationMapOpen ? (
+                <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[240px_minmax(0,1fr)]">
                   <div className="border-b border-slate-100 bg-slate-50/80 p-5 lg:border-b-0 lg:border-r">
                     <div className="mb-5 flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
@@ -337,62 +813,38 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                     </div>
                   </div>
 
-                  <div className="relative min-h-[360px] overflow-hidden bg-[#f7fbfb]">
-                    <div className="absolute inset-6 rounded-[32px] border border-emerald-100 bg-[linear-gradient(90deg,rgba(15,118,110,0.05)_1px,transparent_1px),linear-gradient(rgba(15,118,110,0.05)_1px,transparent_1px)] bg-[size:48px_48px]" />
-                    <div className="absolute left-[9%] top-[18%] h-[42%] w-[22%] rounded-[48%_52%_45%_55%] bg-emerald-100/70 blur-sm" />
-                    <div className="absolute left-[31%] top-[15%] h-[36%] w-[18%] rounded-[40%_60%_55%_45%] bg-emerald-100/70 blur-sm" />
-                    <div className="absolute left-[47%] top-[22%] h-[50%] w-[31%] rounded-[55%_45%_50%_50%] bg-emerald-100/70 blur-sm" />
-                    <div className="absolute left-[73%] top-[58%] h-[20%] w-[14%] rounded-[50%] bg-emerald-100/70 blur-sm" />
-
-                    {locationStats.points.map(point => {
-                      const left = ((point.longitude + 180) / 360) * 100;
-                      const top = ((90 - point.latitude) / 180) * 100;
-                      const size = Math.min(18 + point.count * 3, 34);
-
-                      return (
-                        <div
-                          key={`${point.country}-${point.city}-pin`}
-                          className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
-                          style={{ left: `${left}%`, top: `${top}%` }}
-                          title={`${point.country} · ${point.city}：${point.count} 张`}
-                        >
-                          <div
-                            className="rounded-full border-2 border-white bg-orange-500 shadow-[0_8px_24px_rgba(249,115,22,0.35)] ring-4 ring-orange-500/20"
-                            style={{ width: size, height: size }}
-                          />
-                        </div>
-                      );
-                    })}
+                  <div className="relative min-h-[560px] overflow-hidden bg-[#f8fbfb] p-5">
+                    <LocationChartMap points={locationStats.points} />
                   </div>
                 </section>
-              )}
-
-              <div className="columns-1 gap-5 sm:columns-2 xl:columns-3 2xl:columns-4">
-              {images.map((image, index) => (
-                <div
-                  key={image.imageId}
-                  className="break-inside-avoid animate-fade-in-up"
-                  style={{
-                    animationDelay: `${index * 60}ms`,
-                    animationFillMode: 'both'
-                  }}
-                >
-                  <ImageCard
-                    imageUrl={image.imageUrl}
-                    title={image.title}
-                    shootingTime={image.shootingTimeStr}
-                    country={image.country}
-                    city={image.city}
-                    focalLength={image.focalLength}
-                    onClick={() => handleImageClick(index)}
-                    onEdit={() => handleOpenEditModal(image)}
-                    onDelete={() => setDeleteTarget(image)}
-                  />
+              ) : (
+                <div className="columns-1 gap-5 sm:columns-2 xl:columns-3 2xl:columns-4">
+                  {images.map((image, index) => (
+                    <div
+                      key={image.imageId}
+                      className="break-inside-avoid animate-fade-in-up"
+                      style={{
+                        animationDelay: `${index * 60}ms`,
+                        animationFillMode: 'both'
+                      }}
+                    >
+                      <ImageCard
+                        imageUrl={image.imageUrl}
+                        title={image.title}
+                        shootingTime={image.shootingTimeStr}
+                        country={image.country}
+                        city={image.city}
+                        focalLength={image.focalLength}
+                        onClick={() => handleImageClick(index)}
+                        onEdit={() => handleOpenEditModal(image)}
+                        onDelete={() => setDeleteTarget(image)}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
               </div>
             </div>
-          </div>
         )}
       </div>
 
