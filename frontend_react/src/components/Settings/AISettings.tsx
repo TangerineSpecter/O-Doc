@@ -2,14 +2,14 @@ import {Edit2, Globe, Key, Layers, Plus, Server, Trash2, X, Zap} from 'lucide-re
 import {AIModel, AIProvider, ModelType, SystemAIConfig} from '@/api/setting';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
 
-// 1. 引入图片资源 (public 目录的文件可直接从根路径访问)
-import deepseekLogo from '/deepseek.svg?url'
-import qwenLogo from '/qwen.png?url'
-import ollamaLogo from '/ollama.svg?url'
-import openaiLogo from '/openai.svg?url'
-import doubaoLogo from '/doubao.svg?url'
-import siliconFlowLogo from '/siliconFlow.svg?url'
-import xiaomiLogo from '/xiaomi.png?url'
+import deepseekLogo from '@/assets/models/deepseek.svg'
+import qwenLogo from '@/assets/models/qwen.png'
+import ollamaLogo from '@/assets/models/ollama.svg'
+import openaiLogo from '@/assets/models/openai.svg'
+import doubaoLogo from '@/assets/models/doubao.svg'
+import siliconFlowLogo from '@/assets/models/siliconFlow.svg'
+import xiaomiLogo from '@/assets/models/xiaomi.png'
+import minimaxLogo from '@/assets/models/minimax.jpg'
 
 
 // --- Logo Component ---
@@ -31,7 +31,7 @@ const ProviderLogo = ({type, name}: { type: string, name: string }) => {
         'Qwen': 'bg-white border border-slate-200',
         'Xiaomi': 'bg-white border border-slate-200',
         'Doubao': 'bg-white border border-slate-200',
-        'MiniMax': 'bg-slate-950 text-white',
+        'MiniMax': 'bg-white border border-slate-200',
     };
 
     // 3. 图标渲染逻辑
@@ -57,7 +57,7 @@ const ProviderLogo = ({type, name}: { type: string, name: string }) => {
             case 'SiliconFlow':
                 return <img src={siliconFlowLogo} alt="SiliconFlowLogo" className="w-full h-full object-contain"/>;
             case 'MiniMax':
-                return <span className="text-[11px] font-bold tracking-normal">MM</span>;
+                return <img src={minimaxLogo} alt="MiniMax" className="w-full h-full object-contain"/>;
 
             default:
                 // 默认兜底：首字母
