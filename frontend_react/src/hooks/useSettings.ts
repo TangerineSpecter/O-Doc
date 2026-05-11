@@ -169,8 +169,6 @@ export const useSettings = () => {
 
     // 4. 删除 (Provider 或 Model)
     const handleDelete = async (target: { type: 'provider' | 'model', providerId: string, modelId?: string }) => {
-        if (!confirm('确定要删除吗？此操作不可恢复。')) return;
-
         try {
             if (target.type === 'provider') {
                 await deleteProvider(target.providerId);
