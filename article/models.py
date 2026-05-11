@@ -288,6 +288,38 @@ class Image(models.Model):
         db_comment="拍摄城市"
     )
 
+    # 拍摄地点配置
+    location = models.ForeignKey(
+        'system_settings.GeoLocation',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='images',
+        verbose_name="拍摄地点",
+        help_text="拍摄地点配置ID",
+        db_comment="拍摄地点配置ID"
+    )
+
+    # 纬度
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text="纬度",
+        db_comment="纬度"
+    )
+
+    # 经度
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text="经度",
+        db_comment="经度"
+    )
+
     # 焦段
     focal_length = models.CharField(
         max_length=50,
@@ -349,6 +381,13 @@ class Image(models.Model):
         # 如果image_id为空，生成一个新的
         if not self.image_id:
             self.image_id = generate_image_id()
+
+        if self.location:
+            self.country = self.location.country
+            self.city = self.location.city
+            self.latitude = self.location.latitude
+            self.longitude = self.location.longitude
+
         super().save(*args, **kwargs)
 
     def get_tags_list(self):

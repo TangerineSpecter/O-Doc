@@ -1,10 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import { Calendar, ChevronLeft, ChevronRight, Loader2, Plus, Upload, X } from 'lucide-react';
 import { uploadResource } from '../../api/resources';
 import { createImage, Image, updateImage } from '../../api/image';
+import { GeoLocation, getGeoLocations } from '../../api/setting';
 import { useToast } from '../common/ToastProvider';
+import { SettingsSelect } from '../Settings/SettingsSelect';
 
 interface ImageUploadModalProps {
   isOpen: boolean;
@@ -13,94 +15,6 @@ interface ImageUploadModalProps {
   onSuccess: () => void;
   initialData?: Image | null;
 }
-
-const COUNTRY_OPTIONS = [
-  '中国',
-  '日本',
-  '韩国',
-  '泰国',
-  '新加坡',
-  '马来西亚',
-  '印度尼西亚',
-  '越南',
-  '阿联酋',
-  '土耳其',
-  '英国',
-  '法国',
-  '意大利',
-  '西班牙',
-  '德国',
-  '荷兰',
-  '瑞士',
-  '奥地利',
-  '捷克',
-  '希腊',
-  '冰岛',
-  '美国',
-  '加拿大',
-  '墨西哥',
-  '巴西',
-  '阿根廷',
-  '澳大利亚',
-  '新西兰',
-  '埃及',
-  '摩洛哥',
-  '南非'
-];
-
-const CITY_OPTIONS = [
-  '北京',
-  '上海',
-  '广州',
-  '深圳',
-  '成都',
-  '杭州',
-  '西安',
-  '香港',
-  '澳门',
-  '台北',
-  '东京',
-  '京都',
-  '大阪',
-  '首尔',
-  '曼谷',
-  '新加坡',
-  '吉隆坡',
-  '巴厘岛',
-  '河内',
-  '胡志明市',
-  '迪拜',
-  '伊斯坦布尔',
-  '伦敦',
-  '巴黎',
-  '罗马',
-  '威尼斯',
-  '巴塞罗那',
-  '柏林',
-  '阿姆斯特丹',
-  '苏黎世',
-  '维也纳',
-  '布拉格',
-  '雅典',
-  '雷克雅未克',
-  '纽约',
-  '洛杉矶',
-  '旧金山',
-  '西雅图',
-  '芝加哥',
-  '迈阿密',
-  '多伦多',
-  '温哥华',
-  '墨西哥城',
-  '里约热内卢',
-  '布宜诺斯艾利斯',
-  '悉尼',
-  '墨尔本',
-  '奥克兰',
-  '开罗',
-  '马拉喀什',
-  '开普敦'
-];
 
 export default function ImageUploadModal({
   isOpen,
@@ -116,6 +30,8 @@ export default function ImageUploadModal({
   const [shootingTime, setShootingTime] = useState('');
   const [country, setCountry] = useState('');
   const [city, setCity] = useState('');
+  const [locationId, setLocationId] = useState('');
+  const [locations, setLocations] = useState<GeoLocation[]>([]);
   const [focalLength, setFocalLength] = useState('');
   const [tags, setTags] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -141,6 +57,19 @@ export default function ImageUploadModal({
   const selectedDate = shootingTime ? dayjs(shootingTime) : null;
   const calendarStart = pickerMonth.startOf('month').startOf('week');
   const calendarDays = Array.from({ length: 42 }, (_, index) => calendarStart.add(index, 'day'));
+  const countryOptions = useMemo(() => {
+    const countries = Array.from(new Set(locations.map(location => location.country))).sort((a, b) => a.localeCompare(b));
+    return countries.map(value => ({ value, label: value }));
+  }, [locations]);
+  const cityOptions = useMemo(() => {
+    return locations
+      .filter(location => location.country === country)
+      .sort((a, b) => a.city.localeCompare(b.city))
+      .map(location => ({
+        value: location.id,
+        label: location.city,
+      }));
+  }, [country, locations]);
 
   const updateDatePickerPosition = () => {
     const button = dateButtonRef.current;
@@ -185,6 +114,7 @@ export default function ImageUploadModal({
     setShootingTime('');
     setCountry('');
     setCity('');
+    setLocationId('');
     setFocalLength('');
     setTags('');
   };
@@ -192,7 +122,19 @@ export default function ImageUploadModal({
   useEffect(() => {
     if (!isOpen) return;
 
+    getGeoLocations()
+      .then(setLocations)
+      .catch((error) => {
+        console.error('加载地理位置失败:', error);
+        toast.error('加载地理位置失败');
+      });
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
     if (initialData) {
+      const initialLocationId = initialData.locationId || initialData.location || initialData.locationDetail?.id || '';
       setFile(null);
       setPreview(initialData.imageUrl || '');
       setTitle(initialData.title || '');
@@ -201,6 +143,7 @@ export default function ImageUploadModal({
       setPickerMonth(initialData.shootingTime ? dayjs(toDateValue(initialData.shootingTime)) : dayjs());
       setCountry(initialData.country || '');
       setCity(initialData.city || '');
+      setLocationId(initialLocationId);
       setFocalLength(initialData.focalLength || '');
       setTags(initialData.tags || initialData.tagsList?.join(', ') || '');
     } else {
@@ -316,6 +259,7 @@ export default function ImageUploadModal({
           shootingTime: shootingTime || undefined,
           country: country.trim(),
           city: city.trim(),
+          locationId,
           focalLength: focalLength.trim(),
           tags: tags.trim(),
         });
@@ -328,6 +272,7 @@ export default function ImageUploadModal({
           shootingTime: shootingTime || undefined,
           country: country.trim(),
           city: city.trim(),
+          locationId,
           focalLength: focalLength.trim(),
           tags: tags.trim(),
         });
@@ -358,7 +303,7 @@ export default function ImageUploadModal({
         onClick={() => !isUploading && handleClose()}
       />
       <div
-        className="relative w-full max-w-lg max-h-[calc(100vh-2rem)] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 slide-in-from-bottom-2 duration-200"
+        className="relative w-full max-w-3xl max-h-[calc(100vh-2rem)] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 slide-in-from-bottom-2 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
@@ -446,7 +391,7 @@ export default function ImageUploadModal({
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-semibold text-slate-700">
                 拍摄日期
@@ -552,39 +497,36 @@ export default function ImageUploadModal({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-slate-700">
-                拍摄地点
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  list="image-country-options"
-                  disabled={isUploading}
-                  placeholder="国家"
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+              <label className="text-sm font-semibold text-slate-700">拍摄地点</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <SettingsSelect
                   value={country}
-                  onChange={(e) => setCountry(e.target.value)}
+                  options={countryOptions}
+                  onChange={(value) => {
+                    setCountry(value);
+                    setCity('');
+                    setLocationId('');
+                  }}
+                  placeholder="选择国家"
+                  emptyMessage="请先在系统设置中添加地点"
+                  buttonClassName="min-h-10 text-sm"
+                  menuClassName="min-w-56"
                 />
-                <input
-                  type="text"
-                  list="image-city-options"
-                  disabled={isUploading}
-                  placeholder="城市"
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
+                <SettingsSelect
+                  value={locationId}
+                  options={cityOptions}
+                  onChange={(value) => {
+                    const location = locations.find(item => item.id === value);
+                    setLocationId(value);
+                    setCity(location?.city || '');
+                    setCountry(location?.country || country);
+                  }}
+                  placeholder="选择城市"
+                  emptyMessage={country ? '该国家暂无城市' : '请先选择国家'}
+                  buttonClassName="min-h-10 text-sm"
+                  menuClassName="min-w-64"
                 />
               </div>
-              <datalist id="image-country-options">
-                {COUNTRY_OPTIONS.map((option) => (
-                  <option key={option} value={option} />
-                ))}
-              </datalist>
-              <datalist id="image-city-options">
-                {CITY_OPTIONS.map((option) => (
-                  <option key={option} value={option} />
-                ))}
-              </datalist>
             </div>
           </div>
 

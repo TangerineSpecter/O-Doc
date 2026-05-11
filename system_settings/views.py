@@ -14,8 +14,8 @@ from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 from utils.sync_manager import SyncError, SyncManager
 from utils.webdav import WebDavClient
-from .models import AIProvider, AIModel, SystemSetting
-from .serializers import AIProviderSerializer, AIModelSerializer
+from .models import AIProvider, AIModel, SystemSetting, GeoLocation
+from .serializers import AIProviderSerializer, AIModelSerializer, GeoLocationSerializer
 
 
 class AIProviderViewSet(viewsets.ModelViewSet):
@@ -65,6 +65,37 @@ class AIModelViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
+        return success_result(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_result()
+
+
+class GeoLocationViewSet(viewsets.ModelViewSet):
+    """地理位置配置接口"""
+
+    queryset = GeoLocation.objects.all()
+    serializer_class = GeoLocationSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return success_result(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return success_result(serializer.data)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
         return success_result(serializer.data)
 
     def destroy(self, request, *args, **kwargs):

@@ -1,8 +1,26 @@
 import request from '../utils/request';
-import type { ModelType, AIModel, AIProvider, SystemAIConfig, WebDavConfig, WebDavSyncStatus } from '../types/api/setting';
+import type {
+    ModelType,
+    AIModel,
+    AIProvider,
+    SystemAIConfig,
+    WebDavConfig,
+    WebDavSyncStatus,
+    GeoLocation,
+    SaveGeoLocationParams,
+} from '../types/api/setting';
 
 // 重新导出类型以便其他组件使用
-export type { ModelType, AIModel, AIProvider, SystemAIConfig, WebDavConfig, WebDavSyncStatus };
+export type {
+    ModelType,
+    AIModel,
+    AIProvider,
+    SystemAIConfig,
+    WebDavConfig,
+    WebDavSyncStatus,
+    GeoLocation,
+    SaveGeoLocationParams,
+};
 
 // --- 模拟数据 ---
 export const MOCK_PROVIDERS: AIProvider[] = [
@@ -109,3 +127,14 @@ export const syncToWebDav = () => request.post<any, { msg: string }>('/settings/
 
 // 4. 触发下载 (从 WebDAV 恢复)
 export const syncFromWebDav = () => request.post<any, { msg: string }>('/settings/config/sync_from_webdav/');
+
+export const getGeoLocations = () => request.get<any, GeoLocation[]>('/settings/locations/');
+
+export const saveGeoLocation = (data: SaveGeoLocationParams) => {
+    if (data.id) {
+        return request.put<any, GeoLocation>(`/settings/locations/${data.id}/`, data);
+    }
+    return request.post<any, GeoLocation>('/settings/locations/', data);
+};
+
+export const deleteGeoLocation = (id: string) => request.delete(`/settings/locations/${id}/`);

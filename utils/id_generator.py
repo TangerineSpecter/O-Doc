@@ -68,6 +68,15 @@ def generate_model_id() -> str:
     """
     return generate_unique_id("mod")
 
+
+# 为地理位置生成带 loc 前缀的 ID
+def generate_location_id() -> str:
+    """
+    生成带 loc 前缀的地理位置ID
+    :return: 带 loc 前缀的唯一ID字符串
+    """
+    return generate_unique_id("loc")
+
 # 为 消息 生成带 msg 前缀的 ID
 def generate_msg_id() -> str:
     """

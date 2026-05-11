@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Cpu, RefreshCw, Settings } from 'lucide-react';
+import { Save, Cpu, MapPin, RefreshCw, Settings } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useSettings } from '../hooks/useSettings';
 import { AIProvider, saveSystemAIConfig, saveWebDavConfig } from '../api/setting';
@@ -11,9 +11,10 @@ import { SyncSettings } from '../components/Settings/SyncSettings';
 import { GeneralSettings } from '../components/Settings/GeneralSettings';
 import { ProviderModal } from '../components/Settings/ProviderModal';
 import { ModelModal } from '../components/Settings/ModelModal';
+import { LocationSettings } from '../components/Settings/LocationSettings';
 
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState<'ai' | 'sync' | 'general'>('ai');
+    const [activeTab, setActiveTab] = useState<'ai' | 'sync' | 'location' | 'general'>('ai');
     const toast = useToast();
     const [headerSaving, setHeaderSaving] = useState(false);
 
@@ -74,6 +75,11 @@ export default function SettingsPage() {
                 await saveWebDavConfig(webDavConfig);
                 toast.success('WebDAV 配置已保存');
                 await fetchWebDavConfig();
+                return;
+            }
+
+            if (activeTab === 'location') {
+                toast.info('地理位置会在添加或编辑时自动保存');
                 return;
             }
 
@@ -152,6 +158,7 @@ export default function SettingsPage() {
                 <div className="md:col-span-1 space-y-1">
                     <TabButton id="ai" label="AI 模型接入" icon={<Cpu className="w-4 h-4" />} />
                     <TabButton id="sync" label="同步与备份" icon={<RefreshCw className="w-4 h-4" />} />
+                    <TabButton id="location" label="地理位置" icon={<MapPin className="w-4 h-4" />} />
                     <TabButton id="general" label="常规设置" icon={<Settings className="w-4 h-4" />} />
                 </div>
 
@@ -178,6 +185,9 @@ export default function SettingsPage() {
                     )}
                     {activeTab === 'general' && (
                         <GeneralSettings />
+                    )}
+                    {activeTab === 'location' && (
+                        <LocationSettings />
                     )}
                 </div>
             </div>

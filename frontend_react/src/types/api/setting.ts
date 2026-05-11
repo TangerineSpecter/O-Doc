@@ -47,3 +47,21 @@ export interface WebDavSyncStatus {
     lastPulledSnapshotId: string;
     updatedAt: string;
 }
+
+export interface GeoLocation {
+    id: string;
+    country: string;
+    city: string;
+    latitude: string;
+    longitude: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface SaveGeoLocationParams {
+    id?: string;
+    country: string;
+    city: string;
+    latitude: string;
+    longitude: string;
+}

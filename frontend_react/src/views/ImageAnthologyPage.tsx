@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Aperture, ArrowLeft, Image as ImageIcon, Plus } from 'lucide-react';
+import { Aperture, ArrowLeft, Globe2, Image as ImageIcon, MapPin, Plus } from 'lucide-react';
 import ImageCard from '../components/ImageGallery/ImageCard';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
@@ -24,6 +24,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [editingImage, setEditingImage] = useState<Image | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Image | null>(null);
+  const [isLocationMapOpen, setIsLocationMapOpen] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -126,6 +127,41 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const focalLengthTotal = focalLengthStats.reduce((total, item) => total + item.count, 0);
   const missingFocalLengthCount = images.length - focalLengthTotal;
   const maxFocalLengthCount = focalLengthStats[0]?.count || 0;
+  const locationStats = useMemo(() => {
+    const locationMap = new Map<string, {
+      country: string;
+      city: string;
+      latitude: number;
+      longitude: number;
+      count: number;
+    }>();
+
+    images.forEach((image) => {
+      const latitude = Number(image.latitude);
+      const longitude = Number(image.longitude);
+      const country = image.country?.trim();
+      const city = image.city?.trim();
+
+      if (!country || !city || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+      const key = `${country}__${city}`;
+      const current = locationMap.get(key);
+      if (current) {
+        current.count += 1;
+      } else {
+        locationMap.set(key, { country, city, latitude, longitude, count: 1 });
+      }
+    });
+
+    const points = Array.from(locationMap.values()).sort((a, b) => b.count - a.count || a.city.localeCompare(b.city));
+
+    return {
+      points,
+      countryCount: new Set(points.map(point => point.country)).size,
+      cityCount: points.length,
+      imageCount: points.reduce((total, point) => total + point.count, 0),
+    };
+  }, [images]);
 
   if (loading) {
     return (
@@ -243,9 +279,95 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   暂无焦段数据
                 </div>
               )}
+
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <button
+                  onClick={() => setIsLocationMapOpen(open => !open)}
+                  className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition-all ${
+                    isLocationMapOpen
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    拍摄地点
+                  </span>
+                  <span>{locationStats.cityCount} 城市</span>
+                </button>
+              </div>
             </aside>
 
-            <div className="min-w-0 columns-1 gap-5 sm:columns-2 xl:columns-3 2xl:columns-4">
+            <div className="min-w-0 space-y-6">
+              {isLocationMapOpen && (
+                <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[220px_minmax(0,1fr)]">
+                  <div className="border-b border-slate-100 bg-slate-50/80 p-5 lg:border-b-0 lg:border-r">
+                    <div className="mb-5 flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                        <Globe2 className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-bold text-slate-900">地点地图</h2>
+                        <p className="mt-1 text-xs text-slate-500">{locationStats.imageCount} 张已定位</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border border-slate-200 bg-white p-3">
+                        <div className="text-2xl font-bold text-slate-900">{locationStats.countryCount}</div>
+                        <div className="mt-1 text-xs font-medium text-slate-500">国家</div>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-white p-3">
+                        <div className="text-2xl font-bold text-slate-900">{locationStats.cityCount}</div>
+                        <div className="mt-1 text-xs font-medium text-slate-500">城市</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 max-h-48 space-y-2 overflow-auto pr-1">
+                      {locationStats.points.length > 0 ? locationStats.points.map(point => (
+                        <div key={`${point.country}-${point.city}`} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-xs">
+                          <span className="min-w-0 truncate font-semibold text-slate-700">{point.country} · {point.city}</span>
+                          <span className="shrink-0 text-slate-400">{point.count} 张</span>
+                        </div>
+                      )) : (
+                        <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-8 text-center text-xs text-slate-400">
+                          暂无可定位图片
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="relative min-h-[360px] overflow-hidden bg-[#f7fbfb]">
+                    <div className="absolute inset-6 rounded-[32px] border border-emerald-100 bg-[linear-gradient(90deg,rgba(15,118,110,0.05)_1px,transparent_1px),linear-gradient(rgba(15,118,110,0.05)_1px,transparent_1px)] bg-[size:48px_48px]" />
+                    <div className="absolute left-[9%] top-[18%] h-[42%] w-[22%] rounded-[48%_52%_45%_55%] bg-emerald-100/70 blur-sm" />
+                    <div className="absolute left-[31%] top-[15%] h-[36%] w-[18%] rounded-[40%_60%_55%_45%] bg-emerald-100/70 blur-sm" />
+                    <div className="absolute left-[47%] top-[22%] h-[50%] w-[31%] rounded-[55%_45%_50%_50%] bg-emerald-100/70 blur-sm" />
+                    <div className="absolute left-[73%] top-[58%] h-[20%] w-[14%] rounded-[50%] bg-emerald-100/70 blur-sm" />
+
+                    {locationStats.points.map(point => {
+                      const left = ((point.longitude + 180) / 360) * 100;
+                      const top = ((90 - point.latitude) / 180) * 100;
+                      const size = Math.min(18 + point.count * 3, 34);
+
+                      return (
+                        <div
+                          key={`${point.country}-${point.city}-pin`}
+                          className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
+                          style={{ left: `${left}%`, top: `${top}%` }}
+                          title={`${point.country} · ${point.city}：${point.count} 张`}
+                        >
+                          <div
+                            className="rounded-full border-2 border-white bg-orange-500 shadow-[0_8px_24px_rgba(249,115,22,0.35)] ring-4 ring-orange-500/20"
+                            style={{ width: size, height: size }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              <div className="columns-1 gap-5 sm:columns-2 xl:columns-3 2xl:columns-4">
               {images.map((image, index) => (
                 <div
                   key={image.imageId}
@@ -268,6 +390,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   />
                 </div>
               ))}
+              </div>
             </div>
           </div>
         )}
@@ -283,6 +406,8 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
           shootingTime: images[selectedIndex].shootingTimeStr,
           country: images[selectedIndex].country,
           city: images[selectedIndex].city,
+          latitude: images[selectedIndex].latitude,
+          longitude: images[selectedIndex].longitude,
           focalLength: images[selectedIndex].focalLength,
           tags: images[selectedIndex].tagsList,
           author: images[selectedIndex].author,

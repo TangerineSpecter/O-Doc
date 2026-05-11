@@ -317,6 +317,8 @@ class ImageSerializer(serializers.ModelSerializer):
     shooting_time = serializers.DateTimeField(required=False, allow_null=True)
     tags_list = serializers.SerializerMethodField(read_only=True)
     shooting_time_str = serializers.SerializerMethodField(read_only=True)
+    location_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, write_only=True)
+    location_detail = serializers.SerializerMethodField(read_only=True)
 
     # 标签字段，接收前端传递的逗号分隔字符串（写入）
     tags = serializers.CharField(
@@ -335,10 +337,22 @@ class ImageSerializer(serializers.ModelSerializer):
             return obj.shooting_time.strftime('%Y-%m-%d')
         return None
 
+    def get_location_detail(self, obj):
+        if not obj.location:
+            return None
+        return {
+            'id': obj.location.id,
+            'country': obj.location.country,
+            'city': obj.location.city,
+            'latitude': obj.location.latitude,
+            'longitude': obj.location.longitude,
+        }
+
     def validate(self, attrs):
         country = attrs.get('country')
         city = attrs.get('city')
         focal_length = attrs.get('focal_length')
+        location_id = attrs.pop('location_id', None)
 
         if country is not None:
             attrs['country'] = country.strip()
@@ -348,6 +362,23 @@ class ImageSerializer(serializers.ModelSerializer):
             attrs['focal_length'] = focal_length.strip()
             if attrs['focal_length'] and not attrs['focal_length'].isdigit():
                 raise serializers.ValidationError({'focal_length': '焦段只能输入数字'})
+        if location_id:
+            from system_settings.models import GeoLocation
+
+            try:
+                location = GeoLocation.objects.get(id=location_id)
+            except GeoLocation.DoesNotExist:
+                raise serializers.ValidationError({'location_id': '拍摄地点不存在'})
+
+            attrs['location'] = location
+            attrs['country'] = location.country
+            attrs['city'] = location.city
+            attrs['latitude'] = location.latitude
+            attrs['longitude'] = location.longitude
+        elif location_id == '':
+            attrs['location'] = None
+            attrs['latitude'] = None
+            attrs['longitude'] = None
 
         return attrs
 
@@ -355,10 +386,13 @@ class ImageSerializer(serializers.ModelSerializer):
         model = Image
         fields = [
             'image_id', 'title', 'description', 'image_url', 'coll_id',
-            'shooting_time', 'shooting_time_str', 'country', 'city', 'focal_length', 'tags', 'tags_list',
+            'shooting_time', 'shooting_time_str', 'country', 'city',
+            'location', 'location_id', 'location_detail', 'latitude', 'longitude',
+            'focal_length', 'tags', 'tags_list',
             'author', 'created_at', 'updated_at', 'is_valid'
         ]
         read_only_fields = [
             'image_id', 'author', 'created_at', 'updated_at',
-            'is_valid', 'tags_list', 'shooting_time_str'
+            'is_valid', 'tags_list', 'shooting_time_str', 'location', 'location_detail',
+            'latitude', 'longitude'
         ]

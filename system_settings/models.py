@@ -1,7 +1,7 @@
 # system_settings/models.py
 from django.db import models
 
-from utils.id_generator import generate_provider_id, generate_model_id
+from utils.id_generator import generate_provider_id, generate_model_id, generate_location_id
 
 
 class AIProvider(models.Model):
@@ -124,3 +124,43 @@ class SystemSetting(models.Model):
     class Meta:
         db_table = 'sys_setting'
         db_table_comment = '系统设置表'
+
+
+class GeoLocation(models.Model):
+    """图片拍摄地点配置"""
+
+    id = models.CharField(
+        max_length=40,
+        primary_key=True,
+        default=generate_location_id,
+        verbose_name='地点ID',
+        db_comment='地点ID'
+    )
+
+    country = models.CharField(max_length=100, verbose_name='国家', db_comment='国家')
+    city = models.CharField(max_length=100, verbose_name='城市', db_comment='城市')
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        verbose_name='纬度',
+        db_comment='纬度'
+    )
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        verbose_name='经度',
+        db_comment='经度'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'sys_geo_location'
+        db_table_comment = '地理位置配置表'
+        verbose_name = '地理位置'
+        verbose_name_plural = verbose_name
+        ordering = ['country', 'city']
+        unique_together = ('country', 'city')
+
+    def __str__(self):
+        return f"{self.country} - {self.city}"

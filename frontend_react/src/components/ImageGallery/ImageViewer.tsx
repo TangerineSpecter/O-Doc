@@ -18,6 +18,8 @@ interface ImageData {
   shootingTime?: string;
   country?: string;
   city?: string;
+  latitude?: string;
+  longitude?: string;
   focalLength?: string;
   tags?: string[];
   author?: string;
