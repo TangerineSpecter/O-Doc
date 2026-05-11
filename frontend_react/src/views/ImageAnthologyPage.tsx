@@ -540,6 +540,93 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
   );
 }
 
+const formatFocalLength = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.toLowerCase().endsWith('mm') ? trimmed : `${trimmed}mm`;
+};
+
+interface FocalLengthStat {
+  name: string;
+  count: number;
+  numericValue: number;
+}
+
+function FocalLengthDetailChart({ stats }: { stats: FocalLengthStat[] }) {
+  const numericStats = useMemo(
+    () => stats
+      .filter(item => Number.isFinite(item.numericValue))
+      .sort((a, b) => a.numericValue - b.numericValue || a.name.localeCompare(b.name)),
+    [stats]
+  );
+  const minFocalLength = numericStats[0]?.numericValue || 0;
+  const maxFocalLength = numericStats[numericStats.length - 1]?.numericValue || minFocalLength;
+  const maxCount = Math.max(...numericStats.map(item => item.count), 1);
+  const range = Math.max(maxFocalLength - minFocalLength, 1);
+
+  if (numericStats.length === 0) {
+    return (
+      <section className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
+        暂无可展示的焦段数据
+      </section>
+    );
+  }
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-100 bg-slate-50/80 px-6 py-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">完整焦段统计</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              {formatFocalLength(String(minFocalLength))} - {formatFocalLength(String(maxFocalLength))}
+            </p>
+          </div>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
+            <Aperture className="h-5 w-5" />
+          </div>
+        </div>
+      </div>
+
+      <div className="px-6 py-7">
+        <div className="relative h-[360px] rounded-xl border border-slate-100 bg-[linear-gradient(180deg,rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:100%_72px] px-4 pb-12 pt-8">
+          <div className="absolute bottom-12 left-4 right-4 border-t border-slate-300" />
+          {numericStats.map(item => {
+            const left = ((item.numericValue - minFocalLength) / range) * 100;
+            const height = Math.max((item.count / maxCount) * 230, 18);
+
+            return (
+              <div
+                key={item.name}
+                className="absolute bottom-12 flex w-12 -translate-x-1/2 flex-col items-center gap-2"
+                style={{ left: `${left}%` }}
+              >
+                <div className="rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                  {item.count}
+                </div>
+                <div
+                  className="w-5 rounded-t-md bg-sky-500 shadow-sm shadow-sky-500/20"
+                  style={{ height }}
+                  title={`${formatFocalLength(item.name)}：${item.count} 张`}
+                />
+                <div className="absolute top-full mt-2 w-20 text-center text-[11px] font-semibold text-slate-600">
+                  {formatFocalLength(item.name)}
+                </div>
+              </div>
+            );
+          })}
+          <div className="absolute bottom-3 left-4 text-[11px] font-semibold text-slate-400">
+            {formatFocalLength(String(minFocalLength))}
+          </div>
+          <div className="absolute bottom-3 right-4 text-[11px] font-semibold text-slate-400">
+            {formatFocalLength(String(maxFocalLength))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageAnthologyPageProps) {
   const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
   const [images, setImages] = useState<Image[]>([]);
@@ -549,6 +636,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [editingImage, setEditingImage] = useState<Image | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Image | null>(null);
   const [isLocationMapOpen, setIsLocationMapOpen] = useState(false);
+  const [isFocalLengthDetailOpen, setIsFocalLengthDetailOpen] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -644,13 +732,18 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     });
 
     return Array.from(counts.entries())
-      .map(([name, count]) => ({ name, count }))
+      .map(([name, count]) => ({
+        name,
+        count,
+        numericValue: Number.parseFloat(name),
+      }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [images]);
 
   const focalLengthTotal = focalLengthStats.reduce((total, item) => total + item.count, 0);
   const missingFocalLengthCount = images.length - focalLengthTotal;
   const maxFocalLengthCount = focalLengthStats[0]?.count || 0;
+  const focalLengthSummaryStats = focalLengthStats.slice(0, 5);
   const locationStats = useMemo(() => {
     const locationMap = new Map<string, {
       country: string;
@@ -764,6 +857,26 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
         ) : (
           <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
             <aside className="self-start rounded-xl border border-slate-200 bg-white/85 p-4 shadow-sm backdrop-blur lg:sticky lg:top-24">
+              <div className="mb-4">
+                <button
+                  onClick={() => {
+                    setIsLocationMapOpen(open => !open);
+                    setIsFocalLengthDetailOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition-all ${
+                    isLocationMapOpen
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    拍摄地点
+                  </span>
+                  <span>{locationStats.cityCount} 城市</span>
+                </button>
+              </div>
+
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-bold text-slate-900">焦段统计</h2>
@@ -778,10 +891,10 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
 
               {focalLengthStats.length > 0 ? (
                 <div className="space-y-3">
-                  {focalLengthStats.map((item) => (
+                  {focalLengthSummaryStats.map((item) => (
                     <div key={item.name} className="space-y-1.5">
                       <div className="flex items-center justify-between gap-3 text-xs">
-                        <span className="truncate font-semibold text-slate-700">{item.name}mm</span>
+                        <span className="truncate font-semibold text-slate-700">{formatFocalLength(item.name)}</span>
                         <span className="shrink-0 font-medium text-slate-400">{item.count} 张</span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
@@ -797,33 +910,34 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                       未记录焦段 {missingFocalLengthCount} 张
                     </div>
                   )}
+                  {focalLengthStats.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsFocalLengthDetailOpen(open => !open);
+                        setIsLocationMapOpen(false);
+                      }}
+                      className={`w-full rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                        isFocalLengthDetailOpen
+                          ? 'border-sky-200 bg-sky-50 text-sky-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700'
+                      }`}
+                    >
+                      {focalLengthStats.length > 5 ? `查看全部 ${focalLengthStats.length} 个焦段` : '查看完整焦段图表'}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs leading-5 text-slate-500">
                   暂无焦段数据
                 </div>
               )}
-
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <button
-                  onClick={() => setIsLocationMapOpen(open => !open)}
-                  className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition-all ${
-                    isLocationMapOpen
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    拍摄地点
-                  </span>
-                  <span>{locationStats.cityCount} 城市</span>
-                </button>
-              </div>
             </aside>
 
             <div className="min-w-0">
-              {isLocationMapOpen ? (
+              {isFocalLengthDetailOpen ? (
+                <FocalLengthDetailChart stats={focalLengthStats} />
+              ) : isLocationMapOpen ? (
                 <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[240px_minmax(0,1fr)]">
                   <div className="border-b border-slate-100 bg-slate-50/80 p-5 lg:border-b-0 lg:border-r">
                     <div className="mb-5 flex items-center gap-3">
