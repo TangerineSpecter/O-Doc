@@ -170,7 +170,7 @@ export default function NotificationPopover({ onClose, onUnreadChange }: Notific
                                 handleDiscardSelected();
                             }
                         }}
-                        className={`relative overflow-hidden rounded-b-2xl bg-slate-50 px-7 pb-6 pt-8 outline-none transition-all duration-300 hover:bg-orange-50/40 focus-visible:ring-2 focus-visible:ring-orange-500/30 ${tearing ? 'translate-y-8 rotate-2' : ''} ${deleting ? 'cursor-wait' : 'cursor-pointer'}`}
+                        className={`relative overflow-hidden rounded-b-2xl bg-slate-50 px-7 pb-6 pt-8 outline-none transition-all duration-300 hover:bg-orange-50 focus-visible:ring-2 focus-visible:ring-orange-500/30 ${tearing ? 'translate-y-8 rotate-2' : ''} ${deleting ? 'cursor-wait' : 'cursor-pointer'}`}
                     >
                         <div className="absolute -top-3 left-0 right-0 z-20 flex items-center">
                             <div className="-ml-3 h-6 w-6 shrink-0 rounded-full bg-slate-900/30 shadow-inner" />
