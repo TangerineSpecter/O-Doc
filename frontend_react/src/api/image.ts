@@ -25,6 +25,7 @@ export interface Image {
   tags?: string;
   tagsList?: string[];
   author?: string;
+  authorNickname?: string;
   createdAt?: string;
   updatedAt?: string;
   isValid?: boolean;

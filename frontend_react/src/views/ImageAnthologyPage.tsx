@@ -408,6 +408,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
           focalLength: images[selectedIndex].focalLength,
           tags: images[selectedIndex].tagsList,
           author: images[selectedIndex].author,
+          authorNickname: images[selectedIndex].authorNickname,
           createdAt: images[selectedIndex].createdAt,
         } : null}
         onClose={handleCloseViewer}

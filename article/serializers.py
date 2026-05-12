@@ -319,6 +319,7 @@ class ImageSerializer(serializers.ModelSerializer):
     shooting_time_str = serializers.SerializerMethodField(read_only=True)
     location_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, write_only=True)
     location_detail = serializers.SerializerMethodField(read_only=True)
+    author_nickname = serializers.SerializerMethodField(read_only=True)
 
     # 标签字段，接收前端传递的逗号分隔字符串（写入）
     tags = serializers.CharField(
@@ -347,6 +348,20 @@ class ImageSerializer(serializers.ModelSerializer):
             'latitude': obj.location.latitude,
             'longitude': obj.location.longitude,
         }
+
+    def get_author_nickname(self, obj):
+        from user.models import UserProfile
+
+        profile = UserProfile.objects.filter(userid=obj.author).select_related('user').first()
+        if profile:
+            return profile.nickname or profile.user.first_name or profile.user.username
+
+        if obj.author == 'admin':
+            profile = UserProfile.objects.filter(user__username='admin').select_related('user').first()
+            if profile:
+                return profile.nickname or profile.user.first_name or profile.user.username
+
+        return obj.author
 
     def validate(self, attrs):
         country = attrs.get('country')
@@ -389,10 +404,10 @@ class ImageSerializer(serializers.ModelSerializer):
             'shooting_time', 'shooting_time_str', 'country', 'city',
             'location', 'location_id', 'location_detail', 'latitude', 'longitude',
             'focal_length', 'tags', 'tags_list',
-            'author', 'created_at', 'updated_at', 'is_valid'
+            'author', 'author_nickname', 'created_at', 'updated_at', 'is_valid'
         ]
         read_only_fields = [
             'image_id', 'author', 'created_at', 'updated_at',
-            'is_valid', 'tags_list', 'shooting_time_str', 'location', 'location_detail',
+            'is_valid', 'tags_list', 'shooting_time_str', 'location', 'location_detail', 'author_nickname',
             'latitude', 'longitude'
         ]

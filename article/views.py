@@ -11,6 +11,7 @@ from article.prompts import POLISH_ARTICLE_PROMPT_TEMPLATE
 from article.serializers import ArticleSerializer, ArticleTreeSerializer, ImageSerializer
 from utils.ai_service import AIService
 from utils.error_codes import ErrorCode
+from utils.drf_utils import get_current_user_identifier
 from utils.notification_service import NotificationService
 from utils.resource_assets import (
     delete_asset_record_and_file,
@@ -415,7 +416,7 @@ class ImageCreateView(APIView):
                 if not Anthology.objects.filter(coll_id=serializer.validated_data['coll_id'], type='image',
                                                 is_valid=True).exists():
                     return error_result(ErrorCode.RESOURCE_NOT_FOUND)
-                image = serializer.save()
+                image = serializer.save(author=get_current_user_identifier(request))
 
                 # 更新文集计数
                 Anthology.objects.filter(coll_id=image.coll_id).update(count=models.F('count') + 1)

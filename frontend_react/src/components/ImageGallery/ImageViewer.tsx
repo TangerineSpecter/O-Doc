@@ -23,6 +23,7 @@ interface ImageData {
   focalLength?: string;
   tags?: string[];
   author?: string;
+  authorNickname?: string;
   createdAt?: string;
 }
 
@@ -92,6 +93,7 @@ export default function ImageViewer({
   const location = [image.country, image.city].filter(Boolean).join(' ');
   const shootingDate = image.shootingTime ? image.shootingTime.replace('T', ' ').slice(0, 10) : '';
   const focalLengthLabel = image.focalLength ? `${image.focalLength}mm` : '';
+  const authorName = image.authorNickname || image.author;
 
   return (
     <div
@@ -158,9 +160,9 @@ export default function ImageViewer({
                 <h2 className="break-words text-2xl font-bold leading-tight text-slate-900">
                   {image.title}
                 </h2>
-                {image.author && (
+                {authorName && (
                   <p className="mt-2 text-sm text-slate-500">
-                    by <span className="font-semibold text-orange-600">{image.author}</span>
+                    by <span className="font-semibold text-orange-600">{authorName}</span>
                   </p>
                 )}
               </div>
