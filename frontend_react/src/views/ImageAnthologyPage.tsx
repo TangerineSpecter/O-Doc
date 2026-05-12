@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Aperture, ArrowLeft, Globe2, Image as ImageIcon, MapPin, Plus } from 'lucide-react';
+import { Aperture, ArrowLeft, Globe2, Image as ImageIcon, MapPin, Plus, Tag } from 'lucide-react';
 import ImageCard from '../components/ImageGallery/ImageCard';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
@@ -11,13 +11,18 @@ import { getIconComponent } from '../constants/iconList';
 import StarLoader from '../components/common/StarLoader';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useToast } from '../components/common/ToastProvider';
-import { FocalLengthStat } from '../types/imageAnthology';
+import { FocalLengthStat, ImageTagStat } from '../types/imageAnthology';
 
 interface ImageAnthologyPageProps {
   onNavigate?: (viewName: string, params?: any) => void;
   collId?: string;
   title?: string;
 }
+
+const parseImageTags = (image: Image) => {
+  const source = image.tagsList?.length ? image.tagsList : (image.tags || '').split(/[,，、;；\n]/);
+  return source.map(tag => tag.trim()).filter(Boolean);
+};
 
 export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageAnthologyPageProps) {
   const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
@@ -29,6 +34,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [deleteTarget, setDeleteTarget] = useState<Image | null>(null);
   const [isLocationMapOpen, setIsLocationMapOpen] = useState(false);
   const [isFocalLengthDetailOpen, setIsFocalLengthDetailOpen] = useState(false);
+  const [isTagDetailOpen, setIsTagDetailOpen] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -134,6 +140,25 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const missingFocalLengthCount = images.length - focalLengthTotal;
   const maxFocalLengthCount = focalLengthStats[0]?.count || 0;
   const focalLengthSummaryStats = focalLengthStats.slice(0, 5);
+
+  const tagStats = useMemo<ImageTagStat[]>(() => {
+    const counts = new Map<string, number>();
+
+    images.forEach((image) => {
+      parseImageTags(image).forEach((tag) => {
+        counts.set(tag, (counts.get(tag) || 0) + 1);
+      });
+    });
+
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [images]);
+
+  const tagTotal = tagStats.reduce((total, item) => total + item.count, 0);
+  const taggedImageCount = images.filter(image => parseImageTags(image).length > 0).length;
+  const maxTagCount = tagStats[0]?.count || 0;
+  const tagSummaryStats = tagStats.slice(0, 5);
 
   const locationStats = useMemo(() => {
     const locationMap = new Map<string, {
@@ -248,6 +273,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   onClick={() => {
                     setIsLocationMapOpen(open => !open);
                     setIsFocalLengthDetailOpen(false);
+                    setIsTagDetailOpen(false);
                   }}
                   className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition-all ${
                     isLocationMapOpen
@@ -301,6 +327,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                     onClick={() => {
                       setIsFocalLengthDetailOpen(open => !open);
                       setIsLocationMapOpen(false);
+                      setIsTagDetailOpen(false);
                     }}
                     className={`w-full rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
                       isFocalLengthDetailOpen
@@ -316,11 +343,95 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   暂无焦段数据
                 </div>
               )}
+
+              <div className="my-5 border-t border-slate-100" />
+
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">标签统计</h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {taggedImageCount} / {images.length} 张已记录
+                  </p>
+                </div>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
+                  <Tag className="h-4 w-4" />
+                </div>
+              </div>
+
+              {tagStats.length > 0 ? (
+                <div className="space-y-3">
+                  {tagSummaryStats.map((item) => (
+                    <div key={item.name} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3 text-xs">
+                        <span className="truncate font-semibold text-slate-700">{item.name}</span>
+                        <span className="shrink-0 font-medium text-slate-400">{item.count} 次</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-orange-500"
+                          style={{ width: `${Math.max((item.count / maxTagCount) * 100, 8)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="border-t border-slate-100 pt-3 text-xs text-slate-400">
+                    共记录 {tagTotal} 个标签
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsTagDetailOpen(open => !open);
+                      setIsLocationMapOpen(false);
+                      setIsFocalLengthDetailOpen(false);
+                    }}
+                    className={`w-full rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                      isTagDetailOpen
+                        ? 'border-orange-200 bg-orange-50 text-orange-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700'
+                    }`}
+                  >
+                    {tagStats.length > 5 ? `查看全部 ${tagStats.length} 个标签` : '查看完整标签统计'}
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs leading-5 text-slate-500">
+                  暂无标签数据
+                </div>
+              )}
             </aside>
 
             <div className="min-w-0">
               {isFocalLengthDetailOpen ? (
                 <FocalLengthDetailChart stats={focalLengthStats} />
+              ) : isTagDetailOpen ? (
+                <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-5 flex items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-base font-bold text-slate-900">完整标签统计</h2>
+                      <p className="mt-1 text-xs text-slate-500">按使用次数从大到小排列</p>
+                    </div>
+                    <div className="rounded-lg bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-700">
+                      {tagStats.length} 个标签
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {tagStats.map((item) => (
+                      <div key={item.name} className="rounded-lg border border-slate-100 bg-slate-50/70 p-3">
+                        <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                          <span className="min-w-0 truncate font-semibold text-slate-800">{item.name}</span>
+                          <span className="shrink-0 text-xs font-medium text-slate-400">{item.count} 次</span>
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-white">
+                          <div
+                            className="h-full rounded-full bg-orange-500"
+                            style={{ width: `${Math.max((item.count / maxTagCount) * 100, 8)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
               ) : isLocationMapOpen ? (
                 <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[240px_minmax(0,1fr)]">
                   <div className="border-b border-slate-100 bg-slate-50/80 p-5 lg:border-b-0 lg:border-r">
@@ -424,6 +535,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
         onSuccess={loadAnthologyData}
         collId={collId || ''}
         initialData={editingImage}
+        existingTags={tagStats.map(item => item.name)}
       />
 
       <ConfirmationModal

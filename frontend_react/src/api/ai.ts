@@ -45,6 +45,51 @@ export const generateTagsWithAI = async (title: string, content: string): Promis
     }
 };
 
+export const recommendImageTagsWithAI = async (
+    title: string,
+    description: string,
+    existingTags: string[]
+): Promise<string[]> => {
+    const normalizedTags = Array.from(new Set(existingTags.map(tag => tag.trim()).filter(Boolean)));
+    if (normalizedTags.length === 0) return [];
+
+    const prompt = `请根据图片标题和描述，从“已有标签”中推荐最匹配的 1 到 5 个标签。
+要求：
+1. 只能返回已有标签列表中出现过的标签，不能创造新标签
+2. 如果没有任何已有标签匹配，返回 "无"
+3. 只返回标签名称，用英文逗号分隔，不要解释
+
+图片标题：${title || '未填写'}
+图片描述：${description || '未填写'}
+已有标签：${normalizedTags.join(', ')}`;
+
+    try {
+        const resultText = await fetchAIResponse(prompt);
+        const lowerNoneValues = ['无', 'none', 'no', 'no match', '无匹配'];
+        const cleaned = stripThinkingBlocks(resultText)
+            .replace(/data:\s*/g, '')
+            .replace(/[\[\]"]/g, '')
+            .trim();
+
+        if (!cleaned || lowerNoneValues.includes(cleaned.toLowerCase())) return [];
+
+        const allowed = new Map(normalizedTags.map(tag => [tag.toLowerCase(), tag]));
+        return Array.from(new Set(
+            cleaned
+                .split(/[,，、\n]/)
+                .map(tag => tag.trim())
+                .map(tag => allowed.get(tag.toLowerCase()))
+                .filter((tag): tag is string => Boolean(tag))
+        )).slice(0, 5);
+    } catch (error) {
+        console.error("AI 推荐图片标签失败:", error);
+        if (error instanceof AIConfigError) {
+            throw error;
+        }
+        return [];
+    }
+};
+
 /**
  * AI 生成标题
  */

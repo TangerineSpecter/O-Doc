@@ -11,3 +11,8 @@ export interface FocalLengthStat {
   count: number;
   numericValue: number;
 }
+
+export interface ImageTagStat {
+  name: string;
+  count: number;
+}
