@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { Save, Cpu, MapPin, RefreshCw, Settings } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useSettings } from '../hooks/useSettings';
-import { AIProvider, saveSystemAIConfig, saveWebDavConfig } from '../api/setting';
+import { AIProvider, getMemosPushConfig, saveMemosPushConfig, saveSystemAIConfig, saveWebDavConfig } from '../api/setting';
 import { useToast } from '../components/common/ToastProvider';
+import type { MemosPushConfig } from '../types/api/setting';
 
 // 子组件
 import { AISettings } from '../components/Settings/AISettings';
@@ -17,6 +18,13 @@ export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState<'ai' | 'sync' | 'location' | 'general'>('ai');
     const toast = useToast();
     const [headerSaving, setHeaderSaving] = useState(false);
+    const [memosPushConfig, setMemosPushConfig] = useState<MemosPushConfig>({
+        enabled: false,
+        pushTime: '09:00',
+        frequency: 'daily',
+        weekday: '1',
+        monthDay: '1',
+    });
 
     // 使用自定义 Hook
     const {
@@ -49,6 +57,20 @@ export default function SettingsPage() {
         if (activeTab === 'sync') {
             // 这里建议每次切换都刷一下，或者加个 flag 判断是否已加载
             fetchWebDavConfig();
+        }
+
+        if (activeTab === 'general') {
+            getMemosPushConfig()
+                .then((config) => setMemosPushConfig({
+                    enabled: Boolean(config?.enabled),
+                    pushTime: config?.pushTime || '09:00',
+                    frequency: config?.frequency || 'daily',
+                    weekday: config?.weekday || '1',
+                    monthDay: config?.monthDay || '1',
+                }))
+                .catch((error) => {
+                    console.warn('Memos 推送配置加载失败:', error);
+                });
         }
     }, [activeTab]);
 
@@ -83,7 +105,11 @@ export default function SettingsPage() {
                 return;
             }
 
-            toast.info('常规设置暂无可保存项');
+            if (activeTab === 'general') {
+                await saveMemosPushConfig(memosPushConfig);
+                toast.success('Memos 定时推送配置已保存');
+                return;
+            }
         } catch (error: any) {
             console.error('保存设置失败', error);
             toast.error(error?.response?.data?.msg || error?.message || '保存失败，请稍后重试');
@@ -184,7 +210,10 @@ export default function SettingsPage() {
                         />
                     )}
                     {activeTab === 'general' && (
-                        <GeneralSettings />
+                        <GeneralSettings
+                            memosPushConfig={memosPushConfig}
+                            onMemosPushConfigChange={setMemosPushConfig}
+                        />
                     )}
                     {activeTab === 'location' && (
                         <LocationSettings />

@@ -4,7 +4,7 @@ import ImageCard from '../components/ImageGallery/ImageCard';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
 import LocationChartMap from '../components/ImageAnthology/LocationChartMap';
-import FocalLengthDetailChart, { formatFocalLength } from '../components/ImageAnthology/FocalLengthDetailChart';
+import FocalLengthDetailChart, { FocalLengthFilterOption, formatFocalLength } from '../components/ImageAnthology/FocalLengthDetailChart';
 import { getAnthologyDetail, Anthology } from '../api/anthology';
 import { deleteImage, getImagesByAnthology, Image } from '../api/image';
 import { getIconComponent } from '../constants/iconList';
@@ -25,6 +25,34 @@ const parseImageTags = (image: Image) => {
   return source.map(tag => tag.trim()).filter(Boolean);
 };
 
+const getImageCityKey = (image: Image) => {
+  const country = image.country?.trim();
+  const city = image.city?.trim();
+  return country && city ? `${country}__${city}` : '';
+};
+
+const buildFocalLengthStats = (sourceImages: Image[]): FocalLengthStat[] => {
+  const counts = new Map<string, number>();
+
+  sourceImages.forEach((image) => {
+    const focalLength = image.focalLength?.trim();
+    if (!focalLength) return;
+    counts.set(focalLength, (counts.get(focalLength) || 0) + 1);
+  });
+
+  return Array.from(counts.entries())
+    .map(([name, count]) => ({
+      name,
+      count,
+      numericValue: Number.parseFloat(name),
+    }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+};
+
+const sortFilterOptions = (options: FocalLengthFilterOption[]) => {
+  return options.sort((a, b) => b.count - a.count || (a.label || a.name).localeCompare(b.label || b.name));
+};
+
 export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageAnthologyPageProps) {
   const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
   const [images, setImages] = useState<Image[]>([]);
@@ -36,6 +64,9 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [isLocationMapOpen, setIsLocationMapOpen] = useState(false);
   const [isFocalLengthDetailOpen, setIsFocalLengthDetailOpen] = useState(false);
   const [isTagDetailOpen, setIsTagDetailOpen] = useState(false);
+  const [selectedFocalCountry, setSelectedFocalCountry] = useState('all');
+  const [selectedFocalCities, setSelectedFocalCities] = useState<string[]>([]);
+  const [selectedFocalTags, setSelectedFocalTags] = useState<string[]>([]);
   const [selectedColor, setSelectedColor] = useState<DominantColorKey | 'all'>('all');
   const [dominantColors, setDominantColors] = useState<Record<string, DominantColorResult | null>>({});
   const colorExtractionKeysRef = useRef(new Set<string>());
@@ -122,23 +153,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     }
   };
 
-  const focalLengthStats = useMemo<FocalLengthStat[]>(() => {
-    const counts = new Map<string, number>();
-
-    images.forEach((image) => {
-      const focalLength = image.focalLength?.trim();
-      if (!focalLength) return;
-      counts.set(focalLength, (counts.get(focalLength) || 0) + 1);
-    });
-
-    return Array.from(counts.entries())
-      .map(([name, count]) => ({
-        name,
-        count,
-        numericValue: Number.parseFloat(name),
-      }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  }, [images]);
+  const focalLengthStats = useMemo<FocalLengthStat[]>(() => buildFocalLengthStats(images), [images]);
 
   const focalLengthTotal = focalLengthStats.reduce((total, item) => total + item.count, 0);
   const missingFocalLengthCount = images.length - focalLengthTotal;
@@ -163,6 +178,109 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const taggedImageCount = images.filter(image => parseImageTags(image).length > 0).length;
   const maxTagCount = tagStats[0]?.count || 0;
   const tagSummaryStats = tagStats.slice(0, 5);
+
+  const focalCountryOptions = useMemo<FocalLengthFilterOption[]>(() => {
+    const counts = new Map<string, number>();
+
+    images.forEach((image) => {
+      const country = image.country?.trim();
+      if (!country) return;
+      counts.set(country, (counts.get(country) || 0) + 1);
+    });
+
+    return sortFilterOptions(Array.from(counts.entries()).map(([name, count]) => ({ name, count })));
+  }, [images]);
+
+  const focalCityOptions = useMemo<FocalLengthFilterOption[]>(() => {
+    const counts = new Map<string, { label: string; count: number }>();
+
+    images.forEach((image) => {
+      const country = image.country?.trim();
+      const city = image.city?.trim();
+      if (!country || !city) return;
+      if (selectedFocalCountry !== 'all' && country !== selectedFocalCountry) return;
+
+      const key = `${country}__${city}`;
+      const current = counts.get(key);
+      counts.set(key, {
+        label: selectedFocalCountry === 'all' ? `${country} · ${city}` : city,
+        count: (current?.count || 0) + 1,
+      });
+    });
+
+    return sortFilterOptions(Array.from(counts.entries()).map(([name, item]) => ({
+      name,
+      label: item.label,
+      count: item.count,
+    })));
+  }, [images, selectedFocalCountry]);
+
+  const focalTagOptions = useMemo<FocalLengthFilterOption[]>(
+    () => tagStats.map(item => ({ name: item.name, count: item.count })),
+    [tagStats]
+  );
+
+  useEffect(() => {
+    const availableCountries = new Set(focalCountryOptions.map(option => option.name));
+    if (selectedFocalCountry !== 'all' && !availableCountries.has(selectedFocalCountry)) {
+      setSelectedFocalCountry('all');
+    }
+  }, [focalCountryOptions, selectedFocalCountry]);
+
+  useEffect(() => {
+    const availableCities = new Set(focalCityOptions.map(option => option.name));
+    setSelectedFocalCities(prev => prev.filter(city => availableCities.has(city)));
+  }, [focalCityOptions]);
+
+  useEffect(() => {
+    const availableTags = new Set(focalTagOptions.map(option => option.name));
+    setSelectedFocalTags(prev => prev.filter(tag => availableTags.has(tag)));
+  }, [focalTagOptions]);
+
+  const filteredFocalImages = useMemo(() => {
+    return images.filter((image) => {
+      const country = image.country?.trim();
+      const cityKey = getImageCityKey(image);
+      const imageTags = parseImageTags(image);
+
+      if (selectedFocalCountry !== 'all' && country !== selectedFocalCountry) return false;
+      if (selectedFocalCities.length > 0 && !selectedFocalCities.includes(cityKey)) return false;
+      if (selectedFocalTags.length > 0 && !selectedFocalTags.every(tag => imageTags.includes(tag))) return false;
+
+      return true;
+    });
+  }, [images, selectedFocalCities, selectedFocalCountry, selectedFocalTags]);
+
+  const filteredFocalLengthStats = useMemo<FocalLengthStat[]>(
+    () => buildFocalLengthStats(filteredFocalImages),
+    [filteredFocalImages]
+  );
+
+  const filteredFocalLengthTotal = filteredFocalLengthStats.reduce((total, item) => total + item.count, 0);
+  const filteredMissingFocalLengthCount = filteredFocalImages.length - filteredFocalLengthTotal;
+
+  const handleFocalCountryChange = (country: string) => {
+    setSelectedFocalCountry(country);
+    setSelectedFocalCities([]);
+  };
+
+  const handleFocalCityToggle = (city: string) => {
+    setSelectedFocalCities(prev => (
+      prev.includes(city) ? prev.filter(item => item !== city) : [...prev, city]
+    ));
+  };
+
+  const handleFocalTagToggle = (tag: string) => {
+    setSelectedFocalTags(prev => (
+      prev.includes(tag) ? prev.filter(item => item !== tag) : [...prev, tag]
+    ));
+  };
+
+  const clearFocalFilters = () => {
+    setSelectedFocalCountry('all');
+    setSelectedFocalCities([]);
+    setSelectedFocalTags([]);
+  };
 
   useEffect(() => {
     let isCancelled = false;
@@ -510,7 +628,22 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
 
             <div className="min-w-0">
               {isFocalLengthDetailOpen ? (
-                <FocalLengthDetailChart stats={focalLengthStats} />
+                <FocalLengthDetailChart
+                  stats={filteredFocalLengthStats}
+                  totalImages={filteredFocalImages.length}
+                  focalLengthTotal={filteredFocalLengthTotal}
+                  missingFocalLengthCount={filteredMissingFocalLengthCount}
+                  countryOptions={focalCountryOptions}
+                  cityOptions={focalCityOptions}
+                  tagOptions={focalTagOptions}
+                  selectedCountry={selectedFocalCountry}
+                  selectedCities={selectedFocalCities}
+                  selectedTags={selectedFocalTags}
+                  onCountryChange={handleFocalCountryChange}
+                  onCityToggle={handleFocalCityToggle}
+                  onTagToggle={handleFocalTagToggle}
+                  onClearFilters={clearFocalFilters}
+                />
               ) : isTagDetailOpen ? (
                 <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-5 flex items-center justify-between gap-4">

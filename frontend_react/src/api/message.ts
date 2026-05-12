@@ -10,11 +10,21 @@ export const getNotifications = () => {
 };
 
 // 标记单条通知已读
-export const markRead = (id: number) => {
-    return request.patch(`/message/notifications/${id}/`, { is_read: true });
+export const markRead = (id: string) => {
+    return request.patch(`/message/notifications/${id}/`, { isRead: true });
+};
+
+// 删除单条通知
+export const deleteNotification = (id: string) => {
+    return request.delete(`/message/notifications/${id}/`);
 };
 
 // 标记所有通知已读
 export const markAllRead = () => {
-    return request.post('/message/notifications/mark_all_read/');
+    return request.post('/message/notifications/');
+};
+
+// 随机抽取一条 Memos 生成系统通知
+export const pushRandomMemoNotification = () => {
+    return request.post<any, NotificationItem | null>('/message/notifications/push_memo/');
 };

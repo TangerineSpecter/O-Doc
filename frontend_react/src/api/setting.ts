@@ -3,6 +3,7 @@ import type {
     ModelType,
     AIModel,
     AIProvider,
+    MemosPushConfig,
     SystemAIConfig,
     WebDavConfig,
     WebDavSyncStatus,
@@ -15,6 +16,7 @@ export type {
     ModelType,
     AIModel,
     AIProvider,
+    MemosPushConfig,
     SystemAIConfig,
     WebDavConfig,
     WebDavSyncStatus,
@@ -110,6 +112,10 @@ export const getSystemAIConfig = () => request.get<SystemAIConfig>('/settings/co
 
 // 7. 保存系统 AI 配置
 export const saveSystemAIConfig = (data: SystemAIConfig) => request.post('/settings/config/save_ai_config/', data);
+
+export const getMemosPushConfig = () => request.get<MemosPushConfig>('/settings/config/get_memos_push_config/');
+
+export const saveMemosPushConfig = (data: MemosPushConfig) => request.post('/settings/config/save_memos_push_config/', data);
 
 // --- WebDAV 相关接口 ---
 

@@ -178,6 +178,42 @@ class SystemConfigViewSet(viewsets.ViewSet):
         )
         return success_result()
 
+    @action(detail=False, methods=['get'])
+    def get_memos_push_config(self, request):
+        default_value = {
+            'enabled': False,
+            'pushTime': '09:00',
+            'frequency': 'daily',
+            'weekday': '1',
+            'monthDay': '1',
+        }
+        config, _ = SystemSetting.objects.get_or_create(
+            key='system_memos_push_config',
+            defaults={'value': default_value}
+        )
+        return success_result({**default_value, **config.value})
+
+    @action(detail=False, methods=['post'])
+    def save_memos_push_config(self, request):
+        data = request.data
+        enabled = bool(data.get('enabled', False))
+        push_time = data.get('pushTime') or data.get('push_time') or '09:00'
+        frequency = data.get('frequency') or 'daily'
+        weekday = str(data.get('weekday') or '1')
+        month_day = str(data.get('monthDay') or data.get('month_day') or '1')
+
+        SystemSetting.objects.update_or_create(
+            key='system_memos_push_config',
+            defaults={'value': {
+                'enabled': enabled,
+                'pushTime': push_time,
+                'frequency': frequency,
+                'weekday': weekday,
+                'monthDay': month_day,
+            }}
+        )
+        return success_result()
+
     def _get_sync_manager(self):
         """辅助函数：初始化 SyncManager"""
         try:

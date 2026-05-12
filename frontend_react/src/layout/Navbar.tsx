@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, ArrowUpCircle, UserRound } from 'lucide-react';
 import packageJson from '../../package.json';
 import NotificationPopover from '../components/NotificationPopover';
-import { getNotifications } from '../api/message';
+import { getNotifications, pushRandomMemoNotification } from '../api/message';
+import { getMemosPushConfig } from '../api/setting';
 import type { UserInfo } from '../types/api/user';
 
 interface NavbarProps {
@@ -18,24 +19,70 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
     const [unreadCount, setUnreadCount] = useState(0);
     const [hasNewVersion, setHasNewVersion] = useState(false);
 
+    const fetchUnread = async () => {
+        try {
+            const res = await getNotifications();
+            if (Array.isArray(res)) {
+                const count = res.filter((n: any) => !n.isRead).length;
+                setUnreadCount(count);
+            }
+        } catch (error) {
+            console.warn("Failed to fetch notifications", error);
+        }
+    };
+
+    const getLocalDateKey = (date: Date) => (
+        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    );
+
+    const getDaysBetween = (fromDateKey: string, toDateKey: string) => {
+        const from = new Date(`${fromDateKey}T00:00:00`);
+        const to = new Date(`${toDateKey}T00:00:00`);
+        return Math.floor((to.getTime() - from.getTime()) / 86400000);
+    };
+
     // 获取未读消息数量
     useEffect(() => {
         if (!userInfo) return;
-        const fetchUnread = async () => {
-            try {
-                const res = await getNotifications();
-                // 计算未读数量
-                if (Array.isArray(res)) {
-                    const count = res.filter((n: any) => !n.is_read).length;
-                    setUnreadCount(count);
-                }
-            } catch (error) {
-                console.warn("Failed to fetch notifications", error);
-            }
-        };
         fetchUnread();
         // 简单轮询，每分钟检查一次
         const timer = setInterval(fetchUnread, 60000);
+        return () => clearInterval(timer);
+    }, [userInfo]);
+
+    useEffect(() => {
+        if (!userInfo) return;
+
+        const checkMemosPush = async () => {
+            try {
+                const config = await getMemosPushConfig();
+                if (!config?.enabled) return;
+
+                const now = new Date();
+                const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                if (currentTime !== config.pushTime) return;
+
+                if (config.frequency === 'weekly' && String(now.getDay()) !== config.weekday) return;
+                if (config.frequency === 'monthly' && String(now.getDate()) !== config.monthDay) return;
+
+                const today = getLocalDateKey(now);
+                const storageKey = `o-doc:memos-push:last:${config.frequency}:${config.pushTime}`;
+                const lastPushedDate = localStorage.getItem(storageKey);
+                if (lastPushedDate === today) return;
+                if (config.frequency === 'everyTwoDays' && lastPushedDate && getDaysBetween(lastPushedDate, today) < 2) return;
+
+                const notification = await pushRandomMemoNotification();
+                if (notification) {
+                    localStorage.setItem(storageKey, today);
+                    await fetchUnread();
+                }
+            } catch (error) {
+                console.warn('Memos 定时推送检查失败', error);
+            }
+        };
+
+        checkMemosPush();
+        const timer = setInterval(checkMemosPush, 30000);
         return () => clearInterval(timer);
     }, [userInfo]);
 
@@ -115,13 +162,16 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                                 >
                                     <Bell className="w-5 h-5" />
                                     {unreadCount > 0 && (
-                                        <span className="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+                                        <span className="absolute -top-1 -right-1 min-w-5 rounded-full border-2 border-white bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                                            {unreadCount > 99 ? '99+' : unreadCount}
+                                        </span>
                                     )}
                                 </button>
                                 {isNotificationOpen && (
                                     <NotificationPopover
                                         onClose={() => setIsNotificationOpen(false)}
                                         onNavigate={onNavigate}
+                                        onUnreadChange={setUnreadCount}
                                     />
                                 )}
                             </div>

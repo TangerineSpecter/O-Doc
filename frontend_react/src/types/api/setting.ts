@@ -24,6 +24,16 @@ export interface SystemAIConfig {
     defaultRerankModelId: string;
 }
 
+export type MemosPushFrequency = 'daily' | 'everyTwoDays' | 'weekly' | 'monthly';
+
+export interface MemosPushConfig {
+    enabled: boolean;
+    pushTime: string;
+    frequency: MemosPushFrequency;
+    weekday: string;
+    monthDay: string;
+}
+
 export interface WebDavConfig {
     enabled: boolean;
     url: string;
