@@ -19,6 +19,8 @@ export default function FocalLengthDetailChart({ stats }: { stats: FocalLengthSt
   const maxFocalLength = numericStats[numericStats.length - 1]?.numericValue || minFocalLength;
   const maxCount = Math.max(...numericStats.map(item => item.count), 1);
   const range = Math.max(maxFocalLength - minFocalLength, 1);
+  const plotInsetPercent = 4;
+  const plotWidthPercent = 100 - plotInsetPercent * 2;
 
   if (numericStats.length === 0) {
     return (
@@ -45,10 +47,13 @@ export default function FocalLengthDetailChart({ stats }: { stats: FocalLengthSt
       </div>
 
       <div className="px-6 py-7">
-        <div className="relative h-[360px] rounded-xl border border-slate-100 bg-[linear-gradient(180deg,rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:100%_72px] px-4 pb-12 pt-8">
-          <div className="absolute bottom-12 left-4 right-4 border-t border-slate-300" />
+        <div className="relative h-[360px] overflow-hidden rounded-xl border border-slate-100 bg-[linear-gradient(180deg,rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:100%_72px] px-4 pb-12 pt-8">
+          <div
+            className="absolute bottom-12 border-t border-slate-300"
+            style={{ left: `${plotInsetPercent}%`, right: `${plotInsetPercent}%` }}
+          />
           {numericStats.map(item => {
-            const left = ((item.numericValue - minFocalLength) / range) * 100;
+            const left = plotInsetPercent + ((item.numericValue - minFocalLength) / range) * plotWidthPercent;
             const height = Math.max((item.count / maxCount) * 230, 18);
 
             return (
@@ -71,12 +76,6 @@ export default function FocalLengthDetailChart({ stats }: { stats: FocalLengthSt
               </div>
             );
           })}
-          <div className="absolute bottom-3 left-4 text-[11px] font-semibold text-slate-400">
-            {formatFocalLength(String(minFocalLength))}
-          </div>
-          <div className="absolute bottom-3 right-4 text-[11px] font-semibold text-slate-400">
-            {formatFocalLength(String(maxFocalLength))}
-          </div>
         </div>
       </div>
     </section>
