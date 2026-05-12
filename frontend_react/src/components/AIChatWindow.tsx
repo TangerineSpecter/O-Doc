@@ -197,11 +197,13 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     ], [imageAnthologies]);
 
     // --- 平滑输出相关的 Refs ---
+    const chatBodyRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const tokenQueueRef = useRef<string[]>([]); // 回答字符缓冲队列
     const thinkingQueueRef = useRef<string[]>([]); // 思考字符缓冲队列
     const isThinkingRef = useRef(false); // 标记是否正在输出中
     const streamFinishedRef = useRef(true);
+    const shouldAutoScrollRef = useRef(true);
 
     // --- Markdown 组件配置 (使用 useMemo 避免重复创建导致重渲染) ---
     const markdownComponents = useMemo(() => ({
@@ -395,12 +397,26 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         return () => clearInterval(interval);
     }, []);
 
-    // 自动滚动到底部
+    // 自动滚动到底部：用户向上阅读时暂停跟随，避免流式输出与手动滚动互相抢焦点导致闪烁。
     useEffect(() => {
-        if (!isMinimized && isOpen) {
-            messagesEndRef.current?.scrollIntoView({behavior: "smooth"});
+        const container = chatBodyRef.current;
+        if (!container || isMinimized || !isOpen || !shouldAutoScrollRef.current) return;
+
+        if (isLoading) {
+            container.scrollTop = container.scrollHeight;
+            return;
         }
+
+        messagesEndRef.current?.scrollIntoView({behavior: "smooth"});
     }, [messages, isMinimized, isOpen]);
+
+    const handleChatBodyScroll = () => {
+        const container = chatBodyRef.current;
+        if (!container) return;
+
+        const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        shouldAutoScrollRef.current = distanceToBottom < 96;
+    };
 
     // 打开清空确认弹窗
     const handleClearMessages = () => {
@@ -430,6 +446,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         tokenQueueRef.current = [];
         thinkingQueueRef.current = [];
         streamFinishedRef.current = false;
+        shouldAutoScrollRef.current = true;
         setMessages(prev => [...prev, {role: 'user', content: userMsg}]);
         setIsLoading(true);
         isThinkingRef.current = true;
@@ -667,7 +684,11 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 </div>
 
                 {/* Chat Body */}
-                <div className="flex-1 min-h-0 overflow-y-auto p-6 pb-10 space-y-6 bg-slate-50/30 scroll-smooth">
+                <div
+                    ref={chatBodyRef}
+                    onScroll={handleChatBodyScroll}
+                    className="flex-1 min-h-0 overflow-y-auto p-6 pb-10 space-y-6 bg-slate-50/30"
+                >
                     {messages.length === 0 && (
                         <div
                             className="h-full flex flex-col items-center justify-center text-slate-400 space-y-6 -mt-10">
