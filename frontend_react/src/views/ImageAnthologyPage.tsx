@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Aperture, ArrowLeft, Globe2, Image as ImageIcon, MapPin, Plus, Tag } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Aperture, ArrowLeft, Droplets, Globe2, Image as ImageIcon, MapPin, Plus, Tag } from 'lucide-react';
 import ImageCard from '../components/ImageGallery/ImageCard';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
@@ -12,6 +12,7 @@ import StarLoader from '../components/common/StarLoader';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useToast } from '../components/common/ToastProvider';
 import { FocalLengthStat, ImageTagStat } from '../types/imageAnthology';
+import { COLOR_SWATCHES, DominantColorKey, DominantColorResult, extractDominantColor } from '../utils/imageColor';
 
 interface ImageAnthologyPageProps {
   onNavigate?: (viewName: string, params?: any) => void;
@@ -35,6 +36,9 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [isLocationMapOpen, setIsLocationMapOpen] = useState(false);
   const [isFocalLengthDetailOpen, setIsFocalLengthDetailOpen] = useState(false);
   const [isTagDetailOpen, setIsTagDetailOpen] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<DominantColorKey | 'all'>('all');
+  const [dominantColors, setDominantColors] = useState<Record<string, DominantColorResult | null>>({});
+  const colorExtractionKeysRef = useRef(new Set<string>());
   const toast = useToast();
 
   useEffect(() => {
@@ -84,7 +88,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   };
 
   const handleNext = () => {
-    if (selectedIndex !== null && selectedIndex < images.length - 1) {
+    if (selectedIndex !== null && selectedIndex < visibleImages.length - 1) {
       setSelectedIndex(selectedIndex + 1);
     }
   };
@@ -160,6 +164,57 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const maxTagCount = tagStats[0]?.count || 0;
   const tagSummaryStats = tagStats.slice(0, 5);
 
+  useEffect(() => {
+    let isCancelled = false;
+    const targets = images.filter((image) => {
+      const extractionKey = `${image.imageId}:${image.imageUrl}`;
+      if (colorExtractionKeysRef.current.has(extractionKey)) return false;
+      return true;
+    });
+    if (targets.length === 0) return;
+
+    const extractColors = async () => {
+      for (const image of targets) {
+        const extractionKey = `${image.imageId}:${image.imageUrl}`;
+        colorExtractionKeysRef.current.add(extractionKey);
+        const result = await extractDominantColor(image.imageUrl, extractionKey);
+        if (isCancelled) return;
+        setDominantColors(prev => {
+          return { ...prev, [image.imageId]: result };
+        });
+      }
+    };
+
+    extractColors();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [images]);
+
+  const colorStats = useMemo(() => {
+    const counts = new Map<DominantColorKey, number>();
+
+    images.forEach((image) => {
+      const dominantColor = dominantColors[image.imageId];
+      if (!dominantColor) return;
+      counts.set(dominantColor.key, (counts.get(dominantColor.key) || 0) + 1);
+    });
+
+    return COLOR_SWATCHES
+      .map(color => ({ ...color, count: counts.get(color.key) || 0 }));
+  }, [dominantColors, images]);
+
+  const extractedColorCount = images.filter(image => dominantColors[image.imageId]).length;
+  const visibleImages = useMemo(() => {
+    if (selectedColor === 'all') return images;
+    return images.filter(image => dominantColors[image.imageId]?.key === selectedColor);
+  }, [dominantColors, images, selectedColor]);
+
+  useEffect(() => {
+    setSelectedIndex(null);
+  }, [selectedColor]);
+
   const locationStats = useMemo(() => {
     const locationMap = new Map<string, {
       country: string;
@@ -206,6 +261,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   }
 
   const displayTitle = anthologyInfo?.title || title || '图片文集';
+  const selectedImage = selectedIndex !== null ? visibleImages[selectedIndex] : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50">
@@ -398,6 +454,58 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   暂无标签数据
                 </div>
               )}
+
+              <div className="my-5 border-t border-slate-100" />
+
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">主色调</h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {extractedColorCount} / {images.length} 张已识别
+                  </p>
+                </div>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+                  <Droplets className="h-4 w-4" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedColor('all')}
+                  className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                    selectedColor === 'all'
+                      ? 'border-orange-200 bg-orange-50 text-orange-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700'
+                  }`}
+                >
+                  <span>全部颜色</span>
+                  <span>{images.length} 张</span>
+                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  {colorStats.map((color) => (
+                    <button
+                      key={color.key}
+                      type="button"
+                      onClick={() => setSelectedColor(color.key)}
+                      className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold transition-all ${
+                        selectedColor === color.key
+                          ? `${color.borderClass} ${color.bgClass} ${color.textClass} ring-2 ring-offset-1 ring-orange-500/20`
+                          : `border-slate-200 bg-white text-slate-600 hover:bg-slate-50 ${color.count === 0 ? 'opacity-55' : ''}`
+                      }`}
+                    >
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-full border border-black/10"
+                          style={{ backgroundColor: color.hex }}
+                        />
+                        <span className="truncate">{color.label}</span>
+                      </span>
+                      <span className="shrink-0 text-slate-400">{color.count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </aside>
 
             <div className="min-w-0">
@@ -475,30 +583,50 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   </div>
                 </section>
               ) : (
-                <div className="columns-1 gap-5 sm:columns-2 xl:columns-3 2xl:columns-4">
-                  {images.map((image, index) => (
-                    <div
-                      key={image.imageId}
-                      className="break-inside-avoid animate-fade-in-up"
-                      style={{
-                        animationDelay: `${index * 60}ms`,
-                        animationFillMode: 'both',
-                      }}
-                    >
-                      <ImageCard
-                        imageUrl={image.imageUrl}
-                        title={image.title}
-                        shootingTime={image.shootingTimeStr}
-                        country={image.country}
-                        city={image.city}
-                        focalLength={image.focalLength}
-                        onClick={() => handleImageClick(index)}
-                        onEdit={() => handleOpenEditModal(image)}
-                        onDelete={() => setDeleteTarget(image)}
-                      />
+                visibleImages.length > 0 ? (
+                  <div className="columns-1 gap-5 sm:columns-2 xl:columns-3 2xl:columns-4">
+                    {visibleImages.map((image, index) => (
+                      <div
+                        key={image.imageId}
+                        className="break-inside-avoid animate-fade-in-up"
+                        style={{
+                          animationDelay: `${index * 60}ms`,
+                          animationFillMode: 'both',
+                        }}
+                      >
+                        <ImageCard
+                          imageUrl={image.imageUrl}
+                          title={image.title}
+                          shootingTime={image.shootingTimeStr}
+                          country={image.country}
+                          city={image.city}
+                          focalLength={image.focalLength}
+                          dominantColor={dominantColors[image.imageId]}
+                          onClick={() => handleImageClick(index)}
+                          onEdit={() => handleOpenEditModal(image)}
+                          onDelete={() => setDeleteTarget(image)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/70 px-6 text-center">
+                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
+                      <Droplets className="h-6 w-6" />
                     </div>
-                  ))}
-                </div>
+                    <h3 className="text-base font-bold text-slate-800">没有匹配的主色调</h3>
+                    <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
+                      当前颜色筛选下暂无图片，可以切回全部颜色查看完整文集。
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedColor('all')}
+                      className="mt-4 rounded-lg bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-orange-500/20 transition-colors hover:bg-orange-600"
+                    >
+                      查看全部颜色
+                    </button>
+                  </div>
+                )
               )}
             </div>
           </div>
@@ -507,26 +635,26 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
 
       <ImageViewer
         isOpen={selectedIndex !== null}
-        image={selectedIndex !== null ? {
-          imageUrl: images[selectedIndex].imageUrl,
-          title: images[selectedIndex].title,
-          description: images[selectedIndex].description,
-          shootingTime: images[selectedIndex].shootingTimeStr,
-          country: images[selectedIndex].country,
-          city: images[selectedIndex].city,
-          latitude: images[selectedIndex].latitude,
-          longitude: images[selectedIndex].longitude,
-          focalLength: images[selectedIndex].focalLength,
-          tags: images[selectedIndex].tagsList,
-          author: images[selectedIndex].author,
-          authorNickname: images[selectedIndex].authorNickname,
-          createdAt: images[selectedIndex].createdAt,
+        image={selectedImage ? {
+          imageUrl: selectedImage.imageUrl,
+          title: selectedImage.title,
+          description: selectedImage.description,
+          shootingTime: selectedImage.shootingTimeStr,
+          country: selectedImage.country,
+          city: selectedImage.city,
+          latitude: selectedImage.latitude,
+          longitude: selectedImage.longitude,
+          focalLength: selectedImage.focalLength,
+          tags: selectedImage.tagsList,
+          author: selectedImage.author,
+          authorNickname: selectedImage.authorNickname,
+          createdAt: selectedImage.createdAt,
         } : null}
         onClose={handleCloseViewer}
         onPrevious={handlePrevious}
         onNext={handleNext}
         hasPrevious={selectedIndex !== null && selectedIndex > 0}
-        hasNext={selectedIndex !== null && selectedIndex < images.length - 1}
+        hasNext={selectedIndex !== null && selectedIndex < visibleImages.length - 1}
       />
 
       <ImageUploadModal

@@ -1,5 +1,6 @@
 import { memo, useState } from 'react';
 import { Aperture, Calendar, Edit3, Eye, MapPin, Trash2 } from 'lucide-react';
+import { DominantColorResult } from '../../utils/imageColor';
 
 interface ImageCardProps {
   imageUrl: string;
@@ -8,6 +9,7 @@ interface ImageCardProps {
   country?: string;
   city?: string;
   focalLength?: string;
+  dominantColor?: DominantColorResult | null;
   onClick?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -20,6 +22,7 @@ const ImageCard = memo(({
   country,
   city,
   focalLength,
+  dominantColor,
   onClick,
   onEdit,
   onDelete
@@ -107,9 +110,23 @@ const ImageCard = memo(({
       {/* Info Section */}
       <div className="space-y-2.5 p-3.5">
         {/* Title */}
-        <h3 className="line-clamp-2 text-sm font-semibold leading-6 text-slate-800 transition-colors duration-300 group-hover:text-orange-600">
-          {title}
-        </h3>
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="line-clamp-2 min-w-0 text-sm font-semibold leading-6 text-slate-800 transition-colors duration-300 group-hover:text-orange-600">
+            {title}
+          </h3>
+          {dominantColor && (
+            <span
+              className="mt-1 flex h-5 shrink-0 items-center gap-1 rounded-full border border-white bg-white/90 px-1.5 text-[10px] font-semibold text-slate-500 shadow-sm ring-1 ring-slate-100"
+              title={`主色调：${dominantColor.label}`}
+            >
+              <span
+                className="h-2.5 w-2.5 rounded-full border border-black/10"
+                style={{ backgroundColor: dominantColor.hex }}
+              />
+              {dominantColor.label}
+            </span>
+          )}
+        </div>
 
         {/* Meta Info */}
         <div className="space-y-2">
