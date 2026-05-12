@@ -19,6 +19,7 @@ export interface AIProvider {
 
 export interface SystemAIConfig {
     defaultChatModelId: string;
+    simpleChatModelId: string;
     defaultEmbeddingModelId: string;
     defaultRerankModelId: string;
 }

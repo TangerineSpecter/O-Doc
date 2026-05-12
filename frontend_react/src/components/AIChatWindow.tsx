@@ -824,7 +824,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                 }`}
                             >
                                 <Camera className="w-3.5 h-3.5"/>
-                                {usePhotographyMcp ? '摄影分析助手 MCP：已开启' : '摄影分析助手 MCP'}
+                                {usePhotographyMcp ? '摄影分析助手：已开启' : '摄影分析助手'}
                             </button>
                             {usePhotographyMcp && (
                                 <Select

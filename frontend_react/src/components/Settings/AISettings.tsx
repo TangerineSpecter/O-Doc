@@ -134,7 +134,7 @@ export const AISettings = ({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                     {/* Chat Model Selector */}
                     <div className="space-y-2">
                         <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
@@ -152,6 +152,26 @@ export const AISettings = ({
                                 buttonClassName="bg-slate-50 focus:ring-blue-500/20 focus:border-blue-500"
                             />
                         </div>
+                    </div>
+
+                    {/* Simple Chat Model Selector */}
+                    <div className="space-y-2">
+                        <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                            简易模型 (Simple)
+                        </label>
+                        <div className="relative">
+                            <SettingsSelect
+                                value={systemConfig.simpleChatModelId}
+                                options={buildModelOptions('chat')}
+                                onChange={value => setSystemConfig({...systemConfig, simpleChatModelId: value})}
+                                placeholder="请选择模型..."
+                                emptyMessage="暂无对话模型，请先在下方服务商中添加 chat 模型"
+                                accentClassName="bg-orange-50 text-orange-700"
+                                buttonClassName="bg-slate-50 focus:ring-orange-500/20 focus:border-orange-500"
+                            />
+                        </div>
+                        <p className="text-[10px] text-slate-400">用于标题、文章标签、图片标签推荐，并固定关闭思考模式</p>
                     </div>
 
                     {/* Embedding Model Selector */}

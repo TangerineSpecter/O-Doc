@@ -26,6 +26,7 @@ export const useSettings = () => {
     const [providers, setProviders] = useState<AIProvider[]>([]);
     const [systemConfig, setSystemConfig] = useState<SystemAIConfig>({
         defaultChatModelId: '',
+        simpleChatModelId: '',
         defaultEmbeddingModelId: '',
         defaultRerankModelId: ''
     });
@@ -50,6 +51,13 @@ export const useSettings = () => {
         updatedAt: ''
     });
 
+    const normalizeSystemAIConfig = (config: Partial<SystemAIConfig> = {}): SystemAIConfig => ({
+        defaultChatModelId: config.defaultChatModelId || '',
+        simpleChatModelId: config.simpleChatModelId || '',
+        defaultEmbeddingModelId: config.defaultEmbeddingModelId || '',
+        defaultRerankModelId: config.defaultRerankModelId || ''
+    });
+
     // --- 初始化加载 ---
     // --- 初始化加载 ---
     const loadSettings = async () => {
@@ -64,7 +72,7 @@ export const useSettings = () => {
             setProviders(providersRes as unknown as AIProvider[]);
 
             // ✅ 修复 2：将获取到的配置存入 State
-            setSystemConfig(systemConfigRes as unknown as SystemAIConfig);
+            setSystemConfig(normalizeSystemAIConfig(systemConfigRes as unknown as Partial<SystemAIConfig>));
 
         } catch (error) {
             console.error("加载设置失败", error);

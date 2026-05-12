@@ -32,6 +32,9 @@ class ChatView(APIView):
             use_kb = data.get('use_knowledge_base', False) or data.get('useKb', False)
             coll_id = data.get('coll_id') or data.get('collId')
             include_thinking = data.get('include_thinking', False) or data.get('thinkingMode', False)
+            use_simple_model = data.get('use_simple_model', False) or data.get('useSimpleModel', False)
+            if use_simple_model:
+                include_thinking = False
 
             # 2. 准备 Prompt 和 上下文
             system_prompt = CHAT_SYSTEM_PROMPT
@@ -65,7 +68,7 @@ class ChatView(APIView):
 
             # 5. 调用 AI 服务并返回流式响应
             return StreamingHttpResponse(
-                self._stream_response_generator(full_messages, sources_markdown, include_thinking),
+                self._stream_response_generator(full_messages, sources_markdown, include_thinking, use_simple_model),
                 content_type='text/event-stream'
             )
 
@@ -95,11 +98,15 @@ class ChatView(APIView):
         return markdown
 
     @staticmethod
-    def _stream_response_generator(messages, sources_markdown, include_thinking=False):
+    def _stream_response_generator(messages, sources_markdown, include_thinking=False, use_simple_model=False):
         """生成器：负责流式输出 AI 内容，并在最后追加来源信息"""
         try:
             # 获取来自 AI Service 的流生成器
-            ai_stream = AIService.stream_chat_completion(messages, include_thinking=include_thinking)
+            ai_stream = AIService.stream_chat_completion(
+                messages,
+                include_thinking=include_thinking,
+                use_simple_model=use_simple_model
+            )
 
             for event in ai_stream:
                 if isinstance(event, dict):

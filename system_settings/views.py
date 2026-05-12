@@ -156,15 +156,17 @@ class SystemConfigViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def get_ai_config(self, request):
         # 获取 AI 配置，如果没有则返回默认空结构
+        default_value = {
+            'defaultChatModelId': '',
+            'simpleChatModelId': '',
+            'defaultEmbeddingModelId': '',
+            'defaultRerankModelId': ''
+        }
         config, _ = SystemSetting.objects.get_or_create(
             key='system_ai_config',
-            defaults={'value': {
-                'defaultChatModelId': '',
-                'defaultEmbeddingModelId': '',
-                'defaultRerankModelId': ''
-            }}
+            defaults={'value': default_value}
         )
-        return success_result(config.value)
+        return success_result({**default_value, **config.value})
 
     @action(detail=False, methods=['post'])
     def save_ai_config(self, request):

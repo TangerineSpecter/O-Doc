@@ -13,12 +13,53 @@ THINK_BLOCK_RE = re.compile(r'<think(?:ing)?>.*?</think(?:ing)?>', re.IGNORECASE
 
 class AIService:
     @staticmethod
-    def get_default_client_config():
+    def _get_config_value(config, camel_key, snake_key=None):
+        return config.get(camel_key) or config.get(snake_key or '')
+
+    @staticmethod
+    def _normalize_base_url(base_url):
+        base_url = base_url.strip().rstrip('/')
+
+        # 1. 如果用户误填了完整路径 /chat/completions，先去掉它
+        if base_url.endswith('/chat/completions'):
+            base_url = base_url.replace('/chat/completions', '')
+            base_url = base_url.rstrip('/')
+
+        # 2. 关键修复：如果 URL 不以 /v1 (或 /v1beta) 结尾，自动补全 /v1
+        # 这一步是为了模拟 Cherry Studio 的行为，解决 405 错误
+        if not base_url.endswith('/v1') and not base_url.endswith('/v1beta'):
+            base_url += '/v1'
+
+        return base_url
+
+    @staticmethod
+    def _build_thinking_extra_body(provider_type, include_thinking, disable_thinking=False):
+        extra_body = {}
+        if include_thinking:
+            extra_body["reasoning_split"] = True
+            return extra_body
+
+        if not disable_thinking:
+            return extra_body
+
+        # DashScope/Qwen OpenAI-compatible endpoints support this flag.
+        if provider_type == 'Qwen':
+            extra_body["enable_thinking"] = False
+
+        return extra_body
+
+    @staticmethod
+    def get_default_client_config(use_simple_model=False):
         """获取系统默认的 AI 配置"""
         try:
             config_obj = SystemSetting.objects.get(key='system_ai_config')
             config = config_obj.value
-            model_id = config.get('default_chat_model_id')
+            if use_simple_model:
+                model_id = AIService._get_config_value(config, 'simpleChatModelId', 'simple_chat_model_id')
+                if not model_id:
+                    model_id = AIService._get_config_value(config, 'defaultChatModelId', 'default_chat_model_id')
+            else:
+                model_id = AIService._get_config_value(config, 'defaultChatModelId', 'default_chat_model_id')
 
             if not model_id:
                 raise ValueError("No default model configured")
@@ -26,32 +67,21 @@ class AIService:
             ai_model = AIModel.objects.get(id=model_id)
             provider = ai_model.provider
 
-            base_url = provider.base_url.strip().rstrip('/')
-
-            # 1. 如果用户误填了完整路径 /chat/completions，先去掉它
-            if base_url.endswith('/chat/completions'):
-                base_url = base_url.replace('/chat/completions', '')
-                base_url = base_url.rstrip('/')
-
-            # 2. 关键修复：如果 URL 不以 /v1 (或 /v1beta) 结尾，自动补全 /v1
-            # 这一步是为了模拟 Cherry Studio 的行为，解决 405 错误
-            if not base_url.endswith('/v1') and not base_url.endswith('/v1beta'):
-                base_url += '/v1'
-
             return {
                 "api_key": provider.api_key,
-                "base_url": base_url,
-                "model_name": ai_model.name
+                "base_url": AIService._normalize_base_url(provider.base_url),
+                "model_name": ai_model.name,
+                "provider_type": provider.type
             }
         except Exception as e:
             logger.error(f"Failed to load AI config: {e}")
             raise e
 
     @classmethod
-    def chat_completion(cls, prompt):
+    def chat_completion(cls, prompt, use_simple_model=False):
         """执行 AI 对话"""
         try:
-            config = cls.get_default_client_config()
+            config = cls.get_default_client_config(use_simple_model=use_simple_model)
 
             client = OpenAI(
                 api_key=config['api_key'],
@@ -61,10 +91,15 @@ class AIService:
             response = client.chat.completions.create(
                 model=config['model_name'],
                 messages=[{"role": "user", "content": prompt}],
-                stream=False
+                stream=False,
+                extra_body=cls._build_thinking_extra_body(
+                    config.get('provider_type'),
+                    include_thinking=False,
+                    disable_thinking=use_simple_model
+                ) or None,
             ) # type: ignore
 
-            return response.choices[0].message.content
+            return cls.strip_thinking(response.choices[0].message.content)
         except Exception as e:
             logger.error(f"AI API Call Error: {e}")
             raise e
@@ -78,15 +113,17 @@ class AIService:
         return THINK_BLOCK_RE.sub('', content).strip()
 
     @classmethod
-    def stream_chat_completion(cls, messages, include_thinking=False):
+    def stream_chat_completion(cls, messages, include_thinking=False, use_simple_model=False):
         """流式对话 (用于前端 Chat 界面)"""
         try:
-            config = cls.get_default_client_config()
+            config = cls.get_default_client_config(use_simple_model=use_simple_model)
             client = OpenAI(api_key=config['api_key'], base_url=config['base_url'])
 
-            extra_body = {}
-            if include_thinking:
-                extra_body["reasoning_split"] = True
+            extra_body = cls._build_thinking_extra_body(
+                config.get('provider_type'),
+                include_thinking=include_thinking,
+                disable_thinking=use_simple_model
+            )
 
             stream = client.chat.completions.create(
                 model=config['model_name'],

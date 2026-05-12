@@ -20,7 +20,7 @@ export const generateTagsWithAI = async (title: string, content: string): Promis
 文章内容：${truncatedContent}`;
 
     try {
-        const resultText = await fetchAIResponse(prompt);
+        const resultText = await fetchAIResponse(prompt, {useSimpleModel: true});
         // 清洗数据：有时候流式返回可能包含 "data: " 前缀或者换行，需要解析
         // 您的 ChatView 返回的是纯文本流（yield content），但如果是 SSE 格式 (text/event-stream)
         // 通常会有 "data: "。让我们简单处理一下
@@ -64,7 +64,7 @@ export const recommendImageTagsWithAI = async (
 已有标签：${normalizedTags.join(', ')}`;
 
     try {
-        const resultText = await fetchAIResponse(prompt);
+        const resultText = await fetchAIResponse(prompt, {useSimpleModel: true});
         const lowerNoneValues = ['无', 'none', 'no', 'no match', '无匹配'];
         const cleaned = stripThinkingBlocks(resultText)
             .replace(/data:\s*/g, '')
@@ -107,7 +107,7 @@ export const generateTitleWithAI = async (content: string): Promise<string> => {
 ${truncatedContent}`;
 
     try {
-        const result = await fetchAIResponse(prompt);
+        const result = await fetchAIResponse(prompt, {useSimpleModel: true});
         // 清理可能产生的多余符号
         return result.replace(/^["'《]|["'》]$/g, '').trim();
     } catch (error) {
@@ -208,7 +208,7 @@ const throwAIConfigErrorIfMatched = (message: string) => {
     }
 };
 
-const fetchAIResponse = async (prompt: string): Promise<string> => {
+const fetchAIResponse = async (prompt: string, options?: { useSimpleModel?: boolean }): Promise<string> => {
     const response = await fetch('/api/ai/chat/', {
         method: 'POST',
         headers: {
@@ -218,7 +218,9 @@ const fetchAIResponse = async (prompt: string): Promise<string> => {
         body: JSON.stringify({
             message: prompt,
             history: [],
-            use_knowledge_base: false
+            use_knowledge_base: false,
+            use_simple_model: options?.useSimpleModel || false,
+            include_thinking: false
         })
     });
 
