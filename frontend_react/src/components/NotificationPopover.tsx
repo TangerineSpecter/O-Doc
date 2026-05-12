@@ -122,19 +122,19 @@ export default function NotificationPopover({ onClose, onUnreadChange }: Notific
 
     const detailModal = selectedNotification ? createPortal(
         <div
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/30 px-4 py-6 backdrop-blur-sm"
+            className="fixed inset-0 z-[200] flex items-start justify-center bg-slate-900/30 px-4 pt-[15vh] pb-6 backdrop-blur-sm"
         >
             <div
             className="group relative w-full max-w-md text-slate-900 animate-in fade-in zoom-in-95 duration-150"
             onClick={(event) => event.stopPropagation()}
         >
                 <div className="relative rounded-2xl bg-transparent shadow-[0_24px_48px_rgba(15,23,42,0.18)] transition-all duration-500 group-hover:-rotate-1 group-hover:scale-[1.01] group-hover:drop-shadow-[0_0_28px_rgba(249,115,22,0.35)]">
-                    <section className="relative overflow-hidden rounded-t-2xl bg-white px-7 pb-7 pt-6">
+                    <section className="relative overflow-hidden rounded-t-2xl bg-white px-7 pb-5 pt-5">
                         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(249,115,22,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(249,115,22,0.08)_1px,transparent_1px)] bg-[size:22px_22px]" />
                         <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-orange-100 blur-2xl" />
                         <div className="pointer-events-none absolute -left-10 bottom-0 h-28 w-28 rounded-full bg-amber-100 blur-xl" />
                         <div className="relative z-10">
-                            <div className="mb-8 flex items-start justify-between gap-4 pr-8">
+                            <div className="mb-4 flex items-start justify-between gap-4 pr-8">
                                 <div className="flex items-center gap-2 text-sm font-black tracking-tight text-slate-900">
                                     <TangerineLogo />
                                     <span>小橘通知</span>
@@ -147,7 +147,7 @@ export default function NotificationPopover({ onClose, onUnreadChange }: Notific
                             <h3 className="break-words bg-gradient-to-br from-slate-950 to-orange-500 bg-clip-text text-4xl font-black uppercase leading-[1.05] text-transparent">
                                 {selectedNotification.title}
                             </h3>
-                            <p className="mt-3 text-sm font-medium text-slate-500">
+                            <p className="mt-2 text-sm font-medium text-slate-500">
                                 {selectedNotification.createdAt}
                             </p>
                         </div>
@@ -170,7 +170,7 @@ export default function NotificationPopover({ onClose, onUnreadChange }: Notific
                                 handleDiscardSelected();
                             }
                         }}
-                        className={`relative overflow-hidden rounded-b-2xl bg-slate-50 px-7 pb-6 pt-8 outline-none transition-all duration-300 hover:bg-orange-50 focus-visible:ring-2 focus-visible:ring-orange-500/30 ${tearing ? 'translate-y-8 rotate-2' : ''} ${deleting ? 'cursor-wait' : 'cursor-pointer'}`}
+                        className={`relative overflow-hidden rounded-b-2xl bg-slate-50 px-7 pb-8 pt-9 outline-none transition-all duration-300 hover:bg-orange-50 focus-visible:ring-2 focus-visible:ring-orange-500/30 ${tearing ? 'translate-y-8 rotate-2' : ''} ${deleting ? 'cursor-wait' : 'cursor-pointer'}`}
                     >
                         <div className="absolute -top-3 left-0 right-0 z-20 flex items-center">
                             <div className="-ml-3 h-6 w-6 shrink-0 rounded-full bg-slate-900/30 shadow-inner" />
