@@ -1,7 +1,7 @@
 // frontend_react/src/components/AIChatWindow.tsx
 
 import {useEffect, useRef, useState, useMemo} from 'react';
-import {BookOpen, Bot, BrainCircuit, ChevronDown, Maximize2, Minimize2, Send, Trash2, User, X} from 'lucide-react';
+import {BookOpen, Bot, BrainCircuit, Camera, ChevronDown, Maximize2, Minimize2, Send, Trash2, User, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -14,6 +14,7 @@ import {AIConfigError} from '../api/ai';
 import ConfirmationModal from './common/ConfirmationModal';
 import {getArticleDetail} from '../api/article';
 import {getAnthologyList, type Anthology} from '../api/anthology';
+import {getImagesByAnthology, type Image} from '../api/image';
 import {CodeBlock, MermaidChart} from './Article/MarkdownElements';
 import {Select, type SelectOption} from './common/Select';
 
@@ -28,6 +29,130 @@ interface AIChatWindowProps {
     onClose: () => void;
 }
 
+const parseImageTags = (image: Image) => {
+    const source = image.tagsList?.length ? image.tagsList : (image.tags || '').split(/[,，、;；\n]/);
+    return source.map(tag => tag.trim()).filter(Boolean);
+};
+
+const formatCountStats = (counts: Map<string, number>, unit: string, limit = 12) => {
+    return Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
+        .slice(0, limit)
+        .map(([name, count]) => `${name}：${count}${unit}`)
+        .join('、') || '暂无';
+};
+
+const normalizeFocalLengthLabel = (value: string) => {
+    const trimmed = value.trim();
+    const numeric = trimmed.match(/\d+(?:\.\d+)?/);
+    if (!numeric) return trimmed;
+
+    const numberValue = Number.parseFloat(numeric[0]);
+    if (!Number.isFinite(numberValue)) return trimmed;
+
+    return `${Number.isInteger(numberValue) ? numberValue : numberValue.toFixed(1)}mm`;
+};
+
+const inferTitleScenes = (title: string, tags: string[]) => {
+    const text = `${title} ${tags.join(' ')}`;
+    const sceneKeywords = [
+        '动物', '鸟', '猫', '狗', '风光', '风景', '山', '海', '湖', '城市', '街拍', '人像',
+        '建筑', '花', '微距', '夜景', '日落', '旅行', '纪实', '运动', '车', '美食', '雪',
+    ];
+
+    return sceneKeywords.filter(keyword => text.includes(keyword));
+};
+
+const buildPhotographyAnalysisPrompt = (
+    userMessage: string,
+    images: Image[],
+    anthologyTitle: string
+) => {
+    const imagesWithFocalLength = images.filter(image => image.focalLength?.trim());
+    const focalCounts = new Map<string, number>();
+    const tagCounts = new Map<string, number>();
+    const tagFocalCounts = new Map<string, Map<string, number>>();
+    const titleSceneFocalCounts = new Map<string, Map<string, number>>();
+
+    imagesWithFocalLength.forEach((image) => {
+        const focalLength = normalizeFocalLengthLabel(image.focalLength || '');
+        const tags = parseImageTags(image);
+        focalCounts.set(focalLength, (focalCounts.get(focalLength) || 0) + 1);
+
+        tags.forEach((tag) => {
+            tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+            const current = tagFocalCounts.get(tag) || new Map<string, number>();
+            current.set(focalLength, (current.get(focalLength) || 0) + 1);
+            tagFocalCounts.set(tag, current);
+        });
+
+        inferTitleScenes(image.title || '', tags).forEach((scene) => {
+            const current = titleSceneFocalCounts.get(scene) || new Map<string, number>();
+            current.set(focalLength, (current.get(focalLength) || 0) + 1);
+            titleSceneFocalCounts.set(scene, current);
+        });
+    });
+
+    const tagFocalSummary = Array.from(tagFocalCounts.entries())
+        .sort((a, b) => {
+            const aTotal = Array.from(a[1].values()).reduce((sum, count) => sum + count, 0);
+            const bTotal = Array.from(b[1].values()).reduce((sum, count) => sum + count, 0);
+            return bTotal - aTotal || a[0].localeCompare(b[0], 'zh-CN');
+        })
+        .slice(0, 16)
+        .map(([tag, counts]) => `- ${tag}：${formatCountStats(counts, '张', 8)}`)
+        .join('\n') || '- 暂无';
+
+    const titleSceneSummary = Array.from(titleSceneFocalCounts.entries())
+        .sort((a, b) => {
+            const aTotal = Array.from(a[1].values()).reduce((sum, count) => sum + count, 0);
+            const bTotal = Array.from(b[1].values()).reduce((sum, count) => sum + count, 0);
+            return bTotal - aTotal || a[0].localeCompare(b[0], 'zh-CN');
+        })
+        .slice(0, 16)
+        .map(([scene, counts]) => `- ${scene}：${formatCountStats(counts, '张', 8)}`)
+        .join('\n') || '- 暂无';
+
+    const samples = imagesWithFocalLength.slice(0, 120).map((image, index) => {
+        const tags = parseImageTags(image);
+        const location = [image.country, image.city].filter(Boolean).join(' / ') || '未记录';
+        return `${index + 1}. 标题：${image.title || '未命名'}；标签：${tags.join('、') || '无'}；焦段：${normalizeFocalLengthLabel(image.focalLength || '')}；地点：${location}`;
+    }).join('\n');
+
+    return `你是“摄影分析助手 MCP”，负责分析图片文集里的摄影统计数据与拍摄风格。
+
+请严格基于下面的数据分析。注意：统计分析只使用“已填写焦段”的图片；未填写焦段的图片只能作为缺失数据说明，不参与焦段、标签焦段、标题场景焦段结论。
+
+用户问题：${userMessage || '请分析我的图片文集摄影习惯'}
+
+文集：${anthologyTitle}
+图片总数：${images.length}
+已填写焦段：${imagesWithFocalLength.length}
+未填写焦段：${images.length - imagesWithFocalLength.length}
+
+整体焦段统计：
+${formatCountStats(focalCounts, '张', 20)}
+
+标签统计：
+${formatCountStats(tagCounts, '次', 20)}
+
+按标签拆分的常用焦段：
+${tagFocalSummary}
+
+根据标题与标签推断的拍摄内容/场景焦段：
+${titleSceneSummary}
+
+样本明细（最多 120 条）：
+${samples || '暂无有焦段的图片样本'}
+
+请输出：
+1. 先给出 3-5 条关键发现，必须包含“哪些标签/场景最常用哪些焦段”。
+2. 分析标题透露出的拍摄内容习惯，例如偏动物、风光、人像、城市、纪实等。
+3. 总结摄影风格：焦段偏好、距离感、构图/题材倾向，可用审美语言点评但不要编造不存在的数据。
+4. 给出可执行建议：哪些题材可以尝试补充哪些焦段或拍法。
+5. 如果数据量太少或焦段缺失较多，请明确提醒。`;
+};
+
 export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     const navigate = useNavigate();
 
@@ -40,8 +165,11 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     const [isLoading, setIsLoading] = useState(false);
     const [useKb, setUseKb] = useState(false);
     const [useThinking, setUseThinking] = useState(false);
+    const [usePhotographyMcp, setUsePhotographyMcp] = useState(false);
     const [anthologies, setAnthologies] = useState<Anthology[]>([]);
+    const [imageAnthologies, setImageAnthologies] = useState<Anthology[]>([]);
     const [selectedCollId, setSelectedCollId] = useState('');
+    const [selectedImageCollId, setSelectedImageCollId] = useState('');
 
     // 弹窗状态
     const [isClearModalOpen, setIsClearModalOpen] = useState(false);
@@ -57,6 +185,16 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             }))
             .filter(option => option.value)
     ], [anthologies]);
+    const imageAnthologyOptions = useMemo<SelectOption<string>[]>(() => [
+        {value: '', label: '全部图片文集'},
+        ...imageAnthologies
+            .map(item => ({
+                value: getAnthologyCollId(item),
+                label: item.title,
+                description: `${item.count || 0} 张图片`
+            }))
+            .filter(option => option.value)
+    ], [imageAnthologies]);
 
     // --- 平滑输出相关的 Refs ---
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -200,8 +338,12 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
 
         const loadAnthologies = async () => {
             try {
-                const data = await getAnthologyList('article');
-                setAnthologies(data);
+                const [articleData, imageData] = await Promise.all([
+                    getAnthologyList('article'),
+                    getAnthologyList('image'),
+                ]);
+                setAnthologies(articleData);
+                setImageAnthologies(imageData);
             } catch (error) {
                 console.warn('加载文集列表失败:', error);
             }
@@ -296,14 +438,39 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         setMessages(prev => [...prev, {role: 'assistant', content: '', thinking: ''}]);
 
         try {
+            let messageForAI = userMsg;
+
+            if (usePhotographyMcp) {
+                const targetAnthologies = selectedImageCollId
+                    ? imageAnthologies.filter(item => getAnthologyCollId(item) === selectedImageCollId)
+                    : imageAnthologies;
+
+                if (targetAnthologies.length === 0) {
+                    throw new Error('暂无可分析的图片文集，请先创建图片文集并填写焦段数据。');
+                }
+
+                const imageGroups = await Promise.all(targetAnthologies.map(async (anthology) => {
+                    const id = getAnthologyCollId(anthology);
+                    const images = id ? await getImagesByAnthology(id) : [];
+                    return {anthology, images};
+                }));
+
+                const allImages = imageGroups.flatMap(group => group.images);
+                const anthologyTitle = selectedImageCollId
+                    ? targetAnthologies[0]?.title || '图片文集'
+                    : `全部图片文集（${targetAnthologies.length} 个）`;
+
+                messageForAI = buildPhotographyAnalysisPrompt(userMsg, allImages, anthologyTitle);
+            }
+
             const response = await fetch('/api/ai/chat/', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    message: userMsg,
+                    message: messageForAI,
                     history: messages.map(m => ({role: m.role, content: m.content})),
-                    use_knowledge_base: useKb,
-                    coll_id: useKb && selectedCollId ? selectedCollId : undefined,
+                    use_knowledge_base: useKb && !usePhotographyMcp,
+                    coll_id: useKb && !usePhotographyMcp && selectedCollId ? selectedCollId : undefined,
                     include_thinking: useThinking
                 })
             });
@@ -598,7 +765,10 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                     <div className="flex items-center justify-between mb-3 px-1">
                         <div className="flex flex-wrap items-center gap-2">
                             <button
-                                onClick={() => setUseKb(prev => !prev)}
+                                onClick={() => {
+                                    setUseKb(prev => !prev);
+                                    setUsePhotographyMcp(false);
+                                }}
                                 className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
                                     useKb
                                         ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-sm ring-1 ring-blue-100'
@@ -618,6 +788,33 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                     accentClassName="bg-blue-50 text-blue-700"
                                     showSelectedDescription={false}
                                     buttonClassName="!h-[31px] !min-h-[31px] w-[156px] border-blue-200 px-2.5 !py-1 text-xs font-medium shadow-none hover:border-blue-300 focus:border-blue-400 focus:ring-blue-100"
+                                    menuClassName="bottom-full right-0 !mt-0 mb-2 w-64 max-h-[min(320px,45vh)] overflow-y-auto z-[120]"
+                                />
+                            )}
+                            <button
+                                onClick={() => {
+                                    setUsePhotographyMcp(prev => !prev);
+                                    setUseKb(false);
+                                }}
+                                className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                                    usePhotographyMcp
+                                        ? 'bg-orange-50 text-orange-700 border-orange-200 shadow-sm ring-1 ring-orange-100'
+                                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                                }`}
+                            >
+                                <Camera className="w-3.5 h-3.5"/>
+                                {usePhotographyMcp ? '摄影分析助手 MCP：已开启' : '摄影分析助手 MCP'}
+                            </button>
+                            {usePhotographyMcp && (
+                                <Select
+                                    value={selectedImageCollId}
+                                    options={imageAnthologyOptions}
+                                    onChange={setSelectedImageCollId}
+                                    placeholder="全部图片文集"
+                                    emptyMessage="暂无图片文集"
+                                    accentClassName="bg-orange-50 text-orange-700"
+                                    showSelectedDescription={false}
+                                    buttonClassName="!h-[31px] !min-h-[31px] w-[168px] border-orange-200 px-2.5 !py-1 text-xs font-medium shadow-none hover:border-orange-300 focus:border-orange-400 focus:ring-orange-100"
                                     menuClassName="bottom-full right-0 !mt-0 mb-2 w-64 max-h-[min(320px,45vh)] overflow-y-auto z-[120]"
                                 />
                             )}
