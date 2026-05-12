@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile', verbose_name='用户')
+    userid = models.CharField(max_length=50, blank=True, default='', verbose_name='用户业务ID')
     nickname = models.CharField(max_length=150, blank=True, default='', verbose_name='昵称')
     avatar = models.CharField(max_length=500, blank=True, default='', verbose_name='头像')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')

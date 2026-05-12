@@ -30,6 +30,7 @@ class ChatView(APIView):
             message = data.get('message', '')
             history = data.get('history', [])
             use_kb = data.get('use_knowledge_base', False) or data.get('useKb', False)
+            coll_id = data.get('coll_id') or data.get('collId')
             include_thinking = data.get('include_thinking', False) or data.get('thinkingMode', False)
 
             # 2. 准备 Prompt 和 上下文
@@ -40,7 +41,7 @@ class ChatView(APIView):
             if use_kb and message:
                 try:
                     # 获取检索结果 + 来源元数据
-                    retrieved_docs, sources = RagClient.search_with_sources(message, n_results=4)
+                    retrieved_docs, sources = RagClient.search_with_sources(message, n_results=4, coll_id=coll_id)
 
                     if retrieved_docs:
                         # 注入上下文
@@ -84,9 +85,11 @@ class ChatView(APIView):
         for src in sources:
             aid = src.get('id')
             title = src.get('title', '未命名文档')
+            coll_id = src.get('coll_id')
 
             if aid and aid not in seen_ids:
-                markdown += f"- [{title}](/article/{aid})\n"
+                href = f"/article/{coll_id}/{aid}" if coll_id else f"/article/{aid}"
+                markdown += f"- [{title}]({href})\n"
                 seen_ids.add(aid)
 
         return markdown

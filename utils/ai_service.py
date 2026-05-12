@@ -69,6 +69,14 @@ class AIService:
             logger.error(f"AI API Call Error: {e}")
             raise e
 
+    @staticmethod
+    def strip_thinking(content):
+        """移除模型返回中的 <think> 思考块，仅保留可展示答案。"""
+        if not content:
+            return content
+
+        return THINK_BLOCK_RE.sub('', content).strip()
+
     @classmethod
     def stream_chat_completion(cls, messages, include_thinking=False):
         """流式对话 (用于前端 Chat 界面)"""

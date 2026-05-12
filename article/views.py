@@ -63,6 +63,7 @@ class ArticlePolisher:
 
             # 3. 调用 AI 服务
             polished_content = AIService.chat_completion(prompt)
+            polished_content = AIService.strip_thinking(polished_content)
 
             # 4. 更新文章
             if polished_content:
@@ -132,6 +133,7 @@ class ArticlePolishView(APIView):
             
             # 调用AI服务
             polished_content = AIService.chat_completion(prompt)
+            polished_content = AIService.strip_thinking(polished_content)
             
             if not polished_content:
                 return error_result(ErrorCode.AI_SERVICE_ERROR, "AI润色失败")

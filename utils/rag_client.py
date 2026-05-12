@@ -154,7 +154,7 @@ class RagClient:
         return results['documents'][0] if results['documents'] else []
 
     @classmethod
-    def search_with_sources(cls, query_text, n_results=4):
+    def search_with_sources(cls, query_text, n_results=4, coll_id=None):
         """
         检索并返回 (文档内容列表, 来源元数据列表)
         """
@@ -167,11 +167,15 @@ class RagClient:
         collection = cls.get_collection()
 
         # 3. 执行查询
-        results = collection.query(
-            query_embeddings=query_embeddings,  # 使用向量查询
-            n_results=n_results,
-            include=['documents', 'metadatas']  # 必须包含 metadatas
-        )
+        query_kwargs = {
+            "query_embeddings": query_embeddings,
+            "n_results": n_results,
+            "include": ['documents', 'metadatas']
+        }
+        if coll_id:
+            query_kwargs["where"] = {"coll_id": str(coll_id)}
+
+        results = collection.query(**query_kwargs)
 
         docs = []
         sources = []

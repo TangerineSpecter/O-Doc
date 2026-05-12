@@ -16,6 +16,7 @@ interface SelectProps<T extends string> {
     accentClassName?: string;
     buttonClassName?: string;
     menuClassName?: string;
+    showSelectedDescription?: boolean;
 }
 
 export function Select<T extends string>({
@@ -27,6 +28,7 @@ export function Select<T extends string>({
     accentClassName = 'text-orange-600 bg-orange-50',
     buttonClassName = '',
     menuClassName = '',
+    showSelectedDescription = true,
 }: SelectProps<T>) {
     const [open, setOpen] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
@@ -69,7 +71,7 @@ export function Select<T extends string>({
                     <span className={`block truncate ${selected ? 'text-slate-800' : 'text-slate-400'}`}>
                         {selected?.label || placeholder}
                     </span>
-                    {selected?.description && (
+                    {showSelectedDescription && selected?.description && (
                         <span className="mt-0.5 block truncate text-[11px] text-slate-400">
                             {selected.description}
                         </span>

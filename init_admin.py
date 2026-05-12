@@ -10,6 +10,20 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "o_doc.settings")
 django.setup()
 
 from django.contrib.auth import get_user_model
+from user.models import UserProfile
+
+
+def ensure_admin_profile(user):
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    changed = False
+    if profile.userid != 'admin':
+        profile.userid = 'admin'
+        changed = True
+    if not profile.nickname:
+        profile.nickname = '管理员'
+        changed = True
+    if changed:
+        profile.save()
 
 
 def create_initial_superuser():
@@ -17,6 +31,8 @@ def create_initial_superuser():
 
     # 检查是否已存在超级管理员
     if User.objects.filter(is_superuser=True).exists():
+        admin_user = User.objects.filter(username='admin', is_superuser=True).first() or User.objects.filter(is_superuser=True).first()
+        ensure_admin_profile(admin_user)
         return
 
     # 生成随机强密码 (12位)
@@ -31,7 +47,8 @@ def create_initial_superuser():
 
     try:
         # 创建超级管理员
-        User.objects.create_superuser(username=username, email=email, password=password)
+        admin_user = User.objects.create_superuser(username=username, email=email, password=password)
+        ensure_admin_profile(admin_user)
 
         print("\033[92m [✔] 超级管理员创建成功！ \033[0m")
         print("-" * 60)

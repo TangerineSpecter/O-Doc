@@ -40,6 +40,11 @@ const getLineStartIndex = (text: string, position: number) => {
     return text.lastIndexOf('\n', Math.max(0, position - 1)) + 1;
 };
 
+const getLineEndIndex = (text: string, position: number) => {
+    const nextLineIndex = text.indexOf('\n', position);
+    return nextLineIndex === -1 ? text.length : nextLineIndex;
+};
+
 const escapeHtmlAttribute = (value: string) => {
     return value
         .replace(/&/g, '&amp;')
@@ -257,6 +262,14 @@ export const useEditor = () => {
         return textarea.selectionStart === getLineStartIndex(textarea.value, textarea.selectionStart);
     };
 
+    const isCurrentLineBlank = () => {
+        const textarea = textareaRef.current;
+        if (!textarea || textarea.selectionStart !== textarea.selectionEnd) return false;
+        const lineStart = getLineStartIndex(textarea.value, textarea.selectionStart);
+        const lineEnd = getLineEndIndex(textarea.value, textarea.selectionStart);
+        return textarea.value.slice(lineStart, lineEnd).trim().length === 0;
+    };
+
     // 增加 index 参数，允许计算任意位置的坐标（默认是当前光标）
     const getCaretCoordinates = (index: number | null = null) => {
         const textarea = textareaRef.current;
@@ -299,7 +312,7 @@ export const useEditor = () => {
             return;
         }
 
-        if (!isCursorAtLineStart()) {
+        if (!isCursorAtLineStart() || !isCurrentLineBlank()) {
             setShowAiLineHint(false);
             return;
         }
@@ -740,7 +753,7 @@ export const useEditor = () => {
             handleTogglePreview();
             return;
         }
-        if (!showMenu && e.key === ' ' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && isCursorAtLineStart()) {
+        if (!showMenu && e.key === ' ' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && isCursorAtLineStart() && isCurrentLineBlank()) {
             const coords = getCaretCoordinates();
             const textarea = textareaRef.current;
             e.preventDefault();

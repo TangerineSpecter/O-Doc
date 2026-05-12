@@ -262,7 +262,43 @@ className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-bet
 - 创建类入口可用 `text-orange-600 font-medium`。
 - 删除类入口使用 `text-red-600 hover:bg-red-50`。
 
-### 5.6 选项卡 / 可选卡片
+### 5.6 下拉选择器
+
+表单、筛选条、工具栏、设置项中的单选下拉，优先使用 `frontend_react/src/components/common/Select.tsx`，不要直接使用原生 `<select>`。原生 `<select>` 只能在极简临时页面或浏览器默认行为确实必要时使用。
+
+基础用法：
+
+```tsx
+<Select
+  value={value}
+  options={options}
+  onChange={setValue}
+  placeholder="请选择"
+/>
+```
+
+工具栏紧凑选择器：
+
+```tsx
+<Select
+  value={value}
+  options={options}
+  onChange={setValue}
+  buttonClassName="!h-[31px] !min-h-[31px] w-[156px] px-2.5 !py-1 text-xs shadow-none"
+  menuClassName="bottom-full right-0 !mt-0 mb-2 w-64 max-h-[min(320px,45vh)] overflow-y-auto z-[120]"
+/>
+```
+
+规则：
+
+- 下拉选择器必须有明确的选中态，选中项右侧使用 `Check` 图标。
+- 菜单列表较长时必须设置 `max-h` 和 `overflow-y-auto`，避免溢出屏幕。
+- 位于弹窗底部、聊天输入区、页面底部工具栏时，优先让菜单向上展开，例如 `bottom-full mb-2`。
+- 工具栏下拉高度应与相邻按钮一致，常用 `h-[31px]` 或跟随局部按钮高度。
+- 菜单层级应高于所在弹窗内容，必要时使用 `z-[120]` 等局部层级。
+- 文本过长时使用 `truncate`，不要让按钮宽度被内容撑开。
+
+### 5.7 选项卡 / 可选卡片
 
 ```tsx
 className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${
@@ -284,7 +320,7 @@ className="p-2 rounded-full bg-orange-100 text-orange-600"
 className="p-2 rounded-full bg-slate-100 text-slate-500"
 ```
 
-### 5.7 徽标与状态
+### 5.8 徽标与状态
 
 计数徽标：
 

@@ -13,7 +13,9 @@ import 'katex/dist/katex.min.css';
 import {AIConfigError} from '../api/ai';
 import ConfirmationModal from './common/ConfirmationModal';
 import {getArticleDetail} from '../api/article';
+import {getAnthologyList, type Anthology} from '../api/anthology';
 import {CodeBlock, MermaidChart} from './Article/MarkdownElements';
+import {Select, type SelectOption} from './common/Select';
 
 interface Message {
     role: 'user' | 'assistant';
@@ -38,9 +40,23 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     const [isLoading, setIsLoading] = useState(false);
     const [useKb, setUseKb] = useState(false);
     const [useThinking, setUseThinking] = useState(false);
+    const [anthologies, setAnthologies] = useState<Anthology[]>([]);
+    const [selectedCollId, setSelectedCollId] = useState('');
 
     // 弹窗状态
     const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+
+    const getAnthologyCollId = (item: Anthology) => item.collId || (item as any).coll_id || '';
+    const anthologyOptions = useMemo<SelectOption<string>[]>(() => [
+        {value: '', label: '全部文集'},
+        ...anthologies
+            .map(item => ({
+                value: getAnthologyCollId(item),
+                label: item.title,
+                description: `${item.count || 0} 篇内容`
+            }))
+            .filter(option => option.value)
+    ], [anthologies]);
 
     // --- 平滑输出相关的 Refs ---
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -179,6 +195,21 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, isMinimized]);
 
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const loadAnthologies = async () => {
+            try {
+                const data = await getAnthologyList('article');
+                setAnthologies(data);
+            } catch (error) {
+                console.warn('加载文集列表失败:', error);
+            }
+        };
+
+        loadAnthologies();
+    }, [isOpen]);
+
     // --- 核心逻辑 1: 平滑输出定时器 ---
     useEffect(() => {
         const takeSmoothChars = (queue: string[]) => {
@@ -272,6 +303,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                     message: userMsg,
                     history: messages.map(m => ({role: m.role, content: m.content})),
                     use_knowledge_base: useKb,
+                    coll_id: useKb && selectedCollId ? selectedCollId : undefined,
                     include_thinking: useThinking
                 })
             });
@@ -566,7 +598,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                     <div className="flex items-center justify-between mb-3 px-1">
                         <div className="flex flex-wrap items-center gap-2">
                             <button
-                                onClick={() => setUseKb(!useKb)}
+                                onClick={() => setUseKb(prev => !prev)}
                                 className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
                                     useKb
                                         ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-sm ring-1 ring-blue-100'
@@ -576,6 +608,19 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                 <BookOpen className="w-3.5 h-3.5"/>
                                 {useKb ? '知识库模式：已开启' : '知识库模式：未开启'}
                             </button>
+                            {useKb && (
+                                <Select
+                                    value={selectedCollId}
+                                    options={anthologyOptions}
+                                    onChange={setSelectedCollId}
+                                    placeholder="全部文集"
+                                    emptyMessage="暂无文章文集"
+                                    accentClassName="bg-blue-50 text-blue-700"
+                                    showSelectedDescription={false}
+                                    buttonClassName="!h-[31px] !min-h-[31px] w-[156px] border-blue-200 px-2.5 !py-1 text-xs font-medium shadow-none hover:border-blue-300 focus:border-blue-400 focus:ring-blue-100"
+                                    menuClassName="bottom-full right-0 !mt-0 mb-2 w-64 max-h-[min(320px,45vh)] overflow-y-auto z-[120]"
+                                />
+                            )}
                             <button
                                 onClick={() => setUseThinking(!useThinking)}
                                 className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${

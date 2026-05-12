@@ -14,7 +14,14 @@ class CurrentUserOrAdminDefault:
 
         # 判断用户是否登录
         if request and request.user and request.user.is_authenticated:
-            # 返回用户ID (注意转字符串还是数字，取决于你的 Model 定义)
+            try:
+                profile_userid = getattr(request.user.profile, 'userid', '')
+            except Exception:
+                profile_userid = ''
+            if profile_userid:
+                return profile_userid
+            if request.user.is_superuser and request.user.username == 'admin':
+                return 'admin'
             return str(request.user.id)
 
         # 游客模式，返回默认值

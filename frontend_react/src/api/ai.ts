@@ -108,7 +108,7 @@ export const polishArticleWithAI = async (content: string): Promise<string> => {
             throw new Error(result.msg || 'AI 润色失败');
         }
 
-        return result.data.polishedContent || result.data.polished_content;
+        return stripThinkingBlocks(result.data.polishedContent || result.data.polished_content || '');
     } catch (error) {
         console.error("AI 润色文章失败:", error);
         throw error;
@@ -144,6 +144,11 @@ ${truncatedContent}`;
  * 提取公共的 Fetch 逻辑
  */
 const SYSTEM_ERROR_PATTERN = /\[System Error\]/;
+const THINK_BLOCK_PATTERN = /<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi;
+
+const stripThinkingBlocks = (content: string): string => {
+    return content.replace(THINK_BLOCK_PATTERN, '').trim();
+};
 
 export class AIConfigError extends Error {
     constructor(message: string) {

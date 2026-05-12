@@ -5,7 +5,7 @@ from .models import UserProfile
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'nickname', 'created_at', 'updated_at')
-    search_fields = ('user__username', 'user__email', 'nickname')
+    list_display = ('user', 'userid', 'nickname', 'created_at', 'updated_at')
+    search_fields = ('user__username', 'user__email', 'userid', 'nickname')
 
 # Register your models here.
