@@ -101,6 +101,18 @@ export const useSettings = () => {
         }
     }, []);
 
+    const fetchWebDavStatus = useCallback(async () => {
+        try {
+            const statusRes = await getWebDavStatus();
+            if (statusRes) {
+                setWebDavStatus(statusRes as unknown as WebDavSyncStatus);
+            }
+        } catch (error) {
+            // 状态轮询失败时不打断用户正在编辑的同步配置
+            console.warn("WebDAV 状态加载失败或未实现:", error);
+        }
+    }, []);
+
     useEffect(() => {
         loadSettings();
     }, []);
@@ -216,7 +228,7 @@ export const useSettings = () => {
         handleDelete,
 
         fetchWebDavConfig,
-        fetchWebDavStatus: fetchWebDavConfig,
+        fetchWebDavStatus,
         // 重新加载
         refresh: loadSettings
     };

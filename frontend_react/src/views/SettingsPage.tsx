@@ -31,7 +31,7 @@ export default function SettingsPage() {
         providers, systemConfig, webDavConfig, webDavStatus, isSaving,
         setSystemConfig, setWebDavConfig,
         getModelsByType, handleSaveProvider, handleSaveModel, handleDelete,
-        fetchWebDavConfig
+        fetchWebDavConfig, fetchWebDavStatus
     } = useSettings();
 
     // 页面内部的模态框状态 (UI State)
@@ -206,7 +206,7 @@ export default function SettingsPage() {
                             config={webDavConfig}
                             status={webDavStatus}
                             onChange={setWebDavConfig}
-                            onRefreshStatus={fetchWebDavConfig}
+                            onRefreshStatus={fetchWebDavStatus}
                         />
                     )}
                     {activeTab === 'general' && (
