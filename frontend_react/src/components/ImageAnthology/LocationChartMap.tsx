@@ -41,6 +41,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
   const instanceRef = useRef<echarts.EChartsType | null>(null);
   const [worldMapReady, setWorldMapReady] = useState(false);
   const [worldMapError, setWorldMapError] = useState('');
+  const [worldGeoJson, setWorldGeoJson] = useState<any | null>(null);
   const [selectedCountryIso, setSelectedCountryIso] = useState<string | null>(null);
   const [countryMapReady, setCountryMapReady] = useState(false);
   const [boundaryLoading, setBoundaryLoading] = useState(false);
@@ -51,21 +52,22 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
   const countrySummaries = useMemo(() => {
     const summaries = new Map<string, CountrySummary>();
     points.forEach(point => {
-      const iso3 = getCountryIso3(point.country);
+      const matchedCountry = findRegionByCoordinate(worldGeoJson, point.longitude, point.latitude);
+      const iso3 = getCountryIso3(point.country) || matchedCountry?.properties?.id || '';
       if (!iso3) return;
       const current = summaries.get(iso3);
       if (current) {
         current.count += point.count;
       } else {
         summaries.set(iso3, {
-          country: point.country,
+          country: matchedCountry?.properties?.name || point.country,
           iso3,
           count: point.count,
         });
       }
     });
     return Array.from(summaries.values());
-  }, [points]);
+  }, [points, worldGeoJson]);
 
   const visitedCountryIds = useMemo(
     () => new Set(countrySummaries.map(summary => summary.iso3)),
@@ -74,8 +76,11 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
 
   const visiblePoints = useMemo(() => {
     if (!selectedCountryIso) return points;
-    return points.filter(point => getCountryIso3(point.country) === selectedCountryIso);
-  }, [points, selectedCountryIso]);
+    return points.filter(point => {
+      const matchedCountry = findRegionByCoordinate(worldGeoJson, point.longitude, point.latitude);
+      return (getCountryIso3(point.country) || matchedCountry?.properties?.id) === selectedCountryIso;
+    });
+  }, [points, selectedCountryIso, worldGeoJson]);
 
   const selectedSummary = selectedCountryIso
     ? countrySummaries.find(summary => summary.iso3 === selectedCountryIso)
@@ -189,6 +194,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
       .then(geoJson => {
         if (cancelled) return;
         echarts.registerMap('photo-world-map', geoJson);
+        setWorldGeoJson(geoJson);
         setWorldMapReady(true);
       })
       .catch(error => {
