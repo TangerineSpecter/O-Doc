@@ -44,6 +44,56 @@ const CHINA_ADM1_DISPLAY_NAMES: Record<string, string> = {
   'Zhejiang Province': '浙江省',
 };
 
+const JAPAN_ADM1_DISPLAY_NAMES: Record<string, string> = {
+  'Hokkaido': '北海道',
+  'Aomori': '青森县',
+  'Iwate': '岩手县',
+  'Miyagi': '宫城县',
+  'Akita': '秋田县',
+  'Yamagata': '山形县',
+  'Fukushima': '福岛县',
+  'Ibaraki': '茨城县',
+  'Tochigi': '栃木县',
+  'Gunma': '群马县',
+  'Saitama': '埼玉县',
+  'Chiba': '千叶县',
+  'Tokyo': '东京都',
+  'Kanagawa': '神奈川县',
+  'Niigata': '新潟县',
+  'Toyama': '富山县',
+  'Ishikawa Prefecture': '石川县',
+  'Fukui Prefecture': '福井县',
+  'Yamanashi': '山梨县',
+  'Nagano': '长野县',
+  'Gifu Prefecture': '岐阜县',
+  'Shizuoka': '静冈县',
+  'Aichi Prefecture': '爱知县',
+  'Mie Prefecture': '三重县',
+  'Shiga': '滋贺县',
+  'Kyoto Prefecture': '京都府',
+  'Osaka Prefecture': '大阪府',
+  'Hyogo Prefecture': '兵库县',
+  'Nara Prefecture': '奈良县',
+  'Wakayama Prefecture': '和歌山县',
+  'Tottori Prefecture': '鸟取县',
+  'Shimane': '岛根县',
+  'Okayama Prefecture': '冈山县',
+  'Hiroshima': '广岛县',
+  'Yamaguchi': '山口县',
+  'Tokushima Prefecture': '德岛县',
+  'Kagawa Prefecture': '香川县',
+  'Ehime Prefecture': '爱媛县',
+  'Kochi Prefecture': '高知县',
+  'Fukuoka Prefecture': '福冈县',
+  'Saga Prefecture': '佐贺县',
+  'Nagasaki Prefecture': '长崎县',
+  'Kumamoto': '熊本县',
+  'Oita': '大分县',
+  'Miyazaki Prefecture': '宫崎县',
+  'Kagoshima Prefecture': '鹿儿岛县',
+  'Okinawa Prefecture': '冲绳县',
+};
+
 export const getCountryIso3 = (country: string) => {
   const normalizedCountry = country.trim();
   if (!normalizedCountry) return '';
@@ -63,6 +113,9 @@ export const getCountryDisplayName = (iso3?: string, fallback = '') => {
 export const getAdm1DisplayName = (iso3: string | null | undefined, name: string) => {
   if (iso3 === 'CHN') {
     return CHINA_ADM1_DISPLAY_NAMES[name] || name;
+  }
+  if (iso3 === 'JPN') {
+    return JAPAN_ADM1_DISPLAY_NAMES[name] || name;
   }
   return name;
 };
