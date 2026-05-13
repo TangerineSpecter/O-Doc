@@ -30,11 +30,17 @@ if not SECRET_KEY:
     else:
         raise ImproperlyConfigured('DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is false')
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
-    if host.strip()
-]
+# 内网部署，默认允许所有 Host（可通过环境变量覆盖）
+_allowed_hosts_env = os.getenv('DJANGO_ALLOWED_HOSTS')
+if _allowed_hosts_env:
+    ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_env.split(',') if host.strip()]
+else:
+    ALLOWED_HOSTS = ['*']
+
+# 在非 HTTPS / 非 localhost 环境下禁用 COOP/COEP 头，避免浏览器警告
+# 这些头在 "untrustworthy origin" (HTTP + IP) 下会被浏览器忽略
+SECURE_CROSS_ORIGIN_OPENER_POLICY = None
+SECURE_CROSS_ORIGIN_EMBEDDER_POLICY = None
 
 # Application definition
 DEFAULT_PORT = "11800"

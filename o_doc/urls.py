@@ -35,9 +35,8 @@ urlpatterns = [
     path('api/memo/', include('memos.urls')),  # 闪念备忘接口
 ]
 
-# 在开发环境中提供媒体文件服务
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# 提供媒体文件服务（内网部署场景下需要直接访问上传文件）
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 urlpatterns += [
     re_path(r'^(?!api/|static/).*$', TemplateView.as_view(template_name='index.html')),
