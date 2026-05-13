@@ -6,6 +6,7 @@ import {
   findRegionByCoordinate,
   getAdm1DisplayName,
   getCityRegionAliases,
+  getCountryBoundaryConfig,
   getCountryDisplayName,
   getCountryIso3,
   getTopoJsonObjectName,
@@ -17,6 +18,24 @@ interface CountrySummary {
   count: number;
 }
 
+const buildGeoJsonBoundaryLines = (geoJson: any) => {
+  const lines: { coords: number[][] }[] = [];
+
+  (geoJson?.features || []).forEach((feature: any) => {
+    const geometry = feature?.geometry;
+    if (geometry?.type === 'Polygon') {
+      geometry.coordinates.forEach((ring: number[][]) => lines.push({ coords: ring }));
+    }
+    if (geometry?.type === 'MultiPolygon') {
+      geometry.coordinates.forEach((polygon: number[][][]) => {
+        polygon.forEach((ring: number[][]) => lines.push({ coords: ring }));
+      });
+    }
+  });
+
+  return lines;
+};
+
 function LocationChartMap({ points }: { points: LocationPoint[] }) {
   const chartRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.EChartsType | null>(null);
@@ -27,6 +46,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
   const [boundaryLoading, setBoundaryLoading] = useState(false);
   const [boundaryError, setBoundaryError] = useState('');
   const [countryGeoJson, setCountryGeoJson] = useState<any | null>(null);
+  const [provinceBoundaryLines, setProvinceBoundaryLines] = useState<{ coords: number[][] }[]>([]);
 
   const countrySummaries = useMemo(() => {
     const summaries = new Map<string, CountrySummary>();
@@ -63,6 +83,10 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
   const currentMapName = selectedCountryIso && countryMapReady
     ? `country-${selectedCountryIso}`
     : 'photo-world-map';
+  const selectedBoundaryConfig = useMemo(
+    () => selectedCountryIso ? getCountryBoundaryConfig(selectedCountryIso) : null,
+    [selectedCountryIso]
+  );
 
   const selectedCityRegions = useMemo(() => {
     const summaries = new Map<string, { name: string; displayName: string; city: string; value: number }>();
@@ -84,14 +108,16 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
         }
         summaries.set(name, {
           name,
-          displayName: getAdm1DisplayName(selectedCountryIso, name),
+          displayName: selectedBoundaryConfig?.level === 'ADM2'
+            ? point.city
+            : getAdm1DisplayName(selectedCountryIso, name),
           city: point.city,
           value: point.count,
         });
       });
     });
     return Array.from(summaries.values());
-  }, [countryGeoJson, selectedCountryIso, visiblePoints]);
+  }, [countryGeoJson, selectedBoundaryConfig, selectedCountryIso, visiblePoints]);
 
   const displayNameByRegionKey = useMemo(() => {
     const names = new Map<string, string>();
@@ -180,6 +206,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
     if (!selectedCountryIso) {
       setCountryMapReady(false);
       setCountryGeoJson(null);
+      setProvinceBoundaryLines([]);
       setBoundaryError('');
       setBoundaryLoading(false);
       return;
@@ -189,8 +216,11 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
     const registeredMapName = `country-${selectedCountryIso}`;
     setBoundaryLoading(true);
     setBoundaryError('');
+    setProvinceBoundaryLines([]);
 
-    fetch(`/maps/${selectedCountryIso}_ADM1.topojson`)
+    const boundaryConfig = getCountryBoundaryConfig(selectedCountryIso);
+
+    fetch(`/maps/${boundaryConfig.fileName}`)
       .then(response => {
         if (!response.ok) throw new Error('本地边界文件不存在');
         return response.json();
@@ -222,21 +252,64 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
   }, [selectedCountryIso]);
 
   useEffect(() => {
+    if (selectedCountryIso !== 'CHN') {
+      setProvinceBoundaryLines([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    fetch('/maps/CHN_ADM1.topojson')
+      .then(response => {
+        if (!response.ok) throw new Error('中国省级边界文件不存在');
+        return response.json();
+      })
+      .then(topoJson => {
+        if (cancelled) return;
+        const objectName = getTopoJsonObjectName(topoJson);
+        const geoJson = topojsonFeature(topoJson, topoJson.objects[objectName]) as any;
+        setProvinceBoundaryLines(buildGeoJsonBoundaryLines(geoJson));
+      })
+      .catch(error => {
+        if (cancelled) return;
+        console.error('加载中国省级边界失败:', error);
+        setProvinceBoundaryLines([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCountryIso]);
+
+  useEffect(() => {
     if (!chartRef.current || !worldMapReady) return;
 
     const isCountryDetailMap = Boolean(selectedCountryIso && countryMapReady);
     const chart = instanceRef.current || echarts.init(chartRef.current);
     instanceRef.current = chart;
     const regionDataByName = new Map(chartData.map((item: any) => [item.id || item.name, item]));
+    const visitedRegionDisplayNameByName = new Map<string, string>();
+    if (selectedBoundaryConfig?.level === 'ADM2') {
+      visiblePoints.forEach(point => {
+        const matchedFeature = findRegionByCoordinate(countryGeoJson, point.longitude, point.latitude);
+        const shapeName = matchedFeature?.properties?.shapeName;
+        if (shapeName) {
+          visitedRegionDisplayNameByName.set(shapeName, point.city);
+        }
+      });
+    }
     const adm1DisplayNameByName = new Map(
       (countryGeoJson?.features || [])
         .map((feature: any) => feature?.properties?.shapeName)
         .filter(Boolean)
-        .map((name: string) => [name, getAdm1DisplayName(selectedCountryIso, name)])
+        .map((name: string) => [name, selectedBoundaryConfig?.level === 'ADM2' ? name : getAdm1DisplayName(selectedCountryIso, name)])
     );
     const formatRegionName = (name: string) => {
       const data = regionDataByName.get(name) as any;
       if (data?.displayName) return data.displayName;
+      const visitedRegionDisplayName = visitedRegionDisplayNameByName.get(name);
+      if (visitedRegionDisplayName) return visitedRegionDisplayName;
+      if (selectedBoundaryConfig?.level === 'ADM2') return '';
       const adm1DisplayName = adm1DisplayNameByName.get(name);
       if (adm1DisplayName) return adm1DisplayName;
       return displayNameByRegionKey.get(name) || getCountryDisplayName(name, name);
@@ -269,6 +342,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
         formatter: (params: any) => {
           const datum = params.data || {};
           const displayName = datum.displayName || formatRegionName(params.name);
+          if (!displayName) return '';
           const count = datum.count || (Array.isArray(datum.value) ? datum.value[2] : datum.value);
           const countText = count ? `<br/>${count} 张图片` : '';
           const locationText = datum.locationNames ? `<br/>地点：${datum.locationNames}` : '';
@@ -327,6 +401,20 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
           },
           zlevel: 2,
         },
+        ...(provinceBoundaryLines.length > 0 ? [{
+          type: 'lines' as const,
+          coordinateSystem: 'geo' as const,
+          polyline: true,
+          data: provinceBoundaryLines,
+          silent: true,
+          lineStyle: {
+            color: '#94a3b8',
+            width: 1.6,
+            opacity: 0.95,
+          },
+          zlevel: 2,
+          z: 1,
+        }] : []),
       ],
     };
 
@@ -355,6 +443,8 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
     currentMapName,
     displayNameByRegionKey,
     mapView,
+    provinceBoundaryLines,
+    selectedBoundaryConfig,
     selectedCountryIso,
     visiblePoints,
     visitedCountryIds,
@@ -379,7 +469,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
       <div ref={chartRef} className="h-[calc(100vh-260px)] min-h-[560px] w-full overflow-hidden rounded-[28px] border border-emerald-100 bg-[#f8fbfb]" />
       <div className="pointer-events-none absolute left-5 top-5 flex flex-wrap items-center gap-2">
         <span className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200">
-          {selectedSummary ? `${getCountryDisplayName(selectedSummary.iso3, selectedSummary.country)} · ${countryMapReady ? '行政区/城市明细' : '城市明细'}` : '世界地图 · 点击高亮国家钻入'}
+          {selectedSummary ? `${getCountryDisplayName(selectedSummary.iso3, selectedSummary.country)} · ${countryMapReady ? selectedBoundaryConfig?.mapLabel || '行政区/城市明细' : '城市明细'}` : '世界地图 · 点击高亮国家钻入'}
         </span>
         {boundaryLoading && (
           <span className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-emerald-600 shadow-sm ring-1 ring-emerald-100">

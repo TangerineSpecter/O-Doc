@@ -67,6 +67,22 @@ export const getAdm1DisplayName = (iso3: string | null | undefined, name: string
   return name;
 };
 
+export const getCountryBoundaryConfig = (iso3: string) => {
+  if (iso3 === 'CHN') {
+    return {
+      level: 'ADM2',
+      fileName: 'CHN-ADM2.topojson',
+      mapLabel: '城市明细',
+    };
+  }
+
+  return {
+    level: 'ADM1',
+    fileName: `${iso3}_ADM1.topojson`,
+    mapLabel: '行政区/城市明细',
+  };
+};
+
 export const getCityRegionAliases = (city: string) => CITY_REGION_ALIASES[city] || [city];
 
 export const getTopoJsonObjectName = (topoJson: any, preferredObjectName?: string) => {
