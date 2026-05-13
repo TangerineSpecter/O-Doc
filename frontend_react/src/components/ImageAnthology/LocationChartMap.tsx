@@ -12,6 +12,8 @@ import {
   getTopoJsonObjectName,
 } from '../../utils/geo';
 
+const getMapAssetUrl = (fileName: string) => `${import.meta.env.BASE_URL}maps/${fileName}`;
+
 interface CountrySummary {
   country: string;
   iso3: string;
@@ -186,7 +188,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
     setWorldMapReady(false);
     setWorldMapError('');
 
-    fetch('/maps/world.json')
+    fetch(getMapAssetUrl('world.json'))
       .then(response => {
         if (!response.ok) throw new Error('世界地图文件不存在');
         return response.json();
@@ -226,7 +228,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
 
     const boundaryConfig = getCountryBoundaryConfig(selectedCountryIso);
 
-    fetch(`/maps/${boundaryConfig.fileName}`)
+    fetch(getMapAssetUrl(boundaryConfig.fileName))
       .then(response => {
         if (!response.ok) throw new Error('本地边界文件不存在');
         return response.json();
@@ -265,7 +267,7 @@ function LocationChartMap({ points }: { points: LocationPoint[] }) {
 
     let cancelled = false;
 
-    fetch('/maps/CHN_ADM1.topojson')
+    fetch(getMapAssetUrl('CHN_ADM1.topojson'))
       .then(response => {
         if (!response.ok) throw new Error('中国省级边界文件不存在');
         return response.json();

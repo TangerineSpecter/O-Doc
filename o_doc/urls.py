@@ -17,6 +17,7 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path, include, re_path
+from django.views.static import serve
 from django.views.generic import TemplateView
 
 urlpatterns = [
@@ -35,8 +36,12 @@ urlpatterns = [
     path('api/memo/', include('memos.urls')),  # 闪念备忘接口
 ]
 
-# 提供媒体文件服务（内网部署场景下需要直接访问上传文件）
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# 提供媒体文件服务（内网部署场景下需要直接访问上传文件）。
+# 这里不能依赖 django.conf.urls.static.static；DEBUG=false 时它不会注册路由，
+# /media 请求会落到下面的 SPA fallback，浏览器拿到 index.html 后头像就会加载失败。
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+]
 
 urlpatterns += [
     re_path(r'^(?!api/|static/).*$', TemplateView.as_view(template_name='index.html')),

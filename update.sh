@@ -51,6 +51,12 @@ if [ -d "$FRONTEND_DIR/dist/assets" ]; then
     echo "已将 assets 文件夹复制到 $STATIC_DIR"
 fi
 
+# 将 public/maps 构建产物复制到 static 文件夹下
+if [ -d "$FRONTEND_DIR/dist/maps" ]; then
+    cp -r "$FRONTEND_DIR/dist/maps" "$STATIC_DIR"
+    echo "已将 maps 文件夹复制到 $STATIC_DIR"
+fi
+
 # 将 favicon.svg 复制到 static 文件夹下
 if [ -f "$FRONTEND_DIR/dist/favicon.svg" ]; then
     cp "$FRONTEND_DIR/dist/favicon.svg" "$STATIC_DIR"
