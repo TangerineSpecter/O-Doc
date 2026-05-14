@@ -34,6 +34,11 @@ const parseImageTags = (image: Image) => {
     return source.map(tag => tag.trim()).filter(Boolean);
 };
 
+const getImageShootingDateKey = (image: Image) => {
+    const source = image.shootingTime || image.shootingTimeStr || image.date || '';
+    return source ? source.replace(' ', 'T').slice(0, 10) : '';
+};
+
 const formatCountStats = (counts: Map<string, number>, unit: string, limit = 12) => {
     return Array.from(counts.entries())
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
@@ -66,7 +71,7 @@ const inferTitleScenes = (title: string, tags: string[]) => {
 const buildPhotographyAnalysisPrompt = (
     userMessage: string,
     images: Image[],
-    anthologyTitle: string
+    anthologyTitle: string,
 ) => {
     const imagesWithFocalLength = images.filter(image => image.focalLength?.trim());
     const focalCounts = new Map<string, number>();
@@ -116,12 +121,19 @@ const buildPhotographyAnalysisPrompt = (
     const samples = imagesWithFocalLength.slice(0, 120).map((image, index) => {
         const tags = parseImageTags(image);
         const location = [image.country, image.city].filter(Boolean).join(' / ') || '未记录';
-        return `${index + 1}. 标题：${image.title || '未命名'}；标签：${tags.join('、') || '无'}；焦段：${normalizeFocalLengthLabel(image.focalLength || '')}；地点：${location}`;
+        const shootingDate = getImageShootingDateKey(image) || '未记录';
+        return `${index + 1}. 标题：${image.title || '未命名'}；拍摄日期：${shootingDate}；标签：${tags.join('、') || '无'}；焦段：${normalizeFocalLengthLabel(image.focalLength || '')}；地点：${location}`;
     }).join('\n');
 
     return `你是“摄影分析助手 MCP”，负责分析图片文集里的摄影统计数据与拍摄风格。
 
 请严格基于下面的数据分析。注意：统计分析只使用“已填写焦段”的图片；未填写焦段的图片只能作为缺失数据说明，不参与焦段、标签焦段、标题场景焦段结论。
+
+你具备可选询问参数：摄影时间范围、标签、地点。这些都不是必填参数。
+- 如果用户问题中明确给出时间范围、标签或地点，请先在下面的数据中按这些条件筛选，再只分析筛选后的图片，并在回答开头说明实际使用的筛选范围与命中图片数量。
+- 如果用户表达了“按某个范围分析”的意图但没有给出足够范围，例如只说“帮我分析旅行照片”但标签/地点不确定，请先用一句话追问需要的参数，不要直接分析整个文集。
+- 如果用户没有提出筛选条件，也没有要求限定范围，则默认分析当前文集范围。
+- 不要要求用户填写表单；像 MCP 助手一样通过对话采集缺失参数。
 
 用户问题：${userMessage || '请分析我的图片文集摄影习惯'}
 
@@ -814,8 +826,15 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                             )}
                             <button
                                 onClick={() => {
-                                    setUsePhotographyMcp(prev => !prev);
+                                    const nextValue = !usePhotographyMcp;
+                                    setUsePhotographyMcp(nextValue);
                                     setUseKb(false);
+                                    if (nextValue && messages.length === 0) {
+                                        setMessages([{
+                                            role: 'assistant',
+                                            content: '摄影分析助手已开启。你可以直接说分析范围，例如“分析 2024 年在上海拍的人像照片”或“只看风景标签，看看我常用哪些焦段”。时间范围、标签、地点都是可选的；不说范围时我会分析当前选择的图片文集。'
+                                        }]);
+                                    }
                                 }}
                                 className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
                                     usePhotographyMcp

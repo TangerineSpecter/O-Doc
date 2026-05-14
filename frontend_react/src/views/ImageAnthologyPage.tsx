@@ -31,6 +31,11 @@ const getImageCityKey = (image: Image) => {
   return country && city ? `${country}__${city}` : '';
 };
 
+const getImageShootingDateKey = (image: Image) => {
+  const source = image.shootingTime || image.shootingTimeStr || image.date || '';
+  return source ? source.replace(' ', 'T').slice(0, 10) : '';
+};
+
 const buildFocalLengthStats = (sourceImages: Image[]): FocalLengthStat[] => {
   const counts = new Map<string, number>();
 
@@ -67,6 +72,8 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [selectedFocalCountry, setSelectedFocalCountry] = useState('all');
   const [selectedFocalCities, setSelectedFocalCities] = useState<string[]>([]);
   const [selectedFocalTags, setSelectedFocalTags] = useState<string[]>([]);
+  const [selectedFocalStartDate, setSelectedFocalStartDate] = useState('');
+  const [selectedFocalEndDate, setSelectedFocalEndDate] = useState('');
   const [selectedColor, setSelectedColor] = useState<DominantColorKey | 'all'>('all');
   const [dominantColors, setDominantColors] = useState<Record<string, DominantColorResult | null>>({});
   const colorExtractionKeysRef = useRef(new Set<string>());
@@ -242,14 +249,17 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
       const country = image.country?.trim();
       const cityKey = getImageCityKey(image);
       const imageTags = parseImageTags(image);
+      const shootingDate = getImageShootingDateKey(image);
 
       if (selectedFocalCountry !== 'all' && country !== selectedFocalCountry) return false;
       if (selectedFocalCities.length > 0 && !selectedFocalCities.includes(cityKey)) return false;
       if (selectedFocalTags.length > 0 && !selectedFocalTags.every(tag => imageTags.includes(tag))) return false;
+      if (selectedFocalStartDate && (!shootingDate || shootingDate < selectedFocalStartDate)) return false;
+      if (selectedFocalEndDate && (!shootingDate || shootingDate > selectedFocalEndDate)) return false;
 
       return true;
     });
-  }, [images, selectedFocalCities, selectedFocalCountry, selectedFocalTags]);
+  }, [images, selectedFocalCities, selectedFocalCountry, selectedFocalEndDate, selectedFocalStartDate, selectedFocalTags]);
 
   const filteredFocalLengthStats = useMemo<FocalLengthStat[]>(
     () => buildFocalLengthStats(filteredFocalImages),
@@ -280,6 +290,8 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     setSelectedFocalCountry('all');
     setSelectedFocalCities([]);
     setSelectedFocalTags([]);
+    setSelectedFocalStartDate('');
+    setSelectedFocalEndDate('');
   };
 
   useEffect(() => {
@@ -639,9 +651,13 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   selectedCountry={selectedFocalCountry}
                   selectedCities={selectedFocalCities}
                   selectedTags={selectedFocalTags}
+                  selectedStartDate={selectedFocalStartDate}
+                  selectedEndDate={selectedFocalEndDate}
                   onCountryChange={handleFocalCountryChange}
                   onCityToggle={handleFocalCityToggle}
                   onTagToggle={handleFocalTagToggle}
+                  onStartDateChange={setSelectedFocalStartDate}
+                  onEndDateChange={setSelectedFocalEndDate}
                   onClearFilters={clearFocalFilters}
                 />
               ) : isTagDetailOpen ? (

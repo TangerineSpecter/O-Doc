@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Aperture, Check, Filter, X } from 'lucide-react';
+import { Aperture, Calendar, Check, Filter, X } from 'lucide-react';
 import { Select, SelectOption } from '../common/Select';
 import { FocalLengthStat } from '../../types/imageAnthology';
 
@@ -26,9 +26,13 @@ interface FocalLengthDetailChartProps {
   selectedCountry: string;
   selectedCities: string[];
   selectedTags: string[];
+  selectedStartDate: string;
+  selectedEndDate: string;
   onCountryChange: (country: string) => void;
   onCityToggle: (city: string) => void;
   onTagToggle: (tag: string) => void;
+  onStartDateChange: (date: string) => void;
+  onEndDateChange: (date: string) => void;
   onClearFilters: () => void;
 }
 
@@ -43,9 +47,13 @@ export default function FocalLengthDetailChart({
   selectedCountry,
   selectedCities,
   selectedTags,
+  selectedStartDate,
+  selectedEndDate,
   onCountryChange,
   onCityToggle,
   onTagToggle,
+  onStartDateChange,
+  onEndDateChange,
   onClearFilters,
 }: FocalLengthDetailChartProps) {
   const numericStats = useMemo(
@@ -71,7 +79,11 @@ export default function FocalLengthDetailChart({
     ],
     [countryOptions]
   );
-  const hasActiveFilters = selectedCountry !== 'all' || selectedCities.length > 0 || selectedTags.length > 0;
+  const hasActiveFilters = selectedCountry !== 'all'
+    || selectedCities.length > 0
+    || selectedTags.length > 0
+    || Boolean(selectedStartDate)
+    || Boolean(selectedEndDate);
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -156,6 +168,30 @@ export default function FocalLengthDetailChart({
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+              <Calendar className="h-3.5 w-3.5 text-sky-600" />
+              拍摄日期
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
+              <input
+                type="date"
+                value={selectedStartDate}
+                onChange={(event) => onStartDateChange(event.target.value)}
+                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none transition-all focus:border-sky-400 focus:ring-2 focus:ring-sky-500/10"
+                aria-label="焦段统计开始拍摄日期"
+              />
+              <input
+                type="date"
+                value={selectedEndDate}
+                min={selectedStartDate || undefined}
+                onChange={(event) => onEndDateChange(event.target.value)}
+                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none transition-all focus:border-sky-400 focus:ring-2 focus:ring-sky-500/10"
+                aria-label="焦段统计结束拍摄日期"
+              />
             </div>
           </div>
 
