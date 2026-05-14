@@ -1,6 +1,10 @@
+import base64
 import logging
+import mimetypes
+import os
 import threading
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction, models, close_old_connections
 from django.shortcuts import get_object_or_404
@@ -21,10 +25,32 @@ from utils.resource_assets import (
 from utils.response_utils import success_result, error_result
 from utils.web_parser import parse_web_content
 from anthology.models import Anthology
+from assets.models import Asset
 
 User = get_user_model()
 
 logger = logging.getLogger(__name__)
+
+
+def build_image_data_url(image_url):
+    """将本地资源图片转换为视觉模型可读取的 data URL。"""
+    resource_id = extract_resource_id_from_view_url(image_url)
+    if not resource_id:
+        return None
+
+    asset = Asset.objects.filter(id=resource_id, is_valid=True, uploader='admin', file_type='image').first()
+    if not asset:
+        return None
+
+    abs_file_path = os.path.join(settings.MEDIA_ROOT, asset.file_path)
+    if not os.path.exists(abs_file_path):
+        return None
+
+    mime_type = asset.mime_type or mimetypes.guess_type(asset.original_name or asset.name)[0] or 'image/jpeg'
+    with open(abs_file_path, 'rb') as image_file:
+        encoded = base64.b64encode(image_file.read()).decode('utf-8')
+
+    return f'data:{mime_type};base64,{encoded}'
 
 
 def refresh_anthology_stats(coll_id):
@@ -451,6 +477,52 @@ class ImageUpdateView(APIView):
 
         except Exception as e:
             return error_result(ErrorCode.SYSTEM_ERROR, str(e))
+
+
+class ImageDescriptionGenerateView(APIView):
+    """
+    AI 生成图片描述说明
+    """
+
+    def post(self, request):
+        try:
+            title = (request.data.get('title') or '').strip()
+            country = (request.data.get('country') or '').strip()
+            city = (request.data.get('city') or '').strip()
+            location = ' / '.join([item for item in [country, city] if item])
+            image_data = request.data.get('imageData') or request.data.get('image_data')
+            image_url = request.data.get('imageUrl') or request.data.get('image_url')
+            uploaded_image = request.FILES.get('image')
+
+            image_data_url = None
+            if uploaded_image:
+                mime_type = uploaded_image.content_type or mimetypes.guess_type(uploaded_image.name)[0] or 'image/jpeg'
+                encoded = base64.b64encode(uploaded_image.read()).decode('utf-8')
+                image_data_url = f'data:{mime_type};base64,{encoded}'
+
+            if not image_data_url and isinstance(image_data, str) and image_data.startswith('data:image/'):
+                image_data_url = image_data
+            if not image_data_url and image_url:
+                image_data_url = build_image_data_url(image_url)
+
+            if not image_data_url:
+                return error_result(ErrorCode.PARAM_ERROR, '请先选择图片')
+
+            description = AIService.image_description(
+                image_data_url=image_data_url,
+                title=title,
+                location=location
+            )
+
+            if not description:
+                return error_result(ErrorCode.AI_SERVICE_ERROR, 'AI 未生成描述')
+
+            return success_result({'description': description})
+        except ValueError as e:
+            return error_result(ErrorCode.AI_SERVICE_ERROR, str(e))
+        except Exception as e:
+            logger.error(f"Image description generation error: {str(e)}", exc_info=True)
+            return error_result(ErrorCode.AI_SERVICE_ERROR, str(e))
 
 
 class ImageDeleteView(APIView):

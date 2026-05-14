@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Loader2, Plus, Sparkles, Tag, Upload, X } from 'lucide-react';
 import { uploadResource } from '../../api/resources';
-import { createImage, Image, updateImage } from '../../api/image';
+import { createImage, generateImageDescription, Image, updateImage } from '../../api/image';
 import { AIConfigError, recommendImageTagsWithAI } from '../../api/ai';
 import { GeoLocation, getGeoLocations } from '../../api/setting';
 import { useToast } from '../common/ToastProvider';
@@ -40,6 +40,7 @@ export default function ImageUploadModal({
   const [tagInput, setTagInput] = useState('');
   const [isTagMenuOpen, setIsTagMenuOpen] = useState(false);
   const [isRecommendingTags, setIsRecommendingTags] = useState(false);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(dayjs());
@@ -141,6 +142,7 @@ export default function ImageUploadModal({
     setSelectedTags([]);
     setTagInput('');
     setIsTagMenuOpen(false);
+    setIsGeneratingDescription(false);
   };
 
   const addTag = (value: string) => {
@@ -208,6 +210,43 @@ export default function ImageUploadModal({
       toast.error('AI 推荐标签失败');
     } finally {
       setIsRecommendingTags(false);
+    }
+  };
+
+  const handleGenerateDescription = async () => {
+    if (!preview) {
+      toast.info('请先选择图片');
+      return;
+    }
+
+    try {
+      setIsGeneratingDescription(true);
+      const result = await generateImageDescription({
+        title: title.trim(),
+        country: country.trim(),
+        city: city.trim(),
+        imageUrl: file ? undefined : preview,
+        imageFile: file || undefined,
+      });
+
+      const nextDescription = result.description?.trim();
+      if (!nextDescription) {
+        toast.info('AI 暂未生成描述');
+        return;
+      }
+
+      setDescription(nextDescription);
+      toast.success('描述说明已生成');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('No default image model configured')) {
+        toast.error('未配置图像模型，请先在系统设置中配置');
+        return;
+      }
+      console.error('AI 生成图片描述失败:', error);
+      toast.error('AI 生成描述失败');
+    } finally {
+      setIsGeneratingDescription(false);
     }
   };
 
@@ -484,12 +523,27 @@ export default function ImageUploadModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold text-slate-700">
-              描述说明
-            </label>
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-sm font-semibold text-slate-700">
+                描述说明
+              </label>
+              <button
+                type="button"
+                disabled={isUploading || isGeneratingDescription || !preview}
+                onClick={handleGenerateDescription}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isGeneratingDescription ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                AI 生成
+              </button>
+            </div>
             <textarea
-              disabled={isUploading}
-              rows={2}
+              disabled={isUploading || isGeneratingDescription}
+              rows={3}
               placeholder="请输入图片描述（可选）"
               className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm resize-none"
               value={description}

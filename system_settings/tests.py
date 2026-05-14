@@ -9,6 +9,7 @@ from rest_framework.test import APIRequestFactory
 from system_settings.models import SystemSetting
 from system_settings.sync_scheduler import should_start_webdav_scheduler
 from system_settings.views import SystemConfigViewSet
+from utils.ai_service import AIService
 from utils.sync_manager import SyncError, SyncManager
 
 
@@ -63,6 +64,32 @@ class SyncManagerTests(TestCase):
 
         with self.assertRaises(SyncError):
             manager.sync_data_download()
+
+
+class AIServiceTests(TestCase):
+    def test_normalize_base_url_preserves_volcengine_ark_v3_endpoint(self):
+        self.assertEqual(
+            AIService._normalize_base_url('https://ark.cn-beijing.volces.com/api/v3'),
+            'https://ark.cn-beijing.volces.com/api/v3'
+        )
+
+    def test_normalize_base_url_preserves_google_openai_compatible_endpoint(self):
+        self.assertEqual(
+            AIService._normalize_base_url('https://generativelanguage.googleapis.com/v1beta/openai/'),
+            'https://generativelanguage.googleapis.com/v1beta/openai'
+        )
+
+    def test_normalize_base_url_appends_v1_for_host_only_endpoint(self):
+        self.assertEqual(
+            AIService._normalize_base_url('https://api.openai.com'),
+            'https://api.openai.com/v1'
+        )
+
+    def test_normalize_base_url_strips_chat_completions_suffix(self):
+        self.assertEqual(
+            AIService._normalize_base_url('https://ark.cn-beijing.volces.com/api/v3/chat/completions'),
+            'https://ark.cn-beijing.volces.com/api/v3'
+        )
 
 
 class SystemConfigViewSetTests(TestCase):

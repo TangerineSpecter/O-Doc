@@ -9,6 +9,7 @@ from system_settings.models import SystemSetting, AIModel
 logger = logging.getLogger(__name__)
 
 THINK_BLOCK_RE = re.compile(r'<think(?:ing)?>.*?</think(?:ing)?>', re.IGNORECASE | re.DOTALL)
+OPENAI_COMPATIBLE_VERSION_RE = re.compile(r'/(?:v\d+(?:beta)?)(?:/openai)?$', re.IGNORECASE)
 
 
 class AIService:
@@ -22,12 +23,10 @@ class AIService:
 
         # 1. 如果用户误填了完整路径 /chat/completions，先去掉它
         if base_url.endswith('/chat/completions'):
-            base_url = base_url.replace('/chat/completions', '')
+            base_url = base_url[:-len('/chat/completions')]
             base_url = base_url.rstrip('/')
 
-        # 2. 关键修复：如果 URL 不以 /v1 (或 /v1beta) 结尾，自动补全 /v1
-        # 这一步是为了模拟 Cherry Studio 的行为，解决 405 错误
-        if not base_url.endswith('/v1') and not base_url.endswith('/v1beta'):
+        if not OPENAI_COMPATIBLE_VERSION_RE.search(base_url):
             base_url += '/v1'
 
         return base_url
@@ -77,6 +76,30 @@ class AIService:
             logger.error(f"Failed to load AI config: {e}")
             raise e
 
+    @staticmethod
+    def get_default_image_client_config():
+        """获取系统默认的图像识别模型配置"""
+        try:
+            config_obj = SystemSetting.objects.get(key='system_ai_config')
+            config = config_obj.value
+            model_id = AIService._get_config_value(config, 'defaultImageModelId', 'default_image_model_id')
+
+            if not model_id:
+                raise ValueError("No default image model configured")
+
+            ai_model = AIModel.objects.get(id=model_id)
+            provider = ai_model.provider
+
+            return {
+                "api_key": provider.api_key,
+                "base_url": AIService._normalize_base_url(provider.base_url),
+                "model_name": ai_model.name,
+                "provider_type": provider.type
+            }
+        except Exception as e:
+            logger.error(f"Failed to load image AI config: {e}")
+            raise e
+
     @classmethod
     def chat_completion(cls, prompt, use_simple_model=False):
         """执行 AI 对话"""
@@ -102,6 +125,40 @@ class AIService:
             return cls.strip_thinking(response.choices[0].message.content)
         except Exception as e:
             logger.error(f"AI API Call Error: {e}")
+            raise e
+
+    @classmethod
+    def image_description(cls, image_data_url, title='', location=''):
+        """基于图片和元信息生成图片描述。"""
+        try:
+            config = cls.get_default_image_client_config()
+            client = OpenAI(api_key=config['api_key'], base_url=config['base_url'])
+
+            prompt = f"""请根据图片内容，并结合用户提供的标题和地点，写一段适合图片文集使用的描述说明。
+要求：
+1. 只返回描述正文，不要添加“描述：”等前缀。
+2. 语言自然，有画面感，但不要编造图片中看不到的事实。
+3. 结合标题和地点信息；如果地点为空，不要强行提及地点。
+4. 控制在 60 到 120 个中文字符之间。
+
+图片标题：{title or '未填写'}
+拍摄地点：{location or '未填写'}"""
+
+            response = client.chat.completions.create(
+                model=config['model_name'],
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": image_data_url}},
+                    ],
+                }],
+                stream=False,
+            )
+
+            return cls.strip_thinking(response.choices[0].message.content)
+        except Exception as e:
+            logger.error(f"AI Image Description Error: {e}")
             raise e
 
     @staticmethod

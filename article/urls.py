@@ -5,7 +5,8 @@ from article.views import (
     ArticleListView, ArticleTreeListView,
     ArticleSaveWebView, ArticlePolishView,
     ImageListView, ImageDetailView,
-    ImageCreateView, ImageUpdateView, ImageDeleteView
+    ImageCreateView, ImageUpdateView, ImageDeleteView,
+    ImageDescriptionGenerateView
 )
 
 urlpatterns = [
@@ -43,6 +44,9 @@ urlpatterns = [
 
     # 更新图片
     path('image/update/<str:image_id>', ImageUpdateView.as_view(), name='update-image'),
+
+    # AI 生成图片描述说明
+    path('image/generate-description', ImageDescriptionGenerateView.as_view(), name='generate-image-description'),
 
     # 删除图片
     path('image/delete/<str:image_id>', ImageDeleteView.as_view(), name='delete-image'),

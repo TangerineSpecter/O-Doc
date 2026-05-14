@@ -57,6 +57,15 @@ export interface UpdateImageParams {
   tags?: string;
 }
 
+export interface GenerateImageDescriptionParams {
+  title?: string;
+  country?: string;
+  city?: string;
+  imageUrl?: string;
+  imageData?: string;
+  imageFile?: File;
+}
+
 export const getImagesByAnthology = (collId: string) => {
   return request.get<any, Image[]>(`/article/image/list/${collId}`);
 };
@@ -71,6 +80,42 @@ export const createImage = (data: CreateImageParams) => {
 
 export const updateImage = (imageId: string, data: UpdateImageParams) => {
   return request.put<any, Image>(`/article/image/update/${imageId}`, data);
+};
+
+export const generateImageDescription = async (data: GenerateImageDescriptionParams) => {
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+  const body = data.imageFile ? new FormData() : JSON.stringify(data);
+
+  if (body instanceof FormData) {
+    body.append('image', data.imageFile!);
+    body.append('title', data.title || '');
+    body.append('country', data.country || '');
+    body.append('city', data.city || '');
+    if (data.imageUrl) body.append('imageUrl', data.imageUrl);
+  }
+
+  const response = await fetch('/api/article/image/generate-description', {
+    method: 'POST',
+    headers: data.imageFile
+      ? {...(token ? {Authorization: `Token ${token}`} : {})}
+      : {
+        'Content-Type': 'application/json',
+        ...(token ? {Authorization: `Token ${token}`} : {}),
+      },
+    body,
+    signal: AbortSignal.timeout(60000),
+  });
+
+  if (!response.ok) {
+    throw new Error('AI 生成描述请求失败');
+  }
+
+  const result = await response.json();
+  if (result.code !== 200) {
+    throw new Error([result.msg, result.data].filter(Boolean).join(': ') || 'AI 生成描述失败');
+  }
+
+  return result.data as { description: string };
 };
 
 export const deleteImage = (imageId: string) => {
