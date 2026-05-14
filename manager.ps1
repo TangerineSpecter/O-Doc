@@ -40,9 +40,11 @@ function Show-Banner {
     Write-Color '/ /_/ /_____/ /_/ // /_/ // /___       ' Green
     Write-Color '\____/      \____/ \____/ \____/       ' Green
     Show-Divider
-    Write-Color ' A modern document platform powered by Django + React ' White
-    Write-Color " Architecture: $env:PROCESSOR_ARCHITECTURE" Cyan
-    Write-Color " Deploy Path : $DeployDir" Cyan
+    Write-Color ' 📚 A modern document platform powered by Django + React ' White
+    Write-Color " 🌻 Architecture: $env:PROCESSOR_ARCHITECTURE" Cyan
+    Write-Color " 🔥 Deploy Path : $DeployDir" Cyan
+    Write-Color " 🐱 GitHub Repo : https://github.com/TangerineSpecter/O-Doc" Cyan
+    Write-Color " 🤖 Author: :丢失的橘子" Cyan
     Write-Host ''
 }
 

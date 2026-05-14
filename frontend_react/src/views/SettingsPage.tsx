@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Cpu, MapPin, RefreshCw, Settings } from 'lucide-react';
+import { Save, Cpu, Info, MapPin, RefreshCw, Settings } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useSettings } from '../hooks/useSettings';
 import { AIProvider, getMemosPushConfig, saveMemosPushConfig, saveSystemAIConfig, saveWebDavConfig } from '../api/setting';
@@ -13,9 +13,10 @@ import { GeneralSettings } from '../components/Settings/GeneralSettings';
 import { ProviderModal } from '../components/Settings/ProviderModal';
 import { ModelModal } from '../components/Settings/ModelModal';
 import { LocationSettings } from '../components/Settings/LocationSettings';
+import { AboutSettings } from '../components/Settings/AboutSettings';
 
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState<'ai' | 'sync' | 'location' | 'general'>('ai');
+    const [activeTab, setActiveTab] = useState<'ai' | 'sync' | 'location' | 'general' | 'about'>('ai');
     const toast = useToast();
     const [headerSaving, setHeaderSaving] = useState(false);
     const [memosPushConfig, setMemosPushConfig] = useState<MemosPushConfig>({
@@ -110,6 +111,11 @@ export default function SettingsPage() {
                 toast.success('Memos 定时推送配置已保存');
                 return;
             }
+
+            if (activeTab === 'about') {
+                toast.info('关于页面无需保存');
+                return;
+            }
         } catch (error: any) {
             console.error('保存设置失败', error);
             toast.error(error?.response?.data?.msg || error?.message || '保存失败，请稍后重试');
@@ -166,7 +172,7 @@ export default function SettingsPage() {
                 </div>
                 <button
                     onClick={handleSaveChanges}
-                    disabled={isSaving || headerSaving}
+                    disabled={isSaving || headerSaving || activeTab === 'about'}
                     className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-medium transition-colors shadow-sm disabled:opacity-70"
                 >
                     {isSaving || headerSaving ? (
@@ -174,7 +180,7 @@ export default function SettingsPage() {
                     ) : (
                         <Save className="w-4 h-4" />
                     )}
-                    保存更改
+                    {activeTab === 'about' ? '无需保存' : '保存更改'}
                 </button>
             </div>
 
@@ -186,6 +192,7 @@ export default function SettingsPage() {
                     <TabButton id="sync" label="同步与备份" icon={<RefreshCw className="w-4 h-4" />} />
                     <TabButton id="location" label="地理位置" icon={<MapPin className="w-4 h-4" />} />
                     <TabButton id="general" label="常规设置" icon={<Settings className="w-4 h-4" />} />
+                    <TabButton id="about" label="关于" icon={<Info className="w-4 h-4" />} />
                 </div>
 
                 {/* Content */}
@@ -217,6 +224,9 @@ export default function SettingsPage() {
                     )}
                     {activeTab === 'location' && (
                         <LocationSettings />
+                    )}
+                    {activeTab === 'about' && (
+                        <AboutSettings />
                     )}
                 </div>
             </div>

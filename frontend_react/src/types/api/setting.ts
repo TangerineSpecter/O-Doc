@@ -60,6 +60,12 @@ export interface WebDavSyncStatus {
     updatedAt: string;
 }
 
+export interface RuntimeInfo {
+    firstStartedAt: string;
+    lastStartedAt: string;
+    uptimeSeconds: number;
+}
+
 export interface GeoLocation {
     id: string;
     country: string;

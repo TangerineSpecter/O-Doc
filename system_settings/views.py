@@ -15,6 +15,7 @@ from utils.response_utils import success_result, error_result
 from utils.sync_manager import SyncError, SyncManager
 from utils.webdav import WebDavClient
 from .models import AIProvider, AIModel, SystemSetting, GeoLocation
+from .runtime_tracker import get_runtime_info
 from .serializers import AIProviderSerializer, AIModelSerializer, GeoLocationSerializer
 
 
@@ -168,6 +169,10 @@ class SystemConfigViewSet(viewsets.ViewSet):
             defaults={'value': default_value}
         )
         return success_result({**default_value, **config.value})
+
+    @action(detail=False, methods=['get'])
+    def get_runtime_info(self, request):
+        return success_result(get_runtime_info())
 
     @action(detail=False, methods=['post'])
     def save_ai_config(self, request):

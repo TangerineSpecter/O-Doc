@@ -7,5 +7,7 @@ class SystemSettingsConfig(AppConfig):
 
     def ready(self):
         from .sync_scheduler import start_webdav_scheduler
+        from .runtime_tracker import start_runtime_tracker
 
         start_webdav_scheduler()
+        start_runtime_tracker()

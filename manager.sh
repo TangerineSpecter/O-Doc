@@ -38,9 +38,11 @@ print_banner() {
     printf "${GREEN}/ /_/ /_____/ /_/ // /_/ // /___       ${NC}\n"
     printf "${GREEN}\\\\____/      \\\\____/ \\\\____/ \\\\____/       ${NC}\n"
     print_divider
-    printf "${WHITE} A modern document platform powered by Django + React ${NC}\n"
-    printf "${CYAN} Architecture: %s${NC}\n" "$(uname -m)"
-    printf "${CYAN} Deploy Path : %s${NC}\n\n" "$DEPLOY_DIR"
+    printf "${WHITE} 📚 A modern document platform powered by Django + React ${NC}\n"
+    printf "${CYAN} 🌻 Architecture: %s${NC}\n" "$(uname -m)"
+    printf "${CYAN} 🔥 Deploy Path : %s${NC}\n" "$DEPLOY_DIR"
+    printf "${CYAN} 🐱 GitHub Repo : %s${NC}\n" "https://github.com/TangerineSpecter/O-Doc"
+    printf "${CYAN} 🤖 Author: : %s${NC}\n\n" "丢失的橘子"
 }
 
 step() {

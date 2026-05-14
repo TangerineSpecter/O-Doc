@@ -7,6 +7,7 @@ import type {
     SystemAIConfig,
     WebDavConfig,
     WebDavSyncStatus,
+    RuntimeInfo,
     GeoLocation,
     SaveGeoLocationParams,
 } from '../types/api/setting';
@@ -20,6 +21,7 @@ export type {
     SystemAIConfig,
     WebDavConfig,
     WebDavSyncStatus,
+    RuntimeInfo,
     GeoLocation,
     SaveGeoLocationParams,
 };
@@ -114,6 +116,8 @@ export const getSystemAIConfig = () => request.get<SystemAIConfig>('/settings/co
 
 // 7. 保存系统 AI 配置
 export const saveSystemAIConfig = (data: SystemAIConfig) => request.post('/settings/config/save_ai_config/', data);
+
+export const getRuntimeInfo = () => request.get<any, RuntimeInfo>('/settings/config/get_runtime_info/');
 
 export const getMemosPushConfig = () => request.get<MemosPushConfig>('/settings/config/get_memos_push_config/') as unknown as Promise<MemosPushConfig>;
 
