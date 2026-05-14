@@ -98,7 +98,7 @@ export default function ImageViewer({
   return (
     <div
       className={`
-        fixed inset-x-0 bottom-0 top-16 z-50 bg-slate-900/28 p-3 text-slate-900 backdrop-blur-sm md:p-6
+        fixed inset-x-0 bottom-0 top-16 z-50 bg-slate-900/28 p-3 text-slate-900 backdrop-blur-sm md:p-6 lg:px-28 xl:px-32
         transition-opacity duration-300
         ${isVisible ? 'opacity-100' : 'opacity-0'}
       `}
@@ -107,14 +107,14 @@ export default function ImageViewer({
       <div
         onClick={(e) => e.stopPropagation()}
         className={`
-          relative mx-auto flex h-full w-full max-w-[1320px] overflow-hidden rounded-2xl
+          relative mx-auto flex h-full w-full max-w-[1920px] overflow-hidden rounded-2xl
           border border-white bg-white shadow-[0_24px_80px_rgba(15,23,42,0.22)]
           transition-all duration-300 ease-out
           ${isVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-3 scale-[0.985] opacity-0'}
         `}
       >
-        <main className="grid min-h-0 w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <section className="relative flex min-h-[360px] bg-[#fbfaf8] lg:min-h-0">
+        <main className="grid min-h-0 w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="relative flex min-h-[360px] min-w-0 bg-[#fbfaf8] lg:min-h-0">
             <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-3 px-4 py-4 md:px-6">
               <div className="flex min-w-0 items-center gap-2">
                 <button
@@ -144,7 +144,7 @@ export default function ImageViewer({
               </div>
             </div>
 
-            <div className="flex min-h-0 w-full items-center justify-center p-5 md:p-8">
+            <div className="flex min-h-0 w-full items-center justify-center p-4 md:p-6 2xl:p-8">
               <img
                 src={image.imageUrl}
                 alt={image.title}

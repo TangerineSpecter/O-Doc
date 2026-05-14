@@ -9,7 +9,7 @@ export default {
       fontFamily: {
         // 自定义 sans 字体栈
         sans: [
-          'MyCustomFont',
+          'var(--app-font-family)',
           'MiSans',
           'Noto Sans SC',
           'LXGW WenKai GB Screen',
