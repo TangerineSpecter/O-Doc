@@ -1,4 +1,4 @@
-import {Edit2, Globe, Key, Layers, Plus, Server, Trash2, X, Zap} from 'lucide-react';
+import {Edit2, Eye, Globe, Key, Layers, Plus, Server, Trash2, X, Zap} from 'lucide-react';
 import {AIModel, AIProvider, ModelType, SystemAIConfig} from '@/api/setting';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
 
@@ -109,10 +109,11 @@ export const AISettings = ({
     const ModelTypeBadge = ({type}: { type: ModelType }) => {
         const styles = {
             chat: 'bg-blue-50 text-blue-600 border-blue-100',
+            image: 'bg-cyan-50 text-cyan-600 border-cyan-100',
             embedding: 'bg-emerald-50 text-emerald-600 border-emerald-100',
             rerank: 'bg-purple-50 text-purple-600 border-purple-100'
         };
-        const labels = {chat: '对话', embedding: '向量', rerank: '重排'};
+        const labels = {chat: '对话', image: '图像识别', embedding: '向量', rerank: '重排'};
         return (
             <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${styles[type]}`}>
                 {labels[type]}
@@ -134,7 +135,8 @@ export const AISettings = ({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                <div className="space-y-5">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Chat Model Selector */}
                     <div className="space-y-2">
                         <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
@@ -152,26 +154,6 @@ export const AISettings = ({
                                 buttonClassName="bg-slate-50 focus:ring-blue-500/20 focus:border-blue-500"
                             />
                         </div>
-                    </div>
-
-                    {/* Simple Chat Model Selector */}
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                            简易模型 (Simple)
-                        </label>
-                        <div className="relative">
-                            <SettingsSelect
-                                value={systemConfig.simpleChatModelId}
-                                options={buildModelOptions('chat')}
-                                onChange={value => setSystemConfig({...systemConfig, simpleChatModelId: value})}
-                                placeholder="请选择模型..."
-                                emptyMessage="暂无对话模型，请先在下方服务商中添加 chat 模型"
-                                accentClassName="bg-orange-50 text-orange-700"
-                                buttonClassName="bg-slate-50 focus:ring-orange-500/20 focus:border-orange-500"
-                            />
-                        </div>
-                        <p className="text-[10px] text-slate-400">用于标题、文章标签、图片标签推荐，并固定关闭思考模式</p>
                     </div>
 
                     {/* Embedding Model Selector */}
@@ -211,6 +193,53 @@ export const AISettings = ({
                                 accentClassName="bg-purple-50 text-purple-700"
                                 buttonClassName="bg-slate-50 focus:ring-purple-500/20 focus:border-purple-500"
                             />
+                        </div>
+                    </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-5 border-t border-slate-100">
+                        {/* Simple Chat Model Selector */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                                简易模型 (Simple)
+                                <span className="text-[10px] font-medium text-slate-400">可选</span>
+                            </label>
+                            <div className="relative">
+                                <SettingsSelect
+                                    value={systemConfig.simpleChatModelId}
+                                    options={buildModelOptions('chat')}
+                                    onChange={value => setSystemConfig({...systemConfig, simpleChatModelId: value})}
+                                    placeholder="未配置时使用主对话模型"
+                                    emptyMessage="暂无对话模型，请先在下方服务商中添加 chat 模型"
+                                    accentClassName="bg-orange-50 text-orange-700"
+                                    buttonClassName="bg-slate-50 focus:ring-orange-500/20 focus:border-orange-500"
+                                />
+                            </div>
+                            <p className="text-[10px] text-slate-400">用于标题、文章标签、图片标签推荐，并固定关闭思考模式</p>
+                        </div>
+
+                        {/* Image Model Selector */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+                                图像模型 (Image)
+                                <span className="text-[10px] font-medium text-slate-400">可选</span>
+                            </label>
+                            <div className="relative">
+                                <SettingsSelect
+                                    value={systemConfig.defaultImageModelId}
+                                    options={buildModelOptions('image')}
+                                    onChange={value => setSystemConfig({...systemConfig, defaultImageModelId: value})}
+                                    placeholder="未配置"
+                                    emptyMessage="暂无图像识别模型，请先在下方服务商中添加 image 模型"
+                                    accentClassName="bg-cyan-50 text-cyan-700"
+                                    buttonClassName="bg-slate-50 focus:ring-cyan-500/20 focus:border-cyan-500"
+                                />
+                            </div>
+                            <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                                <Eye className="w-3 h-3"/> 用于图片内容理解、视觉识别等能力
+                            </p>
                         </div>
                     </div>
                 </div>

@@ -27,6 +27,7 @@ export const useSettings = () => {
     const [systemConfig, setSystemConfig] = useState<SystemAIConfig>({
         defaultChatModelId: '',
         simpleChatModelId: '',
+        defaultImageModelId: '',
         defaultEmbeddingModelId: '',
         defaultRerankModelId: ''
     });
@@ -54,6 +55,7 @@ export const useSettings = () => {
     const normalizeSystemAIConfig = (config: Partial<SystemAIConfig> = {}): SystemAIConfig => ({
         defaultChatModelId: config.defaultChatModelId || '',
         simpleChatModelId: config.simpleChatModelId || '',
+        defaultImageModelId: config.defaultImageModelId || '',
         defaultEmbeddingModelId: config.defaultEmbeddingModelId || '',
         defaultRerankModelId: config.defaultRerankModelId || ''
     });

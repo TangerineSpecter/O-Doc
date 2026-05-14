@@ -46,6 +46,7 @@ export const MOCK_PROVIDERS: AIProvider[] = [
         models: [
             {id: 'm_qwen_max', name: 'qwen-max', type: 'chat'},
             {id: 'm_qwen_turbo', name: 'qwen-turbo', type: 'chat'},
+            {id: 'm_qwen_vl', name: 'qwen-vl-plus', type: 'image'},
             {id: 'm_qwen_emb', name: 'text-embedding-v1', type: 'embedding'}
         ]
     }, {
@@ -57,6 +58,7 @@ export const MOCK_PROVIDERS: AIProvider[] = [
         models: [
             {id: 'm_gpt4o', name: 'gpt-5.1', type: 'chat'},
             {id: 'm_gpt35', name: 'gpt-4.1-turbo', type: 'chat'},
+            {id: 'm_gpt4o_image', name: 'gpt-4o', type: 'image'},
             {id: 'm_emb3', name: 'text-embedding-3-small', type: 'embedding'}
         ]
     },

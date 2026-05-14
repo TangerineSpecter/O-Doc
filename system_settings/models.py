@@ -67,6 +67,7 @@ class AIModel(models.Model):
     """具体的AI模型"""
     MODEL_TYPES = [
         ('chat', '对话 (Chat)'),
+        ('image', '图像识别 (Image Recognition)'),
         ('embedding', '向量化 (Embedding)'),
         ('rerank', '重排序 (Rerank)'),
     ]

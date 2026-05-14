@@ -1,5 +1,5 @@
 // --- 类型定义 ---
-export type ModelType = 'chat' | 'embedding' | 'rerank';
+export type ModelType = 'chat' | 'image' | 'embedding' | 'rerank';
 
 export interface AIModel {
     id: string;
@@ -20,6 +20,7 @@ export interface AIProvider {
 export interface SystemAIConfig {
     defaultChatModelId: string;
     simpleChatModelId: string;
+    defaultImageModelId: string;
     defaultEmbeddingModelId: string;
     defaultRerankModelId: string;
 }

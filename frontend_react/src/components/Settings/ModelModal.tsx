@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ModelType } from '../../api/setting';
-import { Layers, X } from 'lucide-react';
+import {Eye, Layers, MessageCircle, SearchCheck, X} from 'lucide-react';
 
 interface ModelModalProps {
     isOpen: boolean;
@@ -10,6 +10,12 @@ interface ModelModalProps {
 
 export const ModelModal = ({ isOpen, onClose, onSave }: ModelModalProps) => {
     const [form, setForm] = useState<{ name: string, type: ModelType }>({ name: '', type: 'chat' });
+    const modelTypeOptions: { type: ModelType; label: string; icon: typeof MessageCircle }[] = [
+        {type: 'chat', label: '对话', icon: MessageCircle},
+        {type: 'image', label: '图像识别', icon: Eye},
+        {type: 'embedding', label: '向量', icon: Layers},
+        {type: 'rerank', label: '重排', icon: SearchCheck},
+    ];
 
     useEffect(() => {
         if (isOpen) setForm({ name: '', type: 'chat' });
@@ -40,7 +46,7 @@ export const ModelModal = ({ isOpen, onClose, onSave }: ModelModalProps) => {
                         <input
                             type="text"
                             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none"
-                            placeholder="例如：gpt-4o, text-embedding-3"
+                            placeholder="例如：gpt-4o, qwen-vl-plus, text-embedding-3"
                             value={form.name}
                             onChange={e => setForm({ ...form, name: e.target.value })}
                         />
@@ -48,14 +54,16 @@ export const ModelModal = ({ isOpen, onClose, onSave }: ModelModalProps) => {
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-slate-600 mb-1.5">模型功能类型</label>
-                        <div className="grid grid-cols-3 gap-2">
-                            {(['chat', 'embedding', 'rerank'] as const).map(type => (
+                        <div className="grid grid-cols-2 gap-2">
+                            {modelTypeOptions.map(({type, label, icon: Icon}) => (
                                 <button
                                     key={type}
+                                    type="button"
                                     onClick={() => setForm({ ...form, type })}
-                                    className={`px-2 py-2 rounded-lg text-xs border transition-all ${form.type === type ? 'bg-orange-50 border-orange-500 text-orange-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                    className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs border transition-all ${form.type === type ? 'bg-orange-50 border-orange-500 text-orange-700 font-medium' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                                 >
-                                    {type === 'chat' ? '对话' : type === 'embedding' ? '向量' : '重排'}
+                                    <Icon className="w-3.5 h-3.5"/>
+                                    {label}
                                 </button>
                             ))}
                         </div>
