@@ -103,7 +103,7 @@ export const generateImageDescription = async (data: GenerateImageDescriptionPar
         ...(token ? {Authorization: `Token ${token}`} : {}),
       },
     body,
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(75000),
   });
 
   if (!response.ok) {

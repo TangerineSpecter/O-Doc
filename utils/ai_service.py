@@ -132,7 +132,12 @@ class AIService:
         """基于图片和元信息生成图片描述。"""
         try:
             config = cls.get_default_image_client_config()
-            client = OpenAI(api_key=config['api_key'], base_url=config['base_url'])
+            client = OpenAI(
+                api_key=config['api_key'],
+                base_url=config['base_url'],
+                timeout=55.0,
+                max_retries=0,
+            )
 
             prompt = f"""请根据图片内容，并结合用户提供的标题和地点，写一段适合图片文集使用的描述说明。
 要求：

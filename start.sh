@@ -72,4 +72,4 @@ python init_categories.py
 # --bind 0.0.0.0:11800 表示监听所有网络接口的11800端口
 # o_doc.wsgi 是你的项目的 WSGI 应用程序入口
 echo "开始启动服务..."
-exec gunicorn --bind "0.0.0.0:${APP_PORT}" o_doc.wsgi:application
+exec gunicorn --bind "0.0.0.0:${APP_PORT}" --timeout "${GUNICORN_TIMEOUT:-90}" o_doc.wsgi:application
