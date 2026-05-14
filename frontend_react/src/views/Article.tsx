@@ -91,6 +91,36 @@ const remarkQuoteVariants = () => {
     return (tree: any) => visit(tree);
 };
 
+const remarkSoftLineBreaks = () => {
+    const visit = (node: any) => {
+        if (Array.isArray(node.children)) {
+            const nextChildren: any[] = [];
+
+            node.children.forEach((child: any) => {
+                if (child.type === 'text' && child.value.includes('\n')) {
+                    const lines = child.value.split('\n');
+                    lines.forEach((line: string, index: number) => {
+                        if (line) {
+                            nextChildren.push({...child, value: line});
+                        }
+                        if (index < lines.length - 1) {
+                            nextChildren.push({type: 'break'});
+                        }
+                    });
+                    return;
+                }
+
+                visit(child);
+                nextChildren.push(child);
+            });
+
+            node.children = nextChildren;
+        }
+    };
+
+    return (tree: any) => visit(tree);
+};
+
 const getQuoteVariant = (props: any): QuoteVariant => {
     const variant = props?.['data-quote-variant']
         || props?.node?.properties?.['data-quote-variant']
@@ -372,7 +402,7 @@ export default function Article({
                             prose-p:text-justify prose-p:my-6
                         ">
                             <ReactMarkdown
-                                remarkPlugins={[remarkQuoteVariants, remarkGfm, remarkMath]}
+                                remarkPlugins={[remarkQuoteVariants, remarkSoftLineBreaks, remarkGfm, remarkMath]}
                                 rehypePlugins={[rehypeKatex, rehypeRaw]}
                                 components={components as any}
                             >
