@@ -249,7 +249,7 @@ export default function Article({
                 className={`min-h-screen bg-white transition-colors duration-300 ${isEmbedded ? '!bg-transparent !min-h-full' : ''}`}>
 
                 <main
-                    className={`relative z-10 max-w-5xl mx-auto xl:mx-0 xl:ml-28 px-4 ${isEmbedded ? 'py-6' : 'py-20'}`}>
+                    className={`relative z-10 max-w-5xl mx-auto px-4 ${isEmbedded ? 'py-6' : 'py-20'}`}>
                     <div className="bg-white rounded-2xl p-8 sm:p-14 shadow-none ring-1 ring-slate-900/5">
 
                         {/* Header */}
