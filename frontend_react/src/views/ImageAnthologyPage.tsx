@@ -58,6 +58,14 @@ const sortFilterOptions = (options: FocalLengthFilterOption[]) => {
   return options.sort((a, b) => b.count - a.count || (a.label || a.name).localeCompare(b.label || b.name));
 };
 
+const getGalleryColumnCount = () => {
+  if (typeof window === 'undefined') return 1;
+  if (window.innerWidth >= 1536) return 4;
+  if (window.innerWidth >= 1280) return 3;
+  if (window.innerWidth >= 640) return 2;
+  return 1;
+};
+
 export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageAnthologyPageProps) {
   const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
   const [images, setImages] = useState<Image[]>([]);
@@ -76,6 +84,8 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [selectedFocalEndDate, setSelectedFocalEndDate] = useState('');
   const [selectedColor, setSelectedColor] = useState<DominantColorKey | 'all'>('all');
   const [dominantColors, setDominantColors] = useState<Record<string, DominantColorResult | null>>({});
+  const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
+  const [galleryColumnCount, setGalleryColumnCount] = useState(getGalleryColumnCount);
   const colorExtractionKeysRef = useRef(new Set<string>());
   const toast = useToast();
 
@@ -341,9 +351,37 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     return images.filter(image => dominantColors[image.imageId]?.key === selectedColor);
   }, [dominantColors, images, selectedColor]);
 
+  const imageColumns = useMemo(() => {
+    const columnCount = Math.max(galleryColumnCount, 1);
+    const columns = Array.from({ length: columnCount }, () => [] as Array<{ image: Image; index: number }>);
+    const columnHeights = Array.from({ length: columnCount }, () => 0);
+
+    visibleImages.forEach((image, index) => {
+      const aspectRatio = imageAspectRatios[image.imageId] || 4 / 3;
+      const estimatedCardHeight = (1 / aspectRatio) + 0.45;
+      const columnIndex = index < columnCount
+        ? index
+        : columnHeights.reduce((shortestIndex, height, currentIndex) => (
+          height < columnHeights[shortestIndex] ? currentIndex : shortestIndex
+        ), 0);
+
+      columns[columnIndex].push({ image, index });
+      columnHeights[columnIndex] += estimatedCardHeight;
+    });
+
+    return columns;
+  }, [galleryColumnCount, imageAspectRatios, visibleImages]);
+
   useEffect(() => {
     setSelectedIndex(null);
   }, [selectedColor]);
+
+  useEffect(() => {
+    const updateColumnCount = () => setGalleryColumnCount(getGalleryColumnCount());
+    updateColumnCount();
+    window.addEventListener('resize', updateColumnCount);
+    return () => window.removeEventListener('resize', updateColumnCount);
+  }, []);
 
   const locationStats = useMemo(() => {
     const locationMap = new Map<string, {
@@ -740,28 +778,40 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
 
               <div className={isDetailPanelOpen ? 'hidden' : ''}>
                 {visibleImages.length > 0 ? (
-                  <div className="columns-1 gap-5 sm:columns-2 xl:columns-3 2xl:columns-4">
-                    {visibleImages.map((image, index) => (
-                      <div
-                        key={image.imageId}
-                        className="break-inside-avoid animate-fade-in-up"
-                        style={{
-                          animationDelay: `${index * 60}ms`,
-                          animationFillMode: 'both',
-                        }}
-                      >
-                        <ImageCard
-                          imageUrl={image.imageUrl}
-                          title={image.title}
-                          shootingTime={image.shootingTimeStr}
-                          country={image.country}
-                          city={image.city}
-                          focalLength={image.focalLength}
-                          dominantColor={dominantColors[image.imageId]}
-                          onClick={() => handleImageClick(index)}
-                          onEdit={() => handleOpenEditModal(image)}
-                          onDelete={() => setDeleteTarget(image)}
-                        />
+                  <div className="grid items-start gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    {imageColumns.map((column, columnIndex) => (
+                      <div key={columnIndex} className="min-w-0">
+                        {column.map(({ image, index }) => (
+                          <div
+                            key={image.imageId}
+                            className="animate-fade-in-up"
+                            style={{
+                              animationDelay: `${index * 60}ms`,
+                              animationFillMode: 'both',
+                            }}
+                          >
+                            <ImageCard
+                              imageUrl={image.imageUrl}
+                              title={image.title}
+                              shootingTime={image.shootingTimeStr}
+                              country={image.country}
+                              city={image.city}
+                              focalLength={image.focalLength}
+                              dominantColor={dominantColors[image.imageId]}
+                              onClick={() => handleImageClick(index)}
+                              onEdit={() => handleOpenEditModal(image)}
+                              onDelete={() => setDeleteTarget(image)}
+                              onImageLoad={({ width, height }) => {
+                                if (width <= 0 || height <= 0) return;
+                                setImageAspectRatios(prev => (
+                                  prev[image.imageId] === width / height
+                                    ? prev
+                                    : { ...prev, [image.imageId]: width / height }
+                                ));
+                              }}
+                            />
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>

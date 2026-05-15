@@ -13,6 +13,7 @@ interface ImageCardProps {
   onClick?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onImageLoad?: (size: { width: number; height: number }) => void;
 }
 
 const ImageCard = memo(({ 
@@ -25,7 +26,8 @@ const ImageCard = memo(({
   dominantColor,
   onClick,
   onEdit,
-  onDelete
+  onDelete,
+  onImageLoad
 }: ImageCardProps) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -51,7 +53,13 @@ const ImageCard = memo(({
           src={imageUrl}
           alt={title}
           loading="lazy"
-          onLoad={() => setIsLoaded(true)}
+          onLoad={(event) => {
+            setIsLoaded(true);
+            onImageLoad?.({
+              width: event.currentTarget.naturalWidth,
+              height: event.currentTarget.naturalHeight,
+            });
+          }}
           className={`
             w-full h-auto object-cover transition-all duration-700 ease-out
             ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}
