@@ -1,11 +1,27 @@
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 
 from article.models import Article, Image
+from utils.drf_utils import get_current_user_identifier
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 from .models import Anthology
 from .serializers import AnthologySerializer
+
+
+def get_visible_anthology_queryset(request):
+    """
+    游客只能访问公开文集；登录用户可访问公开文集和自己创建的私密文集。
+    当前系统的 admin 业务用户通过 get_current_user_identifier 兼容为 user_id='admin'。
+    """
+    queryset = Anthology.objects.filter(is_valid=True)
+
+    if request.user and request.user.is_authenticated:
+        current_user_id = get_current_user_identifier(request)
+        return queryset.filter(Q(permission='public') | Q(user_id=current_user_id))
+
+    return queryset.filter(permission='public')
 
 
 class AnthologyCreateView(APIView):
@@ -30,7 +46,7 @@ class AnthologyDetailView(APIView):
 
     def get(self, request, coll_id):
         # 使用coll_id查询文集
-        anthology = get_object_or_404(Anthology, coll_id=coll_id, user_id='admin')
+        anthology = get_object_or_404(get_visible_anthology_queryset(request), coll_id=coll_id)
 
         # 使用序列化器将文集对象转换为JSON格式
         json_data = AnthologySerializer(anthology).data
@@ -42,7 +58,7 @@ class AnthologyDetailView(APIView):
 class AnthologyListView(APIView):
     """
     文集列表视图
-    固定查询admin用户的所有文集，每个文集包含前3个文章
+    游客查询公开文集；登录用户查询公开文集和自己创建的私密文集，每个文集包含前3个文章
     """
 
     def get(self, request):
@@ -50,16 +66,12 @@ class AnthologyListView(APIView):
             # 获取筛选参数
             coll_type = request.query_params.get('type')
 
-            # 构建查询条件
-            query_kwargs = {
-                'user_id': 'admin',
-                'is_valid': True
-            }
+            anthologies = get_visible_anthology_queryset(request)
             if coll_type:
-                query_kwargs['type'] = coll_type
+                anthologies = anthologies.filter(type=coll_type)
 
-            # 查询admin用户的所有有效文集，按置顶、更新时间降序、排序升序排序
-            anthologies = Anthology.objects.filter(**query_kwargs).order_by('-is_top', 'sort')
+            # 查询用户可见的有效文集，按置顶、排序升序排序
+            anthologies = anthologies.order_by('-is_top', 'sort')
 
             # 准备返回数据
             result_list = []

@@ -9,6 +9,7 @@ from urllib.parse import unquote
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction, models, close_old_connections
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from PIL import Image as PILImage
 from rest_framework.views import APIView
@@ -36,6 +37,23 @@ logger = logging.getLogger(__name__)
 
 IMAGE_DESCRIPTION_MAX_EDGE = 1280
 IMAGE_DESCRIPTION_JPEG_QUALITY = 82
+
+
+def get_visible_anthology_queryset(request):
+    queryset = Anthology.objects.filter(is_valid=True)
+
+    if request.user and request.user.is_authenticated:
+        current_user_id = get_current_user_identifier(request)
+        return queryset.filter(Q(permission='public') | Q(user_id=current_user_id))
+
+    return queryset.filter(permission='public')
+
+
+def can_access_anthology(request, coll_id, coll_type=None):
+    queryset = get_visible_anthology_queryset(request).filter(coll_id=coll_id)
+    if coll_type:
+        queryset = queryset.filter(type=coll_type)
+    return queryset.exists()
 
 
 def build_image_description_data_url(image_bytes, mime_type='image/jpeg'):
@@ -252,7 +270,9 @@ class ArticleDetailView(APIView):
     def get(self, request, article_id):
         try:
             # 查找文章
-            article = get_object_or_404(Article, article_id=article_id)
+            article = get_object_or_404(Article, article_id=article_id, is_valid=True)
+            if not can_access_anthology(request, article.coll_id):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
             # 更新阅读次数
             article.read_count += 1
@@ -348,6 +368,8 @@ class ArticleListView(APIView):
 
             # 文集ID过滤
             if coll_id:
+                if not can_access_anthology(request, coll_id):
+                    return success_result(data=[])
                 articles = articles.filter(coll_id=coll_id)
 
             # 标签ID过滤
@@ -385,6 +407,9 @@ class ArticleTreeListView(APIView):
             # 验证文集ID是否存在
             if not coll_id:
                 return error_result()
+
+            if not can_access_anthology(request, coll_id, 'article'):
+                return success_result(data=[])
 
             # 构建查询集：只获取文集下的主文章（parent为空），并按sort和更新时间排序
             root_articles = Article.objects.filter(
@@ -453,7 +478,7 @@ class ImageListView(APIView):
 
     def get(self, request, coll_id):
         try:
-            if not Anthology.objects.filter(coll_id=coll_id, type='image', is_valid=True).exists():
+            if not can_access_anthology(request, coll_id, 'image'):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
             # 获取文集下的所有有效图片
@@ -477,6 +502,8 @@ class ImageDetailView(APIView):
     def get(self, request, image_id):
         try:
             image = get_object_or_404(Image, image_id=image_id, is_valid=True)
+            if not can_access_anthology(request, image.coll_id, 'image'):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
             serializer = ImageSerializer(image)
             return success_result(data=serializer.data)
 
