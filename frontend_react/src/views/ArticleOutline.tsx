@@ -13,6 +13,7 @@ import {Anthology, getAnthologyDetail} from '../api/anthology';
 import {getIconComponent} from '../constants/iconList';
 import StarLoader from '../components/common/StarLoader';
 import {syncCollectionToRag} from '../api/rag';
+import {useAuth} from '../contexts/AuthContext';
 
 // 定义最小 Loading 时间 (毫秒)，防止闪烁
 const MIN_LOADING_TIME = 500;
@@ -26,6 +27,7 @@ interface ArticleOutlineProps {
 
 export default function ArticleOutline({onNavigate, collId, title, articleId}: ArticleOutlineProps) {
     const navigate = useNavigate();
+    const {isAuthenticated} = useAuth();
 
     const {
         filteredDocs,
@@ -111,15 +113,19 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
     };
 
     //新建文档
-    const handleCreateDoc = () => navigate(`/editor?collId=${collId}`);
+    const handleCreateDoc = () => {
+        if (!isAuthenticated) return;
+        navigate(`/editor?collId=${collId}`);
+    };
     //新建 web 内容解析
     const handleOpenWebpageModal = () => {
+        if (!isAuthenticated) return;
         setIsWebpageModalOpen(true);
     };
 
     // 执行保存网页逻辑
     const handleSaveWebpage = async (url: string, needPolishing: boolean) => {
-        if (!collId) return;
+        if (!isAuthenticated || !collId) return;
 
         try {
             // 1. 调用接口
@@ -148,17 +154,17 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
     };
 
     const handleEditArticle = () => {
-        if (!activeDocId) return;
+        if (!isAuthenticated || !activeDocId) return;
         navigate(`/editor/${activeDocId}`);
     };
 
     const handleDeleteArticle = () => {
-        if (!activeDocId) return;
+        if (!isAuthenticated || !activeDocId) return;
         setIsDeleteModalOpen(true);
     };
 
     const confirmDelete = async () => {
-        if (!activeDocId) return;
+        if (!isAuthenticated || !activeDocId) return;
         try {
             await deleteArticle(activeDocId);
             toast.success('文章删除成功');
@@ -187,7 +193,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
     // [新增] 处理文集同步
     const handleSyncCollection = async () => {
-        if (!collId || isCollectionSyncing) return;
+        if (!isAuthenticated || !collId || isCollectionSyncing) return;
 
         if (!confirm('确定要将该文集下的所有文章同步至知识库吗？这可能需要一些时间。')) {
             return;
@@ -207,22 +213,26 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
     return (
         <div className="flex h-[calc(100vh-64px)] bg-[#F9FAFB] text-slate-800 font-sans overflow-hidden">
-            <ConfirmationModal
-                isOpen={isDeleteModalOpen}
-                onClose={() => setIsDeleteModalOpen(false)}
-                onConfirm={confirmDelete}
-                title="删除文档"
-                description="确定要删除当前文档吗？此操作无法恢复。"
-                confirmText="删除"
-                type="danger"
-            />
+            {isAuthenticated && (
+                <ConfirmationModal
+                    isOpen={isDeleteModalOpen}
+                    onClose={() => setIsDeleteModalOpen(false)}
+                    onConfirm={confirmDelete}
+                    title="删除文档"
+                    description="确定要删除当前文档吗？此操作无法恢复。"
+                    confirmText="删除"
+                    type="danger"
+                />
+            )}
 
             {/* 新增：保存网页弹窗 */}
-            <SaveWebpageModal
-                isOpen={isWebpageModalOpen}
-                onClose={() => setIsWebpageModalOpen(false)}
-                onConfirm={handleSaveWebpage}
-            />
+            {isAuthenticated && (
+                <SaveWebpageModal
+                    isOpen={isWebpageModalOpen}
+                    onClose={() => setIsWebpageModalOpen(false)}
+                    onConfirm={handleSaveWebpage}
+                />
+            )}
 
             <OutlineSidebar
                 className={`${isSidebarOpen ? 'block' : 'hidden md:flex'} w-72`}
@@ -239,6 +249,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                 onReset={handleResetView}
                 onSyncCollection={handleSyncCollection}
                 isCollectionSyncing={isCollectionSyncing}
+                canManage={isAuthenticated}
             />
 
             <main id="right-content-window"
@@ -277,8 +288,9 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                                 onBack={handleResetView}
                                 isEmbedded={true}
                                 scrollContainerId="right-content-window"
-                                onEdit={handleEditArticle}
-                                onDelete={handleDeleteArticle}
+                                onEdit={isAuthenticated ? handleEditArticle : undefined}
+                                onDelete={isAuthenticated ? handleDeleteArticle : undefined}
+                                canManage={isAuthenticated}
                                 articleId={activeDocId}
                                 content={articleDetail?.content}
                                 title={articleDetail?.title}
@@ -291,6 +303,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                                 updatedAt={articleDetail?.updatedAt}
                                 lastRagSyncedAt={articleDetail?.lastRagSyncedAt}
                                 isRagSynced={articleDetail?.isRagSynced}
+                                tocLayout="inline"
                             />
                         </div>
                     </div>

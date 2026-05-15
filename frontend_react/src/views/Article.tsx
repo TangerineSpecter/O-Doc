@@ -143,10 +143,12 @@ interface ArticleProps {
     attachments?: AttachmentItem[];
     onEdit?: () => void;
     onDelete?: () => void;
+    canManage?: boolean;
     disableLinks?: boolean;
     updatedAt?: string;
     lastRagSyncedAt?: string;
     isRagSynced?: boolean;
+    tocLayout?: 'absolute' | 'inline';
 }
 
 export default function Article({
@@ -164,9 +166,11 @@ export default function Article({
                                     attachments,
                                     onEdit,
                                     onDelete,
+                                    canManage = true,
                                     disableLinks = false,
                                     lastRagSyncedAt,
-                                    isRagSynced
+                                    isRagSynced,
+                                    tocLayout = 'absolute'
                                 }: ArticleProps) {
     const navigate = useNavigate();
 
@@ -223,7 +227,7 @@ export default function Article({
     }, [localIsSynced, localSyncedTime]);
 
     const handleSyncToKB = async () => {
-        if (!articleId || !content) return;
+        if (!canManage || !articleId || !content) return;
 
         setIsSyncing(true);
         try {
@@ -337,6 +341,8 @@ export default function Article({
         return <div className="min-h-[60vh]"></div>;
     }
 
+    const useInlineToc = tocLayout === 'inline';
+
     return (
         <>
             <style>{CUSTOM_STYLES}</style>
@@ -345,8 +351,9 @@ export default function Article({
                 className={`min-h-screen bg-white transition-colors duration-300 ${isEmbedded ? '!bg-transparent !min-h-full' : ''}`}>
 
                 <main
-                    className={`relative z-10 max-w-5xl mx-auto px-4 ${isEmbedded ? 'py-6' : 'py-20'}`}>
-                    <div className="bg-white rounded-2xl p-8 sm:p-14 shadow-none ring-1 ring-slate-900/5">
+                    className={`relative z-10 mx-auto px-4 ${useInlineToc ? 'max-w-[82rem]' : 'max-w-5xl'} ${isEmbedded ? 'py-6' : 'py-20'}`}>
+                    <div className={useInlineToc ? 'grid grid-cols-1 justify-center gap-4 2xl:grid-cols-[minmax(0,64rem)_16rem]' : ''}>
+                    <div className="w-full max-w-5xl bg-white rounded-2xl p-8 sm:p-14 shadow-none ring-1 ring-slate-900/5">
 
                         {/* Header */}
                         <header className="mb-10 pb-8 border-b border-slate-100">
@@ -453,11 +460,13 @@ export default function Article({
                         isEmbedded={isEmbedded ?? false}
                         onEdit={onEdit}
                         onDelete={onDelete}
-                        onSync={handleSyncToKB}
+                        onSync={canManage ? handleSyncToKB : undefined}
                         isSyncing={isSyncing}
                         syncStatus={syncStatus}
                         lastSyncedTime={localSyncedTime}
+                        layout={tocLayout}
                     />
+                    </div>
                 </main>
 
                 <button

@@ -6,12 +6,15 @@ import { SortableCollectionCard } from '../components/SortableCollectionCard'; /
 import { useCollections } from '../hooks/useCollections'; // 引入新 Hook
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { useAuth } from '../contexts/AuthContext';
 
 interface HomePageProps {
     onNavigate: (viewName: string, params?: any) => void;
 }
 
 export default function HomePage({ onNavigate }: HomePageProps) {
+    const { isAuthenticated } = useAuth();
+
     // 1. 使用 Custom Hook 接管核心逻辑
     const {
         displayCollections,
@@ -77,6 +80,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
 
     // --- UI 交互 ---
     const handleModalSubmit = async (data: AnthologyFormData) => {
+        if (!isAuthenticated) return;
         if (editingCollection) {
             await updateCollection(editingCollection.collId!, data);
         } else {
@@ -85,6 +89,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     };
 
     const handleConfirmDelete = async () => {
+        if (!isAuthenticated) return;
         if (deleteTargetId) {
             await removeCollection(deleteTargetId);
             setIsDeleteModalOpen(false);
@@ -93,6 +98,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     };
 
     const handleEdit = (item: any) => { // 使用 any 或 Collection 类型
+        if (!isAuthenticated) return;
         setEditingCollection(item);
         setIsModalOpen(true);
         setActiveMenuId(null);
@@ -107,27 +113,31 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         }}>
 
             {/* 文集创建/编辑弹窗 */}
-            <CreateAnthologyModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onSubmit={handleModalSubmit}
-                initialData={editingCollection}
-            />
+            {isAuthenticated && (
+                <CreateAnthologyModal
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    onSubmit={handleModalSubmit}
+                    initialData={editingCollection}
+                />
+            )}
 
             {/* 文集删除确认弹窗 */}
-            <ConfirmationModal
-                isOpen={isDeleteModalOpen}
-                onClose={() => setIsDeleteModalOpen(false)}
-                onConfirm={handleConfirmDelete}
-                title="确认删除文集?"
-                description={
-                    <span>
-                        确定要删除该文集吗？此操作<strong className="text-red-600">无法恢复</strong>，且该文集下的所有文章也将被一并移除。
-                    </span>
-                }
-                confirmText="确认删除"
-                type="danger"
-            />
+            {isAuthenticated && (
+                <ConfirmationModal
+                    isOpen={isDeleteModalOpen}
+                    onClose={() => setIsDeleteModalOpen(false)}
+                    onConfirm={handleConfirmDelete}
+                    title="确认删除文集?"
+                    description={
+                        <span>
+                            确定要删除该文集吗？此操作<strong className="text-red-600">无法恢复</strong>，且该文集下的所有文章也将被一并移除。
+                        </span>
+                    }
+                    confirmText="确认删除"
+                    type="danger"
+                />
+            )}
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 {/* 过滤和排序 */}
@@ -229,15 +239,19 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                 </div>
                             )}
                         </div>
-                        <div className="h-5 w-px bg-slate-200 hidden sm:block mx-1"></div>
-                        <button onClick={() => {
-                            setEditingCollection(null);
-                            setIsModalOpen(true);
-                        }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-xs font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95">
-                            <Plus className="w-3.5 h-3.5" strokeWidth={3} /><span
-                                className="hidden sm:inline">新建文集</span><span className="sm:hidden">新建</span>
-                        </button>
+                        {isAuthenticated && (
+                            <>
+                                <div className="h-5 w-px bg-slate-200 hidden sm:block mx-1"></div>
+                                <button onClick={() => {
+                                    setEditingCollection(null);
+                                    setIsModalOpen(true);
+                                }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-xs font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95">
+                                    <Plus className="w-3.5 h-3.5" strokeWidth={3} /><span
+                                        className="hidden sm:inline">新建文集</span><span className="sm:hidden">新建</span>
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -254,12 +268,14 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                     item={item}
                                     onNavigate={onNavigate}
                                     isMenuOpen={activeMenuId === item.collId}
+                                    canManage={isAuthenticated}
                                     onToggleMenu={(e) => {
                                         e.stopPropagation();
                                         setActiveMenuId(activeMenuId === item.collId ? null : item.collId);
                                     }}
                                     onEdit={() => handleEdit(item)}
                                     onDelete={() => {
+                                        if (!isAuthenticated) return;
                                         setDeleteTargetId(item.collId);
                                         setIsDeleteModalOpen(true);
                                         setActiveMenuId(null);

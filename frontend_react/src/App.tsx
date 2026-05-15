@@ -1,4 +1,5 @@
-import {BrowserRouter, Navigate, Routes, Route, useNavigate, useParams} from 'react-router-dom';
+import type {ReactNode} from 'react';
+import {BrowserRouter, Navigate, Routes, Route, useLocation, useNavigate, useParams} from 'react-router-dom';
 import {ToastProvider} from './components/common/ToastProvider'; // 1. 引入 Provider
 import Layout from './layout/Layout';
 import HomePage from './views/HomePage';
@@ -15,6 +16,19 @@ import MemosPage from './views/MemosPage';
 import WhiteboardPage from './views/WhiteboardPage'
 import WhiteboardManagePage from './views/WhiteboardManagePage';
 
+function hasAuthToken() {
+    return Boolean(localStorage.getItem('token') || sessionStorage.getItem('token'));
+}
+
+function RequireAuth({children}: { children: ReactNode }) {
+    const location = useLocation();
+
+    if (!hasAuthToken()) {
+        return <Navigate to="/login" replace state={{from: location.pathname}}/>;
+    }
+
+    return <>{children}</>;
+}
 
 // HomePage的路由包装组件
 function HomeRoute() {
@@ -167,48 +181,72 @@ function AppWithRouter() {
             }/>
             <Route path="/login" element={<LoginPage/>}/> {/* 新增路由：登录页不使用Layout */}
             {/* 新增编辑器路由 - 不使用 Layout，提供全屏体验 */}
-            <Route path="/editor" element={<EditorPage/>}/>
-            <Route path="/editor/:docId" element={<EditorPage/>}/>
+            <Route path="/editor" element={
+                <RequireAuth>
+                    <EditorPage/>
+                </RequireAuth>
+            }/>
+            <Route path="/editor/:docId" element={
+                <RequireAuth>
+                    <EditorPage/>
+                </RequireAuth>
+            }/>
             <Route path="/resources" element={
-                <Layout onNavigate={handleNavigate}>
-                    <ResourcesPage/>
-                </Layout>
+                <RequireAuth>
+                    <Layout onNavigate={handleNavigate}>
+                        <ResourcesPage/>
+                    </Layout>
+                </RequireAuth>
             }/>
             <Route path="/stats" element={
-                <Layout onNavigate={handleNavigate}>
-                    <StatisticsPage/>
-                </Layout>
+                <RequireAuth>
+                    <Layout onNavigate={handleNavigate}>
+                        <StatisticsPage/>
+                    </Layout>
+                </RequireAuth>
             }/>
             <Route path="/tags" element={
-                <Layout onNavigate={handleNavigate}>
-                    <TagsPage/>
-                </Layout>
+                <RequireAuth>
+                    <Layout onNavigate={handleNavigate}>
+                        <TagsPage/>
+                    </Layout>
+                </RequireAuth>
             }/>
             <Route path="/categories" element={
-                <Layout onNavigate={handleNavigate}>
-                    <CategoriesPage/>
-                </Layout>
+                <RequireAuth>
+                    <Layout onNavigate={handleNavigate}>
+                        <CategoriesPage/>
+                    </Layout>
+                </RequireAuth>
             }/>
             <Route path="/settings" element={
-                <Layout onNavigate={handleNavigate}>
-                    <SettingsPage/>
-                </Layout>
+                <RequireAuth>
+                    <Layout onNavigate={handleNavigate}>
+                        <SettingsPage/>
+                    </Layout>
+                </RequireAuth>
             }/>
             <Route path="/memos" element={
-                <Layout onNavigate={handleNavigate}>
-                    <MemosPage/>
-                </Layout>
+                <RequireAuth>
+                    <Layout onNavigate={handleNavigate}>
+                        <MemosPage/>
+                    </Layout>
+                </RequireAuth>
             }/>
             <Route path="/todo" element={<Navigate to="/memos" replace/>}/>
             <Route path="/whiteboard" element={
-                <Layout onNavigate={handleNavigate}>
-                    <WhiteboardManagePage/>
-                </Layout>
+                <RequireAuth>
+                    <Layout onNavigate={handleNavigate}>
+                        <WhiteboardManagePage/>
+                    </Layout>
+                </RequireAuth>
             }/>
             <Route path="/whiteboard/:boardId" element={
-                <Layout onNavigate={handleNavigate}>
-                    <WhiteboardPage/>
-                </Layout>
+                <RequireAuth>
+                    <Layout onNavigate={handleNavigate}>
+                        <WhiteboardPage/>
+                    </Layout>
+                </RequireAuth>
             }/>
         </Routes>
     );

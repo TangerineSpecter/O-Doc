@@ -19,6 +19,7 @@ interface OutlineSidebarProps {
     className?: string;
     onSyncCollection?: () => void;
     isCollectionSyncing?: boolean;
+    canManage?: boolean;
 }
 
 export default function OutlineSidebar({
@@ -35,6 +36,7 @@ export default function OutlineSidebar({
                                            onReset,
                                            onSyncCollection,
                                            isCollectionSyncing = false,
+                                           canManage = true,
                                            className = ''
                                        }: OutlineSidebarProps) {
     // 新增：控制新建菜单的显示
@@ -114,7 +116,7 @@ export default function OutlineSidebar({
                     <span className="font-bold text-slate-700 text-sm truncate">{title}</span>
                 </div>
 
-                {onSyncCollection && (
+                {canManage && onSyncCollection && (
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
@@ -154,6 +156,7 @@ export default function OutlineSidebar({
                 </div>
 
                 {/* --- 修改部分：新建按钮改为 Dropdown --- */}
+                {canManage && (
                 <div className="relative" ref={createMenuRef}>
                     <button
                         onClick={() => setIsCreateMenuOpen(!isCreateMenuOpen)}
@@ -206,6 +209,7 @@ export default function OutlineSidebar({
                         </div>
                     )}
                 </div>
+                )}
             </div>
 
             {/* Tree List (保留原代码) */}

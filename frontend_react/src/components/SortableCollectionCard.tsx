@@ -25,6 +25,7 @@ interface SortableCollectionCardProps {
     item: Collection;
     onNavigate: (viewName: string, params?: any) => void;
     isMenuOpen: boolean;
+    canManage?: boolean;
     onToggleMenu: (e: React.MouseEvent) => void;
     onEdit: () => void;
     onDelete: () => void;
@@ -34,6 +35,7 @@ export const SortableCollectionCard = ({
     item,
     onNavigate,
     isMenuOpen,
+    canManage = true,
     onToggleMenu,
     onEdit,
     onDelete
@@ -69,7 +71,7 @@ export const SortableCollectionCard = ({
             `}
         >
             {/* 拖拽手柄 */}
-            {!item.isTop && (
+            {canManage && !item.isTop && (
                 <div
                     {...attributes}
                     {...listeners}
@@ -81,6 +83,7 @@ export const SortableCollectionCard = ({
             )}
 
             {/* 右上角菜单 */}
+            {canManage && (
             <div className="absolute top-2 right-2 z-20">
                 <button
                     onClick={onToggleMenu}
@@ -113,6 +116,7 @@ export const SortableCollectionCard = ({
                     </div>
                 )}
             </div>
+            )}
 
             {/* 卡片头部信息 */}
             <div className="p-3 pb-2 pt-6">

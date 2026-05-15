@@ -13,6 +13,7 @@ import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useToast } from '../components/common/ToastProvider';
 import { FocalLengthStat, ImageTagStat } from '../types/imageAnthology';
 import { COLOR_SWATCHES, DominantColorKey, DominantColorResult, extractDominantColor } from '../utils/imageColor';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ImageAnthologyPageProps {
   onNavigate?: (viewName: string, params?: any) => void;
@@ -67,6 +68,7 @@ const getGalleryColumnCount = () => {
 };
 
 export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageAnthologyPageProps) {
+  const { isAuthenticated } = useAuth();
   const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
   const [images, setImages] = useState<Image[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,11 +144,13 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   };
 
   const handleOpenCreateModal = () => {
+    if (!isAuthenticated) return;
     setEditingImage(null);
     setIsUploadModalOpen(true);
   };
 
   const handleOpenEditModal = (image: Image) => {
+    if (!isAuthenticated) return;
     setEditingImage(image);
     setIsUploadModalOpen(true);
   };
@@ -157,7 +161,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   };
 
   const handleConfirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!isAuthenticated || !deleteTarget) return;
 
     try {
       await deleteImage(deleteTarget.imageId);
@@ -463,16 +467,18 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleOpenCreateModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-xs font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95"
-                aria-label="添加图片"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>添加图片</span>
-              </button>
-            </div>
+            {isAuthenticated && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleOpenCreateModal}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-md text-xs font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95"
+                  aria-label="添加图片"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>添加图片</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -799,8 +805,8 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                               focalLength={image.focalLength}
                               dominantColor={dominantColors[image.imageId]}
                               onClick={() => handleImageClick(index)}
-                              onEdit={() => handleOpenEditModal(image)}
-                              onDelete={() => setDeleteTarget(image)}
+                              onEdit={isAuthenticated ? () => handleOpenEditModal(image) : undefined}
+                              onDelete={isAuthenticated ? () => setDeleteTarget(image) : undefined}
                               onImageLoad={({ width, height }) => {
                                 if (width <= 0 || height <= 0) return;
                                 setImageAspectRatios(prev => (
@@ -863,25 +869,29 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
         hasNext={selectedIndex !== null && selectedIndex < visibleImages.length - 1}
       />
 
-      <ImageUploadModal
-        isOpen={isUploadModalOpen}
-        onClose={handleCloseUploadModal}
-        onSuccess={loadAnthologyData}
-        collId={collId || ''}
-        initialData={editingImage}
-        existingTags={tagStats.map(item => item.name)}
-      />
+      {isAuthenticated && (
+        <ImageUploadModal
+          isOpen={isUploadModalOpen}
+          onClose={handleCloseUploadModal}
+          onSuccess={loadAnthologyData}
+          collId={collId || ''}
+          initialData={editingImage}
+          existingTags={tagStats.map(item => item.name)}
+        />
+      )}
 
-      <ConfirmationModal
-        isOpen={deleteTarget !== null}
-        title="删除图片"
-        description={`确定要删除「${deleteTarget?.title || '这张图片'}」吗？此操作无法撤销。`}
-        confirmText="删除"
-        cancelText="取消"
-        type="danger"
-        onConfirm={handleConfirmDelete}
-        onClose={() => setDeleteTarget(null)}
-      />
+      {isAuthenticated && (
+        <ConfirmationModal
+          isOpen={deleteTarget !== null}
+          title="删除图片"
+          description={`确定要删除「${deleteTarget?.title || '这张图片'}」吗？此操作无法撤销。`}
+          confirmText="删除"
+          cancelText="取消"
+          type="danger"
+          onConfirm={handleConfirmDelete}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   );
 }

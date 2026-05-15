@@ -14,6 +14,7 @@ interface TableOfContentsProps {
     isSyncing?: boolean;
     syncStatus?: SyncStatusType;
     lastSyncedTime?: string;
+    layout?: 'absolute' | 'inline';
 }
 
 export const TableOfContents = ({
@@ -25,7 +26,8 @@ export const TableOfContents = ({
                                     onSync,
                                     isSyncing = false,
                                     syncStatus = 'not_synced', // 默认为未同步
-                                    lastSyncedTime
+                                    lastSyncedTime,
+                                    layout = 'absolute'
                                 }: TableOfContentsProps) => {
     // 根据状态计算按钮样式和提示文案
     const getSyncButtonState = () => {
@@ -71,9 +73,12 @@ export const TableOfContents = ({
     const btnState = getSyncButtonState();
     const Icon = btnState.icon;
     const visibilityClass = isEmbedded ? 'hidden 2xl:block' : 'hidden xl:block';
+    const layoutClass = layout === 'inline'
+        ? 'relative h-full w-64 shrink-0'
+        : 'absolute left-full top-0 ml-4 h-full w-64';
 
     return (
-        <div className={`${visibilityClass} absolute left-full top-0 ml-4 h-full w-64`}>
+        <div className={`${visibilityClass} ${layoutClass}`}>
             <div className="sticky top-6">
 
                 {/* 操作按钮组 */}

@@ -7,6 +7,7 @@ import type { UserInfo } from '../types/api/user';
 import Navbar from './Navbar';
 import SearchModal from '../components/SearchModal';
 import ProfileCenterModal from '../components/ProfileCenterModal';
+import { AuthProvider } from '../contexts/AuthContext';
 
 interface LayoutProps {
     children: ReactNode;
@@ -55,7 +56,10 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
+    const isAuthenticated = Boolean(userInfo);
+
     return (
+        <AuthProvider value={{ userInfo, isAuthenticated }}>
         <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-orange-100 selection:text-orange-900">
 
             <AIChatWindow isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
@@ -100,7 +104,7 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
 
             {children}
 
-            <FloatingActionMenu />
+            {isAuthenticated && <FloatingActionMenu />}
 
             {/* 背景装饰 */}
             <div className="fixed inset-0 pointer-events-none z-[-1] opacity-40">
@@ -115,5 +119,6 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                 }}></div>
             </div>
         </div>
+        </AuthProvider>
     );
 }
