@@ -392,6 +392,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
 
   const displayTitle = anthologyInfo?.title || title || '图片文集';
   const selectedImage = selectedIndex !== null ? visibleImages[selectedIndex] : null;
+  const isDetailPanelOpen = isFocalLengthDetailOpen || isTagDetailOpen || isLocationMapOpen;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50">
@@ -639,7 +640,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
             </aside>
 
             <div className="min-w-0">
-              {isFocalLengthDetailOpen ? (
+              {isFocalLengthDetailOpen && (
                 <FocalLengthDetailChart
                   stats={filteredFocalLengthStats}
                   totalImages={filteredFocalImages.length}
@@ -660,7 +661,9 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   onEndDateChange={setSelectedFocalEndDate}
                   onClearFilters={clearFocalFilters}
                 />
-              ) : isTagDetailOpen ? (
+              )}
+
+              {isTagDetailOpen && (
                 <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-5 flex items-center justify-between gap-4">
                     <div>
@@ -689,7 +692,9 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                     ))}
                   </div>
                 </section>
-              ) : isLocationMapOpen ? (
+              )}
+
+              {isLocationMapOpen && (
                 <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[240px_minmax(0,1fr)]">
                   <div className="border-b border-slate-100 bg-slate-50/80 p-5 lg:border-b-0 lg:border-r">
                     <div className="mb-5 flex items-center gap-3">
@@ -731,8 +736,10 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                     <LocationChartMap points={locationStats.points} />
                   </div>
                 </section>
-              ) : (
-                visibleImages.length > 0 ? (
+              )}
+
+              <div className={isDetailPanelOpen ? 'hidden' : ''}>
+                {visibleImages.length > 0 ? (
                   <div className="columns-1 gap-5 sm:columns-2 xl:columns-3 2xl:columns-4">
                     {visibleImages.map((image, index) => (
                       <div
@@ -775,8 +782,8 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                       查看全部颜色
                     </button>
                   </div>
-                )
-              )}
+                )}
+              </div>
             </div>
           </div>
         )}
