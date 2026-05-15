@@ -18,6 +18,120 @@ interface ImageUploadModalProps {
   existingTags?: string[];
 }
 
+interface PhotoExifMetadata {
+  shootingDate?: string;
+  focalLength?: string;
+}
+
+const parseExifDate = (value: string) => {
+  const match = value.trim().match(/^(\d{4}):(\d{2}):(\d{2})(?:\s+\d{2}:\d{2}:\d{2})?/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
+};
+
+const readExifString = (view: DataView, offset: number, count: number) => {
+  const chars: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const charCode = view.getUint8(offset + index);
+    if (charCode === 0) break;
+    chars.push(String.fromCharCode(charCode));
+  }
+  return chars.join('');
+};
+
+const readExifRational = (view: DataView, offset: number, littleEndian: boolean) => {
+  const numerator = view.getUint32(offset, littleEndian);
+  const denominator = view.getUint32(offset + 4, littleEndian);
+  if (!denominator) return 0;
+  return numerator / denominator;
+};
+
+const parseExifIfd = (
+  view: DataView,
+  tiffStart: number,
+  ifdOffset: number,
+  littleEndian: boolean,
+  metadata: PhotoExifMetadata
+) => {
+  if (ifdOffset <= 0 || tiffStart + ifdOffset + 2 > view.byteLength) return 0;
+
+  const entryCount = view.getUint16(tiffStart + ifdOffset, littleEndian);
+  let exifIfdOffset = 0;
+
+  for (let index = 0; index < entryCount; index += 1) {
+    const entryOffset = tiffStart + ifdOffset + 2 + index * 12;
+    if (entryOffset + 12 > view.byteLength) break;
+
+    const tag = view.getUint16(entryOffset, littleEndian);
+    const type = view.getUint16(entryOffset + 2, littleEndian);
+    const count = view.getUint32(entryOffset + 4, littleEndian);
+    const valueOffset = entryOffset + 8;
+    const valuePointer = view.getUint32(valueOffset, littleEndian);
+
+    if ((tag === 0x9003 || tag === 0x9004) && type === 2 && count > 0 && !metadata.shootingDate) {
+      const stringOffset = count <= 4 ? valueOffset : tiffStart + valuePointer;
+      if (stringOffset + count <= view.byteLength) {
+        const parsedDate = parseExifDate(readExifString(view, stringOffset, count));
+        if (parsedDate) metadata.shootingDate = parsedDate;
+      }
+    }
+
+    if (tag === 0x920a && type === 5 && !metadata.focalLength) {
+      const rationalOffset = tiffStart + valuePointer;
+      if (rationalOffset + 8 <= view.byteLength) {
+        const focal = readExifRational(view, rationalOffset, littleEndian);
+        if (focal > 0) metadata.focalLength = String(Math.round(focal));
+      }
+    }
+
+    if (tag === 0x8769 && type === 4) {
+      exifIfdOffset = valuePointer;
+    }
+  }
+
+  return exifIfdOffset;
+};
+
+const readPhotoExifMetadata = async (file: File): Promise<PhotoExifMetadata> => {
+  if (!/jpe?g$/i.test(file.name) && !['image/jpeg', 'image/jpg'].includes(file.type)) return {};
+
+  const buffer = await file.arrayBuffer();
+  const view = new DataView(buffer);
+  if (view.byteLength < 4 || view.getUint16(0) !== 0xffd8) return {};
+
+  let offset = 2;
+  while (offset + 4 <= view.byteLength) {
+    if (view.getUint8(offset) !== 0xff) break;
+
+    const marker = view.getUint8(offset + 1);
+    const segmentLength = view.getUint16(offset + 2);
+    const segmentStart = offset + 4;
+    const segmentEnd = segmentStart + segmentLength - 2;
+
+    if (marker === 0xe1 && segmentEnd <= view.byteLength) {
+      const header = readExifString(view, segmentStart, 6);
+      if (header !== 'Exif') return {};
+
+      const tiffStart = segmentStart + 6;
+      const byteOrder = readExifString(view, tiffStart, 2);
+      const littleEndian = byteOrder === 'II';
+      if (!littleEndian && byteOrder !== 'MM') return {};
+      if (view.getUint16(tiffStart + 2, littleEndian) !== 42) return {};
+
+      const metadata: PhotoExifMetadata = {};
+      const firstIfdOffset = view.getUint32(tiffStart + 4, littleEndian);
+      const exifIfdOffset = parseExifIfd(view, tiffStart, firstIfdOffset, littleEndian, metadata);
+      if (exifIfdOffset) {
+        parseExifIfd(view, tiffStart, exifIfdOffset, littleEndian, metadata);
+      }
+      return metadata;
+    }
+
+    offset = segmentEnd;
+  }
+
+  return {};
+};
+
 export default function ImageUploadModal({
   isOpen,
   onClose,
@@ -127,6 +241,30 @@ export default function ImageUploadModal({
 
   const updateFocalLength = (value: string) => {
     setFocalLength(value.replace(/\D/g, ''));
+  };
+
+  const applyPhotoMetadata = async (sourceFile: File) => {
+    try {
+      const metadata = await readPhotoExifMetadata(sourceFile);
+      let filledCount = 0;
+
+      if (metadata.shootingDate && !shootingTime) {
+        setShootingTime(metadata.shootingDate);
+        setPickerMonth(dayjs(metadata.shootingDate));
+        filledCount += 1;
+      }
+
+      if (metadata.focalLength && !focalLength) {
+        setFocalLength(metadata.focalLength);
+        filledCount += 1;
+      }
+
+      if (filledCount > 0) {
+        toast.success('已自动读取照片拍摄信息');
+      }
+    } catch (error) {
+      console.warn('读取照片元数据失败:', error);
+    }
   };
 
   const resetForm = () => {
@@ -351,6 +489,7 @@ export default function ImageUploadModal({
     if (!title.trim()) {
       setTitle(selectedFile.name.replace(/\.[^/.]+$/, ''));
     }
+    applyPhotoMetadata(selectedFile);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -375,6 +514,7 @@ export default function ImageUploadModal({
     if (!title.trim()) {
       setTitle(droppedFile.name.replace(/\.[^/.]+$/, ''));
     }
+    applyPhotoMetadata(droppedFile);
   };
 
   const handleSubmit = async () => {
