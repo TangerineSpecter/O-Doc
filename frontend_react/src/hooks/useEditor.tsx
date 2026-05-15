@@ -546,15 +546,6 @@ export const useEditor = () => {
             const response = await uploadResource(file);
             // Replace placeholder with actual image link
             setContent(prev => prev.replace(placeholder, `![${file.name}](/api/resource/view/${response.id})`));
-
-            // Add to attachments
-            setAttachments(prev => [...prev, {
-                id: response.id,
-                name: file.name,
-                size: file.size,
-                type: file.name.split('.').pop()?.toUpperCase() || 'IMAGE',
-                url: `/api/resource/download/${response.id}`
-            }]);
         } catch (error) {
             console.error('上传图片失败:', error);
             const err = error as Error;

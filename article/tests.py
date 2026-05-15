@@ -6,7 +6,8 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory
 
 from anthology.models import Anthology
-from article.models import Image
+from article.models import Article, Image
+from article.serializers import ArticleSerializer
 from article.views import ImageDeleteView
 from assets.models import Asset
 from assets.views import ResourceDeleteView, ResourceListView
@@ -84,6 +85,60 @@ class ImageResourceCleanupTests(TestCase):
         response = ResourceListView.as_view()(request)
 
         self.assertEqual(response.data['data']['total'], 0)
+
+    def test_resource_list_marks_article_content_image_as_linked(self):
+        asset = self._create_asset()
+        Article.objects.create(
+            title='正文图片文章',
+            content=f'![ChatGPT Image 2026年5月14日 00_25_18.png](/api/resource/view/{asset.id})',
+            coll_id='coll_article_test',
+        )
+
+        request = self.factory.get('/api/resource/list', {'type': 'image'})
+        response = ResourceListView.as_view()(request)
+        resource = response.data['data']['list'][0]
+
+        self.assertTrue(resource['linked'])
+        self.assertEqual(resource['sourceArticle']['title'], '正文图片文章')
+
+        request = self.factory.get('/api/resource/list', {'linked': 'false'})
+        response = ResourceListView.as_view()(request)
+
+        self.assertEqual(response.data['data']['total'], 0)
+
+    def test_article_save_does_not_unlink_content_images_when_attachments_change(self):
+        content_asset = self._create_asset('content_image_asset')
+        attachment_asset = self._create_asset('attachment_asset')
+        attachment_asset.source_type = 'attachment'
+        attachment_asset.save(update_fields=['source_type'])
+        article = Article.objects.create(
+            title='正文图片文章',
+            content=f'![ChatGPT Image 2026年5月14日 00_25_18.png](/api/resource/view/{content_asset.id})',
+            coll_id='coll_article_test',
+        )
+        content_asset.linked_article = article
+        content_asset.is_linked = True
+        content_asset.source_type = 'content'
+        content_asset.save(update_fields=['linked_article', 'is_linked', 'source_type'])
+
+        serializer = ArticleSerializer(
+            article,
+            data={
+                'title': article.title,
+                'content': article.content,
+                'assets': [attachment_asset.id],
+            },
+            partial=True,
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+
+        content_asset.refresh_from_db()
+        attachment_asset.refresh_from_db()
+        self.assertEqual(content_asset.linked_article_id, article.article_id)
+        self.assertTrue(content_asset.is_linked)
+        self.assertEqual(attachment_asset.linked_article_id, article.article_id)
+        self.assertTrue(attachment_asset.is_linked)
 
     def test_image_delete_removes_unshared_asset_file(self):
         asset = self._create_asset()

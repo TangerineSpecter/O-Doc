@@ -12,7 +12,9 @@ from article.models import Article
 from utils.error_codes import ErrorCode
 from utils.resource_assets import (
     delete_asset_record_and_file,
+    get_article_resource_usage,
     get_image_resource_usage,
+    is_asset_used_by_article,
     is_asset_used_by_image,
 )
 from utils.response_utils import success_result, error_result
@@ -36,8 +38,11 @@ class ResourceListView(APIView):
 
             # 基础查询集 - 直接写死admin用户
             queryset = Asset.objects.filter(is_valid=True, uploader='admin')
+            article_usage = get_article_resource_usage()
+            article_linked_resource_ids = set(article_usage.keys())
             image_usage = get_image_resource_usage()
             image_linked_resource_ids = set(image_usage.keys())
+            content_linked_resource_ids = article_linked_resource_ids | image_linked_resource_ids
 
             # 筛选条件
             if file_type:
@@ -52,9 +57,9 @@ class ResourceListView(APIView):
             if linked:
                 is_linked = linked.lower() == 'true'
                 if is_linked:
-                    queryset = queryset.filter(Q(is_linked=True) | Q(id__in=image_linked_resource_ids))
+                    queryset = queryset.filter(Q(is_linked=True) | Q(id__in=content_linked_resource_ids))
                 else:
-                    queryset = queryset.filter(is_linked=False).exclude(id__in=image_linked_resource_ids)
+                    queryset = queryset.filter(is_linked=False).exclude(id__in=content_linked_resource_ids)
 
             if source_type:
                 queryset = queryset.filter(source_type=source_type)
@@ -66,9 +71,11 @@ class ResourceListView(APIView):
             # 序列化数据
             serializer = AssetSerializer(page_obj, many=True)
             page_resource_ids = {asset['id'] for asset in serializer.data}
+            page_article_usage = get_article_resource_usage(page_resource_ids)
             page_image_usage = get_image_resource_usage(page_resource_ids)
             resources = []
             for asset in serializer.data:
+                source_article = asset['sourceArticle'] or page_article_usage.get(asset['id'])
                 source_image = page_image_usage.get(asset['id'])
                 resource_data = {
                     'id': asset['id'],
@@ -76,8 +83,8 @@ class ResourceListView(APIView):
                     'type': asset['file_type'],
                     'size': asset['file_size'],
                     'date': asset['upload_time'],
-                    'linked': asset['is_linked'] or bool(source_image),
-                    'sourceArticle': asset['sourceArticle'],
+                    'linked': asset['is_linked'] or bool(source_article) or bool(source_image),
+                    'sourceArticle': source_article,
                     'sourceImage': source_image,
                     'sourceType': asset['source_type']
                 }
@@ -214,6 +221,9 @@ class ResourceDeleteView(APIView):
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
 
             if is_asset_used_by_image(asset.id):
+                return error_result(ErrorCode.RESOURCE_IS_LINKED)
+
+            if is_asset_used_by_article(asset.id):
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
 
             # 执行删除 (硬删除)

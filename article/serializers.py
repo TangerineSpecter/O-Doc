@@ -6,6 +6,7 @@ from categories.models import Category
 from tags.models import Tag
 from tags.serializers import TagSerializer
 from utils.drf_utils import CurrentUserOrAdminDefault
+from utils.resource_assets import sync_article_content_assets
 
 
 class ArticleSerializer(serializers.ModelSerializer):
@@ -76,6 +77,7 @@ class ArticleSerializer(serializers.ModelSerializer):
 
         # 4. 手动处理附件逻辑
         self._handle_assets(article, assets_ids)
+        sync_article_content_assets(article)
 
         return article
 
@@ -91,6 +93,8 @@ class ArticleSerializer(serializers.ModelSerializer):
 
         if assets_ids is not None:
             self._handle_assets(article, assets_ids)
+
+        sync_article_content_assets(article)
 
         return article
 
@@ -149,7 +153,7 @@ class ArticleSerializer(serializers.ModelSerializer):
 
         if not assets_ids:
             # 清空所有附件关联
-            assets = Asset.objects.filter(linked_article=article)
+            assets = Asset.objects.filter(linked_article=article, source_type='attachment')
             for asset in assets:
                 asset.linked_article = None
                 asset.is_linked = False
@@ -157,7 +161,7 @@ class ArticleSerializer(serializers.ModelSerializer):
             return
 
         # 先移除所有现有关联
-        assets = Asset.objects.filter(linked_article=article)
+        assets = Asset.objects.filter(linked_article=article, source_type='attachment')
         for asset in assets:
             asset.linked_article = None
             asset.is_linked = False
@@ -166,7 +170,7 @@ class ArticleSerializer(serializers.ModelSerializer):
         # 关联新的附件
         for asset_id in assets_ids:
             try:
-                asset = Asset.objects.get(id=asset_id)
+                asset = Asset.objects.get(id=asset_id, source_type='attachment')
                 asset.linked_article = article
                 asset.is_linked = True
                 asset.save()
