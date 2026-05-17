@@ -169,6 +169,7 @@ irm https://raw.githubusercontent.com/TangerineSpecter/O-Doc/master/manager.ps1 
 ```
 
 脚本会自动完成部署目录准备、配置生成和镜像拉取。
+默认从腾讯云 TCR 公开镜像 `ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest` 拉取，便于国内服务器快速更新。需要强制使用 GitHub Container Registry 官方源时，可先设置 `ODOC_IMAGE_NAME=ghcr.io/tangerinespecter/o-doc:latest` 后再运行脚本。
 运行后按提示选择对应操作即可：
 
 - `安装`

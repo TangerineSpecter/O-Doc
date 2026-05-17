@@ -8,7 +8,9 @@ $ComposeFile = Join-Path $DeployDir 'compose.prod.yml'
 $EnvFile = Join-Path $DeployDir '.env.deploy'
 $RuntimeDir = Join-Path $DeployDir 'runtime'
 
-$DefaultImage = 'ghcr.io/tangerinespecter/o-doc:latest'
+$OfficialImage = 'ghcr.io/tangerinespecter/o-doc:latest'
+$TcrImage = 'ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest'
+$DefaultImage = if ($env:ODOC_IMAGE_NAME) { $env:ODOC_IMAGE_NAME } else { $TcrImage }
 $DefaultContainerName = 'o-doc'
 $DefaultHostPort = '11800'
 $DefaultAdminEmail = 'admin@example.com'
@@ -44,6 +46,7 @@ function Show-Banner {
     Write-Color " 🌻 Architecture: $env:PROCESSOR_ARCHITECTURE" Cyan
     Write-Color " 🔥 Deploy Path : $DeployDir" Cyan
     Write-Color " 🐱 GitHub Repo : https://github.com/TangerineSpecter/O-Doc" Cyan
+    Write-Color " 🐳 Image Source: $DefaultImage" Cyan
     Write-Color " 🤖 Author: :丢失的橘子" Cyan
     Write-Host ''
 }
@@ -215,7 +218,12 @@ function Ensure-EnvDefaults {
 
     $map = Get-EnvMap
 
-    if (-not $map.IMAGE_NAME) { $map.IMAGE_NAME = $DefaultImage }
+    if (-not $map.IMAGE_NAME) {
+        $map.IMAGE_NAME = $DefaultImage
+    } elseif ($map.IMAGE_NAME -eq $OfficialImage -and -not $env:ODOC_IMAGE_NAME) {
+        $map.IMAGE_NAME = $DefaultImage
+        Write-Color "已将镜像源切换为腾讯云 TCR：$DefaultImage" Yellow
+    }
     if (-not $map.CONTAINER_NAME) { $map.CONTAINER_NAME = $DefaultContainerName }
     if (-not $map.HOST_PORT) { $map.HOST_PORT = $DefaultHostPort }
     if (-not $map.DJANGO_DEBUG) { $map.DJANGO_DEBUG = 'false' }

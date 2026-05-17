@@ -7,7 +7,9 @@ COMPOSE_FILE="$DEPLOY_DIR/compose.prod.yml"
 ENV_FILE="$DEPLOY_DIR/.env.deploy"
 RUNTIME_DIR="$DEPLOY_DIR/runtime"
 
-DEFAULT_IMAGE="ghcr.io/tangerinespecter/o-doc:latest"
+OFFICIAL_IMAGE="ghcr.io/tangerinespecter/o-doc:latest"
+TCR_IMAGE="ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest"
+DEFAULT_IMAGE="${ODOC_IMAGE_NAME:-$TCR_IMAGE}"
 DEFAULT_CONTAINER_NAME="o-doc"
 DEFAULT_HOST_PORT="11800"
 DEFAULT_ADMIN_EMAIL="admin@example.com"
@@ -42,6 +44,7 @@ print_banner() {
     printf "${CYAN} 🌻 Architecture: %s${NC}\n" "$(uname -m)"
     printf "${CYAN} 🔥 Deploy Path : %s${NC}\n" "$DEPLOY_DIR"
     printf "${CYAN} 🐱 GitHub Repo : %s${NC}\n" "https://github.com/TangerineSpecter/O-Doc"
+    printf "${CYAN} 🐳 Image Source: %s${NC}\n" "$DEFAULT_IMAGE"
     printf "${CYAN} 🤖 Author: : %s${NC}\n\n" "丢失的橘子"
 }
 
@@ -235,7 +238,15 @@ ensure_env_defaults() {
 
     [ -f "$ENV_FILE" ] || return
 
-    [ -n "$(read_env_value IMAGE_NAME)" ] || write_env_value IMAGE_NAME "$DEFAULT_IMAGE"
+    local current_image
+
+    current_image="$(read_env_value IMAGE_NAME)"
+    if [ -z "$current_image" ]; then
+        write_env_value IMAGE_NAME "$DEFAULT_IMAGE"
+    elif [ "$current_image" = "$OFFICIAL_IMAGE" ] && [ -z "$ODOC_IMAGE_NAME" ]; then
+        write_env_value IMAGE_NAME "$DEFAULT_IMAGE"
+        warn "已将镜像源切换为腾讯云 TCR：$DEFAULT_IMAGE"
+    fi
     [ -n "$(read_env_value CONTAINER_NAME)" ] || write_env_value CONTAINER_NAME "$DEFAULT_CONTAINER_NAME"
     [ -n "$(read_env_value HOST_PORT)" ] || write_env_value HOST_PORT "$DEFAULT_HOST_PORT"
     [ -n "$(read_env_value DJANGO_DEBUG)" ] || write_env_value DJANGO_DEBUG "false"
