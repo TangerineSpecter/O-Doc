@@ -9,7 +9,7 @@ RUNTIME_DIR="$DEPLOY_DIR/runtime"
 
 OFFICIAL_IMAGE="ghcr.io/tangerinespecter/o-doc:latest"
 TCR_IMAGE="ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest"
-DEFAULT_IMAGE="${ODOC_IMAGE_NAME:-$TCR_IMAGE}"
+DEFAULT_IMAGE="${ODOC_IMAGE_NAME:-$OFFICIAL_IMAGE}"
 DEFAULT_CONTAINER_NAME="o-doc"
 DEFAULT_HOST_PORT="11800"
 DEFAULT_ADMIN_EMAIL="admin@example.com"
@@ -243,9 +243,6 @@ ensure_env_defaults() {
     current_image="$(read_env_value IMAGE_NAME)"
     if [ -z "$current_image" ]; then
         write_env_value IMAGE_NAME "$DEFAULT_IMAGE"
-    elif [ "$current_image" = "$OFFICIAL_IMAGE" ] && [ -z "$ODOC_IMAGE_NAME" ]; then
-        write_env_value IMAGE_NAME "$DEFAULT_IMAGE"
-        warn "已将镜像源切换为腾讯云 TCR：$DEFAULT_IMAGE"
     fi
     [ -n "$(read_env_value CONTAINER_NAME)" ] || write_env_value CONTAINER_NAME "$DEFAULT_CONTAINER_NAME"
     [ -n "$(read_env_value HOST_PORT)" ] || write_env_value HOST_PORT "$DEFAULT_HOST_PORT"
@@ -416,6 +413,56 @@ show_status() {
     compose_cmd ps
 }
 
+switch_image_source() {
+    local source="${1:-}"
+    local image=""
+
+    ensure_directories
+    write_compose_file
+    [ -f "$ENV_FILE" ] || create_env_file
+    ensure_env_defaults
+
+    if [ -z "$source" ]; then
+        cat <<EOF
+请选择镜像源：
+1. GitHub Container Registry（默认）
+2. 腾讯云 TCR
+3. 自定义镜像地址
+EOF
+        printf "请输入选项编号: "
+        read -r source
+    fi
+
+    case "$source" in
+        1|github|ghcr)
+            image="$OFFICIAL_IMAGE"
+            ;;
+        2|tcr|tencent)
+            image="$TCR_IMAGE"
+            ;;
+        3|custom)
+            printf "请输入完整镜像地址: "
+            read -r image
+            ;;
+        *)
+            if printf "%s" "$source" | grep -q '/'; then
+                image="$source"
+            else
+                error "无效镜像源选项。"
+                exit 1
+            fi
+            ;;
+    esac
+
+    if [ -z "$image" ]; then
+        error "镜像地址不能为空。"
+        exit 1
+    fi
+
+    write_env_value IMAGE_NAME "$image"
+    success "镜像源已切换为：$image"
+}
+
 show_menu() {
     print_banner
     cat <<'EOF'
@@ -424,6 +471,7 @@ show_menu() {
 2. 更新
 3. 卸载
 4. 查看状态
+5. 切换镜像源
 0. 退出
 EOF
 }
@@ -446,6 +494,9 @@ run_menu() {
                 ;;
             4)
                 show_status
+                ;;
+            5)
+                switch_image_source
                 ;;
             0)
                 exit 0
@@ -471,11 +522,14 @@ case "${1:-menu}" in
     status)
         show_status
         ;;
+    source)
+        switch_image_source "${2:-}"
+        ;;
     menu)
         run_menu
         ;;
     *)
-        echo "用法: $0 [install|update|uninstall|status]"
+        echo "用法: $0 [install|update|uninstall|status|source]"
         exit 1
         ;;
 esac

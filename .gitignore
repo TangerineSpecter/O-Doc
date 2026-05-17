@@ -37,6 +37,7 @@ staticfiles/*
 media/*
 deploy/runtime/*
 .env.deploy
+.env.tcr.local
 
 # Editor directories and files
 .vscode/*

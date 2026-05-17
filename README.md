@@ -169,12 +169,20 @@ irm https://raw.githubusercontent.com/TangerineSpecter/O-Doc/master/manager.ps1 
 ```
 
 脚本会自动完成部署目录准备、配置生成和镜像拉取。
-默认从腾讯云 TCR 公开镜像 `ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest` 拉取，便于国内服务器快速更新。需要强制使用 GitHub Container Registry 官方源时，可先设置 `ODOC_IMAGE_NAME=ghcr.io/tangerinespecter/o-doc:latest` 后再运行脚本。
+默认从 GitHub Container Registry 官方镜像拉取。需要使用腾讯云 TCR 公开镜像 `ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest` 时，可在脚本菜单中选择“切换镜像源”，或执行 `./manager.sh source tcr`。
 运行后按提示选择对应操作即可：
 
 - `安装`
 - `更新`
 - `卸载`
+
+如果你需要从本机或国内服务器主动构建并推送腾讯云 TCR 镜像，可执行：
+
+```bash
+./scripts/push-tcr.sh
+```
+
+脚本会优先读取 `TCR_USERNAME`、`TCR_PASSWORD`、`TCR_IMAGE` 等环境变量；未配置时会交互输入，并可选择保存到本机 `.env.tcr.local`。该文件已被 Git 忽略，不会提交到仓库。
 
 安装时如果你没有输入 `DJANGO_SECRET_KEY`，脚本会自动生成；`DJANGO_ALLOWED_HOSTS` 默认使用宽松配置，适合大多数个人部署场景。
 

@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('install', 'update', 'uninstall', 'status', 'menu')]
+    [ValidateSet('install', 'update', 'uninstall', 'status', 'source', 'menu')]
     [string]$Action = 'menu'
 )
 
@@ -10,7 +10,7 @@ $RuntimeDir = Join-Path $DeployDir 'runtime'
 
 $OfficialImage = 'ghcr.io/tangerinespecter/o-doc:latest'
 $TcrImage = 'ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest'
-$DefaultImage = if ($env:ODOC_IMAGE_NAME) { $env:ODOC_IMAGE_NAME } else { $TcrImage }
+$DefaultImage = if ($env:ODOC_IMAGE_NAME) { $env:ODOC_IMAGE_NAME } else { $OfficialImage }
 $DefaultContainerName = 'o-doc'
 $DefaultHostPort = '11800'
 $DefaultAdminEmail = 'admin@example.com'
@@ -220,9 +220,6 @@ function Ensure-EnvDefaults {
 
     if (-not $map.IMAGE_NAME) {
         $map.IMAGE_NAME = $DefaultImage
-    } elseif ($map.IMAGE_NAME -eq $OfficialImage -and -not $env:ODOC_IMAGE_NAME) {
-        $map.IMAGE_NAME = $DefaultImage
-        Write-Color "已将镜像源切换为腾讯云 TCR：$DefaultImage" Yellow
     }
     if (-not $map.CONTAINER_NAME) { $map.CONTAINER_NAME = $DefaultContainerName }
     if (-not $map.HOST_PORT) { $map.HOST_PORT = $DefaultHostPort }
@@ -402,6 +399,41 @@ function Show-Status {
     Invoke-Compose ps
 }
 
+function Switch-ImageSource {
+    Ensure-Directories
+    Write-ComposeFile
+    if (-not (Test-Path $EnvFile)) {
+        Initialize-EnvFile
+    }
+    Ensure-EnvDefaults
+
+    Write-Host '请选择镜像源：'
+    Write-Host '1. GitHub Container Registry（默认）'
+    Write-Host '2. 腾讯云 TCR'
+    Write-Host '3. 自定义镜像地址'
+    $choice = Read-Host '请输入选项编号'
+
+    switch ($choice) {
+        '1' { $image = $OfficialImage }
+        '2' { $image = $TcrImage }
+        '3' { $image = Read-Host '请输入完整镜像地址' }
+        default {
+            Write-Color '无效镜像源选项。' Red
+            return
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($image)) {
+        Write-Color '镜像地址不能为空。' Red
+        return
+    }
+
+    $map = Get-EnvMap
+    $map.IMAGE_NAME = $image
+    Save-EnvMap -Map $map
+    Write-Color "镜像源已切换为：$image" Green
+}
+
 function Show-Menu {
     Show-Banner
     Write-Host '请选择操作：'
@@ -409,6 +441,7 @@ function Show-Menu {
     Write-Host '2. 更新'
     Write-Host '3. 卸载'
     Write-Host '4. 查看状态'
+    Write-Host '5. 切换镜像源'
     Write-Host '0. 退出'
 }
 
@@ -422,6 +455,7 @@ function Start-Menu {
             '2' { Update-App }
             '3' { Uninstall-App }
             '4' { Show-Status }
+            '5' { Switch-ImageSource }
             '0' { return }
             default { Write-Color '无效选项，请重新输入。' Red }
         }
@@ -435,5 +469,6 @@ switch ($Action) {
     'update' { Update-App }
     'uninstall' { Uninstall-App }
     'status' { Show-Status }
+    'source' { Switch-ImageSource }
     default { Start-Menu }
 }
