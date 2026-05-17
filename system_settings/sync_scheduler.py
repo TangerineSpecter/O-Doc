@@ -263,9 +263,6 @@ class WebDavAutoSyncScheduler:
         messages.append(f"媒体资源已对齐，共下载/覆盖 {file_count} 个文件")
         append_sync_message(messages[-1])
 
-        messages.append("已跳过项目静态资源 staticfiles，同步仅处理数据快照与媒体资源")
-        append_sync_message(messages[-1])
-
         if remote_meta and remote_meta.get('snapshot_id'):
             snapshot_id = remote_meta['snapshot_id']
             now = timezone.now().isoformat()
@@ -294,6 +291,7 @@ class WebDavAutoSyncScheduler:
                 raise SyncError('；'.join(issues))
 
             remote_meta = manager.get_remote_snapshot_meta()
+            manager.validate_remote_snapshot_version(remote_meta)
             remote_snapshot_id = (remote_meta or {}).get('snapshot_id')
             last_synced_snapshot_id = runtime_state.get('last_synced_snapshot_id')
 
@@ -303,8 +301,6 @@ class WebDavAutoSyncScheduler:
                 append_sync_message(messages[-1])
                 messages.extend(self._sync_from_remote_snapshot(manager, remote_meta))
 
-            messages.append('已跳过项目静态资源 staticfiles，同步仅处理数据快照与媒体资源')
-            append_sync_message(messages[-1])
             messages.extend(self._consume_stream(manager.sync_assets_upload_stream()))
             messages.extend(self._consume_stream(manager.sync_data_upload_stream()))
             snapshot_meta = manager.write_snapshot_meta(

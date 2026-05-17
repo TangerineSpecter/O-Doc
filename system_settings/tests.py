@@ -67,6 +67,28 @@ class SyncManagerTests(TestCase):
         with self.assertRaises(SyncError):
             manager.sync_data_download()
 
+    def test_write_snapshot_meta_includes_current_app_version(self):
+        client = FakeWebDavClient()
+        manager = SyncManager(client, '/o-doc-sync/')
+
+        with patch.object(SyncManager, 'get_current_app_version', return_value='0.7.0'):
+            meta = manager.write_snapshot_meta(source='manual', runner_id='test-runner')
+
+        self.assertEqual(meta['app_version'], '0.7.0')
+
+    def test_validate_remote_snapshot_version_rejects_mismatch(self):
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+
+        with patch.object(SyncManager, 'get_current_app_version', return_value='0.7.0'):
+            with self.assertRaisesMessage(SyncError, '请先将两端系统升级到同一版本'):
+                manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '0.6.0'})
+
+    def test_validate_remote_snapshot_version_rejects_missing_version(self):
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+
+        with self.assertRaisesMessage(SyncError, '远端快照缺少版本信息'):
+            manager.validate_remote_snapshot_version({'snapshot_id': 'remote'})
+
 
 class WebDavClientTests(TestCase):
     def test_normalize_base_url_adds_http_scheme_for_lan_address(self):
@@ -155,10 +177,10 @@ class SystemConfigViewSetTests(TestCase):
         view = SystemConfigViewSet.as_view({'post': 'sync_from_webdav'})
 
         fake_manager = type('FakeManager', (), {
-            'get_remote_snapshot_meta': lambda self: {'snapshot_id': 'snapshot-remote'},
+            'get_remote_snapshot_meta': lambda self: {'snapshot_id': 'snapshot-remote', 'app_version': '0.7.0'},
+            'validate_remote_snapshot_version': lambda self, remote_meta: None,
             'sync_data_download': lambda self: 3,
             'sync_assets_download': lambda self: 2,
-            'sync_static_download': lambda self: 1,
         })()
 
         with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=fake_manager):
@@ -169,7 +191,7 @@ class SystemConfigViewSetTests(TestCase):
             for chunk in response.streaming_content
         ]
         self.assertEqual(events[-1]['step'], 'done')
-        self.assertTrue(any('已跳过项目静态资源' in event['msg'] for event in events))
+        self.assertFalse(any('staticfiles' in event['msg'] for event in events))
 
     def test_sync_to_webdav_pulls_remote_first_when_snapshot_changed(self):
         request = self.factory.post('/api/settings/config/sync_to_webdav/')
@@ -187,7 +209,10 @@ class SystemConfigViewSetTests(TestCase):
                 return []
 
             def get_remote_snapshot_meta(self):
-                return {'snapshot_id': 'snapshot-new'}
+                return {'snapshot_id': 'snapshot-new', 'app_version': '0.7.0'}
+
+            def validate_remote_snapshot_version(self, remote_meta):
+                return None
 
             def sync_data_download(self):
                 call_order.append('pull-data')
@@ -196,14 +221,6 @@ class SystemConfigViewSetTests(TestCase):
             def sync_assets_download(self):
                 call_order.append('pull-assets')
                 return 2
-
-            def sync_static_download(self):
-                call_order.append('pull-static')
-                return 1
-
-            def sync_static_upload_stream(self):
-                call_order.append('push-static')
-                yield json.dumps({"step": "summary", "msg": "静态资源同步完成"})
 
             def sync_assets_upload_stream(self):
                 call_order.append('push-assets')

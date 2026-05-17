@@ -176,11 +176,6 @@ class SystemConfigViewSet(viewsets.ViewSet):
             f"媒体资源已对齐，共下载/覆盖 {file_count} 个文件"
         )
 
-        yield SystemConfigViewSet._sync_event(
-            "processing",
-            "已跳过项目静态资源 staticfiles，同步仅处理数据快照与媒体资源"
-        )
-
         snapshot_id = (remote_meta or {}).get('snapshot_id')
         if snapshot_id:
             now = timezone.now().isoformat()
@@ -359,6 +354,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     return
 
                 remote_meta = manager.get_remote_snapshot_meta()
+                manager.validate_remote_snapshot_version(remote_meta)
                 remote_snapshot_id = (remote_meta or {}).get('snapshot_id')
                 last_synced_snapshot_id = runtime_state.get('last_synced_snapshot_id')
                 if remote_snapshot_id and remote_snapshot_id != last_synced_snapshot_id:
@@ -373,11 +369,6 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 yield self._sync_event(
                     "init",
                     "开始上传同步，当前会先同步资源文件，再写入数据快照，避免云端出现半同步状态。"
-                )
-
-                yield self._sync_event(
-                    "processing",
-                    "已跳过项目静态资源 staticfiles，同步仅处理数据快照与媒体资源"
                 )
 
                 for chunk in manager.sync_assets_upload_stream():
@@ -449,6 +440,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     return
 
                 remote_meta = manager.get_remote_snapshot_meta()
+                manager.validate_remote_snapshot_version(remote_meta)
                 yield from self._sync_from_remote(
                     manager=manager,
                     runtime_state=runtime_state,

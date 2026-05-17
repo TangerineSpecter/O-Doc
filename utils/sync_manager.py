@@ -31,7 +31,33 @@ class SyncManager:
         self.data_file = f"{self.base_path}/data_index.json"
         self.meta_file = f"{self.base_path}/snapshot_meta.json"
         self.media_dir = f"{self.base_path}/media"
-        self.static_dir = f"{self.base_path}/staticfiles"
+
+    @staticmethod
+    def get_current_app_version():
+        package_file = settings.BASE_DIR / 'frontend_react' / 'package.json'
+        try:
+            with open(package_file, 'r', encoding='utf-8') as file_obj:
+                return json.load(file_obj).get('version') or 'unknown'
+        except Exception:
+            return os.getenv('ODOC_APP_VERSION', 'unknown')
+
+    def validate_remote_snapshot_version(self, remote_meta):
+        if not remote_meta:
+            return
+
+        remote_version = remote_meta.get('app_version')
+        current_version = self.get_current_app_version()
+        if not remote_version:
+            raise SyncError(
+                "远端快照缺少版本信息，可能由旧版本系统生成。"
+                "请先将两端系统升级到同一版本后再同步。"
+            )
+
+        if remote_version != current_version:
+            raise SyncError(
+                f"远端快照由系统版本 v{remote_version} 生成，当前系统版本为 v{current_version}。"
+                "请先将两端系统升级到同一版本后再同步。"
+            )
 
     @staticmethod
     def _normalize_rel_path(rel_path):
@@ -255,24 +281,6 @@ class SyncManager:
             label='资源文件'
         )
 
-    def sync_static_upload_stream(self):
-        """同步 collectstatic 产物，保证不同环境的静态资源一致。"""
-        static_root = str(settings.STATIC_ROOT)
-        if not os.path.isdir(static_root):
-            yield json.dumps({
-                "step": "summary",
-                "msg": f"跳过静态资源同步：目录不存在 {static_root}"
-            }) + "\n"
-            return
-
-        relative_paths = self._list_local_files(static_root)
-        yield from self._sync_tree_upload_stream(
-            local_root=static_root,
-            remote_root=self.static_dir,
-            relative_paths=relative_paths,
-            label='静态资源'
-        )
-
     def sync_data_download(self):
         """下载并恢复数据库快照，同时清理本地多余记录。"""
         content = self.client.get_file_content(self.data_file)
@@ -348,32 +356,6 @@ class SyncManager:
 
         return count
 
-    def sync_static_download(self):
-        """根据云端目录镜像本地静态资源。"""
-        local_static_root = str(settings.STATIC_ROOT)
-        os.makedirs(local_static_root, exist_ok=True)
-
-        remote_files = self._list_remote_files(self.static_dir)
-        if remote_files is None:
-            return 0
-
-        expected_rel_paths = []
-        count = 0
-
-        for remote_path in sorted(remote_files):
-            rel_path = remote_path[len(self.static_dir.rstrip('/')):].lstrip('/')
-            rel_path = self._normalize_rel_path(rel_path)
-            expected_rel_paths.append(rel_path)
-
-            local_path = os.path.join(local_static_root, rel_path)
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            if not self.client.download_file(remote_path, local_path):
-                raise SyncError(f"静态资源下载失败：{rel_path}")
-            count += 1
-
-        self._remove_local_extra_files(local_static_root, expected_rel_paths)
-        return count
-
     def get_remote_snapshot_meta(self):
         content = self.client.get_file_content(self.meta_file)
         if not content:
@@ -390,6 +372,7 @@ class SyncManager:
             'generated_at': datetime.utcnow().isoformat() + 'Z',
             'source': source,
             'runner_id': runner_id,
+            'app_version': self.get_current_app_version(),
             'data_file': self.data_file,
         }
 
