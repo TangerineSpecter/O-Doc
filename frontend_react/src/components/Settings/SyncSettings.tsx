@@ -286,12 +286,12 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                 </div>
             )}
 
-            {status.lastSummary?.length > 0 && (
+            {status.lastSummary?.length > 0 && logs.length === 0 && (
                 <div className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3">
                     <div className="text-sm font-semibold text-slate-800 mb-2">最近一次同步摘要</div>
-                    <div className="space-y-1 text-xs text-slate-600">
+                    <div className="max-h-32 overflow-y-auto pr-1 space-y-1 text-xs text-slate-600">
                         {status.lastSummary.map((item, index) => (
-                            <div key={`${item}-${index}`}>{item}</div>
+                            <div key={`${item}-${index}`} className="break-words">{item}</div>
                         ))}
                     </div>
                 </div>
