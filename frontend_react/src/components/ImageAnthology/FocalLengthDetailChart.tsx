@@ -65,9 +65,15 @@ export default function FocalLengthDetailChart({
   const minFocalLength = numericStats[0]?.numericValue || 0;
   const maxFocalLength = numericStats[numericStats.length - 1]?.numericValue || minFocalLength;
   const maxCount = Math.max(...numericStats.map(item => item.count), 1);
-  const range = Math.max(maxFocalLength - minFocalLength, 1);
-  const plotInsetPercent = 4;
-  const plotWidthPercent = 100 - plotInsetPercent * 2;
+  const barSlotWidth = 76;
+  const chartPaddingX = 48;
+  const chartMinWidth = Math.max(720, numericStats.length * barSlotWidth + chartPaddingX * 2);
+  const chartPoints = useMemo(() => {
+    return numericStats.map((item, index) => ({
+      ...item,
+      left: chartPaddingX + index * barSlotWidth + barSlotWidth / 2,
+    }));
+  }, [numericStats]);
   const countrySelectOptions = useMemo<SelectOption<string>[]>(
     () => [
       { value: 'all', label: '全部国家', description: `${countryOptions.reduce((total, item) => total + item.count, 0)} 张图片` },
@@ -238,35 +244,39 @@ export default function FocalLengthDetailChart({
             暂无可展示的焦段数据
           </div>
         ) : (
-          <div className="relative h-[360px] overflow-hidden rounded-xl border border-slate-100 bg-[linear-gradient(180deg,rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:100%_72px] px-4 pb-12 pt-8">
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
             <div
-              className="absolute bottom-12 border-t border-slate-300"
-              style={{ left: `${plotInsetPercent}%`, right: `${plotInsetPercent}%` }}
-            />
-            {numericStats.map(item => {
-              const left = plotInsetPercent + ((item.numericValue - minFocalLength) / range) * plotWidthPercent;
-              const height = Math.max((item.count / maxCount) * 230, 18);
+              className="relative h-[360px] bg-[linear-gradient(180deg,rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:100%_72px] pb-16 pt-8"
+              style={{ minWidth: chartMinWidth }}
+            >
+              <div
+                className="absolute bottom-16 border-t border-slate-300"
+                style={{ left: chartPaddingX, right: chartPaddingX }}
+              />
+              {chartPoints.map(item => {
+                const height = Math.max((item.count / maxCount) * 230, 18);
 
-              return (
-                <div
-                  key={item.name}
-                  className="absolute bottom-12 flex w-12 -translate-x-1/2 flex-col items-center gap-2"
-                  style={{ left: `${left}%` }}
-                >
-                  <div className="rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-                    {item.count}
-                  </div>
+                return (
                   <div
-                    className="w-5 rounded-t-md bg-sky-500 shadow-sm shadow-sky-500/20"
-                    style={{ height }}
-                    title={`${formatFocalLength(item.name)}：${item.count} 张`}
-                  />
-                  <div className="absolute top-full mt-2 w-20 text-center text-[11px] font-semibold text-slate-600">
-                    {formatFocalLength(item.name)}
+                    key={item.name}
+                    className="absolute bottom-16 flex w-[52px] -translate-x-1/2 flex-col items-center gap-2"
+                    style={{ left: item.left }}
+                  >
+                    <div className="rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                      {item.count}
+                    </div>
+                    <div
+                      className="w-7 rounded-t-md bg-sky-500 shadow-sm shadow-sky-500/20"
+                      style={{ height }}
+                      title={`${formatFocalLength(item.name)}：${item.count} 张`}
+                    />
+                    <div className="absolute top-full mt-2 w-[68px] text-center text-[11px] font-semibold leading-tight text-slate-600">
+                      {formatFocalLength(item.name)}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
         {stats.length > numericStats.length && (
