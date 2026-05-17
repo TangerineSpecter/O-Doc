@@ -1,6 +1,6 @@
 # 小橘文档 (O-Doc) 🍊
 
-[![版本](https://img.shields.io/badge/version-0.7.2-blue.svg)](https://github.com/your-username/o-doc)
+[![版本](https://img.shields.io/badge/version-0.7.3-blue.svg)](https://github.com/your-username/o-doc)
 [![Django](https://img.shields.io/badge/Django-5.x-092e20.svg?logo=django)](https://www.djangoproject.com/)
 [![React](https://img.shields.io/badge/React-19.x-61dafb.svg?logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-7.x-646cff.svg?logo=vite)](https://vitejs.dev/)
