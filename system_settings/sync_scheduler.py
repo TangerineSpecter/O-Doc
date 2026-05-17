@@ -18,6 +18,7 @@ from .models import SystemSetting
 logger = logging.getLogger(__name__)
 
 SYNC_RUNTIME_KEY = 'system_webdav_sync_runtime'
+RUNNING_STALE_MINUTES = 180
 
 
 def _env_flag(name, default='true'):
@@ -72,6 +73,59 @@ def update_runtime_state(**patch):
         return current
 
     return current
+
+
+def _parse_runtime_datetime(value):
+    if not value:
+        return None
+
+    try:
+        parsed = timezone.datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+
+    if timezone.is_naive(parsed):
+        return timezone.make_aware(parsed, timezone.get_current_timezone())
+    return parsed
+
+
+def is_sync_running(runtime_state=None):
+    runtime_state = runtime_state if runtime_state is not None else get_runtime_state()
+    if runtime_state.get('status') != 'running':
+        return False
+
+    last_started_at = _parse_runtime_datetime(runtime_state.get('last_started_at'))
+    if last_started_at is None:
+        return True
+
+    return timezone.now() - last_started_at < timedelta(minutes=RUNNING_STALE_MINUTES)
+
+
+def mark_sync_started(*, trigger, runner_id, initial_message):
+    runtime_state = get_runtime_state()
+    if is_sync_running(runtime_state):
+        return False, runtime_state
+
+    started_at = timezone.now().isoformat()
+    state = update_runtime_state(
+        status='running',
+        trigger=trigger,
+        runner_id=runner_id,
+        last_started_at=started_at,
+        last_error='',
+        last_summary=[initial_message],
+    )
+    return True, state
+
+
+def append_sync_message(message, max_items=50):
+    if not message:
+        return
+
+    runtime_state = get_runtime_state()
+    summary = list(runtime_state.get('last_summary') or [])
+    summary.append(message)
+    update_runtime_state(last_summary=summary[-max_items:])
 
 
 class WebDavAutoSyncScheduler:
@@ -159,6 +213,9 @@ class WebDavAutoSyncScheduler:
             return None
 
     def _is_due(self, runtime_state, interval_minutes):
+        if is_sync_running(runtime_state):
+            return False
+
         last_success_at = self._parse_datetime(runtime_state.get('last_success_at'))
         last_started_at = self._parse_datetime(runtime_state.get('last_started_at'))
         anchor = last_success_at or last_started_at
@@ -191,6 +248,7 @@ class WebDavAutoSyncScheduler:
                 continue
             if payload.get('msg'):
                 messages.append(payload['msg'])
+                append_sync_message(payload['msg'])
             if payload.get('step') == 'error':
                 raise SyncError(payload.get('msg') or '自动同步失败')
         return messages
@@ -199,12 +257,14 @@ class WebDavAutoSyncScheduler:
         messages = []
         data_count = manager.sync_data_download()
         messages.append(f"数据快照已恢复，共对齐 {data_count} 条记录")
+        append_sync_message(messages[-1])
 
         file_count = manager.sync_assets_download()
         messages.append(f"媒体资源已对齐，共下载/覆盖 {file_count} 个文件")
+        append_sync_message(messages[-1])
 
-        static_count = manager.sync_static_download()
-        messages.append(f"静态资源已对齐，共下载/覆盖 {static_count} 个文件")
+        messages.append("已跳过项目静态资源 staticfiles，同步仅处理数据快照与媒体资源")
+        append_sync_message(messages[-1])
 
         if remote_meta and remote_meta.get('snapshot_id'):
             snapshot_id = remote_meta['snapshot_id']
@@ -218,14 +278,14 @@ class WebDavAutoSyncScheduler:
         return messages
 
     def _run_sync(self, config, runtime_state):
-        started_at = timezone.now().isoformat()
-        self._save_runtime_state(
-            status='running',
+        acquired, _ = mark_sync_started(
             trigger='scheduler',
             runner_id=self.runner_id,
-            last_started_at=started_at,
-            last_error='',
+            initial_message='自动同步开始：准备检查远端快照与本地资源',
         )
+        if not acquired:
+            logger.info('WebDAV auto sync skipped because another sync is running')
+            return
 
         try:
             manager = self._build_sync_manager(config)
@@ -240,9 +300,11 @@ class WebDavAutoSyncScheduler:
             messages = []
             if remote_snapshot_id and remote_snapshot_id != last_synced_snapshot_id:
                 messages.append('检测到远端快照已更新，自动同步先执行拉取对齐。')
+                append_sync_message(messages[-1])
                 messages.extend(self._sync_from_remote_snapshot(manager, remote_meta))
 
-            messages.extend(self._consume_stream(manager.sync_static_upload_stream()))
+            messages.append('已跳过项目静态资源 staticfiles，同步仅处理数据快照与媒体资源')
+            append_sync_message(messages[-1])
             messages.extend(self._consume_stream(manager.sync_assets_upload_stream()))
             messages.extend(self._consume_stream(manager.sync_data_upload_stream()))
             snapshot_meta = manager.write_snapshot_meta(
@@ -259,7 +321,7 @@ class WebDavAutoSyncScheduler:
                 last_uploaded_snapshot_id=snapshot_meta['snapshot_id'],
                 last_synced_snapshot_id=snapshot_meta['snapshot_id'],
                 last_push_at=timezone.now().isoformat(),
-                last_summary=messages[-5:],
+                last_summary=messages[-20:],
             )
             logger.info('WebDAV auto sync finished successfully')
         except Exception as exc:

@@ -21,6 +21,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
 
     // 自动滚动到底部的 Ref
     const logContainerRef = useRef<HTMLDivElement>(null);
+    const statusSummaryKeyRef = useRef('');
     useEffect(() => {
         if (logContainerRef.current) {
             logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
@@ -31,10 +32,31 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
         onRefreshStatus();
         const timer = window.setInterval(() => {
             onRefreshStatus();
-        }, 15000);
+        }, status.status === 'running' ? 5000 : 15000);
 
         return () => window.clearInterval(timer);
-    }, [onRefreshStatus]);
+    }, [onRefreshStatus, status.status]);
+
+    const isServerSyncing = status.status === 'running';
+    const isBusy = isSaving || isSyncing || isServerSyncing;
+
+    useEffect(() => {
+        if (!isServerSyncing || isSyncing || !status.lastSummary?.length) {
+            return;
+        }
+
+        const summaryKey = status.lastSummary.join('\n');
+        if (summaryKey === statusSummaryKeyRef.current) {
+            return;
+        }
+
+        statusSummaryKeyRef.current = summaryKey;
+        setLogs([
+            '⏱ 检测到定时同步正在运行，正在显示后端同步细节...',
+            ...status.lastSummary.map(item => `> ${item}`)
+        ]);
+        setProgress(30);
+    }, [isServerSyncing, isSyncing, status.lastSummary]);
 
     const formatDateTime = (value?: string) => {
         if (!value) return '暂无';
@@ -97,6 +119,10 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
             warning('请先开启 WebDAV 同步开关并保存配置');
             return;
         }
+        if (isServerSyncing) {
+            warning('当前已有同步任务正在运行，请等待完成后再操作');
+            return;
+        }
 
         if (direction === 'download') {
             if (!window.confirm('确定要从云端同步数据吗？\n这将合并云端数据到本地，本地未上传的修改可能会被覆盖。')) {
@@ -105,6 +131,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
         }
 
         setIsSyncing(true);
+        statusSummaryKeyRef.current = '';
         setLogs([`🚀 开始${direction === 'upload' ? '上传' : '下载'}同步任务...`]);
         setProgress(0);
 
@@ -164,6 +191,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                 if (data.step === 'done') {
                     success(`${direction === 'upload' ? '上传' : '下载'}完成`);
                     onRefreshStatus();
+                    setProgress(100);
                     if (direction === 'download') {
                         setTimeout(() => window.location.reload(), 1500);
                     }
@@ -221,6 +249,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                     <span className="text-xs font-medium text-slate-600">{config.enabled ? '已开启' : '已关闭'}</span>
                     <button
                         onClick={() => onChange({...config, enabled: !config.enabled})}
+                        disabled={isBusy}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.enabled ? 'bg-orange-500' : 'bg-slate-200'}`}
                     >
                         <span
@@ -380,7 +409,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                         {/* 1. 测试并保存 (不做流式) */}
                         <button
                             onClick={handleSave}
-                            disabled={isSaving || isSyncing}
+                            disabled={isBusy}
                             className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg flex items-center gap-2 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                         >
                             {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> :
@@ -393,7 +422,8 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                         {/* 2. 上传按钮 (调用流式方法) */}
                         <button
                             onClick={() => startSyncStream('upload')}
-                            disabled={isSyncing}
+                            disabled={isBusy}
+                            title={isServerSyncing ? '同步任务正在运行，暂时不能开始新的上传' : undefined}
                             className="px-3 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs rounded-lg flex items-center gap-2 transition-colors border border-orange-200 disabled:opacity-70 disabled:cursor-not-allowed"
                         >
                             {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> :
@@ -404,7 +434,8 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                         {/* 3. 下载按钮 (调用流式方法) */}
                         <button
                             onClick={() => startSyncStream('download')}
-                            disabled={isSyncing}
+                            disabled={isBusy}
+                            title={isServerSyncing ? '同步任务正在运行，暂时不能从云端下载' : undefined}
                             className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs rounded-lg flex items-center gap-2 transition-colors border border-indigo-200 disabled:opacity-70 disabled:cursor-not-allowed"
                         >
                             <DownloadCloud className="w-3.5 h-3.5"/>

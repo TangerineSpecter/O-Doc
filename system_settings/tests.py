@@ -4,6 +4,7 @@ import sys
 from unittest.mock import patch
 
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIRequestFactory
 
 from system_settings.models import SystemSetting
@@ -11,6 +12,7 @@ from system_settings.sync_scheduler import should_start_webdav_scheduler
 from system_settings.views import SystemConfigViewSet
 from utils.ai_service import AIService
 from utils.sync_manager import SyncError, SyncManager
+from utils.webdav import WebDavClient
 
 
 class FakeWebDavClient:
@@ -64,6 +66,20 @@ class SyncManagerTests(TestCase):
 
         with self.assertRaises(SyncError):
             manager.sync_data_download()
+
+
+class WebDavClientTests(TestCase):
+    def test_normalize_base_url_adds_http_scheme_for_lan_address(self):
+        self.assertEqual(
+            WebDavClient.normalize_base_url('192.168.5.4:5005/'),
+            'http://192.168.5.4:5005'
+        )
+
+    def test_normalize_base_url_preserves_explicit_https_scheme(self):
+        self.assertEqual(
+            WebDavClient.normalize_base_url('https://dav.example.com/dav/'),
+            'https://dav.example.com/dav'
+        )
 
 
 class AIServiceTests(TestCase):
@@ -153,7 +169,7 @@ class SystemConfigViewSetTests(TestCase):
             for chunk in response.streaming_content
         ]
         self.assertEqual(events[-1]['step'], 'done')
-        self.assertTrue(any('静态资源已对齐' in event['msg'] for event in events))
+        self.assertTrue(any('已跳过项目静态资源' in event['msg'] for event in events))
 
     def test_sync_to_webdav_pulls_remote_first_when_snapshot_changed(self):
         request = self.factory.post('/api/settings/config/sync_to_webdav/')
@@ -210,11 +226,38 @@ class SystemConfigViewSetTests(TestCase):
         ]
         self.assertEqual(
             call_order,
-            ['pull-data', 'pull-assets', 'pull-static', 'push-static', 'push-assets', 'push-data', 'write-meta']
+            ['pull-data', 'pull-assets', 'push-assets', 'push-data', 'write-meta']
         )
         self.assertTrue(any('先拉取远端数据再继续同步' in event['msg'] for event in events))
         runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
         self.assertEqual(runtime['last_synced_snapshot_id'], 'snapshot-after-push')
+
+    def test_sync_to_webdav_rejects_when_another_sync_is_running(self):
+        request = self.factory.post('/api/settings/config/sync_to_webdav/')
+        view = SystemConfigViewSet.as_view({'post': 'sync_to_webdav'})
+
+        SystemSetting.objects.create(
+            key='system_webdav_sync_runtime',
+            value={
+                'status': 'running',
+                'last_started_at': timezone.now().isoformat(),
+                'last_summary': ['自动同步开始'],
+            }
+        )
+
+        class FakeManager:
+            def validate_upload_state(self):
+                raise AssertionError('validate_upload_state should not run while locked')
+
+        with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=FakeManager()):
+            response = view(request)
+
+        events = [
+            json.loads(chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk)
+            for chunk in response.streaming_content
+        ]
+        self.assertEqual(events[0]['step'], 'error')
+        self.assertIn('已有同步任务正在运行', events[0]['msg'])
 
 
 class WebDavSchedulerTests(TestCase):

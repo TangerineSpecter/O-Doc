@@ -1,4 +1,5 @@
 from io import BytesIO
+from urllib.parse import urlparse
 
 from webdav3.client import Client
 from webdav3.exceptions import ResponseErrorCode
@@ -6,8 +7,7 @@ from webdav3.exceptions import ResponseErrorCode
 
 class WebDavClient:
     def __init__(self, base_url, username, password):
-        # 去除 url 末尾的斜杠
-        base_url = base_url[:-1] if base_url.endswith('/') else base_url
+        base_url = self.normalize_base_url(base_url)
 
         self.options = {
             'webdav_hostname': base_url,
@@ -17,6 +17,17 @@ class WebDavClient:
             'timeout': 300
         }
         self.client = Client(self.options)
+
+    @staticmethod
+    def normalize_base_url(base_url):
+        base_url = (base_url or '').strip()
+        if not base_url:
+            return base_url
+
+        if not urlparse(base_url).scheme:
+            base_url = f"http://{base_url}"
+
+        return base_url.rstrip('/')
 
     def check_connection(self):
         try:

@@ -6,8 +6,10 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 
 from system_settings.sync_scheduler import (
+    append_sync_message,
     generate_runner_id,
     get_runtime_state,
+    mark_sync_started,
     update_runtime_state,
 )
 from utils.error_codes import ErrorCode
@@ -111,48 +113,88 @@ class SystemConfigViewSet(viewsets.ViewSet):
     """
 
     @staticmethod
+    def _sync_event(step, msg, record=True, **extra):
+        if record and msg:
+            append_sync_message(msg)
+        payload = {"step": step, "msg": msg, **extra}
+        return json.dumps(payload) + "\n"
+
+    @staticmethod
+    def _status_payload(runtime_state):
+        payload = {
+            'status': runtime_state.get('status', 'idle'),
+            'trigger': runtime_state.get('trigger', ''),
+            'runner_id': runtime_state.get('runner_id', ''),
+            'last_started_at': runtime_state.get('last_started_at', ''),
+            'last_success_at': runtime_state.get('last_success_at', ''),
+            'last_pull_at': runtime_state.get('last_pull_at', ''),
+            'last_push_at': runtime_state.get('last_push_at', ''),
+            'last_error': runtime_state.get('last_error', ''),
+            'last_summary': runtime_state.get('last_summary', []),
+            'last_synced_snapshot_id': runtime_state.get('last_synced_snapshot_id', ''),
+            'last_uploaded_snapshot_id': runtime_state.get('last_uploaded_snapshot_id', ''),
+            'last_pulled_snapshot_id': runtime_state.get('last_pulled_snapshot_id', ''),
+            'updated_at': runtime_state.get('updated_at', ''),
+        }
+        payload.update({
+            'runnerId': payload['runner_id'],
+            'lastStartedAt': payload['last_started_at'],
+            'lastSuccessAt': payload['last_success_at'],
+            'lastPullAt': payload['last_pull_at'],
+            'lastPushAt': payload['last_push_at'],
+            'lastError': payload['last_error'],
+            'lastSummary': payload['last_summary'],
+            'lastSyncedSnapshotId': payload['last_synced_snapshot_id'],
+            'lastUploadedSnapshotId': payload['last_uploaded_snapshot_id'],
+            'lastPulledSnapshotId': payload['last_pulled_snapshot_id'],
+            'updatedAt': payload['updated_at'],
+        })
+        return payload
+
+    @staticmethod
     def _sync_from_remote(manager, runtime_state, remote_meta, runner_id, trigger):
         if remote_meta and remote_meta.get('snapshot_id'):
             remote_snapshot_id = remote_meta['snapshot_id']
             last_synced_snapshot_id = runtime_state.get('last_synced_snapshot_id')
             if remote_snapshot_id != last_synced_snapshot_id:
-                yield json.dumps({
-                    "step": "processing",
-                    "msg": "检测到远端快照已更新，先拉取远端数据再继续同步。"
-                }) + "\n"
+                yield SystemConfigViewSet._sync_event(
+                    "processing",
+                    "检测到远端快照已更新，先拉取远端数据再继续同步。"
+                )
 
-        yield json.dumps({"step": "init", "msg": "开始从云端拉取快照..."}) + "\n"
+        yield SystemConfigViewSet._sync_event("init", "开始从云端拉取快照...")
 
         data_count = manager.sync_data_download()
-        yield json.dumps({
-            "step": "processing",
-            "msg": f"数据快照已恢复，共对齐 {data_count} 条记录"
-        }) + "\n"
+        yield SystemConfigViewSet._sync_event(
+            "processing",
+            f"数据快照已恢复，共对齐 {data_count} 条记录"
+        )
 
         file_count = manager.sync_assets_download()
-        yield json.dumps({
-            "step": "processing",
-            "msg": f"媒体资源已对齐，共下载/覆盖 {file_count} 个文件"
-        }) + "\n"
+        yield SystemConfigViewSet._sync_event(
+            "processing",
+            f"媒体资源已对齐，共下载/覆盖 {file_count} 个文件"
+        )
 
-        static_count = manager.sync_static_download()
-        yield json.dumps({
-            "step": "processing",
-            "msg": f"静态资源已对齐，共下载/覆盖 {static_count} 个文件"
-        }) + "\n"
+        yield SystemConfigViewSet._sync_event(
+            "processing",
+            "已跳过项目静态资源 staticfiles，同步仅处理数据快照与媒体资源"
+        )
 
         snapshot_id = (remote_meta or {}).get('snapshot_id')
         if snapshot_id:
             now = timezone.now().isoformat()
-            update_runtime_state(
-                status='success',
-                trigger=trigger,
-                runner_id=runner_id,
-                last_pulled_snapshot_id=snapshot_id,
-                last_synced_snapshot_id=snapshot_id,
-                last_pull_at=now,
-                last_error='',
-            )
+            patch = {
+                'trigger': trigger,
+                'runner_id': runner_id,
+                'last_pulled_snapshot_id': snapshot_id,
+                'last_synced_snapshot_id': snapshot_id,
+                'last_pull_at': now,
+                'last_error': '',
+            }
+            if trigger != 'manual-preflight':
+                patch['status'] = 'success'
+            update_runtime_state(**patch)
 
     @action(detail=False, methods=['get'])
     def get_ai_config(self, request):
@@ -253,21 +295,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def get_webdav_status(self, request):
         runtime_state = get_runtime_state()
-        return success_result({
-            'status': runtime_state.get('status', 'idle'),
-            'trigger': runtime_state.get('trigger', ''),
-            'runner_id': runtime_state.get('runner_id', ''),
-            'last_started_at': runtime_state.get('last_started_at', ''),
-            'last_success_at': runtime_state.get('last_success_at', ''),
-            'last_pull_at': runtime_state.get('last_pull_at', ''),
-            'last_push_at': runtime_state.get('last_push_at', ''),
-            'last_error': runtime_state.get('last_error', ''),
-            'last_summary': runtime_state.get('last_summary', []),
-            'last_synced_snapshot_id': runtime_state.get('last_synced_snapshot_id', ''),
-            'last_uploaded_snapshot_id': runtime_state.get('last_uploaded_snapshot_id', ''),
-            'last_pulled_snapshot_id': runtime_state.get('last_pulled_snapshot_id', ''),
-            'updated_at': runtime_state.get('updated_at', ''),
-        })
+        return success_result(self._status_payload(runtime_state))
 
     @action(detail=False, methods=['post'])
     def save_webdav_config(self, request):
@@ -275,11 +303,12 @@ class SystemConfigViewSet(viewsets.ViewSet):
         data = request.data
 
         # 1. 简单校验
-        url = data.get('url')
+        url = WebDavClient.normalize_base_url(data.get('url'))
         username = data.get('username')
         password = data.get('password')
         if not all([url, username, password]):
             return error_result()
+        data['url'] = url
 
         try:
             # 2. 实例化并测试连接
@@ -305,13 +334,28 @@ class SystemConfigViewSet(viewsets.ViewSet):
             return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
 
         def stream_generator():
+            runner_id = generate_runner_id('manual')
+            acquired = False
             try:
-                runner_id = generate_runner_id('manual')
-                runtime_state = get_runtime_state()
+                acquired, runtime_state = mark_sync_started(
+                    trigger='manual',
+                    runner_id=runner_id,
+                    initial_message='手动上传同步开始：准备检查远端快照与本地资源',
+                )
+                if not acquired:
+                    yield self._sync_event("error", "已有同步任务正在运行，请等待当前任务完成后再操作。", record=False)
+                    return
+
                 issues = manager.validate_upload_state()
                 if issues:
+                    update_runtime_state(
+                        status='error',
+                        trigger='manual',
+                        runner_id=runner_id,
+                        last_error='；'.join(issues),
+                    )
                     for issue in issues:
-                        yield json.dumps({"step": "error", "msg": issue}) + "\n"
+                        yield self._sync_event("error", issue)
                     return
 
                 remote_meta = manager.get_remote_snapshot_meta()
@@ -326,18 +370,32 @@ class SystemConfigViewSet(viewsets.ViewSet):
                         trigger='manual-preflight',
                     )
 
-                yield json.dumps({
-                    "step": "init",
-                    "msg": "开始上传同步，当前会先同步文件，再写入数据快照，避免云端出现半同步状态。"
-                }) + "\n"
+                yield self._sync_event(
+                    "init",
+                    "开始上传同步，当前会先同步资源文件，再写入数据快照，避免云端出现半同步状态。"
+                )
 
-                for chunk in manager.sync_static_upload_stream():
-                    yield chunk
+                yield self._sync_event(
+                    "processing",
+                    "已跳过项目静态资源 staticfiles，同步仅处理数据快照与媒体资源"
+                )
 
                 for chunk in manager.sync_assets_upload_stream():
+                    try:
+                        payload = json.loads(chunk.strip())
+                        if payload.get('msg'):
+                            append_sync_message(payload['msg'])
+                    except json.JSONDecodeError:
+                        pass
                     yield chunk
 
                 for chunk in manager.sync_data_upload_stream():
+                    try:
+                        payload = json.loads(chunk.strip())
+                        if payload.get('msg'):
+                            append_sync_message(payload['msg'])
+                    except json.JSONDecodeError:
+                        pass
                     yield chunk
 
                 snapshot_meta = manager.write_snapshot_meta(
@@ -354,11 +412,15 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     last_push_at=timezone.now().isoformat(),
                     last_error='',
                 )
-                yield json.dumps({"step": "done", "msg": "✅ 所有同步已完成！"}) + "\n"
+                yield self._sync_event("done", "✅ 所有同步已完成！")
             except SyncError as e:
-                yield json.dumps({"step": "error", "msg": str(e)}) + "\n"
+                if acquired:
+                    update_runtime_state(status='error', trigger='manual', runner_id=runner_id, last_error=str(e))
+                yield self._sync_event("error", str(e))
             except Exception as e:
-                yield json.dumps({"step": "error", "msg": f"同步失败：{str(e)}"}) + "\n"
+                if acquired:
+                    update_runtime_state(status='error', trigger='manual', runner_id=runner_id, last_error=str(e))
+                yield self._sync_event("error", f"同步失败：{str(e)}")
 
         return StreamingHttpResponse(stream_generator(), content_type='application/x-ndjson')
 
@@ -374,9 +436,18 @@ class SystemConfigViewSet(viewsets.ViewSet):
             return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
 
         def stream_generator():
+            runner_id = generate_runner_id('manual')
+            acquired = False
             try:
-                runner_id = generate_runner_id('manual')
-                runtime_state = get_runtime_state()
+                acquired, runtime_state = mark_sync_started(
+                    trigger='manual-pull',
+                    runner_id=runner_id,
+                    initial_message='手动从云端下载开始：准备拉取远端快照',
+                )
+                if not acquired:
+                    yield self._sync_event("error", "已有同步任务正在运行，请等待当前任务完成后再操作。", record=False)
+                    return
+
                 remote_meta = manager.get_remote_snapshot_meta()
                 yield from self._sync_from_remote(
                     manager=manager,
@@ -385,10 +456,21 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     runner_id=runner_id,
                     trigger='manual-pull',
                 )
-                yield json.dumps({"step": "done", "msg": "✅ 云端同步完成，本地数据与资源已刷新"}) + "\n"
+                update_runtime_state(
+                    status='success',
+                    trigger='manual-pull',
+                    runner_id=runner_id,
+                    last_success_at=timezone.now().isoformat(),
+                    last_error='',
+                )
+                yield self._sync_event("done", "✅ 云端同步完成，本地数据与资源已刷新")
             except SyncError as e:
-                yield json.dumps({"step": "error", "msg": str(e)}) + "\n"
+                if acquired:
+                    update_runtime_state(status='error', trigger='manual-pull', runner_id=runner_id, last_error=str(e))
+                yield self._sync_event("error", str(e))
             except Exception as e:
-                yield json.dumps({"step": "error", "msg": ErrorCode.WEBDEV_DOWNLOAD_FAIL.message}) + "\n"
+                if acquired:
+                    update_runtime_state(status='error', trigger='manual-pull', runner_id=runner_id, last_error=str(e))
+                yield self._sync_event("error", ErrorCode.WEBDEV_DOWNLOAD_FAIL.message)
 
         return StreamingHttpResponse(stream_generator(), content_type='application/x-ndjson')
