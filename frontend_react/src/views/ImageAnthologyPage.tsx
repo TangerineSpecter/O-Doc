@@ -815,7 +815,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
             </aside>
 
             <div className="min-w-0">
-              <section className="mb-5 rounded-xl border border-slate-200 bg-white/85 px-4 py-3 shadow-sm backdrop-blur">
+              <section className="relative z-30 mb-5 rounded-xl border border-slate-200 bg-white/85 px-4 py-3 shadow-sm backdrop-blur">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
@@ -838,7 +838,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                         onChange={setGalleryCountry}
                         placeholder="选择国家"
                         buttonClassName="min-h-9 py-1.5 text-xs"
-                        menuClassName="z-40"
+                        menuClassName="z-[100]"
                         showSelectedDescription={false}
                       />
                     </div>
@@ -1045,7 +1045,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                 </section>
               )}
 
-              <div className={isDetailPanelOpen ? 'hidden' : ''}>
+              <div className={isDetailPanelOpen ? 'hidden' : 'relative z-0'}>
                 {visibleImages.length > 0 ? (
                   <div className="grid items-start gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {imageColumns.map((column, columnIndex) => (
