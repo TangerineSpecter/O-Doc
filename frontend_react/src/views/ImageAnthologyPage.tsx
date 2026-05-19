@@ -1117,6 +1117,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
           shootingTime: selectedImage.shootingTimeStr,
           country: selectedImage.country,
           city: selectedImage.city,
+          placeName: selectedImage.placeName,
           latitude: selectedImage.latitude,
           longitude: selectedImage.longitude,
           focalLength: selectedImage.focalLength,

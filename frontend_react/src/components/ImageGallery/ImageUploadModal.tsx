@@ -147,6 +147,7 @@ export default function ImageUploadModal({
   const [shootingTime, setShootingTime] = useState('');
   const [country, setCountry] = useState('');
   const [city, setCity] = useState('');
+  const [placeName, setPlaceName] = useState('');
   const [locationId, setLocationId] = useState('');
   const [locations, setLocations] = useState<GeoLocation[]>([]);
   const [focalLength, setFocalLength] = useState('');
@@ -275,6 +276,7 @@ export default function ImageUploadModal({
     setShootingTime('');
     setCountry('');
     setCity('');
+    setPlaceName('');
     setLocationId('');
     setFocalLength('');
     setSelectedTags([]);
@@ -412,6 +414,7 @@ export default function ImageUploadModal({
       setPickerMonth(initialData.shootingTime ? dayjs(toDateValue(initialData.shootingTime)) : dayjs());
       setCountry(initialData.country || '');
       setCity(initialData.city || '');
+      setPlaceName(initialData.placeName || '');
       setLocationId(initialLocationId);
       setFocalLength(initialData.focalLength || '');
       setSelectedTags(parseTags(initialData.tagsList?.length ? initialData.tagsList : initialData.tags));
@@ -544,6 +547,7 @@ export default function ImageUploadModal({
           shootingTime: shootingTime || undefined,
           country: country.trim(),
           city: city.trim(),
+          placeName: placeName.trim(),
           locationId,
           focalLength: focalLength.trim(),
           tags: selectedTags.join(', '),
@@ -557,6 +561,7 @@ export default function ImageUploadModal({
           shootingTime: shootingTime || undefined,
           country: country.trim(),
           city: city.trim(),
+          placeName: placeName.trim(),
           locationId,
           focalLength: focalLength.trim(),
           tags: selectedTags.join(', '),
@@ -828,6 +833,20 @@ export default function ImageUploadModal({
                 />
               </div>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">
+              具体地点
+            </label>
+            <input
+              type="text"
+              disabled={isUploading}
+              placeholder="例如 人才公园、鲁斯塔维利大道"
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+              value={placeName}
+              onChange={(e) => setPlaceName(e.target.value)}
+            />
           </div>
 
           <div className="space-y-1.5">

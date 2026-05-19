@@ -10,6 +10,7 @@ export interface Image {
   shootingTimeStr?: string;
   country?: string;
   city?: string;
+  placeName?: string;
   location?: string;
   locationId?: string;
   locationDetail?: {
@@ -40,6 +41,7 @@ export interface CreateImageParams {
   shootingTime?: string;
   country?: string;
   city?: string;
+  placeName?: string;
   locationId?: string;
   focalLength?: string;
   tags?: string;
@@ -52,6 +54,7 @@ export interface UpdateImageParams {
   shootingTime?: string;
   country?: string;
   city?: string;
+  placeName?: string;
   locationId?: string;
   focalLength?: string;
   tags?: string;

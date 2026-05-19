@@ -288,6 +288,15 @@ class Image(models.Model):
         db_comment="拍摄城市"
     )
 
+    # 具体地点
+    place_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="具体地点，如公园、街道、建筑或店铺名称",
+        db_comment="具体地点"
+    )
+
     # 拍摄地点配置
     location = models.ForeignKey(
         'system_settings.GeoLocation',

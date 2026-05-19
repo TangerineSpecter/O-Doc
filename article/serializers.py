@@ -370,6 +370,7 @@ class ImageSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         country = attrs.get('country')
         city = attrs.get('city')
+        place_name = attrs.get('place_name')
         focal_length = attrs.get('focal_length')
         location_id = attrs.pop('location_id', None)
 
@@ -377,6 +378,8 @@ class ImageSerializer(serializers.ModelSerializer):
             attrs['country'] = country.strip()
         if city is not None:
             attrs['city'] = city.strip()
+        if place_name is not None:
+            attrs['place_name'] = place_name.strip()
         if focal_length is not None:
             attrs['focal_length'] = focal_length.strip()
             if attrs['focal_length'] and not attrs['focal_length'].isdigit():
@@ -405,7 +408,7 @@ class ImageSerializer(serializers.ModelSerializer):
         model = Image
         fields = [
             'image_id', 'title', 'description', 'image_url', 'coll_id',
-            'shooting_time', 'shooting_time_str', 'country', 'city',
+            'shooting_time', 'shooting_time_str', 'country', 'city', 'place_name',
             'location', 'location_id', 'location_detail', 'latitude', 'longitude',
             'focal_length', 'tags', 'tags_list',
             'author', 'author_nickname', 'created_at', 'updated_at', 'is_valid'
