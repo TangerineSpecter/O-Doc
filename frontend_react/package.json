@@ -1,7 +1,7 @@
 {
   "name": "o-doc",
   "private": true,
-  "version": "0.7.3",
+  "version": "0.7.4",
   "type": "module",
   "engines": {
     "node": ">=22"
