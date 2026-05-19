@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Aperture, ArrowLeft, Droplets, Filter, Globe2, Image as ImageIcon, MapPin, Plus, Tag, X } from 'lucide-react';
+import { Aperture, ArrowLeft, ChevronDown, Droplets, Filter, Globe2, Image as ImageIcon, MapPin, Plus, Tag, X } from 'lucide-react';
 import ImageCard from '../components/ImageGallery/ImageCard';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
@@ -96,6 +96,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [galleryTags, setGalleryTags] = useState<string[]>([]);
   const [galleryFocalMin, setGalleryFocalMin] = useState('');
   const [galleryFocalMax, setGalleryFocalMax] = useState('');
+  const [expandedLocationCountries, setExpandedLocationCountries] = useState<string[]>([]);
   const [dominantColors, setDominantColors] = useState<Record<string, DominantColorResult | null>>({});
   const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
   const [galleryColumnCount, setGalleryColumnCount] = useState(getGalleryColumnCount);
@@ -512,6 +513,46 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
       imageCount: points.reduce((total, point) => total + point.count, 0),
     };
   }, [images]);
+
+  const locationCountryGroups = useMemo(() => {
+    const groupMap = new Map<string, {
+      country: string;
+      count: number;
+      cities: Array<{ city: string; count: number }>;
+    }>();
+
+    locationStats.points.forEach((point) => {
+      const current = groupMap.get(point.country);
+      if (current) {
+        current.count += point.count;
+        current.cities.push({ city: point.city, count: point.count });
+      } else {
+        groupMap.set(point.country, {
+          country: point.country,
+          count: point.count,
+          cities: [{ city: point.city, count: point.count }],
+        });
+      }
+    });
+
+    return Array.from(groupMap.values())
+      .map(group => ({
+        ...group,
+        cities: group.cities.sort((a, b) => b.count - a.count || a.city.localeCompare(b.city)),
+      }))
+      .sort((a, b) => b.count - a.count || a.country.localeCompare(b.country));
+  }, [locationStats.points]);
+
+  useEffect(() => {
+    const availableCountries = new Set(locationCountryGroups.map(group => group.country));
+    setExpandedLocationCountries(prev => prev.filter(country => availableCountries.has(country)));
+  }, [locationCountryGroups]);
+
+  const handleLocationCountryToggle = (country: string) => {
+    setExpandedLocationCountries(prev => (
+      prev.includes(country) ? prev.filter(item => item !== country) : [...prev, country]
+    ));
+  };
 
   if (loading) {
     return (
@@ -955,16 +996,45 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                       </div>
                     </div>
 
-                    <div className="mt-5 max-h-48 space-y-2 overflow-auto pr-1">
-                      {locationStats.points.length > 0 ? locationStats.points.map(point => (
-                        <div key={`${point.country}-${point.city}`} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-xs">
-                          <span className="min-w-0 truncate font-semibold text-slate-700">{point.country} · {point.city}</span>
-                          <span className="shrink-0 text-slate-400">{point.count} 张</span>
-                        </div>
-                      )) : (
-                        <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-8 text-center text-xs text-slate-400">
-                          暂无可定位图片
-                        </div>
+                    <div className="relative mt-5">
+                      <div className="max-h-[34rem] space-y-2 overflow-auto pb-6 pr-1">
+                        {locationCountryGroups.length > 0 ? locationCountryGroups.map(group => (
+                          <div key={group.country} className="overflow-hidden rounded-lg bg-white">
+                            <button
+                              type="button"
+                              onClick={() => handleLocationCountryToggle(group.country)}
+                              className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-xs transition-colors hover:bg-orange-50"
+                            >
+                              <span className="flex min-w-0 items-center gap-2">
+                                <ChevronDown
+                                  className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${
+                                    expandedLocationCountries.includes(group.country) ? 'rotate-180 text-orange-500' : ''
+                                  }`}
+                                />
+                                <span className="min-w-0 truncate font-semibold text-slate-700">{group.country}</span>
+                              </span>
+                              <span className="shrink-0 font-medium text-slate-400">{group.count} 张</span>
+                            </button>
+
+                            {expandedLocationCountries.includes(group.country) && (
+                              <div className="space-y-1 border-t border-slate-100 bg-slate-50/70 px-2 py-2">
+                                {group.cities.map(city => (
+                                  <div key={`${group.country}-${city.city}`} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-xs">
+                                    <span className="min-w-0 truncate font-medium text-slate-600">{city.city}</span>
+                                    <span className="shrink-0 text-slate-400">{city.count} 张</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )) : (
+                          <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-8 text-center text-xs text-slate-400">
+                            暂无可定位图片
+                          </div>
+                        )}
+                      </div>
+                      {locationCountryGroups.length > 4 && (
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-slate-50/95 to-transparent" />
                       )}
                     </div>
                   </div>
