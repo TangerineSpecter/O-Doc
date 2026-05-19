@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Aperture, ArrowLeft, Droplets, Globe2, Image as ImageIcon, MapPin, Plus, Tag } from 'lucide-react';
+import { Aperture, ArrowLeft, Droplets, Filter, Globe2, Image as ImageIcon, MapPin, Plus, Tag, X } from 'lucide-react';
 import ImageCard from '../components/ImageGallery/ImageCard';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
 import LocationChartMap from '../components/ImageAnthology/LocationChartMap';
 import FocalLengthDetailChart, { FocalLengthFilterOption, formatFocalLength } from '../components/ImageAnthology/FocalLengthDetailChart';
+import { Select, SelectOption } from '../components/common/Select';
 import { getAnthologyDetail, Anthology } from '../api/anthology';
 import { deleteImage, getImagesByAnthology, Image } from '../api/image';
 import { getIconComponent } from '../constants/iconList';
@@ -35,6 +36,12 @@ const getImageCityKey = (image: Image) => {
 const getImageShootingDateKey = (image: Image) => {
   const source = image.shootingTime || image.shootingTimeStr || image.date || '';
   return source ? source.replace(' ', 'T').slice(0, 10) : '';
+};
+
+const parseFocalLengthNumber = (focalLength?: string) => {
+  if (!focalLength?.trim()) return null;
+  const value = Number.parseFloat(focalLength);
+  return Number.isFinite(value) ? value : null;
 };
 
 const buildFocalLengthStats = (sourceImages: Image[]): FocalLengthStat[] => {
@@ -85,6 +92,10 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [selectedFocalStartDate, setSelectedFocalStartDate] = useState('');
   const [selectedFocalEndDate, setSelectedFocalEndDate] = useState('');
   const [selectedColor, setSelectedColor] = useState<DominantColorKey | 'all'>('all');
+  const [galleryCountry, setGalleryCountry] = useState('all');
+  const [galleryTags, setGalleryTags] = useState<string[]>([]);
+  const [galleryFocalMin, setGalleryFocalMin] = useState('');
+  const [galleryFocalMax, setGalleryFocalMax] = useState('');
   const [dominantColors, setDominantColors] = useState<Record<string, DominantColorResult | null>>({});
   const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
   const [galleryColumnCount, setGalleryColumnCount] = useState(getGalleryColumnCount);
@@ -200,6 +211,29 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const maxTagCount = tagStats[0]?.count || 0;
   const tagSummaryStats = tagStats.slice(0, 5);
 
+  const galleryCountryOptions = useMemo<SelectOption<string>[]>(() => {
+    const counts = new Map<string, number>();
+
+    images.forEach((image) => {
+      const country = image.country?.trim();
+      if (!country) return;
+      counts.set(country, (counts.get(country) || 0) + 1);
+    });
+
+    const options = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([country, count]) => ({
+        value: country,
+        label: country,
+        description: `${count} 张图片`,
+      }));
+
+    return [
+      { value: 'all', label: '全部国家', description: `${images.length} 张图片` },
+      ...options,
+    ];
+  }, [images]);
+
   const focalCountryOptions = useMemo<FocalLengthFilterOption[]>(() => {
     const counts = new Map<string, number>();
 
@@ -257,6 +291,62 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     const availableTags = new Set(focalTagOptions.map(option => option.name));
     setSelectedFocalTags(prev => prev.filter(tag => availableTags.has(tag)));
   }, [focalTagOptions]);
+
+  useEffect(() => {
+    const availableCountries = new Set(galleryCountryOptions.map(option => option.value));
+    if (!availableCountries.has(galleryCountry)) {
+      setGalleryCountry('all');
+    }
+  }, [galleryCountry, galleryCountryOptions]);
+
+  useEffect(() => {
+    const availableTags = new Set(tagStats.map(option => option.name));
+    setGalleryTags(prev => prev.filter(tag => availableTags.has(tag)));
+  }, [tagStats]);
+
+  const galleryTagOptions = tagStats;
+
+  const baseVisibleImages = useMemo(() => {
+    const minFocal = galleryFocalMin === '' ? null : Number.parseFloat(galleryFocalMin);
+    const maxFocal = galleryFocalMax === '' ? null : Number.parseFloat(galleryFocalMax);
+    const hasValidMin = minFocal !== null && Number.isFinite(minFocal);
+    const hasValidMax = maxFocal !== null && Number.isFinite(maxFocal);
+
+    return images.filter((image) => {
+      const country = image.country?.trim();
+      const imageTags = parseImageTags(image);
+      const focalLength = parseFocalLengthNumber(image.focalLength);
+
+      if (galleryCountry !== 'all' && country !== galleryCountry) return false;
+      if (galleryTags.length > 0 && !galleryTags.every(tag => imageTags.includes(tag))) return false;
+      if (hasValidMin && (focalLength === null || focalLength < minFocal!)) return false;
+      if (hasValidMax && (focalLength === null || focalLength > maxFocal!)) return false;
+
+      return true;
+    });
+  }, [galleryCountry, galleryFocalMax, galleryFocalMin, galleryTags, images]);
+
+  const galleryFilterCount = [
+    galleryCountry !== 'all',
+    galleryTags.length > 0,
+    galleryFocalMin !== '' || galleryFocalMax !== '',
+  ].filter(Boolean).length;
+
+  const hasGalleryFilters = galleryFilterCount > 0 || selectedColor !== 'all';
+
+  const handleGalleryTagToggle = (tag: string) => {
+    setGalleryTags(prev => (
+      prev.includes(tag) ? prev.filter(item => item !== tag) : [...prev, tag]
+    ));
+  };
+
+  const clearGalleryFilters = () => {
+    setGalleryCountry('all');
+    setGalleryTags([]);
+    setGalleryFocalMin('');
+    setGalleryFocalMax('');
+    setSelectedColor('all');
+  };
 
   const filteredFocalImages = useMemo(() => {
     return images.filter((image) => {
@@ -339,7 +429,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const colorStats = useMemo(() => {
     const counts = new Map<DominantColorKey, number>();
 
-    images.forEach((image) => {
+    baseVisibleImages.forEach((image) => {
       const dominantColor = dominantColors[image.imageId];
       if (!dominantColor) return;
       counts.set(dominantColor.key, (counts.get(dominantColor.key) || 0) + 1);
@@ -347,13 +437,13 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
 
     return COLOR_SWATCHES
       .map(color => ({ ...color, count: counts.get(color.key) || 0 }));
-  }, [dominantColors, images]);
+  }, [baseVisibleImages, dominantColors]);
 
-  const extractedColorCount = images.filter(image => dominantColors[image.imageId]).length;
+  const extractedColorCount = baseVisibleImages.filter(image => dominantColors[image.imageId]).length;
   const visibleImages = useMemo(() => {
-    if (selectedColor === 'all') return images;
-    return images.filter(image => dominantColors[image.imageId]?.key === selectedColor);
-  }, [dominantColors, images, selectedColor]);
+    if (selectedColor === 'all') return baseVisibleImages;
+    return baseVisibleImages.filter(image => dominantColors[image.imageId]?.key === selectedColor);
+  }, [baseVisibleImages, dominantColors, selectedColor]);
 
   const imageColumns = useMemo(() => {
     const columnCount = Math.max(galleryColumnCount, 1);
@@ -378,7 +468,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
 
   useEffect(() => {
     setSelectedIndex(null);
-  }, [selectedColor]);
+  }, [galleryCountry, galleryFocalMax, galleryFocalMin, galleryTags, selectedColor]);
 
   useEffect(() => {
     const updateColumnCount = () => setGalleryColumnCount(getGalleryColumnCount());
@@ -461,7 +551,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                     {displayTitle}
                   </h1>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {images.length} 张图片
+                    {visibleImages.length === images.length ? `${images.length} 张图片` : `${visibleImages.length} / ${images.length} 张图片`}
                   </p>
                 </div>
               </div>
@@ -636,7 +726,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                 <div>
                   <h2 className="text-sm font-bold text-slate-900">主色调</h2>
                   <p className="mt-1 text-xs text-slate-500">
-                    {extractedColorCount} / {images.length} 张已识别
+                    {extractedColorCount} / {baseVisibleImages.length} 张已识别
                   </p>
                 </div>
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
@@ -655,7 +745,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   }`}
                 >
                   <span>全部颜色</span>
-                  <span>{images.length} 张</span>
+                  <span>{baseVisibleImages.length} 张</span>
                 </button>
                 <div className="grid grid-cols-2 gap-2">
                   {colorStats.map((color) => (
@@ -684,6 +774,109 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
             </aside>
 
             <div className="min-w-0">
+              <section className="mb-5 rounded-xl border border-slate-200 bg-white/85 px-4 py-3 shadow-sm backdrop-blur">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
+                      <Filter className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900">内容筛选</h2>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {visibleImages.length} / {images.length} 张匹配
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid flex-1 gap-3 md:grid-cols-[minmax(150px,0.8fr)_minmax(220px,1.4fr)_minmax(220px,1fr)_auto] xl:max-w-4xl">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-slate-600">国家</label>
+                      <Select
+                        value={galleryCountry}
+                        options={galleryCountryOptions}
+                        onChange={setGalleryCountry}
+                        placeholder="选择国家"
+                        buttonClassName="min-h-9 py-1.5 text-xs"
+                        menuClassName="z-40"
+                        showSelectedDescription={false}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="mb-1.5 flex items-center justify-between gap-2">
+                        <label className="text-xs font-semibold text-slate-600">标签</label>
+                        {galleryTags.length > 0 && (
+                          <span className="text-[11px] font-medium text-orange-600">{galleryTags.length} 个</span>
+                        )}
+                      </div>
+                      {galleryTagOptions.length > 0 ? (
+                        <div className="flex min-h-9 gap-1.5 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1">
+                          {galleryTagOptions.map((item) => {
+                            const active = galleryTags.includes(item.name);
+                            return (
+                              <button
+                                key={item.name}
+                                type="button"
+                                onClick={() => handleGalleryTagToggle(item.name)}
+                                className={`flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                                  active
+                                    ? 'bg-orange-50 text-orange-700'
+                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                }`}
+                              >
+                                <span>{item.name}</span>
+                                <span className={active ? 'text-orange-500' : 'text-slate-400'}>{item.count}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="flex min-h-9 items-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 text-xs text-slate-400">
+                          暂无标签
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-slate-600">焦段范围</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          inputMode="decimal"
+                          value={galleryFocalMin}
+                          onChange={(event) => setGalleryFocalMin(event.target.value)}
+                          placeholder="最小 mm"
+                          className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          inputMode="decimal"
+                          value={galleryFocalMax}
+                          onChange={(event) => setGalleryFocalMax(event.target.value)}
+                          placeholder="最大 mm"
+                          className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-end">
+                      {hasGalleryFilters && (
+                        <button
+                          type="button"
+                          onClick={clearGalleryFilters}
+                          className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 md:w-auto"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          清除
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
               {isFocalLengthDetailOpen && (
                 <FocalLengthDetailChart
                   stats={filteredFocalLengthStats}
@@ -824,18 +1017,18 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                 ) : (
                   <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/70 px-6 text-center">
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
-                      <Droplets className="h-6 w-6" />
+                      <Filter className="h-6 w-6" />
                     </div>
-                    <h3 className="text-base font-bold text-slate-800">没有匹配的主色调</h3>
+                    <h3 className="text-base font-bold text-slate-800">没有匹配的图片</h3>
                     <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-                      当前颜色筛选下暂无图片，可以切回全部颜色查看完整文集。
+                      当前筛选条件下暂无图片，可以清除筛选查看完整文集。
                     </p>
                     <button
                       type="button"
-                      onClick={() => setSelectedColor('all')}
+                      onClick={clearGalleryFilters}
                       className="mt-4 rounded-lg bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-orange-500/20 transition-colors hover:bg-orange-600"
                     >
-                      查看全部颜色
+                      清除筛选
                     </button>
                   </div>
                 )}
