@@ -63,5 +63,5 @@ export const getArticleTreeByAnthology = async (collId: string): Promise<Article
  * @param params 保存文章参数
  */
 export const saveWebpageAsArticle = async (params?: SaveWebpageParams): Promise<Article> => {    // 假设后端接口路径为 /article/save-web/，请根据实际情况修改
-    return request.post('/article/save-web/', params);
+    return request.post('/article/save-web/', params, {timeout: 60000});
 };

@@ -70,7 +70,10 @@ service.interceptors.response.use(
             return res.data;
         } else {
             // 处理业务错误
-            console.error('API Error:', res.msg);
+            const errorMessage = typeof res.data === 'string' && res.data.trim()
+                ? res.data
+                : (res.msg || 'Error');
+            console.error('API Error:', errorMessage);
 
             // 示例：处理 Token 过期 (401)
             if (res.code === ResultEnum.TIMEOUT) {
@@ -80,7 +83,7 @@ service.interceptors.response.use(
                 window.location.href = '/login';
             }
 
-            return Promise.reject(new Error(res.msg || 'Error'));
+            return Promise.reject(new Error(errorMessage));
         }
     },
     (error: CustomAxiosError) => {

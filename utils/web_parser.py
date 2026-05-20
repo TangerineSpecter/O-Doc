@@ -5,6 +5,13 @@ from markdownify import MarkdownConverter
 from readability import Document
 
 
+REQUEST_TIMEOUT = 15
+
+
+class WebParserError(Exception):
+    """Raised when a page is reachable but cannot be parsed into article content."""
+
+
 class CSDNConverter(MarkdownConverter):
     def convert_pre(self, el, text, convert_as_inline=False, **kwargs):
         lang = ''
@@ -41,17 +48,39 @@ def clean_code_blocks(soup):
     return soup
 
 
+def looks_like_login_or_block_page(html):
+    html_lower = (html or '').lower()
+    markers = [
+        'login_redirect',
+        'suite/passport',
+        'captcha',
+        'verify',
+        'no_permission',
+        '请登录',
+        '登录',
+    ]
+    return any(marker in html_lower for marker in markers)
+
+
 def parse_web_content(url):
     """
     解析网页并返回 (title, markdown_content)
     """
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': (
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+        ),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     }
 
     try:
-        response = requests.get(url, headers=headers, timeout=15)
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
+
+        if looks_like_login_or_block_page(response.text):
+            raise WebParserError("页面需要登录、授权、验证或浏览器动态渲染后才能读取正文内容。")
 
         # 提取正文
         doc = Document(response.text)
@@ -69,6 +98,9 @@ def parse_web_content(url):
         # 简单的标题清理
         if not title:
             title = "未命名网页"
+
+        if not markdown_content.strip():
+            raise WebParserError("未能从页面中提取到正文内容，可能是动态渲染页面。")
 
         return title, markdown_content
 

@@ -148,7 +148,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
         } catch (error: any) {
             console.error(error);
-            // 错误由 Modal 组件捕获显示，或者在这里 toast
+            toast.error(error?.message || '网页解析失败，请稍后重试');
             throw error; // 抛出错误让 Modal 停止 loading
         }
     };
