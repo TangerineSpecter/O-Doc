@@ -1,6 +1,7 @@
 import request from '../utils/request';
 import type {
     ModelType,
+    AgentConfig,
     AIModel,
     AIProvider,
     MemosPushConfig,
@@ -10,11 +11,13 @@ import type {
     RuntimeInfo,
     GeoLocation,
     SaveGeoLocationParams,
+    SaveAgentConfigParams,
 } from '../types/api/setting';
 
 // 重新导出类型以便其他组件使用
 export type {
     ModelType,
+    AgentConfig,
     AIModel,
     AIProvider,
     MemosPushConfig,
@@ -24,6 +27,7 @@ export type {
     RuntimeInfo,
     GeoLocation,
     SaveGeoLocationParams,
+    SaveAgentConfigParams,
 };
 
 // --- 模拟数据 ---
@@ -116,6 +120,17 @@ export const getSystemAIConfig = () => request.get<SystemAIConfig>('/settings/co
 
 // 7. 保存系统 AI 配置
 export const saveSystemAIConfig = (data: SystemAIConfig) => request.post('/settings/config/save_ai_config/', data);
+
+export const getAgents = () => request.get<AgentConfig[]>('/settings/agents/');
+
+export const saveAgent = (data: SaveAgentConfigParams) => {
+    if (data.id) {
+        return request.put<AgentConfig>(`/settings/agents/${data.id}/`, data);
+    }
+    return request.post<AgentConfig>('/settings/agents/', data);
+};
+
+export const deleteAgent = (id: string) => request.delete(`/settings/agents/${id}/`);
 
 export const getRuntimeInfo = () => request.get<any, RuntimeInfo>('/settings/config/get_runtime_info/');
 

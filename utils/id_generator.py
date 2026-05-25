@@ -69,6 +69,15 @@ def generate_model_id() -> str:
     return generate_unique_id("mod")
 
 
+# 为 Agent 生成带 agent 前缀的 ID
+def generate_agent_id() -> str:
+    """
+    生成带 agent 前缀的 Agent ID
+    :return: 带 agent 前缀的唯一ID字符串
+    """
+    return generate_unique_id("agent")
+
+
 # 为地理位置生成带 loc 前缀的 ID
 def generate_location_id() -> str:
     """

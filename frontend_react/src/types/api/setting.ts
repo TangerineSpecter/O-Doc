@@ -25,6 +25,22 @@ export interface SystemAIConfig {
     defaultRerankModelId: string;
 }
 
+export interface AgentConfig {
+    id: string;
+    name: string;
+    avatar: string;
+    model: string | null;
+    modelDetail?: AIModel | null;
+    prompt: string;
+    mcpServers: string[];
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'modelDetail' | 'createdAt' | 'updatedAt'> & {
+    id?: string;
+};
+
 export type MemosPushFrequency = 'daily' | 'everyTwoDays' | 'weekly' | 'monthly';
 
 export interface MemosPushConfig {

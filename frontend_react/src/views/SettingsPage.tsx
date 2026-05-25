@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Cpu, Info, MapPin, RefreshCw, Settings } from 'lucide-react';
+import { Save, Bot, Cpu, Info, MapPin, RefreshCw, Settings } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useSettings } from '../hooks/useSettings';
 import { AIProvider, getMemosPushConfig, saveMemosPushConfig, saveSystemAIConfig, saveWebDavConfig } from '../api/setting';
@@ -8,6 +8,7 @@ import type { MemosPushConfig } from '../types/api/setting';
 
 // 子组件
 import { AISettings } from '../components/Settings/AISettings';
+import { AgentSettings } from '../components/Settings/AgentSettings';
 import { SyncSettings } from '../components/Settings/SyncSettings';
 import { GeneralSettings } from '../components/Settings/GeneralSettings';
 import { ProviderModal } from '../components/Settings/ProviderModal';
@@ -16,7 +17,7 @@ import { LocationSettings } from '../components/Settings/LocationSettings';
 import { AboutSettings } from '../components/Settings/AboutSettings';
 
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState<'ai' | 'sync' | 'location' | 'general' | 'about'>('ai');
+    const [activeTab, setActiveTab] = useState<'ai' | 'agent' | 'sync' | 'location' | 'general' | 'about'>('ai');
     const toast = useToast();
     const [headerSaving, setHeaderSaving] = useState(false);
     const [memosPushConfig, setMemosPushConfig] = useState<MemosPushConfig>({
@@ -29,9 +30,9 @@ export default function SettingsPage() {
 
     // 使用自定义 Hook
     const {
-        providers, systemConfig, webDavConfig, webDavStatus, isSaving,
+        providers, agents, systemConfig, webDavConfig, webDavStatus, isSaving,
         setSystemConfig, setWebDavConfig,
-        getModelsByType, handleSaveProvider, handleSaveModel, handleDelete,
+        getModelsByType, handleSaveProvider, handleSaveModel, handleSaveAgent, handleDelete, handleDeleteAgent,
         fetchWebDavConfig, fetchWebDavStatus
     } = useSettings();
 
@@ -84,6 +85,11 @@ export default function SettingsPage() {
                 return;
             }
 
+            if (activeTab === 'agent') {
+                toast.info('Agent 会在创建或编辑时自动保存');
+                return;
+            }
+
             if (activeTab === 'sync') {
                 if (!webDavConfig.enabled) {
                     toast.info('WebDAV 同步未开启，暂无需要保存的同步配置');
@@ -132,7 +138,11 @@ export default function SettingsPage() {
                 isOpen={deleteConfirm.open}
                 onClose={() => setDeleteConfirm({ open: false })}
                 onConfirm={() => {
-                    handleDelete(deleteConfirm.target);
+                    if (deleteConfirm.target?.type === 'agent') {
+                        handleDeleteAgent(deleteConfirm.target.agentId);
+                    } else {
+                        handleDelete(deleteConfirm.target);
+                    }
                     setDeleteConfirm({ open: false });
                 }}
                 title="确认删除"
@@ -189,6 +199,7 @@ export default function SettingsPage() {
                 {/* Sidebar */}
                 <div className="md:col-span-1 space-y-1">
                     <TabButton id="ai" label="AI 模型接入" icon={<Cpu className="w-4 h-4" />} />
+                    <TabButton id="agent" label="Agent 创建" icon={<Bot className="w-4 h-4" />} />
                     <TabButton id="sync" label="同步与备份" icon={<RefreshCw className="w-4 h-4" />} />
                     <TabButton id="location" label="地理位置" icon={<MapPin className="w-4 h-4" />} />
                     <TabButton id="general" label="常规设置" icon={<Settings className="w-4 h-4" />} />
@@ -205,6 +216,14 @@ export default function SettingsPage() {
                             getModelsByType={getModelsByType}
                             onOpenProviderModal={(data) => setProviderModal({ open: true, data })}
                             onOpenModelModal={(providerId) => setModelModal({ open: true, providerId })}
+                            onDelete={(target) => setDeleteConfirm({ open: true, target })}
+                        />
+                    )}
+                    {activeTab === 'agent' && (
+                        <AgentSettings
+                            agents={agents}
+                            getModelsByType={getModelsByType}
+                            onSave={handleSaveAgent}
                             onDelete={(target) => setDeleteConfirm({ open: true, target })}
                         />
                     )}

@@ -16,9 +16,9 @@ from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 from utils.sync_manager import SyncError, SyncManager
 from utils.webdav import WebDavClient
-from .models import AIProvider, AIModel, SystemSetting, GeoLocation
+from .models import Agent, AIProvider, AIModel, SystemSetting, GeoLocation
 from .runtime_tracker import get_runtime_info
-from .serializers import AIProviderSerializer, AIModelSerializer, GeoLocationSerializer
+from .serializers import AgentSerializer, AIProviderSerializer, AIModelSerializer, GeoLocationSerializer
 
 
 class AIProviderViewSet(viewsets.ModelViewSet):
@@ -91,6 +91,42 @@ class GeoLocationViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
+        return success_result(serializer.data)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_result(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_result()
+
+
+class AgentViewSet(viewsets.ModelViewSet):
+    """Agent 配置接口"""
+
+    queryset = Agent.objects.select_related('model', 'model__provider').all()
+    serializer_class = AgentSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return success_result(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return success_result(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
         return success_result(serializer.data)
 
     def update(self, request, *args, **kwargs):

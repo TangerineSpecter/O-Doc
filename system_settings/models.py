@@ -1,7 +1,7 @@
 # system_settings/models.py
 from django.db import models
 
-from utils.id_generator import generate_provider_id, generate_model_id, generate_location_id
+from utils.id_generator import generate_provider_id, generate_model_id, generate_agent_id, generate_location_id
 
 
 class AIProvider(models.Model):
@@ -125,6 +125,60 @@ class SystemSetting(models.Model):
     class Meta:
         db_table = 'sys_setting'
         db_table_comment = '系统设置表'
+
+
+class Agent(models.Model):
+    """可配置的 AI Agent"""
+
+    id = models.CharField(
+        max_length=40,
+        primary_key=True,
+        default=generate_agent_id,
+        verbose_name='Agent ID',
+        db_comment='Agent ID'
+    )
+
+    name = models.CharField(max_length=50, verbose_name='Agent 名称', db_comment='Agent 名称')
+
+    avatar = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='头像',
+        db_comment='头像，可存储 URL、Emoji 或静态资源路径'
+    )
+
+    model = models.ForeignKey(
+        AIModel,
+        related_name='agents',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name='使用模型',
+        db_comment='使用模型ID'
+    )
+
+    prompt = models.TextField(blank=True, default='', verbose_name='提示词', db_comment='提示词')
+
+    mcp_servers = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name='MCP 配置',
+        db_comment='MCP 服务配置列表'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'sys_agent'
+        db_table_comment = 'Agent 配置表'
+        verbose_name = 'Agent'
+        verbose_name_plural = verbose_name
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.name
 
 
 class GeoLocation(models.Model):

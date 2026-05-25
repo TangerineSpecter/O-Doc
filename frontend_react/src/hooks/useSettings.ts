@@ -1,15 +1,19 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {useToast} from '../components/common/ToastProvider';
 import {
+    AgentConfig,
     AIProvider,
+    deleteAgent,
     deleteModel,
     deleteProvider,
+    getAgents,
     getProviders,
     getSystemAIConfig,
     getWebDavConfig,
     getWebDavStatus,
     ModelType,
     saveModel,
+    saveAgent,
     saveProvider,
     saveSystemAIConfig,
     SystemAIConfig,
@@ -24,6 +28,7 @@ export const useSettings = () => {
 
     // --- State ---
     const [providers, setProviders] = useState<AIProvider[]>([]);
+    const [agents, setAgents] = useState<AgentConfig[]>([]);
     const [systemConfig, setSystemConfig] = useState<SystemAIConfig>({
         defaultChatModelId: '',
         simpleChatModelId: '',
@@ -66,12 +71,14 @@ export const useSettings = () => {
         setIsLoading(true);
         try {
             // ✅ 同时解构出第二个返回值 (systemConfigRes)
-            const [providersRes, systemConfigRes] = await Promise.all([
+            const [providersRes, systemConfigRes, agentsRes] = await Promise.all([
                 getProviders(),
-                getSystemAIConfig()
+                getSystemAIConfig(),
+                getAgents()
             ]);
 
             setProviders(providersRes as unknown as AIProvider[]);
+            setAgents(agentsRes as unknown as AgentConfig[]);
 
             // ✅ 修复 2：将获取到的配置存入 State
             setSystemConfig(normalizeSystemAIConfig(systemConfigRes as unknown as Partial<SystemAIConfig>));
@@ -211,8 +218,50 @@ export const useSettings = () => {
         }
     };
 
+    const handleSaveAgent = async (agentData: Partial<AgentConfig>) => {
+        setIsSaving(true);
+        try {
+            const payload = {
+                id: agentData.id,
+                name: agentData.name || '',
+                avatar: agentData.avatar || '',
+                model: agentData.model || null,
+                prompt: agentData.prompt || '',
+                mcpServers: agentData.mcpServers || []
+            };
+            const res = await saveAgent(payload);
+            const data = res as unknown as AgentConfig;
+
+            setAgents(prev => {
+                const exists = prev.some(agent => agent.id === data.id);
+                if (exists) {
+                    return prev.map(agent => agent.id === data.id ? data : agent);
+                }
+                return [data, ...prev];
+            });
+            toast.success(agentData.id ? 'Agent 已更新' : 'Agent 已创建');
+            return true;
+        } catch (error) {
+            toast.error('保存 Agent 失败');
+            return false;
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteAgent = async (id: string) => {
+        try {
+            await deleteAgent(id);
+            setAgents(prev => prev.filter(agent => agent.id !== id));
+            toast.success('Agent 已删除');
+        } catch (error) {
+            toast.error('删除 Agent 失败');
+        }
+    };
+
     return {
         providers,
+        agents,
         systemConfig,
         webDavConfig,
         webDavStatus,
@@ -227,7 +276,9 @@ export const useSettings = () => {
         getModelsByType,
         handleSaveProvider,
         handleSaveModel,
+        handleSaveAgent,
         handleDelete,
+        handleDeleteAgent,
 
         fetchWebDavConfig,
         fetchWebDavStatus,

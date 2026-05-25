@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import AIProvider, AIModel, SystemSetting, GeoLocation
+from .models import Agent, AIProvider, AIModel, SystemSetting, GeoLocation
 
 class AIModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -22,6 +22,38 @@ class SystemSettingSerializer(serializers.ModelSerializer):
     class Meta:
         model = SystemSetting
         fields = ['key', 'value']
+
+
+class AgentSerializer(serializers.ModelSerializer):
+    model_detail = AIModelSerializer(source='model', read_only=True)
+
+    class Meta:
+        model = Agent
+        fields = [
+            'id',
+            'name',
+            'avatar',
+            'model',
+            'model_detail',
+            'prompt',
+            'mcp_servers',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'model_detail', 'created_at', 'updated_at']
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Agent 名称不能为空")
+        return value
+
+    def validate_mcp_servers(self, value):
+        if value in (None, ''):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError("MCP 配置必须是数组")
+        return value
 
 
 class GeoLocationSerializer(serializers.ModelSerializer):
