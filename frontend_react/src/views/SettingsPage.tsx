@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Bot, Code2, Cpu, Info, MapPin, RefreshCw, Settings } from 'lucide-react';
+import { Save, Bot, CalendarClock, Code2, Cpu, Info, MapPin, RefreshCw, Settings } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useSettings } from '../hooks/useSettings';
 import { AIProvider, getMemosPushConfig, saveMemosPushConfig, saveSystemAIConfig, saveWebDavConfig } from '../api/setting';
@@ -12,13 +12,14 @@ import { AgentSettings } from '../components/Settings/AgentSettings';
 import { MCPSettings } from '../components/Settings/MCPSettings';
 import { SyncSettings } from '../components/Settings/SyncSettings';
 import { GeneralSettings } from '../components/Settings/GeneralSettings';
+import { ScheduleSettings } from '../components/Settings/ScheduleSettings';
 import { ProviderModal } from '../components/Settings/ProviderModal';
 import { ModelModal } from '../components/Settings/ModelModal';
 import { LocationSettings } from '../components/Settings/LocationSettings';
 import { AboutSettings } from '../components/Settings/AboutSettings';
 
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState<'ai' | 'agent' | 'mcp' | 'sync' | 'location' | 'general' | 'about'>('ai');
+    const [activeTab, setActiveTab] = useState<'ai' | 'agent' | 'mcp' | 'sync' | 'schedule' | 'location' | 'general' | 'about'>('ai');
     const toast = useToast();
     const [headerSaving, setHeaderSaving] = useState(false);
     const [memosPushConfig, setMemosPushConfig] = useState<MemosPushConfig>({
@@ -62,7 +63,7 @@ export default function SettingsPage() {
             fetchWebDavConfig();
         }
 
-        if (activeTab === 'general') {
+        if (activeTab === 'schedule') {
             getMemosPushConfig()
                 .then((config) => setMemosPushConfig({
                     enabled: Boolean(config?.enabled),
@@ -113,14 +114,14 @@ export default function SettingsPage() {
                 return;
             }
 
-            if (activeTab === 'location') {
-                toast.info('地理位置会在添加或编辑时自动保存');
+            if (activeTab === 'schedule') {
+                await saveMemosPushConfig(memosPushConfig);
+                toast.success('Memos 定时推送配置已保存');
                 return;
             }
 
-            if (activeTab === 'general') {
-                await saveMemosPushConfig(memosPushConfig);
-                toast.success('Memos 定时推送配置已保存');
+            if (activeTab === 'location') {
+                toast.info('地理位置会在添加或编辑时自动保存');
                 return;
             }
 
@@ -210,6 +211,7 @@ export default function SettingsPage() {
                     <TabButton id="agent" label="Agent 创建" icon={<Bot className="w-4 h-4" />} />
                     <TabButton id="mcp" label="MCP 设置" icon={<Code2 className="w-4 h-4" />} />
                     <TabButton id="sync" label="同步与备份" icon={<RefreshCw className="w-4 h-4" />} />
+                    <TabButton id="schedule" label="定时设置" icon={<CalendarClock className="w-4 h-4" />} />
                     <TabButton id="location" label="地理位置" icon={<MapPin className="w-4 h-4" />} />
                     <TabButton id="general" label="常规设置" icon={<Settings className="w-4 h-4" />} />
                     <TabButton id="about" label="关于" icon={<Info className="w-4 h-4" />} />
@@ -254,7 +256,10 @@ export default function SettingsPage() {
                         />
                     )}
                     {activeTab === 'general' && (
-                        <GeneralSettings
+                        <GeneralSettings />
+                    )}
+                    {activeTab === 'schedule' && (
+                        <ScheduleSettings
                             memosPushConfig={memosPushConfig}
                             onMemosPushConfigChange={setMemosPushConfig}
                         />
