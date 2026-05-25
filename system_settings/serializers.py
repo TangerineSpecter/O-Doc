@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Agent, AIProvider, AIModel, SystemSetting, GeoLocation
+from .models import Agent, AIProvider, AIModel, MCPServer, SystemSetting, GeoLocation
 
 class AIModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -53,6 +53,56 @@ class AgentSerializer(serializers.ModelSerializer):
             return []
         if not isinstance(value, list):
             raise serializers.ValidationError("MCP 配置必须是数组")
+        return value
+
+
+class MCPServerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MCPServer
+        fields = [
+            'id',
+            'name',
+            'transport',
+            'command',
+            'args',
+            'url',
+            'headers',
+            'env',
+            'source',
+            'enabled',
+            'description',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("MCP 名称不能为空")
+        return value
+
+    def validate_args(self, value):
+        if value in (None, ''):
+            return []
+        if isinstance(value, str):
+            return [item.strip() for item in value.split('\n') if item.strip()]
+        if not isinstance(value, list):
+            raise serializers.ValidationError("命令参数必须是数组")
+        return value
+
+    def validate_env(self, value):
+        if value in (None, ''):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("环境变量必须是对象")
+        return value
+
+    def validate_headers(self, value):
+        if value in (None, ''):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("请求头必须是对象")
         return value
 
 

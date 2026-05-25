@@ -4,9 +4,11 @@ import {
     AgentConfig,
     AIProvider,
     deleteAgent,
+    deleteMCPServer,
     deleteModel,
     deleteProvider,
     getAgents,
+    getMCPServers,
     getProviders,
     getSystemAIConfig,
     getWebDavConfig,
@@ -14,9 +16,12 @@ import {
     ModelType,
     saveModel,
     saveAgent,
+    saveMCPServer,
     saveProvider,
     saveSystemAIConfig,
+    scanMCPServers,
     SystemAIConfig,
+    MCPServerConfig,
     WebDavConfig,
     WebDavSyncStatus
 } from '../api/setting';
@@ -29,6 +34,7 @@ export const useSettings = () => {
     // --- State ---
     const [providers, setProviders] = useState<AIProvider[]>([]);
     const [agents, setAgents] = useState<AgentConfig[]>([]);
+    const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
     const [systemConfig, setSystemConfig] = useState<SystemAIConfig>({
         defaultChatModelId: '',
         simpleChatModelId: '',
@@ -71,14 +77,16 @@ export const useSettings = () => {
         setIsLoading(true);
         try {
             // ✅ 同时解构出第二个返回值 (systemConfigRes)
-            const [providersRes, systemConfigRes, agentsRes] = await Promise.all([
+            const [providersRes, systemConfigRes, agentsRes, mcpServersRes] = await Promise.all([
                 getProviders(),
                 getSystemAIConfig(),
-                getAgents()
+                getAgents(),
+                getMCPServers()
             ]);
 
             setProviders(providersRes as unknown as AIProvider[]);
             setAgents(agentsRes as unknown as AgentConfig[]);
+            setMcpServers(mcpServersRes as unknown as MCPServerConfig[]);
 
             // ✅ 修复 2：将获取到的配置存入 State
             setSystemConfig(normalizeSystemAIConfig(systemConfigRes as unknown as Partial<SystemAIConfig>));
@@ -259,9 +267,69 @@ export const useSettings = () => {
         }
     };
 
+    const handleSaveMCPServer = async (serverData: Partial<MCPServerConfig>) => {
+        setIsSaving(true);
+        try {
+            const payload = {
+                id: serverData.id,
+                name: serverData.name || '',
+                transport: serverData.transport || 'stdio',
+                command: serverData.command || '',
+                args: serverData.args || [],
+                url: serverData.url || '',
+                headers: serverData.headers || {},
+                env: serverData.env || {},
+                source: serverData.source || 'external',
+                enabled: serverData.enabled ?? true,
+                description: serverData.description || ''
+            };
+            const res = await saveMCPServer(payload);
+            const data = res as unknown as MCPServerConfig;
+            setMcpServers(prev => {
+                const exists = prev.some(server => server.id === data.id);
+                if (exists) {
+                    return prev.map(server => server.id === data.id ? data : server);
+                }
+                return [...prev, data].sort((a, b) => a.name.localeCompare(b.name));
+            });
+            toast.success(serverData.id ? 'MCP 已更新' : 'MCP 已添加');
+            return true;
+        } catch (error) {
+            toast.error('保存 MCP 失败');
+            return false;
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteMCPServer = async (id: string) => {
+        try {
+            await deleteMCPServer(id);
+            setMcpServers(prev => prev.filter(server => server.id !== id));
+            toast.success('MCP 已删除');
+        } catch (error) {
+            toast.error('删除 MCP 失败');
+        }
+    };
+
+    const handleScanMCPServers = async () => {
+        try {
+            const res = await scanMCPServers();
+            const data = res as unknown as { count: number, servers: MCPServerConfig[] };
+            const latest = await getMCPServers();
+            setMcpServers(latest as unknown as MCPServerConfig[]);
+            toast.success(data.count > 0 ? `已扫描到 ${data.count} 个 MCP` : '未扫描到新的 MCP');
+            return data;
+        } catch (error) {
+            toast.error('扫描 MCP 失败');
+            return {count: 0, servers: []};
+        }
+    };
+
     return {
         providers,
         agents,
+        mcpServers,
         systemConfig,
         webDavConfig,
         webDavStatus,
@@ -277,8 +345,11 @@ export const useSettings = () => {
         handleSaveProvider,
         handleSaveModel,
         handleSaveAgent,
+        handleSaveMCPServer,
         handleDelete,
         handleDeleteAgent,
+        handleDeleteMCPServer,
+        handleScanMCPServers,
 
         fetchWebDavConfig,
         fetchWebDavStatus,

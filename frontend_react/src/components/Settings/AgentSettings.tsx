@@ -1,12 +1,13 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {Bot, BrainCircuit, Code2, Edit2, ImagePlus, Plus, Sparkles, Trash2, Upload, X} from 'lucide-react';
-import type {AgentConfig, AIModel, ModelType} from '@/api/setting';
+import type {AgentConfig, AIModel, MCPServerConfig, ModelType} from '@/api/setting';
 import {uploadResource} from '@/api/resources';
 import {useToast} from '../common/ToastProvider';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
 
 interface AgentSettingsProps {
     agents: AgentConfig[];
+    mcpServers: MCPServerConfig[];
     getModelsByType: (type: ModelType) => (AIModel & { providerName: string, uniqueId: string })[];
     onSave: (agent: Partial<AgentConfig>) => Promise<boolean>;
     onDelete: (target: { type: 'agent', agentId: string }) => void;
@@ -18,17 +19,10 @@ type AgentForm = {
     avatar: string;
     model: string;
     prompt: string;
-    mcpText: string;
+    mcpServers: string[];
 };
 
 const DEFAULT_PROMPT = '你是一个专注、可靠的文档协作 Agent。请根据用户目标主动拆解任务，保持回答清晰，并在需要时说明你的假设。';
-
-const normalizeMcpText = (servers: string[] = []) => servers.join('\n');
-
-const parseMcpServers = (value: string) => value
-    .split('\n')
-    .map(item => item.trim())
-    .filter(Boolean);
 
 const getAgentAvatar = (agent: Pick<AgentConfig, 'avatar' | 'name'>) => {
     const value = agent.avatar?.trim();
@@ -63,7 +57,7 @@ const AgentAvatar = ({agent, size = 'md'}: { agent: Pick<AgentConfig, 'avatar' |
     );
 };
 
-export const AgentSettings = ({agents, getModelsByType, onSave, onDelete}: AgentSettingsProps) => {
+export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDelete}: AgentSettingsProps) => {
     const [modalOpen, setModalOpen] = useState(false);
     const [saving, setSaving] = useState(false);
     const [avatarUploading, setAvatarUploading] = useState(false);
@@ -74,7 +68,7 @@ export const AgentSettings = ({agents, getModelsByType, onSave, onDelete}: Agent
         avatar: '',
         model: '',
         prompt: DEFAULT_PROMPT,
-        mcpText: '',
+        mcpServers: [],
     });
 
     const modelOptions = useMemo<SettingsSelectOption<string>[]>(() => {
@@ -93,7 +87,7 @@ export const AgentSettings = ({agents, getModelsByType, onSave, onDelete}: Agent
             avatar: '',
             model: modelOptions[0]?.value || '',
             prompt: DEFAULT_PROMPT,
-            mcpText: '',
+            mcpServers: [],
         });
         setModalOpen(true);
     };
@@ -105,7 +99,7 @@ export const AgentSettings = ({agents, getModelsByType, onSave, onDelete}: Agent
             avatar: agent.avatar || '',
             model: agent.model || '',
             prompt: agent.prompt || '',
-            mcpText: normalizeMcpText(agent.mcpServers),
+            mcpServers: agent.mcpServers || [],
         });
         setModalOpen(true);
     };
@@ -125,7 +119,7 @@ export const AgentSettings = ({agents, getModelsByType, onSave, onDelete}: Agent
             avatar: form.avatar.trim(),
             model: form.model || null,
             prompt: form.prompt.trim(),
-            mcpServers: parseMcpServers(form.mcpText),
+            mcpServers: form.mcpServers,
         });
         setSaving(false);
 
@@ -133,6 +127,20 @@ export const AgentSettings = ({agents, getModelsByType, onSave, onDelete}: Agent
             setModalOpen(false);
         }
     };
+
+    const toggleMcpServer = (serverId: string) => {
+        setForm(prev => {
+            const selected = new Set(prev.mcpServers);
+            if (selected.has(serverId)) {
+                selected.delete(serverId);
+            } else {
+                selected.add(serverId);
+            }
+            return {...prev, mcpServers: Array.from(selected)};
+        });
+    };
+
+    const getMcpName = (serverId: string) => mcpServers.find(server => server.id === serverId)?.name || serverId;
 
     const handleAvatarUpload = async (file?: File) => {
         if (!file) return;
@@ -234,7 +242,7 @@ export const AgentSettings = ({agents, getModelsByType, onSave, onDelete}: Agent
                                             MCP
                                         </div>
                                         <p className="mt-1 truncate text-xs text-emerald-700">
-                                            {agent.mcpServers?.length || 0} 个服务
+                                            {(agent.mcpServers || []).map(getMcpName).slice(0, 2).join('、') || '未配置'}
                                         </p>
                                     </div>
                                 </div>
@@ -340,14 +348,35 @@ export const AgentSettings = ({agents, getModelsByType, onSave, onDelete}: Agent
 
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">MCP</label>
-                                <textarea
-                                    value={form.mcpText}
-                                    onChange={event => setForm({...form, mcpText: event.target.value})}
-                                    rows={4}
-                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-mono leading-6 resize-y"
-                                    placeholder={'每行一个 MCP，例如：\nfilesystem\nbrowser\ngithub'}
-                                />
-                                <p className="text-xs text-slate-500">保存时会按行整理为 MCP 列表。</p>
+                                {mcpServers.length === 0 ? (
+                                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center text-xs text-slate-400">
+                                        暂无可选 MCP，请先到 MCP 设置中扫描或接入。
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {mcpServers.map(server => {
+                                            const active = form.mcpServers.includes(server.id);
+                                            return (
+                                                <button
+                                                    key={server.id}
+                                                    type="button"
+                                                    onClick={() => toggleMcpServer(server.id)}
+                                                    className={`rounded-xl border px-3 py-3 text-left transition-all ${active ? 'border-orange-200 bg-orange-50 text-orange-700 ring-1 ring-orange-200' : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50/40'}`}
+                                                >
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <span className="truncate text-sm font-semibold">{server.name}</span>
+                                                        <span className="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-mono uppercase text-slate-500">
+                                                            {server.transport}
+                                                        </span>
+                                                    </div>
+                                                    <p className="mt-1 truncate text-[11px] text-current opacity-70">
+                                                        {server.source === 'system' ? '系统扫描' : '外部接入'}
+                                                    </p>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
 

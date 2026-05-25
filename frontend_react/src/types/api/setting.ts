@@ -41,6 +41,29 @@ export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'modelDetail' | 'cr
     id?: string;
 };
 
+export type MCPTransport = 'stdio' | 'sse' | 'streamableHttp';
+export type MCPSource = 'system' | 'external';
+
+export interface MCPServerConfig {
+    id: string;
+    name: string;
+    transport: MCPTransport;
+    command: string;
+    args: string[];
+    url: string;
+    headers: Record<string, string>;
+    env: Record<string, string>;
+    source: MCPSource;
+    enabled: boolean;
+    description: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export type SaveMCPServerConfigParams = Omit<MCPServerConfig, 'id' | 'createdAt' | 'updatedAt'> & {
+    id?: string;
+};
+
 export type MemosPushFrequency = 'daily' | 'everyTwoDays' | 'weekly' | 'monthly';
 
 export interface MemosPushConfig {

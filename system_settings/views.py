@@ -1,4 +1,7 @@
 import json
+import os
+import tomllib
+from pathlib import Path
 
 from django.http import StreamingHttpResponse
 from django.utils import timezone
@@ -16,9 +19,9 @@ from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 from utils.sync_manager import SyncError, SyncManager
 from utils.webdav import WebDavClient
-from .models import Agent, AIProvider, AIModel, SystemSetting, GeoLocation
+from .models import Agent, AIProvider, AIModel, MCPServer, SystemSetting, GeoLocation
 from .runtime_tracker import get_runtime_info
-from .serializers import AgentSerializer, AIProviderSerializer, AIModelSerializer, GeoLocationSerializer
+from .serializers import AgentSerializer, AIProviderSerializer, AIModelSerializer, MCPServerSerializer, GeoLocationSerializer
 
 
 class AIProviderViewSet(viewsets.ModelViewSet):
@@ -141,6 +144,157 @@ class AgentViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return success_result()
+
+
+class MCPServerViewSet(viewsets.ModelViewSet):
+    """MCP 服务配置接口"""
+
+    queryset = MCPServer.objects.all()
+    serializer_class = MCPServerSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return success_result(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return success_result(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_result(serializer.data)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_result(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_result()
+
+    @staticmethod
+    def _normalize_scanned_server(name, config, source_path):
+        if not isinstance(config, dict):
+            return None
+
+        transport = config.get('transport') or ('streamableHttp' if config.get('url') else 'stdio')
+        if transport == 'http':
+            transport = 'streamableHttp'
+        if transport not in {'stdio', 'sse', 'streamableHttp'}:
+            transport = 'stdio'
+
+        args = config.get('args') or []
+        if isinstance(args, str):
+            args = [args]
+        if not isinstance(args, list):
+            args = []
+
+        env = config.get('env') or {}
+        if not isinstance(env, dict):
+            env = {}
+
+        headers = config.get('headers') or {}
+        if not isinstance(headers, dict):
+            headers = {}
+
+        return {
+            'name': str(name),
+            'transport': transport,
+            'command': config.get('command') or '',
+            'args': args,
+            'url': config.get('url') or '',
+            'headers': headers,
+            'env': env,
+            'source': 'system',
+            'enabled': True,
+            'description': f'扫描自 {source_path}',
+        }
+
+    @staticmethod
+    def _extract_servers(payload, source_path):
+        if not isinstance(payload, dict):
+            return []
+
+        candidates = []
+        if isinstance(payload.get('mcpServers'), dict):
+            candidates.append(payload['mcpServers'])
+        if isinstance(payload.get('mcp_servers'), dict):
+            candidates.append(payload['mcp_servers'])
+        if isinstance(payload.get('mcp'), dict):
+            candidates.append(payload['mcp'])
+
+        result = []
+        for server_map in candidates:
+            for name, config in server_map.items():
+                server = MCPServerViewSet._normalize_scanned_server(name, config, source_path)
+                if server:
+                    result.append(server)
+        return result
+
+    @staticmethod
+    def _load_json(path):
+        with path.open('r', encoding='utf-8') as file:
+            return json.load(file)
+
+    @staticmethod
+    def _load_toml(path):
+        with path.open('rb') as file:
+            return tomllib.load(file)
+
+    @classmethod
+    def _scan_local_configs(cls):
+        home = Path.home()
+        paths = [
+            home / '.codex' / 'config.toml',
+            home / '.cursor' / 'mcp.json',
+            home / '.continue' / 'config.json',
+            home / 'Library' / 'Application Support' / 'Claude' / 'claude_desktop_config.json',
+        ]
+
+        servers = []
+        seen = set()
+        for path in paths:
+            if not path.exists() or not path.is_file():
+                continue
+
+            try:
+                payload = cls._load_toml(path) if path.suffix == '.toml' else cls._load_json(path)
+            except (OSError, ValueError, tomllib.TOMLDecodeError):
+                continue
+
+            for server in cls._extract_servers(payload, str(path)):
+                if server['name'] in seen:
+                    continue
+                seen.add(server['name'])
+                servers.append(server)
+
+        return servers
+
+    @action(detail=False, methods=['post'])
+    def scan(self, request):
+        scanned = self._scan_local_configs()
+        saved = []
+        for server in scanned:
+            instance, _ = MCPServer.objects.update_or_create(
+                name=server['name'],
+                defaults=server,
+            )
+            saved.append(instance)
+
+        serializer = self.get_serializer(saved, many=True)
+        return success_result({
+            'count': len(saved),
+            'servers': serializer.data,
+        })
 
 
 class SystemConfigViewSet(viewsets.ViewSet):

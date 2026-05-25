@@ -2,6 +2,7 @@ import request from '../utils/request';
 import type {
     ModelType,
     AgentConfig,
+    MCPServerConfig,
     AIModel,
     AIProvider,
     MemosPushConfig,
@@ -12,12 +13,16 @@ import type {
     GeoLocation,
     SaveGeoLocationParams,
     SaveAgentConfigParams,
+    SaveMCPServerConfigParams,
+    MCPTransport,
+    MCPSource,
 } from '../types/api/setting';
 
 // 重新导出类型以便其他组件使用
 export type {
     ModelType,
     AgentConfig,
+    MCPServerConfig,
     AIModel,
     AIProvider,
     MemosPushConfig,
@@ -28,6 +33,9 @@ export type {
     GeoLocation,
     SaveGeoLocationParams,
     SaveAgentConfigParams,
+    SaveMCPServerConfigParams,
+    MCPTransport,
+    MCPSource,
 };
 
 // --- 模拟数据 ---
@@ -131,6 +139,19 @@ export const saveAgent = (data: SaveAgentConfigParams) => {
 };
 
 export const deleteAgent = (id: string) => request.delete(`/settings/agents/${id}/`);
+
+export const getMCPServers = () => request.get<MCPServerConfig[]>('/settings/mcp-servers/');
+
+export const saveMCPServer = (data: SaveMCPServerConfigParams) => {
+    if (data.id) {
+        return request.put<MCPServerConfig>(`/settings/mcp-servers/${data.id}/`, data);
+    }
+    return request.post<MCPServerConfig>('/settings/mcp-servers/', data);
+};
+
+export const deleteMCPServer = (id: string) => request.delete(`/settings/mcp-servers/${id}/`);
+
+export const scanMCPServers = () => request.post<any, { count: number, servers: MCPServerConfig[] }>('/settings/mcp-servers/scan/');
 
 export const getRuntimeInfo = () => request.get<any, RuntimeInfo>('/settings/config/get_runtime_info/');
 

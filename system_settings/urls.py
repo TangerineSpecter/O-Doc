@@ -1,12 +1,13 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import AgentViewSet, AIProviderViewSet, AIModelViewSet, SystemConfigViewSet, GeoLocationViewSet
+from .views import AgentViewSet, AIProviderViewSet, AIModelViewSet, MCPServerViewSet, SystemConfigViewSet, GeoLocationViewSet
 
 router = DefaultRouter()
 router.register(r'providers', AIProviderViewSet)
 router.register(r'models', AIModelViewSet)
 router.register(r'agents', AgentViewSet)
+router.register(r'mcp-servers', MCPServerViewSet)
 router.register(r'locations', GeoLocationViewSet)
 router.register(r'config', SystemConfigViewSet, basename='sys-config')
 

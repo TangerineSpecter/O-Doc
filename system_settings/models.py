@@ -1,7 +1,13 @@
 # system_settings/models.py
 from django.db import models
 
-from utils.id_generator import generate_provider_id, generate_model_id, generate_agent_id, generate_location_id
+from utils.id_generator import (
+    generate_provider_id,
+    generate_model_id,
+    generate_agent_id,
+    generate_mcp_server_id,
+    generate_location_id,
+)
 
 
 class AIProvider(models.Model):
@@ -176,6 +182,52 @@ class Agent(models.Model):
         verbose_name = 'Agent'
         verbose_name_plural = verbose_name
         ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.name
+
+
+class MCPServer(models.Model):
+    """MCP 服务配置"""
+
+    TRANSPORT_TYPES = [
+        ('stdio', 'STDIO'),
+        ('sse', 'SSE'),
+        ('streamableHttp', 'Streamable HTTP'),
+    ]
+
+    SOURCE_TYPES = [
+        ('system', '系统扫描'),
+        ('external', '外部接入'),
+    ]
+
+    id = models.CharField(
+        max_length=40,
+        primary_key=True,
+        default=generate_mcp_server_id,
+        verbose_name='MCP 服务ID',
+        db_comment='MCP 服务ID'
+    )
+
+    name = models.CharField(max_length=80, unique=True, verbose_name='MCP 名称', db_comment='MCP 名称')
+    transport = models.CharField(max_length=20, choices=TRANSPORT_TYPES, default='stdio', verbose_name='传输方式', db_comment='传输方式')
+    command = models.CharField(max_length=255, blank=True, default='', verbose_name='启动命令', db_comment='启动命令')
+    args = models.JSONField(default=list, blank=True, verbose_name='命令参数', db_comment='命令参数')
+    url = models.CharField(max_length=255, blank=True, default='', verbose_name='服务 URL', db_comment='服务 URL')
+    headers = models.JSONField(default=dict, blank=True, verbose_name='请求头', db_comment='请求头')
+    env = models.JSONField(default=dict, blank=True, verbose_name='环境变量', db_comment='环境变量')
+    source = models.CharField(max_length=20, choices=SOURCE_TYPES, default='external', verbose_name='来源', db_comment='来源')
+    enabled = models.BooleanField(default=True, verbose_name='是否启用', db_comment='是否启用')
+    description = models.CharField(max_length=200, blank=True, default='', verbose_name='描述', db_comment='描述')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'sys_mcp_server'
+        db_table_comment = 'MCP 服务配置表'
+        verbose_name = 'MCP 服务'
+        verbose_name_plural = verbose_name
+        ordering = ['source', 'name']
 
     def __str__(self):
         return self.name

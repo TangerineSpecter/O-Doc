@@ -78,6 +78,15 @@ def generate_agent_id() -> str:
     return generate_unique_id("agent")
 
 
+# 为 MCP 服务生成带 mcp 前缀的 ID
+def generate_mcp_server_id() -> str:
+    """
+    生成带 mcp 前缀的 MCP 服务ID
+    :return: 带 mcp 前缀的唯一ID字符串
+    """
+    return generate_unique_id("mcp")
+
+
 # 为地理位置生成带 loc 前缀的 ID
 def generate_location_id() -> str:
     """
