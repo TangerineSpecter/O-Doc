@@ -248,6 +248,51 @@ class MCPServerViewSet(viewsets.ModelViewSet):
         self.perform_destroy(instance)
         return success_result()
 
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        if not instance.tools:
+            from utils.mcp_client import fetch_mcp_tools
+            tools, _ = fetch_mcp_tools(instance)
+            if tools:
+                instance.tools = tools
+                instance.save(update_fields=['tools'])
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+    @action(detail=True, methods=['post'])
+    def refresh_tools(self, request, pk=None):
+        server = self.get_object()
+        from utils.mcp_client import fetch_mcp_tools
+        
+        tools, error_msg = fetch_mcp_tools(server)
+        if error_msg:
+            return Response({
+                'code': ErrorCode.SYSTEM_ERROR.code,
+                'msg': error_msg,
+                'data': None
+            })
+        
+        existing_tools = {t['name']: t for t in (server.tools or []) if isinstance(t, dict) and 'name' in t}
+        merged_tools = []
+        for t in tools:
+            name = t['name']
+            if name in existing_tools:
+                merged_tools.append({
+                    'name': name,
+                    'description': t.get('description') or existing_tools[name].get('description') or '',
+                    'inputSchema': t.get('inputSchema') or existing_tools[name].get('inputSchema') or {},
+                    'enabled': existing_tools[name].get('enabled', True)
+                })
+            else:
+                merged_tools.append(t)
+                
+        server.tools = merged_tools
+        server.save(update_fields=['tools'])
+        
+        serializer = self.get_serializer(server)
+        return success_result(serializer.data)
+
     @staticmethod
     def _normalize_scanned_server(name, config, source_path):
         if not isinstance(config, dict):
@@ -351,7 +396,39 @@ class MCPServerViewSet(viewsets.ModelViewSet):
     def scan(self, request):
         scanned = self._scan_local_configs()
         saved = []
+        from utils.mcp_client import fetch_mcp_tools
         for server in scanned:
+            # 构造临时 MCPServer 实体用于连接探测
+            temp_server = MCPServer(
+                transport=server['transport'],
+                command=server['command'],
+                args=server['args'],
+                url=server['url'],
+                headers=server['headers'],
+                env=server['env']
+            )
+            # 在扫描时，我们尝试连接获取真实 Tools 列表，但不强求一定要成功（失败了打印日志/返回空列表）
+            tools, _ = fetch_mcp_tools(temp_server)
+            
+            try:
+                db_instance = MCPServer.objects.get(name=server['name'])
+                existing_tools = {t['name']: t for t in (db_instance.tools or []) if isinstance(t, dict) and 'name' in t}
+                merged_tools = []
+                for t in tools:
+                    name = t['name']
+                    if name in existing_tools:
+                        merged_tools.append({
+                            'name': name,
+                            'description': t.get('description') or existing_tools[name].get('description') or '',
+                            'inputSchema': t.get('inputSchema') or existing_tools[name].get('inputSchema') or {},
+                            'enabled': existing_tools[name].get('enabled', True)
+                        })
+                    else:
+                        merged_tools.append(t)
+                server['tools'] = merged_tools
+            except MCPServer.DoesNotExist:
+                server['tools'] = tools
+
             instance, _ = MCPServer.objects.update_or_create(
                 name=server['name'],
                 defaults=server,

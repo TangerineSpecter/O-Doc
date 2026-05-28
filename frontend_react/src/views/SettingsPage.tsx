@@ -34,7 +34,7 @@ export default function SettingsPage() {
     const {
         providers, agents, agentTasks, agentRunRecords, mcpServers, systemConfig, webDavConfig, webDavStatus, isSaving,
         setSystemConfig, setWebDavConfig,
-        getModelsByType, handleSaveProvider, handleSaveModel, handleSaveAgent, handleSaveAgentTask, handleSaveMCPServer, handleDelete, handleDeleteAgent, handleDeleteAgentTask, handleDeleteMCPServer, handleScanMCPServers,
+        getModelsByType, handleSaveProvider, handleSaveModel, handleSaveAgent, handleSaveAgentTask, handleSaveMCPServer, handleDelete, handleDeleteAgent, handleDeleteAgentTask, handleDeleteMCPServer, handleScanMCPServers, handleRefreshMCPTools,
         fetchWebDavConfig, fetchWebDavStatus
     } = useSettings();
 
@@ -248,6 +248,7 @@ export default function SettingsPage() {
                             servers={mcpServers}
                             onSave={handleSaveMCPServer}
                             onScan={handleScanMCPServers}
+                            onRefreshTools={handleRefreshMCPTools}
                             onDelete={(target) => setDeleteConfirm({ open: true, target })}
                         />
                     )}

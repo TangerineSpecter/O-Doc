@@ -26,6 +26,7 @@ import {
     saveProvider,
     saveSystemAIConfig,
     scanMCPServers,
+    refreshMCPServerTools,
     SystemAIConfig,
     MCPServerConfig,
     WebDavConfig,
@@ -389,6 +390,23 @@ export const useSettings = () => {
         }
     };
 
+    const handleRefreshMCPTools = async (id: string) => {
+        setIsSaving(true);
+        try {
+            const res = await refreshMCPServerTools(id);
+            const data = res as unknown as MCPServerConfig;
+            setMcpServers(prev => prev.map(server => server.id === id ? data : server));
+            toast.success('Tools 刷新成功');
+            return true;
+        } catch (error: any) {
+            const msg = error?.response?.data?.msg || error?.message || '刷新失败';
+            toast.error(`刷新 Tools 失败: ${msg}`);
+            return false;
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     return {
         providers,
         agents,
@@ -417,6 +435,7 @@ export const useSettings = () => {
         handleDeleteAgentTask,
         handleDeleteMCPServer,
         handleScanMCPServers,
+        handleRefreshMCPTools,
 
         fetchWebDavConfig,
         fetchWebDavStatus,

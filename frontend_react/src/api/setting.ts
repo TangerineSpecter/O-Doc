@@ -178,6 +178,8 @@ export const deleteMCPServer = (id: string) => request.delete(`/settings/mcp-ser
 
 export const scanMCPServers = () => request.post<any, { count: number, servers: MCPServerConfig[] }>('/settings/mcp-servers/scan/');
 
+export const refreshMCPServerTools = (id: string) => request.post<MCPServerConfig>(`/settings/mcp-servers/${id}/refresh_tools/`);
+
 export const getRuntimeInfo = () => request.get<any, RuntimeInfo>('/settings/config/get_runtime_info/');
 
 export const getMemosPushConfig = () => request.get<MemosPushConfig>('/settings/config/get_memos_push_config/') as unknown as Promise<MemosPushConfig>;
