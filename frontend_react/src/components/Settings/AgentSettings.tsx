@@ -194,61 +194,84 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
                     <p className="text-sm">暂无 Agent，创建一个用于写作、检索或审校的专属助手。</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {agents.map(agent => (
-                        <div key={agent.id} className="overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-orange-200 hover:shadow-md transition-all group">
-                            <div className="relative bg-orange-50/70 px-5 pt-6 pb-5 border-b border-orange-100/70">
-                                <div className="absolute right-3 top-3 flex items-center gap-1 rounded-xl bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/70 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="space-y-3">
+                    {agents.map(agent => {
+                        const mcpNames = (agent.mcpServers || []).map(getMcpName);
+                        const mcpSummary = mcpNames.length > 0 ? `${mcpNames.length} 个 MCP` : '未配置';
+
+                        return (
+                            <div
+                                key={agent.id}
+                                className="group flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-orange-200 hover:shadow-md sm:flex-row sm:items-center"
+                            >
+                                <div className="flex min-w-0 flex-1 items-center gap-4">
+                                    <AgentAvatar agent={agent} size="lg"/>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                            <h4 className="truncate text-base font-bold text-slate-900">{agent.name}</h4>
+                                            <span className="truncate text-xs text-slate-400">
+                                                {agent.modelDetail?.name || '未绑定模型'}
+                                            </span>
+                                        </div>
+                                        <div className="group/prompt relative mt-1.5">
+                                            <p className="line-clamp-2 text-sm leading-6 text-slate-600">
+                                                {agent.prompt || '未设置提示词'}
+                                            </p>
+                                            <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 hidden w-80 max-w-[min(80vw,28rem)] rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600 shadow-xl shadow-slate-900/10 group-hover/prompt:block">
+                                                {agent.prompt || '未设置提示词'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-2 sm:w-36">
+                                    <div className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-2.5 text-xs text-blue-700">
+                                        <BrainCircuit className="h-3.5 w-3.5 shrink-0 text-blue-600"/>
+                                        <span className="shrink-0 font-semibold">模型</span>
+                                        <span className="truncate">
+                                            {agent.modelDetail?.type === 'chat' ? 'Chat' : (agent.modelDetail?.type || '未配置')}
+                                        </span>
+                                    </div>
+                                    <div className="group/mcp relative">
+                                        <div className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 text-xs text-emerald-700">
+                                            <Code2 className="h-3.5 w-3.5 shrink-0 text-emerald-600"/>
+                                            <span className="shrink-0 font-semibold">MCP</span>
+                                            <span className="truncate">{mcpSummary}</span>
+                                        </div>
+                                        {mcpNames.length > 0 && (
+                                            <div className="absolute right-0 top-full z-30 mt-2 hidden w-56 rounded-xl border border-emerald-100 bg-white p-2 text-xs text-slate-600 shadow-xl shadow-slate-900/10 group-hover/mcp:block">
+                                                <div className="px-2 pb-1.5 font-semibold text-emerald-700">已绑定 MCP</div>
+                                                <div className="max-h-48 overflow-auto">
+                                                    {mcpNames.map(name => (
+                                                        <div key={name} className="truncate rounded-lg px-2 py-1.5 hover:bg-emerald-50">
+                                                            {name}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-end gap-1 sm:w-9 sm:flex-col sm:justify-center">
                                     <button
                                         onClick={() => openEditModal(agent)}
-                                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                        className="p-2 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600 rounded-lg"
+                                        title="编辑 Agent"
                                     >
                                         <Edit2 className="w-4 h-4"/>
                                     </button>
                                     <button
                                         onClick={() => onDelete({type: 'agent', agentId: agent.id})}
-                                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                        className="p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 rounded-lg"
+                                        title="删除 Agent"
                                     >
                                         <Trash2 className="w-4 h-4"/>
                                     </button>
                                 </div>
-                                <div className="flex flex-col items-center text-center">
-                                    <AgentAvatar agent={agent} size="lg"/>
-                                    <h4 className="mt-3 max-w-full truncate text-base font-bold text-slate-900">{agent.name}</h4>
-                                    <p className="mt-1 max-w-full truncate text-xs text-slate-500">
-                                        {agent.modelDetail?.name || '未绑定模型'}
-                                    </p>
-                                </div>
                             </div>
-
-                            <div className="p-5">
-                                <p className="text-sm leading-6 text-slate-600 line-clamp-3 min-h-[4.5rem]">
-                                    {agent.prompt || '未设置提示词'}
-                                </p>
-
-                                <div className="mt-5 grid grid-cols-2 gap-2">
-                                    <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
-                                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-600">
-                                            <BrainCircuit className="w-3.5 h-3.5"/>
-                                            模型
-                                        </div>
-                                        <p className="mt-1 truncate text-xs text-blue-700">
-                                            {agent.modelDetail?.type === 'chat' ? 'Chat' : (agent.modelDetail?.type || '未配置')}
-                                        </p>
-                                    </div>
-                                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
-                                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600">
-                                            <Code2 className="w-3.5 h-3.5"/>
-                                            MCP
-                                        </div>
-                                        <p className="mt-1 truncate text-xs text-emerald-700">
-                                            {(agent.mcpServers || []).map(getMcpName).slice(0, 2).join('、') || '未配置'}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
