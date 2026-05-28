@@ -241,10 +241,11 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
                                         {mcpNames.length > 0 && (
                                             <div className="absolute right-0 top-full z-30 mt-2 hidden w-56 rounded-xl border border-emerald-100 bg-white p-2 text-xs text-slate-600 shadow-xl shadow-slate-900/10 group-hover/mcp:block">
                                                 <div className="px-2 pb-1.5 font-semibold text-emerald-700">已绑定 MCP</div>
-                                                <div className="max-h-48 overflow-auto">
+                                                <div className="max-h-48 space-y-1 overflow-auto">
                                                     {mcpNames.map(name => (
-                                                        <div key={name} className="truncate rounded-lg px-2 py-1.5 hover:bg-emerald-50">
-                                                            {name}
+                                                        <div key={name} className="flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50/70 px-2.5 py-2 text-emerald-800 transition-colors hover:border-emerald-200 hover:bg-emerald-50">
+                                                            <Code2 className="h-3.5 w-3.5 shrink-0 text-emerald-600"/>
+                                                            <span className="truncate">{name}</span>
                                                         </div>
                                                     ))}
                                                 </div>
