@@ -84,8 +84,16 @@ def _parse_runtime_datetime(value):
     except (TypeError, ValueError):
         return None
 
-    if timezone.is_naive(parsed):
+    now_is_aware = timezone.is_aware(timezone.now())
+    parsed_is_aware = timezone.is_aware(parsed)
+
+    if now_is_aware and not parsed_is_aware:
+        # Django supports timezone, but parsed datetime is naive, make it aware
         return timezone.make_aware(parsed, timezone.get_current_timezone())
+    elif not now_is_aware and parsed_is_aware:
+        # Django does not support timezone, but parsed datetime is aware, make it naive
+        return timezone.make_naive(parsed, timezone.get_current_timezone())
+
     return parsed
 
 
@@ -204,13 +212,7 @@ class WebDavAutoSyncScheduler:
 
     @staticmethod
     def _parse_datetime(value):
-        if not value:
-            return None
-
-        try:
-            return timezone.datetime.fromisoformat(value)
-        except (TypeError, ValueError):
-            return None
+        return _parse_runtime_datetime(value)
 
     def _is_due(self, runtime_state, interval_minutes):
         if is_sync_running(runtime_state):
