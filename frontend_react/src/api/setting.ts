@@ -16,6 +16,7 @@ import type {
     SaveMCPServerConfigParams,
     MCPTransport,
     MCPSource,
+    MCPToolConfig,
 } from '../types/api/setting';
 
 // 重新导出类型以便其他组件使用
@@ -36,6 +37,7 @@ export type {
     SaveMCPServerConfigParams,
     MCPTransport,
     MCPSource,
+    MCPToolConfig,
 };
 
 // --- 模拟数据 ---

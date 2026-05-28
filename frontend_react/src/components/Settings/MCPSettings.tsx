@@ -1,6 +1,6 @@
-import {useState} from 'react';
-import {Code2, Edit2, Plus, Radar, Trash2, X} from 'lucide-react';
-import type {MCPServerConfig, MCPTransport} from '@/api/setting';
+import {useMemo, useState} from 'react';
+import {ChevronDown, Code2, Edit2, Plus, Radar, Trash2, Wrench, X} from 'lucide-react';
+import type {MCPServerConfig, MCPToolConfig, MCPTransport} from '@/api/setting';
 import {SettingsSelect} from './SettingsSelect';
 
 interface MCPSettingsProps {
@@ -61,11 +61,46 @@ const parseHeaders = (value: string) => {
     }, {});
 };
 
+const buildFallbackTools = (server: MCPServerConfig): MCPToolConfig[] => {
+    const lowerName = server.name.toLowerCase();
+
+    if (lowerName.includes('filesystem') || lowerName.includes('file')) {
+        return [
+            {name: 'read_file', description: '读取指定路径的文件内容', enabled: true},
+            {name: 'write_file', description: '写入或更新指定路径的文件', enabled: true},
+            {name: 'list_directory', description: '列出目录中的文件和文件夹', enabled: true},
+        ];
+    }
+
+    if (lowerName.includes('github')) {
+        return [
+            {name: 'search_repositories', description: '搜索仓库和代码', enabled: true},
+            {name: 'create_issue', description: '创建 GitHub Issue', enabled: true},
+            {name: 'create_pull_request', description: '创建 Pull Request', enabled: false},
+        ];
+    }
+
+    return [
+        {name: 'search', description: '搜索 MCP 提供的资源', enabled: true},
+        {name: 'fetch', description: '读取指定资源内容', enabled: true},
+        {name: 'execute', description: '执行 MCP 暴露的操作', enabled: false},
+    ];
+};
+
 export const MCPSettings = ({servers, onSave, onDelete, onScan}: MCPSettingsProps) => {
     const [modalOpen, setModalOpen] = useState(false);
     const [form, setForm] = useState<MCPForm>(defaultForm);
     const [saving, setSaving] = useState(false);
     const [scanning, setScanning] = useState(false);
+    const [expandedServerIds, setExpandedServerIds] = useState<string[]>([]);
+    const [toolOverrides, setToolOverrides] = useState<Record<string, MCPToolConfig[]>>({});
+
+    const serverTools = useMemo(() => {
+        return servers.reduce<Record<string, MCPToolConfig[]>>((result, server) => {
+            result[server.id] = toolOverrides[server.id] || server.tools || buildFallbackTools(server);
+            return result;
+        }, {});
+    }, [servers, toolOverrides]);
 
     const openCreateModal = () => {
         setForm(defaultForm);
@@ -113,6 +148,34 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan}: MCPSettingsProp
         setScanning(false);
     };
 
+    const toggleExpanded = (serverId: string) => {
+        setExpandedServerIds(prev => (
+            prev.includes(serverId)
+                ? prev.filter(id => id !== serverId)
+                : [...prev, serverId]
+        ));
+    };
+
+    const updateServerTools = (serverId: string, updater: (tools: MCPToolConfig[]) => MCPToolConfig[]) => {
+        const server = servers.find(item => item.id === serverId);
+        if (!server) return;
+        const currentTools = serverTools[serverId] || server.tools || buildFallbackTools(server);
+        setToolOverrides(prev => ({
+            ...prev,
+            [serverId]: updater(currentTools),
+        }));
+    };
+
+    const toggleTool = (serverId: string, toolName: string) => {
+        updateServerTools(serverId, tools => tools.map(tool => (
+            tool.name === toolName ? {...tool, enabled: !tool.enabled} : tool
+        )));
+    };
+
+    const removeTool = (serverId: string, toolName: string) => {
+        updateServerTools(serverId, tools => tools.filter(tool => tool.name !== toolName));
+    };
+
     return (
         <div className="space-y-6">
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
@@ -157,7 +220,12 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan}: MCPSettingsProp
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-3">
-                    {servers.map(server => (
+                    {servers.map(server => {
+                        const tools = serverTools[server.id] || [];
+                        const enabledToolCount = tools.filter(tool => tool.enabled).length;
+                        const expanded = expandedServerIds.includes(server.id);
+
+                        return (
                         <div key={server.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:border-orange-200 transition-colors group">
                             <div className="flex items-start justify-between gap-4">
                                 <div className="min-w-0">
@@ -169,6 +237,14 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan}: MCPSettingsProp
                                         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${server.source === 'system' ? 'border-blue-100 bg-blue-50 text-blue-600' : 'border-emerald-100 bg-emerald-50 text-emerald-600'}`}>
                                             {server.source === 'system' ? '系统扫描' : '外部接入'}
                                         </span>
+                                        <button
+                                            onClick={() => toggleExpanded(server.id)}
+                                            className="inline-flex items-center gap-1 rounded-full border border-orange-100 bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-600 transition-colors hover:border-orange-200 hover:bg-orange-100/70"
+                                        >
+                                            <Wrench className="h-3 w-3"/>
+                                            {enabledToolCount}/{tools.length} Tools
+                                            <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? 'rotate-180' : ''}`}/>
+                                        </button>
                                     </div>
                                     <p className="mt-2 truncate text-xs text-slate-500">
                                         {server.transport === 'stdio'
@@ -194,8 +270,58 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan}: MCPSettingsProp
                                     </button>
                                 </div>
                             </div>
+
+                            {expanded && (
+                                <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <div className="text-xs font-semibold text-slate-700">Tool 选择</div>
+                                        <div className="text-[11px] text-slate-400">
+                                            当前为前端预览；后续接入 MCP listTools 后使用真实数据
+                                        </div>
+                                    </div>
+                                    {tools.length === 0 ? (
+                                        <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-400">
+                                            暂无 Tool
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                            {tools.map(tool => (
+                                                <div
+                                                    key={tool.name}
+                                                    className={`rounded-lg border px-3 py-2 transition-colors ${tool.enabled ? 'border-emerald-100 bg-white text-slate-700' : 'border-slate-200 bg-white/70 text-slate-400'}`}
+                                                >
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <button
+                                                            onClick={() => toggleTool(server.id, tool.name)}
+                                                            className="min-w-0 flex-1 text-left"
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`h-2 w-2 rounded-full ${tool.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
+                                                                <span className="truncate text-xs font-semibold">{tool.name}</span>
+                                                            </div>
+                                                            {tool.description && (
+                                                                <p className="mt-1 truncate pl-4 text-[11px] text-slate-400">
+                                                                    {tool.description}
+                                                                </p>
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => removeTool(server.id, tool.name)}
+                                                            className="shrink-0 rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500"
+                                                            title="移除 Tool"
+                                                        >
+                                                            <X className="h-3.5 w-3.5"/>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    ))}
+                    );
+                    })}
                 </div>
             )}
 

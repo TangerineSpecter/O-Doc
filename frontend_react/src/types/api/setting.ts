@@ -44,6 +44,12 @@ export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'modelDetail' | 'cr
 export type MCPTransport = 'stdio' | 'sse' | 'streamableHttp';
 export type MCPSource = 'system' | 'external';
 
+export interface MCPToolConfig {
+    name: string;
+    description?: string;
+    enabled: boolean;
+}
+
 export interface MCPServerConfig {
     id: string;
     name: string;
@@ -56,6 +62,7 @@ export interface MCPServerConfig {
     source: MCPSource;
     enabled: boolean;
     description: string;
+    tools?: MCPToolConfig[];
     createdAt?: string;
     updatedAt?: string;
 }

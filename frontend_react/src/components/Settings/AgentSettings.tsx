@@ -1,6 +1,24 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {Bot, BrainCircuit, Code2, Edit2, ImagePlus, Plus, Sparkles, Trash2, Upload, X} from 'lucide-react';
+import {
+    Activity,
+    Bot,
+    BrainCircuit,
+    CalendarClock,
+    CheckCircle2,
+    Clock3,
+    Code2,
+    Edit2,
+    ImagePlus,
+    Plus,
+    Repeat2,
+    Sparkles,
+    Trash2,
+    Upload,
+    X,
+    XCircle,
+} from 'lucide-react';
 import type {AgentConfig, AIModel, MCPServerConfig, ModelType} from '@/api/setting';
+import {getAnthologyList, type Anthology} from '@/api/anthology';
 import {uploadResource} from '@/api/resources';
 import {useToast} from '../common/ToastProvider';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
@@ -20,6 +38,42 @@ type AgentForm = {
     model: string;
     prompt: string;
     mcpServers: string[];
+};
+
+type AgentView = 'list' | 'tasks' | 'records';
+
+type AgentTask = {
+    id: string;
+    name: string;
+    agentName: string;
+    trigger: string;
+    schedule: string;
+    scheduleType: 'daily' | 'weekly' | 'monthly' | 'interval';
+    scheduleTime: string;
+    scheduleWeekday: string;
+    scheduleMonthDay: string;
+    intervalMinutes: string;
+    output: string;
+    targetCollectionId?: string;
+    targetCollectionTitle?: string;
+    enabled: boolean;
+    goal: string;
+};
+
+type AgentTaskForm = Omit<AgentTask, 'id' | 'enabled'> & {
+    id?: string;
+    enabled: boolean;
+};
+
+type AgentRunRecord = {
+    id: string;
+    taskName: string;
+    agentName: string;
+    trigger: string;
+    status: 'success' | 'failed' | 'running';
+    startedAt: string;
+    duration: string;
+    summary: string;
 };
 
 const DEFAULT_PROMPT = '你是一个专注、可靠的文档协作 Agent。请根据用户目标主动拆解任务，保持回答清晰，并在需要时说明你的假设。';
@@ -58,9 +112,12 @@ const AgentAvatar = ({agent, size = 'md'}: { agent: Pick<AgentConfig, 'avatar' |
 };
 
 export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDelete}: AgentSettingsProps) => {
+    const [activeView, setActiveView] = useState<AgentView>('list');
     const [modalOpen, setModalOpen] = useState(false);
+    const [taskModalOpen, setTaskModalOpen] = useState(false);
     const [saving, setSaving] = useState(false);
     const [avatarUploading, setAvatarUploading] = useState(false);
+    const [anthologies, setAnthologies] = useState<Anthology[]>([]);
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const toast = useToast();
     const [form, setForm] = useState<AgentForm>({
@@ -69,6 +126,62 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
         model: '',
         prompt: DEFAULT_PROMPT,
         mcpServers: [],
+    });
+    const getDefaultAgentName = () => agents[0]?.name || '写作助手';
+    const [taskForm, setTaskForm] = useState<AgentTaskForm>({
+        name: '',
+        agentName: getDefaultAgentName(),
+        trigger: '定时任务',
+        schedule: '每天 09:00',
+        scheduleType: 'daily',
+        scheduleTime: '09:00',
+        scheduleWeekday: '1',
+        scheduleMonthDay: '1',
+        intervalMinutes: '60',
+        output: '指定文集',
+        targetCollectionId: '',
+        targetCollectionTitle: '',
+        enabled: true,
+        goal: '',
+    });
+    const [agentTasks, setAgentTasks] = useState<AgentTask[]>(() => {
+        const fallbackName = agents[0]?.name || '写作助手';
+        const secondName = agents[1]?.name || fallbackName;
+
+        return [
+            {
+                id: 'task-1',
+                name: '每日科技文章写作',
+                agentName: fallbackName,
+                trigger: '定时任务',
+                schedule: '每天 09:00',
+                scheduleType: 'daily',
+                scheduleTime: '09:00',
+                scheduleWeekday: '1',
+                scheduleMonthDay: '1',
+                intervalMinutes: '60',
+                output: '指定文集',
+                targetCollectionId: '',
+                targetCollectionTitle: '默认文集',
+                enabled: true,
+                goal: '搜索今日 AI 与科技文章，整理主要观点，并生成一篇结构完整的观察文章。',
+            },
+            {
+                id: 'task-2',
+                name: 'Memos 灵感整理',
+                agentName: secondName,
+                trigger: '定时任务',
+                schedule: '每周一 20:00',
+                scheduleType: 'weekly',
+                scheduleTime: '20:00',
+                scheduleWeekday: '1',
+                scheduleMonthDay: '1',
+                intervalMinutes: '60',
+                output: 'Memos',
+                enabled: false,
+                goal: '汇总最近的 Memos，归纳可发展成文章的选题，并生成写作建议。',
+            },
+        ];
     });
 
     const modelOptions = useMemo<SettingsSelectOption<string>[]>(() => {
@@ -80,6 +193,105 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
     }, [getModelsByType]);
 
     const selectedModel = modelOptions.find(model => model.value === form.model);
+    const taskAgentOptions = useMemo<SettingsSelectOption<string>[]>(() => {
+        const options = agents.map(agent => ({value: agent.name, label: agent.name}));
+        return options.length > 0 ? options : [{value: '写作助手', label: '写作助手'}];
+    }, [agents]);
+    const taskTriggerOptions: SettingsSelectOption<string>[] = [
+        {value: '定时任务', label: '定时任务'},
+        {value: '手动执行', label: '手动执行'},
+        {value: '编辑器触发', label: '编辑器触发'},
+        {value: 'Memos 触发', label: 'Memos 触发'},
+    ];
+    const taskOutputOptions: SettingsSelectOption<string>[] = [
+        {value: '指定文集', label: '指定文集'},
+        {value: 'Memos', label: 'Memos'},
+    ];
+    const scheduleTypeOptions: SettingsSelectOption<AgentTask['scheduleType']>[] = [
+        {value: 'daily', label: '每天'},
+        {value: 'weekly', label: '每周'},
+        {value: 'monthly', label: '每月'},
+        {value: 'interval', label: '间隔'},
+    ];
+    const weekdayOptions: SettingsSelectOption<string>[] = [
+        {value: '1', label: '周一'},
+        {value: '2', label: '周二'},
+        {value: '3', label: '周三'},
+        {value: '4', label: '周四'},
+        {value: '5', label: '周五'},
+        {value: '6', label: '周六'},
+        {value: '0', label: '周日'},
+    ];
+    const monthDayOptions: SettingsSelectOption<string>[] = Array.from({length: 31}, (_, index) => {
+        const value = String(index + 1);
+        return {value, label: `${value} 日`};
+    });
+    const collectionOptions = useMemo<SettingsSelectOption<string>[]>(() => {
+        return anthologies.map(item => ({
+            value: item.collId,
+            label: item.title,
+        }));
+    }, [anthologies]);
+    const runRecords = useMemo<AgentRunRecord[]>(() => {
+        const fallbackName = agents[0]?.name || '测试助手';
+        const secondName = agents[1]?.name || fallbackName;
+        const thirdName = agents[2]?.name || fallbackName;
+
+        return [
+            {
+                id: 'record-1',
+                taskName: '每日科技文章写作',
+                agentName: fallbackName,
+                trigger: '定时任务',
+                status: 'success',
+                startedAt: '今天 10:32',
+                duration: '12s',
+                summary: '生成文章《今日 AI 产业观察》，并保存到指定文集。',
+            },
+            {
+                id: 'record-2',
+                taskName: '润色当前文章',
+                agentName: secondName,
+                trigger: '编辑器触发',
+                status: 'running',
+                startedAt: '今天 10:18',
+                duration: '执行中',
+                summary: '正在整理当前文档上下文，准备输出修改建议。',
+            },
+            {
+                id: 'record-3',
+                taskName: 'Memos 灵感整理',
+                agentName: thirdName,
+                trigger: '定时任务',
+                status: 'failed',
+                startedAt: '昨天 22:10',
+                duration: '3s',
+                summary: 'MCP 调用超时，未能完成闪念备忘归档。',
+            },
+        ];
+    }, [agents]);
+
+    useEffect(() => {
+        getAnthologyList('article')
+            .then(data => setAnthologies(data || []))
+            .catch(error => {
+                console.warn('加载文集列表失败:', error);
+            });
+    }, []);
+
+    const buildTaskSchedule = (task: Pick<AgentTaskForm, 'scheduleType' | 'scheduleTime' | 'scheduleWeekday' | 'scheduleMonthDay' | 'intervalMinutes'>) => {
+        if (task.scheduleType === 'daily') {
+            return `每天 ${task.scheduleTime}`;
+        }
+        if (task.scheduleType === 'weekly') {
+            const weekday = weekdayOptions.find(option => option.value === task.scheduleWeekday)?.label || '周一';
+            return `每${weekday} ${task.scheduleTime}`;
+        }
+        if (task.scheduleType === 'monthly') {
+            return `每月 ${task.scheduleMonthDay} 日 ${task.scheduleTime}`;
+        }
+        return `每 ${task.intervalMinutes || '1'} 分钟`;
+    };
 
     const openCreateModal = () => {
         setForm({
@@ -90,6 +302,38 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
             mcpServers: [],
         });
         setModalOpen(true);
+    };
+
+    const openCreateTaskModal = () => {
+        setTaskForm({
+            name: '',
+            agentName: taskAgentOptions[0]?.value || getDefaultAgentName(),
+            trigger: '定时任务',
+            schedule: '每天 09:00',
+            scheduleType: 'daily',
+            scheduleTime: '09:00',
+            scheduleWeekday: '1',
+            scheduleMonthDay: '1',
+            intervalMinutes: '60',
+            output: '指定文集',
+            targetCollectionId: collectionOptions[0]?.value || '',
+            targetCollectionTitle: collectionOptions[0]?.label || '',
+            enabled: true,
+            goal: '',
+        });
+        setTaskModalOpen(true);
+    };
+
+    const openEditTaskModal = (task: AgentTask) => {
+        setTaskForm({
+            ...task,
+            scheduleType: task.scheduleType || 'daily',
+            scheduleTime: task.scheduleTime || '09:00',
+            scheduleWeekday: task.scheduleWeekday || '1',
+            scheduleMonthDay: task.scheduleMonthDay || '1',
+            intervalMinutes: task.intervalMinutes || '60',
+        });
+        setTaskModalOpen(true);
     };
 
     const openEditModal = (agent: AgentConfig) => {
@@ -128,6 +372,55 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
         }
     };
 
+    const handleTaskSubmit = () => {
+        if (!taskForm.name.trim() || !taskForm.goal.trim()) {
+            toast.warning('请填写任务名称和任务目标');
+            return;
+        }
+        if (taskForm.scheduleType === 'interval' && (!taskForm.intervalMinutes || Number(taskForm.intervalMinutes) < 1)) {
+            toast.warning('请填写大于 0 的间隔分钟数');
+            return;
+        }
+
+        const payload: AgentTask = {
+            id: taskForm.id || `task-${Date.now()}`,
+            name: taskForm.name.trim(),
+            agentName: taskForm.agentName,
+            trigger: taskForm.trigger,
+            schedule: buildTaskSchedule(taskForm),
+            scheduleType: taskForm.scheduleType,
+            scheduleTime: taskForm.scheduleTime,
+            scheduleWeekday: taskForm.scheduleWeekday,
+            scheduleMonthDay: taskForm.scheduleMonthDay,
+            intervalMinutes: taskForm.intervalMinutes,
+            output: taskForm.output,
+            targetCollectionId: taskForm.output === '指定文集' ? taskForm.targetCollectionId : '',
+            targetCollectionTitle: taskForm.output === '指定文集' ? taskForm.targetCollectionTitle : '',
+            enabled: taskForm.enabled,
+            goal: taskForm.goal.trim(),
+        };
+
+        setAgentTasks(prev => {
+            if (taskForm.id) {
+                return prev.map(task => task.id === taskForm.id ? payload : task);
+            }
+            return [payload, ...prev];
+        });
+        setTaskModalOpen(false);
+        toast.success(taskForm.id ? '任务已更新' : '任务已创建');
+    };
+
+    const toggleTaskEnabled = (taskId: string) => {
+        setAgentTasks(prev => prev.map(task => (
+            task.id === taskId ? {...task, enabled: !task.enabled} : task
+        )));
+    };
+
+    const deleteTask = (taskId: string) => {
+        setAgentTasks(prev => prev.filter(task => task.id !== taskId));
+        toast.success('任务已删除');
+    };
+
     const toggleMcpServer = (serverId: string) => {
         setForm(prev => {
             const selected = new Set(prev.mcpServers);
@@ -141,6 +434,29 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
     };
 
     const getMcpName = (serverId: string) => mcpServers.find(server => server.id === serverId)?.name || serverId;
+    const getRecordStatusMeta = (status: AgentRunRecord['status']) => {
+        if (status === 'success') {
+            return {
+                label: '成功',
+                icon: <CheckCircle2 className="h-3.5 w-3.5"/>,
+                className: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+            };
+        }
+
+        if (status === 'failed') {
+            return {
+                label: '失败',
+                icon: <XCircle className="h-3.5 w-3.5"/>,
+                className: 'bg-red-50 text-red-700 border-red-100',
+            };
+        }
+
+        return {
+            label: '执行中',
+            icon: <Clock3 className="h-3.5 w-3.5"/>,
+            className: 'bg-blue-50 text-blue-700 border-blue-100',
+        };
+    };
 
     const handleAvatarUpload = async (file?: File) => {
         if (!file) return;
@@ -168,7 +484,7 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
     return (
         <div className="space-y-6">
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
                             <Bot className="w-5 h-5"/>
@@ -178,17 +494,159 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
                             <p className="text-xs text-slate-500 mt-1">创建多个不同职责的 Agent，并分别绑定模型、头像、提示词和 MCP。</p>
                         </div>
                     </div>
-                    <button
-                        onClick={openCreateModal}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20"
-                    >
-                        <Plus className="w-3.5 h-3.5"/>
-                        创建 Agent
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                        <div className="flex rounded-lg bg-slate-100 p-1">
+                            <button
+                                onClick={() => setActiveView('list')}
+                                className={`min-w-20 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-all ${activeView === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Agent 列表
+                            </button>
+                            <button
+                                onClick={() => setActiveView('tasks')}
+                                className={`min-w-20 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-all ${activeView === 'tasks' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                任务分配
+                            </button>
+                            <button
+                                onClick={() => setActiveView('records')}
+                                className={`min-w-20 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-all ${activeView === 'records' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                执行记录
+                            </button>
+                        </div>
+                        {activeView === 'list' && (
+                            <button
+                                onClick={openCreateModal}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20"
+                            >
+                                <Plus className="w-3.5 h-3.5"/>
+                                创建 Agent
+                            </button>
+                        )}
+                        {activeView === 'tasks' && (
+                            <button
+                                onClick={openCreateTaskModal}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20"
+                            >
+                                <Plus className="w-3.5 h-3.5"/>
+                                新建任务
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {agents.length === 0 ? (
+            {activeView === 'tasks' ? (
+                <div className="space-y-3">
+                    {agentTasks.map(task => (
+                        <div key={task.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-orange-200 hover:shadow-md">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h4 className="text-base font-bold text-slate-900">{task.name}</h4>
+                                        <button
+                                            onClick={() => toggleTaskEnabled(task.id)}
+                                            className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-[11px] font-medium transition-colors ${task.enabled ? 'border-emerald-100 bg-emerald-50 text-emerald-700 hover:border-emerald-200 hover:bg-emerald-100/60' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-orange-100 hover:bg-orange-50 hover:text-orange-600'}`}
+                                            title={task.enabled ? '点击停用任务' : '点击启用任务'}
+                                        >
+                                            {task.enabled ? '启用中' : '已停用'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-4 lg:w-[32rem]">
+                                    <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
+                                        <div className="mb-1 flex items-center gap-1.5 font-semibold text-orange-700">
+                                            <Bot className="h-3.5 w-3.5"/>
+                                            Agent
+                                        </div>
+                                        <p className="truncate">{task.agentName}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                                        <div className="mb-1 flex items-center gap-1.5 font-semibold text-blue-700">
+                                            <CalendarClock className="h-3.5 w-3.5"/>
+                                            触发
+                                        </div>
+                                        <p className="truncate">{task.trigger}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <div className="mb-1 flex items-center gap-1.5 font-semibold text-slate-700">
+                                            <Repeat2 className="h-3.5 w-3.5"/>
+                                            周期
+                                        </div>
+                                        <p className="truncate">{task.schedule}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+                                        <div className="mb-1 flex items-center gap-1.5 font-semibold text-emerald-700">
+                                            <Sparkles className="h-3.5 w-3.5"/>
+                                            输出
+                                        </div>
+                                        <p className="truncate">
+                                            {task.output === '指定文集' ? (task.targetCollectionTitle || '指定文集') : task.output}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-end gap-1 lg:w-9 lg:flex-col lg:justify-center">
+                                    <button
+                                        onClick={() => openEditTaskModal(task)}
+                                        className="p-2 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600 rounded-lg"
+                                        title="编辑任务"
+                                    >
+                                        <Edit2 className="w-4 h-4"/>
+                                    </button>
+                                    <button
+                                        onClick={() => deleteTask(task.id)}
+                                        className="p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 rounded-lg"
+                                        title="删除任务"
+                                    >
+                                        <Trash2 className="w-4 h-4"/>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : activeView === 'records' ? (
+                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div className="grid grid-cols-[1.05fr_0.75fr_0.7fr_0.75fr_0.55fr_0.45fr] gap-4 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
+                        <span>任务 / 摘要</span>
+                        <span>Agent</span>
+                        <span>触发方式</span>
+                        <span>状态</span>
+                        <span className="text-right">耗时</span>
+                        <span></span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                        {runRecords.map(record => {
+                            const statusMeta = getRecordStatusMeta(record.status);
+                            return (
+                                <div key={record.id} className="grid grid-cols-1 gap-3 px-4 py-4 text-sm transition-colors hover:bg-orange-50/30 md:grid-cols-[1.05fr_0.75fr_0.7fr_0.75fr_0.55fr_0.45fr] md:items-center md:gap-4">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                                            <Activity className="h-3.5 w-3.5"/>
+                                            {record.startedAt}
+                                        </div>
+                                        <p className="mt-1 truncate font-semibold text-slate-800">执行「{record.taskName}」任务</p>
+                                        <p className="mt-0.5 truncate text-xs text-slate-500">{record.summary}</p>
+                                    </div>
+                                    <span className="truncate text-slate-600">{record.agentName}</span>
+                                    <span className="truncate text-slate-500">{record.trigger}</span>
+                                    <span className={`inline-flex w-fit items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium ${statusMeta.className}`}>
+                                        {statusMeta.icon}
+                                        {statusMeta.label}
+                                    </span>
+                                    <span className="text-left font-mono text-xs text-slate-500 md:text-right">{record.duration}</span>
+                                    <button className="text-left text-xs font-medium text-orange-600 hover:text-orange-700 md:text-right">
+                                        详情
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            ) : agents.length === 0 ? (
                 <div className="text-center py-14 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
                     <Bot className="w-8 h-8 mx-auto mb-3 text-slate-300"/>
                     <p className="text-sm">暂无 Agent，创建一个用于写作、检索或审校的专属助手。</p>
@@ -273,6 +731,213 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {taskModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+                    <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
+                        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900">{taskForm.id ? '编辑任务' : '新建任务'}</h3>
+                                <p className="mt-1 text-xs text-slate-500">配置 Agent 在什么时机执行什么任务，以及输出到哪里</p>
+                            </div>
+                            <button
+                                onClick={() => setTaskModalOpen(false)}
+                                className="p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 rounded-lg"
+                            >
+                                <X className="w-5 h-5"/>
+                            </button>
+                        </div>
+
+                        <div className="max-h-[72vh] space-y-5 overflow-y-auto p-6">
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-slate-700">任务名称</label>
+                                <input
+                                    value={taskForm.name}
+                                    onChange={event => setTaskForm({...taskForm, name: event.target.value})}
+                                    placeholder="如：每日科技文章写作"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700">执行 Agent</label>
+                                    <SettingsSelect
+                                        value={taskForm.agentName}
+                                        options={taskAgentOptions}
+                                        onChange={agentName => setTaskForm({...taskForm, agentName})}
+                                        buttonClassName="bg-slate-50"
+                                        showSelectedDescription={false}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700">触发方式</label>
+                                    <SettingsSelect
+                                        value={taskForm.trigger}
+                                        options={taskTriggerOptions}
+                                        onChange={trigger => setTaskForm({...taskForm, trigger})}
+                                        buttonClassName="bg-slate-50"
+                                        showSelectedDescription={false}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700">执行周期</label>
+                                    <SettingsSelect
+                                        value={taskForm.scheduleType}
+                                        options={scheduleTypeOptions}
+                                        onChange={scheduleType => setTaskForm({...taskForm, scheduleType})}
+                                        buttonClassName="bg-slate-50"
+                                        showSelectedDescription={false}
+                                    />
+                                </div>
+
+                                {taskForm.scheduleType !== 'interval' && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-slate-700">执行时间</label>
+                                        <input
+                                            type="time"
+                                            value={taskForm.scheduleTime}
+                                            onChange={event => setTaskForm({...taskForm, scheduleTime: event.target.value})}
+                                            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                        />
+                                    </div>
+                                )}
+
+                                {taskForm.scheduleType === 'weekly' && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-slate-700">执行星期</label>
+                                        <SettingsSelect
+                                            value={taskForm.scheduleWeekday}
+                                            options={weekdayOptions}
+                                            onChange={scheduleWeekday => setTaskForm({...taskForm, scheduleWeekday})}
+                                            buttonClassName="bg-slate-50"
+                                            showSelectedDescription={false}
+                                        />
+                                    </div>
+                                )}
+
+                                {taskForm.scheduleType === 'monthly' && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-slate-700">执行日期</label>
+                                        <SettingsSelect
+                                            value={taskForm.scheduleMonthDay}
+                                            options={monthDayOptions}
+                                            onChange={scheduleMonthDay => setTaskForm({...taskForm, scheduleMonthDay})}
+                                            buttonClassName="bg-slate-50"
+                                            showSelectedDescription={false}
+                                        />
+                                    </div>
+                                )}
+
+                                {taskForm.scheduleType === 'interval' && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-slate-700">间隔分钟</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            value={taskForm.intervalMinutes}
+                                            onChange={event => setTaskForm({...taskForm, intervalMinutes: event.target.value})}
+                                            placeholder="如：30"
+                                            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                        />
+                                    </div>
+                                )}
+
+                                {taskForm.scheduleType === 'interval' && (
+                                    <p className="self-end pb-2 text-xs text-slate-500 sm:col-span-2">从当天 0 点开始按固定间隔计算执行时间。</p>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700">输出位置</label>
+                                    <SettingsSelect
+                                        value={taskForm.output}
+                                        options={taskOutputOptions}
+                                        onChange={output => {
+                                            const firstCollection = collectionOptions[0];
+                                            setTaskForm({
+                                                ...taskForm,
+                                                output,
+                                                targetCollectionId: output === '指定文集' ? (taskForm.targetCollectionId || firstCollection?.value || '') : '',
+                                                targetCollectionTitle: output === '指定文集' ? (taskForm.targetCollectionTitle || firstCollection?.label || '') : '',
+                                            });
+                                        }}
+                                        buttonClassName="bg-slate-50"
+                                        showSelectedDescription={false}
+                                    />
+                                </div>
+                                {taskForm.output === '指定文集' && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-slate-700">选择文集</label>
+                                        <SettingsSelect
+                                            value={taskForm.targetCollectionId || ''}
+                                            options={collectionOptions}
+                                            onChange={targetCollectionId => {
+                                                const collection = collectionOptions.find(item => item.value === targetCollectionId);
+                                                setTaskForm({
+                                                    ...taskForm,
+                                                    targetCollectionId,
+                                                    targetCollectionTitle: collection?.label || '',
+                                                });
+                                            }}
+                                            placeholder="请选择输出文集"
+                                            emptyMessage="暂无文章文集，请先创建文集"
+                                            buttonClassName="bg-slate-50"
+                                            showSelectedDescription={false}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-slate-700">任务提示词</label>
+                                <textarea
+                                    value={taskForm.goal}
+                                    onChange={event => setTaskForm({...taskForm, goal: event.target.value})}
+                                    rows={5}
+                                    placeholder="写清楚这个任务要做什么、参考哪些来源、输出格式和注意事项"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm leading-6 resize-y"
+                                />
+                            </div>
+
+                            <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div>
+                                    <div className="text-sm font-semibold text-slate-700">启用任务</div>
+                                    <div className="mt-0.5 text-xs text-slate-500">关闭后任务会保留，但不会自动执行</div>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={taskForm.enabled}
+                                    onChange={event => setTaskForm({...taskForm, enabled: event.target.checked})}
+                                    className="peer sr-only"
+                                />
+                                <span className="relative h-6 w-11 rounded-full bg-slate-200 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-orange-500 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/20"></span>
+                            </label>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
+                            <button
+                                onClick={() => setTaskModalOpen(false)}
+                                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                取消
+                            </button>
+                            <button
+                                onClick={handleTaskSubmit}
+                                className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-orange-600 active:bg-orange-700"
+                            >
+                                <Sparkles className="w-4 h-4"/>
+                                保存任务
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
