@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Agent, AIProvider, AIModel, MCPServer, SystemSetting, GeoLocation
+from .models import Agent, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, SystemSetting, GeoLocation
 
 class AIModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -71,6 +71,7 @@ class MCPServerSerializer(serializers.ModelSerializer):
             'source',
             'enabled',
             'description',
+            'tools',
             'created_at',
             'updated_at',
         ]
@@ -104,6 +105,91 @@ class MCPServerSerializer(serializers.ModelSerializer):
         if not isinstance(value, dict):
             raise serializers.ValidationError("请求头必须是对象")
         return value
+
+    def validate_tools(self, value):
+        if value in (None, ''):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Tool 配置必须是数组")
+        normalized = []
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get('name') or '').strip()
+            if not name:
+                continue
+            normalized.append({
+                'name': name,
+                'description': str(item.get('description') or '').strip(),
+                'enabled': bool(item.get('enabled', True)),
+            })
+        return normalized
+
+
+class AgentTaskSerializer(serializers.ModelSerializer):
+    agent_name = serializers.CharField(source='agent.name', read_only=True)
+
+    class Meta:
+        model = AgentTask
+        fields = [
+            'id',
+            'name',
+            'agent',
+            'agent_name',
+            'trigger',
+            'schedule',
+            'schedule_type',
+            'schedule_time',
+            'schedule_weekday',
+            'schedule_month_day',
+            'interval_minutes',
+            'output',
+            'target_collection_id',
+            'target_collection_title',
+            'enabled',
+            'prompt',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'agent_name', 'created_at', 'updated_at']
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("任务名称不能为空")
+        return value
+
+    def validate_interval_minutes(self, value):
+        if value < 1:
+            raise serializers.ValidationError("间隔分钟必须大于 0")
+        return value
+
+    def validate(self, attrs):
+        output = attrs.get('output', getattr(self.instance, 'output', 'collection'))
+        target_collection_id = attrs.get('target_collection_id', getattr(self.instance, 'target_collection_id', ''))
+        if output == 'collection' and not target_collection_id:
+            raise serializers.ValidationError({"target_collection_id": "请选择输出文集"})
+        return attrs
+
+
+class AgentRunRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AgentRunRecord
+        fields = [
+            'id',
+            'task',
+            'task_name',
+            'agent',
+            'agent_name',
+            'trigger',
+            'status',
+            'started_at',
+            'duration',
+            'summary',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class GeoLocationSerializer(serializers.ModelSerializer):

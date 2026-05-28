@@ -17,7 +17,16 @@ import {
     X,
     XCircle,
 } from 'lucide-react';
-import type {AgentConfig, AIModel, MCPServerConfig, ModelType} from '@/api/setting';
+import type {
+    AgentConfig,
+    AgentRunRecordConfig,
+    AgentTaskConfig,
+    AgentTaskOutput,
+    AgentTaskScheduleType,
+    AIModel,
+    MCPServerConfig,
+    ModelType,
+} from '@/api/setting';
 import {getAnthologyList, type Anthology} from '@/api/anthology';
 import {uploadResource} from '@/api/resources';
 import {useToast} from '../common/ToastProvider';
@@ -25,9 +34,13 @@ import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
 
 interface AgentSettingsProps {
     agents: AgentConfig[];
+    tasks: AgentTaskConfig[];
+    runRecords: AgentRunRecordConfig[];
     mcpServers: MCPServerConfig[];
     getModelsByType: (type: ModelType) => (AIModel & { providerName: string, uniqueId: string })[];
     onSave: (agent: Partial<AgentConfig>) => Promise<boolean>;
+    onSaveTask: (task: Partial<AgentTaskConfig>) => Promise<boolean>;
+    onDeleteTask: (taskId: string) => void;
     onDelete: (target: { type: 'agent', agentId: string }) => void;
 }
 
@@ -42,38 +55,22 @@ type AgentForm = {
 
 type AgentView = 'list' | 'tasks' | 'records';
 
-type AgentTask = {
-    id: string;
+type AgentTaskForm = {
+    id?: string;
     name: string;
-    agentName: string;
+    agent: string;
     trigger: string;
     schedule: string;
-    scheduleType: 'daily' | 'weekly' | 'monthly' | 'interval';
+    scheduleType: AgentTaskScheduleType;
     scheduleTime: string;
     scheduleWeekday: string;
     scheduleMonthDay: string;
     intervalMinutes: string;
-    output: string;
+    output: AgentTaskOutput;
     targetCollectionId?: string;
     targetCollectionTitle?: string;
     enabled: boolean;
-    goal: string;
-};
-
-type AgentTaskForm = Omit<AgentTask, 'id' | 'enabled'> & {
-    id?: string;
-    enabled: boolean;
-};
-
-type AgentRunRecord = {
-    id: string;
-    taskName: string;
-    agentName: string;
-    trigger: string;
-    status: 'success' | 'failed' | 'running';
-    startedAt: string;
-    duration: string;
-    summary: string;
+    prompt: string;
 };
 
 const DEFAULT_PROMPT = '你是一个专注、可靠的文档协作 Agent。请根据用户目标主动拆解任务，保持回答清晰，并在需要时说明你的假设。';
@@ -111,7 +108,17 @@ const AgentAvatar = ({agent, size = 'md'}: { agent: Pick<AgentConfig, 'avatar' |
     );
 };
 
-export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDelete}: AgentSettingsProps) => {
+export const AgentSettings = ({
+                                  agents,
+                                  tasks,
+                                  runRecords,
+                                  mcpServers,
+                                  getModelsByType,
+                                  onSave,
+                                  onSaveTask,
+                                  onDeleteTask,
+                                  onDelete,
+                              }: AgentSettingsProps) => {
     const [activeView, setActiveView] = useState<AgentView>('list');
     const [modalOpen, setModalOpen] = useState(false);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
@@ -127,10 +134,10 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
         prompt: DEFAULT_PROMPT,
         mcpServers: [],
     });
-    const getDefaultAgentName = () => agents[0]?.name || '写作助手';
+    const getDefaultAgentId = () => agents[0]?.id || '';
     const [taskForm, setTaskForm] = useState<AgentTaskForm>({
         name: '',
-        agentName: getDefaultAgentName(),
+        agent: getDefaultAgentId(),
         trigger: '定时任务',
         schedule: '每天 09:00',
         scheduleType: 'daily',
@@ -138,50 +145,11 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
         scheduleWeekday: '1',
         scheduleMonthDay: '1',
         intervalMinutes: '60',
-        output: '指定文集',
+        output: 'collection',
         targetCollectionId: '',
         targetCollectionTitle: '',
         enabled: true,
-        goal: '',
-    });
-    const [agentTasks, setAgentTasks] = useState<AgentTask[]>(() => {
-        const fallbackName = agents[0]?.name || '写作助手';
-        const secondName = agents[1]?.name || fallbackName;
-
-        return [
-            {
-                id: 'task-1',
-                name: '每日科技文章写作',
-                agentName: fallbackName,
-                trigger: '定时任务',
-                schedule: '每天 09:00',
-                scheduleType: 'daily',
-                scheduleTime: '09:00',
-                scheduleWeekday: '1',
-                scheduleMonthDay: '1',
-                intervalMinutes: '60',
-                output: '指定文集',
-                targetCollectionId: '',
-                targetCollectionTitle: '默认文集',
-                enabled: true,
-                goal: '搜索今日 AI 与科技文章，整理主要观点，并生成一篇结构完整的观察文章。',
-            },
-            {
-                id: 'task-2',
-                name: 'Memos 灵感整理',
-                agentName: secondName,
-                trigger: '定时任务',
-                schedule: '每周一 20:00',
-                scheduleType: 'weekly',
-                scheduleTime: '20:00',
-                scheduleWeekday: '1',
-                scheduleMonthDay: '1',
-                intervalMinutes: '60',
-                output: 'Memos',
-                enabled: false,
-                goal: '汇总最近的 Memos，归纳可发展成文章的选题，并生成写作建议。',
-            },
-        ];
+        prompt: '',
     });
 
     const modelOptions = useMemo<SettingsSelectOption<string>[]>(() => {
@@ -194,8 +162,7 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
 
     const selectedModel = modelOptions.find(model => model.value === form.model);
     const taskAgentOptions = useMemo<SettingsSelectOption<string>[]>(() => {
-        const options = agents.map(agent => ({value: agent.name, label: agent.name}));
-        return options.length > 0 ? options : [{value: '写作助手', label: '写作助手'}];
+        return agents.map(agent => ({value: agent.id, label: agent.name}));
     }, [agents]);
     const taskTriggerOptions: SettingsSelectOption<string>[] = [
         {value: '定时任务', label: '定时任务'},
@@ -203,11 +170,11 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
         {value: '编辑器触发', label: '编辑器触发'},
         {value: 'Memos 触发', label: 'Memos 触发'},
     ];
-    const taskOutputOptions: SettingsSelectOption<string>[] = [
-        {value: '指定文集', label: '指定文集'},
-        {value: 'Memos', label: 'Memos'},
+    const taskOutputOptions: SettingsSelectOption<AgentTaskOutput>[] = [
+        {value: 'collection', label: '指定文集'},
+        {value: 'memos', label: 'Memos'},
     ];
-    const scheduleTypeOptions: SettingsSelectOption<AgentTask['scheduleType']>[] = [
+    const scheduleTypeOptions: SettingsSelectOption<AgentTaskScheduleType>[] = [
         {value: 'daily', label: '每天'},
         {value: 'weekly', label: '每周'},
         {value: 'monthly', label: '每月'},
@@ -232,44 +199,6 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
             label: item.title,
         }));
     }, [anthologies]);
-    const runRecords = useMemo<AgentRunRecord[]>(() => {
-        const fallbackName = agents[0]?.name || '测试助手';
-        const secondName = agents[1]?.name || fallbackName;
-        const thirdName = agents[2]?.name || fallbackName;
-
-        return [
-            {
-                id: 'record-1',
-                taskName: '每日科技文章写作',
-                agentName: fallbackName,
-                trigger: '定时任务',
-                status: 'success',
-                startedAt: '今天 10:32',
-                duration: '12s',
-                summary: '生成文章《今日 AI 产业观察》，并保存到指定文集。',
-            },
-            {
-                id: 'record-2',
-                taskName: '润色当前文章',
-                agentName: secondName,
-                trigger: '编辑器触发',
-                status: 'running',
-                startedAt: '今天 10:18',
-                duration: '执行中',
-                summary: '正在整理当前文档上下文，准备输出修改建议。',
-            },
-            {
-                id: 'record-3',
-                taskName: 'Memos 灵感整理',
-                agentName: thirdName,
-                trigger: '定时任务',
-                status: 'failed',
-                startedAt: '昨天 22:10',
-                duration: '3s',
-                summary: 'MCP 调用超时，未能完成闪念备忘归档。',
-            },
-        ];
-    }, [agents]);
 
     useEffect(() => {
         getAnthologyList('article')
@@ -307,7 +236,7 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
     const openCreateTaskModal = () => {
         setTaskForm({
             name: '',
-            agentName: taskAgentOptions[0]?.value || getDefaultAgentName(),
+            agent: taskAgentOptions[0]?.value || getDefaultAgentId(),
             trigger: '定时任务',
             schedule: '每天 09:00',
             scheduleType: 'daily',
@@ -315,23 +244,32 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
             scheduleWeekday: '1',
             scheduleMonthDay: '1',
             intervalMinutes: '60',
-            output: '指定文集',
+            output: 'collection',
             targetCollectionId: collectionOptions[0]?.value || '',
             targetCollectionTitle: collectionOptions[0]?.label || '',
             enabled: true,
-            goal: '',
+            prompt: '',
         });
         setTaskModalOpen(true);
     };
 
-    const openEditTaskModal = (task: AgentTask) => {
+    const openEditTaskModal = (task: AgentTaskConfig) => {
         setTaskForm({
-            ...task,
+            id: task.id,
+            name: task.name,
+            agent: task.agent,
+            trigger: task.trigger,
+            schedule: task.schedule,
+            output: task.output,
+            targetCollectionId: task.targetCollectionId || '',
+            targetCollectionTitle: task.targetCollectionTitle || '',
+            enabled: task.enabled,
+            prompt: task.prompt || '',
             scheduleType: task.scheduleType || 'daily',
             scheduleTime: task.scheduleTime || '09:00',
             scheduleWeekday: task.scheduleWeekday || '1',
             scheduleMonthDay: task.scheduleMonthDay || '1',
-            intervalMinutes: task.intervalMinutes || '60',
+            intervalMinutes: String(task.intervalMinutes || 60),
         });
         setTaskModalOpen(true);
     };
@@ -372,8 +310,8 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
         }
     };
 
-    const handleTaskSubmit = () => {
-        if (!taskForm.name.trim() || !taskForm.goal.trim()) {
+    const handleTaskSubmit = async () => {
+        if (!taskForm.name.trim() || !taskForm.prompt.trim()) {
             toast.warning('请填写任务名称和任务目标');
             return;
         }
@@ -382,43 +320,34 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
             return;
         }
 
-        const payload: AgentTask = {
-            id: taskForm.id || `task-${Date.now()}`,
+        const success = await onSaveTask({
+            id: taskForm.id,
             name: taskForm.name.trim(),
-            agentName: taskForm.agentName,
+            agent: taskForm.agent,
             trigger: taskForm.trigger,
             schedule: buildTaskSchedule(taskForm),
             scheduleType: taskForm.scheduleType,
             scheduleTime: taskForm.scheduleTime,
             scheduleWeekday: taskForm.scheduleWeekday,
             scheduleMonthDay: taskForm.scheduleMonthDay,
-            intervalMinutes: taskForm.intervalMinutes,
+            intervalMinutes: Number(taskForm.intervalMinutes || 60),
             output: taskForm.output,
-            targetCollectionId: taskForm.output === '指定文集' ? taskForm.targetCollectionId : '',
-            targetCollectionTitle: taskForm.output === '指定文集' ? taskForm.targetCollectionTitle : '',
+            targetCollectionId: taskForm.output === 'collection' ? taskForm.targetCollectionId : '',
+            targetCollectionTitle: taskForm.output === 'collection' ? taskForm.targetCollectionTitle : '',
             enabled: taskForm.enabled,
-            goal: taskForm.goal.trim(),
-        };
-
-        setAgentTasks(prev => {
-            if (taskForm.id) {
-                return prev.map(task => task.id === taskForm.id ? payload : task);
-            }
-            return [payload, ...prev];
+            prompt: taskForm.prompt.trim(),
         });
-        setTaskModalOpen(false);
-        toast.success(taskForm.id ? '任务已更新' : '任务已创建');
+        if (success) setTaskModalOpen(false);
     };
 
     const toggleTaskEnabled = (taskId: string) => {
-        setAgentTasks(prev => prev.map(task => (
-            task.id === taskId ? {...task, enabled: !task.enabled} : task
-        )));
+        const task = tasks.find(item => item.id === taskId);
+        if (!task) return;
+        onSaveTask({...task, enabled: !task.enabled});
     };
 
     const deleteTask = (taskId: string) => {
-        setAgentTasks(prev => prev.filter(task => task.id !== taskId));
-        toast.success('任务已删除');
+        onDeleteTask(taskId);
     };
 
     const toggleMcpServer = (serverId: string) => {
@@ -434,7 +363,7 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
     };
 
     const getMcpName = (serverId: string) => mcpServers.find(server => server.id === serverId)?.name || serverId;
-    const getRecordStatusMeta = (status: AgentRunRecord['status']) => {
+    const getRecordStatusMeta = (status: AgentRunRecordConfig['status']) => {
         if (status === 'success') {
             return {
                 label: '成功',
@@ -539,7 +468,12 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
 
             {activeView === 'tasks' ? (
                 <div className="space-y-3">
-                    {agentTasks.map(task => (
+                    {tasks.length === 0 ? (
+                        <div className="text-center py-14 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
+                            <CalendarClock className="w-8 h-8 mx-auto mb-3 text-slate-300"/>
+                            <p className="text-sm">暂无任务，创建一个定时或手动触发的 Agent 任务。</p>
+                        </div>
+                    ) : tasks.map(task => (
                         <div key={task.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-orange-200 hover:shadow-md">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                                 <div className="min-w-0 flex-1">
@@ -583,7 +517,7 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
                                             输出
                                         </div>
                                         <p className="truncate">
-                                            {task.output === '指定文集' ? (task.targetCollectionTitle || '指定文集') : task.output}
+                                            {task.output === 'collection' ? (task.targetCollectionTitle || '指定文集') : 'Memos'}
                                         </p>
                                     </div>
                                 </div>
@@ -765,9 +699,9 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-700">执行 Agent</label>
                                     <SettingsSelect
-                                        value={taskForm.agentName}
+                                        value={taskForm.agent}
                                         options={taskAgentOptions}
-                                        onChange={agentName => setTaskForm({...taskForm, agentName})}
+                                        onChange={agent => setTaskForm({...taskForm, agent})}
                                         buttonClassName="bg-slate-50"
                                         showSelectedDescription={false}
                                     />
@@ -865,15 +799,15 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
                                             setTaskForm({
                                                 ...taskForm,
                                                 output,
-                                                targetCollectionId: output === '指定文集' ? (taskForm.targetCollectionId || firstCollection?.value || '') : '',
-                                                targetCollectionTitle: output === '指定文集' ? (taskForm.targetCollectionTitle || firstCollection?.label || '') : '',
+                                                targetCollectionId: output === 'collection' ? (taskForm.targetCollectionId || firstCollection?.value || '') : '',
+                                                targetCollectionTitle: output === 'collection' ? (taskForm.targetCollectionTitle || firstCollection?.label || '') : '',
                                             });
                                         }}
                                         buttonClassName="bg-slate-50"
                                         showSelectedDescription={false}
                                     />
                                 </div>
-                                {taskForm.output === '指定文集' && (
+                                {taskForm.output === 'collection' && (
                                     <div className="space-y-2">
                                         <label className="text-sm font-semibold text-slate-700">选择文集</label>
                                         <SettingsSelect
@@ -899,8 +833,8 @@ export const AgentSettings = ({agents, mcpServers, getModelsByType, onSave, onDe
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">任务提示词</label>
                                 <textarea
-                                    value={taskForm.goal}
-                                    onChange={event => setTaskForm({...taskForm, goal: event.target.value})}
+                                    value={taskForm.prompt}
+                                    onChange={event => setTaskForm({...taskForm, prompt: event.target.value})}
                                     rows={5}
                                     placeholder="写清楚这个任务要做什么、参考哪些来源、输出格式和注意事项"
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm leading-6 resize-y"

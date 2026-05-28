@@ -78,6 +78,22 @@ def generate_agent_id() -> str:
     return generate_unique_id("agent")
 
 
+def generate_agent_task_id() -> str:
+    """
+    生成带 task 前缀的 Agent 任务ID
+    :return: 带 task 前缀的唯一ID字符串
+    """
+    return generate_unique_id("task")
+
+
+def generate_agent_run_id() -> str:
+    """
+    生成带 run 前缀的 Agent 执行记录ID
+    :return: 带 run 前缀的唯一ID字符串
+    """
+    return generate_unique_id("run")
+
+
 # 为 MCP 服务生成带 mcp 前缀的 ID
 def generate_mcp_server_id() -> str:
     """

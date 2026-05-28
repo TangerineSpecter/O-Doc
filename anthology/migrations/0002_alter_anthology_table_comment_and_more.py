@@ -4,6 +4,34 @@ import utils.id_generator
 from django.db import migrations, models
 
 
+def rename_legacy_userid_column(apps, schema_editor):
+    """Rename the old userid column only when it exists.
+
+    The previous migration used PostgreSQL-only DO $$ syntax, which breaks
+    local SQLite databases before later migrations can run.
+    """
+    table_name = 'anthology'
+    old_column = 'userid'
+    new_column = 'user_id'
+
+    with schema_editor.connection.cursor() as cursor:
+        try:
+            description = schema_editor.connection.introspection.get_table_description(cursor, table_name)
+        except Exception:
+            return
+
+        column_names = {column.name for column in description}
+        if old_column not in column_names or new_column in column_names:
+            return
+
+        quoted_table = schema_editor.quote_name(table_name)
+        quoted_old_column = schema_editor.quote_name(old_column)
+        quoted_new_column = schema_editor.quote_name(new_column)
+        schema_editor.execute(
+            f'ALTER TABLE {quoted_table} RENAME COLUMN {quoted_old_column} TO {quoted_new_column}'
+        )
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -11,22 +39,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(
-            sql="""
-            DO $$
-            BEGIN
-                IF EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                      AND table_name = 'anthology'
-                      AND column_name = 'userid'
-                ) THEN
-                    ALTER TABLE anthology RENAME COLUMN userid TO user_id;
-                END IF;
-            END $$;
-            """,
-            reverse_sql=migrations.RunSQL.noop,
-        ),
+        migrations.RunPython(rename_legacy_userid_column, migrations.RunPython.noop),
         migrations.AlterModelTableComment(
             name='anthology',
             table_comment='文集表',

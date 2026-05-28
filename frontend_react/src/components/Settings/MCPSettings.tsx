@@ -61,6 +61,11 @@ const parseHeaders = (value: string) => {
     }, {});
 };
 
+const getStoredTools = (server?: MCPServerConfig): MCPToolConfig[] => {
+    if (!server || !Array.isArray(server.tools)) return [];
+    return server.tools;
+};
+
 const buildFallbackTools = (server: MCPServerConfig): MCPToolConfig[] => {
     const lowerName = server.name.toLowerCase();
 
@@ -97,7 +102,8 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan}: MCPSettingsProp
 
     const serverTools = useMemo(() => {
         return servers.reduce<Record<string, MCPToolConfig[]>>((result, server) => {
-            result[server.id] = toolOverrides[server.id] || server.tools || buildFallbackTools(server);
+            const storedTools = getStoredTools(server);
+            result[server.id] = toolOverrides[server.id] || (storedTools.length > 0 ? storedTools : buildFallbackTools(server));
             return result;
         }, {});
     }, [servers, toolOverrides]);
@@ -125,6 +131,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan}: MCPSettingsProp
     const handleSubmit = async () => {
         if (!form.name.trim()) return;
         setSaving(true);
+        const currentServer = servers.find(server => server.id === form.id);
         const success = await onSave({
             id: form.id,
             name: form.name.trim(),
@@ -137,6 +144,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan}: MCPSettingsProp
             source: 'external',
             enabled: form.enabled,
             description: form.description.trim(),
+            tools: form.id ? getStoredTools(currentServer) : [],
         });
         setSaving(false);
         if (success) setModalOpen(false);
@@ -156,14 +164,18 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan}: MCPSettingsProp
         ));
     };
 
-    const updateServerTools = (serverId: string, updater: (tools: MCPToolConfig[]) => MCPToolConfig[]) => {
+    const updateServerTools = async (serverId: string, updater: (tools: MCPToolConfig[]) => MCPToolConfig[]) => {
         const server = servers.find(item => item.id === serverId);
         if (!server) return;
-        const currentTools = serverTools[serverId] || server.tools || buildFallbackTools(server);
+        const storedTools = getStoredTools(server);
+        const currentTools = toolOverrides[serverId] || storedTools;
+        if (currentTools.length === 0) return;
+        const nextTools = updater(currentTools);
         setToolOverrides(prev => ({
             ...prev,
-            [serverId]: updater(currentTools),
+            [serverId]: nextTools,
         }));
+        await onSave({...server, tools: nextTools});
     };
 
     const toggleTool = (serverId: string, toolName: string) => {

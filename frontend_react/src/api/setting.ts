@@ -2,6 +2,10 @@ import request from '../utils/request';
 import type {
     ModelType,
     AgentConfig,
+    AgentRunRecordConfig,
+    AgentTaskConfig,
+    AgentTaskOutput,
+    AgentTaskScheduleType,
     MCPServerConfig,
     AIModel,
     AIProvider,
@@ -13,6 +17,7 @@ import type {
     GeoLocation,
     SaveGeoLocationParams,
     SaveAgentConfigParams,
+    SaveAgentTaskConfigParams,
     SaveMCPServerConfigParams,
     MCPTransport,
     MCPSource,
@@ -23,6 +28,10 @@ import type {
 export type {
     ModelType,
     AgentConfig,
+    AgentRunRecordConfig,
+    AgentTaskConfig,
+    AgentTaskOutput,
+    AgentTaskScheduleType,
     MCPServerConfig,
     AIModel,
     AIProvider,
@@ -34,6 +43,7 @@ export type {
     GeoLocation,
     SaveGeoLocationParams,
     SaveAgentConfigParams,
+    SaveAgentTaskConfigParams,
     SaveMCPServerConfigParams,
     MCPTransport,
     MCPSource,
@@ -141,6 +151,19 @@ export const saveAgent = (data: SaveAgentConfigParams) => {
 };
 
 export const deleteAgent = (id: string) => request.delete(`/settings/agents/${id}/`);
+
+export const getAgentTasks = () => request.get<AgentTaskConfig[]>('/settings/agent-tasks/');
+
+export const saveAgentTask = (data: SaveAgentTaskConfigParams) => {
+    if (data.id) {
+        return request.put<AgentTaskConfig>(`/settings/agent-tasks/${data.id}/`, data);
+    }
+    return request.post<AgentTaskConfig>('/settings/agent-tasks/', data);
+};
+
+export const deleteAgentTask = (id: string) => request.delete(`/settings/agent-tasks/${id}/`);
+
+export const getAgentRunRecords = () => request.get<AgentRunRecordConfig[]>('/settings/agent-run-records/');
 
 export const getMCPServers = () => request.get<MCPServerConfig[]>('/settings/mcp-servers/');
 

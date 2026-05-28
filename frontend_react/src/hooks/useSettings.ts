@@ -2,12 +2,17 @@ import {useCallback, useEffect, useMemo, useState} from 'react';
 import {useToast} from '../components/common/ToastProvider';
 import {
     AgentConfig,
+    AgentRunRecordConfig,
+    AgentTaskConfig,
     AIProvider,
     deleteAgent,
+    deleteAgentTask,
     deleteMCPServer,
     deleteModel,
     deleteProvider,
     getAgents,
+    getAgentRunRecords,
+    getAgentTasks,
     getMCPServers,
     getProviders,
     getSystemAIConfig,
@@ -16,6 +21,7 @@ import {
     ModelType,
     saveModel,
     saveAgent,
+    saveAgentTask,
     saveMCPServer,
     saveProvider,
     saveSystemAIConfig,
@@ -34,6 +40,8 @@ export const useSettings = () => {
     // --- State ---
     const [providers, setProviders] = useState<AIProvider[]>([]);
     const [agents, setAgents] = useState<AgentConfig[]>([]);
+    const [agentTasks, setAgentTasks] = useState<AgentTaskConfig[]>([]);
+    const [agentRunRecords, setAgentRunRecords] = useState<AgentRunRecordConfig[]>([]);
     const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
     const [systemConfig, setSystemConfig] = useState<SystemAIConfig>({
         defaultChatModelId: '',
@@ -77,15 +85,19 @@ export const useSettings = () => {
         setIsLoading(true);
         try {
             // ✅ 同时解构出第二个返回值 (systemConfigRes)
-            const [providersRes, systemConfigRes, agentsRes, mcpServersRes] = await Promise.all([
+            const [providersRes, systemConfigRes, agentsRes, agentTasksRes, agentRunRecordsRes, mcpServersRes] = await Promise.all([
                 getProviders(),
                 getSystemAIConfig(),
                 getAgents(),
+                getAgentTasks(),
+                getAgentRunRecords(),
                 getMCPServers()
             ]);
 
             setProviders(providersRes as unknown as AIProvider[]);
             setAgents(agentsRes as unknown as AgentConfig[]);
+            setAgentTasks(agentTasksRes as unknown as AgentTaskConfig[]);
+            setAgentRunRecords(agentRunRecordsRes as unknown as AgentRunRecordConfig[]);
             setMcpServers(mcpServersRes as unknown as MCPServerConfig[]);
 
             // ✅ 修复 2：将获取到的配置存入 State
@@ -267,6 +279,56 @@ export const useSettings = () => {
         }
     };
 
+    const handleSaveAgentTask = async (taskData: Partial<AgentTaskConfig>) => {
+        setIsSaving(true);
+        try {
+            const intervalMinutes = Number(taskData.intervalMinutes) || 60;
+            const payload = {
+                id: taskData.id,
+                name: taskData.name || '',
+                agent: taskData.agent || '',
+                trigger: taskData.trigger || '定时任务',
+                schedule: taskData.schedule || '',
+                scheduleType: taskData.scheduleType || 'daily',
+                scheduleTime: taskData.scheduleTime || '09:00',
+                scheduleWeekday: taskData.scheduleWeekday || '1',
+                scheduleMonthDay: taskData.scheduleMonthDay || '1',
+                intervalMinutes,
+                output: taskData.output || 'collection',
+                targetCollectionId: taskData.targetCollectionId || '',
+                targetCollectionTitle: taskData.targetCollectionTitle || '',
+                enabled: taskData.enabled ?? true,
+                prompt: taskData.prompt || ''
+            };
+            const res = await saveAgentTask(payload);
+            const data = res as unknown as AgentTaskConfig;
+            setAgentTasks(prev => {
+                const exists = prev.some(task => task.id === data.id);
+                if (exists) {
+                    return prev.map(task => task.id === data.id ? data : task);
+                }
+                return [data, ...prev];
+            });
+            toast.success(taskData.id ? '任务已更新' : '任务已创建');
+            return true;
+        } catch (error) {
+            toast.error('保存任务失败');
+            return false;
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteAgentTask = async (id: string) => {
+        try {
+            await deleteAgentTask(id);
+            setAgentTasks(prev => prev.filter(task => task.id !== id));
+            toast.success('任务已删除');
+        } catch (error) {
+            toast.error('删除任务失败');
+        }
+    };
+
     const handleSaveMCPServer = async (serverData: Partial<MCPServerConfig>) => {
         setIsSaving(true);
         try {
@@ -281,7 +343,8 @@ export const useSettings = () => {
                 env: serverData.env || {},
                 source: serverData.source || 'external',
                 enabled: serverData.enabled ?? true,
-                description: serverData.description || ''
+                description: serverData.description || '',
+                tools: serverData.tools || []
             };
             const res = await saveMCPServer(payload);
             const data = res as unknown as MCPServerConfig;
@@ -329,6 +392,8 @@ export const useSettings = () => {
     return {
         providers,
         agents,
+        agentTasks,
+        agentRunRecords,
         mcpServers,
         systemConfig,
         webDavConfig,
@@ -345,9 +410,11 @@ export const useSettings = () => {
         handleSaveProvider,
         handleSaveModel,
         handleSaveAgent,
+        handleSaveAgentTask,
         handleSaveMCPServer,
         handleDelete,
         handleDeleteAgent,
+        handleDeleteAgentTask,
         handleDeleteMCPServer,
         handleScanMCPServers,
 

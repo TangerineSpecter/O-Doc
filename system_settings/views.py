@@ -19,9 +19,17 @@ from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 from utils.sync_manager import SyncError, SyncManager
 from utils.webdav import WebDavClient
-from .models import Agent, AIProvider, AIModel, MCPServer, SystemSetting, GeoLocation
+from .models import Agent, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, SystemSetting, GeoLocation
 from .runtime_tracker import get_runtime_info
-from .serializers import AgentSerializer, AIProviderSerializer, AIModelSerializer, MCPServerSerializer, GeoLocationSerializer
+from .serializers import (
+    AgentRunRecordSerializer,
+    AgentSerializer,
+    AgentTaskSerializer,
+    AIProviderSerializer,
+    AIModelSerializer,
+    MCPServerSerializer,
+    GeoLocationSerializer,
+)
 
 
 class AIProviderViewSet(viewsets.ModelViewSet):
@@ -146,6 +154,65 @@ class AgentViewSet(viewsets.ModelViewSet):
         return success_result()
 
 
+class AgentTaskViewSet(viewsets.ModelViewSet):
+    """Agent 任务配置接口"""
+
+    queryset = AgentTask.objects.select_related('agent').all()
+    serializer_class = AgentTaskSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return success_result(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return success_result(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_result(serializer.data)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_result(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return success_result()
+
+
+class AgentRunRecordViewSet(viewsets.ModelViewSet):
+    """Agent 任务执行记录接口"""
+
+    queryset = AgentRunRecord.objects.select_related('task', 'agent').all()
+    serializer_class = AgentRunRecordSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return success_result(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return success_result(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_result(serializer.data)
+
+
 class MCPServerViewSet(viewsets.ModelViewSet):
     """MCP 服务配置接口"""
 
@@ -217,6 +284,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             'source': 'system',
             'enabled': True,
             'description': f'扫描自 {source_path}',
+            'tools': config.get('tools') if isinstance(config.get('tools'), list) else [],
         }
 
     @staticmethod

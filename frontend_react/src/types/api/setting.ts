@@ -41,6 +41,50 @@ export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'modelDetail' | 'cr
     id?: string;
 };
 
+export type AgentTaskScheduleType = 'daily' | 'weekly' | 'monthly' | 'interval';
+export type AgentTaskOutput = 'collection' | 'memos';
+export type AgentRunStatus = 'success' | 'failed' | 'running';
+
+export interface AgentTaskConfig {
+    id: string;
+    name: string;
+    agent: string;
+    agentName: string;
+    trigger: string;
+    schedule: string;
+    scheduleType: AgentTaskScheduleType;
+    scheduleTime: string;
+    scheduleWeekday: string;
+    scheduleMonthDay: string;
+    intervalMinutes: number;
+    output: AgentTaskOutput;
+    targetCollectionId?: string;
+    targetCollectionTitle?: string;
+    enabled: boolean;
+    prompt: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export type SaveAgentTaskConfigParams = Omit<AgentTaskConfig, 'id' | 'agentName' | 'createdAt' | 'updatedAt'> & {
+    id?: string;
+};
+
+export interface AgentRunRecordConfig {
+    id: string;
+    task?: string | null;
+    taskName: string;
+    agent?: string | null;
+    agentName: string;
+    trigger: string;
+    status: AgentRunStatus;
+    startedAt: string;
+    duration: string;
+    summary: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
 export type MCPTransport = 'stdio' | 'sse' | 'streamableHttp';
 export type MCPSource = 'system' | 'external';
 

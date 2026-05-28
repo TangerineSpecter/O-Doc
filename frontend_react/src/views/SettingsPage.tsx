@@ -32,9 +32,9 @@ export default function SettingsPage() {
 
     // 使用自定义 Hook
     const {
-        providers, agents, mcpServers, systemConfig, webDavConfig, webDavStatus, isSaving,
+        providers, agents, agentTasks, agentRunRecords, mcpServers, systemConfig, webDavConfig, webDavStatus, isSaving,
         setSystemConfig, setWebDavConfig,
-        getModelsByType, handleSaveProvider, handleSaveModel, handleSaveAgent, handleSaveMCPServer, handleDelete, handleDeleteAgent, handleDeleteMCPServer, handleScanMCPServers,
+        getModelsByType, handleSaveProvider, handleSaveModel, handleSaveAgent, handleSaveAgentTask, handleSaveMCPServer, handleDelete, handleDeleteAgent, handleDeleteAgentTask, handleDeleteMCPServer, handleScanMCPServers,
         fetchWebDavConfig, fetchWebDavStatus
     } = useSettings();
 
@@ -233,9 +233,13 @@ export default function SettingsPage() {
                     {activeTab === 'agent' && (
                         <AgentSettings
                             agents={agents}
+                            tasks={agentTasks}
+                            runRecords={agentRunRecords}
                             mcpServers={mcpServers}
                             getModelsByType={getModelsByType}
                             onSave={handleSaveAgent}
+                            onSaveTask={handleSaveAgentTask}
+                            onDeleteTask={handleDeleteAgentTask}
                             onDelete={(target) => setDeleteConfirm({ open: true, target })}
                         />
                     )}
