@@ -333,6 +333,13 @@ class MCPServerViewSet(viewsets.ModelViewSet):
         }
 
     @staticmethod
+    def _should_skip_scanned_server(server):
+        command = server.get('command') or ''
+        if server.get('name') == 'node_repl' and command.endswith('/Contents/Resources/node_repl'):
+            return True
+        return False
+
+    @staticmethod
     def _extract_servers(payload, source_path):
         if not isinstance(payload, dict):
             return []
@@ -349,7 +356,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
         for server_map in candidates:
             for name, config in server_map.items():
                 server = MCPServerViewSet._normalize_scanned_server(name, config, source_path)
-                if server:
+                if server and not MCPServerViewSet._should_skip_scanned_server(server):
                     result.append(server)
         return result
 
