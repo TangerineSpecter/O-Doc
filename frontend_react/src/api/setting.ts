@@ -7,6 +7,7 @@ import type {
     AgentTaskOutput,
     AgentTaskScheduleType,
     MCPServerConfig,
+    SkillConfig,
     AIModel,
     AIProvider,
     MemosPushConfig,
@@ -19,6 +20,7 @@ import type {
     SaveAgentConfigParams,
     SaveAgentTaskConfigParams,
     SaveMCPServerConfigParams,
+    SaveSkillConfigParams,
     MCPTransport,
     MCPSource,
     MCPToolConfig,
@@ -33,6 +35,7 @@ export type {
     AgentTaskOutput,
     AgentTaskScheduleType,
     MCPServerConfig,
+    SkillConfig,
     AIModel,
     AIProvider,
     MemosPushConfig,
@@ -45,6 +48,7 @@ export type {
     SaveAgentConfigParams,
     SaveAgentTaskConfigParams,
     SaveMCPServerConfigParams,
+    SaveSkillConfigParams,
     MCPTransport,
     MCPSource,
     MCPToolConfig,
@@ -179,6 +183,17 @@ export const deleteMCPServer = (id: string) => request.delete(`/settings/mcp-ser
 export const scanMCPServers = () => request.post<any, { count: number, servers: MCPServerConfig[] }>('/settings/mcp-servers/scan/');
 
 export const refreshMCPServerTools = (id: string) => request.post<MCPServerConfig>(`/settings/mcp-servers/${id}/refresh_tools/`);
+
+export const getSkills = () => request.get<SkillConfig[]>('/settings/skills/');
+
+export const saveSkill = (data: SaveSkillConfigParams) => {
+    if (data.id) {
+        return request.put<SkillConfig>(`/settings/skills/${data.id}/`, data);
+    }
+    return request.post<SkillConfig>('/settings/skills/', data);
+};
+
+export const deleteSkill = (id: string) => request.delete(`/settings/skills/${id}/`);
 
 export const getRuntimeInfo = () => request.get<any, RuntimeInfo>('/settings/config/get_runtime_info/');
 

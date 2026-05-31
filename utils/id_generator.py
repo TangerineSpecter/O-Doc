@@ -103,6 +103,14 @@ def generate_mcp_server_id() -> str:
     return generate_unique_id("mcp")
 
 
+def generate_skill_id() -> str:
+    """
+    生成带 skill 前缀的技能ID
+    :return: 带 skill 前缀的唯一ID字符串
+    """
+    return generate_unique_id("skill")
+
+
 # 为地理位置生成带 loc 前缀的 ID
 def generate_location_id() -> str:
     """

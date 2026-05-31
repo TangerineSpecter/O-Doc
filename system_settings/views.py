@@ -3,6 +3,7 @@ import os
 import tomllib
 from pathlib import Path
 
+from django.db import transaction
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import viewsets
@@ -19,7 +20,7 @@ from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 from utils.sync_manager import SyncError, SyncManager
 from utils.webdav import WebDavClient
-from .models import Agent, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, SystemSetting, GeoLocation
+from .models import Agent, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
 from .runtime_tracker import get_runtime_info
 from .serializers import (
     AgentRunRecordSerializer,
@@ -28,6 +29,7 @@ from .serializers import (
     AIProviderSerializer,
     AIModelSerializer,
     MCPServerSerializer,
+    SkillSerializer,
     GeoLocationSerializer,
 )
 
@@ -447,6 +449,60 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             'count': len(saved),
             'servers': serializer.data,
         })
+
+
+class SkillViewSet(viewsets.ModelViewSet):
+    """技能配置接口"""
+
+    queryset = Skill.objects.all()
+    serializer_class = SkillSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return success_result(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        payload = request.data.copy()
+        payload['is_system'] = False
+        serializer = self.get_serializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return success_result(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return success_result(serializer.data)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        payload = request.data.copy()
+        if instance.is_system:
+            payload = {
+                'enabled': bool(payload.get('enabled', instance.enabled)),
+                'available_in_chat': bool(payload.get('available_in_chat', payload.get('availableInChat', instance.available_in_chat))),
+            }
+            partial = True
+        serializer = self.get_serializer(instance, data=payload, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return success_result(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.is_system:
+            return error_result(ErrorCode.PARAM_ERROR, {'detail': '系统技能不能删除'})
+        with transaction.atomic():
+            skill_id = instance.id
+            self.perform_destroy(instance)
+            for agent in Agent.objects.all():
+                if skill_id not in (agent.skills or []):
+                    continue
+                agent.skills = [item for item in agent.skills if item != skill_id]
+                agent.save(update_fields=['skills', 'updated_at'])
+        return success_result()
 
 
 class SystemConfigViewSet(viewsets.ViewSet):

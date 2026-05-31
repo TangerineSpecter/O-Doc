@@ -8,6 +8,7 @@ from .views import (
     AIProviderViewSet,
     AIModelViewSet,
     MCPServerViewSet,
+    SkillViewSet,
     SystemConfigViewSet,
     GeoLocationViewSet,
 )
@@ -19,6 +20,7 @@ router.register(r'agents', AgentViewSet)
 router.register(r'agent-tasks', AgentTaskViewSet)
 router.register(r'agent-run-records', AgentRunRecordViewSet)
 router.register(r'mcp-servers', MCPServerViewSet)
+router.register(r'skills', SkillViewSet)
 router.register(r'locations', GeoLocationViewSet)
 router.register(r'config', SystemConfigViewSet, basename='sys-config')
 

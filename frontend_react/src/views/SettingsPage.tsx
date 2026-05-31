@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Bot, CalendarClock, Code2, Cpu, Info, MapPin, RefreshCw, Settings } from 'lucide-react';
+import { Save, Bot, CalendarClock, Code2, Cpu, Info, MapPin, RefreshCw, Settings, WandSparkles } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useSettings } from '../hooks/useSettings';
 import { AIProvider, getMemosPushConfig, saveMemosPushConfig, saveSystemAIConfig, saveWebDavConfig } from '../api/setting';
@@ -10,6 +10,7 @@ import type { MemosPushConfig } from '../types/api/setting';
 import { AISettings } from '../components/Settings/AISettings';
 import { AgentSettings } from '../components/Settings/AgentSettings';
 import { MCPSettings } from '../components/Settings/MCPSettings';
+import { SkillSettings } from '../components/Settings/SkillSettings';
 import { SyncSettings } from '../components/Settings/SyncSettings';
 import { GeneralSettings } from '../components/Settings/GeneralSettings';
 import { ScheduleSettings } from '../components/Settings/ScheduleSettings';
@@ -19,7 +20,7 @@ import { LocationSettings } from '../components/Settings/LocationSettings';
 import { AboutSettings } from '../components/Settings/AboutSettings';
 
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState<'ai' | 'agent' | 'mcp' | 'sync' | 'schedule' | 'location' | 'general' | 'about'>('ai');
+    const [activeTab, setActiveTab] = useState<'ai' | 'agent' | 'mcp' | 'skill' | 'sync' | 'schedule' | 'location' | 'general' | 'about'>('ai');
     const toast = useToast();
     const [headerSaving, setHeaderSaving] = useState(false);
     const [memosPushConfig, setMemosPushConfig] = useState<MemosPushConfig>({
@@ -32,9 +33,9 @@ export default function SettingsPage() {
 
     // 使用自定义 Hook
     const {
-        providers, agents, agentTasks, agentRunRecords, mcpServers, systemConfig, webDavConfig, webDavStatus, isSaving,
+        providers, agents, agentTasks, agentRunRecords, mcpServers, skills, systemConfig, webDavConfig, webDavStatus, isSaving,
         setSystemConfig, setWebDavConfig,
-        getModelsByType, handleSaveProvider, handleSaveModel, handleSaveAgent, handleSaveAgentTask, handleSaveMCPServer, handleDelete, handleDeleteAgent, handleDeleteAgentTask, handleDeleteMCPServer, handleScanMCPServers, handleRefreshMCPTools,
+        getModelsByType, handleSaveProvider, handleSaveModel, handleSaveAgent, handleSaveAgentTask, handleSaveMCPServer, handleSaveSkill, handleDelete, handleDeleteAgent, handleDeleteAgentTask, handleDeleteMCPServer, handleDeleteSkill, handleScanMCPServers, handleRefreshMCPTools,
         fetchWebDavConfig, fetchWebDavStatus
     } = useSettings();
 
@@ -97,6 +98,11 @@ export default function SettingsPage() {
                 return;
             }
 
+            if (activeTab === 'skill') {
+                toast.info('技能会在导入或编辑时自动保存');
+                return;
+            }
+
             if (activeTab === 'sync') {
                 if (!webDavConfig.enabled) {
                     toast.info('WebDAV 同步未开启，暂无需要保存的同步配置');
@@ -149,6 +155,8 @@ export default function SettingsPage() {
                         handleDeleteAgent(deleteConfirm.target.agentId);
                     } else if (deleteConfirm.target?.type === 'mcp') {
                         handleDeleteMCPServer(deleteConfirm.target.serverId);
+                    } else if (deleteConfirm.target?.type === 'skill') {
+                        handleDeleteSkill(deleteConfirm.target.skillId);
                     } else {
                         handleDelete(deleteConfirm.target);
                     }
@@ -210,6 +218,7 @@ export default function SettingsPage() {
                     <TabButton id="ai" label="AI 模型接入" icon={<Cpu className="w-4 h-4" />} />
                     <TabButton id="agent" label="Agent 创建" icon={<Bot className="w-4 h-4" />} />
                     <TabButton id="mcp" label="MCP 设置" icon={<Code2 className="w-4 h-4" />} />
+                    <TabButton id="skill" label="技能设置" icon={<WandSparkles className="w-4 h-4" />} />
                     <TabButton id="sync" label="同步与备份" icon={<RefreshCw className="w-4 h-4" />} />
                     <TabButton id="schedule" label="定时设置" icon={<CalendarClock className="w-4 h-4" />} />
                     <TabButton id="location" label="地理位置" icon={<MapPin className="w-4 h-4" />} />
@@ -236,10 +245,18 @@ export default function SettingsPage() {
                             tasks={agentTasks}
                             runRecords={agentRunRecords}
                             mcpServers={mcpServers}
+                            skills={skills}
                             getModelsByType={getModelsByType}
                             onSave={handleSaveAgent}
                             onSaveTask={handleSaveAgentTask}
                             onDeleteTask={handleDeleteAgentTask}
+                            onDelete={(target) => setDeleteConfirm({ open: true, target })}
+                        />
+                    )}
+                    {activeTab === 'skill' && (
+                        <SkillSettings
+                            skills={skills}
+                            onSave={handleSaveSkill}
                             onDelete={(target) => setDeleteConfirm({ open: true, target })}
                         />
                     )}

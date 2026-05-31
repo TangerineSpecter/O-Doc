@@ -8,12 +8,14 @@ import {
     deleteAgent,
     deleteAgentTask,
     deleteMCPServer,
+    deleteSkill,
     deleteModel,
     deleteProvider,
     getAgents,
     getAgentRunRecords,
     getAgentTasks,
     getMCPServers,
+    getSkills,
     getProviders,
     getSystemAIConfig,
     getWebDavConfig,
@@ -23,12 +25,14 @@ import {
     saveAgent,
     saveAgentTask,
     saveMCPServer,
+    saveSkill,
     saveProvider,
     saveSystemAIConfig,
     scanMCPServers,
     refreshMCPServerTools,
     SystemAIConfig,
     MCPServerConfig,
+    SkillConfig,
     WebDavConfig,
     WebDavSyncStatus
 } from '../api/setting';
@@ -44,6 +48,7 @@ export const useSettings = () => {
     const [agentTasks, setAgentTasks] = useState<AgentTaskConfig[]>([]);
     const [agentRunRecords, setAgentRunRecords] = useState<AgentRunRecordConfig[]>([]);
     const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
+    const [skills, setSkills] = useState<SkillConfig[]>([]);
     const [systemConfig, setSystemConfig] = useState<SystemAIConfig>({
         defaultChatModelId: '',
         simpleChatModelId: '',
@@ -86,13 +91,14 @@ export const useSettings = () => {
         setIsLoading(true);
         try {
             // ✅ 同时解构出第二个返回值 (systemConfigRes)
-            const [providersRes, systemConfigRes, agentsRes, agentTasksRes, agentRunRecordsRes, mcpServersRes] = await Promise.all([
+            const [providersRes, systemConfigRes, agentsRes, agentTasksRes, agentRunRecordsRes, mcpServersRes, skillsRes] = await Promise.all([
                 getProviders(),
                 getSystemAIConfig(),
                 getAgents(),
                 getAgentTasks(),
                 getAgentRunRecords(),
-                getMCPServers()
+                getMCPServers(),
+                getSkills()
             ]);
 
             setProviders(providersRes as unknown as AIProvider[]);
@@ -100,6 +106,7 @@ export const useSettings = () => {
             setAgentTasks(agentTasksRes as unknown as AgentTaskConfig[]);
             setAgentRunRecords(agentRunRecordsRes as unknown as AgentRunRecordConfig[]);
             setMcpServers(mcpServersRes as unknown as MCPServerConfig[]);
+            setSkills(skillsRes as unknown as SkillConfig[]);
 
             // ✅ 修复 2：将获取到的配置存入 State
             setSystemConfig(normalizeSystemAIConfig(systemConfigRes as unknown as Partial<SystemAIConfig>));
@@ -248,7 +255,8 @@ export const useSettings = () => {
                 avatar: agentData.avatar || '',
                 model: agentData.model || null,
                 prompt: agentData.prompt || '',
-                mcpServers: agentData.mcpServers || []
+                mcpServers: agentData.mcpServers || [],
+                skills: agentData.skills || []
             };
             const res = await saveAgent(payload);
             const data = res as unknown as AgentConfig;
@@ -407,12 +415,64 @@ export const useSettings = () => {
         }
     };
 
+    const handleSaveSkill = async (skillData: Partial<SkillConfig>) => {
+        setIsSaving(true);
+        try {
+            const payload: any = {
+                id: skillData.id,
+                name: skillData.name || '',
+                description: skillData.description || '',
+                version: skillData.version || '',
+                source: skillData.source || 'skillhub',
+                entry: skillData.entry || '',
+                prompt: skillData.prompt || '',
+                enabled: skillData.enabled ?? true,
+                availableInChat: skillData.availableInChat ?? false,
+                manifest: skillData.manifest || {}
+            };
+            if (skillData.skillKey !== undefined) {
+                payload.skillKey = skillData.skillKey || '';
+            }
+            const res = await saveSkill(payload);
+            const data = res as unknown as SkillConfig;
+            setSkills(prev => {
+                const exists = prev.some(skill => skill.id === data.id);
+                if (exists) {
+                    return prev.map(skill => skill.id === data.id ? data : skill);
+                }
+                return [...prev, data].sort((a, b) => a.name.localeCompare(b.name));
+            });
+            toast.success(skillData.id ? '技能已更新' : '技能已添加');
+            return true;
+        } catch (error) {
+            toast.error('保存技能失败');
+            return false;
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteSkill = async (id: string) => {
+        try {
+            await deleteSkill(id);
+            setSkills(prev => prev.filter(skill => skill.id !== id));
+            setAgents(prev => prev.map(agent => ({
+                ...agent,
+                skills: (agent.skills || []).filter(skillId => skillId !== id)
+            })));
+            toast.success('技能已删除');
+        } catch (error) {
+            toast.error('删除技能失败');
+        }
+    };
+
     return {
         providers,
         agents,
         agentTasks,
         agentRunRecords,
         mcpServers,
+        skills,
         systemConfig,
         webDavConfig,
         webDavStatus,
@@ -436,6 +496,8 @@ export const useSettings = () => {
         handleDeleteMCPServer,
         handleScanMCPServers,
         handleRefreshMCPTools,
+        handleSaveSkill,
+        handleDeleteSkill,
 
         fetchWebDavConfig,
         fetchWebDavStatus,

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Agent, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, SystemSetting, GeoLocation
+from .models import Agent, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
 
 class AIModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -37,6 +37,7 @@ class AgentSerializer(serializers.ModelSerializer):
             'model_detail',
             'prompt',
             'mcp_servers',
+            'skills',
             'created_at',
             'updated_at',
         ]
@@ -53,6 +54,20 @@ class AgentSerializer(serializers.ModelSerializer):
             return []
         if not isinstance(value, list):
             raise serializers.ValidationError("MCP 配置必须是数组")
+        return value
+
+    def validate_skills(self, value):
+        if value in (None, ''):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError("技能配置必须是数组")
+        skill_ids = [item for item in value if isinstance(item, str) and item]
+        if len(skill_ids) != len(value):
+            raise serializers.ValidationError("技能配置必须是技能 ID 数组")
+        existing_ids = set(Skill.objects.filter(id__in=skill_ids).values_list('id', flat=True))
+        missing_ids = [skill_id for skill_id in skill_ids if skill_id not in existing_ids]
+        if missing_ids:
+            raise serializers.ValidationError(f"技能不存在：{', '.join(missing_ids)}")
         return value
 
 
@@ -124,6 +139,41 @@ class MCPServerSerializer(serializers.ModelSerializer):
                 'enabled': bool(item.get('enabled', True)),
             })
         return normalized
+
+
+class SkillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Skill
+        fields = [
+            'id',
+            'name',
+            'description',
+            'version',
+            'source',
+            'skill_key',
+            'entry',
+            'prompt',
+            'enabled',
+            'available_in_chat',
+            'is_system',
+            'manifest',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'is_system', 'created_at', 'updated_at']
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("技能名称不能为空")
+        return value
+
+    def validate_manifest(self, value):
+        if value in (None, ''):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Manifest 必须是对象")
+        return value
 
 
 class AgentTaskSerializer(serializers.ModelSerializer):

@@ -14,6 +14,7 @@ import {
     Sparkles,
     Trash2,
     Upload,
+    WandSparkles,
     X,
     XCircle,
 } from 'lucide-react';
@@ -26,6 +27,7 @@ import type {
     AIModel,
     MCPServerConfig,
     ModelType,
+    SkillConfig,
 } from '@/api/setting';
 import {getAnthologyList, type Anthology} from '@/api/anthology';
 import {uploadResource} from '@/api/resources';
@@ -37,6 +39,7 @@ interface AgentSettingsProps {
     tasks: AgentTaskConfig[];
     runRecords: AgentRunRecordConfig[];
     mcpServers: MCPServerConfig[];
+    skills: SkillConfig[];
     getModelsByType: (type: ModelType) => (AIModel & { providerName: string, uniqueId: string })[];
     onSave: (agent: Partial<AgentConfig>) => Promise<boolean>;
     onSaveTask: (task: Partial<AgentTaskConfig>) => Promise<boolean>;
@@ -51,6 +54,7 @@ type AgentForm = {
     model: string;
     prompt: string;
     mcpServers: string[];
+    skills: string[];
 };
 
 type AgentView = 'list' | 'tasks' | 'records';
@@ -113,6 +117,7 @@ export const AgentSettings = ({
                                   tasks,
                                   runRecords,
                                   mcpServers,
+                                  skills,
                                   getModelsByType,
                                   onSave,
                                   onSaveTask,
@@ -133,6 +138,7 @@ export const AgentSettings = ({
         model: '',
         prompt: DEFAULT_PROMPT,
         mcpServers: [],
+        skills: [],
     });
     const getDefaultAgentId = () => agents[0]?.id || '';
     const [taskForm, setTaskForm] = useState<AgentTaskForm>({
@@ -229,6 +235,7 @@ export const AgentSettings = ({
             model: modelOptions[0]?.value || '',
             prompt: DEFAULT_PROMPT,
             mcpServers: [],
+            skills: [],
         });
         setModalOpen(true);
     };
@@ -282,6 +289,7 @@ export const AgentSettings = ({
             model: agent.model || '',
             prompt: agent.prompt || '',
             mcpServers: agent.mcpServers || [],
+            skills: agent.skills || [],
         });
         setModalOpen(true);
     };
@@ -302,6 +310,7 @@ export const AgentSettings = ({
             model: form.model || null,
             prompt: form.prompt.trim(),
             mcpServers: form.mcpServers,
+            skills: form.skills,
         });
         setSaving(false);
 
@@ -362,7 +371,21 @@ export const AgentSettings = ({
         });
     };
 
+    const toggleSkill = (skillId: string) => {
+        setForm(prev => {
+            const selected = new Set(prev.skills);
+            if (selected.has(skillId)) {
+                selected.delete(skillId);
+            } else {
+                selected.add(skillId);
+            }
+            return {...prev, skills: Array.from(selected)};
+        });
+    };
+
     const getMcpName = (serverId: string) => mcpServers.find(server => server.id === serverId)?.name || serverId;
+    const enabledSkills = skills.filter(skill => skill.enabled);
+    const getSkillName = (skillId: string) => skills.find(skill => skill.id === skillId)?.name || skillId;
     const getRecordStatusMeta = (status: AgentRunRecordConfig['status']) => {
         if (status === 'success') {
             return {
@@ -590,6 +613,8 @@ export const AgentSettings = ({
                     {agents.map(agent => {
                         const mcpNames = (agent.mcpServers || []).map(getMcpName);
                         const mcpSummary = mcpNames.length > 0 ? `${mcpNames.length} 个 MCP` : '未配置';
+                        const skillNames = (agent.skills || []).map(getSkillName);
+                        const skillSummary = skillNames.length > 0 ? `${skillNames.length} 个技能` : '未配置';
 
                         return (
                             <div
@@ -637,6 +662,26 @@ export const AgentSettings = ({
                                                     {mcpNames.map(name => (
                                                         <div key={name} className="flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50/70 px-2.5 py-2 text-emerald-800 transition-colors hover:border-emerald-200 hover:bg-emerald-50">
                                                             <Code2 className="h-3.5 w-3.5 shrink-0 text-emerald-600"/>
+                                                            <span className="truncate">{name}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="group/skill relative">
+                                        <div className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg border border-orange-100 bg-orange-50 px-2.5 text-xs text-orange-700">
+                                            <WandSparkles className="h-3.5 w-3.5 shrink-0 text-orange-600"/>
+                                            <span className="shrink-0 font-semibold">技能</span>
+                                            <span className="truncate">{skillSummary}</span>
+                                        </div>
+                                        {skillNames.length > 0 && (
+                                            <div className="absolute right-0 top-full z-30 mt-2 hidden w-56 rounded-xl border border-orange-100 bg-white p-2 text-xs text-slate-600 shadow-xl shadow-slate-900/10 group-hover/skill:block">
+                                                <div className="px-2 pb-1.5 font-semibold text-orange-700">已绑定技能</div>
+                                                <div className="max-h-48 space-y-1 overflow-auto">
+                                                    {skillNames.map(name => (
+                                                        <div key={name} className="flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50/70 px-2.5 py-2 text-orange-800 transition-colors hover:border-orange-200 hover:bg-orange-50">
+                                                            <WandSparkles className="h-3.5 w-3.5 shrink-0 text-orange-600"/>
                                                             <span className="truncate">{name}</span>
                                                         </div>
                                                     ))}
@@ -881,7 +926,7 @@ export const AgentSettings = ({
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                             <div>
                                 <h3 className="text-lg font-bold text-slate-900">{form.id ? '编辑 Agent' : '创建 Agent'}</h3>
-                                <p className="text-xs text-slate-500 mt-1">配置它的身份、模型能力和 MCP 入口</p>
+                                <p className="text-xs text-slate-500 mt-1">配置它的身份、模型能力、MCP 和默认技能</p>
                             </div>
                             <button
                                 onClick={() => setModalOpen(false)}
@@ -994,6 +1039,41 @@ export const AgentSettings = ({
                                                     </div>
                                                     <p className="mt-1 truncate text-[11px] text-current opacity-70">
                                                         {server.source === 'system' ? '系统扫描' : '外部接入'}
+                                                    </p>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-slate-700">技能</label>
+                                {enabledSkills.length === 0 ? (
+                                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center text-xs text-slate-400">
+                                        暂无可选技能，请先到技能设置中导入。
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {enabledSkills.map(skill => {
+                                            const active = form.skills.includes(skill.id);
+                                            return (
+                                                <button
+                                                    key={skill.id}
+                                                    type="button"
+                                                    onClick={() => toggleSkill(skill.id)}
+                                                    className={`rounded-xl border px-3 py-3 text-left transition-all ${active ? 'border-orange-200 bg-orange-50 text-orange-700 ring-1 ring-orange-200' : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50/40'}`}
+                                                >
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <span className="truncate text-sm font-semibold">{skill.name}</span>
+                                                        {skill.version && (
+                                                            <span className="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-mono text-slate-500">
+                                                                v{skill.version}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="mt-1 truncate text-[11px] text-current opacity-70">
+                                                        {skill.description || skill.entry || '未填写说明'}
                                                     </p>
                                                 </button>
                                             );

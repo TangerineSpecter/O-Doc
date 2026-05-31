@@ -9,6 +9,7 @@ from utils.id_generator import (
     generate_agent_task_id,
     generate_agent_run_id,
     generate_mcp_server_id,
+    generate_skill_id,
     generate_location_id,
 )
 
@@ -176,6 +177,13 @@ class Agent(models.Model):
         db_comment='MCP 服务配置列表'
     )
 
+    skills = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name='技能配置',
+        db_comment='Skill 配置列表'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
 
@@ -230,6 +238,47 @@ class MCPServer(models.Model):
         db_table = 'sys_mcp_server'
         db_table_comment = 'MCP 服务配置表'
         verbose_name = 'MCP 服务'
+        verbose_name_plural = verbose_name
+        ordering = ['source', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+class Skill(models.Model):
+    """SkillHub 或本地技能配置"""
+
+    SOURCE_TYPES = [
+        ('skillhub', 'SkillHub'),
+        ('local', '本地导入'),
+        ('built_in', '内置技能'),
+    ]
+
+    id = models.CharField(
+        max_length=40,
+        primary_key=True,
+        default=generate_skill_id,
+        verbose_name='技能ID',
+        db_comment='技能ID'
+    )
+    name = models.CharField(max_length=80, unique=True, verbose_name='技能名称', db_comment='技能名称')
+    description = models.CharField(max_length=255, blank=True, default='', verbose_name='描述', db_comment='技能描述')
+    version = models.CharField(max_length=40, blank=True, default='', verbose_name='版本', db_comment='技能版本')
+    source = models.CharField(max_length=20, choices=SOURCE_TYPES, default='skillhub', verbose_name='来源', db_comment='技能来源')
+    skill_key = models.CharField(max_length=80, blank=True, default='', verbose_name='技能键', db_comment='系统内置技能键')
+    entry = models.CharField(max_length=255, blank=True, default='', verbose_name='入口', db_comment='SkillHub URL、本地包路径或 manifest 入口')
+    prompt = models.TextField(blank=True, default='', verbose_name='提示词', db_comment='技能提示词')
+    enabled = models.BooleanField(default=True, verbose_name='是否启用', db_comment='是否启用')
+    available_in_chat = models.BooleanField(default=False, verbose_name='提供给 AI 对话', db_comment='是否可在 AI Chat 中装载')
+    is_system = models.BooleanField(default=False, verbose_name='系统技能', db_comment='是否为系统内置技能')
+    manifest = models.JSONField(default=dict, blank=True, verbose_name='Manifest', db_comment='技能 manifest')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'sys_skill'
+        db_table_comment = '技能配置表'
+        verbose_name = '技能'
         verbose_name_plural = verbose_name
         ordering = ['source', 'name']
 

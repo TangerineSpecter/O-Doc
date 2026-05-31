@@ -1,7 +1,7 @@
 // frontend_react/src/components/AIChatWindow.tsx
 
 import {useEffect, useRef, useState, useMemo} from 'react';
-import {BookOpen, Bot, BrainCircuit, Camera, ChevronDown, Maximize2, Minimize2, Send, Trash2, User, X} from 'lucide-react';
+import {BookOpen, Bot, BrainCircuit, Camera, ChevronDown, Maximize2, Minimize2, Send, Trash2, User, WandSparkles, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -15,6 +15,7 @@ import ConfirmationModal from './common/ConfirmationModal';
 import {getArticleDetail} from '../api/article';
 import {getAnthologyList, type Anthology} from '../api/anthology';
 import {getImagesByAnthology, type Image} from '../api/image';
+import {getAgents, getSkills, type AgentConfig, type SkillConfig} from '../api/setting';
 import {CodeBlock, MermaidChart} from './Article/MarkdownElements';
 import {Select, type SelectOption} from './common/Select';
 
@@ -182,6 +183,11 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     const [imageAnthologies, setImageAnthologies] = useState<Anthology[]>([]);
     const [selectedCollId, setSelectedCollId] = useState('');
     const [selectedImageCollId, setSelectedImageCollId] = useState('');
+    const [chatAgents, setChatAgents] = useState<AgentConfig[]>([]);
+    const [selectedAgentId, setSelectedAgentId] = useState('');
+    const [chatSkills, setChatSkills] = useState<SkillConfig[]>([]);
+    const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+    const [skillPanelOpen, setSkillPanelOpen] = useState(false);
 
     // 弹窗状态
     const [isClearModalOpen, setIsClearModalOpen] = useState(false);
@@ -207,6 +213,14 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             }))
             .filter(option => option.value)
     ], [imageAnthologies]);
+    const agentOptions = useMemo<SelectOption<string>[]>(() => [
+        {value: '', label: '默认对话'},
+        ...chatAgents.map(agent => ({
+            value: agent.id,
+            label: agent.name,
+            description: agent.skills?.length ? `${agent.skills.length} 个绑定技能` : '未绑定技能',
+        })),
+    ], [chatAgents]);
 
     // --- 平滑输出相关的 Refs ---
     const chatBodyRef = useRef<HTMLDivElement>(null);
@@ -366,6 +380,24 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         loadAnthologies();
     }, [isOpen]);
 
+    useEffect(() => {
+        if (!isOpen) return;
+
+        Promise.all([getSkills(), getAgents()])
+            .then(([skillData, agentData]) => {
+                const data = (skillData || []) as unknown as SkillConfig[];
+                const agents = (agentData || []) as unknown as AgentConfig[];
+                const usableSkills = (data || []).filter(skill => skill.enabled && skill.availableInChat);
+                setChatSkills(usableSkills);
+                setSelectedSkillIds(prev => prev.filter(id => usableSkills.some(skill => skill.id === id)));
+                setChatAgents(agents);
+                setSelectedAgentId(prev => prev && agents.some(agent => agent.id === prev) ? prev : '');
+            })
+            .catch(error => {
+                console.warn('加载 AI 对话配置失败:', error);
+            });
+    }, [isOpen]);
+
     // --- 核心逻辑 1: 平滑输出定时器 ---
     useEffect(() => {
         const takeSmoothChars = (queue: string[]) => {
@@ -437,6 +469,13 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         }
     };
 
+    const toggleChatSkill = (skillId: string) => {
+        setSelectedSkillIds(prev => prev.includes(skillId)
+            ? prev.filter(id => id !== skillId)
+            : [...prev, skillId]
+        );
+    };
+
     // 执行清空操作
     const confirmClear = () => {
         tokenQueueRef.current = [];
@@ -500,7 +539,9 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                     history: messages.map(m => ({role: m.role, content: m.content})),
                     use_knowledge_base: useKb && !usePhotographyMcp,
                     coll_id: useKb && !usePhotographyMcp && selectedCollId ? selectedCollId : undefined,
-                    include_thinking: useThinking
+                    include_thinking: useThinking,
+                    agent_id: selectedAgentId || undefined,
+                    skills: selectedSkillIds,
                 })
             });
 
@@ -797,6 +838,19 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 <div className="p-5 bg-white border-t border-slate-100">
                     <div className="flex items-center justify-between mb-3 px-1">
                         <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
+                                <Bot className="h-3.5 w-3.5 text-slate-500"/>
+                                <Select
+                                    value={selectedAgentId}
+                                    options={agentOptions}
+                                    onChange={setSelectedAgentId}
+                                    placeholder="默认对话"
+                                    emptyMessage="暂无 Agent"
+                                    showSelectedDescription={false}
+                                    buttonClassName="!h-[23px] !min-h-[23px] w-[126px] border-none bg-transparent px-1 !py-0 text-xs font-medium text-slate-600 shadow-none hover:bg-white focus:ring-0"
+                                    menuClassName="bottom-full left-0 !mt-0 mb-2 w-56 max-h-[min(280px,45vh)] overflow-y-auto z-[120]"
+                                />
+                            </div>
                             <button
                                 onClick={() => {
                                     setUseKb(prev => !prev);
@@ -858,6 +912,56 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                     menuClassName="bottom-full right-0 !mt-0 mb-2 w-64 max-h-[min(320px,45vh)] overflow-y-auto z-[120]"
                                 />
                             )}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setSkillPanelOpen(prev => !prev)}
+                                    disabled={chatSkills.length === 0}
+                                    className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                                        selectedSkillIds.length > 0
+                                            ? 'bg-orange-50 text-orange-700 border-orange-200 shadow-sm ring-1 ring-orange-100'
+                                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed'
+                                    }`}
+                                >
+                                    <WandSparkles className="w-3.5 h-3.5"/>
+                                    {selectedSkillIds.length > 0 ? `技能：${selectedSkillIds.length} 个已装载` : '装载技能'}
+                                </button>
+                                {skillPanelOpen && chatSkills.length > 0 && (
+                                    <div className="absolute bottom-full left-0 z-[130] mb-2 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
+                                        <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">
+                                            AI 对话技能
+                                        </div>
+                                        <div className="max-h-64 overflow-y-auto p-2">
+                                            {chatSkills.map(skill => {
+                                                const active = selectedSkillIds.includes(skill.id);
+                                                return (
+                                                    <button
+                                                        key={skill.id}
+                                                        type="button"
+                                                        onClick={() => toggleChatSkill(skill.id)}
+                                                        className={`mb-1 w-full rounded-lg border px-3 py-2 text-left transition-all last:mb-0 ${
+                                                            active
+                                                                ? 'border-orange-200 bg-orange-50 text-orange-700'
+                                                                : 'border-slate-100 bg-white text-slate-600 hover:border-orange-100 hover:bg-orange-50/50'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className="truncate text-sm font-semibold">{skill.name}</span>
+                                                            {skill.version && (
+                                                                <span className="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-mono text-slate-500">
+                                                                    v{skill.version}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 opacity-70">
+                                                            {skill.description || '未填写说明'}
+                                                        </p>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                             <button
                                 onClick={() => setUseThinking(!useThinking)}
                                 className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${

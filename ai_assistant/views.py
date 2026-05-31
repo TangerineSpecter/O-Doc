@@ -13,6 +13,7 @@ from ai_assistant.prompts import (
     RAG_EMPTY_MESSAGE,
     RAG_ERROR_MESSAGE
 )
+from system_settings.models import Agent, Skill
 from utils.ai_service import AIService
 from utils.rag_client import RagClient
 
@@ -33,12 +34,43 @@ class ChatView(APIView):
             coll_id = data.get('coll_id') or data.get('collId')
             include_thinking = data.get('include_thinking', False) or data.get('thinkingMode', False)
             use_simple_model = data.get('use_simple_model', False) or data.get('useSimpleModel', False)
+            selected_skills = data.get('skills') or data.get('skillIds') or []
+            selected_agent_id = data.get('agent_id') or data.get('agentId')
             if use_simple_model:
                 include_thinking = False
 
             # 2. 准备 Prompt 和 上下文
             system_prompt = CHAT_SYSTEM_PROMPT
             sources_markdown = ""
+
+            skill_ids = []
+            if selected_agent_id:
+                try:
+                    agent = Agent.objects.get(id=selected_agent_id)
+                    if agent.prompt:
+                        system_prompt += f"\n\n当前对话使用 Agent：{agent.name}\n{agent.prompt}"
+                    if isinstance(agent.skills, list):
+                        skill_ids.extend(agent.skills)
+                except Agent.DoesNotExist:
+                    logger.warning("ChatView received unknown agent_id: %s", selected_agent_id)
+
+            if isinstance(selected_skills, list):
+                skill_ids.extend(selected_skills)
+
+            skill_ids = list(dict.fromkeys(skill_ids))
+            if skill_ids:
+                skills = list(Skill.objects.filter(
+                    id__in=skill_ids,
+                    enabled=True,
+                    available_in_chat=True,
+                ))
+                skill_prompts = []
+                for skill in skills:
+                    if skill.prompt:
+                        skill_prompts.append(f"### {skill.name}\n{skill.prompt}")
+
+                if skill_prompts:
+                    system_prompt += "\n\n你已装载以下 O-Doc 系统技能。请按技能边界使用它们：\n" + "\n\n".join(skill_prompts)
 
             # 3. 处理 RAG (检索增强生成)
             if use_kb and message:

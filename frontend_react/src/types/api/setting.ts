@@ -33,6 +33,7 @@ export interface AgentConfig {
     modelDetail?: AIModel | null;
     prompt: string;
     mcpServers: string[];
+    skills: string[];
     createdAt?: string;
     updatedAt?: string;
 }
@@ -112,6 +113,29 @@ export interface MCPServerConfig {
 }
 
 export type SaveMCPServerConfigParams = Omit<MCPServerConfig, 'id' | 'createdAt' | 'updatedAt'> & {
+    id?: string;
+};
+
+export type SkillSource = 'skillhub' | 'local' | 'built_in';
+
+export interface SkillConfig {
+    id: string;
+    name: string;
+    description: string;
+    version: string;
+    source: SkillSource;
+    skillKey: string;
+    entry: string;
+    prompt: string;
+    enabled: boolean;
+    availableInChat: boolean;
+    isSystem: boolean;
+    manifest: Record<string, unknown>;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export type SaveSkillConfigParams = Omit<SkillConfig, 'id' | 'isSystem' | 'createdAt' | 'updatedAt'> & {
     id?: string;
 };
 
