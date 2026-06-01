@@ -200,6 +200,25 @@ class ArticleSerializer(serializers.ModelSerializer):
             )
         ]
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        # 还原 author 字段在序列化输出中的展示
+        ret['author'] = instance.author
+        
+        # 增加 author_name (优先展示昵称)
+        from user.models import UserProfile
+        profile = UserProfile.objects.filter(userid=instance.author).select_related('user').first()
+        if not profile and instance.author == 'admin':
+            profile = UserProfile.objects.filter(user__username='admin').select_related('user').first()
+        
+        if profile:
+            ret['author_name'] = profile.nickname or profile.user.first_name or profile.user.username
+        else:
+            ret['author_name'] = instance.author
+            
+        return ret
+
+
     def validate_category_id(self, value):
         # 验证分类ID是否真实存在
         if not value:

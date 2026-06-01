@@ -149,6 +149,8 @@ interface ArticleProps {
     lastRagSyncedAt?: string;
     isRagSynced?: boolean;
     tocLayout?: 'absolute' | 'inline';
+    author?: string;
+    authorName?: string;
 }
 
 export default function Article({
@@ -170,7 +172,9 @@ export default function Article({
                                     disableLinks = false,
                                     lastRagSyncedAt,
                                     isRagSynced,
-                                    tocLayout = 'absolute'
+                                    tocLayout = 'absolute',
+                                    author,
+                                    authorName
                                 }: ArticleProps) {
     const navigate = useNavigate();
 
@@ -180,6 +184,7 @@ export default function Article({
     const displayDate = date || "";
     const displayTags = tags || [];
     const displayMarkdown = content || "";
+    const displayAuthor = authorName || author || "";
 
     // 获取动态样式
     const categoryThemeClass = themeId
@@ -391,6 +396,12 @@ export default function Article({
                             </h1>
 
                             <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500 font-medium">
+                                {displayAuthor && (
+                                    <div className="flex items-center gap-2">
+                                        <ArticleIcons.User className="w-4 h-4 text-slate-400"/>
+                                        <span>{displayAuthor}</span>
+                                    </div>
+                                )}
                                 <div className="flex items-center gap-2"><ArticleIcons.FileText
                                     className="w-4 h-4 text-slate-400"/><span>{stats.wordCount} 字</span></div>
                                 <div className="flex items-center gap-2"><ArticleIcons.Clock

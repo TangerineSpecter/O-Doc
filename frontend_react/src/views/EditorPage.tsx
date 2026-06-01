@@ -10,6 +10,7 @@ import ConfirmationModal from '../components/common/ConfirmationModal';
 import {ArrowUp, Loader2, Sparkles, Wand2} from 'lucide-react';
 import {useMemo} from 'react';
 import {getPreviewShortcutLabel} from '../utils/keyboard';
+import {useAuth} from '../contexts/AuthContext';
 
 // 1. 优化后的星星：更加晶莹剔透
 const MagicStar = ({styleClass, delay, top, left, size}: {
@@ -113,6 +114,9 @@ const AiContinueBox = ({
 };
 
 export default function EditorPage() {
+    const { userInfo } = useAuth();
+    const currentAuthor = userInfo?.nickname || userInfo?.username || '';
+
     const {
         textareaRef, fileInputRef, attachmentInputRef,
         title, setTitle,
@@ -411,7 +415,8 @@ export default function EditorPage() {
                     <div className="max-w-5xl mx-auto py-8 sm:px-6 lg:px-8 min-h-full">
                         <Article isEmbedded={true} content={content} scrollContainerId="preview-scroll-container"
                                  title={title} category={category?.name || ''} tags={tags} date={todayStr}
-                                 attachments={attachments}/>
+                                 attachments={attachments}
+                                 authorName={currentAuthor}/>
                     </div>
                 </div>
             </div>

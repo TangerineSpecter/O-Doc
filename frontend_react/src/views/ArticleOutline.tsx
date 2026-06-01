@@ -299,6 +299,8 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                                 themeId={(articleDetail?.categoryDetail as any)?.themeId}
                                 tags={articleDetail?.tagDetails?.map(tag => tag.name) || []}
                                 date={articleDetail?.updatedAt}
+                                author={articleDetail?.author}
+                                authorName={articleDetail?.author_name}
                                 attachments={articleDetail?.attachments}
                                 updatedAt={articleDetail?.updatedAt}
                                 lastRagSyncedAt={articleDetail?.lastRagSyncedAt}
