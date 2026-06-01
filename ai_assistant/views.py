@@ -1,6 +1,7 @@
 # ai_assistant/views.py
 import logging
 import json
+import re
 
 from django.http import StreamingHttpResponse
 from rest_framework.permissions import AllowAny
@@ -13,8 +14,9 @@ from ai_assistant.prompts import (
     RAG_EMPTY_MESSAGE,
     RAG_ERROR_MESSAGE
 )
-from system_settings.models import Agent, Skill
+from system_settings.models import Agent, MCPServer, Skill
 from utils.ai_service import AIService
+from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
 from utils.rag_client import RagClient
 
 logger = logging.getLogger(__name__)
@@ -36,6 +38,9 @@ class ChatView(APIView):
             use_simple_model = data.get('use_simple_model', False) or data.get('useSimpleModel', False)
             selected_skills = data.get('skills') or data.get('skillIds') or []
             selected_agent_id = data.get('agent_id') or data.get('agentId')
+            selected_mcp_servers = data.get('mcp_server_ids') or data.get('mcpServerIds') or []
+            if not isinstance(selected_mcp_servers, list):
+                selected_mcp_servers = []
             if use_simple_model:
                 include_thinking = False
 
@@ -53,6 +58,8 @@ class ChatView(APIView):
                         system_prompt = CHAT_SYSTEM_PROMPT
                     if isinstance(agent.skills, list):
                         skill_ids.extend(agent.skills)
+                    if isinstance(agent.mcp_servers, list):
+                        selected_mcp_servers = [*agent.mcp_servers, *selected_mcp_servers]
                 except Agent.DoesNotExist:
                     logger.warning("ChatView received unknown agent_id: %s", selected_agent_id)
                     system_prompt = CHAT_SYSTEM_PROMPT
@@ -103,6 +110,19 @@ class ChatView(APIView):
             full_messages = [{'role': 'system', 'content': system_prompt}] + history + [
                 {'role': 'user', 'content': message}]
 
+            tool_context = self._build_mcp_tool_context(selected_mcp_servers)
+            if tool_context['tools']:
+                tool_prompt = (
+                    system_prompt
+                    + "\n\n当前对话已装载 MCP Tools。凡是用户请求需要外部信息、检索、读取链接、操作系统或调用工具时，必须优先调用合适的 Tool；"
+                    + "如果缺少必要参数，请先向用户追问，不要编造参数。"
+                    + f"\n\n用户消息：{message}"
+                )
+                return StreamingHttpResponse(
+                    self._stream_tool_response_generator(tool_prompt, tool_context, include_thinking, use_simple_model),
+                    content_type='text/event-stream'
+                )
+
             # 5. 调用 AI 服务并返回流式响应
             return StreamingHttpResponse(
                 self._stream_response_generator(full_messages, sources_markdown, include_thinking, use_simple_model),
@@ -134,6 +154,89 @@ class ChatView(APIView):
 
         return markdown
 
+    @classmethod
+    def _build_mcp_tool_context(cls, server_ids):
+        if not isinstance(server_ids, list):
+            return {'tools': [], 'tool_map': {}}
+
+        normalized_ids = list(dict.fromkeys([
+            str(server_id).strip()
+            for server_id in server_ids
+            if str(server_id or '').strip()
+        ]))
+        if not normalized_ids:
+            return {'tools': [], 'tool_map': {}}
+
+        tool_context = {'tools': [], 'tool_map': {}}
+        servers = list(MCPServer.objects.filter(id__in=normalized_ids, enabled=True))
+
+        for server in servers:
+            tools, error_msg = fetch_mcp_tools(server)
+            if error_msg:
+                logger.warning("ChatView MCP sync failed for %s: %s", server.name, error_msg)
+                continue
+            if tools:
+                server.tools = cls._merge_enabled_tools(tools, server.tools)
+                server.save(update_fields=['tools', 'updated_at'])
+
+            for tool in (server.tools or []):
+                if not isinstance(tool, dict) or not tool.get('enabled', True):
+                    continue
+                original_name = tool.get('name')
+                safe_name = cls._build_safe_tool_name(server, original_name, tool_context['tool_map'])
+                tool_context['tool_map'][safe_name] = {
+                    'server': server,
+                    'tool_name': original_name,
+                }
+                parameters = tool.get('inputSchema') or {'type': 'object', 'properties': {}}
+                if not isinstance(parameters, dict) or parameters.get('type') not in ('object', None):
+                    parameters = {'type': 'object', 'properties': {}}
+                parameters.setdefault('type', 'object')
+                parameters.setdefault('properties', {})
+                tool_context['tools'].append({
+                    'type': 'function',
+                    'function': {
+                        'name': safe_name,
+                        'description': f"{server.name} / {original_name}: {tool.get('description') or ''}",
+                        'parameters': parameters,
+                    }
+                })
+
+        return tool_context
+
+    @staticmethod
+    def _build_safe_tool_name(server, tool_name, existing_map):
+        base = re.sub(r'[^a-zA-Z0-9_]', '_', str(tool_name or 'tool')).strip('_') or 'tool'
+        if base not in existing_map:
+            return base[:64]
+        prefix = re.sub(r'[^a-zA-Z0-9_]', '_', str(server.id or server.name)).strip('_') or 'mcp'
+        return f"{prefix}_{base}"[:64]
+
+    @staticmethod
+    def _merge_enabled_tools(new_tools, existing_tools):
+        existing = {tool.get('name'): tool for tool in (existing_tools or []) if isinstance(tool, dict) and tool.get('name')}
+        merged_tools = []
+        for tool in new_tools:
+            name = tool.get('name')
+            if name in existing:
+                merged_tools.append({
+                    **tool,
+                    'enabled': existing[name].get('enabled', True),
+                })
+            else:
+                merged_tools.append(tool)
+        return merged_tools
+
+    @staticmethod
+    def _execute_mcp_tool(tool_context, safe_tool_name, arguments):
+        entry = tool_context['tool_map'].get(safe_tool_name)
+        if not entry:
+            raise RuntimeError(f"未知 MCP Tool：{safe_tool_name}")
+        result, error_msg = call_mcp_tool(entry['server'], entry['tool_name'], arguments)
+        if error_msg:
+            raise RuntimeError(f"{entry['server'].name}.{entry['tool_name']} 调用失败：{error_msg}")
+        return result
+
     @staticmethod
     def _stream_response_generator(messages, sources_markdown, include_thinking=False, use_simple_model=False):
         """生成器：负责流式输出 AI 内容，并在最后追加来源信息"""
@@ -157,4 +260,25 @@ class ChatView(APIView):
 
         except Exception as e:
             logger.error(f"Stream Generation Error: {e}")
+            yield json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False) + "\n"
+
+    @classmethod
+    def _stream_tool_response_generator(cls, prompt, tool_context, include_thinking=False, use_simple_model=False):
+        try:
+            if include_thinking:
+                yield json.dumps({
+                    'type': 'thinking',
+                    'content': '已装载 MCP Tools，正在判断是否需要调用工具。\n'
+                }, ensure_ascii=False) + "\n"
+
+            content = AIService.chat_completion_with_tools(
+                prompt,
+                tool_context['tools'],
+                lambda tool_name, arguments: cls._execute_mcp_tool(tool_context, tool_name, arguments),
+                use_simple_model=use_simple_model,
+            )
+
+            yield json.dumps({'type': 'answer', 'content': content}, ensure_ascii=False) + "\n"
+        except Exception as e:
+            logger.error(f"Tool Stream Generation Error: {e}")
             yield json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False) + "\n"

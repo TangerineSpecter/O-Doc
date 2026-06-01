@@ -1,7 +1,7 @@
 // frontend_react/src/components/AIChatWindow.tsx
 
 import {useEffect, useRef, useState, useMemo} from 'react';
-import {BookOpen, Bot, BrainCircuit, Camera, ChevronDown, Maximize2, Minimize2, Send, Trash2, User, WandSparkles, X} from 'lucide-react';
+import {BookOpen, Bot, BrainCircuit, Check, ChevronDown, Maximize2, Minimize2, Plug, Send, Trash2, User, WandSparkles, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -15,7 +15,7 @@ import ConfirmationModal from './common/ConfirmationModal';
 import {getArticleDetail} from '../api/article';
 import {getAnthologyList, type Anthology} from '../api/anthology';
 import {getImagesByAnthology, type Image} from '../api/image';
-import {getAgents, getSkills, type AgentConfig, type SkillConfig} from '../api/setting';
+import {getMCPServers, getSkills, type MCPServerConfig, type SkillConfig} from '../api/setting';
 import {CodeBlock, MermaidChart} from './Article/MarkdownElements';
 import {Select, type SelectOption} from './common/Select';
 
@@ -29,6 +29,10 @@ interface AIChatWindowProps {
     isOpen: boolean;
     onClose: () => void;
 }
+
+type AssistantMode = 'disabled' | 'manual' | 'auto';
+
+const PHOTOGRAPHY_MCP_ID = 'system:photography';
 
 const parseImageTags = (image: Image) => {
     const source = image.tagsList?.length ? image.tagsList : (image.tags || '').split(/[,，、;；\n]/);
@@ -67,6 +71,51 @@ const inferTitleScenes = (title: string, tags: string[]) => {
     ];
 
     return sceneKeywords.filter(keyword => text.includes(keyword));
+};
+
+const shouldUsePhotographyAssistant = (message: string) => {
+    const normalized = message.trim().toLowerCase();
+    if (!normalized) return false;
+
+    const keywords = [
+        '摄影', '照片', '图片', '图像', '文集', '焦段', '焦距', '镜头', '拍摄',
+        'exif', 'focal', 'focal length', 'photo', 'image', 'lens',
+    ];
+
+    return keywords.some(keyword => normalized.includes(keyword));
+};
+
+const hasAllScopeIntent = (message: string) => {
+    const normalized = message.toLowerCase();
+    return ['全部', '所有', '全量', '整体', '不限', 'all'].some(keyword => normalized.includes(keyword));
+};
+
+const resolvePhotographyAnthologies = (message: string, anthologies: Anthology[]) => {
+    if (anthologies.length <= 1) {
+        return {anthologies, title: anthologies[0]?.title || '图片文集'};
+    }
+
+    const matched = anthologies.filter(item => {
+        const title = item.title?.trim();
+        return title && message.includes(title);
+    });
+
+    if (matched.length > 0) {
+        return {
+            anthologies: matched,
+            title: matched.length === 1 ? matched[0].title : `匹配到的图片文集（${matched.length} 个）`,
+        };
+    }
+
+    if (hasAllScopeIntent(message)) {
+        return {anthologies, title: `全部图片文集（${anthologies.length} 个）`};
+    }
+
+    return {
+        anthologies: [],
+        title: '',
+        clarification: `你想分析哪个图片文集？可以回复图片文集名称，或直接说“全部”。当前可选：${anthologies.map(item => item.title).join('、')}`,
+    };
 };
 
 const buildPhotographyAnalysisPrompt = (
@@ -178,13 +227,13 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     const [isLoading, setIsLoading] = useState(false);
     const [useKb, setUseKb] = useState(false);
     const [useThinking, setUseThinking] = useState(false);
-    const [usePhotographyMcp, setUsePhotographyMcp] = useState(false);
+    const [assistantMode, setAssistantMode] = useState<AssistantMode>('disabled');
     const [anthologies, setAnthologies] = useState<Anthology[]>([]);
     const [imageAnthologies, setImageAnthologies] = useState<Anthology[]>([]);
     const [selectedCollId, setSelectedCollId] = useState('');
-    const [selectedImageCollId, setSelectedImageCollId] = useState('');
-    const [chatAgents, setChatAgents] = useState<AgentConfig[]>([]);
-    const [selectedAgentId, setSelectedAgentId] = useState('');
+    const [chatMcpServers, setChatMcpServers] = useState<MCPServerConfig[]>([]);
+    const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([PHOTOGRAPHY_MCP_ID]);
+    const [mcpPanelOpen, setMcpPanelOpen] = useState(false);
     const [chatSkills, setChatSkills] = useState<SkillConfig[]>([]);
     const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
     const [skillPanelOpen, setSkillPanelOpen] = useState(false);
@@ -203,28 +252,25 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             }))
             .filter(option => option.value)
     ], [anthologies]);
-    const imageAnthologyOptions = useMemo<SelectOption<string>[]>(() => [
-        {value: '', label: '全部图片文集'},
-        ...imageAnthologies
-            .map(item => ({
-                value: getAnthologyCollId(item),
-                label: item.title,
-                description: `${item.count || 0} 张图片`
-            }))
-            .filter(option => option.value)
-    ], [imageAnthologies]);
-    const agentOptions = useMemo<SelectOption<string>[]>(() => [
-        {value: '', label: '默认对话'},
-        ...chatAgents.map(agent => ({
-            value: agent.id,
-            label: agent.name,
-            description: agent.skills?.length ? `${agent.skills.length} 个绑定技能` : '未绑定技能',
+    const mcpOptions = useMemo(() => [
+        {
+            id: PHOTOGRAPHY_MCP_ID,
+            name: '摄影分析助手',
+            description: '系统内置，通过对话采集图片文集、时间、标签、地点等参数',
+            source: 'system',
+        },
+        ...chatMcpServers.map(server => ({
+            id: server.id,
+            name: server.name,
+            description: server.description || `${server.tools?.filter(tool => tool.enabled).length || 0} 个可用 Tool`,
+            source: server.source,
         })),
-    ], [chatAgents]);
+    ], [chatMcpServers]);
 
     // --- 平滑输出相关的 Refs ---
     const chatBodyRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const mcpPanelRef = useRef<HTMLDivElement>(null);
     const tokenQueueRef = useRef<string[]>([]); // 回答字符缓冲队列
     const thinkingQueueRef = useRef<string[]>([]); // 思考字符缓冲队列
     const isThinkingRef = useRef(false); // 标记是否正在输出中
@@ -383,20 +429,43 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     useEffect(() => {
         if (!isOpen) return;
 
-        Promise.all([getSkills(), getAgents()])
-            .then(([skillData, agentData]) => {
+        Promise.all([getSkills(), getMCPServers()])
+            .then(([skillData, mcpData]) => {
                 const data = (skillData || []) as unknown as SkillConfig[];
-                const agents = (agentData || []) as unknown as AgentConfig[];
+                const mcpServers = (mcpData || []) as unknown as MCPServerConfig[];
                 const usableSkills = (data || []).filter(skill => skill.enabled && skill.availableInChat);
                 setChatSkills(usableSkills);
                 setSelectedSkillIds(prev => prev.filter(id => usableSkills.some(skill => skill.id === id)));
-                setChatAgents(agents);
-                setSelectedAgentId(prev => prev && agents.some(agent => agent.id === prev) ? prev : '');
+                const enabledMcpServers = mcpServers.filter(server => server.enabled);
+                setChatMcpServers(enabledMcpServers);
+                setSelectedMcpIds(prev => prev.filter(id => id === PHOTOGRAPHY_MCP_ID || enabledMcpServers.some(server => server.id === id)));
             })
             .catch(error => {
                 console.warn('加载 AI 对话配置失败:', error);
             });
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!mcpPanelOpen) return;
+
+        const closeOnOutside = (event: MouseEvent) => {
+            if (!mcpPanelRef.current?.contains(event.target as Node)) {
+                setMcpPanelOpen(false);
+            }
+        };
+
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setMcpPanelOpen(false);
+        };
+
+        document.addEventListener('mousedown', closeOnOutside);
+        document.addEventListener('keydown', closeOnEscape);
+
+        return () => {
+            document.removeEventListener('mousedown', closeOnOutside);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [mcpPanelOpen]);
 
     // --- 核心逻辑 1: 平滑输出定时器 ---
     useEffect(() => {
@@ -476,6 +545,28 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         );
     };
 
+    const toggleMcp = (mcpId: string) => {
+        setSelectedMcpIds(prev => {
+            const next = prev.includes(mcpId)
+                ? prev.filter(id => id !== mcpId)
+                : [...prev, mcpId];
+
+            if (
+                mcpId === PHOTOGRAPHY_MCP_ID &&
+                !prev.includes(PHOTOGRAPHY_MCP_ID) &&
+                assistantMode === 'manual' &&
+                messages.length === 0
+            ) {
+                setMessages([{
+                    role: 'assistant',
+                    content: '摄影分析助手已装载。你可以直接说要分析哪个图片文集，或回复“全部”。时间范围、标签、地点也可以在对话里补充。'
+                }]);
+            }
+
+            return next;
+        });
+    };
+
     // 执行清空操作
     const confirmClear = () => {
         tokenQueueRef.current = [];
@@ -485,6 +576,22 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         setMessages([]);
         setIsLoading(false);
         setIsClearModalOpen(false);
+    };
+
+    const setModeWithSideEffects = (mode: AssistantMode) => {
+        setAssistantMode(mode);
+
+        const photographyEnabled = mode === 'manual' && selectedMcpIds.includes(PHOTOGRAPHY_MCP_ID);
+        if (photographyEnabled) {
+            setUseKb(false);
+        }
+
+        if (photographyEnabled && messages.length === 0) {
+            setMessages([{
+                role: 'assistant',
+                content: '摄影分析助手已开启。你可以直接说分析范围，例如“分析 2024 年在上海拍的人像照片”或“只看风景标签，看看我常用哪些焦段”。时间范围、标签、地点都是可选的；不说范围时我会分析当前选择的图片文集。'
+            }]);
+        }
     };
 
     // 发送消息处理
@@ -507,11 +614,32 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
 
         try {
             let messageForAI = userMsg;
+            const usePhotographyAssistant = assistantMode === 'manual'
+                ? selectedMcpIds.includes(PHOTOGRAPHY_MCP_ID)
+                : assistantMode === 'auto' && shouldUsePhotographyAssistant(userMsg);
+            const activeMcpServerIds = assistantMode === 'manual'
+                ? selectedMcpIds.filter(id => id !== PHOTOGRAPHY_MCP_ID)
+                : [];
 
-            if (usePhotographyMcp) {
-                const targetAnthologies = selectedImageCollId
-                    ? imageAnthologies.filter(item => getAnthologyCollId(item) === selectedImageCollId)
-                    : imageAnthologies;
+            if (usePhotographyAssistant) {
+                const target = resolvePhotographyAnthologies(userMsg, imageAnthologies);
+                if (target.clarification) {
+                    streamFinishedRef.current = true;
+                    isThinkingRef.current = false;
+                    setIsLoading(false);
+                    setMessages(prev => {
+                        const newMsgs = [...prev];
+                        newMsgs[newMsgs.length - 1] = {
+                            role: 'assistant',
+                            content: target.clarification,
+                            thinking: '',
+                        };
+                        return newMsgs;
+                    });
+                    return;
+                }
+
+                const targetAnthologies = target.anthologies;
 
                 if (targetAnthologies.length === 0) {
                     throw new Error('暂无可分析的图片文集，请先创建图片文集并填写焦段数据。');
@@ -524,9 +652,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 }));
 
                 const allImages = imageGroups.flatMap(group => group.images);
-                const anthologyTitle = selectedImageCollId
-                    ? targetAnthologies[0]?.title || '图片文集'
-                    : `全部图片文集（${targetAnthologies.length} 个）`;
+                const anthologyTitle = target.title || `图片文集（${targetAnthologies.length} 个）`;
 
                 messageForAI = buildPhotographyAnalysisPrompt(userMsg, allImages, anthologyTitle);
             }
@@ -537,10 +663,10 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 body: JSON.stringify({
                     message: messageForAI,
                     history: messages.map(m => ({role: m.role, content: m.content})),
-                    use_knowledge_base: useKb && !usePhotographyMcp,
-                    coll_id: useKb && !usePhotographyMcp && selectedCollId ? selectedCollId : undefined,
+                    use_knowledge_base: useKb && !usePhotographyAssistant,
+                    coll_id: useKb && !usePhotographyAssistant && selectedCollId ? selectedCollId : undefined,
                     include_thinking: useThinking,
-                    agent_id: selectedAgentId || undefined,
+                    mcp_server_ids: activeMcpServerIds,
                     skills: selectedSkillIds,
                 })
             });
@@ -838,25 +964,109 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 <div className="p-5 bg-white border-t border-slate-100">
                     <div className="flex items-center justify-between mb-3 px-1">
                         <div className="flex flex-wrap items-center gap-2">
-                            <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
-                                <Bot className="h-3.5 w-3.5 text-slate-500"/>
-                                <Select
-                                    value={selectedAgentId}
-                                    options={agentOptions}
-                                    onChange={setSelectedAgentId}
-                                    placeholder="默认对话"
-                                    emptyMessage="暂无 Agent"
-                                    showSelectedDescription={false}
-                                    buttonClassName="!h-[23px] !min-h-[23px] w-[126px] border-none bg-transparent px-1 !py-0 text-xs font-medium text-slate-600 shadow-none hover:bg-white focus:ring-0"
-                                    menuClassName="bottom-full left-0 !mt-0 mb-2 w-56 max-h-[min(280px,45vh)] overflow-y-auto z-[120]"
-                                />
+                            <div ref={mcpPanelRef} className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => setMcpPanelOpen(prev => !prev)}
+                                    className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all ${
+                                        assistantMode === 'manual' && selectedMcpIds.length > 0
+                                            ? 'border-orange-200 bg-orange-50 text-orange-700 ring-1 ring-orange-100'
+                                            : assistantMode === 'auto'
+                                                ? 'border-orange-200 bg-orange-50 text-orange-700 ring-1 ring-orange-100'
+                                                : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
+                                    }`}
+                                >
+                                    <Plug className="h-3.5 w-3.5"/>
+                                    {assistantMode === 'disabled'
+                                        ? 'MCP：已禁用'
+                                        : assistantMode === 'auto'
+                                            ? 'MCP：自动'
+                                            : `MCP：${selectedMcpIds.length} 个`}
+                                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${mcpPanelOpen ? 'rotate-180' : ''}`}/>
+                                </button>
+                                {mcpPanelOpen && (
+                                    <div className="absolute bottom-full left-0 z-[130] mb-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
+                                        <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">
+                                            MCP 模式
+                                        </div>
+                                        <div className="p-2">
+                                            {([
+                                                {value: 'disabled', label: '禁用', description: '不装载 MCP'},
+                                                {value: 'manual', label: '手动', description: '手动选择一个或多个 MCP'},
+                                                {value: 'auto', label: '自动', description: '自动识别摄影类问题'},
+                                            ] as const).map(option => {
+                                                const active = assistantMode === option.value;
+                                                return (
+                                                    <button
+                                                        key={option.value}
+                                                        type="button"
+                                                        onClick={() => setModeWithSideEffects(option.value)}
+                                                        className={`mb-1 flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-all last:mb-0 ${
+                                                            active
+                                                                ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-100'
+                                                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                                        }`}
+                                                    >
+                                                        <span>
+                                                            <span className="block text-sm font-semibold">{option.label}</span>
+                                                            <span className="mt-0.5 block text-[11px] opacity-70">{option.description}</span>
+                                                        </span>
+                                                        {active && <Check className="h-4 w-4 shrink-0"/>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        {assistantMode === 'manual' && (
+                                            <>
+                                                <div className="border-t border-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">
+                                                    MCP 能力
+                                                </div>
+                                                <div className="max-h-72 overflow-y-auto p-2 pt-0">
+                                                    {mcpOptions.map(option => {
+                                                        const active = selectedMcpIds.includes(option.id);
+                                                        return (
+                                                            <button
+                                                                key={option.id}
+                                                                type="button"
+                                                                onClick={() => toggleMcp(option.id)}
+                                                                className={`mb-1 flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left transition-all last:mb-0 ${
+                                                                    active
+                                                                        ? 'border-orange-200 bg-orange-50 text-orange-700'
+                                                                        : 'border-slate-100 bg-white text-slate-600 hover:border-orange-100 hover:bg-orange-50/50'
+                                                                }`}
+                                                            >
+                                                                <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                                                                    active ? 'border-orange-500 bg-orange-500 text-white' : 'border-slate-300 bg-white'
+                                                                }`}>
+                                                                    {active && <Check className="h-3 w-3"/>}
+                                                                </span>
+                                                                <span className="min-w-0">
+                                                                    <span className="flex items-center gap-2">
+                                                                        <span className="truncate text-sm font-semibold">{option.name}</span>
+                                                                        {option.source === 'system' && (
+                                                                            <span className="shrink-0 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] text-orange-600">
+                                                                                内置
+                                                                            </span>
+                                                                        )}
+                                                                    </span>
+                                                                    <span className="mt-0.5 line-clamp-2 text-[11px] leading-4 opacity-70">
+                                                                        {option.description || '未填写说明'}
+                                                                    </span>
+                                                                </span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                             <button
                                 onClick={() => {
                                     setUseKb(prev => !prev);
-                                    setUsePhotographyMcp(false);
                                 }}
-                                className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                                className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all ${
                                     useKb
                                         ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-sm ring-1 ring-blue-100'
                                         : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
@@ -874,41 +1084,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                     emptyMessage="暂无文章文集"
                                     accentClassName="bg-blue-50 text-blue-700"
                                     showSelectedDescription={false}
-                                    buttonClassName="!h-[31px] !min-h-[31px] w-[156px] border-blue-200 px-2.5 !py-1 text-xs font-medium shadow-none hover:border-blue-300 focus:border-blue-400 focus:ring-blue-100"
-                                    menuClassName="bottom-full right-0 !mt-0 mb-2 w-64 max-h-[min(320px,45vh)] overflow-y-auto z-[120]"
-                                />
-                            )}
-                            <button
-                                onClick={() => {
-                                    const nextValue = !usePhotographyMcp;
-                                    setUsePhotographyMcp(nextValue);
-                                    setUseKb(false);
-                                    if (nextValue && messages.length === 0) {
-                                        setMessages([{
-                                            role: 'assistant',
-                                            content: '摄影分析助手已开启。你可以直接说分析范围，例如“分析 2024 年在上海拍的人像照片”或“只看风景标签，看看我常用哪些焦段”。时间范围、标签、地点都是可选的；不说范围时我会分析当前选择的图片文集。'
-                                        }]);
-                                    }
-                                }}
-                                className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
-                                    usePhotographyMcp
-                                        ? 'bg-orange-50 text-orange-700 border-orange-200 shadow-sm ring-1 ring-orange-100'
-                                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
-                                }`}
-                            >
-                                <Camera className="w-3.5 h-3.5"/>
-                                {usePhotographyMcp ? '摄影分析助手：已开启' : '摄影分析助手'}
-                            </button>
-                            {usePhotographyMcp && (
-                                <Select
-                                    value={selectedImageCollId}
-                                    options={imageAnthologyOptions}
-                                    onChange={setSelectedImageCollId}
-                                    placeholder="全部图片文集"
-                                    emptyMessage="暂无图片文集"
-                                    accentClassName="bg-orange-50 text-orange-700"
-                                    showSelectedDescription={false}
-                                    buttonClassName="!h-[31px] !min-h-[31px] w-[168px] border-orange-200 px-2.5 !py-1 text-xs font-medium shadow-none hover:border-orange-300 focus:border-orange-400 focus:ring-orange-100"
+                                    buttonClassName="!h-10 !min-h-10 w-[156px] rounded-xl border-blue-200 px-3 !py-0 text-xs font-semibold shadow-none hover:border-blue-300 focus:border-blue-400 focus:ring-blue-100"
                                     menuClassName="bottom-full right-0 !mt-0 mb-2 w-64 max-h-[min(320px,45vh)] overflow-y-auto z-[120]"
                                 />
                             )}
@@ -916,7 +1092,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                 <button
                                     onClick={() => setSkillPanelOpen(prev => !prev)}
                                     disabled={chatSkills.length === 0}
-                                    className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                                    className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all ${
                                         selectedSkillIds.length > 0
                                             ? 'bg-orange-50 text-orange-700 border-orange-200 shadow-sm ring-1 ring-orange-100'
                                             : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed'
@@ -964,7 +1140,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                             </div>
                             <button
                                 onClick={() => setUseThinking(!useThinking)}
-                                className={`text-xs font-medium flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                                className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all ${
                                     useThinking
                                         ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm ring-1 ring-amber-100'
                                         : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
