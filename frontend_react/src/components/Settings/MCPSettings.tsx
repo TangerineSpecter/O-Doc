@@ -5,7 +5,7 @@ import {SettingsSelect} from './SettingsSelect';
 
 interface MCPSettingsProps {
     servers: MCPServerConfig[];
-    onSave: (server: Partial<MCPServerConfig>) => Promise<boolean>;
+    onSave: (server: Partial<MCPServerConfig> & { validateConnection?: boolean }) => Promise<boolean>;
     onDelete: (target: { type: 'mcp', serverId: string }) => void;
     onScan: () => Promise<{ count: number, servers: MCPServerConfig[] }>;
     onRefreshTools: (serverId: string) => Promise<boolean>;
@@ -18,8 +18,15 @@ type MCPForm = {
     command: string;
     argsText: string;
     url: string;
-    headersText: string;
+    headerRows: MCPHeaderRow[];
     description: string;
+    enabled: boolean;
+};
+
+type MCPHeaderRow = {
+    id: string;
+    key: string;
+    value: string;
     enabled: boolean;
 };
 
@@ -29,7 +36,10 @@ const defaultForm: MCPForm = {
     command: '',
     argsText: '',
     url: '',
-    headersText: '',
+    headerRows: [
+        {id: 'header_authorization', key: 'Authorization', value: '', enabled: true},
+        {id: 'header_content_type', key: 'Content-Type', value: 'application/json', enabled: true},
+    ],
     description: '',
     enabled: true,
 };
@@ -45,52 +55,47 @@ const parseArgs = (value: string) => value
     .map(item => item.trim())
     .filter(Boolean);
 
-const stringifyHeaders = (headers: Record<string, string> = {}) => Object.entries(headers)
-    .map(([key, value]) => `${key}=${value}`)
-    .join('\n');
+const createHeaderRow = (key = '', value = '', enabled = true): MCPHeaderRow => ({
+    id: `header_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    key,
+    value,
+    enabled,
+});
 
-const parseHeaders = (value: string) => {
-    return value.split('\n').reduce<Record<string, string>>((result, line) => {
-        const trimmed = line.trim();
-        if (!trimmed) return result;
-        const separator = trimmed.indexOf('=');
-        if (separator <= 0) return result;
-        const key = trimmed.slice(0, separator).trim();
-        const headerValue = trimmed.slice(separator + 1).trim();
-        if (key) result[key] = headerValue;
-        return result;
-    }, {});
+const normalizeHeaderValue = (key: string, value: string) => {
+    const trimmed = value.trim();
+    if (key.toLowerCase() === 'authorization') {
+        if (/^Bearer\s+/i.test(trimmed)) {
+            return trimmed.replace(/^Bearer\s+/i, 'Bearer ');
+        }
+        if (/^tvly-/i.test(trimmed)) {
+            return `Bearer ${trimmed}`;
+        }
+    }
+    return trimmed;
+};
+
+const headersToRows = (headers: Record<string, string> = {}): MCPHeaderRow[] => {
+    const rows = Object.entries(headers).map(([key, value]) => createHeaderRow(key, String(value || ''), true));
+    return rows.length > 0 ? rows : defaultForm.headerRows.map(row => ({...row}));
+};
+
+const rowsToHeaders = (rows: MCPHeaderRow[]) => {
+    return rows
+        .map(row => {
+            const key = row.key.trim();
+            return {
+                key,
+                value: normalizeHeaderValue(key, row.value),
+                enabled: row.enabled,
+            };
+        })
+        .filter(row => row.enabled && row.key);
 };
 
 const getStoredTools = (server?: MCPServerConfig): MCPToolConfig[] => {
     if (!server || !Array.isArray(server.tools)) return [];
     return server.tools;
-};
-
-const buildFallbackTools = (server: MCPServerConfig): MCPToolConfig[] => {
-    const lowerName = server.name.toLowerCase();
-
-    if (lowerName.includes('filesystem') || lowerName.includes('file')) {
-        return [
-            {name: 'read_file', description: '读取指定路径的文件内容', enabled: true},
-            {name: 'write_file', description: '写入或更新指定路径的文件', enabled: true},
-            {name: 'list_directory', description: '列出目录中的文件和文件夹', enabled: true},
-        ];
-    }
-
-    if (lowerName.includes('github')) {
-        return [
-            {name: 'search_repositories', description: '搜索仓库和代码', enabled: true},
-            {name: 'create_issue', description: '创建 GitHub Issue', enabled: true},
-            {name: 'create_pull_request', description: '创建 Pull Request', enabled: false},
-        ];
-    }
-
-    return [
-        {name: 'search', description: '搜索 MCP 提供的资源', enabled: true},
-        {name: 'fetch', description: '读取指定资源内容', enabled: true},
-        {name: 'execute', description: '执行 MCP 暴露的操作', enabled: false},
-    ];
 };
 
 export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}: MCPSettingsProps) => {
@@ -111,13 +116,13 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
     const serverTools = useMemo(() => {
         return servers.reduce<Record<string, MCPToolConfig[]>>((result, server) => {
             const storedTools = getStoredTools(server);
-            result[server.id] = toolOverrides[server.id] || (storedTools.length > 0 ? storedTools : buildFallbackTools(server));
+            result[server.id] = toolOverrides[server.id] || storedTools;
             return result;
         }, {});
     }, [servers, toolOverrides]);
 
     const openCreateModal = () => {
-        setForm(defaultForm);
+        setForm({...defaultForm, headerRows: defaultForm.headerRows.map(row => ({...row}))});
         setModalOpen(true);
     };
 
@@ -129,7 +134,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
             command: server.command || '',
             argsText: (server.args || []).join('\n'),
             url: server.url || '',
-            headersText: stringifyHeaders(server.headers),
+            headerRows: headersToRows(server.headers),
             description: server.description || '',
             enabled: server.enabled,
         });
@@ -147,12 +152,13 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
             command: form.command.trim(),
             args: parseArgs(form.argsText),
             url: form.url.trim(),
-            headers: parseHeaders(form.headersText),
+            headers: rowsToHeaders(form.headerRows) as unknown as Record<string, string>,
             env: {},
             source: 'external',
             enabled: form.enabled,
             description: form.description.trim(),
             tools: form.id ? getStoredTools(currentServer) : [],
+            validateConnection: true,
         });
         setSaving(false);
         if (success) setModalOpen(false);
@@ -190,6 +196,27 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
         updateServerTools(serverId, tools => tools.map(tool => (
             tool.name === toolName ? {...tool, enabled: !tool.enabled} : tool
         )));
+    };
+
+    const updateHeaderRow = (rowId: string, patch: Partial<MCPHeaderRow>) => {
+        setForm(prev => ({
+            ...prev,
+            headerRows: prev.headerRows.map(row => row.id === rowId ? {...row, ...patch} : row),
+        }));
+    };
+
+    const addHeaderRow = () => {
+        setForm(prev => ({
+            ...prev,
+            headerRows: [...prev.headerRows, createHeaderRow()],
+        }));
+    };
+
+    const removeHeaderRow = (rowId: string) => {
+        setForm(prev => ({
+            ...prev,
+            headerRows: prev.headerRows.filter(row => row.id !== rowId),
+        }));
     };
 
     return (
@@ -302,7 +329,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
                                     </div>
                                     {tools.length === 0 ? (
                                         <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-400">
-                                            暂无 Tool
+                                            暂无真实 Tool，请点击同步/刷新 Tools。同步失败时会显示后端返回的连接错误。
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -404,15 +431,60 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-slate-700">请求头</label>
-                                        <textarea
-                                            value={form.headersText}
-                                            onChange={event => setForm({...form, headersText: event.target.value})}
-                                            rows={4}
-                                            placeholder={'Content-Type=application/json\nAuthorization=Bearer token'}
-                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-mono leading-6 resize-y"
-                                        />
-                                        <p className="text-xs text-slate-500">每行一个请求头，格式为 Key=Value。</p>
+                                        <div className="flex items-center justify-between gap-3">
+                                            <label className="text-sm font-semibold text-slate-700">请求头</label>
+                                            <button
+                                                type="button"
+                                                onClick={addHeaderRow}
+                                                className="inline-flex items-center gap-1 rounded-lg border border-orange-100 bg-white px-2.5 py-1 text-xs font-medium text-orange-600 transition-colors hover:bg-orange-50"
+                                            >
+                                                <Plus className="h-3.5 w-3.5"/>
+                                                添加
+                                            </button>
+                                        </div>
+                                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                            <div className="grid grid-cols-[2.25rem_minmax(8rem,0.8fr)_minmax(0,1.2fr)_2.75rem] border-b border-slate-100 bg-slate-50 text-xs font-semibold text-slate-500">
+                                                <div></div>
+                                                <div className="px-3 py-2">Key</div>
+                                                <div className="px-3 py-2">Value</div>
+                                                <div></div>
+                                            </div>
+                                            <div className="divide-y divide-slate-100">
+                                                {form.headerRows.map(row => (
+                                                    <div key={row.id} className="grid grid-cols-[2.25rem_minmax(8rem,0.8fr)_minmax(0,1.2fr)_2.75rem] items-center">
+                                                        <label className="flex h-full items-center justify-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={row.enabled}
+                                                                onChange={event => updateHeaderRow(row.id, {enabled: event.target.checked})}
+                                                                className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500/20"
+                                                            />
+                                                        </label>
+                                                        <input
+                                                            value={row.key}
+                                                            onChange={event => updateHeaderRow(row.id, {key: event.target.value})}
+                                                            placeholder="Header Key"
+                                                            className="h-11 min-w-0 border-0 border-l border-slate-100 bg-white px-3 text-sm font-mono text-slate-700 outline-none focus:bg-orange-50/30"
+                                                        />
+                                                        <input
+                                                            value={row.value}
+                                                            onChange={event => updateHeaderRow(row.id, {value: event.target.value})}
+                                                            placeholder="Header Value"
+                                                            className="h-11 min-w-0 border-0 border-l border-slate-100 bg-white px-3 text-sm font-mono text-slate-700 outline-none focus:bg-orange-50/30"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeHeaderRow(row.id)}
+                                                            className="mx-auto rounded-lg p-2 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500"
+                                                            title="删除请求头"
+                                                        >
+                                                            <Trash2 className="h-4 w-4"/>
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-slate-500">按 Postman 风格填写请求头；保存时会先检测 MCP 连通性。</p>
                                     </div>
                                 </div>
                             )}

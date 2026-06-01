@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {
     Activity,
+    BellRing,
     Bot,
     BrainCircuit,
     CalendarClock,
@@ -9,6 +10,7 @@ import {
     Code2,
     Edit2,
     ImagePlus,
+    Play,
     Plus,
     Repeat2,
     Sparkles,
@@ -22,6 +24,7 @@ import type {
     AgentConfig,
     AgentRunRecordConfig,
     AgentTaskConfig,
+    AgentTaskNotifyPlatform,
     AgentTaskOutput,
     AgentTaskScheduleType,
     AIModel,
@@ -43,6 +46,7 @@ interface AgentSettingsProps {
     getModelsByType: (type: ModelType) => (AIModel & { providerName: string, uniqueId: string })[];
     onSave: (agent: Partial<AgentConfig>) => Promise<boolean>;
     onSaveTask: (task: Partial<AgentTaskConfig>) => Promise<boolean>;
+    onRunTaskNow: (taskId: string) => Promise<boolean>;
     onDeleteTask: (taskId: string) => void;
     onDelete: (target: { type: 'agent', agentId: string }) => void;
 }
@@ -75,6 +79,9 @@ type AgentTaskForm = {
     targetCollectionTitle?: string;
     enabled: boolean;
     prompt: string;
+    notifyEnabled: boolean;
+    notifyPlatform: AgentTaskNotifyPlatform;
+    notifyWebhookUrl: string;
 };
 
 const DEFAULT_PROMPT = '你是一个专注、可靠的文档协作 Agent。请根据用户目标主动拆解任务，保持回答清晰，并在需要时说明你的假设。';
@@ -121,13 +128,17 @@ export const AgentSettings = ({
                                   getModelsByType,
                                   onSave,
                                   onSaveTask,
+                                  onRunTaskNow,
                                   onDeleteTask,
                                   onDelete,
                               }: AgentSettingsProps) => {
     const [activeView, setActiveView] = useState<AgentView>('list');
     const [modalOpen, setModalOpen] = useState(false);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
+    const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+    const [, setElapsedTick] = useState(0);
     const [saving, setSaving] = useState(false);
+    const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [anthologies, setAnthologies] = useState<Anthology[]>([]);
     const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -156,6 +167,9 @@ export const AgentSettings = ({
         targetCollectionTitle: '',
         enabled: true,
         prompt: '',
+        notifyEnabled: false,
+        notifyPlatform: 'feishu',
+        notifyWebhookUrl: '',
     });
 
     const modelOptions = useMemo<SettingsSelectOption<string>[]>(() => {
@@ -179,6 +193,9 @@ export const AgentSettings = ({
     const taskOutputOptions: SettingsSelectOption<AgentTaskOutput>[] = [
         {value: 'collection', label: '指定文集'},
         {value: 'memos', label: 'Memos'},
+    ];
+    const notifyPlatformOptions: SettingsSelectOption<AgentTaskNotifyPlatform>[] = [
+        {value: 'feishu', label: '飞书机器人', description: '通过飞书自定义机器人 Webhook 发送文本消息'},
     ];
     const scheduleTypeOptions: SettingsSelectOption<AgentTaskScheduleType>[] = [
         {value: 'daily', label: '每天'},
@@ -228,6 +245,8 @@ export const AgentSettings = ({
         return `每 ${task.intervalMinutes || '1'} 分钟`;
     };
 
+    const isManualTask = taskForm.trigger === '手动执行';
+
     const openCreateModal = () => {
         setForm({
             name: '',
@@ -256,6 +275,9 @@ export const AgentSettings = ({
             targetCollectionTitle: collectionOptions[0]?.label || '',
             enabled: true,
             prompt: '',
+            notifyEnabled: false,
+            notifyPlatform: 'feishu',
+            notifyWebhookUrl: '',
         });
         setTaskModalOpen(true);
     };
@@ -277,6 +299,9 @@ export const AgentSettings = ({
             scheduleWeekday: task.scheduleWeekday || '1',
             scheduleMonthDay: task.scheduleMonthDay || '1',
             intervalMinutes: String(task.intervalMinutes || 60),
+            notifyEnabled: task.notifyEnabled ?? false,
+            notifyPlatform: task.notifyPlatform || 'feishu',
+            notifyWebhookUrl: task.notifyWebhookUrl || '',
         });
         setTaskModalOpen(true);
     };
@@ -324,8 +349,12 @@ export const AgentSettings = ({
             toast.warning('请填写任务名称和任务目标');
             return;
         }
-        if (taskForm.scheduleType === 'interval' && (!taskForm.intervalMinutes || Number(taskForm.intervalMinutes) < 1)) {
+        if (!isManualTask && taskForm.scheduleType === 'interval' && (!taskForm.intervalMinutes || Number(taskForm.intervalMinutes) < 1)) {
             toast.warning('请填写大于 0 的间隔分钟数');
+            return;
+        }
+        if (taskForm.notifyEnabled && !taskForm.notifyWebhookUrl.trim()) {
+            toast.warning('请填写通知 Webhook 地址');
             return;
         }
 
@@ -334,7 +363,7 @@ export const AgentSettings = ({
             name: taskForm.name.trim(),
             agent: taskForm.agent,
             trigger: taskForm.trigger,
-            schedule: buildTaskSchedule(taskForm),
+            schedule: isManualTask ? '手动执行' : buildTaskSchedule(taskForm),
             scheduleType: taskForm.scheduleType,
             scheduleTime: taskForm.scheduleTime,
             scheduleWeekday: taskForm.scheduleWeekday,
@@ -345,6 +374,9 @@ export const AgentSettings = ({
             targetCollectionTitle: taskForm.output === 'collection' ? taskForm.targetCollectionTitle : '',
             enabled: taskForm.enabled,
             prompt: taskForm.prompt.trim(),
+            notifyEnabled: taskForm.notifyEnabled,
+            notifyPlatform: taskForm.notifyPlatform,
+            notifyWebhookUrl: taskForm.notifyEnabled ? taskForm.notifyWebhookUrl.trim() : '',
         });
         if (success) setTaskModalOpen(false);
     };
@@ -357,6 +389,15 @@ export const AgentSettings = ({
 
     const deleteTask = (taskId: string) => {
         onDeleteTask(taskId);
+    };
+
+    const runTaskNow = async (taskId: string) => {
+        setRunningTaskId(taskId);
+        try {
+            await onRunTaskNow(taskId);
+        } finally {
+            setRunningTaskId(null);
+        }
     };
 
     const toggleMcpServer = (serverId: string) => {
@@ -386,6 +427,45 @@ export const AgentSettings = ({
     const getMcpName = (serverId: string) => mcpServers.find(server => server.id === serverId)?.name || serverId;
     const enabledSkills = skills.filter(skill => skill.enabled);
     const getSkillName = (skillId: string) => skills.find(skill => skill.id === skillId)?.name || skillId;
+    const selectedRecord = selectedRecordId ? runRecords.find(record => record.id === selectedRecordId) : null;
+
+    useEffect(() => {
+        if (!runRecords.some(record => record.status === 'running')) return;
+        const timer = window.setInterval(() => setElapsedTick(Date.now()), 1000);
+        return () => window.clearInterval(timer);
+    }, [runRecords]);
+
+    const parseRecordTime = (value?: string) => {
+        if (!value) return null;
+        const parsed = new Date(value.replace(' ', 'T'));
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    const formatElapsedDuration = (seconds: number) => {
+        const safeSeconds = Math.max(0, Math.floor(seconds));
+        if (safeSeconds < 60) return `${safeSeconds}s`;
+        const minutes = Math.floor(safeSeconds / 60);
+        const rest = safeSeconds % 60;
+        if (minutes < 60) return `${minutes}m ${rest}s`;
+        const hours = Math.floor(minutes / 60);
+        return `${hours}h ${minutes % 60}m`;
+    };
+
+    const getRecordDuration = (record: AgentRunRecordConfig) => {
+        if (record.status !== 'running') return record.duration || '-';
+        const startedAt = parseRecordTime(record.startedAt);
+        if (!startedAt) return record.duration || '0s';
+        return formatElapsedDuration((Date.now() - startedAt.getTime()) / 1000);
+    };
+
+    const getRecordTriggerLabel = (trigger: string) => {
+        if (trigger === 'manual') return '手动执行';
+        if (trigger === 'scheduler') return '定时任务';
+        if (trigger === 'manual-preflight') return '手动预检';
+        if (trigger === 'manual-pull') return '手动拉取';
+        return trigger || '未知';
+    };
+
     const getRecordStatusMeta = (status: AgentRunRecordConfig['status']) => {
         if (status === 'success') {
             return {
@@ -408,6 +488,13 @@ export const AgentSettings = ({
             icon: <Clock3 className="h-3.5 w-3.5"/>,
             className: 'bg-blue-50 text-blue-700 border-blue-100',
         };
+    };
+
+    const getRecordStepMeta = (status?: string) => {
+        if (status === 'success') return 'border-emerald-100 bg-emerald-50 text-emerald-700';
+        if (status === 'failed') return 'border-red-100 bg-red-50 text-red-700';
+        if (status === 'running') return 'border-blue-100 bg-blue-50 text-blue-700';
+        return 'border-slate-200 bg-slate-50 text-slate-600';
     };
 
     const handleAvatarUpload = async (file?: File) => {
@@ -506,13 +593,19 @@ export const AgentSettings = ({
                                             onClick={() => toggleTaskEnabled(task.id)}
                                             className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-[11px] font-medium transition-colors ${task.enabled ? 'border-emerald-100 bg-emerald-50 text-emerald-700 hover:border-emerald-200 hover:bg-emerald-100/60' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-orange-100 hover:bg-orange-50 hover:text-orange-600'}`}
                                             title={task.enabled ? '点击停用任务' : '点击启用任务'}
-                                        >
-                                            {task.enabled ? '启用中' : '已停用'}
-                                        </button>
-                                    </div>
-                                </div>
+	                                        >
+	                                            {task.enabled ? '启用中' : '已停用'}
+	                                        </button>
+                                        {task.notifyEnabled && (
+                                            <span className="inline-flex items-center gap-1 rounded-lg border border-violet-100 bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">
+                                                <BellRing className="h-3 w-3"/>
+                                                飞书通知
+                                            </span>
+                                        )}
+	                                    </div>
+	                                </div>
 
-                                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-4 lg:w-[32rem]">
+	                                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-4 lg:w-[32rem]">
                                     <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
                                         <div className="mb-1 flex items-center gap-1.5 font-semibold text-orange-700">
                                             <Bot className="h-3.5 w-3.5"/>
@@ -527,13 +620,13 @@ export const AgentSettings = ({
                                         </div>
                                         <p className="truncate">{task.trigger}</p>
                                     </div>
-                                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                                        <div className="mb-1 flex items-center gap-1.5 font-semibold text-slate-700">
-                                            <Repeat2 className="h-3.5 w-3.5"/>
-                                            周期
-                                        </div>
-                                        <p className="truncate">{task.schedule}</p>
-                                    </div>
+	                                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+	                                        <div className="mb-1 flex items-center gap-1.5 font-semibold text-slate-700">
+	                                            <Repeat2 className="h-3.5 w-3.5"/>
+	                                            周期
+	                                        </div>
+	                                        <p className="truncate">{task.trigger === '手动执行' ? '手动执行' : task.schedule}</p>
+	                                    </div>
                                     <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
                                         <div className="mb-1 flex items-center gap-1.5 font-semibold text-emerald-700">
                                             <Sparkles className="h-3.5 w-3.5"/>
@@ -545,9 +638,21 @@ export const AgentSettings = ({
                                     </div>
                                 </div>
 
-                                <div className="flex items-center justify-end gap-1 lg:w-9 lg:flex-col lg:justify-center">
-                                    <button
-                                        onClick={() => openEditTaskModal(task)}
+	                                <div className="flex items-center justify-end gap-1 lg:w-9 lg:flex-col lg:justify-center">
+                                        <button
+                                            onClick={() => runTaskNow(task.id)}
+                                            disabled={runningTaskId === task.id}
+                                            className="p-2 text-slate-400 transition-colors hover:bg-orange-50 hover:text-orange-600 rounded-lg disabled:cursor-wait disabled:opacity-50"
+                                            title="立即执行"
+                                        >
+                                            {runningTaskId === task.id ? (
+                                                <span className="block h-4 w-4 rounded-full border-2 border-orange-200 border-t-orange-500 animate-spin"/>
+                                            ) : (
+                                                <Play className="w-4 h-4"/>
+                                            )}
+                                        </button>
+	                                    <button
+	                                        onClick={() => openEditTaskModal(task)}
                                         className="p-2 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600 rounded-lg"
                                         title="编辑任务"
                                     >
@@ -589,13 +694,16 @@ export const AgentSettings = ({
                                         <p className="mt-0.5 truncate text-xs text-slate-500">{record.summary}</p>
                                     </div>
                                     <span className="truncate text-slate-600">{record.agentName}</span>
-                                    <span className="truncate text-slate-500">{record.trigger}</span>
+                                    <span className="truncate text-slate-500">{getRecordTriggerLabel(record.trigger)}</span>
                                     <span className={`inline-flex w-fit items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium ${statusMeta.className}`}>
                                         {statusMeta.icon}
                                         {statusMeta.label}
                                     </span>
-                                    <span className="text-left font-mono text-xs text-slate-500 md:text-right">{record.duration}</span>
-                                    <button className="text-left text-xs font-medium text-orange-600 hover:text-orange-700 md:text-right">
+                                    <span className="text-left font-mono text-xs text-slate-500 md:text-right">{getRecordDuration(record)}</span>
+                                    <button
+                                        onClick={() => setSelectedRecordId(record.id)}
+                                        className="text-left text-xs font-medium text-orange-600 hover:text-orange-700 md:text-right"
+                                    >
                                         详情
                                     </button>
                                 </div>
@@ -713,6 +821,82 @@ export const AgentSettings = ({
                 </div>
             )}
 
+            {selectedRecord && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+                    <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
+                        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="truncate text-lg font-bold text-slate-900">执行「{selectedRecord.taskName}」任务</h3>
+                                    <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium ${getRecordStatusMeta(selectedRecord.status).className}`}>
+                                        {getRecordStatusMeta(selectedRecord.status).icon}
+                                        {getRecordStatusMeta(selectedRecord.status).label}
+                                    </span>
+                                </div>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    {selectedRecord.startedAt} · {getRecordTriggerLabel(selectedRecord.trigger)} · 耗时 {getRecordDuration(selectedRecord)}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setSelectedRecordId(null)}
+                                className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                            >
+                                <X className="h-5 w-5"/>
+                            </button>
+                        </div>
+
+                        <div className="max-h-[70vh] space-y-5 overflow-y-auto p-6">
+                            <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm sm:grid-cols-3">
+                                <div>
+                                    <div className="text-xs font-medium text-slate-400">Agent</div>
+                                    <div className="mt-1 truncate font-semibold text-slate-700">{selectedRecord.agentName || '-'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs font-medium text-slate-400">触发方式</div>
+                                    <div className="mt-1 truncate font-semibold text-slate-700">{getRecordTriggerLabel(selectedRecord.trigger)}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs font-medium text-slate-400">执行摘要</div>
+                                    <div className="mt-1 truncate font-semibold text-slate-700">{selectedRecord.summary || '-'}</div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-800">
+                                    <Activity className="h-4 w-4 text-orange-500"/>
+                                    执行流程
+                                </div>
+                                {selectedRecord.steps && selectedRecord.steps.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {selectedRecord.steps.map((step, index) => (
+                                            <div key={`${step.time}-${index}`} className="relative pl-7">
+                                                {index < (selectedRecord.steps?.length || 0) - 1 && (
+                                                    <span className="absolute left-[0.45rem] top-6 h-full w-px bg-slate-200"/>
+                                                )}
+                                                <span className={`absolute left-0 top-1 h-3.5 w-3.5 rounded-full border-2 ${getRecordStepMeta(step.status)}`}/>
+                                                <div className="rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <div className="font-semibold text-slate-800">{step.title}</div>
+                                                        <div className="font-mono text-[11px] text-slate-400">{step.time}</div>
+                                                    </div>
+                                                    {step.detail && (
+                                                        <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-500">{step.detail}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-xs text-slate-400">
+                                        这条记录没有阶段明细，新的执行记录会自动保存流程。
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {taskModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
                     <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
@@ -763,75 +947,77 @@ export const AgentSettings = ({
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-slate-700">执行周期</label>
-                                    <SettingsSelect
-                                        value={taskForm.scheduleType}
-                                        options={scheduleTypeOptions}
-                                        onChange={scheduleType => setTaskForm({...taskForm, scheduleType})}
-                                        buttonClassName="bg-slate-50"
-                                        showSelectedDescription={false}
-                                    />
+                            {!isManualTask && (
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-slate-700">执行周期</label>
+                                        <SettingsSelect
+                                            value={taskForm.scheduleType}
+                                            options={scheduleTypeOptions}
+                                            onChange={scheduleType => setTaskForm({...taskForm, scheduleType})}
+                                            buttonClassName="bg-slate-50"
+                                            showSelectedDescription={false}
+                                        />
+                                    </div>
+
+                                    {taskForm.scheduleType !== 'interval' && (
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-slate-700">执行时间</label>
+                                            <input
+                                                type="time"
+                                                value={taskForm.scheduleTime}
+                                                onChange={event => setTaskForm({...taskForm, scheduleTime: event.target.value})}
+                                                className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {taskForm.scheduleType === 'weekly' && (
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-slate-700">执行星期</label>
+                                            <SettingsSelect
+                                                value={taskForm.scheduleWeekday}
+                                                options={weekdayOptions}
+                                                onChange={scheduleWeekday => setTaskForm({...taskForm, scheduleWeekday})}
+                                                buttonClassName="bg-slate-50"
+                                                showSelectedDescription={false}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {taskForm.scheduleType === 'monthly' && (
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-slate-700">执行日期</label>
+                                            <SettingsSelect
+                                                value={taskForm.scheduleMonthDay}
+                                                options={monthDayOptions}
+                                                onChange={scheduleMonthDay => setTaskForm({...taskForm, scheduleMonthDay})}
+                                                buttonClassName="bg-slate-50"
+                                                showSelectedDescription={false}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {taskForm.scheduleType === 'interval' && (
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-slate-700">间隔分钟</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                value={taskForm.intervalMinutes}
+                                                onChange={event => setTaskForm({...taskForm, intervalMinutes: event.target.value})}
+                                                placeholder="如：30"
+                                                className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {taskForm.scheduleType === 'interval' && (
+                                        <p className="self-end pb-2 text-xs text-slate-500 sm:col-span-2">从最近一次执行时间开始按固定间隔计算。</p>
+                                    )}
                                 </div>
-
-                                {taskForm.scheduleType !== 'interval' && (
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-slate-700">执行时间</label>
-                                        <input
-                                            type="time"
-                                            value={taskForm.scheduleTime}
-                                            onChange={event => setTaskForm({...taskForm, scheduleTime: event.target.value})}
-                                            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                                        />
-                                    </div>
-                                )}
-
-                                {taskForm.scheduleType === 'weekly' && (
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-slate-700">执行星期</label>
-                                        <SettingsSelect
-                                            value={taskForm.scheduleWeekday}
-                                            options={weekdayOptions}
-                                            onChange={scheduleWeekday => setTaskForm({...taskForm, scheduleWeekday})}
-                                            buttonClassName="bg-slate-50"
-                                            showSelectedDescription={false}
-                                        />
-                                    </div>
-                                )}
-
-                                {taskForm.scheduleType === 'monthly' && (
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-slate-700">执行日期</label>
-                                        <SettingsSelect
-                                            value={taskForm.scheduleMonthDay}
-                                            options={monthDayOptions}
-                                            onChange={scheduleMonthDay => setTaskForm({...taskForm, scheduleMonthDay})}
-                                            buttonClassName="bg-slate-50"
-                                            showSelectedDescription={false}
-                                        />
-                                    </div>
-                                )}
-
-                                {taskForm.scheduleType === 'interval' && (
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-slate-700">间隔分钟</label>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            step="1"
-                                            value={taskForm.intervalMinutes}
-                                            onChange={event => setTaskForm({...taskForm, intervalMinutes: event.target.value})}
-                                            placeholder="如：30"
-                                            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                                        />
-                                    </div>
-                                )}
-
-                                {taskForm.scheduleType === 'interval' && (
-                                    <p className="self-end pb-2 text-xs text-slate-500 sm:col-span-2">从当天 0 点开始按固定间隔计算执行时间。</p>
-                                )}
-                            </div>
+                            )}
 
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
@@ -872,10 +1058,55 @@ export const AgentSettings = ({
                                             showSelectedDescription={false}
                                         />
                                     </div>
+	                                )}
+	                            </div>
+
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <label className="flex cursor-pointer items-center justify-between gap-4">
+                                    <div className="flex items-start gap-3">
+                                        <div className="mt-0.5 rounded-lg bg-white p-2 text-violet-600 shadow-sm ring-1 ring-slate-100">
+                                            <BellRing className="h-4 w-4"/>
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-semibold text-slate-700">任务完成通知</div>
+                                            <div className="mt-0.5 text-xs text-slate-500">仅通知当前任务，消息内容包含任务名称和生成文章标题</div>
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={taskForm.notifyEnabled}
+                                        onChange={event => setTaskForm({...taskForm, notifyEnabled: event.target.checked})}
+                                        className="peer sr-only"
+                                    />
+                                    <span className="relative h-6 w-11 shrink-0 rounded-full bg-slate-200 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-violet-500 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-violet-500/20"></span>
+                                </label>
+
+                                {taskForm.notifyEnabled && (
+                                    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[12rem_1fr]">
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-slate-700">通知平台</label>
+                                            <SettingsSelect
+                                                value={taskForm.notifyPlatform}
+                                                options={notifyPlatformOptions}
+                                                onChange={notifyPlatform => setTaskForm({...taskForm, notifyPlatform})}
+                                                buttonClassName="bg-white"
+                                                showSelectedDescription={false}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-slate-700">Webhook 地址</label>
+                                            <input
+                                                value={taskForm.notifyWebhookUrl}
+                                                onChange={event => setTaskForm({...taskForm, notifyWebhookUrl: event.target.value})}
+                                                placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
+                                                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                            />
+                                        </div>
+                                    </div>
                                 )}
                             </div>
 
-                            <div className="space-y-2">
+	                            <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">任务提示词</label>
                                 <textarea
                                     value={taskForm.prompt}

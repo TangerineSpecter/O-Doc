@@ -4,6 +4,7 @@ import type {
     AgentConfig,
     AgentRunRecordConfig,
     AgentTaskConfig,
+    AgentTaskNotifyPlatform,
     AgentTaskOutput,
     AgentTaskScheduleType,
     MCPServerConfig,
@@ -32,6 +33,7 @@ export type {
     AgentConfig,
     AgentRunRecordConfig,
     AgentTaskConfig,
+    AgentTaskNotifyPlatform,
     AgentTaskOutput,
     AgentTaskScheduleType,
     MCPServerConfig,
@@ -167,22 +169,24 @@ export const saveAgentTask = (data: SaveAgentTaskConfigParams) => {
 
 export const deleteAgentTask = (id: string) => request.delete(`/settings/agent-tasks/${id}/`);
 
+export const runAgentTaskNow = (id: string) => request.post(`/settings/agent-tasks/${id}/run_now/`);
+
 export const getAgentRunRecords = () => request.get<AgentRunRecordConfig[]>('/settings/agent-run-records/');
 
 export const getMCPServers = () => request.get<MCPServerConfig[]>('/settings/mcp-servers/');
 
 export const saveMCPServer = (data: SaveMCPServerConfigParams) => {
     if (data.id) {
-        return request.put<MCPServerConfig>(`/settings/mcp-servers/${data.id}/`, data);
+        return request.put<MCPServerConfig>(`/settings/mcp-servers/${data.id}/`, data, {timeout: 30000});
     }
-    return request.post<MCPServerConfig>('/settings/mcp-servers/', data);
+    return request.post<MCPServerConfig>('/settings/mcp-servers/', data, {timeout: 30000});
 };
 
 export const deleteMCPServer = (id: string) => request.delete(`/settings/mcp-servers/${id}/`);
 
 export const scanMCPServers = () => request.post<any, { count: number, servers: MCPServerConfig[] }>('/settings/mcp-servers/scan/');
 
-export const refreshMCPServerTools = (id: string) => request.post<MCPServerConfig>(`/settings/mcp-servers/${id}/refresh_tools/`);
+export const refreshMCPServerTools = (id: string) => request.post<MCPServerConfig>(`/settings/mcp-servers/${id}/refresh_tools/`, undefined, {timeout: 30000});
 
 export const getSkills = () => request.get<SkillConfig[]>('/settings/skills/');
 

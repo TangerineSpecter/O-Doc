@@ -301,6 +301,10 @@ class AgentTask(models.Model):
         ('memos', 'Memos'),
     ]
 
+    NOTIFY_PLATFORMS = [
+        ('feishu', '飞书机器人'),
+    ]
+
     id = models.CharField(
         max_length=40,
         primary_key=True,
@@ -328,6 +332,9 @@ class AgentTask(models.Model):
     target_collection_title = models.CharField(max_length=100, blank=True, default='', verbose_name='目标文集名称', db_comment='目标文集名称')
     enabled = models.BooleanField(default=True, verbose_name='是否启用', db_comment='是否启用')
     prompt = models.TextField(blank=True, default='', verbose_name='任务提示词', db_comment='任务提示词')
+    notify_enabled = models.BooleanField(default=False, verbose_name='是否通知', db_comment='任务完成后是否发送 Webhook 通知')
+    notify_platform = models.CharField(max_length=20, choices=NOTIFY_PLATFORMS, default='feishu', verbose_name='通知平台', db_comment='Webhook 通知平台')
+    notify_webhook_url = models.CharField(max_length=500, blank=True, default='', verbose_name='通知 Webhook', db_comment='Webhook 地址')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
 
@@ -382,6 +389,7 @@ class AgentRunRecord(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_TYPES, default='running', verbose_name='状态', db_comment='执行状态')
     duration = models.CharField(max_length=40, blank=True, default='', verbose_name='耗时', db_comment='耗时展示')
     summary = models.CharField(max_length=255, blank=True, default='', verbose_name='摘要', db_comment='执行摘要')
+    steps = models.JSONField(default=list, blank=True, verbose_name='执行步骤', db_comment='执行步骤')
     started_at = models.DateTimeField(default=timezone.now, verbose_name='开始时间', db_comment='开始时间')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')

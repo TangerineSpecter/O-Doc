@@ -30,6 +30,7 @@ import {
     saveSystemAIConfig,
     scanMCPServers,
     refreshMCPServerTools,
+    runAgentTaskNow,
     SystemAIConfig,
     MCPServerConfig,
     SkillConfig,
@@ -149,6 +150,21 @@ export const useSettings = () => {
             console.warn("WebDAV 状态加载失败或未实现:", error);
         }
     }, []);
+
+    const fetchAgentRunRecords = useCallback(async () => {
+        try {
+            const recordsRes = await getAgentRunRecords();
+            setAgentRunRecords(recordsRes as unknown as AgentRunRecordConfig[]);
+        } catch (error) {
+            console.warn('Agent 执行记录刷新失败:', error);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!agentRunRecords.some(record => record.status === 'running')) return;
+        const timer = window.setInterval(fetchAgentRunRecords, 3000);
+        return () => window.clearInterval(timer);
+    }, [agentRunRecords, fetchAgentRunRecords]);
 
     useEffect(() => {
         loadSettings();
@@ -307,7 +323,10 @@ export const useSettings = () => {
                 targetCollectionId: taskData.targetCollectionId || '',
                 targetCollectionTitle: taskData.targetCollectionTitle || '',
                 enabled: taskData.enabled ?? true,
-                prompt: taskData.prompt || ''
+                prompt: taskData.prompt || '',
+                notifyEnabled: taskData.notifyEnabled ?? false,
+                notifyPlatform: taskData.notifyPlatform || 'feishu',
+                notifyWebhookUrl: taskData.notifyWebhookUrl || ''
             };
             const res = await saveAgentTask(payload);
             const data = res as unknown as AgentTaskConfig;
@@ -338,7 +357,21 @@ export const useSettings = () => {
         }
     };
 
-    const handleSaveMCPServer = async (serverData: Partial<MCPServerConfig>) => {
+    const handleRunAgentTaskNow = async (id: string) => {
+        try {
+            await runAgentTaskNow(id);
+            toast.success('任务已开始执行');
+            await fetchAgentRunRecords();
+            window.setTimeout(fetchAgentRunRecords, 1200);
+            return true;
+        } catch (error: any) {
+            const msg = error?.response?.data?.msg || error?.response?.data?.detail || error?.message || '未知错误';
+            toast.error(`手动执行任务失败：${msg}`);
+            return false;
+        }
+    };
+
+    const handleSaveMCPServer = async (serverData: Partial<MCPServerConfig> & { validateConnection?: boolean }) => {
         setIsSaving(true);
         try {
             const payload = {
@@ -353,9 +386,10 @@ export const useSettings = () => {
                 source: serverData.source || 'external',
                 enabled: serverData.enabled ?? true,
                 description: serverData.description || '',
-                tools: serverData.tools || []
+                tools: serverData.tools || [],
+                validateConnection: serverData.validateConnection ?? false,
             };
-            const res = await saveMCPServer(payload);
+            const res = await saveMCPServer(payload as any);
             const data = res as unknown as MCPServerConfig;
             setMcpServers(prev => {
                 const exists = prev.some(server => server.id === data.id);
@@ -366,8 +400,9 @@ export const useSettings = () => {
             });
             toast.success(serverData.id ? 'MCP 已更新' : 'MCP 已添加');
             return true;
-        } catch (error) {
-            toast.error('保存 MCP 失败');
+        } catch (error: any) {
+            const msg = error?.message || error?.response?.data?.msg || '保存失败';
+            toast.error(`保存 MCP 失败：${msg}`);
             return false;
         } finally {
             setIsSaving(false);
@@ -378,6 +413,10 @@ export const useSettings = () => {
         try {
             await deleteMCPServer(id);
             setMcpServers(prev => prev.filter(server => server.id !== id));
+            setAgents(prev => prev.map(agent => ({
+                ...agent,
+                mcpServers: (agent.mcpServers || []).filter(serverId => serverId !== id)
+            })));
             toast.success('MCP 已删除');
         } catch (error) {
             toast.error('删除 MCP 失败');
@@ -489,6 +528,7 @@ export const useSettings = () => {
         handleSaveModel,
         handleSaveAgent,
         handleSaveAgentTask,
+        handleRunAgentTaskNow,
         handleSaveMCPServer,
         handleDelete,
         handleDeleteAgent,

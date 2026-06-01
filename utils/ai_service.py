@@ -1,6 +1,7 @@
 # utils/ai_service.py
 import logging
 import re
+import json
 
 from openai import OpenAI
 
@@ -126,6 +127,79 @@ class AIService:
         except Exception as e:
             logger.error(f"AI API Call Error: {e}")
             raise e
+
+    @classmethod
+    def chat_completion_with_tools(cls, prompt, tools, tool_executor, on_tool_call=None, use_simple_model=False, max_rounds=5):
+        """执行支持 OpenAI-compatible tool calls 的 AI 对话。"""
+        try:
+            config = cls.get_default_client_config(use_simple_model=use_simple_model)
+            client = OpenAI(
+                api_key=config['api_key'],
+                base_url=config['base_url']
+            )
+            messages = [{"role": "user", "content": prompt}]
+
+            for _ in range(max_rounds):
+                response = client.chat.completions.create(
+                    model=config['model_name'],
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto",
+                    stream=False,
+                    extra_body=cls._build_thinking_extra_body(
+                        config.get('provider_type'),
+                        include_thinking=False,
+                        disable_thinking=use_simple_model
+                    ) or None,
+                ) # type: ignore
+
+                message = response.choices[0].message
+                tool_calls = getattr(message, 'tool_calls', None) or []
+                if not tool_calls:
+                    return cls.strip_thinking(message.content)
+
+                assistant_message = {
+                    "role": "assistant",
+                    "content": message.content,
+                    "tool_calls": [
+                        tool_call.model_dump() if hasattr(tool_call, 'model_dump') else tool_call
+                        for tool_call in tool_calls
+                    ],
+                }
+                messages.append(assistant_message)
+
+                for tool_call in tool_calls:
+                    function = getattr(tool_call, 'function', None)
+                    tool_name = getattr(function, 'name', '') if function else ''
+                    raw_arguments = getattr(function, 'arguments', '{}') if function else '{}'
+                    try:
+                        arguments = json.loads(raw_arguments or '{}')
+                    except json.JSONDecodeError:
+                        arguments = {}
+
+                    if on_tool_call:
+                        on_tool_call(tool_name, arguments)
+
+                    result = tool_executor(tool_name, arguments)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": getattr(tool_call, 'id', ''),
+                        "content": cls._stringify_tool_result(result),
+                    })
+
+            raise RuntimeError("AI Tool 调用轮次过多，已停止执行")
+        except Exception as e:
+            logger.error(f"AI Tool Call Error: {e}")
+            raise e
+
+    @staticmethod
+    def _stringify_tool_result(result):
+        if isinstance(result, str):
+            return result
+        try:
+            return json.dumps(result, ensure_ascii=False)
+        except TypeError:
+            return str(result)
 
     @classmethod
     def image_description(cls, image_data_url, title='', location=''):

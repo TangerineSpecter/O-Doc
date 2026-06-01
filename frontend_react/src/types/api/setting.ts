@@ -44,7 +44,9 @@ export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'modelDetail' | 'cr
 
 export type AgentTaskScheduleType = 'daily' | 'weekly' | 'monthly' | 'interval';
 export type AgentTaskOutput = 'collection' | 'memos';
+export type AgentTaskNotifyPlatform = 'feishu';
 export type AgentRunStatus = 'success' | 'failed' | 'running';
+export type AgentRunStepStatus = AgentRunStatus | 'info';
 
 export interface AgentTaskConfig {
     id: string;
@@ -63,6 +65,9 @@ export interface AgentTaskConfig {
     targetCollectionTitle?: string;
     enabled: boolean;
     prompt: string;
+    notifyEnabled: boolean;
+    notifyPlatform: AgentTaskNotifyPlatform;
+    notifyWebhookUrl: string;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -82,8 +87,16 @@ export interface AgentRunRecordConfig {
     startedAt: string;
     duration: string;
     summary: string;
+    steps?: AgentRunStepConfig[];
     createdAt?: string;
     updatedAt?: string;
+}
+
+export interface AgentRunStepConfig {
+    time: string;
+    status: AgentRunStepStatus;
+    title: string;
+    detail?: string;
 }
 
 export type MCPTransport = 'stdio' | 'sse' | 'streamableHttp';

@@ -1,13 +1,17 @@
 import json
 import os
+import threading
 import tomllib
 from pathlib import Path
+from types import SimpleNamespace
 
 from django.db import transaction
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
 
 from system_settings.sync_scheduler import (
     append_sync_message,
@@ -69,7 +73,14 @@ class AIProviderViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        self.perform_destroy(instance)
+        with transaction.atomic():
+            server_id = instance.id
+            self.perform_destroy(instance)
+            for agent in Agent.objects.all():
+                if server_id not in (agent.mcp_servers or []):
+                    continue
+                agent.mcp_servers = [item for item in agent.mcp_servers if item != server_id]
+                agent.save(update_fields=['mcp_servers', 'updated_at'])
         return success_result()
 
 
@@ -85,7 +96,14 @@ class AIModelViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        self.perform_destroy(instance)
+        with transaction.atomic():
+            server_id = instance.id
+            self.perform_destroy(instance)
+            for agent in Agent.objects.all():
+                if server_id not in (agent.mcp_servers or []):
+                    continue
+                agent.mcp_servers = [item for item in agent.mcp_servers if item != server_id]
+                agent.save(update_fields=['mcp_servers', 'updated_at'])
         return success_result()
 
 
@@ -191,6 +209,22 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         self.perform_destroy(instance)
         return success_result()
 
+    @action(detail=True, methods=['post'])
+    def run_now(self, request, pk=None):
+        task = self.get_object()
+        print(f"[AgentTaskViewSet] run_now requested: id={task.id}, name={task.name}", flush=True)
+
+        def runner():
+            from system_settings.agent_task_scheduler import _agent_task_scheduler
+            _agent_task_scheduler.run_manual_task(task.id)
+
+        threading.Thread(
+            target=runner,
+            name=f'agent-task-manual-{task.id}',
+            daemon=True,
+        ).start()
+        return success_result({'detail': '任务已开始执行'})
+
 
 class AgentRunRecordViewSet(viewsets.ModelViewSet):
     """Agent 任务执行记录接口"""
@@ -227,9 +261,14 @@ class MCPServerViewSet(viewsets.ModelViewSet):
         return success_result(serializer.data)
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        validate_connection = self._should_validate_connection(request.data)
+        data = request.data.copy()
+        data.pop('validate_connection', None)
+        data.pop('validateConnection', None)
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        tools = self._validate_connection(serializer.validated_data) if validate_connection else None
+        self.perform_create(serializer, tools=tools)
         return success_result(serializer.data)
 
     def retrieve(self, request, *args, **kwargs):
@@ -240,9 +279,14 @@ class MCPServerViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        validate_connection = self._should_validate_connection(request.data)
+        data = request.data.copy()
+        data.pop('validate_connection', None)
+        data.pop('validateConnection', None)
+        serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
+        tools = self._validate_connection(serializer.validated_data, instance=instance) if validate_connection else None
+        self.perform_update(serializer, tools=tools)
         return success_result(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
@@ -250,8 +294,8 @@ class MCPServerViewSet(viewsets.ModelViewSet):
         self.perform_destroy(instance)
         return success_result()
 
-    def perform_create(self, serializer):
-        instance = serializer.save()
+    def perform_create(self, serializer, tools=None):
+        instance = serializer.save(tools=tools if tools is not None else serializer.validated_data.get('tools', []))
         if not instance.tools:
             from utils.mcp_client import fetch_mcp_tools
             tools, _ = fetch_mcp_tools(instance)
@@ -259,8 +303,60 @@ class MCPServerViewSet(viewsets.ModelViewSet):
                 instance.tools = tools
                 instance.save(update_fields=['tools'])
 
-    def perform_update(self, serializer):
+    def perform_update(self, serializer, tools=None):
+        if tools is not None:
+            serializer.save(tools=tools)
+            return
         serializer.save()
+
+    @staticmethod
+    def _should_validate_connection(data):
+        return bool(data.get('validate_connection') or data.get('validateConnection'))
+
+    @staticmethod
+    def _merge_tools(new_tools, existing_tools=None):
+        existing = {t['name']: t for t in (existing_tools or []) if isinstance(t, dict) and 'name' in t}
+        merged_tools = []
+        for tool in new_tools:
+            name = tool['name']
+            if name in existing:
+                merged_tools.append({
+                    'name': name,
+                    'description': tool.get('description') or existing[name].get('description') or '',
+                    'inputSchema': tool.get('inputSchema') or existing[name].get('inputSchema') or {},
+                    'enabled': existing[name].get('enabled', True),
+                })
+            else:
+                merged_tools.append(tool)
+        return merged_tools
+
+    def _validate_connection(self, validated_data, instance=None):
+        from utils.mcp_client import fetch_mcp_tools
+
+        def field_value(name, default):
+            if name in validated_data:
+                return validated_data[name]
+            if instance is not None:
+                return getattr(instance, name)
+            return default
+
+        candidate = SimpleNamespace(
+            transport=field_value('transport', 'stdio'),
+            command=field_value('command', ''),
+            args=field_value('args', []),
+            url=field_value('url', ''),
+            headers=field_value('headers', {}),
+            env=field_value('env', {}),
+        )
+        tools, error_msg = fetch_mcp_tools(candidate)
+        if error_msg:
+            raise ValidationError({'non_field_errors': [f"MCP 连通性检测失败：{error_msg}"]})
+        if not tools:
+            raise ValidationError({'non_field_errors': ["MCP 连通性检测失败：未发现可用 Tool"]})
+        existing_tools = validated_data.get('tools')
+        if existing_tools is None and instance is not None:
+            existing_tools = instance.tools
+        return self._merge_tools(tools, existing_tools)
 
     @action(detail=True, methods=['post'])
     def refresh_tools(self, request, pk=None):
@@ -275,19 +371,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
                 'data': None
             })
         
-        existing_tools = {t['name']: t for t in (server.tools or []) if isinstance(t, dict) and 'name' in t}
-        merged_tools = []
-        for t in tools:
-            name = t['name']
-            if name in existing_tools:
-                merged_tools.append({
-                    'name': name,
-                    'description': t.get('description') or existing_tools[name].get('description') or '',
-                    'inputSchema': t.get('inputSchema') or existing_tools[name].get('inputSchema') or {},
-                    'enabled': existing_tools[name].get('enabled', True)
-                })
-            else:
-                merged_tools.append(t)
+        merged_tools = self._merge_tools(tools, server.tools)
                 
         server.tools = merged_tools
         server.save(update_fields=['tools'])

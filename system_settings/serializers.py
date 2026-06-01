@@ -117,9 +117,41 @@ class MCPServerSerializer(serializers.ModelSerializer):
     def validate_headers(self, value):
         if value in (None, ''):
             return {}
-        if not isinstance(value, dict):
+        if isinstance(value, list):
+            header_items = []
+            for item in value:
+                if not isinstance(item, dict) or item.get('enabled') is False:
+                    continue
+                header_items.append((item.get('key'), item.get('value')))
+        elif isinstance(value, dict):
+            header_items = value.items()
+        else:
             raise serializers.ValidationError("请求头必须是对象")
-        return value
+        normalized = {}
+        for key, header_value in header_items:
+            header_key = self._normalize_header_key(key)
+            if not header_key:
+                continue
+            normalized_value = str(header_value or '').strip()
+            if header_key.lower() == 'authorization':
+                if normalized_value.lower().startswith('bearer '):
+                    normalized_value = f"Bearer {normalized_value[7:].strip()}"
+                elif normalized_value.lower().startswith('tvly-'):
+                    normalized_value = f"Bearer {normalized_value}"
+            normalized[header_key] = normalized_value
+        return normalized
+
+    @staticmethod
+    def _normalize_header_key(value):
+        raw_key = str(value or '').strip()
+        compact_key = raw_key.lower().lstrip('_').replace('_', '')
+        if compact_key == 'authorization':
+            return 'Authorization'
+        if compact_key in ('content-type', 'contenttype'):
+            return 'Content-Type'
+        if compact_key in ('mcp-protocol-version', 'mcpprotocolversion'):
+            return 'MCP-Protocol-Version'
+        return raw_key.lstrip('_')
 
     def validate_tools(self, value):
         if value in (None, ''):
@@ -198,6 +230,9 @@ class AgentTaskSerializer(serializers.ModelSerializer):
             'target_collection_title',
             'enabled',
             'prompt',
+            'notify_enabled',
+            'notify_platform',
+            'notify_webhook_url',
             'created_at',
             'updated_at',
         ]
@@ -219,6 +254,10 @@ class AgentTaskSerializer(serializers.ModelSerializer):
         target_collection_id = attrs.get('target_collection_id', getattr(self.instance, 'target_collection_id', ''))
         if output == 'collection' and not target_collection_id:
             raise serializers.ValidationError({"target_collection_id": "请选择输出文集"})
+        notify_enabled = attrs.get('notify_enabled', getattr(self.instance, 'notify_enabled', False))
+        notify_webhook_url = attrs.get('notify_webhook_url', getattr(self.instance, 'notify_webhook_url', ''))
+        if notify_enabled and not notify_webhook_url:
+            raise serializers.ValidationError({"notify_webhook_url": "请填写 Webhook 地址"})
         return attrs
 
 
@@ -236,6 +275,7 @@ class AgentRunRecordSerializer(serializers.ModelSerializer):
             'started_at',
             'duration',
             'summary',
+            'steps',
             'created_at',
             'updated_at',
         ]
