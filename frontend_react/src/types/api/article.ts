@@ -6,7 +6,7 @@ export interface Article {
     content: string;
     collId: string;
     author: string;
-    author_name?: string;
+    authorName?: string;
     createdAt: string;
     updatedAt: string;
     isValid: boolean;
