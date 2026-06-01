@@ -40,7 +40,7 @@ class ChatView(APIView):
                 include_thinking = False
 
             # 2. 准备 Prompt 和 上下文
-            system_prompt = CHAT_SYSTEM_PROMPT
+            system_prompt = ""
             sources_markdown = ""
 
             skill_ids = []
@@ -48,11 +48,16 @@ class ChatView(APIView):
                 try:
                     agent = Agent.objects.get(id=selected_agent_id)
                     if agent.prompt:
-                        system_prompt += f"\n\n当前对话使用 Agent：{agent.name}\n{agent.prompt}"
+                        system_prompt = agent.prompt
+                    else:
+                        system_prompt = CHAT_SYSTEM_PROMPT
                     if isinstance(agent.skills, list):
                         skill_ids.extend(agent.skills)
                 except Agent.DoesNotExist:
                     logger.warning("ChatView received unknown agent_id: %s", selected_agent_id)
+                    system_prompt = CHAT_SYSTEM_PROMPT
+            else:
+                system_prompt = CHAT_SYSTEM_PROMPT
 
             if isinstance(selected_skills, list):
                 skill_ids.extend(selected_skills)

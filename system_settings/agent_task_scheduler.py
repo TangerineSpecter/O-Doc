@@ -360,9 +360,11 @@ class AgentTaskScheduler:
         now = _local_now()
         today = now.strftime('%Y-%m-%d')
         current_time = now.strftime('%Y-%m-%d %H:%M:%S')
-        parts = [CHAT_SYSTEM_PROMPT]
+        parts = []
         if agent and agent.prompt:
             parts.append(f"当前 Agent：{agent.name}\n{agent.prompt}")
+        else:
+            parts.append(CHAT_SYSTEM_PROMPT)
 
         skill_prompts = self._get_skill_prompts(agent)
         if skill_prompts:
