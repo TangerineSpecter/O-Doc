@@ -7,6 +7,7 @@ export interface LoginParams {
 
 export interface LoginResult {
     token: string;
+    userid: string;
     username: string;
     nickname: string;
     email: string;
@@ -17,6 +18,7 @@ export interface LoginResult {
 }
 
 export interface UserInfo {
+    userid: string;
     username: string;
     nickname: string;
     email: string;

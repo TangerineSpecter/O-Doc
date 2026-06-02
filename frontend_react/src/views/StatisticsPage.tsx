@@ -206,23 +206,52 @@ const formatHeatmapDate = (dateKey: string) => {
 export default function StatisticsPage() {
     const currentYear = new Date().getFullYear();
     const [loading, setLoading] = useState(true);
+    const [heatmapLoading, setHeatmapLoading] = useState(false);
     const [data, setData] = useState<StatsDashboardData | null>(null);
     const [selectedYear, setSelectedYear] = useState(currentYear);
     const [heatmapHover, setHeatmapHover] = useState<HeatmapHoverState | null>(null);
 
     useEffect(() => {
+        let ignore = false;
+
         const fetchData = async () => {
+            const isInitialLoad = data === null;
             try {
-                setLoading(true);
+                if (isInitialLoad) {
+                    setLoading(true);
+                } else {
+                    setHeatmapLoading(true);
+                    setHeatmapHover(null);
+                }
+
                 const res = await getStatisticsData(selectedYear);
-                setData(res);
+                if (ignore) return;
+
+                setData((prev) => {
+                    if (!prev) return res;
+                    return {
+                        ...prev,
+                        dailyCreation: res.dailyCreation,
+                        selectedYear: res.selectedYear,
+                    };
+                });
             } catch (error) {
                 console.error("Failed to fetch stats:", error);
             } finally {
-                setLoading(false);
+                if (ignore) return;
+                if (isInitialLoad) {
+                    setLoading(false);
+                } else {
+                    setHeatmapLoading(false);
+                }
             }
         };
+
         fetchData();
+
+        return () => {
+            ignore = true;
+        };
     }, [selectedYear]);
 
     if (loading) {
@@ -396,7 +425,7 @@ export default function StatisticsPage() {
                     </div>
                     <div className="flex items-center gap-1.5">
                         <StickyNote className="w-3.5 h-3.5 text-pink-500"/>
-                        Memos
+                        闪念
                     </div>
                     <div className="flex items-center gap-1.5">
                         <PenLine className="w-3.5 h-3.5 text-purple-500"/>
@@ -413,7 +442,15 @@ export default function StatisticsPage() {
                     </div>
                 </div>
 
-                <div className="overflow-x-auto pb-2 custom-scrollbar">
+                <div className="relative overflow-x-auto pb-2 custom-scrollbar">
+                    {heatmapLoading && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 backdrop-blur-[1px]">
+                            <div className="flex items-center gap-2 rounded-full border border-slate-100 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-500"/>
+                                更新热力图
+                            </div>
+                        </div>
+                    )}
                     <div className="min-w-[900px]">
                         <div
                             className="relative ml-7 mb-1 h-5 text-[10px] leading-4 text-slate-400"
@@ -492,7 +529,7 @@ export default function StatisticsPage() {
                             <div className="font-mono font-bold">{heatmapHover.cell.images}</div>
                         </div>
                         <div className="rounded-lg bg-pink-50 px-2 py-1.5 text-pink-600">
-                            <div className="text-[10px] text-pink-400">Memos</div>
+                            <div className="text-[10px] text-pink-400">闪念</div>
                             <div className="font-mono font-bold">{heatmapHover.cell.memos}</div>
                         </div>
                         <div className="rounded-lg bg-purple-50 px-2 py-1.5 text-purple-600">

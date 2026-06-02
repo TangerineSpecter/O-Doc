@@ -2,10 +2,18 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 
+from utils.drf_utils import get_current_user_identifier
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 from .models import Memo
 from .serializers import MemoSerializer
+
+
+def get_current_user_memo_queryset(request):
+    return Memo.objects.filter(
+        user_id=get_current_user_identifier(request),
+        is_valid=True
+    )
 
 
 class MemoListView(APIView):
@@ -15,7 +23,7 @@ class MemoListView(APIView):
         try:
             keyword = request.GET.get('keyword', '').strip()
 
-            memos = Memo.objects.filter(user_id='admin', is_valid=True)
+            memos = get_current_user_memo_queryset(request)
 
             if keyword:
                 memos = memos.filter(Q(content__icontains=keyword) | Q(tag__icontains=keyword))
@@ -40,7 +48,7 @@ class MemoDetailView(APIView):
     """闪念详情接口"""
 
     def get(self, request, memo_id):
-        memo = get_object_or_404(Memo, memo_id=memo_id, user_id='admin', is_valid=True)
+        memo = get_object_or_404(get_current_user_memo_queryset(request), memo_id=memo_id)
         return success_result(data=MemoSerializer(memo).data)
 
 
@@ -49,7 +57,7 @@ class MemoUpdateView(APIView):
 
     def put(self, request, memo_id):
         try:
-            memo = get_object_or_404(Memo, memo_id=memo_id, user_id='admin', is_valid=True)
+            memo = get_object_or_404(get_current_user_memo_queryset(request), memo_id=memo_id)
             serializer = MemoSerializer(memo, data=request.data, partial=True, context={'request': request})
             serializer.is_valid(raise_exception=True)
             updated_memo = serializer.save()
@@ -63,7 +71,7 @@ class MemoDeleteView(APIView):
 
     def delete(self, request, memo_id):
         try:
-            memo = get_object_or_404(Memo, memo_id=memo_id, user_id='admin', is_valid=True)
+            memo = get_object_or_404(get_current_user_memo_queryset(request), memo_id=memo_id)
             memo.is_valid = False
             memo.save()
             return success_result()

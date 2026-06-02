@@ -5,14 +5,22 @@ def get_current_user_identifier(request):
     """
     if request and request.user and request.user.is_authenticated:
         try:
-            profile_userid = getattr(request.user.profile, 'userid', '')
+            profile = request.user.profile
         except Exception:
-            profile_userid = ''
-        if profile_userid:
-            return profile_userid
-        if request.user.is_superuser and request.user.username == 'admin':
-            return 'admin'
-        return str(request.user.id)
+            from user.models import UserProfile
+            profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+        if profile:
+            profile_userid = getattr(profile, 'userid', '')
+            if profile_userid:
+                return profile_userid
+
+            if request.user.is_superuser and request.user.username == 'admin':
+                profile.userid = 'admin'
+            else:
+                profile.userid = f'user_{request.user.id}'
+            profile.save(update_fields=['userid', 'updated_at'])
+            return profile.userid
 
     return 'admin'
 

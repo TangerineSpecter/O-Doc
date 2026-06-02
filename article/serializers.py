@@ -5,7 +5,7 @@ from article.models import Article, Image
 from categories.models import Category
 from tags.models import Tag
 from tags.serializers import TagSerializer
-from utils.drf_utils import CurrentUserOrAdminDefault
+from utils.drf_utils import CurrentUserOrAdminDefault, get_current_user_identifier
 from utils.resource_assets import sync_article_content_assets
 
 
@@ -109,20 +109,18 @@ class ArticleSerializer(serializers.ModelSerializer):
         tag_objects = []
         request = self.context.get('request')
 
-        # 确定当前用户ID (用于查找私有标签)
-        current_user_id = 'admin'
-        if request and request.user and request.user.is_authenticated:
-            current_user_id = str(request.user.id)
+        # 确定当前业务用户ID，统一使用 UserProfile.userid。
+        current_user_id = get_current_user_identifier(request)
 
         for name in tags_names:
             name = name.strip()
             if not name:
                 continue
 
-            # 1. 查找逻辑：优先找 admin 的公共标签，再找当前用户的私有标签
-            tag = Tag.objects.filter(name=name, user_id='admin').first()
+            # 1. 查找逻辑：优先找当前用户标签，再用 admin 公共标签兜底
+            tag = Tag.objects.filter(name=name, user_id=current_user_id).first()
             if not tag and current_user_id != 'admin':
-                tag = Tag.objects.filter(name=name, user_id=current_user_id).first()
+                tag = Tag.objects.filter(name=name, user_id='admin').first()
 
             # 2. 如果不存在，则创建新标签
             if not tag:
@@ -168,9 +166,16 @@ class ArticleSerializer(serializers.ModelSerializer):
             asset.save()
 
         # 关联新的附件
+        request = self.context.get('request')
+        current_user_id = get_current_user_identifier(request)
         for asset_id in assets_ids:
             try:
-                asset = Asset.objects.get(id=asset_id, source_type='attachment')
+                asset = Asset.objects.get(
+                    id=asset_id,
+                    uploader=current_user_id,
+                    source_type='attachment',
+                    is_valid=True,
+                )
                 asset.linked_article = article
                 asset.is_linked = True
                 asset.save()
@@ -224,8 +229,10 @@ class ArticleSerializer(serializers.ModelSerializer):
         if not value:
             return None
 
+        request = self.context.get('request')
+        current_user_id = get_current_user_identifier(request)
         try:
-            Category.objects.get(category_id=value)
+            Category.objects.get(category_id=value, user_id=current_user_id, is_valid=True)
         except Category.DoesNotExist:
             raise serializers.ValidationError(f"分类不存在: '{value}'")
 

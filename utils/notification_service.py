@@ -2,6 +2,7 @@
 from django.contrib.auth import get_user_model
 
 from message.models import Notification
+from user.models import UserProfile
 
 User = get_user_model()
 
@@ -23,7 +24,8 @@ class NotificationService:
                 if user == 'admin':
                     target_user = User.objects.filter(username='admin').first()
                 else:
-                    target_user = User.objects.filter(username=user).first()
+                    profile = UserProfile.objects.filter(userid=user).select_related('user').first()
+                    target_user = profile.user if profile else User.objects.filter(username=user).first()
 
             if not target_user:
                 return

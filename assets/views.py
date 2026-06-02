@@ -9,9 +9,12 @@ from django.http import HttpResponse
 from rest_framework.views import APIView
 
 from article.models import Article
+from anthology.models import Anthology
 from utils.error_codes import ErrorCode
+from utils.drf_utils import get_current_user_identifier
 from utils.resource_assets import (
     delete_asset_record_and_file,
+    extract_resource_ids_from_content,
     get_article_resource_usage,
     get_image_resource_usage,
     is_asset_used_by_article,
@@ -20,6 +23,45 @@ from utils.resource_assets import (
 from utils.response_utils import success_result, error_result
 from .models import Asset
 from .serializers import AssetSerializer
+
+
+def get_visible_anthology_ids(request):
+    queryset = Anthology.objects.filter(is_valid=True)
+    if request.user and request.user.is_authenticated:
+        current_user_id = get_current_user_identifier(request)
+        queryset = queryset.filter(Q(permission='public') | Q(user_id=current_user_id))
+    else:
+        queryset = queryset.filter(permission='public')
+    return queryset.values_list('coll_id', flat=True)
+
+
+def can_read_asset(request, asset):
+    if request.user and request.user.is_authenticated and asset.uploader == get_current_user_identifier(request):
+        return True
+
+    visible_coll_ids = get_visible_anthology_ids(request)
+    if asset.linked_article and asset.linked_article.is_valid and asset.linked_article.coll_id in visible_coll_ids:
+        return True
+
+    asset_id = str(asset.id)
+    for article in Article.objects.filter(
+            is_valid=True,
+            coll_id__in=visible_coll_ids,
+            content__contains='/api/resource/',
+    ).only('content'):
+        if asset_id in extract_resource_ids_from_content(article.content):
+            return True
+
+    if is_asset_used_by_image(asset.id):
+        from article.models import Image
+
+        return Image.objects.filter(
+            is_valid=True,
+            coll_id__in=visible_coll_ids,
+            image_url=f'/api/resource/view/{asset.id}'
+        ).exists()
+
+    return False
 
 
 class ResourceListView(APIView):
@@ -35,9 +77,9 @@ class ResourceListView(APIView):
             source_type = request.GET.get('source_type')
             page = int(request.GET.get('page', 1))
             page_size = int(request.GET.get('page_size', 20))
+            current_user_id = get_current_user_identifier(request)
 
-            # 基础查询集 - 直接写死admin用户
-            queryset = Asset.objects.filter(is_valid=True, uploader='admin')
+            queryset = Asset.objects.filter(is_valid=True, uploader=current_user_id)
             article_usage = get_article_resource_usage()
             article_linked_resource_ids = set(article_usage.keys())
             image_usage = get_image_resource_usage()
@@ -134,8 +176,7 @@ class ResourceCreateView(APIView):
             if isinstance(data, str):
                 data = json.loads(data)
 
-            # 设置默认上传者为admin
-            data['uploader'] = 'admin'
+            data['uploader'] = get_current_user_identifier(request)
 
             serializer = AssetSerializer(data=data)
             serializer.is_valid(raise_exception=True)
@@ -162,9 +203,9 @@ class ResourceUpdateView(APIView):
     def put(self, request, resource_id):
         """更新资源信息"""
         try:
-            # 查找资源 - 直接写死admin用户
             try:
-                asset = Asset.objects.get(id=resource_id, is_valid=True, uploader='admin')
+                current_user_id = get_current_user_identifier(request)
+                asset = Asset.objects.get(id=resource_id, is_valid=True, uploader=current_user_id)
             except Asset.DoesNotExist:
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
@@ -177,8 +218,12 @@ class ResourceUpdateView(APIView):
             if 'linked_article_id' in data:
                 if data['linked_article_id']:
                     try:
-                        article = Article.objects.get(id=data['linked_article_id'])
-                        data['linked_article'] = article.id
+                        article = Article.objects.get(
+                            article_id=data['linked_article_id'],
+                            author=current_user_id,
+                            is_valid=True
+                        )
+                        data['linked_article'] = article.article_id
                         data['is_linked'] = True
                     except Article.DoesNotExist:
                         return error_result(ErrorCode.ARTICLE_NOT_EXIST)
@@ -211,8 +256,9 @@ class ResourceDeleteView(APIView):
     def delete(self, request, resource_id):
         """删除资源（硬删除 + 物理文件删除）"""
         try:
+            current_user_id = get_current_user_identifier(request)
             try:
-                asset = Asset.objects.get(id=resource_id, is_valid=True, uploader='admin')  # 直接写死admin用户
+                asset = Asset.objects.get(id=resource_id, is_valid=True, uploader=current_user_id)
             except Asset.DoesNotExist:
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
@@ -242,8 +288,11 @@ class ResourceDownloadView(APIView):
         """下载资源文件"""
         try:
             try:
-                asset = Asset.objects.get(id=resource_id, is_valid=True, uploader='admin')  # 直接写死admin用户
+                asset = Asset.objects.get(id=resource_id, is_valid=True)
             except Asset.DoesNotExist:
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+            if not can_read_asset(request, asset):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
             # 检查文件是否存在并读取文件
@@ -296,7 +345,20 @@ class ResourceUploadView(APIView):
             file_hash_hex = file_hash.hexdigest()
 
             # 检查是否已存在相同文件
-            existing_asset = Asset.get_by_hash(file_hash_hex)
+            current_user_id = get_current_user_identifier(request)
+            linked_article_id = request.data.get('linked_article_id')
+            if linked_article_id and not Article.objects.filter(
+                article_id=linked_article_id,
+                author=current_user_id,
+                is_valid=True,
+            ).exists():
+                return error_result(ErrorCode.ARTICLE_NOT_EXIST)
+
+            existing_asset = Asset.objects.filter(
+                file_hash=file_hash_hex,
+                uploader=current_user_id,
+                is_valid=True
+            ).first()
             if existing_asset:
                 try:
                     # 获取关联文章信息（处理可能的异常）
@@ -358,7 +420,6 @@ class ResourceUploadView(APIView):
 
             # 获取请求参数
             source_type = request.data.get('source_type', 'other')
-            linked_article_id = request.data.get('linked_article_id')
             # 验证source_type是否合法
             valid_source_types = [choice[0] for choice in Asset.SOURCE_TYPE_CHOICES]
             if source_type not in valid_source_types:
@@ -375,7 +436,7 @@ class ResourceUploadView(APIView):
                 'file_extension': file_extension,
                 'mime_type': mime_type,
                 'file_hash': file_hash_hex,
-                'uploader': 'admin',  # 直接写死admin用户
+                'uploader': current_user_id,
                 'source_type': source_type
             }
 

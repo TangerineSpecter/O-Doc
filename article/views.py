@@ -56,6 +56,22 @@ def can_access_anthology(request, coll_id, coll_type=None):
     return queryset.exists()
 
 
+def can_manage_anthology(request, coll_id, coll_type=None):
+    queryset = Anthology.objects.filter(
+        coll_id=coll_id,
+        user_id=get_current_user_identifier(request),
+        is_valid=True,
+    )
+    if coll_type:
+        queryset = queryset.filter(type=coll_type)
+    return queryset.exists()
+
+
+def get_visible_article_queryset(request):
+    visible_coll_ids = get_visible_anthology_queryset(request).values_list('coll_id', flat=True)
+    return Article.objects.filter(is_valid=True, coll_id__in=visible_coll_ids)
+
+
 def build_image_description_data_url(image_bytes, mime_type='image/jpeg'):
     """压缩图片，减少视觉模型请求耗时和请求体大小。"""
     original_size = len(image_bytes)
@@ -110,7 +126,7 @@ def build_image_data_url(image_url):
     if not resource_id:
         return None
 
-    asset = Asset.objects.filter(id=resource_id, is_valid=True, uploader='admin', file_type='image').first()
+    asset = Asset.objects.filter(id=resource_id, is_valid=True, file_type='image').first()
     if not asset:
         return None
 
@@ -173,7 +189,7 @@ class ArticlePolisher:
 
                 # 5. 发送成功通知
                 NotificationService.send(
-                    user='admin',
+                    user=article.author,
                     title=f"《{article.title}》润色完成",
                     content=f"您提交的链接：{self.source_url} 已成功保存到知识库。",
                     level="success",
@@ -184,7 +200,7 @@ class ArticlePolisher:
             logger.error(f"Polishing Task Exception for article {self.article_id}: {e}", exc_info=True)
             # 发送失败通知
             NotificationService.send(
-                user='admin',
+                user=article.author if 'article' in locals() else 'admin',
                 title="网页解析/润色失败",
                 content=f"链接 {self.source_url} 处理出错: {str(e)}",
                 level="error"
@@ -254,6 +270,8 @@ class ArticleCreateView(APIView):
         with transaction.atomic():
             serializer = ArticleSerializer(data=request.data, context={'request': request})
             serializer.is_valid(raise_exception=True)
+            if not can_manage_anthology(request, serializer.validated_data['coll_id'], 'article'):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
             article = serializer.save()
 
             # 更新统计
@@ -294,12 +312,20 @@ class ArticleUpdateView(APIView):
 
     def put(self, request, article_id):
         # 查找文章
-        article = get_object_or_404(Article, article_id=article_id)
+        article = get_object_or_404(
+            Article,
+            article_id=article_id,
+            author=get_current_user_identifier(request),
+            is_valid=True
+        )
         old_coll_id = article.coll_id
 
         # 使用序列化器验证请求数据并更新文章
         serializer = ArticleSerializer(article, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
+        target_coll_id = serializer.validated_data.get('coll_id', article.coll_id)
+        if not can_manage_anthology(request, target_coll_id, 'article'):
+            return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
         # 保存更新
         article = serializer.save(is_rag_synced=False)
@@ -326,7 +352,12 @@ class ArticleDeleteView(APIView):
     def delete(self, request, article_id):
         try:
             # 查找文章
-            article = get_object_or_404(Article, article_id=article_id)
+            article = get_object_or_404(
+                Article,
+                article_id=article_id,
+                author=get_current_user_identifier(request),
+                is_valid=True
+            )
 
             # 检查是否存在子文章
             has_children = Article.objects.filter(parent=article, is_valid=True).exists()
@@ -364,7 +395,7 @@ class ArticleListView(APIView):
             keyword = request.GET.get('keyword')
 
             # 构建查询集
-            articles = Article.objects.filter(is_valid=True).order_by('sort', '-updated_at')
+            articles = get_visible_article_queryset(request).order_by('sort', '-updated_at')
 
             # 文集ID过滤
             if coll_id:
@@ -441,6 +472,9 @@ class ArticleSaveWebView(APIView):
             return error_result()
 
         try:
+            if not can_manage_anthology(request, coll_id, 'article'):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
             # 1. 解析网页
             title, content = parse_web_content(url)
 
@@ -452,7 +486,7 @@ class ArticleSaveWebView(APIView):
                     coll_id=coll_id,
                     source_url=url,
                     is_polishing=need_polishing,  # 如果需要润色，先标记为 True
-                    author=request.user.username if request.user.is_authenticated else 'admin'
+                    author=get_current_user_identifier(request)
                 )
 
                 # 更新文集计数
@@ -520,8 +554,7 @@ class ImageCreateView(APIView):
         try:
             serializer = ImageSerializer(data=request.data)
             if serializer.is_valid():
-                if not Anthology.objects.filter(coll_id=serializer.validated_data['coll_id'], type='image',
-                                                is_valid=True).exists():
+                if not can_manage_anthology(request, serializer.validated_data['coll_id'], 'image'):
                     return error_result(ErrorCode.RESOURCE_NOT_FOUND)
                 image = serializer.save(author=get_current_user_identifier(request))
 
@@ -548,9 +581,12 @@ class ImageUpdateView(APIView):
 
     def put(self, request, image_id):
         try:
-            image = get_object_or_404(Image, image_id=image_id, is_valid=True)
+            image = get_object_or_404(Image, image_id=image_id, author=get_current_user_identifier(request), is_valid=True)
             serializer = ImageSerializer(image, data=request.data, partial=True)
             if serializer.is_valid():
+                target_coll_id = serializer.validated_data.get('coll_id', image.coll_id)
+                if not can_manage_anthology(request, target_coll_id, 'image'):
+                    return error_result(ErrorCode.RESOURCE_NOT_FOUND)
                 serializer.save()
                 return success_result(data=serializer.data)
             else:
@@ -619,7 +655,7 @@ class ImageDeleteView(APIView):
 
     def delete(self, request, image_id):
         try:
-            image = get_object_or_404(Image, image_id=image_id, is_valid=True)
+            image = get_object_or_404(Image, image_id=image_id, author=get_current_user_identifier(request), is_valid=True)
             resource_id = extract_resource_id_from_view_url(image.image_url)
             image.is_valid = False
             image.save()

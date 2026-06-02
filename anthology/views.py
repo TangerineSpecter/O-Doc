@@ -24,6 +24,13 @@ def get_visible_anthology_queryset(request):
     return queryset.filter(permission='public')
 
 
+def get_owned_anthology_queryset(request):
+    return Anthology.objects.filter(
+        user_id=get_current_user_identifier(request),
+        is_valid=True
+    )
+
+
 class AnthologyCreateView(APIView):
     """创建文集接口"""
 
@@ -138,16 +145,14 @@ class AnthologySortView(APIView):
                 return error_result(error=ErrorCode.PARAM_ERROR, message="排序参数必须是大于0的整数")
 
             # 获取要排序的文集
-            anthology = get_object_or_404(Anthology, coll_id=coll_id, user_id='admin', is_valid=True)
+            anthology = get_object_or_404(get_owned_anthology_queryset(request), coll_id=coll_id)
 
             # 检查是否为置顶文集，如果是则不允许排序
             if anthology.is_top:
                 return error_result(error=ErrorCode.PARAM_ERROR, message="置顶文集不允许排序")
 
             # 获取当前所有非置顶且有效的文集，按当前排序规则排序
-            all_non_top_anthologies = list(Anthology.objects.filter(
-                user_id='admin',
-                is_valid=True,
+            all_non_top_anthologies = list(get_owned_anthology_queryset(request).filter(
                 is_top=False
             ).order_by('-updated_at', 'sort'))
 
@@ -189,7 +194,7 @@ class AnthologyUpdateView(APIView):
     def put(self, request, coll_id):
         try:
             # 获取要编辑的文集
-            anthology = get_object_or_404(Anthology, coll_id=coll_id, user_id='admin', is_valid=True)
+            anthology = get_object_or_404(get_owned_anthology_queryset(request), coll_id=coll_id)
 
             # 使用序列化器验证和更新数据
             serializer = AnthologySerializer(anthology, data=request.data, partial=True, context={'request': request})
@@ -211,7 +216,7 @@ class AnthologyDeleteView(APIView):
     def delete(self, request, coll_id):
         try:
             # 获取要删除的文集
-            anthology = get_object_or_404(Anthology, coll_id=coll_id, user_id='admin', is_valid=True)
+            anthology = get_object_or_404(get_owned_anthology_queryset(request), coll_id=coll_id)
 
             # 执行逻辑删除
             anthology.is_valid = False

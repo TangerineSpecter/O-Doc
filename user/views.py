@@ -24,8 +24,12 @@ def get_user_role(user):
 def serialize_user(user):
     role, role_name = get_user_role(user)
     profile, _ = UserProfile.objects.get_or_create(user=user)
+    if not profile.userid:
+        profile.userid = 'admin' if user.is_superuser and user.username == 'admin' else f'user_{user.id}'
+        profile.save(update_fields=['userid', 'updated_at'])
     avatar = profile.avatar or f'https://api.dicebear.com/7.x/avataaars/svg?seed={user.username}'
     return {
+        'userid': profile.userid,
         'username': user.username,
         'nickname': profile.nickname or user.first_name or user.username,
         'email': user.email,

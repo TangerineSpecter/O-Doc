@@ -40,7 +40,7 @@ class ReportReadDurationView(APIView):
             # 1. 获取用户标识
             user_identifier = 'anonymous'
             if request.user.is_authenticated:
-                user_identifier = str(request.user.id)
+                user_identifier = get_current_user_identifier(request)
             else:
                 # 获取IP作为标识 (简单处理)
                 x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')

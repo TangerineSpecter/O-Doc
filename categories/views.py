@@ -3,6 +3,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
 
 from article.models import Article
+from utils.drf_utils import get_current_user_identifier
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 from .models import Category
@@ -14,6 +15,13 @@ class CategoryPagination(PageNumberPagination):
     page_size = 20  # 默认每页20条
     page_size_query_param = 'page_size'  # 允许通过参数指定每页大小
     max_page_size = 100  # 最大每页100条
+
+
+def get_current_user_category_queryset(request):
+    return Category.objects.filter(
+        user_id=get_current_user_identifier(request),
+        is_valid=True
+    )
 
 
 class CategoryCreateView(APIView):
@@ -36,7 +44,7 @@ class CategoryDetailView(APIView):
 
     def get(self, request, category_id):
         # 使用category_id查询分类
-        category = get_object_or_404(Category, category_id=category_id, user_id='admin')
+        category = get_object_or_404(get_current_user_category_queryset(request), category_id=category_id)
 
         # 返回分类详情
         return success_result(data=CategorySerializer(category).data)
@@ -52,8 +60,8 @@ class CategoryListView(APIView):
             name = request.GET.get('name', '')
             # 移除 include_uncategorized 参数处理
 
-            # 查询admin用户的所有有效分类
-            categories = Category.objects.filter(user_id='admin', is_valid=True)
+            current_user_id = get_current_user_identifier(request)
+            categories = get_current_user_category_queryset(request)
 
             # 如果有名称过滤条件
             if name:
@@ -70,7 +78,7 @@ class CategoryListView(APIView):
                 # 统计该分类下的文章数量
                 article_count = Article.objects.filter(
                     category=category,
-                    author='admin',
+                    author=current_user_id,
                     is_valid=True
                 ).count()
 
@@ -106,13 +114,10 @@ class CategorySortView(APIView):
                 return error_result(error=ErrorCode.PARAM_ERROR, message="排序参数必须是大于0的整数")
 
             # 获取要排序的分类
-            category = get_object_or_404(Category, category_id=category_id, user_id='admin', is_valid=True)
+            category = get_object_or_404(get_current_user_category_queryset(request), category_id=category_id)
 
             # 获取当前所有有效分类
-            all_categories = list(Category.objects.filter(
-                user_id='admin',
-                is_valid=True
-            ).order_by('sort', '-created_at'))
+            all_categories = list(get_current_user_category_queryset(request).order_by('sort', '-created_at'))
 
             # 找到当前分类在列表中的位置
             current_index = None
@@ -152,7 +157,7 @@ class CategoryUpdateView(APIView):
     def put(self, request, category_id):
         try:
             # 获取要编辑的分类
-            category = get_object_or_404(Category, category_id=category_id, user_id='admin', is_valid=True)
+            category = get_object_or_404(get_current_user_category_queryset(request), category_id=category_id)
 
             # 使用序列化器验证和更新数据
             serializer = CategorySerializer(category, data=request.data, partial=True, context={'request': request})
@@ -174,15 +179,17 @@ class CategoryDeleteView(APIView):
     def delete(self, request, category_id):
         try:
             # 获取要删除的分类
-            category = get_object_or_404(Category, category_id=category_id, user_id='admin', is_valid=True)
+            current_user_id = get_current_user_identifier(request)
+            category = get_object_or_404(get_current_user_category_queryset(request), category_id=category_id)
             
-            # 获取未分类分类
-            uncategorized = get_object_or_404(Category, category_id='uncategorized', user_id='admin', is_valid=True)
+            uncategorized = get_current_user_category_queryset(request).filter(
+                category_id='uncategorized'
+            ).first()
             
             # 将该分类下的所有文章转移到未分类
             Article.objects.filter(
                 category=category,
-                author='admin',
+                author=current_user_id,
                 is_valid=True
             ).update(category=uncategorized)
 
