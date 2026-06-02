@@ -1,7 +1,7 @@
 // frontend_react/src/components/AIChatWindow.tsx
 
 import {useEffect, useRef, useState, useMemo} from 'react';
-import {BookOpen, Bot, BrainCircuit, Check, ChevronDown, Maximize2, Minimize2, Plug, Send, Trash2, User, WandSparkles, X} from 'lucide-react';
+import {BookOpen, Bot, BrainCircuit, Check, ChevronDown, Loader2, Maximize2, Minimize2, Plug, Send, Sparkles, Trash2, User, WandSparkles, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -23,6 +23,15 @@ interface Message {
     role: 'user' | 'assistant';
     content: string;
     thinking?: string;
+}
+
+type ActivityStatus = 'queued' | 'active' | 'done';
+
+interface ActivityStep {
+    id: string;
+    label: string;
+    detail?: string;
+    status: ActivityStatus;
 }
 
 interface AIChatWindowProps {
@@ -237,6 +246,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     const [chatSkills, setChatSkills] = useState<SkillConfig[]>([]);
     const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
     const [skillPanelOpen, setSkillPanelOpen] = useState(false);
+    const [activitySteps, setActivitySteps] = useState<ActivityStep[]>([]);
 
     // 弹窗状态
     const [isClearModalOpen, setIsClearModalOpen] = useState(false);
@@ -266,6 +276,14 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             source: server.source,
         })),
     ], [chatMcpServers]);
+    const getMcpName = (mcpId: string) => (
+        mcpId === PHOTOGRAPHY_MCP_ID
+            ? '摄影分析助手'
+            : chatMcpServers.find(server => server.id === mcpId)?.name || mcpId
+    );
+    const getSkillName = (skillId: string) => (
+        chatSkills.find(skill => skill.id === skillId)?.name || skillId
+    );
 
     // --- 平滑输出相关的 Refs ---
     const chatBodyRef = useRef<HTMLDivElement>(null);
@@ -504,6 +522,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             ) {
                 isThinkingRef.current = false;
                 setIsLoading(false);
+                completeActivitySteps();
             }
         }, 24);
 
@@ -567,6 +586,82 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         });
     };
 
+    const buildActivitySteps = (
+        usePhotographyAssistant: boolean,
+        activeMcpServerIds: string[],
+    ): ActivityStep[] => {
+        const steps: ActivityStep[] = [];
+
+        if (usePhotographyAssistant) {
+            steps.push({
+                id: 'photography',
+                label: '读取摄影数据',
+                detail: '准备图片文集、焦段、标签与地点统计',
+                status: 'active',
+            });
+        }
+
+        if (useKb && !usePhotographyAssistant) {
+            steps.push({
+                id: 'knowledge',
+                label: '检索知识库',
+                detail: selectedCollId
+                    ? anthologyOptions.find(option => option.value === selectedCollId)?.label || '指定文集'
+                    : '全部文集',
+                status: steps.length === 0 ? 'active' : 'queued',
+            });
+        }
+
+        if (activeMcpServerIds.length > 0) {
+            steps.push({
+                id: 'mcp',
+                label: '装载 MCP',
+                detail: activeMcpServerIds.map(getMcpName).join('、'),
+                status: steps.length === 0 ? 'active' : 'queued',
+            });
+        }
+
+        if (selectedSkillIds.length > 0) {
+            steps.push({
+                id: 'skill',
+                label: '装载 Skill',
+                detail: selectedSkillIds.map(getSkillName).join('、'),
+                status: steps.length === 0 ? 'active' : 'queued',
+            });
+        }
+
+        steps.push({
+            id: 'answer',
+            label: '生成回答',
+            detail: '整理上下文并输出',
+            status: steps.length === 0 ? 'active' : 'queued',
+        });
+
+        return steps;
+    };
+
+    const activateWaitingSteps = () => {
+        setActivitySteps(prev => prev.map(step => {
+            if (step.id === 'answer') return step.status === 'queued' ? {...step, status: 'queued'} : step;
+            return step.status === 'queued' ? {...step, status: 'active'} : step;
+        }));
+    };
+
+    const activateAnswerStep = () => {
+        setActivitySteps(prev => prev.map(step => {
+            if (step.id === 'answer') return {...step, status: 'active'};
+            return step.status === 'active' || step.status === 'queued' ? {...step, status: 'done'} : step;
+        }));
+    };
+
+    const completeActivitySteps = () => {
+        setActivitySteps(prev => prev.map(step => ({...step, status: 'done'})));
+    };
+
+    const completeActivityStep = (id: string) => {
+        setActivitySteps(prev => prev.map(step => step.id === id ? {...step, status: 'done'} : step));
+    };
+
     // 执行清空操作
     const confirmClear = () => {
         tokenQueueRef.current = [];
@@ -575,6 +670,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         isThinkingRef.current = false;
         setMessages([]);
         setIsLoading(false);
+        setActivitySteps([]);
         setIsClearModalOpen(false);
     };
 
@@ -603,6 +699,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
 
         tokenQueueRef.current = [];
         thinkingQueueRef.current = [];
+        setActivitySteps([]);
         streamFinishedRef.current = false;
         shouldAutoScrollRef.current = true;
         setMessages(prev => [...prev, {role: 'user', content: userMsg}]);
@@ -617,9 +714,12 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             const usePhotographyAssistant = assistantMode === 'manual'
                 ? selectedMcpIds.includes(PHOTOGRAPHY_MCP_ID)
                 : assistantMode === 'auto' && shouldUsePhotographyAssistant(userMsg);
-            const activeMcpServerIds = assistantMode === 'manual'
-                ? selectedMcpIds.filter(id => id !== PHOTOGRAPHY_MCP_ID)
-                : [];
+            const activeMcpServerIds = assistantMode === 'disabled'
+                ? []
+                : assistantMode === 'manual'
+                    ? selectedMcpIds.filter(id => id !== PHOTOGRAPHY_MCP_ID)
+                    : chatMcpServers.map(server => server.id);
+            setActivitySteps(buildActivitySteps(usePhotographyAssistant, activeMcpServerIds));
 
             if (usePhotographyAssistant) {
                 const target = resolvePhotographyAnthologies(userMsg, imageAnthologies);
@@ -627,6 +727,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                     streamFinishedRef.current = true;
                     isThinkingRef.current = false;
                     setIsLoading(false);
+                    setActivitySteps([]);
                     setMessages(prev => {
                         const newMsgs = [...prev];
                         newMsgs[newMsgs.length - 1] = {
@@ -655,7 +756,10 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 const anthologyTitle = target.title || `图片文集（${targetAnthologies.length} 个）`;
 
                 messageForAI = buildPhotographyAnalysisPrompt(userMsg, allImages, anthologyTitle);
+                completeActivityStep('photography');
             }
+
+            activateWaitingSteps();
 
             const response = await fetch('/api/ai/chat/', {
                 method: 'POST',
@@ -723,9 +827,13 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                         return;
                     }
 
+                    if (content) {
+                        activateAnswerStep();
+                    }
                     appendAnswer(content);
                 } catch (error) {
                     if (error instanceof SyntaxError) {
+                        activateAnswerStep();
                         appendAnswer(line);
                         return;
                     }
@@ -766,6 +874,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             streamFinishedRef.current = true;
             isThinkingRef.current = false;
             setIsLoading(false);
+            setActivitySteps([]);
             setMessages(prev => {
                 const newMsgs = [...prev];
                 if (error instanceof AIConfigError) {
@@ -913,6 +1022,52 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                 {msg.role === 'assistant' ? (
                                     /* AI 回复使用 ReactMarkdown 渲染，支持引用链接点击跳转 */
                                     <>
+                                        {idx === messages.length - 1 && activitySteps.length > 0 && (isLoading || msg.content.length === 0) && (
+                                            <div className="mb-3 rounded-xl border border-orange-100 bg-orange-50/60 px-3 py-2">
+                                                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-orange-700">
+                                                    <Sparkles className="h-3.5 w-3.5"/>
+                                                    <span>正在处理</span>
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    {activitySteps.map(step => (
+                                                        <div
+                                                            key={step.id}
+                                                            className={`flex items-start gap-2 rounded-lg px-2 py-1.5 text-xs ${
+                                                                step.status === 'active'
+                                                                    ? 'bg-white/80 text-slate-700 shadow-sm'
+                                                                    : step.status === 'done'
+                                                                        ? 'text-slate-500'
+                                                                        : 'text-slate-400'
+                                                            }`}
+                                                        >
+                                                            <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${
+                                                                step.status === 'done'
+                                                                    ? 'bg-orange-500 text-white'
+                                                                    : step.status === 'active'
+                                                                        ? 'bg-orange-100 text-orange-600'
+                                                                        : 'bg-slate-100 text-slate-300'
+                                                            }`}>
+                                                                {step.status === 'done' ? (
+                                                                    <Check className="h-3 w-3"/>
+                                                                ) : step.status === 'active' ? (
+                                                                    <Loader2 className="h-3 w-3 animate-spin"/>
+                                                                ) : (
+                                                                    <span className="h-1.5 w-1.5 rounded-full bg-current"/>
+                                                                )}
+                                                            </span>
+                                                            <span className="min-w-0">
+                                                                <span className="block font-semibold">{step.label}</span>
+                                                                {step.detail && (
+                                                                    <span className="mt-0.5 block truncate text-[11px] opacity-70">
+                                                                        {step.detail}
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                         {msg.thinking && (
                                             <details
                                                 open={isLoading && idx === messages.length - 1}
@@ -946,13 +1101,12 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
 
                                 {/* Loading 动画 */}
                                 {msg.role === 'assistant' && isLoading && msg.content.length === 0 && (
-                                    <span className="flex gap-1 items-center h-6">
-                                        <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
-                                        <span
-                                            className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-75"></span>
-                                        <span
-                                            className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-150"></span>
-                                    </span>
+                                    activitySteps.length === 0 && (
+                                        <span className="flex h-6 items-center gap-2 text-xs text-slate-400">
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin"/>
+                                            <span>正在生成回答</span>
+                                        </span>
+                                    )
                                 )}
                             </div>
                         </div>
@@ -993,7 +1147,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                             {([
                                                 {value: 'disabled', label: '禁用', description: '不装载 MCP'},
                                                 {value: 'manual', label: '手动', description: '手动选择一个或多个 MCP'},
-                                                {value: 'auto', label: '自动', description: '自动识别摄影类问题'},
+                                                {value: 'auto', label: '自动', description: '从全部 MCP 中自动选择'},
                                             ] as const).map(option => {
                                                 const active = assistantMode === option.value;
                                                 return (
