@@ -1,6 +1,14 @@
-import {useMemo, useState} from 'react';
-import {ChevronDown, Code2, Edit2, Plus, Radar, RefreshCw, Trash2, Wrench, X} from 'lucide-react';
-import type {MCPServerConfig, MCPToolConfig, MCPTransport} from '@/api/setting';
+import {useEffect, useMemo, useState} from 'react';
+import {ChevronDown, Code2, Copy, Edit2, KeyRound, Plus, Radar, RefreshCw, Trash2, Wrench, X} from 'lucide-react';
+import {
+    getSystemMCPConfig,
+    regenerateSystemMCPKey,
+    saveSystemMCPConfig,
+    type MCPServerConfig,
+    type MCPToolConfig,
+    type MCPTransport,
+    type SystemMCPConfig,
+} from '@/api/setting';
 import {SettingsSelect} from './SettingsSelect';
 
 interface MCPSettingsProps {
@@ -108,6 +116,17 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
     const [refreshingServerId, setRefreshingServerId] = useState<string | null>(null);
     const [expandedServerIds, setExpandedServerIds] = useState<string[]>([]);
     const [toolOverrides, setToolOverrides] = useState<Record<string, MCPToolConfig[]>>({});
+    const [systemMCPConfig, setSystemMCPConfig] = useState<SystemMCPConfig | null>(null);
+    const [systemMCPLoading, setSystemMCPLoading] = useState(false);
+    const [systemMCPUpdating, setSystemMCPUpdating] = useState(false);
+
+    useEffect(() => {
+        setSystemMCPLoading(true);
+        getSystemMCPConfig()
+            .then(setSystemMCPConfig)
+            .catch(error => console.warn('系统 MCP 配置加载失败:', error))
+            .finally(() => setSystemMCPLoading(false));
+    }, []);
 
     const handleRefreshTools = async (serverId: string) => {
         setRefreshingServerId(serverId);
@@ -174,6 +193,32 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
         setScanning(false);
     };
 
+    const updateSystemMCPEnabled = async (enabled: boolean) => {
+        if (!systemMCPConfig) return;
+        setSystemMCPUpdating(true);
+        try {
+            const nextConfig = await saveSystemMCPConfig({enabled});
+            setSystemMCPConfig(nextConfig);
+        } finally {
+            setSystemMCPUpdating(false);
+        }
+    };
+
+    const refreshSystemMCPKey = async () => {
+        setSystemMCPUpdating(true);
+        try {
+            const nextConfig = await regenerateSystemMCPKey();
+            setSystemMCPConfig(nextConfig);
+        } finally {
+            setSystemMCPUpdating(false);
+        }
+    };
+
+    const copyText = (value: string) => {
+        if (!value) return;
+        navigator.clipboard?.writeText(value).catch(() => undefined);
+    };
+
     const toggleExpanded = (serverId: string) => {
         setExpandedServerIds(prev => (
             prev.includes(serverId)
@@ -225,6 +270,82 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
 
     return (
         <div className="space-y-6">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                <div className="flex flex-col gap-5">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-900 text-white rounded-lg">
+                                <KeyRound className="w-5 h-5"/>
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-800">系统 MCP</h3>
+                                <p className="text-xs text-slate-500 mt-1">给外部系统调用 O-Doc，支持写入 Memos、管理文章和文集。</p>
+                            </div>
+                        </div>
+                        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                            <div className="text-right">
+                                <div className="text-sm font-semibold text-slate-700">启用外部访问</div>
+                                <div className="mt-0.5 text-xs text-slate-500">{systemMCPConfig?.enabled ? '已开启' : '已关闭'}</div>
+                            </div>
+                            <input
+                                type="checkbox"
+                                checked={Boolean(systemMCPConfig?.enabled)}
+                                disabled={!systemMCPConfig || systemMCPUpdating}
+                                onChange={event => updateSystemMCPEnabled(event.target.checked)}
+                                className="peer sr-only"
+                            />
+                            <span className="relative h-6 w-11 rounded-full bg-slate-200 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-orange-500 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/20 peer-disabled:opacity-60"/>
+                        </label>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="mb-1 text-xs font-semibold text-slate-500">Endpoint</div>
+                            <div className="flex items-center gap-2">
+                                <code className="min-w-0 flex-1 truncate rounded-lg bg-white px-3 py-2 text-xs font-mono text-slate-700 ring-1 ring-slate-100">
+                                    {systemMCPLoading ? '加载中...' : systemMCPConfig?.endpoint || '/api/system-mcp/'}
+                                </code>
+                                <button
+                                    type="button"
+                                    onClick={() => copyText(systemMCPConfig?.endpoint || '/api/system-mcp/')}
+                                    className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition-colors hover:border-orange-200 hover:text-orange-600"
+                                    title="复制 Endpoint"
+                                >
+                                    <Copy className="h-4 w-4"/>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="mb-1 text-xs font-semibold text-slate-500">Authorization</div>
+                            <div className="flex items-center gap-2">
+                                <code className="min-w-0 flex-1 truncate rounded-lg bg-white px-3 py-2 text-xs font-mono text-slate-700 ring-1 ring-slate-100">
+                                    {systemMCPLoading ? '加载中...' : `Bearer ${systemMCPConfig?.apiKey || ''}`}
+                                </code>
+                                <button
+                                    type="button"
+                                    onClick={() => copyText(`Bearer ${systemMCPConfig?.apiKey || ''}`)}
+                                    disabled={!systemMCPConfig?.apiKey}
+                                    className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition-colors hover:border-orange-200 hover:text-orange-600 disabled:opacity-50"
+                                    title="复制密钥"
+                                >
+                                    <Copy className="h-4 w-4"/>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={refreshSystemMCPKey}
+                                    disabled={systemMCPUpdating}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-orange-100 bg-white px-3 py-2 text-xs font-medium text-orange-600 transition-colors hover:bg-orange-50 disabled:opacity-60"
+                                >
+                                    <RefreshCw className={`h-3.5 w-3.5 ${systemMCPUpdating ? 'animate-spin' : ''}`}/>
+                                    重新生成
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">

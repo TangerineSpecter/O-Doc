@@ -126,6 +126,12 @@ export interface MCPServerConfig {
     updatedAt?: string;
 }
 
+export interface SystemMCPConfig {
+    enabled: boolean;
+    apiKey: string;
+    endpoint: string;
+}
+
 export type SaveMCPServerConfigParams = Omit<MCPServerConfig, 'id' | 'createdAt' | 'updatedAt'> & {
     id?: string;
 };

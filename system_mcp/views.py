@@ -1,0 +1,514 @@
+import json
+from hmac import compare_digest
+
+from django.db import IntegrityError, transaction
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
+
+from anthology.models import Anthology
+from article.models import Article
+from memos.models import Memo
+from system_settings.models import SystemSetting
+
+
+PROTOCOL_VERSION = '2025-06-18'
+SYSTEM_MCP_CONFIG_KEY = 'system_mcp_config'
+
+
+def _text_result(payload):
+    return {
+        'content': [{
+            'type': 'text',
+            'text': json.dumps(payload, ensure_ascii=False),
+        }],
+        'structuredContent': payload,
+    }
+
+
+def _article_to_dict(article, include_content=True):
+    data = {
+        'article_id': article.article_id,
+        'title': article.title,
+        'coll_id': article.coll_id,
+        'parent_id': article.parent_id,
+        'author': article.author,
+        'permission': article.permission,
+        'sort': article.sort,
+        'source_url': article.source_url,
+        'word_count': article.word_count,
+        'read_time': article.read_time,
+        'read_count': article.read_count,
+        'is_rag_synced': article.is_rag_synced,
+        'created_at': article.created_at.isoformat() if article.created_at else None,
+        'updated_at': article.updated_at.isoformat() if article.updated_at else None,
+    }
+    if include_content:
+        data['content'] = article.content
+    return data
+
+
+def _anthology_to_dict(anthology):
+    return {
+        'coll_id': anthology.coll_id,
+        'title': anthology.title,
+        'description': anthology.description,
+        'icon_id': anthology.icon_id,
+        'type': anthology.type,
+        'permission': anthology.permission,
+        'is_top': anthology.is_top,
+        'count': anthology.count,
+        'rag_not_synced_count': anthology.rag_not_synced_count,
+        'sort': anthology.sort,
+        'created_at': anthology.created_at.isoformat() if anthology.created_at else None,
+        'updated_at': anthology.updated_at.isoformat() if anthology.updated_at else None,
+    }
+
+
+def _memo_to_dict(memo):
+    return {
+        'memo_id': memo.memo_id,
+        'content': memo.content,
+        'tag': memo.tag,
+        'is_pinned': memo.is_pinned,
+        'created_at': memo.created_at.isoformat() if memo.created_at else None,
+        'updated_at': memo.updated_at.isoformat() if memo.updated_at else None,
+    }
+
+
+def _refresh_anthology(coll_id):
+    if not coll_id:
+        return
+    anthology = Anthology.objects.filter(coll_id=coll_id, type='article', is_valid=True).first()
+    if anthology:
+        anthology.update_stats()
+
+
+TOOLS = [
+    {
+        'name': 'insert_memo',
+        'description': '插入一条闪念备忘 Memos。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'content': {'type': 'string', 'description': '备忘内容，最多 2000 字。'},
+                'tag': {'type': 'string', 'description': '可选标签。'},
+                'is_pinned': {'type': 'boolean', 'description': '是否置顶。'},
+            },
+            'required': ['content'],
+        },
+    },
+    {
+        'name': 'create_article',
+        'description': '创建一篇 Markdown 文章。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'title': {'type': 'string', 'description': '文章标题。'},
+                'content': {'type': 'string', 'description': '文章内容，Markdown 格式。'},
+                'coll_id': {'type': 'string', 'description': '所属文章文集 ID。'},
+                'parent_id': {'type': 'string', 'description': '可选父级文章 ID。'},
+                'permission': {'type': 'string', 'enum': ['public', 'private'], 'description': '文章权限。'},
+                'sort': {'type': 'integer', 'description': '排序值，越小越靠前。'},
+                'source_url': {'type': 'string', 'description': '可选文章来源 URL。'},
+            },
+            'required': ['title', 'content', 'coll_id'],
+        },
+    },
+    {
+        'name': 'list_articles',
+        'description': '查询文章列表，可按文集或关键词过滤。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'coll_id': {'type': 'string', 'description': '可选文集 ID。'},
+                'keyword': {'type': 'string', 'description': '可选标题关键词。'},
+                'limit': {'type': 'integer', 'description': '返回数量，默认 50，最大 200。'},
+                'include_content': {'type': 'boolean', 'description': '是否包含正文，默认 false。'},
+            },
+        },
+    },
+    {
+        'name': 'get_article',
+        'description': '查询文章详情。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'article_id': {'type': 'string', 'description': '文章 ID。'},
+            },
+            'required': ['article_id'],
+        },
+    },
+    {
+        'name': 'update_article',
+        'description': '编辑文章，支持标题、正文、文集、父级、权限、排序等字段。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'article_id': {'type': 'string', 'description': '文章 ID。'},
+                'title': {'type': 'string', 'description': '新标题。'},
+                'content': {'type': 'string', 'description': '新正文。'},
+                'coll_id': {'type': 'string', 'description': '新所属文集 ID。'},
+                'parent_id': {'type': 'string', 'description': '新父级文章 ID，空字符串表示清空。'},
+                'permission': {'type': 'string', 'enum': ['public', 'private'], 'description': '文章权限。'},
+                'sort': {'type': 'integer', 'description': '排序值。'},
+                'source_url': {'type': 'string', 'description': '文章来源 URL。'},
+            },
+            'required': ['article_id'],
+        },
+    },
+    {
+        'name': 'list_anthologies',
+        'description': '查询文集列表。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'type': {'type': 'string', 'enum': ['article', 'image'], 'description': '文集类型。'},
+                'keyword': {'type': 'string', 'description': '可选标题关键词。'},
+                'limit': {'type': 'integer', 'description': '返回数量，默认 50，最大 200。'},
+            },
+        },
+    },
+    {
+        'name': 'create_anthology',
+        'description': '创建文集。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'title': {'type': 'string', 'description': '文集名称，最多 20 字。'},
+                'description': {'type': 'string', 'description': '文集简介，最多 100 字。'},
+                'icon_id': {'type': 'string', 'description': '图标 ID。'},
+                'type': {'type': 'string', 'enum': ['article', 'image'], 'description': '文集类型，默认 article。'},
+                'permission': {'type': 'string', 'enum': ['public', 'private'], 'description': '访问权限。'},
+                'is_top': {'type': 'boolean', 'description': '是否置顶。'},
+                'sort': {'type': 'integer', 'description': '排序值。'},
+            },
+            'required': ['title'],
+        },
+    },
+    {
+        'name': 'update_anthology',
+        'description': '编辑文集。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'coll_id': {'type': 'string', 'description': '文集 ID。'},
+                'title': {'type': 'string', 'description': '文集名称。'},
+                'description': {'type': 'string', 'description': '文集简介。'},
+                'icon_id': {'type': 'string', 'description': '图标 ID。'},
+                'permission': {'type': 'string', 'enum': ['public', 'private'], 'description': '访问权限。'},
+                'is_top': {'type': 'boolean', 'description': '是否置顶。'},
+                'sort': {'type': 'integer', 'description': '排序值。'},
+            },
+            'required': ['coll_id'],
+        },
+    },
+]
+
+
+class ODocSystemMCPView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        auth_error = self._auth_error(request)
+        if auth_error:
+            return auth_error
+
+        payload = request.data if isinstance(request.data, dict) else {}
+        method = payload.get('method')
+        request_id = payload.get('id')
+
+        if method == 'initialize':
+            return self._result(request_id, {
+                'protocolVersion': PROTOCOL_VERSION,
+                'capabilities': {'tools': {'listChanged': False}},
+                'serverInfo': {'name': 'O-Doc System MCP', 'version': '1.0.0'},
+            })
+
+        if method == 'notifications/initialized':
+            return JsonResponse({}, status=202)
+
+        if method == 'tools/list':
+            return self._result(request_id, {'tools': TOOLS})
+
+        if method == 'tools/call':
+            params = payload.get('params') or {}
+            name = params.get('name')
+            arguments = params.get('arguments') or {}
+            try:
+                result = self._call_tool(name, arguments)
+                return self._result(request_id, _text_result(result))
+            except Exception as exc:
+                return self._error(request_id, -32000, str(exc))
+
+        return self._error(request_id, -32601, f'未知 MCP 方法：{method}')
+
+    @classmethod
+    def _auth_error(cls, request):
+        setting = SystemSetting.objects.filter(key=SYSTEM_MCP_CONFIG_KEY).first()
+        config = setting.value if setting else {}
+        if not config.get('enabled', False):
+            return JsonResponse({'error': '系统 MCP 未启用'}, status=403)
+        api_key = str(config.get('apiKey') or '')
+        if not api_key:
+            return JsonResponse({'error': '系统 MCP 密钥未配置'}, status=401)
+
+        provided_key = cls._extract_api_key(request)
+        if not provided_key or not compare_digest(provided_key, api_key):
+            return JsonResponse({'error': '系统 MCP 密钥无效'}, status=401)
+        return None
+
+    @staticmethod
+    def _extract_api_key(request):
+        auth_header = request.headers.get('Authorization', '').strip()
+        if auth_header.lower().startswith('bearer '):
+            return auth_header[7:].strip()
+        return (
+            request.headers.get('X-O-Doc-MCP-Key', '').strip()
+            or request.headers.get('X-MCP-Key', '').strip()
+        )
+
+    @staticmethod
+    def _result(request_id, result):
+        return JsonResponse({
+            'jsonrpc': '2.0',
+            'id': request_id,
+            'result': result,
+        }, json_dumps_params={'ensure_ascii': False})
+
+    @staticmethod
+    def _error(request_id, code, message):
+        return JsonResponse({
+            'jsonrpc': '2.0',
+            'id': request_id,
+            'error': {'code': code, 'message': message},
+        }, status=400, json_dumps_params={'ensure_ascii': False})
+
+    def _call_tool(self, name, arguments):
+        if name == 'insert_memo':
+            return self._insert_memo(arguments)
+        if name == 'create_article':
+            return self._create_article(arguments)
+        if name == 'list_articles':
+            return self._list_articles(arguments)
+        if name == 'get_article':
+            return self._get_article(arguments)
+        if name == 'update_article':
+            return self._update_article(arguments)
+        if name == 'list_anthologies':
+            return self._list_anthologies(arguments)
+        if name == 'create_anthology':
+            return self._create_anthology(arguments)
+        if name == 'update_anthology':
+            return self._update_anthology(arguments)
+        raise ValueError(f'未知 Tool：{name}')
+
+    @staticmethod
+    def _insert_memo(arguments):
+        content = str(arguments.get('content') or '').strip()
+        if not content:
+            raise ValueError('content 不能为空')
+        if len(content) > 2000:
+            raise ValueError('content 不能超过 2000 字')
+        memo = Memo.objects.create(
+            content=content,
+            tag=str(arguments.get('tag') or '').strip(),
+            is_pinned=bool(arguments.get('is_pinned', False)),
+            user_id='admin',
+        )
+        return {'memo': _memo_to_dict(memo)}
+
+    @staticmethod
+    def _validate_article_collection(coll_id):
+        if not coll_id:
+            raise ValueError('coll_id 不能为空')
+        return get_object_or_404(Anthology, coll_id=coll_id, type='article', is_valid=True)
+
+    @staticmethod
+    def _validate_parent(parent_id):
+        if parent_id in (None, ''):
+            return None
+        return get_object_or_404(Article, article_id=parent_id, is_valid=True)
+
+    def _create_article(self, arguments):
+        title = str(arguments.get('title') or '').strip()
+        content = str(arguments.get('content') or '')
+        coll_id = str(arguments.get('coll_id') or '').strip()
+        if not title:
+            raise ValueError('title 不能为空')
+        if not content.strip():
+            raise ValueError('content 不能为空')
+        self._validate_article_collection(coll_id)
+        parent = self._validate_parent(arguments.get('parent_id'))
+        permission = arguments.get('permission') or 'public'
+        if permission not in {'public', 'private'}:
+            raise ValueError('permission 只能是 public 或 private')
+        try:
+            with transaction.atomic():
+                article = Article.objects.create(
+                    title=title,
+                    content=content,
+                    coll_id=coll_id,
+                    parent=parent,
+                    author='admin',
+                    permission=permission,
+                    sort=int(arguments.get('sort') or 0),
+                    source_url=str(arguments.get('source_url') or '').strip() or None,
+                    is_rag_synced=False,
+                )
+                _refresh_anthology(coll_id)
+        except IntegrityError:
+            raise ValueError('同一文集下文章标题已存在')
+        return {'article': _article_to_dict(article)}
+
+    @staticmethod
+    def _list_articles(arguments):
+        limit = min(max(int(arguments.get('limit') or 50), 1), 200)
+        queryset = Article.objects.filter(is_valid=True).order_by('sort', '-updated_at')
+        coll_id = str(arguments.get('coll_id') or '').strip()
+        keyword = str(arguments.get('keyword') or '').strip()
+        if coll_id:
+            queryset = queryset.filter(coll_id=coll_id)
+        if keyword:
+            queryset = queryset.filter(title__icontains=keyword)
+        include_content = bool(arguments.get('include_content', False))
+        articles = [_article_to_dict(article, include_content=include_content) for article in queryset[:limit]]
+        return {'articles': articles, 'count': len(articles)}
+
+    @staticmethod
+    def _get_article(arguments):
+        article_id = str(arguments.get('article_id') or '').strip()
+        if not article_id:
+            raise ValueError('article_id 不能为空')
+        article = get_object_or_404(Article, article_id=article_id, is_valid=True)
+        return {'article': _article_to_dict(article)}
+
+    def _update_article(self, arguments):
+        article_id = str(arguments.get('article_id') or '').strip()
+        if not article_id:
+            raise ValueError('article_id 不能为空')
+        article = get_object_or_404(Article, article_id=article_id, is_valid=True)
+        old_coll_id = article.coll_id
+
+        if 'title' in arguments:
+            title = str(arguments.get('title') or '').strip()
+            if not title:
+                raise ValueError('title 不能为空')
+            article.title = title
+        if 'content' in arguments:
+            content = str(arguments.get('content') or '')
+            if not content.strip():
+                raise ValueError('content 不能为空')
+            article.content = content
+            article.is_rag_synced = False
+        if 'coll_id' in arguments:
+            coll_id = str(arguments.get('coll_id') or '').strip()
+            self._validate_article_collection(coll_id)
+            article.coll_id = coll_id
+        if 'parent_id' in arguments:
+            parent = self._validate_parent(arguments.get('parent_id'))
+            if parent and parent.article_id == article.article_id:
+                raise ValueError('父级文章不能是当前文章自身')
+            article.parent = parent
+        if 'permission' in arguments:
+            permission = arguments.get('permission') or 'public'
+            if permission not in {'public', 'private'}:
+                raise ValueError('permission 只能是 public 或 private')
+            article.permission = permission
+        if 'sort' in arguments:
+            article.sort = int(arguments.get('sort') or 0)
+        if 'source_url' in arguments:
+            article.source_url = str(arguments.get('source_url') or '').strip() or None
+
+        try:
+            with transaction.atomic():
+                article.save()
+                _refresh_anthology(article.coll_id)
+                if old_coll_id != article.coll_id:
+                    _refresh_anthology(old_coll_id)
+        except IntegrityError:
+            raise ValueError('同一文集下文章标题已存在')
+        return {'article': _article_to_dict(article)}
+
+    @staticmethod
+    def _list_anthologies(arguments):
+        limit = min(max(int(arguments.get('limit') or 50), 1), 200)
+        queryset = Anthology.objects.filter(is_valid=True, user_id='admin').order_by('-is_top', 'sort', '-updated_at')
+        coll_type = str(arguments.get('type') or '').strip()
+        keyword = str(arguments.get('keyword') or '').strip()
+        if coll_type:
+            if coll_type not in {'article', 'image'}:
+                raise ValueError('type 只能是 article 或 image')
+            queryset = queryset.filter(type=coll_type)
+        if keyword:
+            queryset = queryset.filter(title__icontains=keyword)
+        anthologies = [_anthology_to_dict(anthology) for anthology in queryset[:limit]]
+        return {'anthologies': anthologies, 'count': len(anthologies)}
+
+    @staticmethod
+    def _create_anthology(arguments):
+        title = str(arguments.get('title') or '').strip()
+        if not title:
+            raise ValueError('title 不能为空')
+        if len(title) > 20:
+            raise ValueError('title 不能超过 20 字')
+        description = str(arguments.get('description') or '暂无简介').strip() or '暂无简介'
+        if len(description) > 100:
+            raise ValueError('description 不能超过 100 字')
+        coll_type = arguments.get('type') or 'article'
+        if coll_type not in {'article', 'image'}:
+            raise ValueError('type 只能是 article 或 image')
+        permission = arguments.get('permission') or 'public'
+        if permission not in {'public', 'private'}:
+            raise ValueError('permission 只能是 public 或 private')
+        try:
+            anthology = Anthology.objects.create(
+                title=title,
+                description=description,
+                icon_id=str(arguments.get('icon_id') or 'book').strip() or 'book',
+                type=coll_type,
+                permission=permission,
+                is_top=bool(arguments.get('is_top', False)),
+                sort=int(arguments.get('sort') or 0),
+                user_id='admin',
+            )
+        except IntegrityError:
+            raise ValueError('同类型下文集名称不能重复')
+        return {'anthology': _anthology_to_dict(anthology)}
+
+    @staticmethod
+    def _update_anthology(arguments):
+        coll_id = str(arguments.get('coll_id') or '').strip()
+        if not coll_id:
+            raise ValueError('coll_id 不能为空')
+        anthology = get_object_or_404(Anthology, coll_id=coll_id, user_id='admin', is_valid=True)
+        if 'title' in arguments:
+            title = str(arguments.get('title') or '').strip()
+            if not title:
+                raise ValueError('title 不能为空')
+            if len(title) > 20:
+                raise ValueError('title 不能超过 20 字')
+            anthology.title = title
+        if 'description' in arguments:
+            description = str(arguments.get('description') or '').strip()
+            if len(description) > 100:
+                raise ValueError('description 不能超过 100 字')
+            anthology.description = description or '暂无简介'
+        if 'icon_id' in arguments:
+            anthology.icon_id = str(arguments.get('icon_id') or 'book').strip() or 'book'
+        if 'permission' in arguments:
+            permission = arguments.get('permission') or 'public'
+            if permission not in {'public', 'private'}:
+                raise ValueError('permission 只能是 public 或 private')
+            anthology.permission = permission
+        if 'is_top' in arguments:
+            anthology.is_top = bool(arguments.get('is_top'))
+        if 'sort' in arguments:
+            anthology.sort = int(arguments.get('sort') or 0)
+        try:
+            anthology.save()
+        except IntegrityError:
+            raise ValueError('同类型下文集名称不能重复')
+        return {'anthology': _anthology_to_dict(anthology)}

@@ -1,5 +1,6 @@
 import json
 import os
+import secrets
 import threading
 import tomllib
 from pathlib import Path
@@ -11,6 +12,7 @@ from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from system_settings.sync_scheduler import (
@@ -36,6 +38,26 @@ from .serializers import (
     SkillSerializer,
     GeoLocationSerializer,
 )
+
+
+SYSTEM_MCP_CONFIG_KEY = 'system_mcp_config'
+
+
+def _generate_system_mcp_api_key():
+    return f'odoc-mcp-{secrets.token_urlsafe(32)}'
+
+
+def _default_system_mcp_config():
+    return {
+        'enabled': True,
+        'apiKey': _generate_system_mcp_api_key(),
+    }
+
+
+def _base_system_mcp_config():
+    return {
+        'enabled': True,
+    }
 
 
 class AIProviderViewSet(viewsets.ModelViewSet):
@@ -590,6 +612,15 @@ class SkillViewSet(viewsets.ModelViewSet):
 
 
 class SystemConfigViewSet(viewsets.ViewSet):
+    def get_permissions(self):
+        if self.action in {
+            'get_system_mcp_config',
+            'save_system_mcp_config',
+            'regenerate_system_mcp_key',
+        }:
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
     """
     专门处理系统全局配置的接口 (如默认模型)
     """
@@ -717,6 +748,72 @@ class SystemConfigViewSet(viewsets.ViewSet):
             defaults={'value': default_value}
         )
         return success_result({**default_value, **config.value})
+
+    @action(detail=False, methods=['get'])
+    def get_system_mcp_config(self, request):
+        config, created = SystemSetting.objects.get_or_create(
+            key=SYSTEM_MCP_CONFIG_KEY,
+            defaults={
+                'value': _default_system_mcp_config(),
+                'description': '系统级 MCP 配置',
+            }
+        )
+        value = {**_base_system_mcp_config(), **(config.value or {})}
+        if created:
+            value = config.value
+        if not value.get('apiKey'):
+            value['apiKey'] = _generate_system_mcp_api_key()
+            config.value = value
+            config.description = '系统级 MCP 配置'
+            config.save(update_fields=['value', 'description'])
+        return success_result({
+            'enabled': bool(value.get('enabled', True)),
+            'apiKey': value.get('apiKey', ''),
+            'endpoint': '/api/system-mcp/',
+        })
+
+    @action(detail=False, methods=['post'])
+    def save_system_mcp_config(self, request):
+        config, _ = SystemSetting.objects.get_or_create(
+            key=SYSTEM_MCP_CONFIG_KEY,
+            defaults={
+                'value': _default_system_mcp_config(),
+                'description': '系统级 MCP 配置',
+            }
+        )
+        value = config.value or {}
+        value['enabled'] = bool(request.data.get('enabled', value.get('enabled', True)))
+        if not value.get('apiKey'):
+            value['apiKey'] = _generate_system_mcp_api_key()
+        config.value = value
+        config.description = '系统级 MCP 配置'
+        config.save(update_fields=['value', 'description'])
+        return success_result({
+            'enabled': value['enabled'],
+            'apiKey': value['apiKey'],
+            'endpoint': '/api/system-mcp/',
+        })
+
+    @action(detail=False, methods=['post'])
+    def regenerate_system_mcp_key(self, request):
+        config, _ = SystemSetting.objects.get_or_create(
+            key=SYSTEM_MCP_CONFIG_KEY,
+            defaults={
+                'value': _default_system_mcp_config(),
+                'description': '系统级 MCP 配置',
+            }
+        )
+        value = config.value or {}
+        value['enabled'] = bool(value.get('enabled', True))
+        value['apiKey'] = _generate_system_mcp_api_key()
+        config.value = value
+        config.description = '系统级 MCP 配置'
+        config.save(update_fields=['value', 'description'])
+        return success_result({
+            'enabled': value['enabled'],
+            'apiKey': value['apiKey'],
+            'endpoint': '/api/system-mcp/',
+        })
 
     @action(detail=False, methods=['post'])
     def save_memos_push_config(self, request):

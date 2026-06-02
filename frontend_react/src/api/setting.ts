@@ -25,6 +25,7 @@ import type {
     MCPTransport,
     MCPSource,
     MCPToolConfig,
+    SystemMCPConfig,
 } from '../types/api/setting';
 
 // 重新导出类型以便其他组件使用
@@ -54,6 +55,7 @@ export type {
     MCPTransport,
     MCPSource,
     MCPToolConfig,
+    SystemMCPConfig,
 };
 
 // --- 模拟数据 ---
@@ -187,6 +189,12 @@ export const deleteMCPServer = (id: string) => request.delete(`/settings/mcp-ser
 export const scanMCPServers = () => request.post<any, { count: number, servers: MCPServerConfig[] }>('/settings/mcp-servers/scan/');
 
 export const refreshMCPServerTools = (id: string) => request.post<MCPServerConfig>(`/settings/mcp-servers/${id}/refresh_tools/`, undefined, {timeout: 30000});
+
+export const getSystemMCPConfig = () => request.get<SystemMCPConfig>('/settings/config/get_system_mcp_config/') as unknown as Promise<SystemMCPConfig>;
+
+export const saveSystemMCPConfig = (data: Pick<SystemMCPConfig, 'enabled'>) => request.post<SystemMCPConfig>('/settings/config/save_system_mcp_config/', data) as unknown as Promise<SystemMCPConfig>;
+
+export const regenerateSystemMCPKey = () => request.post<SystemMCPConfig>('/settings/config/regenerate_system_mcp_key/') as unknown as Promise<SystemMCPConfig>;
 
 export const getSkills = () => request.get<SkillConfig[]>('/settings/skills/');
 
