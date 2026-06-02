@@ -16,6 +16,7 @@ export const useTags = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list'); // 默认 list，与 TagsPage 原始逻辑保持一致
     const [displayArticles, setDisplayArticles] = useState<ArticleItem[]>([]);
+    const [allArticleCount, setAllArticleCount] = useState(0);
     const [loading, setLoading] = useState(false);
     const [deletedArticleIds, setDeletedArticleIds] = useState<Set<string>>(new Set());
 
@@ -38,6 +39,9 @@ export const useTags = () => {
         try {
             setLoading(true);
             const data = await getArticles(tagId === 'all' ? undefined : {tagId});
+            if (tagId === 'all') {
+                setAllArticleCount(data.length);
+            }
             // 转换数据格式
             const formattedData: ArticleItem[] = data.map((article: Article) => ({
                 articleId: article.articleId,
@@ -64,10 +68,20 @@ export const useTags = () => {
         }
     }, []);
 
+    const fetchAllArticleCount = useCallback(async () => {
+        try {
+            const data = await getArticles();
+            setAllArticleCount(data.length);
+        } catch (error) {
+            console.error('获取全部文章数量失败:', error);
+        }
+    }, []);
+
     // Initial Fetch
     useEffect(() => {
         fetchTags();
-    }, [fetchTags]);
+        fetchAllArticleCount();
+    }, [fetchTags, fetchAllArticleCount]);
 
     // 处理URL参数中的tagId - 在标签列表加载完成后验证tagId的有效性
     useEffect(() => {
@@ -109,13 +123,18 @@ export const useTags = () => {
         try {
             if (editingTag) {
                 const updatedTag = await updateTag(editingTag.tagId, formData);
-                setTags(prev => prev.map(t => t.tagId === editingTag.tagId ? updatedTag : t));
+                setTags(prev => prev.map(t => t.tagId === editingTag.tagId ? {
+                    ...t,
+                    ...updatedTag,
+                    articleCount: updatedTag.articleCount ?? t.articleCount
+                } : t));
                 toast.success('标签更新成功');
             } else {
                 const newTag = await createTag(formData);
                 setTags(prev => [...prev, newTag]);
                 toast.success('标签创建成功');
             }
+            await fetchTags();
             return true;
         } catch (error) {
             console.error('操作标签失败:', error);
@@ -159,7 +178,7 @@ export const useTags = () => {
         return displayArticles.filter(art => !deletedArticleIds.has(art.articleId));
     }, [displayArticles, deletedArticleIds]);
 
-    const totalArticles = useMemo(() => tags.reduce((acc, cur) => acc + (cur.articleCount || 0), 0), [tags]);
+    const totalArticles = allArticleCount;
 
     const activeTag = useMemo(() => {
         // 修复：这里也要统一使用 tagId

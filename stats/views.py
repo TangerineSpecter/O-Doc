@@ -1,5 +1,5 @@
 from django.db import transaction, models
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q
 from django.db.models.functions import ExtractHour, ExtractWeekDay, TruncDate
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
@@ -10,6 +10,7 @@ from categories.models import Category
 from memos.models import Memo
 from stats.models import ReadStat
 from tags.models import Tag
+from utils.drf_utils import get_current_user_identifier
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
 
@@ -90,6 +91,10 @@ class StatisticsView(APIView):
                 selected_year = int(request.query_params.get('year') or timezone.now().year)
             except (TypeError, ValueError):
                 selected_year = timezone.now().year
+            current_user_id = get_current_user_identifier(request)
+            visible_tag_user_ids = ['admin']
+            if current_user_id != 'admin':
+                visible_tag_user_ids.append(current_user_id)
 
             # --- 1. 核心 KPI 数据 ---
             valid_articles = Article.objects.filter(is_valid=True)
@@ -159,8 +164,15 @@ class StatisticsView(APIView):
             ).filter(value__gt=0).values('name', 'value').order_by('-value')
 
             # --- 5. 热门标签 ---
-            tag_stats = Tag.objects.annotate(
-                count=Count('articles')
+            tag_stats = Tag.objects.filter(
+                is_valid=True,
+                user_id__in=visible_tag_user_ids
+            ).annotate(
+                count=Count(
+                    'articles',
+                    filter=Q(articles__is_valid=True),
+                    distinct=True
+                )
             ).filter(count__gt=0).values('name', 'count').order_by('-count')[:10]
 
             # --- 6. 排行榜 ---
