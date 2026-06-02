@@ -119,6 +119,7 @@ export interface MCPServerConfig {
     env: Record<string, string>;
     source: MCPSource;
     enabled: boolean;
+    availableInChat: boolean;
     description: string;
     tools?: MCPToolConfig[];
     createdAt?: string;

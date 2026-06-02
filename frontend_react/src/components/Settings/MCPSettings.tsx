@@ -21,6 +21,7 @@ type MCPForm = {
     headerRows: MCPHeaderRow[];
     description: string;
     enabled: boolean;
+    availableInChat: boolean;
 };
 
 type MCPHeaderRow = {
@@ -42,6 +43,7 @@ const defaultForm: MCPForm = {
     ],
     description: '',
     enabled: true,
+    availableInChat: false,
 };
 
 const transportOptions = [
@@ -137,6 +139,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
             headerRows: headersToRows(server.headers),
             description: server.description || '',
             enabled: server.enabled,
+            availableInChat: server.availableInChat ?? false,
         });
         setModalOpen(true);
     };
@@ -156,6 +159,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
             env: {},
             source: 'external',
             enabled: form.enabled,
+            availableInChat: form.availableInChat,
             description: form.description.trim(),
             tools: form.id ? getStoredTools(currentServer) : [],
             validateConnection: true,
@@ -280,6 +284,11 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
                                         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${server.source === 'system' ? 'border-blue-100 bg-blue-50 text-blue-600' : 'border-emerald-100 bg-emerald-50 text-emerald-600'}`}>
                                             {server.source === 'system' ? '系统扫描' : '外部接入'}
                                         </span>
+                                        {server.availableInChat && (
+                                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                                                AI 对话
+                                            </span>
+                                        )}
                                         <button
                                             onClick={() => toggleExpanded(server.id)}
                                             className="inline-flex items-center gap-1 rounded-full border border-orange-100 bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-600 transition-colors hover:border-orange-200 hover:bg-orange-100/70"
@@ -497,6 +506,36 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
                                     placeholder="这个 MCP 提供什么工具能力"
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
                                 />
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                    <div>
+                                        <div className="text-sm font-semibold text-slate-700">启用 MCP</div>
+                                        <div className="mt-0.5 text-xs text-slate-500">关闭后不会连接或调用</div>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={form.enabled}
+                                        onChange={event => setForm({...form, enabled: event.target.checked})}
+                                        className="peer sr-only"
+                                    />
+                                    <span className="relative h-6 w-11 rounded-full bg-slate-200 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-orange-500 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/20"/>
+                                </label>
+
+                                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                    <div>
+                                        <div className="text-sm font-semibold text-slate-700">提供给 AI 对话</div>
+                                        <div className="mt-0.5 text-xs text-slate-500">开启后可在 AI Chat 中装载</div>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={form.availableInChat}
+                                        onChange={event => setForm({...form, availableInChat: event.target.checked})}
+                                        className="peer sr-only"
+                                    />
+                                    <span className="relative h-6 w-11 rounded-full bg-slate-200 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-orange-500 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/20"/>
+                                </label>
                             </div>
                         </div>
 

@@ -168,7 +168,7 @@ class ChatView(APIView):
             return {'tools': [], 'tool_map': {}}
 
         tool_context = {'tools': [], 'tool_map': {}}
-        servers = list(MCPServer.objects.filter(id__in=normalized_ids, enabled=True))
+        servers = list(MCPServer.objects.filter(id__in=normalized_ids, enabled=True, available_in_chat=True))
 
         for server in servers:
             tools, error_msg = fetch_mcp_tools(server)

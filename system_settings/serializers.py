@@ -85,6 +85,7 @@ class MCPServerSerializer(serializers.ModelSerializer):
             'env',
             'source',
             'enabled',
+            'available_in_chat',
             'description',
             'tools',
             'created_at',

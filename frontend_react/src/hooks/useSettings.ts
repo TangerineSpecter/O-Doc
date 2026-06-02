@@ -385,6 +385,7 @@ export const useSettings = () => {
                 env: serverData.env || {},
                 source: serverData.source || 'external',
                 enabled: serverData.enabled ?? true,
+                availableInChat: serverData.availableInChat ?? false,
                 description: serverData.description || '',
                 tools: serverData.tools || [],
                 validateConnection: serverData.validateConnection ?? false,

@@ -454,7 +454,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 const usableSkills = (data || []).filter(skill => skill.enabled && skill.availableInChat);
                 setChatSkills(usableSkills);
                 setSelectedSkillIds(prev => prev.filter(id => usableSkills.some(skill => skill.id === id)));
-                const enabledMcpServers = mcpServers.filter(server => server.enabled);
+                const enabledMcpServers = mcpServers.filter(server => server.enabled && server.availableInChat);
                 setChatMcpServers(enabledMcpServers);
                 setSelectedMcpIds(prev => prev.filter(id => id === PHOTOGRAPHY_MCP_ID || enabledMcpServers.some(server => server.id === id)));
             })

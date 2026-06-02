@@ -229,6 +229,7 @@ class MCPServer(models.Model):
     env = models.JSONField(default=dict, blank=True, verbose_name='环境变量', db_comment='环境变量')
     source = models.CharField(max_length=20, choices=SOURCE_TYPES, default='external', verbose_name='来源', db_comment='来源')
     enabled = models.BooleanField(default=True, verbose_name='是否启用', db_comment='是否启用')
+    available_in_chat = models.BooleanField(default=False, verbose_name='提供给 AI 对话', db_comment='是否可在 AI Chat 中装载')
     description = models.CharField(max_length=200, blank=True, default='', verbose_name='描述', db_comment='描述')
     tools = models.JSONField(default=list, blank=True, verbose_name='Tool 配置', db_comment='MCP Tool 配置列表')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
