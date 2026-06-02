@@ -234,33 +234,35 @@ export const SkillSettings = ({skills, onSave, onDelete}: SkillSettingsProps) =>
                                 />
                             </div>
 
-                            <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                <div>
-                                    <div className="text-sm font-semibold text-slate-700">启用技能</div>
-                                    <div className="mt-0.5 text-xs text-slate-500">关闭后不会出现在 Agent 可选技能中</div>
-                                </div>
-                                <input
-                                    type="checkbox"
-                                    checked={form.enabled}
-                                    onChange={event => setForm({...form, enabled: event.target.checked})}
-                                    className="peer sr-only"
-                                />
-                                <span className="relative h-6 w-11 rounded-full bg-slate-200 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-orange-500 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/20"/>
-                            </label>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                    <div>
+                                        <div className="text-sm font-semibold text-slate-700">启用技能</div>
+                                        <div className="mt-0.5 text-xs text-slate-500">关闭后不会出现在 Agent 可选技能中</div>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={form.enabled}
+                                        onChange={event => setForm({...form, enabled: event.target.checked})}
+                                        className="peer sr-only"
+                                    />
+                                    <span className="relative h-6 w-11 rounded-full bg-slate-200 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-orange-500 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/20"/>
+                                </label>
 
-                            <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                <div>
-                                    <div className="text-sm font-semibold text-slate-700">提供给 AI 对话</div>
-                                    <div className="mt-0.5 text-xs text-slate-500">开启后可在 AI 对话窗口手动装载</div>
-                                </div>
-                                <input
-                                    type="checkbox"
-                                    checked={form.availableInChat}
-                                    onChange={event => setForm({...form, availableInChat: event.target.checked})}
-                                    className="peer sr-only"
-                                />
-                                <span className="relative h-6 w-11 rounded-full bg-slate-200 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-orange-500 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/20"/>
-                            </label>
+                                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                    <div>
+                                        <div className="text-sm font-semibold text-slate-700">提供给 AI 对话</div>
+                                        <div className="mt-0.5 text-xs text-slate-500">开启后可在 AI Chat 中装载</div>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={form.availableInChat}
+                                        onChange={event => setForm({...form, availableInChat: event.target.checked})}
+                                        className="peer sr-only"
+                                    />
+                                    <span className="relative h-6 w-11 rounded-full bg-slate-200 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-orange-500 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/20"/>
+                                </label>
+                            </div>
                         </div>
 
                         <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
