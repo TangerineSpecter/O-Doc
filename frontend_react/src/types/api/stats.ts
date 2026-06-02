@@ -34,4 +34,12 @@ export interface StatsDashboardData {
         title: string;
         value: string;
     }[];
+    dailyCreation: {
+        date: string;
+        articles: number;
+        images: number;
+        memos: number;
+        total: number;
+    }[];
+    selectedYear: number;
 }

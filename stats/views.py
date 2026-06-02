@@ -1,12 +1,13 @@
 from django.db import transaction, models
 from django.db.models import Sum, Count
-from django.db.models.functions import ExtractHour, ExtractWeekDay
+from django.db.models.functions import ExtractHour, ExtractWeekDay, TruncDate
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
-from article.models import Article
+from article.models import Article, Image
 from assets.models import Asset
 from categories.models import Category
+from memos.models import Memo
 from stats.models import ReadStat
 from tags.models import Tag
 from utils.error_codes import ErrorCode
@@ -83,22 +84,29 @@ class StatisticsView(APIView):
 
     def get(self, request):
         try:
+            from django.utils import timezone
+
+            try:
+                selected_year = int(request.query_params.get('year') or timezone.now().year)
+            except (TypeError, ValueError):
+                selected_year = timezone.now().year
+
             # --- 1. 核心 KPI 数据 ---
             valid_articles = Article.objects.filter(is_valid=True)
 
             total_articles = valid_articles.count()
 
-            # 聚合计算字数和阅读时长
-            # 注意：total_read_seconds 是我们在上一步建议添加的字段，如果没有 migrate，这里会报错
-            # 如果尚未添加该字段，请先迁移数据库或暂时用 0 代替
+            # 聚合计算字数。阅读时长以 ReadStat 为准，保持与趋势图和阅读时长榜单口径一致。
             agg_data = valid_articles.aggregate(
-                total_words=Sum('word_count'),
-                total_duration_sec=Sum('total_read_seconds')
+                total_words=Sum('word_count')
             )
 
             total_words = agg_data.get('total_words') or 0
             # 将秒转换为小时
-            total_duration_hours = round((agg_data.get('total_duration_sec') or 0) / 3600, 1)
+            total_duration_sec = ReadStat.objects.filter(article__is_valid=True).aggregate(
+                total_duration_sec=Sum('duration')
+            ).get('total_duration_sec') or 0
+            total_duration_hours = round(total_duration_sec / 3600, 1)
 
             total_assets = Asset.objects.filter(is_valid=True).count()
 
@@ -189,6 +197,66 @@ class StatisticsView(APIView):
                     'value': val_str
                 })
 
+            # --- 7. 年度创作热力图 ---
+            article_daily_stats = valid_articles.filter(
+                created_at__year=selected_year
+            ).annotate(
+                date=TruncDate('created_at')
+            ).values('date').annotate(
+                articles=Count('article_id')
+            )
+
+            image_daily_stats = Image.objects.filter(
+                is_valid=True,
+                created_at__year=selected_year
+            ).annotate(
+                date=TruncDate('created_at')
+            ).values('date').annotate(
+                images=Count('image_id')
+            )
+
+            memo_daily_stats = Memo.objects.filter(
+                is_valid=True,
+                created_at__year=selected_year
+            ).annotate(
+                date=TruncDate('created_at')
+            ).values('date').annotate(
+                memos=Count('memo_id')
+            )
+
+            daily_creation_map = {}
+
+            def ensure_daily_item(date_value):
+                date_key = date_value.isoformat()
+                if date_key not in daily_creation_map:
+                    daily_creation_map[date_key] = {
+                        'date': date_key,
+                        'articles': 0,
+                        'images': 0,
+                        'memos': 0,
+                        'total': 0
+                    }
+                return daily_creation_map[date_key]
+
+            for item in article_daily_stats:
+                daily_item = ensure_daily_item(item['date'])
+                daily_item['articles'] = item['articles']
+
+            for item in image_daily_stats:
+                daily_item = ensure_daily_item(item['date'])
+                daily_item['images'] = item['images']
+
+            for item in memo_daily_stats:
+                daily_item = ensure_daily_item(item['date'])
+                daily_item['memos'] = item['memos']
+
+            daily_creation = []
+            for item in daily_creation_map.values():
+                item['total'] = item['articles'] + item['images'] + item['memos']
+                daily_creation.append(item)
+
+            daily_creation.sort(key=lambda item: item['date'])
+
             return success_result(data={
                 'kpi': {
                     'total_articles': total_articles,
@@ -201,7 +269,9 @@ class StatisticsView(APIView):
                 'category_stats': list(category_stats),
                 'tag_stats': list(tag_stats),
                 'top_visits': top_visits_data,
-                'top_duration': top_duration_data
+                'top_duration': top_duration_data,
+                'daily_creation': daily_creation,
+                'selected_year': selected_year
             })
 
         except Exception as e:
