@@ -22,7 +22,7 @@ export const useArticle = (content?: string, scrollContainerId?: string) => {
         let text = content || "";
 
         // 匹配标签样式
-        text = text.replace(/(\s|^)#([\w\u4e00-\u9fa5]+)/g, (_, p, t) => {
+        text = text.replace(/(\s|^)#(?![0-9a-fA-F]{3,8}\b)([\w\u4e00-\u9fa5]+)/g, (_, p, t) => {
             return `${p}<span class="md-tag-inline">#${t}</span>`;
         });
 

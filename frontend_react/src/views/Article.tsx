@@ -1,11 +1,11 @@
-import React, {ReactNode, useEffect, useMemo, useState} from 'react';
+import React, {ReactNode, useEffect, useMemo, useRef, useState} from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
-import {Download, Paperclip} from 'lucide-react';
+import {Download, FileDown, Loader2, Paperclip} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {useToast} from '../components/common/ToastProvider';
 import {useArticle} from '../hooks/useArticle';
@@ -65,6 +65,72 @@ const QUOTE_MARKER_VARIANTS: Record<string, QuoteVariant> = {
     w: 'warning',
     i: 'info',
 };
+
+const PRINT_STYLES = `
+  @media print {
+    @page {
+      size: A4;
+      margin: 14mm 12mm;
+    }
+
+    html,
+    body,
+    #root {
+      background: #ffffff !important;
+    }
+
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    body.article-printing * {
+      visibility: hidden !important;
+    }
+
+    body.article-printing .article-print-clone,
+    body.article-printing .article-print-clone * {
+      visibility: visible !important;
+    }
+
+    body.article-printing .article-print-clone {
+      position: absolute !important;
+      inset: 0 auto auto 0 !important;
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      --tw-ring-shadow: 0 0 #0000 !important;
+    }
+
+    .article-print-hidden {
+      display: none !important;
+    }
+
+    .article-print-clone header,
+    .article-print-clone h1,
+    .article-print-clone h2,
+    .article-print-clone h3,
+    .article-print-clone h4,
+    .article-print-clone h5,
+    .article-print-clone h6,
+    .article-print-clone pre,
+    .article-print-clone blockquote,
+    .article-print-clone table,
+    .article-print-clone img,
+    .article-print-clone .code-block-wrapper {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .article-print-clone article {
+      max-width: 75ch !important;
+    }
+  }
+`;
 
 const remarkQuoteVariants = () => {
     const visit = (node: any) => {
@@ -205,6 +271,8 @@ export default function Article({
     // 1. 本地状态管理同步时间，以便同步成功后即时刷新 UI，无需重新请求接口
     const [localSyncedTime, setLocalSyncedTime] = useState<string | undefined>(lastRagSyncedAt);
     const [localIsSynced, setLocalIsSynced] = useState<boolean>(!!isRagSynced);
+    const articlePrintRef = useRef<HTMLDivElement>(null);
+    const printCloneRef = useRef<HTMLDivElement | null>(null);
 
     // 监听 props 变化，同步更新本地状态 (响应父组件的数据刷新)
     useEffect(() => {
@@ -214,6 +282,7 @@ export default function Article({
 
     const toast = useToast();
     const [isSyncing, setIsSyncing] = React.useState(false);
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
 
     // 2. 计算同步状态逻辑
     const syncStatus: SyncStatusType = useMemo(() => {
@@ -247,6 +316,50 @@ export default function Article({
             toast.error('同步失败，请检查后端日志');
         } finally {
             setIsSyncing(false);
+        }
+    };
+
+    useEffect(() => {
+        const handleAfterPrint = () => {
+            document.body.classList.remove('article-printing');
+            printCloneRef.current?.remove();
+            printCloneRef.current = null;
+            setIsExportingPdf(false);
+        };
+        window.addEventListener('afterprint', handleAfterPrint);
+
+        return () => {
+            window.removeEventListener('afterprint', handleAfterPrint);
+            document.body.classList.remove('article-printing');
+            printCloneRef.current?.remove();
+            printCloneRef.current = null;
+        };
+    }, []);
+
+    const handleExportPdf = async () => {
+        if (isExportingPdf || !articlePrintRef.current) return;
+
+        setIsExportingPdf(true);
+        try {
+            await document.fonts?.ready;
+            printCloneRef.current?.remove();
+
+            const clone = articlePrintRef.current.cloneNode(true) as HTMLDivElement;
+            clone.classList.add('article-print-clone');
+            clone.classList.remove('article-print-page');
+            document.body.appendChild(clone);
+            document.body.classList.add('article-printing');
+            printCloneRef.current = clone;
+
+            await new Promise(requestAnimationFrame);
+            window.print();
+        } catch (error) {
+            console.error('Failed to open print dialog:', error);
+            toast.error('打开导出窗口失败，请稍后重试');
+            document.body.classList.remove('article-printing');
+            printCloneRef.current?.remove();
+            printCloneRef.current = null;
+            setIsExportingPdf(false);
         }
     };
 
@@ -351,6 +464,7 @@ export default function Article({
     return (
         <>
             <style>{CUSTOM_STYLES}</style>
+            <style>{PRINT_STYLES}</style>
 
             <div
                 className={`min-h-screen bg-white transition-colors duration-300 ${isEmbedded ? '!bg-transparent !min-h-full' : ''}`}>
@@ -358,7 +472,7 @@ export default function Article({
                 <main
                     className={`relative z-10 mx-auto px-4 ${useInlineToc ? 'max-w-[82rem]' : 'max-w-5xl'} ${isEmbedded ? 'py-6' : 'py-20'}`}>
                     <div className={useInlineToc ? 'grid grid-cols-1 justify-center gap-4 2xl:grid-cols-[minmax(0,64rem)_16rem]' : ''}>
-                    <div className="w-full max-w-5xl bg-white rounded-2xl p-8 sm:p-14 shadow-none ring-1 ring-slate-900/5">
+                    <div ref={articlePrintRef} className="article-print-page w-full max-w-5xl bg-white rounded-2xl p-8 sm:p-14 shadow-none ring-1 ring-slate-900/5">
 
                         {/* Header */}
                         <header className="mb-10 pb-8 border-b border-slate-100">
@@ -382,9 +496,24 @@ export default function Article({
                                     </button>
                                 ))}
 
+                                <button
+                                    type="button"
+                                    onClick={handleExportPdf}
+                                    disabled={isExportingPdf}
+                                    className="article-print-hidden ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-100 hover:border-orange-200 rounded-lg transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                                    title="导出为 PDF"
+                                >
+                                    {isExportingPdf ? (
+                                        <Loader2 className="w-4 h-4 animate-spin"/>
+                                    ) : (
+                                        <FileDown className="w-4 h-4"/>
+                                    )}
+                                    {isExportingPdf ? '生成中' : '导出 PDF'}
+                                </button>
+
                                 {onBack && !disableLinks && (
                                     <button onClick={onBack}
-                                            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                                            className="article-print-hidden flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
                                         <ArticleIcons.ArrowLeft className="w-4 h-4"/>
                                         返回文集
                                     </button>
@@ -453,7 +582,7 @@ export default function Article({
                                                 </div>
                                             </div>
                                             <a href={att.url} download={att.name}
-                                               className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                               className="article-print-hidden p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                                title="点击下载">
                                                 <Download className="w-4 h-4"/>
                                             </a>
@@ -465,24 +594,27 @@ export default function Article({
 
                     </div>
 
-                    <TableOfContents
-                        headers={headers}
-                        activeId={activeHeader}
-                        isEmbedded={isEmbedded ?? false}
-                        onEdit={onEdit}
-                        onDelete={onDelete}
-                        onSync={canManage ? handleSyncToKB : undefined}
-                        isSyncing={isSyncing}
-                        syncStatus={syncStatus}
-                        lastSyncedTime={localSyncedTime}
-                        layout={tocLayout}
-                    />
+                    <div className="article-print-hidden">
+                        <TableOfContents
+                            headers={headers}
+                            activeId={activeHeader}
+                            isEmbedded={isEmbedded ?? false}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                            onSync={canManage ? handleSyncToKB : undefined}
+                            isSyncing={isSyncing}
+                            syncStatus={syncStatus}
+                            lastSyncedTime={localSyncedTime}
+                            layout={tocLayout}
+                        />
+                    </div>
                     </div>
                 </main>
 
                 <button
                     onClick={handleScrollToTop}
                     className={`
+                        article-print-hidden
                         fixed bottom-44 right-10 p-3 
                         bg-white shadow-[0_4px_12px_rgba(0,0,0,0.08)] rounded-full border border-slate-100 
                         text-slate-400 hover:text-orange-600 hover:border-orange-200 hover:-translate-y-1 hover:shadow-lg 
