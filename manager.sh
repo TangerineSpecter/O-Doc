@@ -4,7 +4,7 @@ set -e
 
 DEPLOY_DIR="${ODOC_DEPLOY_DIR:-$HOME/o-doc}"
 COMPOSE_FILE="$DEPLOY_DIR/compose.prod.yml"
-ENV_FILE="$DEPLOY_DIR/.env.deploy"
+ENV_FILE="$DEPLOY_DIR/.env"
 RUNTIME_DIR="$DEPLOY_DIR/runtime"
 
 OFFICIAL_IMAGE="ghcr.io/tangerinespecter/o-doc:latest"
