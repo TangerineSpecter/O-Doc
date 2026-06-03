@@ -11,9 +11,11 @@ import {
     CalendarClock,
     Edit3,
     Hash,
+    Info,
     Inbox,
     List,
     Network,
+    PanelRightOpen,
     MoreHorizontal,
     Pin,
     PinOff,
@@ -81,6 +83,7 @@ export default function MemosPage() {
     const [graphLoading, setGraphLoading] = useState(false);
     const [vectorSyncing, setVectorSyncing] = useState(false);
     const [selectedGraphNode, setSelectedGraphNode] = useState<MemoGraphNode | null>(null);
+    const [graphDetailCollapsed, setGraphDetailCollapsed] = useState(true);
     const [saving, setSaving] = useState(false);
     const [editSaving, setEditSaving] = useState(false);
     const graphRef = useRef<HTMLDivElement | null>(null);
@@ -483,6 +486,29 @@ export default function MemosPage() {
         const chart = graphChartRef.current || echarts.init(graphRef.current);
         graphChartRef.current = chart;
 
+        const getNormalLinkStyle = (link: any) => (
+            link.relation === '相似'
+                ? {color: '#f97316', opacity: 0.18, width: 0.7 + Math.min(0.9, (link.similarity || 0.72) - 0.6)}
+                : {color: '#a78bfa', opacity: 0.16, width: 0.8}
+        );
+        const getActiveLinkStyle = (link: any) => (
+            link.relation === '相似'
+                ? {color: '#f97316', opacity: 0.56, width: 2}
+                : {color: '#a78bfa', opacity: 0.42, width: 1.4}
+        );
+        const buildGraphLinks = (activeNodeId?: string) => (
+            graphData.links.map(link => {
+                const isActive = activeNodeId && (link.source === activeNodeId || link.target === activeNodeId);
+                return {
+                    ...link,
+                    lineStyle: isActive ? getActiveLinkStyle(link) : getNormalLinkStyle(link),
+                    emphasis: {
+                        lineStyle: getActiveLinkStyle(link),
+                    },
+                };
+            })
+        );
+
         const option: EChartsOption = {
             backgroundColor: 'transparent',
             tooltip: {
@@ -526,15 +552,15 @@ export default function MemosPage() {
                     },
                     lineStyle: {
                         color: 'source',
-                        opacity: 0.28,
-                        width: 1.2,
+                        opacity: 0.16,
+                        width: 0.8,
                         curveness: 0.16,
                     },
                     emphasis: {
                         focus: 'adjacency',
                         lineStyle: {
-                            opacity: 0.8,
-                            width: 2.5,
+                            opacity: 0.56,
+                            width: 2,
                         },
                     },
                     force: {
@@ -559,12 +585,7 @@ export default function MemosPage() {
                                 borderWidth: 2,
                             },
                     })),
-                    links: graphData.links.map(link => ({
-                        ...link,
-                        lineStyle: link.relation === '相似'
-                            ? {color: '#f97316', opacity: 0.42, width: Math.max(1, link.value)}
-                            : {color: '#a78bfa', opacity: 0.25, width: 1.1},
-                    })),
+                    links: buildGraphLinks(),
                 },
             ],
         };
@@ -574,10 +595,27 @@ export default function MemosPage() {
         const handleClick = (params: any) => {
             if (params.dataType !== 'node') return;
             setSelectedGraphNode(params.data as MemoGraphNode);
+            setGraphDetailCollapsed(false);
+        };
+        const handleMouseOver = (params: any) => {
+            if (params.dataType !== 'node') return;
+            chart.setOption({
+                series: [{links: buildGraphLinks(params.data.id)}],
+            });
+        };
+        const handleMouseOut = (params: any) => {
+            if (params.dataType !== 'node') return;
+            chart.setOption({
+                series: [{links: buildGraphLinks()}],
+            });
         };
 
         chart.off('click');
+        chart.off('mouseover');
+        chart.off('mouseout');
         chart.on('click', handleClick);
+        chart.on('mouseover', handleMouseOver);
+        chart.on('mouseout', handleMouseOut);
 
         const resizeObserver = new ResizeObserver(() => chart.resize());
         resizeObserver.observe(graphRef.current);
@@ -585,8 +623,14 @@ export default function MemosPage() {
         return () => {
             resizeObserver.disconnect();
             chart.off('click', handleClick);
+            chart.off('mouseover', handleMouseOver);
+            chart.off('mouseout', handleMouseOut);
         };
     }, [graphData, viewMode]);
+
+    useEffect(() => {
+        window.setTimeout(() => graphChartRef.current?.resize(), 180);
+    }, [graphDetailCollapsed]);
 
     useEffect(() => {
         return () => {
@@ -698,11 +742,52 @@ export default function MemosPage() {
         );
     };
 
+    const renderNodeAttributes = (node: MemoGraphNode, relatedCount: number) => {
+        const memo = node.memo;
+        const author = memo ? getMemoAuthorMeta(memo) : null;
+        const attributes = memo ? [
+            {label: '节点类型', value: '闪念'},
+            {label: '节点 ID', value: node.id},
+            {label: '字数', value: `${memo.content.length}`},
+            {label: '标签', value: memo.tag || '未归类'},
+            {label: '置顶', value: memo.isPinned ? '是' : '否'},
+            {label: '来源', value: author?.isAgent ? 'Agent' : '用户'},
+            {label: '创建者', value: author?.name || '未知账号'},
+            {label: '关联数', value: `${relatedCount}`},
+            {label: '创建时间', value: formatDate(memo.createdAt)},
+            {label: '更新时间', value: formatDate(memo.updatedAt)},
+        ] : [
+            {label: '节点类型', value: '标签'},
+            {label: '节点 ID', value: node.id},
+            {label: '标签路径', value: node.name},
+            {label: '闪念数量', value: `${node.value}`},
+            {label: '关联数', value: `${relatedCount}`},
+        ];
+
+        return (
+            <div className="mt-5">
+                <h3 className="mb-2 flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                    <Info className="h-3.5 w-3.5"/>
+                    属性
+                </h3>
+                <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    {attributes.map(item => (
+                        <div key={item.label} className="grid grid-cols-[72px_minmax(0,1fr)] border-b border-slate-100 text-xs last:border-b-0">
+                            <div className="bg-slate-50 px-3 py-2 font-medium text-slate-500">{item.label}</div>
+                            <div className="min-w-0 break-words px-3 py-2 text-slate-700">{item.value}</div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
     const renderKnowledgeGraph = () => {
         const stats = graphData?.stats;
         const relatedLinks = selectedGraphNode && graphData
             ? graphData.links.filter(link => link.source === selectedGraphNode.id || link.target === selectedGraphNode.id)
             : [];
+        const isDetailCollapsed = graphDetailCollapsed || !selectedGraphNode;
 
         return (
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -745,7 +830,11 @@ export default function MemosPage() {
                     </div>
                 </div>
 
-                <div className="grid min-h-[620px] lg:grid-cols-[minmax(0,1fr)_280px]">
+                <div className={`grid min-h-[620px] transition-[grid-template-columns] duration-200 ${
+                    isDetailCollapsed
+                        ? 'lg:grid-cols-[minmax(0,1fr)_48px]'
+                        : 'lg:grid-cols-[minmax(0,1fr)_300px]'
+                }`}>
                     <div className="relative min-h-[520px] bg-[radial-gradient(circle_at_20%_20%,rgba(249,115,22,0.08),transparent_32%),linear-gradient(180deg,#fff,#f8fafc)]">
                         {graphLoading && (
                             <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 text-sm text-slate-500 backdrop-blur-sm">
@@ -765,8 +854,22 @@ export default function MemosPage() {
                         )}
                     </div>
 
-                    <aside className="border-t border-slate-100 bg-slate-50/70 p-4 lg:border-l lg:border-t-0">
-                        {selectedGraphNode ? (
+                    <aside className={`border-t border-slate-100 bg-slate-50/70 transition-all duration-200 lg:border-l lg:border-t-0 ${
+                        isDetailCollapsed ? 'p-2' : 'p-4'
+                    }`}>
+                        {isDetailCollapsed ? (
+                            <button
+                                type="button"
+                                onClick={() => selectedGraphNode && setGraphDetailCollapsed(false)}
+                                className="flex h-full min-h-[520px] w-full flex-col items-center justify-start gap-2 rounded-lg border border-dashed border-slate-200 bg-white/80 px-2 py-4 text-slate-400 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                                title={selectedGraphNode ? '展开详情' : '点击节点后查看详情'}
+                            >
+                                <PanelRightOpen className="h-4 w-4"/>
+                                <span className="[writing-mode:vertical-rl] text-xs font-medium tracking-widest">
+                                    {selectedGraphNode ? '详情' : '点节点'}
+                                </span>
+                            </button>
+                        ) : selectedGraphNode ? (
                             <div>
                                 <div className="mb-3 flex items-center justify-between gap-3">
                                     <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${
@@ -778,9 +881,9 @@ export default function MemosPage() {
                                     </span>
                                     <button
                                         type="button"
-                                        onClick={() => setSelectedGraphNode(null)}
+                                        onClick={() => setGraphDetailCollapsed(true)}
                                         className="rounded-md p-1 text-slate-400 transition hover:bg-white hover:text-slate-700"
-                                        title="取消选中"
+                                        title="收起详情"
                                     >
                                         <X className="h-4 w-4"/>
                                     </button>
@@ -818,6 +921,8 @@ export default function MemosPage() {
                                         <p className="mt-2 text-sm text-slate-500">{selectedGraphNode.value} 条闪念使用这个标签。</p>
                                     </div>
                                 )}
+
+                                {renderNodeAttributes(selectedGraphNode, relatedLinks.length)}
 
                                 <div className="mt-5">
                                     <h3 className="mb-2 text-xs font-bold text-slate-500">关联</h3>
