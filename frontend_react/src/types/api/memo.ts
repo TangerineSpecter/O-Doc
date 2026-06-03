@@ -3,6 +3,17 @@ export interface MemoItem {
     content: string;
     tag: string;
     isPinned: boolean;
+    userId?: string;
+    userName?: string;
+    agentName?: string;
+    agent?: {
+        name?: string;
+    };
+    creatorType?: 'agent' | 'user';
+    creatorId?: string;
+    creatorName?: string;
+    authorType?: 'agent' | 'user';
+    createdByType?: 'agent' | 'user';
     createdAt: string;
     updatedAt: string;
 }
