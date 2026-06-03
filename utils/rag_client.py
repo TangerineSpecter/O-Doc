@@ -1,4 +1,5 @@
 import os
+import math
 import chromadb
 from chromadb.config import Settings
 from django.conf import settings
@@ -30,6 +31,11 @@ class RagClient:
         client = cls.get_client()
         # 使用 cosine 相似度，适合大多数 RAG 场景
         return client.get_or_create_collection(name=name, metadata={"hnsw:space": "cosine"})
+
+    @classmethod
+    def get_memo_collection(cls):
+        """获取 Memos 专用向量集合"""
+        return cls.get_collection(name="odoc_memos")
 
     @staticmethod
     def get_embedding_model():
@@ -134,6 +140,130 @@ class RagClient:
             ids=ids
         )
         return len(chunks)
+
+    @classmethod
+    def add_memo(cls, memo):
+        """添加或更新一条闪念到向量库"""
+        content = (memo.content or '').strip()
+        if not content:
+            return 0
+
+        embeddings = cls.create_embeddings([content])
+        if not embeddings:
+            print(f"Memo {memo.memo_id} 向量生成失败，跳过入库")
+            return 0
+
+        collection = cls.get_memo_collection()
+        collection.upsert(
+            documents=[content],
+            embeddings=embeddings,
+            metadatas=[{
+                "memo_id": str(memo.memo_id),
+                "user_id": str(memo.user_id),
+                "tag": memo.tag or "",
+                "is_pinned": bool(memo.is_pinned),
+                "created_at": memo.created_at.isoformat() if memo.created_at else "",
+                "updated_at": memo.updated_at.isoformat() if memo.updated_at else "",
+            }],
+            ids=[str(memo.memo_id)]
+        )
+        return 1
+
+    @classmethod
+    def delete_memo(cls, memo_id):
+        """从向量库删除一条闪念"""
+        try:
+            cls.get_memo_collection().delete(ids=[str(memo_id)])
+        except Exception as e:
+            print(f"删除 Memo 向量失败: {e}")
+
+    @classmethod
+    def sync_memos(cls, memos):
+        """补齐或刷新闪念向量，返回成功同步数量"""
+        collection = cls.get_memo_collection()
+        memo_list = list(memos)
+        if not memo_list:
+            return 0
+
+        try:
+            existing = collection.get(
+                ids=[str(memo.memo_id) for memo in memo_list],
+                include=['metadatas']
+            )
+            existing_meta = {
+                str(item_id): metadata or {}
+                for item_id, metadata in zip(existing.get('ids', []), existing.get('metadatas', []))
+            }
+        except Exception:
+            existing_meta = {}
+
+        synced_count = 0
+        for memo in memo_list:
+            memo_id = str(memo.memo_id)
+            current_updated_at = memo.updated_at.isoformat() if memo.updated_at else ""
+            if existing_meta.get(memo_id, {}).get("updated_at") == current_updated_at:
+                continue
+            try:
+                synced_count += cls.add_memo(memo)
+            except Exception as e:
+                print(f"同步 Memo 向量失败: {memo_id} - {e}")
+
+        return synced_count
+
+    @staticmethod
+    def cosine_similarity(vector_a, vector_b):
+        dot = sum(a * b for a, b in zip(vector_a, vector_b))
+        norm_a = math.sqrt(sum(a * a for a in vector_a))
+        norm_b = math.sqrt(sum(b * b for b in vector_b))
+        if norm_a == 0 or norm_b == 0:
+            return 0
+        return dot / (norm_a * norm_b)
+
+    @classmethod
+    def build_memo_similarity_links(cls, memos, threshold=0.72, max_neighbors=4):
+        """基于已入库的 memo embedding 构建相似关系"""
+        memo_ids = [str(memo.memo_id) for memo in memos]
+        if len(memo_ids) < 2:
+            return []
+
+        collection = cls.get_memo_collection()
+        try:
+            results = collection.get(ids=memo_ids, include=['embeddings'])
+        except Exception as e:
+            print(f"读取 Memo 向量失败: {e}")
+            return []
+
+        embeddings_by_id = {
+            str(item_id): embedding
+            for item_id, embedding in zip(results.get('ids', []), results.get('embeddings', []))
+            if embedding is not None
+        }
+
+        scored_links = []
+        for index, source_id in enumerate(memo_ids):
+            source_embedding = embeddings_by_id.get(source_id)
+            if source_embedding is None:
+                continue
+
+            neighbors = []
+            for target_id in memo_ids[index + 1:]:
+                target_embedding = embeddings_by_id.get(target_id)
+                if target_embedding is None:
+                    continue
+                score = cls.cosine_similarity(source_embedding, target_embedding)
+                if score >= threshold:
+                    neighbors.append((target_id, score))
+
+            for target_id, score in sorted(neighbors, key=lambda item: item[1], reverse=True)[:max_neighbors]:
+                scored_links.append({
+                    "source": source_id,
+                    "target": target_id,
+                    "relation": "相似",
+                    "similarity": round(score, 4),
+                    "value": max(1, round(score * 5, 2)),
+                })
+
+        return scored_links
 
     @classmethod
     def search(cls, query, n_results=3):
