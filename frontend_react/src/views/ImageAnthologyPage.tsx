@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Aperture, ArrowLeft, ChevronDown, Droplets, Filter, Globe2, Image as ImageIcon, MapPin, Plus, Tag, X } from 'lucide-react';
-import ImageCard from '../components/ImageGallery/ImageCard';
+import { ArrowLeft, Image as ImageIcon, Plus } from 'lucide-react';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
-import LocationChartMap from '../components/ImageAnthology/LocationChartMap';
-import FocalLengthDetailChart, { FocalLengthFilterOption, formatFocalLength } from '../components/ImageAnthology/FocalLengthDetailChart';
-import { Select, SelectOption } from '../components/common/Select';
+import FocalLengthDetailChart, { FocalLengthFilterOption } from '../components/ImageAnthology/FocalLengthDetailChart';
+import ImageAnthologySidebar from '../components/ImageAnthology/ImageAnthologySidebar';
+import ImageGalleryFilters from '../components/ImageAnthology/ImageGalleryFilters';
+import ImageLocationPanel, { ImageLocationCountryGroup, ImageLocationStats } from '../components/ImageAnthology/ImageLocationPanel';
+import ImageMasonryGrid from '../components/ImageAnthology/ImageMasonryGrid';
+import ImageTagStatsPanel from '../components/ImageAnthology/ImageTagStatsPanel';
+import { SelectOption } from '../components/common/Select';
 import { getAnthologyDetail, Anthology } from '../api/anthology';
 import { deleteImage, getImagesByAnthology, Image } from '../api/image';
 import { getIconComponent } from '../constants/iconList';
@@ -478,7 +481,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     return () => window.removeEventListener('resize', updateColumnCount);
   }, []);
 
-  const locationStats = useMemo(() => {
+  const locationStats = useMemo<ImageLocationStats>(() => {
     const locationMap = new Map<string, {
       country: string;
       city: string;
@@ -514,7 +517,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     };
   }, [images]);
 
-  const locationCountryGroups = useMemo(() => {
+  const locationCountryGroups = useMemo<ImageLocationCountryGroup[]>(() => {
     const groupMap = new Map<string, {
       country: string;
       count: number;
@@ -629,294 +632,61 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
-            <aside className="self-start rounded-xl border border-slate-200 bg-white/85 p-4 shadow-sm backdrop-blur lg:sticky lg:top-24">
-              <div className="mb-4">
-                <button
-                  onClick={() => {
-                    setIsLocationMapOpen(open => !open);
-                    setIsFocalLengthDetailOpen(false);
-                    setIsTagDetailOpen(false);
-                  }}
-                  className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition-all ${
-                    isLocationMapOpen
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    拍摄地点
-                  </span>
-                  <span>{locationStats.cityCount} 城市</span>
-                </button>
-              </div>
-
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">焦段统计</h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {focalLengthTotal} / {images.length} 张已记录
-                  </p>
-                </div>
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
-                  <Aperture className="h-4 w-4" />
-                </div>
-              </div>
-
-              {focalLengthStats.length > 0 ? (
-                <div className="space-y-3">
-                  {focalLengthSummaryStats.map((item) => (
-                    <div key={item.name} className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-3 text-xs">
-                        <span className="truncate font-semibold text-slate-700">{formatFocalLength(item.name)}</span>
-                        <span className="shrink-0 font-medium text-slate-400">{item.count} 张</span>
-                      </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full rounded-full bg-sky-500"
-                          style={{ width: `${Math.max((item.count / maxFocalLengthCount) * 100, 8)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  {missingFocalLengthCount > 0 && (
-                    <div className="border-t border-slate-100 pt-3 text-xs text-slate-400">
-                      未记录焦段 {missingFocalLengthCount} 张
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsFocalLengthDetailOpen(open => !open);
-                      setIsLocationMapOpen(false);
-                      setIsTagDetailOpen(false);
-                    }}
-                    className={`w-full rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                      isFocalLengthDetailOpen
-                        ? 'border-sky-200 bg-sky-50 text-sky-700'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700'
-                    }`}
-                  >
-                    {focalLengthStats.length > 5 ? `查看全部 ${focalLengthStats.length} 个焦段` : '查看完整焦段图表'}
-                  </button>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs leading-5 text-slate-500">
-                  暂无焦段数据
-                </div>
-              )}
-
-              <div className="my-5 border-t border-slate-100" />
-
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">标签统计</h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {taggedImageCount} / {images.length} 张已记录
-                  </p>
-                </div>
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
-                  <Tag className="h-4 w-4" />
-                </div>
-              </div>
-
-              {tagStats.length > 0 ? (
-                <div className="space-y-3">
-                  {tagSummaryStats.map((item) => (
-                    <div key={item.name} className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-3 text-xs">
-                        <span className="truncate font-semibold text-slate-700">{item.name}</span>
-                        <span className="shrink-0 font-medium text-slate-400">{item.count} 次</span>
-                      </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full rounded-full bg-orange-500"
-                          style={{ width: `${Math.max((item.count / maxTagCount) * 100, 8)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  <div className="border-t border-slate-100 pt-3 text-xs text-slate-400">
-                    共记录 {tagTotal} 个标签
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsTagDetailOpen(open => !open);
-                      setIsLocationMapOpen(false);
-                      setIsFocalLengthDetailOpen(false);
-                    }}
-                    className={`w-full rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                      isTagDetailOpen
-                        ? 'border-orange-200 bg-orange-50 text-orange-700'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700'
-                    }`}
-                  >
-                    {tagStats.length > 5 ? `查看全部 ${tagStats.length} 个标签` : '查看完整标签统计'}
-                  </button>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs leading-5 text-slate-500">
-                  暂无标签数据
-                </div>
-              )}
-
-              <div className="my-5 border-t border-slate-100" />
-
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">主色调</h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {extractedColorCount} / {baseVisibleImages.length} 张已识别
-                  </p>
-                </div>
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
-                  <Droplets className="h-4 w-4" />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedColor('all')}
-                  className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                    selectedColor === 'all'
-                      ? 'border-orange-200 bg-orange-50 text-orange-700'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700'
-                  }`}
-                >
-                  <span>全部颜色</span>
-                  <span>{baseVisibleImages.length} 张</span>
-                </button>
-                <div className="grid grid-cols-2 gap-2">
-                  {colorStats.map((color) => (
-                    <button
-                      key={color.key}
-                      type="button"
-                      onClick={() => setSelectedColor(color.key)}
-                      className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold transition-all ${
-                        selectedColor === color.key
-                          ? `${color.borderClass} ${color.bgClass} ${color.textClass} ring-2 ring-offset-1 ring-orange-500/20`
-                          : `border-slate-200 bg-white text-slate-600 hover:bg-slate-50 ${color.count === 0 ? 'opacity-55' : ''}`
-                      }`}
-                    >
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <span
-                          className="h-3 w-3 shrink-0 rounded-full border border-black/10"
-                          style={{ backgroundColor: color.hex }}
-                        />
-                        <span className="truncate">{color.label}</span>
-                      </span>
-                      <span className="shrink-0 text-slate-400">{color.count}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </aside>
+            <ImageAnthologySidebar
+              imageCount={images.length}
+              locationCityCount={locationStats.cityCount}
+              isLocationMapOpen={isLocationMapOpen}
+              isFocalLengthDetailOpen={isFocalLengthDetailOpen}
+              isTagDetailOpen={isTagDetailOpen}
+              focalLengthStats={focalLengthStats}
+              focalLengthSummaryStats={focalLengthSummaryStats}
+              focalLengthTotal={focalLengthTotal}
+              missingFocalLengthCount={missingFocalLengthCount}
+              maxFocalLengthCount={maxFocalLengthCount}
+              tagStats={tagStats}
+              tagSummaryStats={tagSummaryStats}
+              taggedImageCount={taggedImageCount}
+              tagTotal={tagTotal}
+              maxTagCount={maxTagCount}
+              selectedColor={selectedColor}
+              colorStats={colorStats}
+              extractedColorCount={extractedColorCount}
+              baseVisibleImageCount={baseVisibleImages.length}
+              onToggleLocationMap={() => {
+                setIsLocationMapOpen(open => !open);
+                setIsFocalLengthDetailOpen(false);
+                setIsTagDetailOpen(false);
+              }}
+              onToggleFocalLengthDetail={() => {
+                setIsFocalLengthDetailOpen(open => !open);
+                setIsLocationMapOpen(false);
+                setIsTagDetailOpen(false);
+              }}
+              onToggleTagDetail={() => {
+                setIsTagDetailOpen(open => !open);
+                setIsLocationMapOpen(false);
+                setIsFocalLengthDetailOpen(false);
+              }}
+              onSelectColor={setSelectedColor}
+            />
 
             <div className="min-w-0">
-              <section className="relative z-30 mb-5 rounded-xl border border-slate-200 bg-white/85 px-4 py-3 shadow-sm backdrop-blur">
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
-                      <Filter className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <h2 className="text-sm font-bold text-slate-900">内容筛选</h2>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {visibleImages.length} / {images.length} 张匹配
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid flex-1 gap-3 md:grid-cols-[minmax(150px,0.8fr)_minmax(220px,1.4fr)_minmax(220px,1fr)_auto] xl:max-w-4xl">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-600">国家</label>
-                      <Select
-                        value={galleryCountry}
-                        options={galleryCountryOptions}
-                        onChange={setGalleryCountry}
-                        placeholder="选择国家"
-                        buttonClassName="min-h-9 py-1.5 text-xs"
-                        menuClassName="z-[100]"
-                        showSelectedDescription={false}
-                      />
-                    </div>
-
-                    <div>
-                      <div className="mb-1.5 flex items-center justify-between gap-2">
-                        <label className="text-xs font-semibold text-slate-600">标签</label>
-                        {galleryTags.length > 0 && (
-                          <span className="text-[11px] font-medium text-orange-600">{galleryTags.length} 个</span>
-                        )}
-                      </div>
-                      {galleryTagOptions.length > 0 ? (
-                        <div className="flex min-h-9 gap-1.5 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1">
-                          {galleryTagOptions.map((item) => {
-                            const active = galleryTags.includes(item.name);
-                            return (
-                              <button
-                                key={item.name}
-                                type="button"
-                                onClick={() => handleGalleryTagToggle(item.name)}
-                                className={`flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
-                                  active
-                                    ? 'bg-orange-50 text-orange-700'
-                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                                }`}
-                              >
-                                <span>{item.name}</span>
-                                <span className={active ? 'text-orange-500' : 'text-slate-400'}>{item.count}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="flex min-h-9 items-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 text-xs text-slate-400">
-                          暂无标签
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-600">焦段范围</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          type="number"
-                          min="0"
-                          inputMode="decimal"
-                          value={galleryFocalMin}
-                          onChange={(event) => setGalleryFocalMin(event.target.value)}
-                          placeholder="最小 mm"
-                          className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                        />
-                        <input
-                          type="number"
-                          min="0"
-                          inputMode="decimal"
-                          value={galleryFocalMax}
-                          onChange={(event) => setGalleryFocalMax(event.target.value)}
-                          placeholder="最大 mm"
-                          className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-end">
-                      {hasGalleryFilters && (
-                        <button
-                          type="button"
-                          onClick={clearGalleryFilters}
-                          className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 md:w-auto"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                          清除
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </section>
+              <ImageGalleryFilters
+                visibleCount={visibleImages.length}
+                totalCount={images.length}
+                galleryCountry={galleryCountry}
+                galleryCountryOptions={galleryCountryOptions}
+                galleryTags={galleryTags}
+                galleryTagOptions={galleryTagOptions}
+                galleryFocalMin={galleryFocalMin}
+                galleryFocalMax={galleryFocalMax}
+                hasGalleryFilters={hasGalleryFilters}
+                onGalleryCountryChange={setGalleryCountry}
+                onGalleryTagToggle={handleGalleryTagToggle}
+                onGalleryFocalMinChange={setGalleryFocalMin}
+                onGalleryFocalMaxChange={setGalleryFocalMax}
+                onClearFilters={clearGalleryFilters}
+              />
 
               {isFocalLengthDetailOpen && (
                 <FocalLengthDetailChart
@@ -942,167 +712,34 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
               )}
 
               {isTagDetailOpen && (
-                <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-5 flex items-center justify-between gap-4">
-                    <div>
-                      <h2 className="text-base font-bold text-slate-900">完整标签统计</h2>
-                      <p className="mt-1 text-xs text-slate-500">按使用次数从大到小排列</p>
-                    </div>
-                    <div className="rounded-lg bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-700">
-                      {tagStats.length} 个标签
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {tagStats.map((item) => (
-                      <div key={item.name} className="rounded-lg border border-slate-100 bg-slate-50/70 p-3">
-                        <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                          <span className="min-w-0 truncate font-semibold text-slate-800">{item.name}</span>
-                          <span className="shrink-0 text-xs font-medium text-slate-400">{item.count} 次</span>
-                        </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-white">
-                          <div
-                            className="h-full rounded-full bg-orange-500"
-                            style={{ width: `${Math.max((item.count / maxTagCount) * 100, 8)}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
+                <ImageTagStatsPanel tagStats={tagStats} maxTagCount={maxTagCount} />
               )}
 
               {isLocationMapOpen && (
-                <section className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[240px_minmax(0,1fr)]">
-                  <div className="border-b border-slate-100 bg-slate-50/80 p-5 lg:border-b-0 lg:border-r">
-                    <div className="mb-5 flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                        <Globe2 className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h2 className="text-sm font-bold text-slate-900">地点地图</h2>
-                        <p className="mt-1 text-xs text-slate-500">{locationStats.imageCount} 张已定位</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-lg border border-slate-200 bg-white p-3">
-                        <div className="text-2xl font-bold text-slate-900">{locationStats.countryCount}</div>
-                        <div className="mt-1 text-xs font-medium text-slate-500">国家</div>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-white p-3">
-                        <div className="text-2xl font-bold text-slate-900">{locationStats.cityCount}</div>
-                        <div className="mt-1 text-xs font-medium text-slate-500">城市</div>
-                      </div>
-                    </div>
-
-                    <div className="relative mt-5">
-                      <div className="max-h-[34rem] space-y-2 overflow-auto pb-6 pr-1">
-                        {locationCountryGroups.length > 0 ? locationCountryGroups.map(group => (
-                          <div key={group.country} className="overflow-hidden rounded-lg bg-white">
-                            <button
-                              type="button"
-                              onClick={() => handleLocationCountryToggle(group.country)}
-                              className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-xs transition-colors hover:bg-orange-50"
-                            >
-                              <span className="flex min-w-0 items-center gap-2">
-                                <ChevronDown
-                                  className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${
-                                    expandedLocationCountries.includes(group.country) ? 'rotate-180 text-orange-500' : ''
-                                  }`}
-                                />
-                                <span className="min-w-0 truncate font-semibold text-slate-700">{group.country}</span>
-                              </span>
-                              <span className="shrink-0 font-medium text-slate-400">{group.count} 张</span>
-                            </button>
-
-                            {expandedLocationCountries.includes(group.country) && (
-                              <div className="space-y-1 border-t border-slate-100 bg-slate-50/70 px-2 py-2">
-                                {group.cities.map(city => (
-                                  <div key={`${group.country}-${city.city}`} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-xs">
-                                    <span className="min-w-0 truncate font-medium text-slate-600">{city.city}</span>
-                                    <span className="shrink-0 text-slate-400">{city.count} 张</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )) : (
-                          <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-8 text-center text-xs text-slate-400">
-                            暂无可定位图片
-                          </div>
-                        )}
-                      </div>
-                      {locationCountryGroups.length > 4 && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-slate-50/95 to-transparent" />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="relative min-h-[560px] overflow-hidden bg-[#f8fbfb] p-5">
-                    <LocationChartMap points={locationStats.points} />
-                  </div>
-                </section>
+                <ImageLocationPanel
+                  locationStats={locationStats}
+                  locationCountryGroups={locationCountryGroups}
+                  expandedLocationCountries={expandedLocationCountries}
+                  onToggleCountry={handleLocationCountryToggle}
+                />
               )}
 
-              <div className={isDetailPanelOpen ? 'hidden' : 'relative z-0'}>
-                {visibleImages.length > 0 ? (
-                  <div className="grid items-start gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                    {imageColumns.map((column, columnIndex) => (
-                      <div key={columnIndex} className="min-w-0">
-                        {column.map(({ image, index }) => (
-                          <div
-                            key={image.imageId}
-                            className="animate-fade-in-up"
-                            style={{
-                              animationDelay: `${index * 60}ms`,
-                              animationFillMode: 'both',
-                            }}
-                          >
-                            <ImageCard
-                              imageUrl={image.imageUrl}
-                              title={image.title}
-                              shootingTime={image.shootingTimeStr}
-                              country={image.country}
-                              city={image.city}
-                              focalLength={image.focalLength}
-                              dominantColor={dominantColors[image.imageId]}
-                              onClick={() => handleImageClick(index)}
-                              onEdit={isAuthenticated ? () => handleOpenEditModal(image) : undefined}
-                              onDelete={isAuthenticated ? () => setDeleteTarget(image) : undefined}
-                              onImageLoad={({ width, height }) => {
-                                if (width <= 0 || height <= 0) return;
-                                setImageAspectRatios(prev => (
-                                  prev[image.imageId] === width / height
-                                    ? prev
-                                    : { ...prev, [image.imageId]: width / height }
-                                ));
-                              }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/70 px-6 text-center">
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
-                      <Filter className="h-6 w-6" />
-                    </div>
-                    <h3 className="text-base font-bold text-slate-800">没有匹配的图片</h3>
-                    <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-                      当前筛选条件下暂无图片，可以清除筛选查看完整文集。
-                    </p>
-                    <button
-                      type="button"
-                      onClick={clearGalleryFilters}
-                      className="mt-4 rounded-lg bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-orange-500/20 transition-colors hover:bg-orange-600"
-                    >
-                      清除筛选
-                    </button>
-                  </div>
-                )}
-              </div>
+              <ImageMasonryGrid
+                isHidden={isDetailPanelOpen}
+                imageColumns={imageColumns}
+                visibleImageCount={visibleImages.length}
+                dominantColors={dominantColors}
+                isAuthenticated={isAuthenticated}
+                onImageClick={handleImageClick}
+                onEditImage={handleOpenEditModal}
+                onDeleteImage={setDeleteTarget}
+                onImageAspectRatio={(imageId, ratio) => {
+                  setImageAspectRatios(prev => (
+                    prev[imageId] === ratio ? prev : { ...prev, [imageId]: ratio }
+                  ));
+                }}
+                onClearFilters={clearGalleryFilters}
+              />
             </div>
           </div>
         )}
