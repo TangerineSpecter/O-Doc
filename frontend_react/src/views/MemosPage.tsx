@@ -115,10 +115,13 @@ export default function MemosPage() {
     const [selectedGraphNode, setSelectedGraphNode] = useState<MemoGraphNode | null>(null);
     const [graphDetailCollapsed, setGraphDetailCollapsed] = useState(true);
     const [randomWalkMemo, setRandomWalkMemo] = useState<MemoItem | null>(null);
+    const [randomWalkCardPhase, setRandomWalkCardPhase] = useState<'entering' | 'visible' | 'leaving'>('visible');
     const [saving, setSaving] = useState(false);
     const [editSaving, setEditSaving] = useState(false);
     const graphRef = useRef<HTMLDivElement | null>(null);
     const graphChartRef = useRef<echarts.ECharts | null>(null);
+    const randomWalkTimerRef = useRef<number | null>(null);
+    const randomWalkRevealTimerRef = useRef<number | null>(null);
     const {showToast} = useToast();
 
     const formatDate = (date: string) => {
@@ -391,6 +394,28 @@ export default function MemosPage() {
         closeEditModal();
     };
 
+    const closeRandomWalk = () => {
+        if (randomWalkTimerRef.current !== null) {
+            window.clearTimeout(randomWalkTimerRef.current);
+            randomWalkTimerRef.current = null;
+        }
+        if (randomWalkRevealTimerRef.current !== null) {
+            window.clearTimeout(randomWalkRevealTimerRef.current);
+            randomWalkRevealTimerRef.current = null;
+        }
+        setRandomWalkMemo(null);
+        setRandomWalkCardPhase('visible');
+    };
+
+    const revealRandomWalkMemo = (memo: MemoItem) => {
+        setRandomWalkMemo(memo);
+        setRandomWalkCardPhase('entering');
+        randomWalkRevealTimerRef.current = window.setTimeout(() => {
+            setRandomWalkCardPhase('visible');
+            randomWalkRevealTimerRef.current = null;
+        }, 20);
+    };
+
     const pickRandomMemo = () => {
         if (visibleMemos.length === 0) {
             showToast('当前范围还没有可漫步的闪念', 'info');
@@ -401,7 +426,21 @@ export default function MemosPage() {
             ? visibleMemos.filter(memo => memo.memoId !== randomWalkMemo.memoId)
             : visibleMemos;
         const nextMemo = candidates[Math.floor(Math.random() * candidates.length)];
-        setRandomWalkMemo(nextMemo);
+
+        if (!randomWalkMemo) {
+            revealRandomWalkMemo(nextMemo);
+            return;
+        }
+
+        if (randomWalkTimerRef.current !== null) {
+            window.clearTimeout(randomWalkTimerRef.current);
+        }
+
+        setRandomWalkCardPhase('leaving');
+        randomWalkTimerRef.current = window.setTimeout(() => {
+            revealRandomWalkMemo(nextMemo);
+            randomWalkTimerRef.current = null;
+        }, 180);
     };
 
     const handleEditSubmit = async (e?: React.FormEvent) => {
@@ -467,12 +506,23 @@ export default function MemosPage() {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key !== 'Escape') return;
             event.preventDefault();
-            setRandomWalkMemo(null);
+            closeRandomWalk();
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [randomWalkMemo]);
+
+    useEffect(() => {
+        return () => {
+            if (randomWalkTimerRef.current !== null) {
+                window.clearTimeout(randomWalkTimerRef.current);
+            }
+            if (randomWalkRevealTimerRef.current !== null) {
+                window.clearTimeout(randomWalkRevealTimerRef.current);
+            }
+        };
+    }, []);
 
     const markdownComponents = useMemo(() => ({
         p: ({children}: any) => <p className="my-2 leading-7">{children}</p>,
@@ -1091,6 +1141,25 @@ export default function MemosPage() {
                 type="danger"
             />
 
+            <style>{`
+                @keyframes memo-random-ripple {
+                    0% {
+                        box-shadow:
+                            0 0 0 0 rgba(255, 255, 255, 0.14),
+                            0 0 0 20px rgba(255, 255, 255, 0.12),
+                            0 0 0 40px rgba(255, 255, 255, 0.09),
+                            0 0 0 60px rgba(255, 255, 255, 0.06);
+                    }
+                    100% {
+                        box-shadow:
+                            0 0 0 20px rgba(255, 255, 255, 0.12),
+                            0 0 0 40px rgba(255, 255, 255, 0.09),
+                            0 0 0 60px rgba(255, 255, 255, 0.06),
+                            0 0 0 80px rgba(255, 255, 255, 0);
+                    }
+                }
+            `}</style>
+
             {editingMemo && (
                 <div className="fixed inset-0 z-[115] flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div
@@ -1217,13 +1286,19 @@ export default function MemosPage() {
             )}
 
             {randomWalkMemo && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 pb-24 animate-in fade-in duration-200">
                     <div
                         className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm"
-                        onClick={() => setRandomWalkMemo(null)}
+                        onClick={closeRandomWalk}
                     />
                     <section
-                        className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-2xl shadow-slate-950/20 animate-in zoom-in-95 slide-in-from-bottom-3 duration-200"
+                        className={`relative flex max-h-[min(680px,calc(100vh-8rem))] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-2xl shadow-slate-950/20 transition-all duration-300 ease-out ${
+                            randomWalkCardPhase === 'leaving'
+                                ? 'translate-y-5 scale-95 rotate-1 opacity-0'
+                                : randomWalkCardPhase === 'entering'
+                                    ? 'translate-y-8 scale-95 -rotate-1 opacity-0'
+                                    : 'translate-y-0 scale-100 rotate-0 opacity-100'
+                        }`}
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="absolute right-0 top-0 h-28 w-28 rounded-bl-full bg-orange-50"/>
@@ -1238,7 +1313,7 @@ export default function MemosPage() {
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => setRandomWalkMemo(null)}
+                                    onClick={closeRandomWalk}
                                     className="relative z-10 flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition hover:bg-white hover:text-slate-700"
                                     title="关闭"
                                 >
@@ -1247,8 +1322,8 @@ export default function MemosPage() {
                             </div>
                         </div>
 
-                        <div className="relative p-5">
-                            <div className="memo-markdown max-h-[48vh] overflow-y-auto pr-2 text-base leading-8 text-slate-800 [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent">
+                        <div className="relative flex min-h-0 flex-col">
+                            <div className="memo-markdown min-h-0 overflow-y-auto px-5 py-5 pr-6 text-base leading-8 text-slate-800 [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent">
                                 <ReactMarkdown
                                     remarkPlugins={[remarkSoftLineBreaks, remarkGfm]}
                                     components={markdownComponents as any}
@@ -1257,51 +1332,40 @@ export default function MemosPage() {
                                 </ReactMarkdown>
                             </div>
 
-                            <footer className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                                <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
-                                    {randomWalkMemo.tag ? (
-                                        <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 font-medium text-violet-600 ring-1 ring-violet-100">
-                                            <Hash className="h-3 w-3 shrink-0"/>
-                                            <span className="truncate">{renderTagLabel(randomWalkMemo.tag)}</span>
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 font-medium text-slate-400 ring-1 ring-slate-100">
-                                            <Inbox className="h-3 w-3"/>
-                                            未归类
-                                        </span>
-                                    )}
-                                    {randomWalkMemo.isPinned && (
-                                        <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 font-medium text-orange-600 ring-1 ring-orange-100">
-                                            <Pin className="h-3 w-3"/>
-                                            置顶
-                                        </span>
-                                    )}
-                                </div>
-
-                                <div className="flex shrink-0 justify-end gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={pickRandomMemo}
-                                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100 active:scale-95"
-                                    >
-                                        <Shuffle className="h-4 w-4"/>
-                                        再来一条
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            openEditModal(randomWalkMemo);
-                                            setRandomWalkMemo(null);
-                                        }}
-                                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-orange-500 px-3 text-sm font-semibold text-white shadow-sm shadow-orange-500/20 transition hover:bg-orange-600 active:scale-95"
-                                    >
-                                        <Edit3 className="h-4 w-4"/>
-                                        编辑
-                                    </button>
-                                </div>
+                            <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-100 bg-white px-5 py-4 text-xs">
+                                {randomWalkMemo.tag ? (
+                                    <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 font-medium text-violet-600 ring-1 ring-violet-100">
+                                        <Hash className="h-3 w-3 shrink-0"/>
+                                        <span className="truncate">{renderTagLabel(randomWalkMemo.tag)}</span>
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 font-medium text-slate-400 ring-1 ring-slate-100">
+                                        <Inbox className="h-3 w-3"/>
+                                        未归类
+                                    </span>
+                                )}
+                                {randomWalkMemo.isPinned && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 font-medium text-orange-600 ring-1 ring-orange-100">
+                                        <Pin className="h-3 w-3"/>
+                                        置顶
+                                    </span>
+                                )}
                             </footer>
                         </div>
                     </section>
+
+                    <div className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2">
+                        <button
+                            type="button"
+                            onClick={pickRandomMemo}
+                            disabled={randomWalkCardPhase === 'leaving'}
+                            className="group relative inline-flex min-w-[200px] items-center justify-between overflow-hidden rounded border-0 bg-orange-500 px-5 py-4 text-xs font-semibold uppercase tracking-[1.2px] text-white shadow-[0_4px_12px_rgba(249,115,22,0.28)] outline-none transition hover:bg-orange-600 hover:opacity-95 active:translate-y-0.5 disabled:cursor-not-allowed disabled:bg-orange-500 disabled:opacity-80 disabled:shadow-[0_4px_12px_rgba(249,115,22,0.2)]"
+                        >
+                            <Shuffle className="h-4 w-4 transition-transform duration-300 group-active:rotate-180"/>
+                            <span className="mx-4">继续漫步</span>
+                            <span className="h-2.5 w-2.5 rounded-full bg-white/80 [animation:memo-random-ripple_0.6s_linear_infinite]"/>
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -1430,7 +1494,7 @@ export default function MemosPage() {
                                 className="group flex w-full items-center gap-3 p-4 text-left transition hover:bg-orange-50/60 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white shadow-sm shadow-orange-500/25 transition group-hover:rotate-3 group-hover:scale-105">
-                                    <Shuffle className="h-5 w-5"/>
+                                    <Shuffle className="h-5 w-5 transition-transform duration-300 group-active:rotate-180"/>
                                 </span>
                                 <span className="min-w-0 flex-1">
                                     <span className="block text-sm font-bold text-slate-900">随机漫步</span>
