@@ -41,6 +41,43 @@ class SyncManager:
         except Exception:
             return os.getenv('ODOC_APP_VERSION', 'unknown')
 
+    @staticmethod
+    def _parse_version(version):
+        try:
+            parts = str(version).lstrip('v').split('.')
+            return tuple(int(part) for part in parts[:3])
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _is_snapshot_version_compatible(cls, remote_version, current_version):
+        if remote_version == current_version:
+            return True
+
+        remote_parts = cls._parse_version(remote_version)
+        current_parts = cls._parse_version(current_version)
+        if not remote_parts or not current_parts:
+            return False
+
+        remote_parts = remote_parts + (0,) * (3 - len(remote_parts))
+        current_parts = current_parts + (0,) * (3 - len(current_parts))
+        remote_major, remote_minor, remote_patch = remote_parts
+        current_major, current_minor, current_patch = current_parts
+
+        # 同步快照只做向后兼容：当前版本可以读取同一主版本下的当前小版本
+        # 或上一个小版本快照，但不能读取由更新系统生成的快照。
+        if remote_major != current_major:
+            return False
+
+        if remote_minor > current_minor:
+            return False
+
+        if remote_minor == current_minor and remote_patch > current_patch:
+            return False
+
+        # 允许新版服务读取上一个小版本生成的快照，完成升级后的首次同步。
+        return current_minor - remote_minor <= 1
+
     def validate_remote_snapshot_version(self, remote_meta):
         if not remote_meta:
             return
@@ -53,7 +90,7 @@ class SyncManager:
                 "请先将两端系统升级到同一版本后再同步。"
             )
 
-        if remote_version != current_version:
+        if not self._is_snapshot_version_compatible(remote_version, current_version):
             raise SyncError(
                 f"远端快照由系统版本 v{remote_version} 生成，当前系统版本为 v{current_version}。"
                 "请先将两端系统升级到同一版本后再同步。"

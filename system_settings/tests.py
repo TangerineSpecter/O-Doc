@@ -76,12 +76,25 @@ class SyncManagerTests(TestCase):
 
         self.assertEqual(meta['app_version'], '0.7.0')
 
-    def test_validate_remote_snapshot_version_rejects_mismatch(self):
+    def test_validate_remote_snapshot_version_allows_previous_minor_snapshot(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
 
-        with patch.object(SyncManager, 'get_current_app_version', return_value='0.7.0'):
+        with patch.object(SyncManager, 'get_current_app_version', return_value='0.8.1'):
+            manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '0.7.1'})
+
+    def test_validate_remote_snapshot_version_rejects_newer_remote_snapshot(self):
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+
+        with patch.object(SyncManager, 'get_current_app_version', return_value='0.8.1'):
             with self.assertRaisesMessage(SyncError, '请先将两端系统升级到同一版本'):
-                manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '0.6.0'})
+                manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '0.9.0'})
+
+    def test_validate_remote_snapshot_version_rejects_newer_patch_snapshot(self):
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+
+        with patch.object(SyncManager, 'get_current_app_version', return_value='0.8.1'):
+            with self.assertRaisesMessage(SyncError, '请先将两端系统升级到同一版本'):
+                manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '0.8.2'})
 
     def test_validate_remote_snapshot_version_rejects_missing_version(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')

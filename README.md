@@ -1,6 +1,6 @@
 # 小橘文档 (O-Doc) 🍊
 
-[![版本](https://img.shields.io/badge/version-0.8.1-blue.svg)](https://github.com/your-username/o-doc)
+[![版本](https://img.shields.io/badge/version-0.8.2-blue.svg)](https://github.com/your-username/o-doc)
 [![Django](https://img.shields.io/badge/Django-5.x-092e20.svg?logo=django)](https://www.djangoproject.com/)
 [![React](https://img.shields.io/badge/React-19.x-61dafb.svg?logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-7.x-646cff.svg?logo=vite)](https://vitejs.dev/)
@@ -275,16 +275,19 @@ python manage.py runserver
 ### Docker 容器部署
 ```bash
 # 1. 准备配置
-cp .env.deploy.example .env.deploy
+mkdir -p deploy
+cp .env.deploy.example deploy/.env
 
 # 2. 修改部署配置
-vim .env.deploy
+vim deploy/.env
 
 # 3. 启动部署脚本
 ./scripts/deploy.sh
 
 # 4. 在菜单中选择“安装”
 ```
+
+如果是直接运行 `manager.sh` 的独立部署目录，`.env` 放在 `compose.prod.yml` 同级即可。
 
 ### 更新项目
 ```bash

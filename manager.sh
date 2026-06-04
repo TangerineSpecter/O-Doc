@@ -4,7 +4,8 @@ set -e
 
 DEPLOY_DIR="${ODOC_DEPLOY_DIR:-$HOME/o-doc}"
 COMPOSE_FILE="$DEPLOY_DIR/compose.prod.yml"
-ENV_FILE="$DEPLOY_DIR/.env"
+ENV_FILE="${ODOC_ENV_FILE:-$DEPLOY_DIR/.env}"
+LEGACY_ENV_FILE="$DEPLOY_DIR/.env.deploy"
 RUNTIME_DIR="$DEPLOY_DIR/runtime"
 
 OFFICIAL_IMAGE="ghcr.io/tangerinespecter/o-doc:latest"
@@ -143,6 +144,20 @@ ensure_directories() {
         "$RUNTIME_DIR/postgres" \
         "$RUNTIME_DIR/media" \
         "$RUNTIME_DIR/chroma_data"
+}
+
+ensure_env_file_location() {
+    if [ -f "$ENV_FILE" ]; then
+        if [ -f "$LEGACY_ENV_FILE" ] && [ "$ENV_FILE" != "$LEGACY_ENV_FILE" ]; then
+            warn "检测到旧配置文件 $LEGACY_ENV_FILE，当前已优先使用 $ENV_FILE。"
+        fi
+        return
+    fi
+
+    if [ -f "$LEGACY_ENV_FILE" ] && [ "$ENV_FILE" != "$LEGACY_ENV_FILE" ]; then
+        mv "$LEGACY_ENV_FILE" "$ENV_FILE"
+        warn "已将旧配置文件迁移为 $ENV_FILE。"
+    fi
 }
 
 write_compose_file() {
@@ -327,6 +342,7 @@ install_app() {
 
     step "1/4" "准备部署目录"
     ensure_directories
+    ensure_env_file_location
 
     step "2/4" "生成部署配置"
     write_compose_file
@@ -345,6 +361,8 @@ install_app() {
 update_app() {
     ensure_prerequisites
     show_update_intro
+    ensure_directories
+    ensure_env_file_location
 
     if [ ! -f "$COMPOSE_FILE" ] || [ ! -f "$ENV_FILE" ]; then
         warn "未检测到已安装的 O-Doc，将转为执行安装流程。"
@@ -368,6 +386,7 @@ update_app() {
 uninstall_app() {
     ensure_prerequisites
     show_uninstall_intro
+    ensure_env_file_location
 
     if [ ! -f "$COMPOSE_FILE" ] || [ ! -f "$ENV_FILE" ]; then
         warn "未检测到已安装的 O-Doc。"
@@ -404,6 +423,7 @@ uninstall_app() {
 
 show_status() {
     ensure_prerequisites
+    ensure_env_file_location
 
     if [ ! -f "$COMPOSE_FILE" ] || [ ! -f "$ENV_FILE" ]; then
         warn "未检测到已安装的 O-Doc。"
@@ -418,6 +438,7 @@ switch_image_source() {
     local image=""
 
     ensure_directories
+    ensure_env_file_location
     write_compose_file
     [ -f "$ENV_FILE" ] || create_env_file
     ensure_env_defaults

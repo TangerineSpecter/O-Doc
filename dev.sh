@@ -6,7 +6,8 @@ cd "$(dirname "$0")"
 
 echo "🍊 正在启动 O-Doc 开发环境..."
 
-DEV_ENV_FILE="${ODOC_DEV_ENV_FILE:-deploy/.env.deploy}"
+DEV_ENV_FILE="${ODOC_DEV_ENV_FILE:-deploy/.env}"
+LEGACY_DEV_ENV_FILE="deploy/.env.deploy"
 USE_POSTGRES="${ODOC_DEV_USE_POSTGRES:-true}"
 COMPOSE_PROJECT_NAME="${ODOC_COMPOSE_PROJECT:-deploy}"
 PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
@@ -37,6 +38,17 @@ write_env_value() {
         rm -f "${DEV_ENV_FILE}.bak"
     else
         printf "%s=%s\n" "$key" "$value" >>"$DEV_ENV_FILE"
+    fi
+}
+
+ensure_env_file_location() {
+    if [ -f "$DEV_ENV_FILE" ]; then
+        return
+    fi
+
+    if [ -f "$LEGACY_DEV_ENV_FILE" ] && [ "$DEV_ENV_FILE" != "$LEGACY_DEV_ENV_FILE" ]; then
+        mv "$LEGACY_DEV_ENV_FILE" "$DEV_ENV_FILE"
+        echo "⚠️  已将旧配置文件迁移为 $DEV_ENV_FILE"
     fi
 }
 
@@ -150,6 +162,7 @@ if [ "$USE_POSTGRES" != "false" ] && [ "$USE_POSTGRES" != "0" ]; then
         exit 1
     fi
 
+    ensure_env_file_location
     ensure_env_defaults
     export_postgres_env
 

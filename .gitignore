@@ -37,6 +37,7 @@ staticfiles/*
 media/*
 deploy/runtime/*
 .env.deploy
+deploy/.env
 .env.tcr.local
 
 # Editor directories and files

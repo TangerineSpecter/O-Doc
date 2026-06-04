@@ -5,7 +5,8 @@ param(
 
 $DeployDir = if ($env:ODOC_DEPLOY_DIR) { $env:ODOC_DEPLOY_DIR } else { Join-Path $HOME 'o-doc' }
 $ComposeFile = Join-Path $DeployDir 'compose.prod.yml'
-$EnvFile = Join-Path $DeployDir '.env.deploy'
+$EnvFile = if ($env:ODOC_ENV_FILE) { $env:ODOC_ENV_FILE } else { Join-Path $DeployDir '.env' }
+$LegacyEnvFile = Join-Path $DeployDir '.env.deploy'
 $RuntimeDir = Join-Path $DeployDir 'runtime'
 
 $OfficialImage = 'ghcr.io/tangerinespecter/o-doc:latest'
@@ -126,6 +127,20 @@ function Ensure-Directories {
     $null = New-Item -ItemType Directory -Force -Path (Join-Path $RuntimeDir 'postgres')
     $null = New-Item -ItemType Directory -Force -Path (Join-Path $RuntimeDir 'media')
     $null = New-Item -ItemType Directory -Force -Path (Join-Path $RuntimeDir 'chroma_data')
+}
+
+function Ensure-EnvFileLocation {
+    if (Test-Path $EnvFile) {
+        if ((Test-Path $LegacyEnvFile) -and ($EnvFile -ne $LegacyEnvFile)) {
+            Write-Color "检测到旧配置文件 $LegacyEnvFile，当前已优先使用 $EnvFile。" Yellow
+        }
+        return
+    }
+
+    if ((Test-Path $LegacyEnvFile) -and ($EnvFile -ne $LegacyEnvFile)) {
+        Move-Item -Path $LegacyEnvFile -Destination $EnvFile
+        Write-Color "已将旧配置文件迁移为 $EnvFile。" Yellow
+    }
 }
 
 function Write-ComposeFile {
@@ -319,6 +334,7 @@ function Install-App {
 
     Step '1/4' '准备部署目录'
     Ensure-Directories
+    Ensure-EnvFileLocation
 
     Step '2/4' '生成部署配置'
     Write-ComposeFile
@@ -337,6 +353,8 @@ function Install-App {
 function Update-App {
     Ensure-Prerequisites
     Show-Intro -Mode update
+    Ensure-Directories
+    Ensure-EnvFileLocation
 
     if (-not (Test-Path $ComposeFile) -or -not (Test-Path $EnvFile)) {
         Write-Color '未检测到已安装的 O-Doc，将转为执行安装流程。' Yellow
@@ -360,6 +378,7 @@ function Update-App {
 function Uninstall-App {
     Ensure-Prerequisites
     Show-Intro -Mode uninstall
+    Ensure-EnvFileLocation
 
     if (-not (Test-Path $ComposeFile) -or -not (Test-Path $EnvFile)) {
         Write-Color '未检测到已安装的 O-Doc。' Yellow
@@ -390,6 +409,7 @@ function Uninstall-App {
 
 function Show-Status {
     Ensure-Prerequisites
+    Ensure-EnvFileLocation
 
     if (-not (Test-Path $ComposeFile) -or -not (Test-Path $EnvFile)) {
         Write-Color '未检测到已安装的 O-Doc。' Yellow
@@ -401,6 +421,7 @@ function Show-Status {
 
 function Switch-ImageSource {
     Ensure-Directories
+    Ensure-EnvFileLocation
     Write-ComposeFile
     if (-not (Test-Path $EnvFile)) {
         Initialize-EnvFile
