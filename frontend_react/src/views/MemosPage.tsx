@@ -35,6 +35,35 @@ import {useToast} from '../components/common/ToastProvider';
 
 echarts.use([GraphChart, TooltipComponent, LegendComponent, CanvasRenderer]);
 
+const GRAPH_LABEL_VISIBLE_MIN_ZOOM = 0.62;
+const GRAPH_LABEL_MAX_LENGTH = 10;
+const GRAPH_TOOLTIP_MAX_LENGTH = 50;
+
+const formatGraphLabel = (value?: string) => {
+    const firstLine = (value || '').split(/\r?\n/).map(line => line.trim()).find(Boolean) || '';
+    return firstLine.length > GRAPH_LABEL_MAX_LENGTH
+        ? `${firstLine.slice(0, GRAPH_LABEL_MAX_LENGTH)}...`
+        : firstLine;
+};
+
+const escapeHtml = (value: string) => (
+    value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+);
+
+const formatGraphTooltipText = (value?: string) => {
+    const normalized = (value || '').replace(/\s+/g, ' ').trim();
+    const preview = normalized.length > GRAPH_TOOLTIP_MAX_LENGTH
+        ? `${normalized.slice(0, GRAPH_TOOLTIP_MAX_LENGTH)}...`
+        : normalized;
+
+    return escapeHtml(preview || '暂无内容');
+};
+
 const remarkSoftLineBreaks = () => {
     const visit = (node: any) => {
         if (Array.isArray(node.children)) {
@@ -485,6 +514,7 @@ export default function MemosPage() {
 
         const chart = graphChartRef.current || echarts.init(graphRef.current);
         graphChartRef.current = chart;
+        let graphLabelsVisible = true;
 
         const getNormalLinkStyle = (link: any) => (
             link.relation === '相似'
@@ -513,6 +543,8 @@ export default function MemosPage() {
             backgroundColor: 'transparent',
             tooltip: {
                 trigger: 'item',
+                confine: true,
+                extraCssText: 'max-width: 360px; white-space: normal; word-break: break-word; line-height: 1.6;',
                 formatter: (params: any) => {
                     const data = params.data || {};
                     if (params.dataType === 'edge') {
@@ -521,9 +553,9 @@ export default function MemosPage() {
                             : data.relation || '关联';
                     }
                     if (data.category === 'tag') {
-                        return `标签: ${data.name}<br/>${data.value || 0} 条闪念`;
+                        return `标签: ${formatGraphTooltipText(data.name)}<br/>${data.value || 0} 条闪念`;
                     }
-                    return data.memo?.content || data.name;
+                    return formatGraphTooltipText(data.memo?.content || data.name);
                 },
             },
             legend: {
@@ -537,7 +569,7 @@ export default function MemosPage() {
                     type: 'graph',
                     layout: 'force',
                     roam: true,
-                    draggable: true,
+                    draggable: false,
                     focusNodeAdjacency: true,
                     categories: [
                         {name: 'memo', itemStyle: {color: '#f97316'}},
@@ -545,10 +577,12 @@ export default function MemosPage() {
                     ],
                     label: {
                         show: true,
+                        position: 'bottom',
+                        distance: 8,
                         color: '#334155',
+                        align: 'center',
                         fontSize: 11,
-                        overflow: 'truncate',
-                        width: 110,
+                        formatter: (params: any) => formatGraphLabel(params.data?.name),
                     },
                     lineStyle: {
                         color: 'source',
@@ -558,6 +592,9 @@ export default function MemosPage() {
                     },
                     emphasis: {
                         focus: 'adjacency',
+                        label: {
+                            show: true,
+                        },
                         lineStyle: {
                             opacity: 0.56,
                             width: 2,
@@ -584,6 +621,21 @@ export default function MemosPage() {
                                 borderColor: '#f5f3ff',
                                 borderWidth: 2,
                             },
+                        label: node.category === 'tag'
+                            ? {
+                                position: 'bottom',
+                                distance: 8,
+                                align: 'center',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                formatter: (params: any) => formatGraphLabel(params.data?.name),
+                            }
+                            : {
+                                position: 'bottom',
+                                distance: 8,
+                                align: 'center',
+                                formatter: (params: any) => formatGraphLabel(params.data?.name),
+                            },
                     })),
                     links: buildGraphLinks(),
                 },
@@ -591,6 +643,34 @@ export default function MemosPage() {
         };
 
         chart.setOption(option, true);
+
+        const getCurrentGraphZoom = () => {
+            const currentOption = chart.getOption() as any;
+            const series = Array.isArray(currentOption.series) ? currentOption.series[0] : undefined;
+            const zoom = Number(series?.zoom);
+            return Number.isFinite(zoom) ? zoom : 1;
+        };
+
+        const updateGraphLabelVisibility = () => {
+            const shouldShowLabels = getCurrentGraphZoom() >= GRAPH_LABEL_VISIBLE_MIN_ZOOM;
+            if (shouldShowLabels === graphLabelsVisible) return;
+
+            graphLabelsVisible = shouldShowLabels;
+            chart.setOption({
+                series: [
+                    {
+                        label: {
+                            show: shouldShowLabels,
+                        },
+                        emphasis: {
+                            label: {
+                                show: true,
+                            },
+                        },
+                    },
+                ],
+            });
+        };
 
         const handleClick = (params: any) => {
             if (params.dataType !== 'node') return;
@@ -613,9 +693,13 @@ export default function MemosPage() {
         chart.off('click');
         chart.off('mouseover');
         chart.off('mouseout');
+        chart.off('graphRoam' as any);
+        chart.off('graphroam' as any);
         chart.on('click', handleClick);
         chart.on('mouseover', handleMouseOver);
         chart.on('mouseout', handleMouseOut);
+        chart.on('graphRoam' as any, updateGraphLabelVisibility);
+        chart.on('graphroam' as any, updateGraphLabelVisibility);
 
         const resizeObserver = new ResizeObserver(() => chart.resize());
         resizeObserver.observe(graphRef.current);
@@ -625,6 +709,8 @@ export default function MemosPage() {
             chart.off('click', handleClick);
             chart.off('mouseover', handleMouseOver);
             chart.off('mouseout', handleMouseOut);
+            chart.off('graphRoam' as any, updateGraphLabelVisibility);
+            chart.off('graphroam' as any, updateGraphLabelVisibility);
         };
     }, [graphData, viewMode]);
 
@@ -842,7 +928,7 @@ export default function MemosPage() {
                             </div>
                         )}
                         {graphData && graphData.nodes.length > 0 ? (
-                            <div ref={graphRef} className="h-[620px] w-full"/>
+                            <div ref={graphRef} className="h-[620px] w-full cursor-grab touch-none active:cursor-grabbing"/>
                         ) : (
                             <div className="flex h-[520px] flex-col items-center justify-center text-center">
                                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600">
