@@ -11,6 +11,7 @@ import type {
     SkillConfig,
     AIModel,
     AIModelConnectionResult,
+    ArticleRagScheduleConfig,
     AIProvider,
     MemosPushConfig,
     SystemAIConfig,
@@ -42,6 +43,7 @@ export type {
     SkillConfig,
     AIModel,
     AIModelConnectionResult,
+    ArticleRagScheduleConfig,
     AIProvider,
     MemosPushConfig,
     SystemAIConfig,
@@ -218,6 +220,12 @@ export const getRuntimeInfo = () => request.get<any, RuntimeInfo>('/settings/con
 export const getMemosPushConfig = () => request.get<MemosPushConfig>('/settings/config/get_memos_push_config/') as unknown as Promise<MemosPushConfig>;
 
 export const saveMemosPushConfig = (data: MemosPushConfig) => request.post('/settings/config/save_memos_push_config/', data);
+
+export const getArticleRagScheduleConfig = () => request.get<ArticleRagScheduleConfig>('/settings/config/get_article_rag_schedule_config/') as unknown as Promise<ArticleRagScheduleConfig>;
+
+export const saveArticleRagScheduleConfig = (data: ArticleRagScheduleConfig) => request.post('/settings/config/save_article_rag_schedule_config/', data);
+
+export const runArticleRagNow = () => request.post<any, { detail: string }>('/settings/config/run_article_rag_now/');
 
 // --- WebDAV 相关接口 ---
 

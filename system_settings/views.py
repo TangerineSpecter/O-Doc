@@ -904,6 +904,21 @@ class SystemConfigViewSet(viewsets.ViewSet):
         return success_result({**default_value, **config.value})
 
     @action(detail=False, methods=['get'])
+    def get_article_rag_schedule_config(self, request):
+        default_value = {
+            'enabled': False,
+            'runTime': '02:00',
+        }
+        config, _ = SystemSetting.objects.get_or_create(
+            key='system_article_rag_schedule_config',
+            defaults={
+                'value': default_value,
+                'description': '文章 RAG 定时任务配置',
+            }
+        )
+        return success_result({**default_value, **(config.value or {})})
+
+    @action(detail=False, methods=['get'])
     def get_system_mcp_config(self, request):
         config, created = SystemSetting.objects.get_or_create(
             key=SYSTEM_MCP_CONFIG_KEY,
@@ -989,6 +1004,34 @@ class SystemConfigViewSet(viewsets.ViewSet):
             }}
         )
         return success_result()
+
+    @action(detail=False, methods=['post'])
+    def save_article_rag_schedule_config(self, request):
+        data = request.data
+        enabled = bool(data.get('enabled', False))
+        run_time = data.get('runTime') or data.get('run_time') or '02:00'
+
+        SystemSetting.objects.update_or_create(
+            key='system_article_rag_schedule_config',
+            defaults={
+                'value': {
+                    'enabled': enabled,
+                    'runTime': run_time,
+                },
+                'description': '文章 RAG 定时任务配置',
+            }
+        )
+        return success_result()
+
+    @action(detail=False, methods=['post'])
+    def run_article_rag_now(self, request):
+        notification_user = request.user if request.user and request.user.is_authenticated else 'admin'
+        from system_settings.article_rag_scheduler import _article_rag_scheduler
+
+        if not _article_rag_scheduler.run_manual_async(notification_user=notification_user):
+            return valid_result(msg='已有文章 RAG 任务正在执行，请稍后再试')
+
+        return success_result({'detail': '文章 RAG 任务已开始执行'})
 
     def _get_sync_manager(self):
         """辅助函数：初始化 SyncManager"""

@@ -2,9 +2,19 @@ import React, { useState } from 'react';
 import { Save, Bot, CalendarClock, Code2, Cpu, Info, MapPin, RefreshCw, Settings, WandSparkles } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useSettings } from '../hooks/useSettings';
-import { AIProvider, getMemosPushConfig, saveMemosPushConfig, saveSystemAIConfig, saveWebDavConfig } from '../api/setting';
+import {
+    AIProvider,
+    getArticleRagScheduleConfig,
+    getMemosPushConfig,
+    runArticleRagNow,
+    saveArticleRagScheduleConfig,
+    saveMemosPushConfig,
+    saveSystemAIConfig,
+    saveWebDavConfig
+} from '../api/setting';
+import { pushRandomMemoNotification } from '../api/message';
 import { useToast } from '../components/common/ToastProvider';
-import type { MemosPushConfig } from '../types/api/setting';
+import type { ArticleRagScheduleConfig, MemosPushConfig } from '../types/api/setting';
 
 // 子组件
 import { AISettings } from '../components/Settings/AISettings';
@@ -30,6 +40,11 @@ export default function SettingsPage() {
         weekday: '1',
         monthDay: '1',
     });
+    const [articleRagScheduleConfig, setArticleRagScheduleConfig] = useState<ArticleRagScheduleConfig>({
+        enabled: false,
+        runTime: '02:00',
+    });
+    const [scheduleAction, setScheduleAction] = useState<'memos' | 'rag' | null>(null);
 
     // 使用自定义 Hook
     const {
@@ -65,16 +80,25 @@ export default function SettingsPage() {
         }
 
         if (activeTab === 'schedule') {
-            getMemosPushConfig()
-                .then((config) => setMemosPushConfig({
-                    enabled: Boolean(config?.enabled),
-                    pushTime: config?.pushTime || '09:00',
-                    frequency: config?.frequency || 'daily',
-                    weekday: config?.weekday || '1',
-                    monthDay: config?.monthDay || '1',
-                }))
+            Promise.all([
+                getMemosPushConfig(),
+                getArticleRagScheduleConfig(),
+            ])
+                .then(([memosConfig, ragConfig]) => {
+                    setMemosPushConfig({
+                        enabled: Boolean(memosConfig?.enabled),
+                        pushTime: memosConfig?.pushTime || '09:00',
+                        frequency: memosConfig?.frequency || 'daily',
+                        weekday: memosConfig?.weekday || '1',
+                        monthDay: memosConfig?.monthDay || '1',
+                    });
+                    setArticleRagScheduleConfig({
+                        enabled: Boolean(ragConfig?.enabled),
+                        runTime: ragConfig?.runTime || '02:00',
+                    });
+                })
                 .catch((error) => {
-                    console.warn('Memos 推送配置加载失败:', error);
+                    console.warn('定时配置加载失败:', error);
                 });
         }
     }, [activeTab]);
@@ -121,8 +145,11 @@ export default function SettingsPage() {
             }
 
             if (activeTab === 'schedule') {
-                await saveMemosPushConfig(memosPushConfig);
-                toast.success('Memos 定时推送配置已保存');
+                await Promise.all([
+                    saveMemosPushConfig(memosPushConfig),
+                    saveArticleRagScheduleConfig(articleRagScheduleConfig),
+                ]);
+                toast.success('定时配置已保存');
                 return;
             }
 
@@ -140,6 +167,34 @@ export default function SettingsPage() {
             toast.error(error?.response?.data?.msg || error?.message || '保存失败，请稍后重试');
         } finally {
             setHeaderSaving(false);
+        }
+    };
+
+    const handleRunMemosPushNow = async () => {
+        setScheduleAction('memos');
+        try {
+            const notification = await pushRandomMemoNotification();
+            if (notification) {
+                toast.success('Memos 已推送到系统通知');
+            } else {
+                toast.info('暂无可推送的 Memos');
+            }
+        } catch (error: any) {
+            toast.error(error?.response?.data?.msg || error?.message || 'Memos 推送失败');
+        } finally {
+            setScheduleAction(null);
+        }
+    };
+
+    const handleRunArticleRagNow = async () => {
+        setScheduleAction('rag');
+        try {
+            await runArticleRagNow();
+            toast.success('文章 RAG 任务已开始执行，完成后会写入系统通知');
+        } catch (error: any) {
+            toast.error(error?.response?.data?.msg || error?.message || '文章 RAG 任务启动失败');
+        } finally {
+            setScheduleAction(null);
         }
     };
 
@@ -285,6 +340,11 @@ export default function SettingsPage() {
                         <ScheduleSettings
                             memosPushConfig={memosPushConfig}
                             onMemosPushConfigChange={setMemosPushConfig}
+                            articleRagScheduleConfig={articleRagScheduleConfig}
+                            onArticleRagScheduleConfigChange={setArticleRagScheduleConfig}
+                            onRunMemosPushNow={handleRunMemosPushNow}
+                            onRunArticleRagNow={handleRunArticleRagNow}
+                            runningAction={scheduleAction}
                         />
                     )}
                     {activeTab === 'location' && (

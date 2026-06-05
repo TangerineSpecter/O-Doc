@@ -180,6 +180,11 @@ export interface MemosPushConfig {
     monthDay: string;
 }
 
+export interface ArticleRagScheduleConfig {
+    enabled: boolean;
+    runTime: string;
+}
+
 export interface WebDavConfig {
     enabled: boolean;
     url: string;
