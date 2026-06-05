@@ -9,7 +9,7 @@ from django.db import OperationalError, ProgrammingError, close_old_connections
 from django.utils import timezone
 
 from .models import SystemSetting
-from .sync_scheduler import _env_flag, _is_server_process
+from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial_delay_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +93,7 @@ class RuntimeTracker:
     def __init__(self):
         self._started = False
         self._thread = None
+        self._start_lock = threading.Lock()
         self._stop_event = threading.Event()
         self.session_id = f"{socket.gethostname()}:{os.getpid()}"
 
@@ -109,20 +110,20 @@ class RuntimeTracker:
         return self.tick_seconds * 3
 
     def start(self):
-        if self._started:
-            return
+        with self._start_lock:
+            if self._started:
+                return
 
-        self._started = True
-        self._claim_session()
-        atexit.register(self.stop)
+            self._started = True
+            atexit.register(self.stop)
 
-        self._thread = threading.Thread(
-            target=self._run_loop,
-            name='system-runtime-tracker',
-            daemon=True,
-        )
-        self._thread.start()
-        logger.info('Runtime tracker started, tick=%ss', self.tick_seconds)
+            self._thread = threading.Thread(
+                target=self._run_loop,
+                name='system-runtime-tracker',
+                daemon=True,
+            )
+            self._thread.start()
+            logger.info('Runtime tracker started, tick=%ss', self.tick_seconds)
 
     def stop(self):
         if not self._started:
@@ -133,6 +134,10 @@ class RuntimeTracker:
         self._started = False
 
     def _run_loop(self):
+        if self._stop_event.wait(get_scheduler_initial_delay_seconds()):
+            return
+
+        self._claim_session()
         while not self._stop_event.wait(self.tick_seconds):
             self._checkpoint()
 

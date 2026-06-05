@@ -7,12 +7,14 @@ class SystemSettingsConfig(AppConfig):
 
     def ready(self):
         from .agent_task_scheduler import start_agent_task_scheduler
+        from .agent_memory_scheduler import start_agent_memory_scheduler
         from .article_rag_scheduler import start_article_rag_scheduler
         from .sync_scheduler import start_webdav_scheduler
         from .runtime_tracker import start_runtime_tracker
         from .feishu_im_ws import start_feishu_im_ws_manager
 
         start_agent_task_scheduler()
+        start_agent_memory_scheduler()
         start_article_rag_scheduler()
         start_webdav_scheduler()
         start_runtime_tracker()

@@ -1,6 +1,10 @@
 import request from '../utils/request';
 import type {
     ModelType,
+    AgentLongTermMemoryConfig,
+    AgentMemoryStatus,
+    AgentMemoryType,
+    SaveAgentLongTermMemoryParams,
     AgentConfig,
     AgentRunRecordConfig,
     AgentTaskConfig,
@@ -33,6 +37,10 @@ import type {
 // 重新导出类型以便其他组件使用
 export type {
     ModelType,
+    AgentLongTermMemoryConfig,
+    AgentMemoryStatus,
+    AgentMemoryType,
+    SaveAgentLongTermMemoryParams,
     AgentConfig,
     AgentRunRecordConfig,
     AgentTaskConfig,
@@ -167,6 +175,17 @@ export const saveAgent = (data: SaveAgentConfigParams) => {
 };
 
 export const deleteAgent = (id: string) => request.delete(`/settings/agents/${id}/`);
+
+export const getAgentMemories = (agentId: string) => request.get<any, AgentLongTermMemoryConfig[]>(`/settings/agents/${agentId}/memories/`);
+
+export const saveAgentMemory = (agentId: string, data: SaveAgentLongTermMemoryParams) => {
+    if (data.id) {
+        return request.put<any, AgentLongTermMemoryConfig>(`/settings/agents/${agentId}/memories/${data.id}/`, data);
+    }
+    return request.post<any, AgentLongTermMemoryConfig>(`/settings/agents/${agentId}/memories/`, data);
+};
+
+export const archiveAgentMemory = (agentId: string, memoryId: string) => request.delete(`/settings/agents/${agentId}/memories/${memoryId}/`);
 
 export const getAgentTasks = () => request.get<AgentTaskConfig[]>('/settings/agent-tasks/');
 

@@ -58,6 +58,35 @@ export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'modelDetail' | 'cr
     id?: string;
 };
 
+export type AgentMemoryType = 'preference' | 'fact' | 'project' | 'instruction' | 'other';
+export type AgentMemoryStatus = 'active' | 'archived';
+
+export interface AgentLongTermMemoryConfig {
+    id: string;
+    agent: string;
+    scope: string;
+    chatId: string;
+    senderId: string;
+    memoryType: AgentMemoryType;
+    title: string;
+    content: string;
+    confidence: number;
+    sourceCount: number;
+    status: AgentMemoryStatus;
+    lastRecalledAt?: string | null;
+    metadata?: Record<string, unknown>;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export type SaveAgentLongTermMemoryParams = Pick<AgentLongTermMemoryConfig, 'memoryType' | 'title' | 'content' | 'status'> & {
+    id?: string;
+    scope?: string;
+    chatId?: string;
+    senderId?: string;
+    confidence?: number;
+};
+
 export type AgentTaskScheduleType = 'daily' | 'weekly' | 'monthly' | 'interval';
 export type AgentTaskOutput = 'collection' | 'memos';
 export type AgentTaskNotifyPlatform = 'feishu';

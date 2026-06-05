@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Agent, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
+from .models import Agent, AgentLongTermMemory, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
 
 class AIModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -95,6 +95,50 @@ class AgentSerializer(serializers.ModelSerializer):
         if errors:
             raise serializers.ValidationError(errors)
         return attrs
+
+
+class AgentLongTermMemorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AgentLongTermMemory
+        fields = [
+            'id',
+            'agent',
+            'scope',
+            'chat_id',
+            'sender_id',
+            'memory_type',
+            'title',
+            'content',
+            'confidence',
+            'source_count',
+            'status',
+            'last_recalled_at',
+            'metadata',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'agent', 'source_count', 'last_recalled_at', 'metadata', 'created_at', 'updated_at']
+
+    def validate_memory_type(self, value):
+        valid_types = {choice[0] for choice in AgentLongTermMemory.MEMORY_TYPES}
+        if value not in valid_types:
+            raise serializers.ValidationError("记忆类型无效")
+        return value
+
+    def validate_status(self, value):
+        valid_statuses = {choice[0] for choice in AgentLongTermMemory.STATUS_TYPES}
+        if value not in valid_statuses:
+            raise serializers.ValidationError("记忆状态无效")
+        return value
+
+    def validate_title(self, value):
+        return str(value or '').strip()
+
+    def validate_content(self, value):
+        value = str(value or '').strip()
+        if not value:
+            raise serializers.ValidationError("记忆内容不能为空")
+        return value
 
 
 class MCPServerSerializer(serializers.ModelSerializer):

@@ -1,15 +1,25 @@
 import json
 import os
 import sys
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory
 
-from system_settings.models import SystemSetting
+from system_settings.agent_memory import (
+    get_or_create_im_session,
+    purge_expired_short_term_memories,
+    recall_short_term_memories,
+    start_new_conversation,
+    store_short_term_memory,
+    promote_short_term_memory,
+)
+from system_settings.feishu_im import _build_context_messages, _process_feishu_record, _select_context_records, _trim_to_estimated_tokens
+from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentLongTermMemory, AgentShortTermMemory, SystemSetting
 from system_settings.sync_scheduler import should_start_webdav_scheduler
-from system_settings.views import SystemConfigViewSet
+from system_settings.views import AgentViewSet, SystemConfigViewSet
 from utils.ai_service import AIService
 from utils.sync_manager import SyncError, SyncManager
 from utils.webdav import WebDavClient
@@ -46,6 +56,27 @@ class FakeWebDavClient:
     def delete_path(self, remote_path):
         self.deleted.append(remote_path)
         return True
+
+
+class FakeMemoryCollection:
+    def __init__(self):
+        self.upserts = []
+        self.deleted = []
+        self.query_result = {
+            'ids': [[]],
+            'documents': [[]],
+            'metadatas': [[]],
+            'distances': [[]],
+        }
+
+    def upsert(self, **kwargs):
+        self.upserts.append(kwargs)
+
+    def query(self, **kwargs):
+        return self.query_result
+
+    def delete(self, ids=None, **kwargs):
+        self.deleted.extend(ids or [])
 
 
 class SyncManagerTests(TestCase):
@@ -141,6 +172,303 @@ class AIServiceTests(TestCase):
             AIService._normalize_base_url('https://ark.cn-beijing.volces.com/api/v3/chat/completions'),
             'https://ark.cn-beijing.volces.com/api/v3'
         )
+
+
+class FeishuIMContextTests(TestCase):
+    def setUp(self):
+        self.agent = Agent.objects.create(name='Feishu Agent', prompt='你是飞书助手。')
+
+    def _create_replied_message(self, index, content='用户消息', response='助手回复'):
+        record = AgentIMMessage.objects.create(
+            agent=self.agent,
+            platform=AgentIMMessage.PLATFORM_FEISHU,
+            message_id=f'msg-{index}',
+            chat_id='chat-ctx',
+            sender_id='user-open-id',
+            message_type='text',
+            content=f'{content}-{index}',
+            response=f'{response}-{index}',
+            status=AgentIMMessage.STATUS_REPLIED,
+        )
+        created_at = timezone.now() + timedelta(seconds=index)
+        AgentIMMessage.objects.filter(id=record.id).update(created_at=created_at)
+        record.created_at = created_at
+        return record
+
+    def _create_current_message(self, index=99):
+        record = AgentIMMessage.objects.create(
+            agent=self.agent,
+            platform=AgentIMMessage.PLATFORM_FEISHU,
+            message_id=f'current-{index}',
+            chat_id='chat-ctx',
+            sender_id='user-open-id',
+            message_type='text',
+            content='当前问题',
+            status=AgentIMMessage.STATUS_RECEIVED,
+        )
+        created_at = timezone.now() + timedelta(seconds=index)
+        AgentIMMessage.objects.filter(id=record.id).update(created_at=created_at)
+        record.created_at = created_at
+        return record
+
+    def test_context_keeps_recent_complete_turns_within_budget(self):
+        self._create_replied_message(1, content='旧问题' + '甲' * 40, response='旧回答' + '乙' * 40)
+        second = self._create_replied_message(2, content='新问题', response='新回答')
+
+        selected, omitted = _select_context_records(
+            '系统提示',
+            '',
+            '当前问题',
+            list(AgentIMMessage.objects.filter(agent=self.agent).order_by('created_at')),
+            max_context_tokens=1275,
+        )
+
+        self.assertEqual(selected, [second])
+        self.assertEqual(len(omitted), 1)
+
+    def test_context_compresses_omitted_turns_and_keeps_latest_turns(self):
+        first = self._create_replied_message(1, content='旧问题' + '甲' * 40, response='旧回答' + '乙' * 40)
+        second = self._create_replied_message(2, content='新问题', response='新回答')
+        current = self._create_current_message()
+
+        with patch('system_settings.feishu_im.AIService.chat_completion_messages', return_value='长期摘要：用户喜欢中文短回答。') as mock_summary:
+            messages = _build_context_messages(
+                self.agent,
+                current,
+                '系统提示',
+                '当前问题',
+                max_context_tokens=1275,
+            )
+
+        session = AgentIMSession.objects.get(agent=self.agent, chat_id='chat-ctx')
+        self.assertEqual(session.summary, '长期摘要：用户喜欢中文短回答。')
+        self.assertEqual(session.summary_until, first.created_at)
+        self.assertEqual(mock_summary.call_count, 1)
+        self.assertTrue(any(message['role'] == 'system' and '长期摘要' in message['content'] for message in messages))
+        self.assertNotIn({'role': 'user', 'content': first.content}, messages)
+        self.assertNotIn({'role': 'assistant', 'content': first.response}, messages)
+        self.assertIn({'role': 'user', 'content': second.content}, messages)
+        self.assertIn({'role': 'assistant', 'content': second.response}, messages)
+
+    def test_summary_is_trimmed_to_estimated_token_limit(self):
+        summary = _trim_to_estimated_tokens('甲' * 200, 60)
+
+        self.assertLessEqual(len(summary), 60)
+
+
+class AgentMemoryTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.agent = Agent.objects.create(name='Memory Agent', prompt='你是记忆助手。')
+        self.record = AgentIMMessage.objects.create(
+            agent=self.agent,
+            platform=AgentIMMessage.PLATFORM_FEISHU,
+            message_id='msg-memory-1',
+            chat_id='chat-memory',
+            sender_id='user-memory',
+            conversation_id='conv-1',
+            message_type='text',
+            content='我喜欢简洁回答',
+            response='好的，我会尽量简洁。',
+            status=AgentIMMessage.STATUS_REPLIED,
+        )
+
+    def test_store_short_term_memory_writes_metadata_and_vector(self):
+        collection = FakeMemoryCollection()
+        with patch('system_settings.agent_memory.RagClient.create_embeddings', return_value=[[0.1, 0.2]]), \
+                patch('system_settings.agent_memory.get_agent_memory_collection', return_value=collection):
+            memory = store_short_term_memory(self.agent, self.record)
+
+        self.assertIsNotNone(memory)
+        self.assertEqual(AgentShortTermMemory.objects.count(), 1)
+        self.assertEqual(collection.upserts[0]['ids'], [memory.id])
+        self.assertIn('用户：我喜欢简洁回答', collection.upserts[0]['documents'][0])
+
+    def test_recall_short_term_memory_updates_recall_metadata(self):
+        memory = AgentShortTermMemory.objects.create(
+            agent=self.agent,
+            chat_id=self.record.chat_id,
+            sender_id=self.record.sender_id,
+            conversation_id=self.record.conversation_id,
+            source_message=self.record,
+            content='用户：我喜欢简洁回答\nAgent：好的',
+            expires_at=timezone.now() + timedelta(days=1),
+        )
+        collection = FakeMemoryCollection()
+        collection.query_result = {
+            'ids': [[memory.id]],
+            'documents': [[memory.content]],
+            'metadatas': [[{
+                'agent_id': self.agent.id,
+                'chat_id': self.record.chat_id,
+                'sender_id': self.record.sender_id,
+            }]],
+            'distances': [[0.12]],
+        }
+
+        with patch('system_settings.agent_memory.RagClient.create_embeddings', return_value=[[0.2, 0.3]]), \
+                patch('system_settings.agent_memory.get_agent_memory_collection', return_value=collection):
+            recalled = recall_short_term_memories(self.agent, self.record, '你还记得我的偏好吗')
+
+        memory.refresh_from_db()
+        self.assertEqual(len(recalled), 1)
+        self.assertEqual(memory.recall_count, 1)
+        self.assertGreater(memory.best_score, 0.8)
+        self.assertEqual(len(memory.query_sources), 1)
+
+    def test_promote_short_term_memory_creates_long_term_memory(self):
+        memory = AgentShortTermMemory.objects.create(
+            agent=self.agent,
+            chat_id=self.record.chat_id,
+            sender_id=self.record.sender_id,
+            conversation_id=self.record.conversation_id,
+            source_message=self.record,
+            content='用户：我喜欢简洁回答\nAgent：好的',
+            expires_at=timezone.now() + timedelta(days=1),
+            recall_count=3,
+            best_score=0.9,
+            query_sources=['q1', 'q2', 'q3'],
+        )
+        response = json.dumps({
+            'should_save': True,
+            'memory_type': 'preference',
+            'title': '回答风格',
+            'content': '用户偏好简洁回答。',
+            'confidence': 0.9,
+        }, ensure_ascii=False)
+
+        with patch('system_settings.agent_memory.AIService.chat_completion_messages', return_value=response):
+            long_memory = promote_short_term_memory(memory)
+
+        memory.refresh_from_db()
+        self.assertIsNotNone(long_memory)
+        self.assertIsNotNone(memory.promoted_at)
+        self.assertEqual(AgentLongTermMemory.objects.get().content, '用户偏好简洁回答。')
+
+    def test_purge_expired_short_term_memory_deletes_vector_and_metadata(self):
+        expired = AgentShortTermMemory.objects.create(
+            agent=self.agent,
+            chat_id=self.record.chat_id,
+            sender_id=self.record.sender_id,
+            content='过期记忆',
+            expires_at=timezone.now() - timedelta(seconds=1),
+        )
+        collection = FakeMemoryCollection()
+
+        with patch('system_settings.agent_memory.get_agent_memory_collection', return_value=collection):
+            count = purge_expired_short_term_memories()
+
+        self.assertEqual(count, 1)
+        self.assertEqual(collection.deleted, [expired.id])
+        self.assertFalse(AgentShortTermMemory.objects.filter(id=expired.id).exists())
+
+    def test_new_conversation_resets_session_boundary(self):
+        session = AgentIMSession.objects.create(
+            agent=self.agent,
+            platform=AgentIMMessage.PLATFORM_FEISHU,
+            chat_id=self.record.chat_id,
+            sender_id=self.record.sender_id,
+            conversation_id='conv-old',
+            summary='旧摘要',
+            summary_until=timezone.now(),
+            summary_token_estimate=12,
+        )
+
+        new_id = start_new_conversation(self.agent, self.record)
+
+        session.refresh_from_db()
+        self.record.refresh_from_db()
+        self.assertEqual(session.conversation_id, new_id)
+        self.assertNotEqual(session.conversation_id, 'conv-old')
+        self.assertEqual(session.summary, '')
+        self.assertIsNone(session.summary_until)
+        self.assertEqual(self.record.conversation_id, 'conv-old')
+
+    def test_agent_memory_api_lifecycle(self):
+        create_view = AgentViewSet.as_view({'post': 'memories'})
+        request = self.factory.post(
+            f'/api/settings/agents/{self.agent.id}/memories/',
+            {
+                'memory_type': 'preference',
+                'title': '回答风格',
+                'content': '用户喜欢短回答。',
+                'status': 'active',
+                'confidence': 0.85,
+            },
+            format='json',
+        )
+        response = create_view(request, pk=self.agent.id)
+        self.assertEqual(response.status_code, 200)
+        memory_id = response.data['data']['id']
+
+        update_view = AgentViewSet.as_view({'put': 'memory_detail'})
+        request = self.factory.put(
+            f'/api/settings/agents/{self.agent.id}/memories/{memory_id}/',
+            {'content': '用户喜欢短而直接的回答。'},
+            format='json',
+        )
+        response = update_view(request, pk=self.agent.id, memory_id=memory_id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['data']['content'], '用户喜欢短而直接的回答。')
+
+        delete_view = AgentViewSet.as_view({'delete': 'memory_detail'})
+        request = self.factory.delete(f'/api/settings/agents/{self.agent.id}/memories/{memory_id}/')
+        response = delete_view(request, pk=self.agent.id, memory_id=memory_id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(AgentLongTermMemory.objects.get(id=memory_id).status, AgentLongTermMemory.STATUS_ARCHIVED)
+
+    def test_im_session_is_isolated_by_sender_in_same_chat(self):
+        first_record = AgentIMMessage.objects.create(
+            agent=self.agent,
+            platform=AgentIMMessage.PLATFORM_FEISHU,
+            message_id='msg-sender-1',
+            chat_id='chat-memory',
+            sender_id='sender-a',
+            message_type='text',
+            content='A 的问题',
+        )
+        second_record = AgentIMMessage.objects.create(
+            agent=self.agent,
+            platform=AgentIMMessage.PLATFORM_FEISHU,
+            message_id='msg-sender-2',
+            chat_id='chat-memory',
+            sender_id='sender-b',
+            message_type='text',
+            content='B 的问题',
+        )
+
+        first_session = get_or_create_im_session(self.agent, first_record)
+        second_session = get_or_create_im_session(self.agent, second_record)
+
+        self.assertNotEqual(first_session.id, second_session.id)
+        self.assertNotEqual(first_session.conversation_id, second_session.conversation_id)
+
+    def test_reaction_failure_does_not_block_feishu_reply(self):
+        self.agent.feishu_im_enabled = True
+        self.agent.feishu_app_id = 'cli_test'
+        self.agent.feishu_app_secret = 'secret_test'
+        self.agent.save(update_fields=['feishu_im_enabled', 'feishu_app_id', 'feishu_app_secret', 'updated_at'])
+        record = AgentIMMessage.objects.create(
+            agent=self.agent,
+            platform=AgentIMMessage.PLATFORM_FEISHU,
+            event_id='event-reaction-failure',
+            message_id='msg-reaction-failure',
+            chat_id='chat-memory',
+            sender_id='user-memory',
+            message_type='text',
+            content='你好',
+            status=AgentIMMessage.STATUS_RECEIVED,
+        )
+
+        with patch('system_settings.feishu_im.add_feishu_message_reaction', side_effect=RuntimeError('reaction denied')), \
+                patch('system_settings.feishu_im.AIService.chat_completion_messages', return_value='你好呀'), \
+                patch('system_settings.feishu_im.send_feishu_reply', return_value={}), \
+                patch('system_settings.feishu_im.store_short_term_memory'):
+            _process_feishu_record(record.id)
+
+        record.refresh_from_db()
+        self.assertEqual(record.status, AgentIMMessage.STATUS_REPLIED)
+        self.assertEqual(record.response, '你好呀')
 
 
 class SystemConfigViewSetTests(TestCase):

@@ -33,9 +33,10 @@ from .feishu_im import (
     normalize_feishu_event_payload,
     verify_feishu_token,
 )
-from .models import Agent, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
+from .models import Agent, AgentLongTermMemory, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
 from .runtime_tracker import get_runtime_info
 from .serializers import (
+    AgentLongTermMemorySerializer,
     AgentRunRecordSerializer,
     AgentSerializer,
     AgentTaskSerializer,
@@ -366,6 +367,44 @@ class AgentViewSet(viewsets.ModelViewSet):
         self.perform_destroy(instance)
         self._sync_feishu_im_connection(agent_id)
         return success_result()
+
+    @action(detail=True, methods=['get', 'post'], url_path='memories')
+    def memories(self, request, pk=None):
+        agent = self.get_object()
+        if request.method.lower() == 'get':
+            queryset = AgentLongTermMemory.objects.filter(agent=agent).order_by('-updated_at')
+            serializer = AgentLongTermMemorySerializer(queryset, many=True)
+            return success_result(serializer.data)
+
+        serializer = AgentLongTermMemorySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(
+            agent=agent,
+            scope=request.data.get('scope') or 'user',
+            chat_id=request.data.get('chat_id') or request.data.get('chatId') or '',
+            sender_id=request.data.get('sender_id') or request.data.get('senderId') or '',
+            metadata={'source': 'manual'},
+        )
+        return success_result(serializer.data)
+
+    @action(detail=True, methods=['put', 'delete'], url_path=r'memories/(?P<memory_id>[^/.]+)')
+    def memory_detail(self, request, pk=None, memory_id=None):
+        agent = self.get_object()
+        memory = AgentLongTermMemory.objects.filter(agent=agent, id=memory_id).first()
+        if not memory:
+            response = valid_result('记忆不存在')
+            response.status_code = 404
+            return response
+
+        if request.method.lower() == 'delete':
+            memory.status = AgentLongTermMemory.STATUS_ARCHIVED
+            memory.save(update_fields=['status', 'updated_at'])
+            return success_result()
+
+        serializer = AgentLongTermMemorySerializer(memory, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_result(serializer.data)
 
     @action(
         detail=True,

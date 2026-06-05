@@ -8,7 +8,7 @@ from django.db import OperationalError, ProgrammingError, close_old_connections
 
 from .feishu_im import handle_feishu_sdk_message_event
 from .models import Agent
-from .sync_scheduler import _env_flag, _is_server_process
+from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial_delay_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -29,15 +29,26 @@ class FeishuIMWebSocketManager:
     def __init__(self):
         self._started = False
         self._lock = threading.RLock()
+        self._start_lock = threading.Lock()
         self._connections = {}
         self._loop = None
         self._loop_thread = None
         self.runner_id = f"{socket.gethostname()}:{os.getpid()}"
 
     def start(self):
-        if self._started:
-            return
-        self._started = True
+        with self._start_lock:
+            if self._started:
+                return
+            self._started = True
+
+            threading.Thread(
+                target=self._delayed_initial_sync,
+                name='feishu-im-ws-initial-sync',
+                daemon=True,
+            ).start()
+
+    def _delayed_initial_sync(self):
+        threading.Event().wait(get_scheduler_initial_delay_seconds())
         self.sync_enabled_agents()
 
     def sync_enabled_agents(self):
@@ -182,6 +193,15 @@ class FeishuIMWebSocketManager:
             lark.EventDispatcherHandler
             .builder(agent.feishu_encrypt_key or '', agent.feishu_verification_token or '')
             .register_p2_im_message_receive_v1(on_message)
+            .register_p2_im_message_message_read_v1(
+                lambda event: logger.debug('Ignored Feishu message_read event for agent %s', agent.id)
+            )
+            .register_p2_im_message_reaction_created_v1(
+                lambda event: logger.debug('Ignored Feishu reaction_created event for agent %s', agent.id)
+            )
+            .register_p2_im_message_reaction_deleted_v1(
+                lambda event: logger.debug('Ignored Feishu reaction_deleted event for agent %s', agent.id)
+            )
             .build()
         )
         return lark.ws.Client(

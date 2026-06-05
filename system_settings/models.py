@@ -6,7 +6,11 @@ from utils.id_generator import (
     generate_provider_id,
     generate_model_id,
     generate_agent_id,
+    generate_agent_conversation_id,
     generate_agent_im_message_id,
+    generate_agent_im_session_id,
+    generate_agent_long_term_memory_id,
+    generate_agent_short_term_memory_id,
     generate_agent_task_id,
     generate_agent_run_id,
     generate_mcp_server_id,
@@ -267,6 +271,7 @@ class AgentIMMessage(models.Model):
     message_id = models.CharField(max_length=120, verbose_name='消息 ID', db_comment='平台消息 ID')
     chat_id = models.CharField(max_length=120, blank=True, default='', verbose_name='会话 ID', db_comment='平台会话 ID')
     sender_id = models.CharField(max_length=120, blank=True, default='', verbose_name='发送者 ID', db_comment='平台发送者 ID')
+    conversation_id = models.CharField(max_length=40, blank=True, default='', verbose_name='对话线程 ID', db_comment='Agent IM 对话线程 ID')
     message_type = models.CharField(max_length=40, blank=True, default='', verbose_name='消息类型', db_comment='平台消息类型')
     content = models.TextField(blank=True, default='', verbose_name='消息内容', db_comment='用户消息内容')
     response = models.TextField(blank=True, default='', verbose_name='Agent 回复', db_comment='Agent 回复内容')
@@ -287,6 +292,170 @@ class AgentIMMessage(models.Model):
                 fields=['platform', 'message_id'],
                 name='uniq_agent_im_platform_message',
             )
+        ]
+
+
+class AgentIMSession(models.Model):
+    """Agent IM 会话摘要，用于长上下文压缩和恢复"""
+
+    id = models.CharField(
+        max_length=40,
+        primary_key=True,
+        default=generate_agent_im_session_id,
+        verbose_name='IM 会话 ID',
+        db_comment='IM 会话 ID'
+    )
+
+    agent = models.ForeignKey(
+        Agent,
+        related_name='im_sessions',
+        on_delete=models.CASCADE,
+        verbose_name='Agent',
+        db_comment='Agent ID'
+    )
+
+    platform = models.CharField(max_length=20, default=AgentIMMessage.PLATFORM_FEISHU, verbose_name='平台', db_comment='IM 平台')
+    chat_id = models.CharField(max_length=120, verbose_name='会话 ID', db_comment='平台会话 ID')
+    sender_id = models.CharField(max_length=120, blank=True, default='', verbose_name='发送者 ID', db_comment='平台发送者 ID')
+    conversation_id = models.CharField(
+        max_length=40,
+        default=generate_agent_conversation_id,
+        verbose_name='当前对话线程 ID',
+        db_comment='当前 Agent IM 对话线程 ID'
+    )
+    summary = models.TextField(blank=True, default='', verbose_name='会话摘要', db_comment='早期历史压缩摘要')
+    summary_until = models.DateTimeField(blank=True, null=True, verbose_name='摘要截止时间', db_comment='已压缩摘要覆盖到的消息创建时间')
+    summary_token_estimate = models.IntegerField(default=0, verbose_name='摘要 Token 估算', db_comment='摘要 Token 粗略估算')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'sys_agent_im_session'
+        db_table_comment = 'Agent IM 会话摘要表'
+        verbose_name = 'Agent IM 会话'
+        verbose_name_plural = verbose_name
+        ordering = ['-updated_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['agent', 'platform', 'chat_id', 'sender_id'],
+                name='uniq_agent_im_session_user',
+            )
+        ]
+
+
+class AgentLongTermMemory(models.Model):
+    """Agent 长期记忆，可由系统晋升或用户手动维护"""
+
+    TYPE_PREFERENCE = 'preference'
+    TYPE_FACT = 'fact'
+    TYPE_PROJECT = 'project'
+    TYPE_INSTRUCTION = 'instruction'
+    TYPE_OTHER = 'other'
+    MEMORY_TYPES = [
+        (TYPE_PREFERENCE, '偏好'),
+        (TYPE_FACT, '事实'),
+        (TYPE_PROJECT, '项目'),
+        (TYPE_INSTRUCTION, '指令'),
+        (TYPE_OTHER, '其他'),
+    ]
+
+    STATUS_ACTIVE = 'active'
+    STATUS_ARCHIVED = 'archived'
+    STATUS_TYPES = [
+        (STATUS_ACTIVE, '有效'),
+        (STATUS_ARCHIVED, '已归档'),
+    ]
+
+    id = models.CharField(
+        max_length=40,
+        primary_key=True,
+        default=generate_agent_long_term_memory_id,
+        verbose_name='长期记忆 ID',
+        db_comment='长期记忆 ID'
+    )
+    agent = models.ForeignKey(
+        Agent,
+        related_name='long_term_memories',
+        on_delete=models.CASCADE,
+        verbose_name='Agent',
+        db_comment='Agent ID'
+    )
+    scope = models.CharField(max_length=20, default='user', verbose_name='记忆范围', db_comment='记忆范围')
+    chat_id = models.CharField(max_length=120, blank=True, default='', verbose_name='会话 ID', db_comment='平台会话 ID')
+    sender_id = models.CharField(max_length=120, blank=True, default='', verbose_name='发送者 ID', db_comment='平台发送者 ID')
+    memory_type = models.CharField(max_length=20, choices=MEMORY_TYPES, default=TYPE_OTHER, verbose_name='记忆类型', db_comment='记忆类型')
+    title = models.CharField(max_length=120, blank=True, default='', verbose_name='标题', db_comment='记忆标题')
+    content = models.TextField(verbose_name='内容', db_comment='记忆内容')
+    confidence = models.FloatField(default=0.8, verbose_name='置信度', db_comment='记忆置信度')
+    source_count = models.PositiveIntegerField(default=1, verbose_name='来源次数', db_comment='来源次数')
+    status = models.CharField(max_length=20, choices=STATUS_TYPES, default=STATUS_ACTIVE, verbose_name='状态', db_comment='状态')
+    last_recalled_at = models.DateTimeField(blank=True, null=True, verbose_name='最后召回时间', db_comment='最后召回时间')
+    metadata = models.JSONField(default=dict, blank=True, verbose_name='元数据', db_comment='元数据')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'sys_agent_long_term_memory'
+        db_table_comment = 'Agent 长期记忆表'
+        verbose_name = 'Agent 长期记忆'
+        verbose_name_plural = verbose_name
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['agent', 'sender_id', 'status'], name='idx_agent_ltm_user_status'),
+            models.Index(fields=['agent', 'chat_id', 'status'], name='idx_agent_ltm_chat_status'),
+        ]
+
+
+class AgentShortTermMemory(models.Model):
+    """Agent 短期向量记忆元数据，向量内容存储在 ChromaDB"""
+
+    id = models.CharField(
+        max_length=40,
+        primary_key=True,
+        default=generate_agent_short_term_memory_id,
+        verbose_name='短期记忆 ID',
+        db_comment='短期记忆 ID'
+    )
+    agent = models.ForeignKey(
+        Agent,
+        related_name='short_term_memories',
+        on_delete=models.CASCADE,
+        verbose_name='Agent',
+        db_comment='Agent ID'
+    )
+    chat_id = models.CharField(max_length=120, blank=True, default='', verbose_name='会话 ID', db_comment='平台会话 ID')
+    sender_id = models.CharField(max_length=120, blank=True, default='', verbose_name='发送者 ID', db_comment='平台发送者 ID')
+    conversation_id = models.CharField(max_length=40, blank=True, default='', verbose_name='对话线程 ID', db_comment='Agent IM 对话线程 ID')
+    source_message = models.ForeignKey(
+        AgentIMMessage,
+        related_name='short_term_memories',
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+        verbose_name='来源消息',
+        db_comment='来源 IM 消息 ID'
+    )
+    content = models.TextField(verbose_name='内容', db_comment='短期记忆内容')
+    expires_at = models.DateTimeField(verbose_name='过期时间', db_comment='过期时间')
+    recall_count = models.PositiveIntegerField(default=0, verbose_name='召回次数', db_comment='召回次数')
+    best_score = models.FloatField(default=0, verbose_name='最佳召回分数', db_comment='最佳召回分数')
+    query_sources = models.JSONField(default=list, blank=True, verbose_name='查询来源', db_comment='查询来源列表')
+    last_recalled_at = models.DateTimeField(blank=True, null=True, verbose_name='最后召回时间', db_comment='最后召回时间')
+    promoted_at = models.DateTimeField(blank=True, null=True, verbose_name='晋升时间', db_comment='晋升为长期记忆时间')
+    metadata = models.JSONField(default=dict, blank=True, verbose_name='元数据', db_comment='元数据')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'sys_agent_short_term_memory'
+        db_table_comment = 'Agent 短期记忆表'
+        verbose_name = 'Agent 短期记忆'
+        verbose_name_plural = verbose_name
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['agent', 'sender_id', 'expires_at'], name='idx_agent_stm_user_expire'),
+            models.Index(fields=['agent', 'chat_id', 'expires_at'], name='idx_agent_stm_chat_expire'),
+            models.Index(fields=['promoted_at', 'expires_at'], name='idx_agent_stm_promote_exp'),
         ]
 
 

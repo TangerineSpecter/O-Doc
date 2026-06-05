@@ -36,6 +36,14 @@ def _is_server_process():
     return any(name in executable for name in ('gunicorn', 'uwsgi', 'daphne', 'uvicorn'))
 
 
+def get_scheduler_initial_delay_seconds():
+    raw_value = os.getenv('ODOC_SCHEDULER_INITIAL_DELAY_SECONDS', '1')
+    try:
+        return max(0, float(raw_value))
+    except (TypeError, ValueError):
+        return 1
+
+
 def should_start_webdav_scheduler():
     if not _env_flag('ODOC_ENABLE_WEBDAV_SCHEDULER', 'true'):
         return False
@@ -140,6 +148,7 @@ class WebDavAutoSyncScheduler:
     def __init__(self):
         self._started = False
         self._thread = None
+        self._start_lock = threading.Lock()
         self._stop_event = threading.Event()
         self._run_lock = threading.Lock()
         self.runner_id = f"{socket.gethostname()}:{os.getpid()}"
@@ -153,19 +162,23 @@ class WebDavAutoSyncScheduler:
             return 30
 
     def start(self):
-        if self._started:
-            return
+        with self._start_lock:
+            if self._started:
+                return
 
-        self._thread = threading.Thread(
-            target=self._run_loop,
-            name='webdav-auto-sync',
-            daemon=True,
-        )
-        self._thread.start()
-        self._started = True
-        logger.info('WebDAV auto sync scheduler started, poll=%ss', self.poll_seconds)
+            self._started = True
+            self._thread = threading.Thread(
+                target=self._run_loop,
+                name='webdav-auto-sync',
+                daemon=True,
+            )
+            self._thread.start()
+            logger.info('WebDAV auto sync scheduler started, poll=%ss', self.poll_seconds)
 
     def _run_loop(self):
+        if self._stop_event.wait(get_scheduler_initial_delay_seconds()):
+            return
+
         while not self._stop_event.is_set():
             try:
                 close_old_connections()

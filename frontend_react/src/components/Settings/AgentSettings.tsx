@@ -8,6 +8,7 @@ import {
     CheckCircle2,
     Clock3,
     Code2,
+    Database,
     Edit2,
     ImagePlus,
     MessageCircle,
@@ -21,8 +22,12 @@ import {
     X,
     XCircle,
 } from 'lucide-react';
+import {archiveAgentMemory, getAgentMemories, saveAgentMemory} from '@/api/setting';
 import type {
     AgentConfig,
+    AgentLongTermMemoryConfig,
+    AgentMemoryStatus,
+    AgentMemoryType,
     AgentRunRecordConfig,
     AgentTaskConfig,
     AgentTaskNotifyPlatform,
@@ -68,6 +73,15 @@ type AgentForm = {
 };
 
 type AgentView = 'list' | 'tasks' | 'records';
+
+type AgentMemoryForm = {
+    id?: string;
+    memoryType: AgentMemoryType;
+    title: string;
+    content: string;
+    status: AgentMemoryStatus;
+    confidence: string;
+};
 
 type AgentTaskForm = {
     id?: string;
@@ -147,6 +161,12 @@ export const AgentSettings = ({
     const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [anthologies, setAnthologies] = useState<Anthology[]>([]);
+    const [memoryModalAgent, setMemoryModalAgent] = useState<AgentConfig | null>(null);
+    const [memories, setMemories] = useState<AgentLongTermMemoryConfig[]>([]);
+    const [memoryLoading, setMemoryLoading] = useState(false);
+    const [memorySaving, setMemorySaving] = useState(false);
+    const [memoryError, setMemoryError] = useState('');
+    const [memoryStatusFilter, setMemoryStatusFilter] = useState<'all' | AgentMemoryStatus>('active');
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const toast = useToast();
     const [form, setForm] = useState<AgentForm>({
@@ -182,6 +202,13 @@ export const AgentSettings = ({
         notifyPlatform: 'feishu',
         notifyWebhookUrl: '',
     });
+    const [memoryForm, setMemoryForm] = useState<AgentMemoryForm>({
+        memoryType: 'preference',
+        title: '',
+        content: '',
+        status: 'active',
+        confidence: '0.8',
+    });
 
     const modelOptions = useMemo<SettingsSelectOption<string>[]>(() => {
         return getModelsByType('chat').map(model => ({
@@ -207,6 +234,13 @@ export const AgentSettings = ({
     ];
     const notifyPlatformOptions: SettingsSelectOption<AgentTaskNotifyPlatform>[] = [
         {value: 'feishu', label: '飞书机器人', description: '通过飞书自定义机器人 Webhook 发送文本消息'},
+    ];
+    const memoryTypeOptions: SettingsSelectOption<AgentMemoryType>[] = [
+        {value: 'preference', label: '偏好'},
+        {value: 'fact', label: '事实'},
+        {value: 'project', label: '项目'},
+        {value: 'instruction', label: '指令'},
+        {value: 'other', label: '其他'},
     ];
     const scheduleTypeOptions: SettingsSelectOption<AgentTaskScheduleType>[] = [
         {value: 'daily', label: '每天'},
@@ -338,6 +372,97 @@ export const AgentSettings = ({
             feishuEncryptKey: agent.feishuEncryptKey || '',
         });
         setModalOpen(true);
+    };
+
+    const resetMemoryForm = () => {
+        setMemoryForm({
+            memoryType: 'preference',
+            title: '',
+            content: '',
+            status: 'active',
+            confidence: '0.8',
+        });
+    };
+
+    const loadAgentMemories = async (agent: AgentConfig) => {
+        setMemoryLoading(true);
+        setMemoryError('');
+        try {
+            const data = await getAgentMemories(agent.id);
+            setMemories(data || []);
+        } catch (error) {
+            console.error('加载 Agent 记忆失败:', error);
+            setMemoryError('加载失败，请重试');
+            toast.error('加载 Agent 记忆失败');
+        } finally {
+            setMemoryLoading(false);
+        }
+    };
+
+    const openMemoryModal = async (agent: AgentConfig) => {
+        setMemoryModalAgent(agent);
+        setMemoryStatusFilter('active');
+        resetMemoryForm();
+        await loadAgentMemories(agent);
+    };
+
+    const editMemory = (memory: AgentLongTermMemoryConfig) => {
+        setMemoryForm({
+            id: memory.id,
+            memoryType: memory.memoryType || 'other',
+            title: memory.title || '',
+            content: memory.content || '',
+            status: memory.status || 'active',
+            confidence: String(memory.confidence ?? 0.8),
+        });
+    };
+
+    const handleMemorySubmit = async () => {
+        if (!memoryModalAgent) return;
+        if (!memoryForm.content.trim()) {
+            toast.warning('请填写记忆内容');
+            return;
+        }
+
+        setMemorySaving(true);
+        try {
+            const parsedConfidence = parseFloat(memoryForm.confidence);
+            const confidence = Number.isFinite(parsedConfidence)
+                ? Math.min(1, Math.max(0, parsedConfidence))
+                : 0.8;
+            await saveAgentMemory(memoryModalAgent.id, {
+                id: memoryForm.id,
+                memoryType: memoryForm.memoryType,
+                title: memoryForm.title.trim(),
+                content: memoryForm.content.trim(),
+                status: memoryForm.status,
+                confidence,
+            });
+            toast.success(memoryForm.id ? '记忆已更新' : '记忆已添加');
+            resetMemoryForm();
+            await loadAgentMemories(memoryModalAgent);
+        } catch (error) {
+            console.error('保存 Agent 记忆失败:', error);
+            toast.error('保存 Agent 记忆失败');
+        } finally {
+            setMemorySaving(false);
+        }
+    };
+
+    const archiveMemory = async (memory: AgentLongTermMemoryConfig) => {
+        if (!memoryModalAgent) return;
+        setMemorySaving(true);
+        try {
+            await archiveAgentMemory(memoryModalAgent.id, memory.id);
+            toast.success('记忆已归档');
+            if (memoryForm.id === memory.id) resetMemoryForm();
+            await loadAgentMemories(memoryModalAgent);
+        } catch (error) {
+            console.error('归档 Agent 记忆失败:', error);
+            toast.error('归档 Agent 记忆失败');
+        } finally {
+            setMemorySaving(false);
+        }
     };
 
     useEffect(() => {
@@ -526,6 +651,15 @@ export const AgentSettings = ({
         if (status === 'running') return 'border-blue-100 bg-blue-50 text-blue-700';
         return 'border-slate-200 bg-slate-50 text-slate-600';
     };
+
+    const getMemoryTypeLabel = (type: AgentMemoryType) => {
+        return memoryTypeOptions.find(option => option.value === type)?.label || '其他';
+    };
+
+    const visibleMemories = memories.filter(memory => {
+        if (memoryStatusFilter === 'all') return true;
+        return memory.status === memoryStatusFilter;
+    });
 
     const handleAvatarUpload = async (file?: File) => {
         if (!file) return;
@@ -835,6 +969,13 @@ export const AgentSettings = ({
                                 </div>
 
                                 <div className="flex items-center justify-end gap-1 sm:w-9 sm:flex-col sm:justify-center">
+                                    <button
+                                        onClick={() => openMemoryModal(agent)}
+                                        className="p-2 text-slate-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600 rounded-lg"
+                                        title="管理记忆"
+                                    >
+                                        <Database className="w-4 h-4"/>
+                                    </button>
                                     <button
                                         onClick={() => openEditModal(agent)}
                                         className="p-2 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600 rounded-lg"
@@ -1181,6 +1322,215 @@ export const AgentSettings = ({
                                 <Sparkles className="w-4 h-4"/>
                                 保存任务
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {memoryModalAgent && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+                    <div className="w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
+                        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <Database className="h-5 w-5 text-emerald-600"/>
+                                    <h3 className="truncate text-lg font-bold text-slate-900">「{memoryModalAgent.name}」记忆</h3>
+                                </div>
+                                <p className="mt-1 text-xs text-slate-500">长期记忆会在相关对话中被召回，也可以手动维护。</p>
+                            </div>
+                            <button
+                                onClick={() => setMemoryModalAgent(null)}
+                                className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                            >
+                                <X className="h-5 w-5"/>
+                            </button>
+                        </div>
+
+                        <div className="grid max-h-[76vh] grid-cols-1 overflow-y-auto lg:grid-cols-[1.15fr_0.85fr]">
+                            <div className="border-b border-slate-100 p-5 lg:border-b-0 lg:border-r">
+                                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex rounded-lg bg-slate-100 p-1">
+                                        {[
+                                            {value: 'active', label: '有效'},
+                                            {value: 'archived', label: '已归档'},
+                                            {value: 'all', label: '全部'},
+                                        ].map(option => (
+                                            <button
+                                                key={option.value}
+                                                type="button"
+                                                onClick={() => setMemoryStatusFilter(option.value as 'all' | AgentMemoryStatus)}
+                                                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${memoryStatusFilter === option.value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                            >
+                                                {option.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={resetMemoryForm}
+                                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-emerald-100 hover:bg-emerald-50 hover:text-emerald-700"
+                                    >
+                                        <Plus className="h-3.5 w-3.5"/>
+                                        新增
+                                    </button>
+                                </div>
+
+                                {memoryLoading ? (
+                                    <div className="flex h-44 items-center justify-center text-xs text-slate-400">
+                                        <span className="mr-2 h-4 w-4 rounded-full border-2 border-emerald-100 border-t-emerald-500 animate-spin"/>
+                                        加载记忆中
+                                    </div>
+                                ) : memoryError ? (
+                                    <div className="flex h-44 flex-col items-center justify-center rounded-xl border border-dashed border-red-200 bg-red-50 px-4 text-center text-xs text-red-500">
+                                        <p>{memoryError}</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => memoryModalAgent && loadAgentMemories(memoryModalAgent)}
+                                            className="mt-3 rounded-lg bg-white px-3 py-1.5 font-medium text-red-600 ring-1 ring-red-100 transition-colors hover:bg-red-100"
+                                        >
+                                            重试
+                                        </button>
+                                    </div>
+                                ) : visibleMemories.length === 0 ? (
+                                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-12 text-center text-xs text-slate-400">
+                                        暂无长期记忆
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {visibleMemories.map(memory => (
+                                            <div
+                                                key={memory.id}
+                                                className={`rounded-xl border p-3 transition-colors ${memoryForm.id === memory.id ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white hover:border-emerald-100 hover:bg-emerald-50/40'}`}
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => editMemory(memory)}
+                                                        className="min-w-0 flex-1 text-left"
+                                                    >
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="rounded-md bg-white/80 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                                                                {getMemoryTypeLabel(memory.memoryType)}
+                                                            </span>
+                                                            <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${memory.status === 'active' ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100' : 'bg-slate-100 text-slate-500 ring-1 ring-slate-200'}`}>
+                                                                {memory.status === 'active' ? '有效' : '已归档'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="mt-2 truncate text-sm font-semibold text-slate-800">{memory.title || '未命名记忆'}</div>
+                                                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{memory.content}</p>
+                                                        <div className="mt-2 text-[11px] text-slate-400">
+                                                            置信度 {Number(memory.confidence || 0).toFixed(2)} · 来源 {memory.sourceCount || 0}
+                                                        </div>
+                                                    </button>
+                                                    {memory.status !== 'archived' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => archiveMemory(memory)}
+                                                            disabled={memorySaving}
+                                                            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                                                            title="归档记忆"
+                                                        >
+                                                            <Trash2 className="h-4 w-4"/>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-4 bg-slate-50 p-5">
+                                <div>
+                                    <h4 className="text-sm font-bold text-slate-800">{memoryForm.id ? '编辑记忆' : '新增记忆'}</h4>
+                                    <p className="mt-1 text-xs text-slate-500">建议只保存稳定偏好、长期事实、项目背景和明确指令。</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-slate-700">类型</label>
+                                        <SettingsSelect
+                                            value={memoryForm.memoryType}
+                                            options={memoryTypeOptions}
+                                            onChange={memoryType => setMemoryForm({...memoryForm, memoryType})}
+                                            buttonClassName="bg-white"
+                                            showSelectedDescription={false}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-slate-700">状态</label>
+                                        <SettingsSelect
+                                            value={memoryForm.status}
+                                            options={[
+                                                {value: 'active', label: '有效'},
+                                                {value: 'archived', label: '已归档'},
+                                            ]}
+                                            onChange={status => setMemoryForm({...memoryForm, status})}
+                                            buttonClassName="bg-white"
+                                            showSelectedDescription={false}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700">标题</label>
+                                    <input
+                                        value={memoryForm.title}
+                                        onChange={event => setMemoryForm({...memoryForm, title: event.target.value})}
+                                        placeholder="如：回答风格偏好"
+                                        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 transition-all focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700">内容</label>
+                                    <textarea
+                                        value={memoryForm.content}
+                                        onChange={event => setMemoryForm({...memoryForm, content: event.target.value})}
+                                        rows={8}
+                                        placeholder="记录这条长期记忆的具体内容"
+                                        className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-700 transition-all focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700">置信度</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="1"
+                                        step="0.05"
+                                        value={memoryForm.confidence}
+                                        onChange={event => setMemoryForm({...memoryForm, confidence: event.target.value})}
+                                        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 transition-all focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                </div>
+
+                                <div className="flex justify-end gap-2 pt-2">
+                                    {memoryForm.id && (
+                                        <button
+                                            type="button"
+                                            onClick={resetMemoryForm}
+                                            className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
+                                        >
+                                            取消编辑
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={handleMemorySubmit}
+                                        disabled={memorySaving || !memoryForm.content.trim()}
+                                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {memorySaving ? (
+                                            <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin"/>
+                                        ) : (
+                                            <Sparkles className="h-4 w-4"/>
+                                        )}
+                                        保存记忆
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

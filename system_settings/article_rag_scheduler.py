@@ -11,12 +11,19 @@ from article.models import Article
 from utils.notification_service import NotificationService
 from utils.rag_client import RagClient
 from .models import SystemSetting
-from .sync_scheduler import _env_flag, _is_server_process
+from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial_delay_seconds
 
 logger = logging.getLogger(__name__)
 
 CONFIG_KEY = 'system_article_rag_schedule_config'
 RUNTIME_KEY = 'system_article_rag_schedule_runtime'
+
+
+def _local_now():
+    now = timezone.now()
+    if timezone.is_naive(now):
+        return now
+    return timezone.localtime(now)
 
 
 def should_start_article_rag_scheduler():
@@ -33,6 +40,7 @@ class ArticleRagScheduler:
     def __init__(self):
         self._started = False
         self._thread = None
+        self._start_lock = threading.Lock()
         self._stop_event = threading.Event()
         self._run_lock = threading.Lock()
         self.runner_id = f"{socket.gethostname()}:{os.getpid()}"
@@ -46,19 +54,23 @@ class ArticleRagScheduler:
             return 30
 
     def start(self):
-        if self._started:
-            return
+        with self._start_lock:
+            if self._started:
+                return
 
-        self._thread = threading.Thread(
-            target=self._run_loop,
-            name='article-rag-scheduler',
-            daemon=True,
-        )
-        self._thread.start()
-        self._started = True
-        logger.info('Article RAG scheduler started, poll=%ss', self.poll_seconds)
+            self._started = True
+            self._thread = threading.Thread(
+                target=self._run_loop,
+                name='article-rag-scheduler',
+                daemon=True,
+            )
+            self._thread.start()
+            logger.info('Article RAG scheduler started, poll=%ss', self.poll_seconds)
 
     def _run_loop(self):
+        if self._stop_event.wait(get_scheduler_initial_delay_seconds()):
+            return
+
         while not self._stop_event.is_set():
             try:
                 close_old_connections()
@@ -83,7 +95,7 @@ class ArticleRagScheduler:
         if not config.get('enabled'):
             return
 
-        now = timezone.localtime(timezone.now())
+        now = _local_now()
         run_time = self._parse_run_time(config.get('runTime') or config.get('run_time') or '02:00')
         if not run_time:
             logger.warning('Article RAG scheduler skipped invalid runTime=%s', config.get('runTime'))

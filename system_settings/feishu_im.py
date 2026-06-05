@@ -2,6 +2,8 @@ import base64
 import hashlib
 import json
 import logging
+import math
+import re
 import threading
 from datetime import datetime, timedelta
 
@@ -9,6 +11,13 @@ import requests
 from django.db import IntegrityError, close_old_connections
 from django.utils import timezone
 
+from system_settings.agent_memory import (
+    assign_record_conversation,
+    build_memory_context,
+    get_or_create_im_session,
+    start_new_conversation,
+    store_short_term_memory,
+)
 from system_settings.models import Agent, AgentIMMessage, SystemSetting
 from utils.ai_service import AIService
 
@@ -16,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 FEISHU_API_BASE = 'https://open.feishu.cn/open-apis'
 TOKEN_CACHE_PREFIX = 'feishu_token:'
+MAX_CONTEXT_TOKENS = 48000
+SUMMARY_TARGET_TOKENS = 3000
+TOKEN_SAFETY_MARGIN = 1200
+CJK_RE = re.compile(r'[\u3400-\u9fff\uf900-\ufaff]')
 
 
 class FeishuIMError(Exception):
@@ -124,6 +137,7 @@ def handle_feishu_sdk_message_event(agent_id, event):
 
 def _process_feishu_record(record_id):
     close_old_connections()
+    typing_reaction_id = ''
     try:
         record = AgentIMMessage.objects.select_related('agent', 'agent__model').get(id=record_id)
         agent = record.agent
@@ -137,17 +151,29 @@ def _process_feishu_record(record_id):
             reply = '我现在先支持处理飞书文本消息。'
         elif not record.content.strip():
             reply = '我没有读到可处理的文本内容。'
+        elif _is_new_conversation_command(record.content):
+            start_new_conversation(agent, record)
+            reply = '已开启新对话。'
         else:
+            assign_record_conversation(agent, record)
+            typing_reaction_id = _try_add_feishu_message_reaction(agent, record.message_id, 'Typing')
             reply = _build_agent_reply(agent, record.content.strip(), record)
 
+        if typing_reaction_id:
+            _try_delete_feishu_message_reaction(agent, record.message_id, typing_reaction_id)
         send_feishu_reply(agent, record.message_id, reply)
         record.response = reply
         record.status = AgentIMMessage.STATUS_REPLIED
         record.save(update_fields=['response', 'status', 'updated_at'])
+        if record.message_type == 'text' and record.content.strip() and not _is_new_conversation_command(record.content):
+            store_short_term_memory(agent, record)
     except Exception as exc:
         logger.exception('Feishu IM message processing failed: %s', record_id)
         try:
             record = AgentIMMessage.objects.get(id=record_id)
+            if typing_reaction_id:
+                _try_delete_feishu_message_reaction(record.agent, record.message_id, typing_reaction_id)
+            _try_add_feishu_message_reaction(record.agent, record.message_id, 'CrossMark')
             record.status = AgentIMMessage.STATUS_FAILED
             record.error = str(exc)
             record.save(update_fields=['status', 'error', 'updated_at'])
@@ -162,12 +188,184 @@ def _build_agent_reply(agent, user_text, record):
     system_prompt += (
         '\n\n当前消息来自飞书 IM 通道。请直接回复用户需要的内容；'
         '不要提及后台处理流程，除非用户询问。'
+        '\n你会看到同一飞书会话里的长期摘要和近期完整上下文。若上下文与当前问题有关，请延续对话；若无关，请以当前消息为准。'
     )
-    messages = [
-        {'role': 'system', 'content': system_prompt},
-        {'role': 'user', 'content': user_text},
-    ]
+    messages = _build_context_messages(agent, record, system_prompt, user_text)
+    messages.append({'role': 'user', 'content': user_text})
     return AIService.chat_completion_messages(messages, model_id=agent.model_id)
+
+
+def _build_context_messages(agent, record, system_prompt, user_text, max_context_tokens=MAX_CONTEXT_TOKENS):
+    if not record.conversation_id:
+        assign_record_conversation(agent, record)
+    session = get_or_create_im_session(agent, record)
+    conversation_id = record.conversation_id or session.conversation_id
+    memory_messages = build_memory_context(agent, record, user_text)
+    memory_text = '\n'.join(message.get('content') or '' for message in memory_messages)
+    history_records = list(AgentIMMessage.objects.filter(
+        agent=agent,
+        platform=AgentIMMessage.PLATFORM_FEISHU,
+        chat_id=record.chat_id,
+        sender_id=record.sender_id or '',
+        conversation_id=conversation_id,
+        status=AgentIMMessage.STATUS_REPLIED,
+        created_at__lt=record.created_at,
+    ).exclude(
+        response=''
+    ).order_by('created_at'))
+
+    summary = session.summary or ''
+    context_records, omitted_records = _select_context_records(
+        system_prompt,
+        summary,
+        user_text,
+        history_records,
+        extra_context=memory_text,
+        max_context_tokens=max_context_tokens,
+    )
+
+    compress_records = _records_needing_summary(session, omitted_records)
+    if compress_records:
+        summary = _compress_session_summary(agent, session, compress_records)
+        context_records, omitted_records = _select_context_records(
+            system_prompt,
+            summary,
+            user_text,
+            history_records,
+            extra_context=memory_text,
+            max_context_tokens=max_context_tokens,
+        )
+
+    messages = [{'role': 'system', 'content': system_prompt}]
+    messages.extend(memory_messages)
+    if summary:
+        messages.append({
+            'role': 'system',
+            'content': (
+                '以下是当前飞书会话早期历史的压缩摘要。它可能包含用户偏好、已确认事实、'
+                '未完成事项、重要约定和最近任务状态。请把它作为长期上下文使用：\n'
+                f'{summary}'
+            )
+        })
+
+    messages.extend(_records_to_messages(context_records))
+    return messages
+
+
+def _select_context_records(system_prompt, summary, user_text, history_records, max_context_tokens=MAX_CONTEXT_TOKENS, extra_context=''):
+    budget = max_context_tokens - TOKEN_SAFETY_MARGIN
+    used_tokens = (
+        _estimate_message_tokens(system_prompt)
+        + _estimate_message_tokens(summary)
+        + _estimate_message_tokens(user_text)
+        + _estimate_message_tokens(extra_context)
+    )
+    selected = []
+    for item in reversed(history_records):
+        turn_tokens = _estimate_message_tokens(item.content) + _estimate_message_tokens(item.response) + 8
+        if used_tokens + turn_tokens > budget:
+            break
+        selected.append(item)
+        used_tokens += turn_tokens
+
+    selected_ids = {item.id for item in selected}
+    omitted = [item for item in history_records if item.id not in selected_ids]
+    selected.reverse()
+    return selected, omitted
+
+
+def _records_needing_summary(session, records):
+    if not records:
+        return []
+    if not session.summary_until:
+        return records
+    return [record for record in records if record.created_at and record.created_at > session.summary_until]
+
+
+def _records_to_messages(records):
+    messages = []
+    for item in records:
+        if item.content:
+            messages.append({'role': 'user', 'content': item.content})
+        if item.response:
+            messages.append({'role': 'assistant', 'content': item.response})
+    return messages
+
+
+def _compress_session_summary(agent, session, records):
+    transcript = _format_records_for_summary(records)
+    previous_summary = session.summary or '无'
+    prompt = f"""请将飞书 Agent 会话历史压缩成可供后续对话使用的长期摘要。
+
+要求：
+1. 保留用户偏好、明确事实、重要实体、文件/链接/任务名、未完成事项、已达成结论、输出格式约定。
+2. 去掉寒暄、重复表达和无关细节。
+3. 不要编造历史中没有的信息。
+4. 用中文条目化输出，控制在约 {SUMMARY_TARGET_TOKENS} token 内。
+5. 如果已有摘要和新增历史冲突，以新增历史为准，并在摘要中保留最新状态。
+
+已有摘要：
+{previous_summary}
+
+新增历史：
+{transcript}
+"""
+    try:
+        summary = AIService.chat_completion_messages(
+            [{'role': 'user', 'content': prompt}],
+            model_id=agent.model_id,
+        )
+    except Exception:
+        logger.exception('Failed to compress Feishu IM session summary: %s', session.id)
+        return session.summary or ''
+
+    last_record = records[-1]
+    session.summary = _trim_to_estimated_tokens(summary, SUMMARY_TARGET_TOKENS) or session.summary
+    session.summary_until = last_record.created_at
+    session.summary_token_estimate = _estimate_message_tokens(session.summary)
+    session.save(update_fields=['summary', 'summary_until', 'summary_token_estimate', 'updated_at'])
+    return session.summary
+
+
+def _format_records_for_summary(records):
+    parts = []
+    for index, item in enumerate(records, start=1):
+        parts.append(
+            f"第 {index} 轮\n"
+            f"用户：{item.content or ''}\n"
+            f"Agent：{item.response or ''}"
+        )
+    return '\n\n'.join(parts)
+
+
+def _estimate_message_tokens(text):
+    if not text:
+        return 0
+    text = str(text)
+    cjk_count = len(CJK_RE.findall(text))
+    non_cjk_count = max(0, len(text) - cjk_count)
+    return cjk_count + math.ceil(non_cjk_count / 4) + 4
+
+
+def _trim_to_estimated_tokens(text, max_tokens):
+    if not text or _estimate_message_tokens(text) <= max_tokens:
+        return text or ''
+
+    chars = list(str(text))
+    low = 0
+    high = len(chars)
+    while low < high:
+        mid = (low + high + 1) // 2
+        candidate = ''.join(chars[:mid]).rstrip()
+        if _estimate_message_tokens(candidate) <= max_tokens:
+            low = mid
+        else:
+            high = mid - 1
+    return ''.join(chars[:low]).rstrip()
+
+
+def _is_new_conversation_command(text):
+    return str(text or '').strip().lower() == '/new'
 
 
 def _extract_message_content(message):
@@ -200,6 +398,63 @@ def send_feishu_reply(agent, message_id, text):
     )
     _raise_for_feishu_error(response, '发送飞书回复失败')
     return response.json()
+
+
+def add_feishu_message_reaction(agent, message_id, emoji_type):
+    token = get_tenant_access_token(agent)
+    url = f'{FEISHU_API_BASE}/im/v1/messages/{message_id}/reactions'
+    payload = {
+        'reaction_type': {
+            'emoji_type': emoji_type,
+        },
+    }
+    response = requests.post(
+        url,
+        json=payload,
+        headers={'Authorization': f'Bearer {token}'},
+        timeout=10,
+    )
+    data = _raise_for_feishu_error(response, '添加飞书消息表情失败')
+    reaction = data.get('data') or {}
+    return reaction.get('reaction_id') or ''
+
+
+def _try_add_feishu_message_reaction(agent, message_id, emoji_type):
+    try:
+        return add_feishu_message_reaction(agent, message_id, emoji_type)
+    except Exception:
+        logger.warning(
+            'Failed to add Feishu message reaction: message=%s, emoji=%s',
+            message_id,
+            emoji_type,
+            exc_info=True,
+        )
+        return ''
+
+
+def delete_feishu_message_reaction(agent, message_id, reaction_id):
+    if not reaction_id:
+        return
+    token = get_tenant_access_token(agent)
+    url = f'{FEISHU_API_BASE}/im/v1/messages/{message_id}/reactions/{reaction_id}'
+    response = requests.delete(
+        url,
+        headers={'Authorization': f'Bearer {token}'},
+        timeout=10,
+    )
+    _raise_for_feishu_error(response, '删除飞书消息表情失败')
+
+
+def _try_delete_feishu_message_reaction(agent, message_id, reaction_id):
+    try:
+        delete_feishu_message_reaction(agent, message_id, reaction_id)
+    except Exception:
+        logger.warning(
+            'Failed to delete Feishu message reaction: message=%s, reaction=%s',
+            message_id,
+            reaction_id,
+            exc_info=True,
+        )
 
 
 def get_tenant_access_token(agent):

@@ -18,14 +18,13 @@ from memos.models import Memo
 from utils.ai_service import AIService
 from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
 from .models import AgentRunRecord, AgentTask, MCPServer, Skill
-from .sync_scheduler import _env_flag, _is_server_process
+from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial_delay_seconds
 
 logger = logging.getLogger(__name__)
 
 
 def _scheduler_log(message):
     text = f"[AgentTaskScheduler] {message}"
-    print(text, flush=True)
     logger.warning(text)
 
 
@@ -56,6 +55,7 @@ class AgentTaskScheduler:
     def __init__(self):
         self._started = False
         self._thread = None
+        self._start_lock = threading.Lock()
         self._stop_event = threading.Event()
         self._run_lock = threading.Lock()
         self.runner_id = f"{socket.gethostname()}:{os.getpid()}"
@@ -69,19 +69,23 @@ class AgentTaskScheduler:
             return 30
 
     def start(self):
-        if self._started:
-            return
+        with self._start_lock:
+            if self._started:
+                return
 
-        self._thread = threading.Thread(
-            target=self._run_loop,
-            name='agent-task-scheduler',
-            daemon=True,
-        )
-        self._thread.start()
-        self._started = True
-        _scheduler_log(f"started, poll={self.poll_seconds}s, runner={self.runner_id}")
+            self._started = True
+            self._thread = threading.Thread(
+                target=self._run_loop,
+                name='agent-task-scheduler',
+                daemon=True,
+            )
+            self._thread.start()
+            _scheduler_log(f"started, poll={self.poll_seconds}s, runner={self.runner_id}")
 
     def _run_loop(self):
+        if self._stop_event.wait(get_scheduler_initial_delay_seconds()):
+            return
+
         while not self._stop_event.is_set():
             try:
                 close_old_connections()

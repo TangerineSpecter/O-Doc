@@ -102,6 +102,38 @@ def generate_agent_im_message_id() -> str:
     return generate_unique_id("aim")
 
 
+def generate_agent_im_session_id() -> str:
+    """
+    生成带 ims 前缀的 Agent IM 会话 ID
+    :return: 带 ims 前缀的唯一ID字符串
+    """
+    return generate_unique_id("ims")
+
+
+def generate_agent_long_term_memory_id() -> str:
+    """
+    生成带 alm 前缀的 Agent 长期记忆 ID
+    :return: 带 alm 前缀的唯一ID字符串
+    """
+    return generate_unique_id("alm")
+
+
+def generate_agent_short_term_memory_id() -> str:
+    """
+    生成带 asm 前缀的 Agent 短期记忆 ID
+    :return: 带 asm 前缀的唯一ID字符串
+    """
+    return generate_unique_id("asm")
+
+
+def generate_agent_conversation_id() -> str:
+    """
+    生成带 acv 前缀的 Agent IM 对话线程 ID
+    :return: 带 acv 前缀的唯一ID字符串
+    """
+    return generate_unique_id("acv")
+
+
 # 为 MCP 服务生成带 mcp 前缀的 ID
 def generate_mcp_server_id() -> str:
     """
