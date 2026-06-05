@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.utils import timezone
 from django.test import TestCase, override_settings
@@ -10,7 +11,7 @@ from rest_framework.test import APIRequestFactory
 from anthology.models import Anthology
 from article.models import Article, Image
 from article.serializers import ArticleSerializer
-from article.views import ImageDeleteView, ImageListView
+from article.views import ArticleDeleteView, ImageDeleteView, ImageListView
 from assets.models import Asset
 from assets.views import ResourceDeleteView, ResourceListView
 from utils.error_codes import ErrorCode
@@ -180,6 +181,30 @@ class ImageResourceCleanupTests(TestCase):
         self.assertTrue(content_asset.is_linked)
         self.assertEqual(attachment_asset.linked_article_id, article.article_id)
         self.assertTrue(attachment_asset.is_linked)
+
+    def test_article_delete_removes_article_vectors(self):
+        anthology = Anthology.objects.create(
+            coll_id='coll_article_delete_test',
+            title='文章删除测试',
+            type='article',
+            user_id='admin',
+        )
+        article = Article.objects.create(
+            title='待删除文章',
+            content='有向量的文章内容',
+            coll_id=anthology.coll_id,
+            author='admin',
+            is_rag_synced=True,
+        )
+
+        request = self.factory.delete(f'/api/article/delete/{article.article_id}')
+        with patch('article.views.RagClient.delete_article') as mock_delete_article:
+            response = ArticleDeleteView.as_view()(request, article.article_id)
+
+        self.assertEqual(response.data['code'], ErrorCode.SUCCESS.code)
+        mock_delete_article.assert_called_once_with(article.article_id)
+        article.refresh_from_db()
+        self.assertFalse(article.is_valid)
 
     def test_image_delete_removes_unshared_asset_file(self):
         asset = self._create_asset()

@@ -64,6 +64,7 @@ export interface GenerateImageDescriptionParams {
   title?: string;
   country?: string;
   city?: string;
+  placeName?: string;
   imageUrl?: string;
   imageData?: string;
   imageFile?: File;
@@ -94,6 +95,7 @@ export const generateImageDescription = async (data: GenerateImageDescriptionPar
     body.append('title', data.title || '');
     body.append('country', data.country || '');
     body.append('city', data.city || '');
+    body.append('placeName', data.placeName || '');
     if (data.imageUrl) body.append('imageUrl', data.imageUrl);
   }
 

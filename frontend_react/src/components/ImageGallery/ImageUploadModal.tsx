@@ -324,11 +324,6 @@ export default function ImageUploadModal({
   };
 
   const handleRecommendTags = async () => {
-    if (normalizedExistingTags.length === 0) {
-      toast.info('当前文集还没有可用于推荐的标签');
-      return;
-    }
-
     try {
       setIsRecommendingTags(true);
       const recommendedTags = await recommendImageTagsWithAI(title, description, normalizedExistingTags);
@@ -365,6 +360,7 @@ export default function ImageUploadModal({
         title: title.trim(),
         country: country.trim(),
         city: city.trim(),
+        placeName: placeName.trim(),
         imageUrl: file ? undefined : preview,
         imageFile: file || undefined,
       });

@@ -154,6 +154,14 @@ class RagClient:
         return len(chunks)
 
     @classmethod
+    def delete_article(cls, article_id):
+        """从向量库删除一篇文章的所有分块"""
+        try:
+            cls.get_collection().delete(where={"article_id": str(article_id)})
+        except Exception as e:
+            print(f"删除文章向量失败: {e}")
+
+    @classmethod
     def add_memo(cls, memo):
         """添加或更新一条闪念到向量库"""
         content = (memo.content or '').strip()

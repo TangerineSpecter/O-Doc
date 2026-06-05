@@ -22,6 +22,7 @@ from utils.ai_service import AIService
 from utils.error_codes import ErrorCode
 from utils.drf_utils import get_current_user_identifier
 from utils.notification_service import NotificationService
+from utils.rag_client import RagClient
 from utils.resource_assets import (
     delete_asset_record_and_file,
     extract_resource_id_from_view_url,
@@ -368,6 +369,7 @@ class ArticleDeleteView(APIView):
             # 软删除：更新is_valid为False
             article.is_valid = False
             article.save()
+            RagClient.delete_article(article.article_id)
 
             # 更新文集文章数量
             refresh_anthology_stats(article.coll_id)
@@ -609,7 +611,8 @@ class ImageDescriptionGenerateView(APIView):
             title = (request.data.get('title') or '').strip()
             country = (request.data.get('country') or '').strip()
             city = (request.data.get('city') or '').strip()
-            location = ' / '.join([item for item in [country, city] if item])
+            place_name = (request.data.get('placeName') or request.data.get('place_name') or '').strip()
+            location = ' / '.join([item for item in [country, city, place_name] if item])
             image_data = request.data.get('imageData') or request.data.get('image_data')
             image_url = request.data.get('imageUrl') or request.data.get('image_url')
             uploaded_image = request.FILES.get('image')

@@ -51,17 +51,18 @@ export const recommendImageTagsWithAI = async (
     existingTags: string[]
 ): Promise<string[]> => {
     const normalizedTags = Array.from(new Set(existingTags.map(tag => tag.trim()).filter(Boolean)));
-    if (normalizedTags.length === 0) return [];
 
-    const prompt = `请根据图片标题和描述，从“已有标签”中推荐最匹配的 1 到 5 个标签。
+    const prompt = `请根据图片标题和描述，推荐最匹配的 1 到 5 个图片标签。
 要求：
-1. 只能返回已有标签列表中出现过的标签，不能创造新标签
-2. 如果没有任何已有标签匹配，返回 "无"
-3. 只返回标签名称，用英文逗号分隔，不要解释
+1. 优先从“已有标签”中选择匹配项，并把已有标签排在前面
+2. 如果已有标签不足以准确描述图片，可以补充创造新的简短标签
+3. 标签应简练精准，通常 2 到 8 个中文字符或简短英文词组
+4. 如果图片标题和描述都不足以判断，返回 "无"
+5. 只返回标签名称，用英文逗号分隔，不要解释
 
 图片标题：${title || '未填写'}
 图片描述：${description || '未填写'}
-已有标签：${normalizedTags.join(', ')}`;
+已有标签：${normalizedTags.length > 0 ? normalizedTags.join(', ') : '无'}`;
 
     try {
         const resultText = await fetchAIResponse(prompt, {useSimpleModel: true});
@@ -78,8 +79,8 @@ export const recommendImageTagsWithAI = async (
             cleaned
                 .split(/[,，、\n]/)
                 .map(tag => tag.trim())
-                .map(tag => allowed.get(tag.toLowerCase()))
-                .filter((tag): tag is string => Boolean(tag))
+                .filter(Boolean)
+                .map(tag => allowed.get(tag.toLowerCase()) || tag)
         )).slice(0, 5);
     } catch (error) {
         console.error("AI 推荐图片标签失败:", error);
