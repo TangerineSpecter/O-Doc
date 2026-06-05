@@ -1,4 +1,5 @@
 // frontend_react/src/api/ai.ts
+import {getAuthToken} from '../utils/authStorage';
 
 // 定义 Chat 接口的返回类型（如果需要处理流式，这里可能需要特殊处理，但简单起见我们假设非流式或手动拼接）
 // 注意：之前的 ChatView 是 StreamingHttpResponse，前端 fetch 需要处理流。
@@ -125,11 +126,12 @@ ${truncatedContent}`;
  */
 export const polishArticleWithAI = async (content: string): Promise<string> => {
     try {
+        const token = getAuthToken();
         const response = await fetch('/api/article/polish', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                ...(token ? {'Authorization': `Token ${token}`} : {})
             },
             body: JSON.stringify({
                 content: content
@@ -210,11 +212,12 @@ const throwAIConfigErrorIfMatched = (message: string) => {
 };
 
 const fetchAIResponse = async (prompt: string, options?: { useSimpleModel?: boolean }): Promise<string> => {
+    const token = getAuthToken();
     const response = await fetch('/api/ai/chat/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            ...(token ? {'Authorization': `Token ${token}`} : {})
         },
         body: JSON.stringify({
             message: prompt,

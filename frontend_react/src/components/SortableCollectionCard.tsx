@@ -10,6 +10,7 @@ import {
     Lock,
     MoreHorizontal,
     Plus,
+    Smile,
     Trash
 } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
@@ -59,6 +60,8 @@ export const SortableCollectionCard = ({
         position: 'relative' as const,
         touchAction: 'none'
     };
+    const hideCoverContent = item.hideCoverContent ?? item.hide_cover_content ?? false;
+    const shouldMaskCover = hideCoverContent && item.count > 0;
 
     return (
         <div
@@ -166,7 +169,19 @@ export const SortableCollectionCard = ({
 
             {/* 列表/图片预览区域 */}
             <div className="flex-1 bg-slate-50/30 border-t border-slate-100 p-1">
-                {item.type === 'image' ? (
+                {shouldMaskCover ? (
+                    <button
+                        type="button"
+                        onClick={() => onNavigate(item.type === 'image' ? 'image' : 'article', { collId: item.collId, title: item.title })}
+                        className="w-full h-full min-h-[5.75rem] flex flex-col items-center justify-center text-slate-400 py-4 gap-2 rounded-lg hover:bg-white hover:shadow-sm transition-all"
+                        title="查看文集"
+                    >
+                        <div className="bg-white p-2 rounded-full border border-dashed border-slate-300">
+                            <Smile className="w-4 h-4 text-slate-300" />
+                        </div>
+                        <span className="text-[10px]">(^_^) 嘻嘻，啥也看不到嗷～</span>
+                    </button>
+                ) : item.type === 'image' ? (
                     // 图片文集展示：九宫格缩略图
                     item.articles && item.articles.length > 0 ? (
                         <div className="grid grid-cols-3 gap-1 p-1">

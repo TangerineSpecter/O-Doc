@@ -14,6 +14,7 @@ export interface CreateAnthologyParams {
     iconId: string;
     permission: 'public' | 'private';
     isTop?: boolean;
+    hideCoverContent?: boolean;
     sort?: number;
     type?: 'article' | 'image';
 }
@@ -26,6 +27,8 @@ export interface Anthology {
     ragNotSyncedCount?: number;
     iconId: string;
     isTop: boolean;
+    hideCoverContent?: boolean;
+    hide_cover_content?: boolean;
     description: string;
     articles: ArticleSummary[];
     permission: 'public' | 'private';

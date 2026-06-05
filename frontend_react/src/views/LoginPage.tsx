@@ -3,6 +3,7 @@ import {useNavigate} from 'react-router-dom';
 import {Mail, Lock, ArrowRight, Leaf, ArrowLeft} from 'lucide-react';
 import {login} from '../api/user';
 import {useToast} from '../components/common/ToastProvider';
+import {saveAuthToken} from '../utils/authStorage';
 
 // 1. 定义子组件的 Props 类型
 interface FloatingCitrusProps {
@@ -65,14 +66,8 @@ export default function LoginPage() {
             const res = await login(formData);
             console.log('登录成功:', res);
 
-            // 保存 token：勾选“记住我”跨浏览器会话保存，否则仅当前标签会话有效
-            localStorage.removeItem('token');
-            sessionStorage.removeItem('token');
-            if (rememberMe) {
-                localStorage.setItem('token', res.token);
-            } else {
-                sessionStorage.setItem('token', res.token);
-            }
+            // 保存 token：普通登录有效期 7 天；勾选“记住我”长期保存。
+            saveAuthToken(res.token, rememberMe);
 
             success('欢迎回来！登录成功');
 

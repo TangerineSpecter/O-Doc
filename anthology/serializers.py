@@ -13,7 +13,7 @@ class AnthologySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Anthology
-        fields = ['coll_id', 'title', 'description', 'icon_id', 'user_id', 'permission', 'is_top',
+        fields = ['coll_id', 'title', 'description', 'icon_id', 'user_id', 'permission', 'is_top', 'hide_cover_content',
                   'rag_not_synced_count', 'count', 'created_at', 'updated_at', 'type']
 
         validators = [

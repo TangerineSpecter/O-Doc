@@ -8,6 +8,7 @@ import Navbar from './Navbar';
 import SearchModal from '../components/SearchModal';
 import ProfileCenterModal from '../components/ProfileCenterModal';
 import { AuthProvider } from '../contexts/AuthContext';
+import {clearAuthToken, getAuthToken} from '../utils/authStorage';
 
 interface LayoutProps {
     children: ReactNode;
@@ -23,13 +24,12 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
 
     // --- 用户信息获取 ---
     useEffect(() => {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        const token = getAuthToken();
         if (token) {
             getUserInfo().then(res => {
                 setUserInfo(res);
             }).catch(() => {
-                localStorage.removeItem('token');
-                sessionStorage.removeItem('token');
+                clearAuthToken();
                 setUserInfo(null);
             });
         }
@@ -37,8 +37,7 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
 
     // --- 事件处理 ---
     const handleLogout = () => {
-        localStorage.removeItem('token');
-        sessionStorage.removeItem('token');
+        clearAuthToken();
         setUserInfo(null);
         setIsProfileOpen(false);
         if (onNavigate) onNavigate('login');

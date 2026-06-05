@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Globe, Lock, Loader2, Save, Plus, Pin, FileText, Image } from 'lucide-react';
+import { X, Globe, Lock, Loader2, Save, Plus, Pin, FileText, Image, EyeOff } from 'lucide-react';
 import { AVAILABLE_ICONS } from '../constants/iconList';
 
 export interface AnthologyFormData {
@@ -10,6 +10,8 @@ export interface AnthologyFormData {
     iconId: string;
     permission: 'public' | 'private';
     isTop: boolean;
+    hideCoverContent?: boolean;
+    hide_cover_content?: boolean;
     sort?: number;
     type?: 'article' | 'image';
 }
@@ -33,7 +35,8 @@ export default function CreateAnthologyModal({
         description: "",
         iconId: "book",
         permission: "public",
-        isTop: false // 2. 初始化默认值
+        isTop: false,
+        hideCoverContent: false
     });
 
     const isEditing = !!initialData;
@@ -45,6 +48,7 @@ export default function CreateAnthologyModal({
                 setFormData({
                     ...initialData,
                     isTop: initialData.isTop ?? false,
+                    hideCoverContent: initialData.hideCoverContent ?? initialData.hide_cover_content ?? false,
                     type: initialData.type ?? 'article'
                 });
             } else {
@@ -54,6 +58,7 @@ export default function CreateAnthologyModal({
                     iconId: "book",
                     permission: "public",
                     isTop: false,
+                    hideCoverContent: false,
                     type: "article"
                 });
             }
@@ -256,6 +261,32 @@ export default function CreateAnthologyModal({
                             >
                                 <span
                                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.isTop ? 'translate-x-6' : 'translate-x-1'}`}
+                                />
+                            </button>
+                        </div>
+
+                        <div
+                            className={`flex items-center justify-between p-3 border rounded-lg transition-all ${(formData.hideCoverContent ?? false) ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div
+                                    className={`p-2 rounded-full ${(formData.hideCoverContent ?? false) ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                                    <EyeOff className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <div className="text-sm font-medium text-slate-800">隐藏封面内容</div>
+                                    <div className="text-xs text-slate-500">文集列表不展示文章标题或图片缩略图</div>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                disabled={isSubmitting}
+                                onClick={() => setFormData({ ...formData, hideCoverContent: !(formData.hideCoverContent ?? false) })}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${(formData.hideCoverContent ?? false) ? 'bg-orange-500' : 'bg-slate-200'}`}
+                            >
+                                <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${(formData.hideCoverContent ?? false) ? 'translate-x-6' : 'translate-x-1'}`}
                                 />
                             </button>
                         </div>

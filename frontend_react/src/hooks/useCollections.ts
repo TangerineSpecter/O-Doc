@@ -32,6 +32,7 @@ export const useCollections = () => {
                 ...anthology,
                 articles: anthology.articles || [],
                 count: anthology.count || 0,
+                hideCoverContent: anthology.hideCoverContent ?? anthology.hide_cover_content ?? false,
                 icon: getIconComponent(anthology.iconId)
             }));
             // 默认排序
@@ -98,6 +99,7 @@ export const useCollections = () => {
                 iconId: data.iconId,
                 permission: data.permission,
                 isTop: data.isTop,
+                hideCoverContent: data.hideCoverContent ?? false,
                 sort: collections.length + 1,
                 type: data.type
             };
@@ -107,6 +109,7 @@ export const useCollections = () => {
                 articles: [],
                 count: 0,
                 isTop: response.isTop || false,
+                hideCoverContent: response.hideCoverContent ?? response.hide_cover_content ?? data.hideCoverContent ?? false,
                 icon: getIconComponent(response.iconId)
             };
             setCollections((prev) => {
@@ -138,6 +141,7 @@ export const useCollections = () => {
                 iconId: data.iconId,
                 permission: data.permission,
                 isTop: data.isTop,
+                hideCoverContent: data.hideCoverContent ?? false,
                 type: data.type
             };
 

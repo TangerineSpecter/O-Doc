@@ -70,6 +70,12 @@ class Anthology(models.Model):
         db_comment='是否置顶'
     )
 
+    hide_cover_content = models.BooleanField(
+        default=False,
+        verbose_name='是否隐藏封面内容',
+        db_comment='是否隐藏文集列表封面内容'
+    )
+
     # 有效性标记
     is_valid = models.BooleanField(
         default=True,

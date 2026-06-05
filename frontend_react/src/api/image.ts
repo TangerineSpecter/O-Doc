@@ -1,4 +1,5 @@
 import request from '../utils/request';
+import {getAuthToken} from '../utils/authStorage';
 
 export interface Image {
   imageId: string;
@@ -87,7 +88,7 @@ export const updateImage = (imageId: string, data: UpdateImageParams) => {
 };
 
 export const generateImageDescription = async (data: GenerateImageDescriptionParams) => {
-  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+  const token = getAuthToken();
   const body = data.imageFile ? new FormData() : JSON.stringify(data);
 
   if (body instanceof FormData) {

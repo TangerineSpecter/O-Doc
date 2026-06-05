@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import {AlertCircle, CheckCircle2, Clock3, DownloadCloud, HardDrive, Loader2, Play, Save, Terminal, UploadCloud} from 'lucide-react';
 import {saveWebDavConfig, WebDavConfig, WebDavSyncStatus} from '@/api/setting.ts';
+import {getAuthToken} from '@/utils/authStorage';
 import {useToast} from '../common/ToastProvider';
 
 interface SyncSettingsProps {
@@ -139,7 +140,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
             // 拼接 URL
             const url = `/api/settings/config/sync_${direction === 'upload' ? 'to' : 'from'}_webdav/`;
 
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
 
             // 发起原生 fetch 请求
             const response = await fetch(url, {

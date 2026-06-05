@@ -224,6 +224,7 @@ export const handlers = [
         count: 0,
         icon_id: body.iconId || 'book',
         isTop: body.isTop || false,
+        hideCoverContent: body.hideCoverContent || false,
         permission: body.permission || 'public',
         description: body.description,
         articles: [],

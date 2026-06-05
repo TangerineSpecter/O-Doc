@@ -279,7 +279,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
                             </div>
                             <div>
                                 <h3 className="font-bold text-slate-800">系统 MCP</h3>
-                                <p className="text-xs text-slate-500 mt-1">给外部系统调用 O-Doc，支持写入 Memos、管理文章和文集。</p>
+                                <p className="text-xs text-slate-500 mt-1">给外部系统调用 O-Doc，支持闪念 CRUD、管理文章和文集。</p>
                             </div>
                         </div>
                         <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">

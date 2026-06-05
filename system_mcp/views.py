@@ -2,6 +2,7 @@ import json
 from hmac import compare_digest
 
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import AllowAny
@@ -88,7 +89,7 @@ def _refresh_anthology(coll_id):
 TOOLS = [
     {
         'name': 'insert_memo',
-        'description': '插入一条闪念备忘 Memos。',
+        'description': '插入一条闪念备忘 Memos。兼容旧版名称，推荐新接入使用 create_memo。',
         'inputSchema': {
             'type': 'object',
             'properties': {
@@ -97,6 +98,67 @@ TOOLS = [
                 'is_pinned': {'type': 'boolean', 'description': '是否置顶。'},
             },
             'required': ['content'],
+        },
+    },
+    {
+        'name': 'create_memo',
+        'description': '创建一条闪念 Memo。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'content': {'type': 'string', 'description': '备忘内容，最多 2000 字。'},
+                'tag': {'type': 'string', 'description': '可选标签。'},
+                'is_pinned': {'type': 'boolean', 'description': '是否置顶。'},
+            },
+            'required': ['content'],
+        },
+    },
+    {
+        'name': 'list_memos',
+        'description': '查询闪念 Memo 列表，可按关键词或标签过滤。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'keyword': {'type': 'string', 'description': '可选内容或标签关键词。'},
+                'tag': {'type': 'string', 'description': '可选标签，支持匹配同名标签或子标签。'},
+                'limit': {'type': 'integer', 'description': '返回数量，默认 50，最大 200。'},
+            },
+        },
+    },
+    {
+        'name': 'get_memo',
+        'description': '查询单条闪念 Memo 详情。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'memo_id': {'type': 'string', 'description': '闪念 Memo ID。'},
+            },
+            'required': ['memo_id'],
+        },
+    },
+    {
+        'name': 'update_memo',
+        'description': '更新闪念 Memo，支持内容、标签和置顶状态。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'memo_id': {'type': 'string', 'description': '闪念 Memo ID。'},
+                'content': {'type': 'string', 'description': '新内容，最多 2000 字。'},
+                'tag': {'type': 'string', 'description': '新标签，空字符串表示清空。'},
+                'is_pinned': {'type': 'boolean', 'description': '是否置顶。'},
+            },
+            'required': ['memo_id'],
+        },
+    },
+    {
+        'name': 'delete_memo',
+        'description': '删除闪念 Memo。执行逻辑删除，不再出现在列表中。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'memo_id': {'type': 'string', 'description': '闪念 Memo ID。'},
+            },
+            'required': ['memo_id'],
         },
     },
     {
@@ -206,10 +268,15 @@ TOOLS = [
     },
 ]
 
+MEMO_TOOL_NAMES = {'insert_memo', 'create_memo', 'list_memos', 'get_memo', 'update_memo', 'delete_memo'}
+VISIBLE_TOOL_NAMES = {tool['name'] for tool in TOOLS} - {'insert_memo'}
+VISIBLE_MEMO_TOOL_NAMES = MEMO_TOOL_NAMES - {'insert_memo'}
+
 
 class ODocSystemMCPView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    tool_scope = 'system'
 
     def post(self, request):
         auth_error = self._auth_error(request)
@@ -231,19 +298,31 @@ class ODocSystemMCPView(APIView):
             return JsonResponse({}, status=202)
 
         if method == 'tools/list':
-            return self._result(request_id, {'tools': TOOLS})
+            return self._result(request_id, {'tools': self._available_tools()})
 
         if method == 'tools/call':
             params = payload.get('params') or {}
             name = params.get('name')
             arguments = params.get('arguments') or {}
             try:
+                if not self._is_tool_available(name):
+                    raise ValueError(f'当前 MCP 不提供 Tool：{name}')
                 result = self._call_tool(name, arguments)
                 return self._result(request_id, _text_result(result))
             except Exception as exc:
                 return self._error(request_id, -32000, str(exc))
 
         return self._error(request_id, -32601, f'未知 MCP 方法：{method}')
+
+    def _available_tools(self):
+        if self.tool_scope == 'memos':
+            return [tool for tool in TOOLS if tool['name'] in VISIBLE_MEMO_TOOL_NAMES]
+        return [tool for tool in TOOLS if tool['name'] in VISIBLE_TOOL_NAMES]
+
+    def _is_tool_available(self, name):
+        if name == 'insert_memo':
+            return True
+        return any(tool['name'] == name for tool in self._available_tools())
 
     @classmethod
     def _auth_error(cls, request):
@@ -287,8 +366,16 @@ class ODocSystemMCPView(APIView):
         }, status=400, json_dumps_params={'ensure_ascii': False})
 
     def _call_tool(self, name, arguments):
-        if name == 'insert_memo':
-            return self._insert_memo(arguments)
+        if name in {'insert_memo', 'create_memo'}:
+            return self._create_memo(arguments)
+        if name == 'list_memos':
+            return self._list_memos(arguments)
+        if name == 'get_memo':
+            return self._get_memo(arguments)
+        if name == 'update_memo':
+            return self._update_memo(arguments)
+        if name == 'delete_memo':
+            return self._delete_memo(arguments)
         if name == 'create_article':
             return self._create_article(arguments)
         if name == 'list_articles':
@@ -306,7 +393,7 @@ class ODocSystemMCPView(APIView):
         raise ValueError(f'未知 Tool：{name}')
 
     @staticmethod
-    def _insert_memo(arguments):
+    def _create_memo(arguments):
         content = str(arguments.get('content') or '').strip()
         if not content:
             raise ValueError('content 不能为空')
@@ -319,6 +406,61 @@ class ODocSystemMCPView(APIView):
             user_id='admin',
         )
         return {'memo': _memo_to_dict(memo)}
+
+    @staticmethod
+    def _memo_queryset():
+        return Memo.objects.filter(is_valid=True, user_id='admin')
+
+    @classmethod
+    def _list_memos(cls, arguments):
+        limit = min(max(int(arguments.get('limit') or 50), 1), 200)
+        queryset = cls._memo_queryset().order_by('-is_pinned', '-created_at')
+        keyword = str(arguments.get('keyword') or '').strip()
+        tag = str(arguments.get('tag') or '').strip()
+        if keyword:
+            queryset = queryset.filter(Q(content__icontains=keyword) | Q(tag__icontains=keyword))
+        if tag:
+            queryset = queryset.filter(Q(tag=tag) | Q(tag__startswith=f'{tag}/'))
+        memos = [_memo_to_dict(memo) for memo in queryset[:limit]]
+        return {'memos': memos, 'count': len(memos)}
+
+    @classmethod
+    def _get_memo(cls, arguments):
+        memo_id = str(arguments.get('memo_id') or '').strip()
+        if not memo_id:
+            raise ValueError('memo_id 不能为空')
+        memo = get_object_or_404(cls._memo_queryset(), memo_id=memo_id)
+        return {'memo': _memo_to_dict(memo)}
+
+    @classmethod
+    def _update_memo(cls, arguments):
+        memo_id = str(arguments.get('memo_id') or '').strip()
+        if not memo_id:
+            raise ValueError('memo_id 不能为空')
+        memo = get_object_or_404(cls._memo_queryset(), memo_id=memo_id)
+        if 'content' in arguments:
+            content = str(arguments.get('content') or '').strip()
+            if not content:
+                raise ValueError('content 不能为空')
+            if len(content) > 2000:
+                raise ValueError('content 不能超过 2000 字')
+            memo.content = content
+        if 'tag' in arguments:
+            memo.tag = str(arguments.get('tag') or '').strip()
+        if 'is_pinned' in arguments:
+            memo.is_pinned = bool(arguments.get('is_pinned'))
+        memo.save()
+        return {'memo': _memo_to_dict(memo)}
+
+    @classmethod
+    def _delete_memo(cls, arguments):
+        memo_id = str(arguments.get('memo_id') or '').strip()
+        if not memo_id:
+            raise ValueError('memo_id 不能为空')
+        memo = get_object_or_404(cls._memo_queryset(), memo_id=memo_id)
+        memo.is_valid = False
+        memo.save(update_fields=['is_valid', 'updated_at'])
+        return {'memo_id': memo_id, 'deleted': True}
 
     @staticmethod
     def _validate_article_collection(coll_id):

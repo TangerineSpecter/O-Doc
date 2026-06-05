@@ -15,9 +15,10 @@ import SettingsPage from './views/SettingsPage';
 import MemosPage from './views/MemosPage';
 import WhiteboardPage from './views/WhiteboardPage'
 import WhiteboardManagePage from './views/WhiteboardManagePage';
+import {getAuthToken} from './utils/authStorage';
 
 function hasAuthToken() {
-    return Boolean(localStorage.getItem('token') || sessionStorage.getItem('token'));
+    return Boolean(getAuthToken());
 }
 
 function RequireAuth({children}: { children: ReactNode }) {

@@ -68,6 +68,50 @@ def _base_system_mcp_config():
     }
 
 
+def _memo_mcp_tools():
+    from system_mcp.views import TOOLS, VISIBLE_MEMO_TOOL_NAMES
+
+    return [
+        {
+            'name': tool['name'],
+            'description': tool.get('description') or '',
+            'inputSchema': tool.get('inputSchema') or {},
+            'enabled': True,
+        }
+        for tool in TOOLS
+        if tool['name'] in VISIBLE_MEMO_TOOL_NAMES
+    ]
+
+
+def _sync_scanned_memo_mcp_server(request, value):
+    server = MCPServer.objects.filter(name='闪念 MCP').first()
+    if not server:
+        return
+    server.url = request.build_absolute_uri('/api/system-mcp/memos/')
+    server.headers = {'Authorization': f"Bearer {value.get('apiKey', '')}"}
+    server.enabled = bool(value.get('enabled', True))
+    server.source = 'system'
+    server.transport = 'streamableHttp'
+    server.command = ''
+    server.args = []
+    server.env = {}
+    server.description = 'O-Doc 内置系统 MCP，仅提供闪念 Memo 的创建、查询、更新和删除工具。'
+    server.tools = MCPServerViewSet._merge_tools(_memo_mcp_tools(), server.tools)
+    server.save(update_fields=[
+        'url',
+        'headers',
+        'enabled',
+        'source',
+        'transport',
+        'command',
+        'args',
+        'env',
+        'description',
+        'tools',
+        'updated_at',
+    ])
+
+
 class AIProviderViewSet(viewsets.ModelViewSet):
     """
     AI提供商及模型配置接口
@@ -686,6 +730,57 @@ class MCPServerViewSet(viewsets.ModelViewSet):
         return False
 
     @staticmethod
+    def _format_builtin_tools(tool_names):
+        from system_mcp.views import TOOLS
+
+        return [
+            {
+                'name': tool['name'],
+                'description': tool.get('description') or '',
+                'inputSchema': tool.get('inputSchema') or {},
+                'enabled': True,
+            }
+            for tool in TOOLS
+            if tool['name'] in tool_names
+        ]
+
+    @staticmethod
+    def _ensure_system_mcp_value():
+        config, _ = SystemSetting.objects.get_or_create(
+            key=SYSTEM_MCP_CONFIG_KEY,
+            defaults={
+                'value': _default_system_mcp_config(),
+                'description': '系统级 MCP 配置',
+            }
+        )
+        value = {**_base_system_mcp_config(), **(config.value or {})}
+        if not value.get('apiKey'):
+            value['apiKey'] = _generate_system_mcp_api_key()
+            config.value = value
+            config.description = '系统级 MCP 配置'
+            config.save(update_fields=['value', 'description'])
+        return value
+
+    @classmethod
+    def _builtin_memo_server(cls, request):
+        from system_mcp.views import VISIBLE_MEMO_TOOL_NAMES
+
+        value = cls._ensure_system_mcp_value()
+        return {
+            'name': '闪念 MCP',
+            'transport': 'streamableHttp',
+            'command': '',
+            'args': [],
+            'url': request.build_absolute_uri('/api/system-mcp/memos/'),
+            'headers': {'Authorization': f"Bearer {value.get('apiKey', '')}"},
+            'env': {},
+            'source': 'system',
+            'enabled': bool(value.get('enabled', True)),
+            'description': 'O-Doc 内置系统 MCP，仅提供闪念 Memo 的创建、查询、更新和删除工具。',
+            'tools': cls._format_builtin_tools(VISIBLE_MEMO_TOOL_NAMES),
+        }
+
+    @staticmethod
     def _extract_servers(payload, source_path):
         if not isinstance(payload, dict):
             return []
@@ -747,21 +842,24 @@ class MCPServerViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def scan(self, request):
-        scanned = self._scan_local_configs()
+        scanned = [self._builtin_memo_server(request), *self._scan_local_configs()]
         saved = []
         from utils.mcp_client import fetch_mcp_tools
         for server in scanned:
-            # 构造临时 MCPServer 实体用于连接探测
-            temp_server = MCPServer(
-                transport=server['transport'],
-                command=server['command'],
-                args=server['args'],
-                url=server['url'],
-                headers=server['headers'],
-                env=server['env']
-            )
-            # 在扫描时，我们尝试连接获取真实 Tools 列表，但不强求一定要成功（失败了打印日志/返回空列表）
-            tools, _ = fetch_mcp_tools(temp_server)
+            if server['name'] == '闪念 MCP':
+                tools = server['tools']
+            else:
+                # 构造临时 MCPServer 实体用于连接探测
+                temp_server = MCPServer(
+                    transport=server['transport'],
+                    command=server['command'],
+                    args=server['args'],
+                    url=server['url'],
+                    headers=server['headers'],
+                    env=server['env']
+                )
+                # 在扫描时，我们尝试连接获取真实 Tools 列表，但不强求一定要成功（失败了打印日志/返回空列表）
+                tools, _ = fetch_mcp_tools(temp_server)
             
             try:
                 db_instance = MCPServer.objects.get(name=server['name'])
@@ -1019,6 +1117,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
             config.value = value
             config.description = '系统级 MCP 配置'
             config.save(update_fields=['value', 'description'])
+        _sync_scanned_memo_mcp_server(request, value)
         return success_result({
             'enabled': bool(value.get('enabled', True)),
             'apiKey': value.get('apiKey', ''),
@@ -1041,6 +1140,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
         config.value = value
         config.description = '系统级 MCP 配置'
         config.save(update_fields=['value', 'description'])
+        _sync_scanned_memo_mcp_server(request, value)
         return success_result({
             'enabled': value['enabled'],
             'apiKey': value['apiKey'],
@@ -1062,6 +1162,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
         config.value = value
         config.description = '系统级 MCP 配置'
         config.save(update_fields=['value', 'description'])
+        _sync_scanned_memo_mcp_server(request, value)
         return success_result({
             'enabled': value['enabled'],
             'apiKey': value['apiKey'],

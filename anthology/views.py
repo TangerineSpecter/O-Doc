@@ -89,15 +89,16 @@ class AnthologyListView(APIView):
                 if anthology.type == 'image':
                     image_qs = Image.objects.filter(coll_id=anthology.coll_id, is_valid=True)
                     item_count = image_qs.count()
-                    images = image_qs.order_by('-created_at')[:3]
-                    for image in images:
-                        item_summaries.append({
-                            'image_id': image.image_id,
-                            'title': image.title,
-                            'image_url': image.image_url,
-                            'date': image.created_at.strftime('%m-%d')
-                        })
-                else:
+                    if not anthology.hide_cover_content:
+                        images = image_qs.order_by('-created_at')[:3]
+                        for image in images:
+                            item_summaries.append({
+                                'image_id': image.image_id,
+                                'title': image.title,
+                                'image_url': image.image_url,
+                                'date': image.created_at.strftime('%m-%d')
+                            })
+                elif not anthology.hide_cover_content:
                     # 查询该文集下的前3个有效文章，按排序、更新时间排序
                     articles = Article.objects.filter(coll_id=anthology.coll_id, is_valid=True).order_by('sort',
                                                                                                          '-updated_at')[:3]
@@ -120,6 +121,7 @@ class AnthologyListView(APIView):
                     'rag_not_synced_count': anthology.rag_not_synced_count,
                     'icon_id': anthology.icon_id,
                     'isTop': anthology.is_top,
+                    'hideCoverContent': anthology.hide_cover_content,
                     'description': anthology.description,
                     'articles': item_summaries,
                     'permission': anthology.permission,

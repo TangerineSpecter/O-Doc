@@ -5,6 +5,7 @@ import axios, {
     AxiosResponse,
     InternalAxiosRequestConfig
 } from 'axios';
+import {clearAuthToken, getAuthToken} from './authStorage';
 
 // 扩展AxiosError类型，添加自定义数据类型
 type CustomAxiosError = AxiosError<{
@@ -37,8 +38,8 @@ service.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
         // 在发送请求之前做些什么
 
-        // 示例：从 localStorage 获取 token 并添加到 headers
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        // 从本地登录态读取 token；普通登录 7 天过期，记住我长期有效。
+        const token = getAuthToken();
         if (token) {
             config.headers.Authorization = `Token ${token}`;
         }
@@ -78,8 +79,7 @@ service.interceptors.response.use(
             // 示例：处理 Token 过期 (401)
             if (res.code === ResultEnum.TIMEOUT) {
                 // 清除本地信息并跳转登录
-                localStorage.removeItem('token');
-                sessionStorage.removeItem('token');
+                clearAuthToken();
                 window.location.href = '/login';
             }
 
