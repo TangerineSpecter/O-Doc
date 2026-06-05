@@ -10,6 +10,7 @@ import {
     Code2,
     Edit2,
     ImagePlus,
+    MessageCircle,
     Play,
     Plus,
     Repeat2,
@@ -59,6 +60,11 @@ type AgentForm = {
     prompt: string;
     mcpServers: string[];
     skills: string[];
+    feishuImEnabled: boolean;
+    feishuAppId: string;
+    feishuAppSecret: string;
+    feishuVerificationToken: string;
+    feishuEncryptKey: string;
 };
 
 type AgentView = 'list' | 'tasks' | 'records';
@@ -150,6 +156,11 @@ export const AgentSettings = ({
         prompt: DEFAULT_PROMPT,
         mcpServers: [],
         skills: [],
+        feishuImEnabled: false,
+        feishuAppId: '',
+        feishuAppSecret: '',
+        feishuVerificationToken: '',
+        feishuEncryptKey: '',
     });
     const getDefaultAgentId = () => agents[0]?.id || '';
     const [taskForm, setTaskForm] = useState<AgentTaskForm>({
@@ -255,6 +266,11 @@ export const AgentSettings = ({
             prompt: DEFAULT_PROMPT,
             mcpServers: [],
             skills: [],
+            feishuImEnabled: false,
+            feishuAppId: '',
+            feishuAppSecret: '',
+            feishuVerificationToken: '',
+            feishuEncryptKey: '',
         });
         setModalOpen(true);
     };
@@ -315,6 +331,11 @@ export const AgentSettings = ({
             prompt: agent.prompt || '',
             mcpServers: agent.mcpServers || [],
             skills: agent.skills || [],
+            feishuImEnabled: agent.feishuImEnabled ?? false,
+            feishuAppId: agent.feishuAppId || '',
+            feishuAppSecret: agent.feishuAppSecret || '',
+            feishuVerificationToken: agent.feishuVerificationToken || '',
+            feishuEncryptKey: agent.feishuEncryptKey || '',
         });
         setModalOpen(true);
     };
@@ -326,6 +347,10 @@ export const AgentSettings = ({
 
     const handleSubmit = async () => {
         if (!form.name.trim()) return;
+        if (form.feishuImEnabled && (!form.feishuAppId.trim() || !form.feishuAppSecret.trim())) {
+            toast.warning('请填写飞书 App ID 和 App Secret');
+            return;
+        }
 
         setSaving(true);
         const success = await onSave({
@@ -336,6 +361,11 @@ export const AgentSettings = ({
             prompt: form.prompt.trim(),
             mcpServers: form.mcpServers,
             skills: form.skills,
+            feishuImEnabled: form.feishuImEnabled,
+            feishuAppId: form.feishuAppId.trim(),
+            feishuAppSecret: form.feishuAppSecret.trim(),
+            feishuVerificationToken: form.feishuVerificationToken.trim(),
+            feishuEncryptKey: form.feishuEncryptKey.trim(),
         });
         setSaving(false);
 
@@ -529,8 +559,8 @@ export const AgentSettings = ({
                             <Bot className="w-5 h-5"/>
                         </div>
                         <div>
-                            <h3 className="font-bold text-slate-800">Agent 创建与管理</h3>
-                            <p className="text-xs text-slate-500 mt-1">创建多个不同职责的 Agent，并分别绑定模型、头像、提示词和 MCP。</p>
+                            <h3 className="font-bold text-slate-800">Agent 管理</h3>
+                            <p className="text-xs text-slate-500 mt-1">创建多个不同职责的 Agent，并分别绑定模型、提示词、MCP、技能和 IM 通道。</p>
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -796,6 +826,11 @@ export const AgentSettings = ({
                                                 </div>
                                             </div>
                                         )}
+                                    </div>
+                                    <div className={`flex h-8 min-w-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs ${agent.feishuImEnabled ? 'border-sky-100 bg-sky-50 text-sky-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+                                        <MessageCircle className={`h-3.5 w-3.5 shrink-0 ${agent.feishuImEnabled ? 'text-sky-600' : 'text-slate-400'}`}/>
+                                        <span className="shrink-0 font-semibold">飞书</span>
+                                        <span className="truncate">{agent.feishuImEnabled ? 'IM 已开启' : '未开启'}</span>
                                     </div>
                                 </div>
 
@@ -1243,6 +1278,78 @@ export const AgentSettings = ({
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm leading-6 resize-y"
                                     placeholder="描述这个 Agent 的角色、工作方式、边界和输出风格"
                                 />
+                            </div>
+
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <label className="flex cursor-pointer items-center justify-between gap-4">
+                                    <div className="flex min-w-0 items-start gap-3">
+                                        <div className="rounded-lg bg-orange-50 p-2 text-orange-600">
+                                            <MessageCircle className="h-4 w-4"/>
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-semibold text-slate-800">飞书 IM 长连接</div>
+                                            <div className="mt-1 text-xs leading-5 text-slate-500">一个 Agent 绑定一个飞书应用，通过官方 SDK 长连接接收机器人消息。</div>
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={form.feishuImEnabled}
+                                        onChange={event => setForm({...form, feishuImEnabled: event.target.checked})}
+                                        className="peer sr-only"
+                                    />
+                                    <span className="relative h-6 w-11 shrink-0 rounded-full bg-slate-200 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-orange-500 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/20"></span>
+                                </label>
+
+                                {form.feishuImEnabled && (
+                                    <div className="mt-4 space-y-4">
+                                        <div className="rounded-xl border border-orange-100 bg-white px-3 py-3">
+                                            <div className="text-xs font-semibold text-slate-700">订阅方式</div>
+                                            <div className="mt-1 text-xs leading-5 text-slate-500">
+                                                在飞书开放平台的事件配置中选择“使用长连接接收事件”，并订阅“接收消息”事件。
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-slate-700">App ID</label>
+                                                <input
+                                                    value={form.feishuAppId}
+                                                    onChange={event => setForm({...form, feishuAppId: event.target.value})}
+                                                    placeholder="cli_xxxxxxxxx"
+                                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-slate-700">App Secret</label>
+                                                <input
+                                                    type="password"
+                                                    value={form.feishuAppSecret}
+                                                    onChange={event => setForm({...form, feishuAppSecret: event.target.value})}
+                                                    placeholder="飞书应用凭证"
+                                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-slate-700">Verification Token</label>
+                                                <input
+                                                    value={form.feishuVerificationToken}
+                                                    onChange={event => setForm({...form, feishuVerificationToken: event.target.value})}
+                                                    placeholder="可选，兼容回调配置"
+                                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-slate-700">Encrypt Key</label>
+                                                <input
+                                                    type="password"
+                                                    value={form.feishuEncryptKey}
+                                                    onChange={event => setForm({...form, feishuEncryptKey: event.target.value})}
+                                                    placeholder="可选，不启用加密可留空"
+                                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="space-y-2">

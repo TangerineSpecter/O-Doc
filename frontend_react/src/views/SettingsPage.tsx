@@ -271,7 +271,7 @@ export default function SettingsPage() {
                 {/* Sidebar */}
                 <div className="md:col-span-1 space-y-1">
                     <TabButton id="ai" label="AI 模型接入" icon={<Cpu className="w-4 h-4" />} />
-                    <TabButton id="agent" label="Agent 创建" icon={<Bot className="w-4 h-4" />} />
+                    <TabButton id="agent" label="Agent 管理" icon={<Bot className="w-4 h-4" />} />
                     <TabButton id="mcp" label="MCP 设置" icon={<Code2 className="w-4 h-4" />} />
                     <TabButton id="skill" label="技能设置" icon={<WandSparkles className="w-4 h-4" />} />
                     <TabButton id="sync" label="同步与备份" icon={<RefreshCw className="w-4 h-4" />} />

@@ -45,6 +45,11 @@ export interface AgentConfig {
     prompt: string;
     mcpServers: string[];
     skills: string[];
+    feishuImEnabled: boolean;
+    feishuAppId: string;
+    feishuAppSecret: string;
+    feishuVerificationToken: string;
+    feishuEncryptKey: string;
     createdAt?: string;
     updatedAt?: string;
 }

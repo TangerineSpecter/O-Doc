@@ -6,6 +6,7 @@ from utils.id_generator import (
     generate_provider_id,
     generate_model_id,
     generate_agent_id,
+    generate_agent_im_message_id,
     generate_agent_task_id,
     generate_agent_run_id,
     generate_mcp_server_id,
@@ -184,6 +185,44 @@ class Agent(models.Model):
         db_comment='Skill 配置列表'
     )
 
+    feishu_im_enabled = models.BooleanField(
+        default=False,
+        verbose_name='启用飞书 IM',
+        db_comment='是否启用飞书 IM 消息通道'
+    )
+
+    feishu_app_id = models.CharField(
+        max_length=80,
+        blank=True,
+        default='',
+        verbose_name='飞书 App ID',
+        db_comment='飞书开放平台应用 App ID'
+    )
+
+    feishu_app_secret = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='飞书 App Secret',
+        db_comment='飞书开放平台应用 App Secret'
+    )
+
+    feishu_verification_token = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='飞书 Verification Token',
+        db_comment='飞书事件订阅 Verification Token'
+    )
+
+    feishu_encrypt_key = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='飞书 Encrypt Key',
+        db_comment='飞书事件订阅 Encrypt Key'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
 
@@ -196,6 +235,59 @@ class Agent(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class AgentIMMessage(models.Model):
+    """Agent IM 通道消息处理记录，用于事件幂等和排障"""
+
+    PLATFORM_FEISHU = 'feishu'
+    STATUS_RECEIVED = 'received'
+    STATUS_REPLIED = 'replied'
+    STATUS_FAILED = 'failed'
+    STATUS_DUPLICATE = 'duplicate'
+
+    id = models.CharField(
+        max_length=40,
+        primary_key=True,
+        default=generate_agent_im_message_id,
+        verbose_name='IM 消息记录 ID',
+        db_comment='IM 消息记录 ID'
+    )
+
+    agent = models.ForeignKey(
+        Agent,
+        related_name='im_messages',
+        on_delete=models.CASCADE,
+        verbose_name='Agent',
+        db_comment='Agent ID'
+    )
+
+    platform = models.CharField(max_length=20, default=PLATFORM_FEISHU, verbose_name='平台', db_comment='IM 平台')
+    event_id = models.CharField(max_length=100, blank=True, default='', verbose_name='事件 ID', db_comment='平台事件 ID')
+    message_id = models.CharField(max_length=120, verbose_name='消息 ID', db_comment='平台消息 ID')
+    chat_id = models.CharField(max_length=120, blank=True, default='', verbose_name='会话 ID', db_comment='平台会话 ID')
+    sender_id = models.CharField(max_length=120, blank=True, default='', verbose_name='发送者 ID', db_comment='平台发送者 ID')
+    message_type = models.CharField(max_length=40, blank=True, default='', verbose_name='消息类型', db_comment='平台消息类型')
+    content = models.TextField(blank=True, default='', verbose_name='消息内容', db_comment='用户消息内容')
+    response = models.TextField(blank=True, default='', verbose_name='Agent 回复', db_comment='Agent 回复内容')
+    status = models.CharField(max_length=20, default=STATUS_RECEIVED, verbose_name='处理状态', db_comment='处理状态')
+    error = models.TextField(blank=True, default='', verbose_name='错误信息', db_comment='处理失败错误信息')
+    raw_event = models.JSONField(default=dict, blank=True, verbose_name='原始事件', db_comment='原始事件体')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'sys_agent_im_message'
+        db_table_comment = 'Agent IM 消息处理记录表'
+        verbose_name = 'Agent IM 消息'
+        verbose_name_plural = verbose_name
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['platform', 'message_id'],
+                name='uniq_agent_im_platform_message',
+            )
+        ]
 
 
 class MCPServer(models.Model):

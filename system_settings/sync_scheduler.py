@@ -5,7 +5,7 @@ import socket
 import sys
 import threading
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from django.db import OperationalError, ProgrammingError, close_old_connections
@@ -80,7 +80,7 @@ def _parse_runtime_datetime(value):
         return None
 
     try:
-        parsed = timezone.datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
     except (TypeError, ValueError):
         return None
 

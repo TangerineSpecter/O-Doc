@@ -133,6 +133,33 @@ def get_image_resource_usage(resource_ids=None):
     return usage
 
 
+def is_asset_used_by_agent(resource_id):
+    from system_settings.models import Agent
+
+    return Agent.objects.filter(avatar=get_resource_view_url(resource_id)).exists()
+
+
+def get_agent_resource_usage(resource_ids=None):
+    from system_settings.models import Agent
+
+    prefix = RESOURCE_VIEW_PREFIX
+    queryset = Agent.objects.filter(avatar__startswith=prefix)
+
+    usage = {}
+    for agent in queryset.only('id', 'name', 'avatar'):
+        resource_id = extract_resource_id_from_view_url(agent.avatar)
+        if not resource_id:
+            continue
+        if resource_ids is not None and resource_id not in resource_ids:
+            continue
+        usage.setdefault(resource_id, {
+            'id': agent.id,
+            'title': agent.name,
+        })
+
+    return usage
+
+
 def delete_asset_physical_file(asset):
     if not asset.file_path:
         return

@@ -38,6 +38,11 @@ class AgentSerializer(serializers.ModelSerializer):
             'prompt',
             'mcp_servers',
             'skills',
+            'feishu_im_enabled',
+            'feishu_app_id',
+            'feishu_app_secret',
+            'feishu_verification_token',
+            'feishu_encrypt_key',
             'created_at',
             'updated_at',
         ]
@@ -69,6 +74,27 @@ class AgentSerializer(serializers.ModelSerializer):
         if missing_ids:
             raise serializers.ValidationError(f"技能不存在：{', '.join(missing_ids)}")
         return value
+
+    def validate(self, attrs):
+        feishu_enabled = attrs.get(
+            'feishu_im_enabled',
+            getattr(self.instance, 'feishu_im_enabled', False)
+        )
+        if not feishu_enabled:
+            return attrs
+
+        required_fields = {
+            'feishu_app_id': '请填写飞书 App ID',
+            'feishu_app_secret': '请填写飞书 App Secret',
+        }
+        errors = {}
+        for field, message in required_fields.items():
+            value = attrs.get(field, getattr(self.instance, field, ''))
+            if not str(value or '').strip():
+                errors[field] = message
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
 
 
 class MCPServerSerializer(serializers.ModelSerializer):

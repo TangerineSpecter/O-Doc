@@ -187,8 +187,14 @@ echo "🚀 启动后端服务 (http://localhost:11800)..."
 python manage.py runserver 11800 &
 BACKEND_PID=$!
 
-# 等待后端启动
-sleep 2
+# 等待后端启动（动态检测端口是否就绪）
+echo "⏳ 正在等待后端服务 (11800 端口) 就绪..."
+for i in {1..20}; do
+    if is_tcp_port_open "127.0.0.1" 11800; then
+        break
+    fi
+    sleep 0.5
+done
 
 # 启动前端
 echo "⚡ 启动前端开发服务器 (http://localhost:5173)..."

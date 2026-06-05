@@ -78,6 +78,26 @@ class AIService:
             raise e
 
     @staticmethod
+    def get_client_config_for_model(model_id):
+        """按模型 ID 获取 AI 客户端配置。"""
+        try:
+            if not model_id:
+                return AIService.get_default_client_config()
+
+            ai_model = AIModel.objects.get(id=model_id)
+            provider = ai_model.provider
+
+            return {
+                "api_key": provider.api_key,
+                "base_url": AIService._normalize_base_url(provider.base_url),
+                "model_name": ai_model.name,
+                "provider_type": provider.type
+            }
+        except Exception as e:
+            logger.error(f"Failed to load AI model config: {e}")
+            raise e
+
+    @staticmethod
     def get_default_image_client_config():
         """获取系统默认的图像识别模型配置"""
         try:
@@ -126,6 +146,32 @@ class AIService:
             return cls.strip_thinking(response.choices[0].message.content)
         except Exception as e:
             logger.error(f"AI API Call Error: {e}")
+            raise e
+
+    @classmethod
+    def chat_completion_messages(cls, messages, model_id=None):
+        """执行非流式多轮对话，可指定模型。"""
+        try:
+            config = cls.get_client_config_for_model(model_id)
+            client = OpenAI(
+                api_key=config['api_key'],
+                base_url=config['base_url']
+            )
+
+            response = client.chat.completions.create(
+                model=config['model_name'],
+                messages=messages,
+                stream=False,
+                extra_body=cls._build_thinking_extra_body(
+                    config.get('provider_type'),
+                    include_thinking=False,
+                    disable_thinking=False
+                ) or None,
+            ) # type: ignore
+
+            return cls.strip_thinking(response.choices[0].message.content)
+        except Exception as e:
+            logger.error(f"AI Messages API Call Error: {e}")
             raise e
 
     @classmethod

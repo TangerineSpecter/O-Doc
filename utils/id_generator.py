@@ -94,6 +94,14 @@ def generate_agent_run_id() -> str:
     return generate_unique_id("run")
 
 
+def generate_agent_im_message_id() -> str:
+    """
+    生成带 aim 前缀的 Agent IM 消息记录 ID
+    :return: 带 aim 前缀的唯一ID字符串
+    """
+    return generate_unique_id("aim")
+
+
 # 为 MCP 服务生成带 mcp 前缀的 ID
 def generate_mcp_server_id() -> str:
     """

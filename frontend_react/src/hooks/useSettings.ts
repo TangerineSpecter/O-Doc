@@ -272,7 +272,12 @@ export const useSettings = () => {
                 model: agentData.model || null,
                 prompt: agentData.prompt || '',
                 mcpServers: agentData.mcpServers || [],
-                skills: agentData.skills || []
+                skills: agentData.skills || [],
+                feishuImEnabled: agentData.feishuImEnabled ?? false,
+                feishuAppId: agentData.feishuAppId || '',
+                feishuAppSecret: agentData.feishuAppSecret || '',
+                feishuVerificationToken: agentData.feishuVerificationToken || '',
+                feishuEncryptKey: agentData.feishuEncryptKey || ''
             };
             const res = await saveAgent(payload);
             const data = res as unknown as AgentConfig;

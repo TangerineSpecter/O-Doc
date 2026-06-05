@@ -15,8 +15,10 @@ from utils.drf_utils import get_current_user_identifier
 from utils.resource_assets import (
     delete_asset_record_and_file,
     extract_resource_ids_from_content,
+    get_agent_resource_usage,
     get_article_resource_usage,
     get_image_resource_usage,
+    is_asset_used_by_agent,
     is_asset_used_by_article,
     is_asset_used_by_image,
 )
@@ -61,6 +63,9 @@ def can_read_asset(request, asset):
             image_url=f'/api/resource/view/{asset.id}'
         ).exists()
 
+    if is_asset_used_by_agent(asset.id):
+        return True
+
     return False
 
 
@@ -84,7 +89,9 @@ class ResourceListView(APIView):
             article_linked_resource_ids = set(article_usage.keys())
             image_usage = get_image_resource_usage()
             image_linked_resource_ids = set(image_usage.keys())
-            content_linked_resource_ids = article_linked_resource_ids | image_linked_resource_ids
+            agent_usage = get_agent_resource_usage()
+            agent_linked_resource_ids = set(agent_usage.keys())
+            content_linked_resource_ids = article_linked_resource_ids | image_linked_resource_ids | agent_linked_resource_ids
 
             # 筛选条件
             if file_type:
@@ -115,19 +122,22 @@ class ResourceListView(APIView):
             page_resource_ids = {asset['id'] for asset in serializer.data}
             page_article_usage = get_article_resource_usage(page_resource_ids)
             page_image_usage = get_image_resource_usage(page_resource_ids)
+            page_agent_usage = get_agent_resource_usage(page_resource_ids)
             resources = []
             for asset in serializer.data:
                 source_article = asset['sourceArticle'] or page_article_usage.get(asset['id'])
                 source_image = page_image_usage.get(asset['id'])
+                source_agent = page_agent_usage.get(asset['id'])
                 resource_data = {
                     'id': asset['id'],
                     'name': asset['name'],
                     'type': asset['file_type'],
                     'size': asset['file_size'],
                     'date': asset['upload_time'],
-                    'linked': asset['is_linked'] or bool(source_article) or bool(source_image),
+                    'linked': asset['is_linked'] or bool(source_article) or bool(source_image) or bool(source_agent),
                     'sourceArticle': source_article,
                     'sourceImage': source_image,
+                    'sourceAgent': source_agent,
                     'sourceType': asset['source_type']
                 }
                 resources.append(resource_data)
@@ -270,6 +280,9 @@ class ResourceDeleteView(APIView):
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
 
             if is_asset_used_by_article(asset.id):
+                return error_result(ErrorCode.RESOURCE_IS_LINKED)
+
+            if is_asset_used_by_agent(asset.id):
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
 
             # 执行删除 (硬删除)

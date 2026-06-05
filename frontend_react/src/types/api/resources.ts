@@ -12,6 +12,11 @@ export interface ImageSource {
     collId: string;
 }
 
+export interface AgentSource {
+    id: string;
+    title: string;
+}
+
 export interface ResourceItem {
     id: string;
     name: string;
@@ -21,6 +26,7 @@ export interface ResourceItem {
     linked: boolean;
     sourceArticle: ArticleSource | null;
     sourceImage?: ImageSource | null;
+    sourceAgent?: AgentSource | null;
     duplicate?: boolean; // 标记是否为重复文件
     sourceType?: string; // 资源来源类型：attachment(附件)、content(内容)、image(图片文集)
 }
@@ -42,6 +48,7 @@ export interface ResourceUploadResponse {
     linked: boolean;
     sourceArticle: ArticleSource | null;
     sourceImage?: ImageSource | null;
+    sourceAgent?: AgentSource | null;
     duplicate?: boolean;
     sourceType?: string; // 资源来源类型
 }

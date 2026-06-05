@@ -10,8 +10,10 @@ class SystemSettingsConfig(AppConfig):
         from .article_rag_scheduler import start_article_rag_scheduler
         from .sync_scheduler import start_webdav_scheduler
         from .runtime_tracker import start_runtime_tracker
+        from .feishu_im_ws import start_feishu_im_ws_manager
 
         start_agent_task_scheduler()
         start_article_rag_scheduler()
         start_webdav_scheduler()
         start_runtime_tracker()
+        start_feishu_im_ws_manager()
