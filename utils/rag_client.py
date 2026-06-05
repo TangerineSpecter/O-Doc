@@ -9,6 +9,10 @@ import requests
 CHROMA_DB_PATH = str(settings.CHROMA_DB_PATH)
 
 
+class RagSyncError(Exception):
+    """Raised when content cannot be embedded or written to the vector store."""
+
+
 class RagClient:
     collection = None
     _instance = None
@@ -53,10 +57,12 @@ class RagClient:
             return None
 
     @classmethod
-    def create_embeddings(cls, texts):
+    def create_embeddings(cls, texts, *, strict=False):
         """调用硅基流动/OpenAI等接口生成向量"""
         model = cls.get_embedding_model()
         if not model:
+            if strict:
+                raise RagSyncError("未配置默认 Embedding 模型，请先在系统设置中配置向量模型")
             return []
 
         # 这里复用您原有的 embedding 生成逻辑
@@ -73,7 +79,7 @@ class RagClient:
 
         embeddings = []
         try:
-            for text in texts:
+            for index, text in enumerate(texts):
                 # 简单处理换行符，很多 embedding 模型对换行敏感
                 text = text.replace("\n", " ")
                 payload = {
@@ -87,41 +93,42 @@ class RagClient:
                     if 'data' in data and len(data['data']) > 0:
                         embeddings.append(data['data'][0]['embedding'])
                     else:
-                        print(f"Embedding API返回格式异常: {data}")
+                        message = f"Embedding API 返回格式异常: {data}"
+                        print(message)
+                        if strict:
+                            raise RagSyncError(message)
                 else:
-                    print(f"Embedding API Error: {response.status_code} - {response.text}")
+                    message = f"Embedding API Error: {response.status_code} - {response.text}"
+                    print(message)
+                    if strict:
+                        raise RagSyncError(f"第 {index + 1} 个分块向量生成失败：{response.status_code}")
         except Exception as e:
-            print(f"生成 Embedding 异常: {e}")
+            if isinstance(e, RagSyncError):
+                raise
+            message = f"生成 Embedding 异常: {e}"
+            print(message)
+            if strict:
+                raise RagSyncError(message) from e
 
         return embeddings
 
     @classmethod
     def add_article(cls, article_id, title, content, coll_id):
         """添加文章到向量库"""
-        if not content:
-            return 0
-
-        collection = cls.get_collection()
-
-        # 【关键步骤】先删除旧数据，防止重复和残留
-        # filter 语法可能因 ChromaDB 版本略有差异，通常是 where
-        try:
-            collection.delete(where={"article_id": str(article_id)})
-        except Exception as e:
-            print(f"删除旧向量失败(可能是首次同步): {e}")
+        if not content or not content.strip():
+            raise RagSyncError("文章内容为空，无法生成知识库向量")
 
         # 1. 文本分块 (简单的按字符长度分块，可根据需要优化)
         chunk_size = 500
         chunks = [content[i:i + chunk_size] for i in range(0, len(content), chunk_size)]
 
         if not chunks:
-            return 0
+            raise RagSyncError("文章内容为空，无法生成知识库向量")
 
         # 2. 生成向量
-        embeddings = cls.create_embeddings(chunks)
+        embeddings = cls.create_embeddings(chunks, strict=True)
         if not embeddings or len(embeddings) != len(chunks):
-            print("向量生成失败或数量不匹配，跳过入库")
-            return 0
+            raise RagSyncError("向量生成失败或数量不匹配，已跳过入库")
 
         # 3. 准备元数据 (关键：存入 article_id 和 title)
         metadatas = [{
@@ -131,8 +138,13 @@ class RagClient:
         } for _ in chunks]
         ids = [f"{article_id}_{i}" for i in range(len(chunks))]
 
-        # 4. 入库
+        # 4. 确认新向量生成成功后，再替换旧数据，避免失败时破坏已有知识库内容。
         collection = cls.get_collection()
+        try:
+            collection.delete(where={"article_id": str(article_id)})
+        except Exception as e:
+            print(f"删除旧向量失败(可能是首次同步): {e}")
+
         collection.add(
             documents=chunks,
             embeddings=embeddings,

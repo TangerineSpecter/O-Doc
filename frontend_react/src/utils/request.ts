@@ -72,7 +72,7 @@ service.interceptors.response.use(
             // 处理业务错误
             const errorMessage = typeof res.data === 'string' && res.data.trim()
                 ? res.data
-                : (res.msg || 'Error');
+                : (res.data?.detail ? `${res.msg || 'Error'}：${res.data.detail}` : (res.msg || 'Error'));
             console.error('API Error:', errorMessage);
 
             // 示例：处理 Token 过期 (401)

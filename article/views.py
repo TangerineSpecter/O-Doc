@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction, models, close_old_connections
 from django.db.models import Q
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from PIL import Image as PILImage
 from rest_framework.views import APIView
@@ -519,7 +520,9 @@ class ImageListView(APIView):
             images = Image.objects.filter(
                 is_valid=True,
                 coll_id=coll_id
-            ).order_by('-created_at')
+            ).annotate(
+                sort_time=Coalesce('shooting_time', 'created_at')
+            ).order_by('-sort_time', '-created_at')
 
             serializer = ImageSerializer(images, many=True)
             return success_result(data=serializer.data)

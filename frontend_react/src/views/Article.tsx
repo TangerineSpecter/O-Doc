@@ -313,7 +313,7 @@ export default function Article({
             setLocalSyncedTime(new Date().toISOString());
         } catch (error) {
             console.error(error);
-            toast.error('同步失败，请检查后端日志');
+            toast.error(error instanceof Error ? error.message : '同步失败，请检查模型连通性');
         } finally {
             setIsSyncing(false);
         }

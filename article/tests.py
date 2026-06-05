@@ -1,14 +1,16 @@
 import os
 import shutil
 import tempfile
+from datetime import timedelta
 
+from django.utils import timezone
 from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory
 
 from anthology.models import Anthology
 from article.models import Article, Image
 from article.serializers import ArticleSerializer
-from article.views import ImageDeleteView
+from article.views import ImageDeleteView, ImageListView
 from assets.models import Asset
 from assets.views import ResourceDeleteView, ResourceListView
 from utils.error_codes import ErrorCode
@@ -105,6 +107,45 @@ class ImageResourceCleanupTests(TestCase):
         response = ResourceListView.as_view()(request)
 
         self.assertEqual(response.data['data']['total'], 0)
+
+    def test_image_list_orders_by_shooting_time_with_created_at_fallback(self):
+        now = timezone.now()
+        older_shooting = Image.objects.create(
+            title='较早拍摄',
+            image_url='/api/resource/view/older-shooting',
+            coll_id=self.anthology.coll_id,
+            shooting_time=now - timedelta(days=10),
+        )
+        fallback_newer = Image.objects.create(
+            title='无拍摄时间但创建较新',
+            image_url='/api/resource/view/fallback-newer',
+            coll_id=self.anthology.coll_id,
+        )
+        fallback_older = Image.objects.create(
+            title='无拍摄时间且创建较旧',
+            image_url='/api/resource/view/fallback-older',
+            coll_id=self.anthology.coll_id,
+        )
+        latest_shooting = Image.objects.create(
+            title='最新拍摄',
+            image_url='/api/resource/view/latest-shooting',
+            coll_id=self.anthology.coll_id,
+            shooting_time=now + timedelta(days=1),
+        )
+
+        Image.objects.filter(image_id=fallback_newer.image_id).update(created_at=now)
+        Image.objects.filter(image_id=fallback_older.image_id).update(created_at=now - timedelta(days=20))
+        Image.objects.filter(image_id=older_shooting.image_id).update(created_at=now + timedelta(days=2))
+        Image.objects.filter(image_id=latest_shooting.image_id).update(created_at=now - timedelta(days=30))
+
+        request = self.factory.get(f'/api/article/image/list/{self.anthology.coll_id}')
+        response = ImageListView.as_view()(request, self.anthology.coll_id)
+
+        self.assertEqual(response.data['code'], ErrorCode.SUCCESS.code)
+        self.assertEqual(
+            [image['title'] for image in response.data['data']],
+            ['最新拍摄', '无拍摄时间但创建较新', '较早拍摄', '无拍摄时间且创建较旧'],
+        )
 
     def test_article_save_does_not_unlink_content_images_when_attachments_change(self):
         content_asset = self._create_asset('content_image_asset')

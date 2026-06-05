@@ -6,6 +6,7 @@ import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
+import requests
 from django.db import transaction
 from django.http import StreamingHttpResponse
 from django.utils import timezone
@@ -23,7 +24,7 @@ from system_settings.sync_scheduler import (
     update_runtime_state,
 )
 from utils.error_codes import ErrorCode
-from utils.response_utils import success_result, error_result
+from utils.response_utils import success_result, error_result, valid_result
 from utils.sync_manager import SyncError, SyncManager
 from utils.webdav import WebDavClient
 from .models import Agent, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
@@ -109,6 +110,159 @@ class AIProviderViewSet(viewsets.ModelViewSet):
 class AIModelViewSet(viewsets.ModelViewSet):
     queryset = AIModel.objects.all()
     serializer_class = AIModelSerializer
+
+    @staticmethod
+    def _ollama_base_url(base_url):
+        normalized = base_url.rstrip('/')
+        if normalized.endswith('/v1'):
+            normalized = normalized[:-3].rstrip('/')
+        return normalized
+
+    @staticmethod
+    def _model_test_payload(model):
+        if model.type == 'embedding':
+            return '/embeddings', {
+                'model': model.name,
+                'input': 'O-Doc embedding connectivity test',
+            }
+        if model.type == 'rerank':
+            return '/rerank', {
+                'model': model.name,
+                'query': 'O-Doc connectivity test',
+                'documents': ['Connectivity test document.'],
+            }
+        return '/chat/completions', {
+            'model': model.name,
+            'messages': [{'role': 'user', 'content': 'Reply with OK.'}],
+            'temperature': 0,
+            'max_tokens': 8,
+        }
+
+    def _test_ollama_connection(self, model, started_at):
+        provider = model.provider
+        api_url = f"{self._ollama_base_url(provider.base_url)}/api/tags"
+        response = requests.get(api_url, timeout=8)
+        elapsed_ms = int((timezone.now() - started_at).total_seconds() * 1000)
+
+        if not (200 <= response.status_code < 300):
+            return valid_result(
+                msg='连通性检测失败',
+                data={
+                    'ok': False,
+                    'model_id': model.id,
+                    'model_name': model.name,
+                    'model_type': model.type,
+                    'provider_name': provider.name,
+                    'status_code': response.status_code,
+                    'elapsed_ms': elapsed_ms,
+                    'detail': response.text[:1000],
+                }
+            )
+
+        data = response.json()
+        model_names = {
+            item.get('name') or item.get('model')
+            for item in data.get('models', [])
+            if isinstance(item, dict)
+        }
+        if model.name not in model_names:
+            return valid_result(
+                msg='连通性检测失败',
+                data={
+                    'ok': False,
+                    'model_id': model.id,
+                    'model_name': model.name,
+                    'model_type': model.type,
+                    'provider_name': provider.name,
+                    'status_code': response.status_code,
+                    'elapsed_ms': elapsed_ms,
+                    'detail': f"Ollama 服务可访问，但未找到模型 {model.name}",
+                }
+            )
+
+        return success_result({
+            'ok': True,
+            'model_id': model.id,
+            'model_name': model.name,
+            'model_type': model.type,
+            'provider_name': provider.name,
+            'status_code': response.status_code,
+            'elapsed_ms': elapsed_ms,
+        })
+
+    @action(detail=True, methods=['post'])
+    def test_connection(self, request, pk=None):
+        model = self.get_object()
+        provider = model.provider
+        if not provider.base_url:
+            return valid_result(msg='连通性检测失败', data='服务商 Base URL 不能为空')
+
+        started_at = timezone.now()
+        if provider.type == 'Ollama':
+            try:
+                return self._test_ollama_connection(model, started_at)
+            except requests.RequestException as e:
+                elapsed_ms = int((timezone.now() - started_at).total_seconds() * 1000)
+                return valid_result(
+                    msg='连通性检测失败',
+                    data={
+                        'ok': False,
+                        'model_id': model.id,
+                        'model_name': model.name,
+                        'model_type': model.type,
+                        'provider_name': provider.name,
+                        'elapsed_ms': elapsed_ms,
+                        'detail': str(e),
+                    }
+                )
+
+        endpoint, payload = self._model_test_payload(model)
+        api_url = f"{provider.base_url.rstrip('/')}{endpoint}"
+        headers = {'Content-Type': 'application/json'}
+        if provider.api_key:
+            headers['Authorization'] = f"Bearer {provider.api_key}"
+
+        try:
+            response = requests.post(api_url, json=payload, headers=headers, timeout=20)
+            elapsed_ms = int((timezone.now() - started_at).total_seconds() * 1000)
+            if 200 <= response.status_code < 300:
+                return success_result({
+                    'ok': True,
+                    'model_id': model.id,
+                    'model_name': model.name,
+                    'model_type': model.type,
+                    'provider_name': provider.name,
+                    'status_code': response.status_code,
+                    'elapsed_ms': elapsed_ms,
+                })
+
+            return valid_result(
+                msg='连通性检测失败',
+                data={
+                    'ok': False,
+                    'model_id': model.id,
+                    'model_name': model.name,
+                    'model_type': model.type,
+                    'provider_name': provider.name,
+                    'status_code': response.status_code,
+                    'elapsed_ms': elapsed_ms,
+                    'detail': response.text[:1000],
+                }
+            )
+        except requests.RequestException as e:
+            elapsed_ms = int((timezone.now() - started_at).total_seconds() * 1000)
+            return valid_result(
+                msg='连通性检测失败',
+                data={
+                    'ok': False,
+                    'model_id': model.id,
+                    'model_name': model.name,
+                    'model_type': model.type,
+                    'provider_name': provider.name,
+                    'elapsed_ms': elapsed_ms,
+                    'detail': str(e),
+                }
+            )
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

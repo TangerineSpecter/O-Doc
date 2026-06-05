@@ -4,8 +4,8 @@ from rest_framework.views import APIView
 
 from anthology.models import Anthology
 from article.models import Article  # 假设你的文章模型在这里
-from utils.rag_client import RagClient
-from utils.response_utils import success_result, error_result
+from utils.rag_client import RagClient, RagSyncError
+from utils.response_utils import success_result, error_result, valid_result
 
 
 class SyncArticleView(APIView):
@@ -45,9 +45,11 @@ class SyncArticleView(APIView):
             })
 
         except Article.DoesNotExist:
-            return error_result()
+            return valid_result(msg='文章不存在')
+        except RagSyncError as e:
+            return valid_result(msg='同步失败', data=str(e))
         except Exception as e:
-            return error_result()
+            return valid_result(msg='同步失败', data=str(e))
 
 
 class SyncCollectionView(APIView):
@@ -66,11 +68,10 @@ class SyncCollectionView(APIView):
 
             total_chunks = 0
             synced_count = 0
+            failures = []
 
             # 2. 遍历同步
             for article in articles:
-                # 建议：此处可以复用 RagClient.add_article 的逻辑
-                # 最好在 add_article 内部处理 try-except 避免单篇文章失败影响整体
                 try:
                     count = RagClient.add_article(
                         article_id=article.article_id,
@@ -80,9 +81,31 @@ class SyncCollectionView(APIView):
                     )
                     total_chunks += count
                     synced_count += 1
+                    article.is_rag_synced = True
+                    article.last_rag_synced_at = timezone.now()
+                    article.save(update_fields=['is_rag_synced', 'last_rag_synced_at'])
                 except Exception as e:
-                    print(f"Article {article.article_id} sync failed: {e}")
+                    message = str(e) or '同步失败'
+                    print(f"Article {article.article_id} sync failed: {message}")
+                    failures.append({
+                        'article_id': article.article_id,
+                        'title': article.title,
+                        'message': message,
+                    })
                     continue
+
+            Anthology.objects.get(coll_id=coll_id).update_stats()
+
+            if failures:
+                return valid_result(
+                    msg=f'文集同步未完成：成功 {synced_count} 篇，失败 {len(failures)} 篇',
+                    data={
+                        'synced_count': synced_count,
+                        'failed_count': len(failures),
+                        'total_chunks': total_chunks,
+                        'failures': failures[:10],
+                    }
+                )
 
             return success_result({
                 'message': f'成功同步 {synced_count} 篇文章',

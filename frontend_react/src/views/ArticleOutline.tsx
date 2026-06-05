@@ -201,11 +201,12 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
         try {
             setIsCollectionSyncing(true);
-            await syncCollectionToRag(collId);
-            toast.success('文集同步任务已提交，后台处理中...');
+            const result = await syncCollectionToRag(collId);
+            const message = (result as { message?: string } | undefined)?.message;
+            toast.success(message || '文集同步成功');
         } catch (error) {
             console.error(error);
-            toast.error('同步失败，请重试');
+            toast.error(error instanceof Error ? error.message : '同步失败，请检查模型连通性');
         } finally {
             setIsCollectionSyncing(false);
         }

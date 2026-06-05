@@ -8,6 +8,17 @@ export interface AIModel {
     type: ModelType;
 }
 
+export interface AIModelConnectionResult {
+    ok: boolean;
+    modelId: string;
+    modelName: string;
+    modelType: ModelType;
+    providerName: string;
+    statusCode?: number;
+    elapsedMs: number;
+    detail?: string;
+}
+
 export interface AIProvider {
     id: string;
     name: string;

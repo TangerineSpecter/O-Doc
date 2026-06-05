@@ -10,6 +10,7 @@ import type {
     MCPServerConfig,
     SkillConfig,
     AIModel,
+    AIModelConnectionResult,
     AIProvider,
     MemosPushConfig,
     SystemAIConfig,
@@ -40,6 +41,7 @@ export type {
     MCPServerConfig,
     SkillConfig,
     AIModel,
+    AIModelConnectionResult,
     AIProvider,
     MemosPushConfig,
     SystemAIConfig,
@@ -142,6 +144,10 @@ export const saveModel = (data: { provider: string, name: string, type: ModelTyp
 
 // 5. 删除模型
 export const deleteModel = (id: string) => request.delete(`/settings/models/${id}/`);
+
+export const testAIModelConnection = (id: string) => {
+    return request.post<any, AIModelConnectionResult>(`/settings/models/${id}/test_connection/`, undefined, {timeout: 25000});
+};
 
 // 6. 获取系统 AI 配置
 export const getSystemAIConfig = () => request.get<SystemAIConfig>('/settings/config/get_ai_config/');

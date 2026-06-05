@@ -1,6 +1,8 @@
-import {Edit2, Eye, Globe, Key, Layers, Plus, Server, Trash2, X, Zap} from 'lucide-react';
-import {AIModel, AIProvider, ModelType, SystemAIConfig} from '@/api/setting';
+import {useState} from 'react';
+import {CheckCircle2, Edit2, Eye, Globe, Key, Layers, Loader2, Plus, Server, Trash2, Wifi, X, XCircle, Zap} from 'lucide-react';
+import {AIModel, AIModelConnectionResult, AIProvider, ModelType, SystemAIConfig, testAIModelConnection} from '@/api/setting';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
+import {useToast} from '../common/ToastProvider';
 
 import deepseekLogo from '@/assets/models/deepseek.svg'
 import qwenLogo from '@/assets/models/qwen.png'
@@ -97,6 +99,13 @@ export const AISettings = ({
                                onOpenModelModal,
                                onDelete
                            }: AISettingsProps) => {
+    const toast = useToast();
+    const [testingModelIds, setTestingModelIds] = useState<Record<string, boolean>>({});
+    const [connectionResults, setConnectionResults] = useState<Record<string, AIModelConnectionResult | {
+        ok: false;
+        detail: string;
+        elapsedMs?: number;
+    }>>({});
 
     const buildModelOptions = (type: ModelType): SettingsSelectOption<string>[] => {
         return getModelsByType(type).map(model => ({
@@ -119,6 +128,23 @@ export const AISettings = ({
                 {labels[type]}
             </span>
         );
+    };
+
+    const handleTestModelConnection = async (model: AIModel) => {
+        if (testingModelIds[model.id]) return;
+
+        setTestingModelIds(prev => ({...prev, [model.id]: true}));
+        try {
+            const result = await testAIModelConnection(model.id);
+            setConnectionResults(prev => ({...prev, [model.id]: result}));
+            toast.success(`${model.name} 连通性正常`);
+        } catch (error: any) {
+            const detail = error?.message || '连通性检测失败';
+            setConnectionResults(prev => ({...prev, [model.id]: {ok: false, detail}}));
+            toast.error(`${model.name} 检测失败：${detail}`);
+        } finally {
+            setTestingModelIds(prev => ({...prev, [model.id]: false}));
+        }
     };
 
     return (
@@ -321,32 +347,60 @@ export const AISettings = ({
 
                                 {provider.models.length > 0 ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {provider.models.map(model => (
-                                            <div key={model.id}
-                                                 className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/30 hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all group/model">
-                                                <div className="flex items-center gap-2.5 overflow-hidden">
-                                                    <div
-                                                        className="w-1.5 h-1.5 rounded-full bg-slate-300 group-hover/model:bg-orange-400 transition-colors shrink-0"></div>
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span
-                                                            className="text-sm font-medium text-slate-700 truncate">{model.name}</span>
-                                                        <div className="flex mt-0.5">
-                                                            <ModelTypeBadge type={model.type}/>
+                                        {provider.models.map(model => {
+                                            const result = connectionResults[model.id];
+                                            const isTesting = !!testingModelIds[model.id];
+
+                                            return (
+                                                <div key={model.id}
+                                                     className="flex items-start justify-between gap-2 p-3 rounded-xl border border-slate-100 bg-slate-50/30 hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all group/model">
+                                                    <div className="flex items-start gap-2.5 min-w-0">
+                                                        <div
+                                                            className="w-1.5 h-1.5 rounded-full bg-slate-300 group-hover/model:bg-orange-400 transition-colors shrink-0 mt-2"></div>
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span
+                                                                className="text-sm font-medium text-slate-700 truncate">{model.name}</span>
+                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                <ModelTypeBadge type={model.type}/>
+                                                                {result && (
+                                                                    <span
+                                                                        className={`inline-flex items-center gap-1 text-[10px] font-medium ${result.ok ? 'text-emerald-600' : 'text-rose-600'}`}
+                                                                        title={result.detail || (result.elapsedMs ? `${result.elapsedMs}ms` : '')}
+                                                                    >
+                                                                        {result.ok ? <CheckCircle2 className="w-3 h-3"/> :
+                                                                            <XCircle className="w-3 h-3"/>}
+                                                                        {result.ok ? `${result.elapsedMs}ms` : '失败'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleTestModelConnection(model)}
+                                                            disabled={isTesting}
+                                                            title="测试模型连通性"
+                                                            className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md disabled:cursor-wait disabled:opacity-70 transition-colors"
+                                                        >
+                                                            {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> :
+                                                                <Wifi className="w-3.5 h-3.5"/>}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => onDelete({
+                                                                type: 'model',
+                                                                providerId: provider.id,
+                                                                modelId: model.id
+                                                            })}
+                                                            title="删除模型"
+                                                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md opacity-0 group-hover/model:opacity-100 transition-all"
+                                                        >
+                                                            <X className="w-3.5 h-3.5"/>
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <button
-                                                    onClick={() => onDelete({
-                                                        type: 'model',
-                                                        providerId: provider.id,
-                                                        modelId: model.id
-                                                    })}
-                                                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md opacity-0 group-hover/model:opacity-100 transition-all"
-                                                >
-                                                    <X className="w-3.5 h-3.5"/>
-                                                </button>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 ) : (
                                     <div className="text-xs text-slate-400 italic py-2">暂无模型，请点击上方添加</div>
