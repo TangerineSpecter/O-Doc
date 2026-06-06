@@ -20,6 +20,7 @@ from system_settings.agent_memory import (
 )
 from system_settings.models import Agent, AgentIMMessage, SystemSetting
 from utils.ai_service import AIService
+from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
 
 logger = logging.getLogger(__name__)
 
@@ -192,7 +193,124 @@ def _build_agent_reply(agent, user_text, record):
     )
     messages = _build_context_messages(agent, record, system_prompt, user_text)
     messages.append({'role': 'user', 'content': user_text})
-    return AIService.chat_completion_messages(messages, model_id=agent.model_id)
+    tool_context = _build_agent_mcp_tool_context(agent)
+    if tool_context['errors']:
+        messages.insert(1, {
+            'role': 'system',
+            'content': (
+                '以下 Agent 绑定的 MCP 未能装载。如果用户询问 MCP 状态或相关能力，'
+                '请如实说明具体原因，不要声称完全没有配置 MCP：\n'
+                + '\n'.join(f"- {item}" for item in tool_context['errors'])
+            ),
+        })
+
+    if not tool_context['tools']:
+        return AIService.chat_completion_messages(messages, model_id=agent.model_id)
+
+    messages.insert(1, {
+        'role': 'system',
+        'content': (
+            '当前飞书 IM Agent 已装载 MCP Tools。用户请求需要创建、查询、更新、删除闪念或其他外部工具能力时，'
+            '必须优先调用合适的 Tool；如果缺少必要参数，请先向用户追问，不要编造参数。'
+        ),
+    })
+    return AIService.chat_completion_messages_with_tools(
+        messages,
+        tool_context['tools'],
+        lambda tool_name, arguments: _execute_agent_mcp_tool(tool_context, tool_name, arguments),
+        model_id=agent.model_id,
+    )
+
+
+def _build_agent_mcp_tool_context(agent):
+    tool_context = {'tools': [], 'tool_map': {}, 'errors': []}
+    if not isinstance(agent.mcp_servers, list) or not agent.mcp_servers:
+        return tool_context
+
+    from system_settings.models import MCPServer
+
+    normalized_ids = list(dict.fromkeys([
+        str(server_id).strip()
+        for server_id in agent.mcp_servers
+        if str(server_id or '').strip()
+    ]))
+    servers = list(MCPServer.objects.filter(id__in=normalized_ids))
+    found_ids = {server.id for server in servers}
+    for server_id in normalized_ids:
+        if server_id not in found_ids:
+            tool_context['errors'].append(f"MCP 配置不存在：{server_id}")
+
+    for server in servers:
+        if not server.enabled:
+            tool_context['errors'].append(f"{server.name} 已停用")
+            continue
+
+        tools, error_msg = fetch_mcp_tools(server)
+        if error_msg:
+            logger.warning("Feishu IM MCP sync failed for %s: %s", server.name, error_msg)
+            tool_context['errors'].append(f"{server.name}：{error_msg}")
+            continue
+        if tools:
+            server.tools = _merge_enabled_mcp_tools(tools, server.tools)
+            server.save(update_fields=['tools', 'updated_at'])
+
+        for tool in (server.tools or []):
+            if not isinstance(tool, dict) or not tool.get('enabled', True):
+                continue
+            original_name = tool.get('name')
+            safe_name = _build_safe_mcp_tool_name(server, original_name, tool_context['tool_map'])
+            tool_context['tool_map'][safe_name] = {
+                'server': server,
+                'tool_name': original_name,
+            }
+            parameters = tool.get('inputSchema') or {'type': 'object', 'properties': {}}
+            if not isinstance(parameters, dict) or parameters.get('type') not in ('object', None):
+                parameters = {'type': 'object', 'properties': {}}
+            parameters.setdefault('type', 'object')
+            parameters.setdefault('properties', {})
+            tool_context['tools'].append({
+                'type': 'function',
+                'function': {
+                    'name': safe_name,
+                    'description': f"{server.name} / {original_name}: {tool.get('description') or ''}",
+                    'parameters': parameters,
+                }
+            })
+
+    return tool_context
+
+
+def _execute_agent_mcp_tool(tool_context, safe_tool_name, arguments):
+    entry = tool_context['tool_map'].get(safe_tool_name)
+    if not entry:
+        raise RuntimeError(f"未知 MCP Tool：{safe_tool_name}")
+    result, error_msg = call_mcp_tool(entry['server'], entry['tool_name'], arguments)
+    if error_msg:
+        raise RuntimeError(f"{entry['server'].name}.{entry['tool_name']} 调用失败：{error_msg}")
+    return result
+
+
+def _build_safe_mcp_tool_name(server, tool_name, existing_map):
+    base = re.sub(r'[^a-zA-Z0-9_]', '_', str(tool_name or 'tool')).strip('_') or 'tool'
+    if base not in existing_map:
+        return base[:64]
+    prefix = re.sub(r'[^a-zA-Z0-9_]', '_', str(server.id or server.name)).strip('_') or 'mcp'
+    return f"{prefix}_{base}"[:64]
+
+
+def _merge_enabled_mcp_tools(new_tools, existing_tools):
+    existing = {tool.get('name'): tool for tool in (existing_tools or []) if isinstance(tool, dict) and tool.get('name')}
+    merged_tools = []
+    for tool in new_tools:
+        name = tool.get('name')
+        if name in existing:
+            merged_tools.append({
+                **tool,
+                'enabled': existing[name].get('enabled', True),
+            })
+        else:
+            merged_tools.append(tool)
+    return merged_tools
 
 
 def _build_context_messages(agent, record, system_prompt, user_text, max_context_tokens=MAX_CONTEXT_TOKENS):

@@ -17,7 +17,7 @@ from system_settings.agent_memory import (
     promote_short_term_memory,
 )
 from system_settings.feishu_im import _build_context_messages, _process_feishu_record, _select_context_records, _trim_to_estimated_tokens
-from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentLongTermMemory, AgentShortTermMemory, SystemSetting
+from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentLongTermMemory, AgentShortTermMemory, MCPServer, SystemSetting
 from system_settings.sync_scheduler import should_start_webdav_scheduler
 from system_settings.views import AgentViewSet, SystemConfigViewSet
 from utils.ai_service import AIService
@@ -469,6 +469,68 @@ class AgentMemoryTests(TestCase):
         record.refresh_from_db()
         self.assertEqual(record.status, AgentIMMessage.STATUS_REPLIED)
         self.assertEqual(record.response, '你好呀')
+
+    def test_feishu_reply_loads_agent_bound_mcp_tools(self):
+        server = MCPServer.objects.create(
+            name='闪念 MCP',
+            transport='streamableHttp',
+            url='http://testserver/api/system-mcp/memos/',
+            headers={'Authorization': 'Bearer test-key'},
+            enabled=True,
+            source='system',
+            tools=[],
+        )
+        self.agent.feishu_im_enabled = True
+        self.agent.feishu_app_id = 'cli_test'
+        self.agent.feishu_app_secret = 'secret_test'
+        self.agent.mcp_servers = [server.id]
+        self.agent.save(update_fields=[
+            'feishu_im_enabled',
+            'feishu_app_id',
+            'feishu_app_secret',
+            'mcp_servers',
+            'updated_at',
+        ])
+        record = AgentIMMessage.objects.create(
+            agent=self.agent,
+            platform=AgentIMMessage.PLATFORM_FEISHU,
+            event_id='event-mcp',
+            message_id='msg-mcp',
+            chat_id='chat-memory',
+            sender_id='user-memory',
+            message_type='text',
+            content='帮我记录一条闪念：今天要修好飞书 MCP',
+            status=AgentIMMessage.STATUS_RECEIVED,
+        )
+        tools = [{
+            'name': 'create_memo',
+            'description': '创建一条闪念 Memo。',
+            'inputSchema': {
+                'type': 'object',
+                'properties': {
+                    'content': {'type': 'string'},
+                },
+                'required': ['content'],
+            },
+        }]
+
+        with patch('system_settings.feishu_im.fetch_mcp_tools', return_value=(tools, None)) as mock_fetch, \
+                patch('system_settings.feishu_im.AIService.chat_completion_messages_with_tools', return_value='已记录闪念') as mock_tools_chat, \
+                patch('system_settings.feishu_im.AIService.chat_completion_messages') as mock_plain_chat, \
+                patch('system_settings.feishu_im.send_feishu_reply', return_value={}), \
+                patch('system_settings.feishu_im.store_short_term_memory'), \
+                patch('system_settings.feishu_im._try_add_feishu_message_reaction', return_value=''), \
+                patch('system_settings.feishu_im._try_delete_feishu_message_reaction'):
+            _process_feishu_record(record.id)
+
+        record.refresh_from_db()
+        self.assertEqual(record.status, AgentIMMessage.STATUS_REPLIED)
+        self.assertEqual(record.response, '已记录闪念')
+        mock_fetch.assert_called_once()
+        mock_plain_chat.assert_not_called()
+        mock_tools_chat.assert_called_once()
+        _, tools_arg, _, = mock_tools_chat.call_args.args[:3]
+        self.assertEqual(tools_arg[0]['function']['name'], 'create_memo')
 
 
 class SystemConfigViewSetTests(TestCase):

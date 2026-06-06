@@ -177,13 +177,38 @@ class AIService:
     @classmethod
     def chat_completion_with_tools(cls, prompt, tools, tool_executor, on_tool_call=None, use_simple_model=False, max_rounds=5):
         """执行支持 OpenAI-compatible tool calls 的 AI 对话。"""
+        return cls.chat_completion_messages_with_tools(
+            [{"role": "user", "content": prompt}],
+            tools,
+            tool_executor,
+            on_tool_call=on_tool_call,
+            use_simple_model=use_simple_model,
+            max_rounds=max_rounds,
+        )
+
+    @classmethod
+    def chat_completion_messages_with_tools(
+            cls,
+            messages,
+            tools,
+            tool_executor,
+            on_tool_call=None,
+            model_id=None,
+            use_simple_model=False,
+            max_rounds=5,
+    ):
+        """执行支持 OpenAI-compatible tool calls 的多轮对话，可指定模型。"""
         try:
-            config = cls.get_default_client_config(use_simple_model=use_simple_model)
+            config = (
+                cls.get_client_config_for_model(model_id)
+                if model_id
+                else cls.get_default_client_config(use_simple_model=use_simple_model)
+            )
             client = OpenAI(
                 api_key=config['api_key'],
                 base_url=config['base_url']
             )
-            messages = [{"role": "user", "content": prompt}]
+            messages = [dict(message) for message in messages]
 
             for _ in range(max_rounds):
                 response = client.chat.completions.create(
