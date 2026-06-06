@@ -196,6 +196,7 @@ class AIService:
             model_id=None,
             use_simple_model=False,
             max_rounds=5,
+            tool_choice=None,
     ):
         """执行支持 OpenAI-compatible tool calls 的多轮对话，可指定模型。"""
         try:
@@ -211,18 +212,20 @@ class AIService:
             messages = [dict(message) for message in messages]
 
             for _ in range(max_rounds):
-                response = client.chat.completions.create(
-                    model=config['model_name'],
-                    messages=messages,
-                    tools=tools,
-                    tool_choice="auto",
-                    stream=False,
-                    extra_body=cls._build_thinking_extra_body(
+                request_kwargs = {
+                    'model': config['model_name'],
+                    'messages': messages,
+                    'tools': tools,
+                    'stream': False,
+                    'extra_body': cls._build_thinking_extra_body(
                         config.get('provider_type'),
                         include_thinking=False,
                         disable_thinking=use_simple_model
                     ) or None,
-                ) # type: ignore
+                }
+                if tool_choice:
+                    request_kwargs['tool_choice'] = tool_choice
+                response = client.chat.completions.create(**request_kwargs) # type: ignore
 
                 message = response.choices[0].message
                 tool_calls = getattr(message, 'tool_calls', None) or []

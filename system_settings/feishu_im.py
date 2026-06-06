@@ -210,11 +210,16 @@ def _build_agent_reply(agent, user_text, record):
     messages.insert(1, {
         'role': 'system',
         'content': (
-            '当前飞书 IM Agent 已装载 MCP Tools。用户请求需要创建、查询、更新、删除闪念或其他外部工具能力时，'
-            '必须优先调用合适的 Tool；如果缺少必要参数，请先向用户追问，不要编造参数。'
+            '当前 Agent 已装载其绑定的 MCP Tools。是否以及何时使用工具，请遵循 Agent 自身提示词和用户当前请求；'
+            '如果缺少必要参数，请先向用户追问，不要编造参数。'
+            '只有实际收到 Tool 调用结果后，才可以声称已经完成外部操作。'
         ),
     })
     notified_mcp_servers = set()
+    memo_fallback_reply = _try_execute_memo_create_fallback(agent, record.message_id, user_text, tool_context, notified_mcp_servers)
+    if memo_fallback_reply:
+        return memo_fallback_reply
+
     return AIService.chat_completion_messages_with_tools(
         messages,
         tool_context['tools'],
@@ -296,6 +301,49 @@ def _execute_agent_mcp_tool(tool_context, safe_tool_name, arguments):
     if error_msg:
         raise RuntimeError(f"{entry['server'].name}.{entry['tool_name']} 调用失败：{error_msg}")
     return result
+
+
+def _try_execute_memo_create_fallback(agent, message_id, user_text, tool_context, notified_server_ids):
+    content = _extract_memo_create_content(user_text)
+    if not content:
+        return ''
+
+    safe_tool_name = ''
+    for candidate_name, entry in tool_context.get('tool_map', {}).items():
+        if entry.get('tool_name') in {'create_memo', 'insert_memo'}:
+            safe_tool_name = candidate_name
+            break
+    if not safe_tool_name:
+        return ''
+
+    _notify_feishu_mcp_usage(agent, message_id, tool_context, safe_tool_name, notified_server_ids)
+    result = _execute_agent_mcp_tool(tool_context, safe_tool_name, {
+        'content': content,
+        'tag': '',
+        'is_pinned': False,
+    })
+    if isinstance(result, dict) and result.get('error'):
+        raise RuntimeError(str(result.get('error')))
+    return f'已记录闪念：{content}'
+
+
+def _extract_memo_create_content(user_text):
+    text = str(user_text or '').strip()
+    if not text:
+        return ''
+
+    patterns = [
+        r'(?:记录|记下|保存|创建|新增|写入)(?:一条|一个)?(?:\s*)?(?:memos?|备忘|闪念)(?:[：:\s]+)(?P<content>.+)',
+        r'(?:memos?|备忘|闪念)(?:[：:\s]+)(?P<content>.+)',
+        r'^[📚📖📝]\s*(?P<content>.+)',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE | re.DOTALL)
+        if match:
+            content = match.group('content').strip()
+            return content[:2000]
+
+    return ''
 
 
 def _notify_feishu_mcp_usage(agent, message_id, tool_context, safe_tool_name, notified_server_ids):

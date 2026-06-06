@@ -499,7 +499,74 @@ class AgentMemoryTests(TestCase):
             chat_id='chat-memory',
             sender_id='user-memory',
             message_type='text',
-            content='帮我记录一条闪念：今天要修好飞书 MCP',
+            content='帮我查询最近的闪念',
+            status=AgentIMMessage.STATUS_RECEIVED,
+        )
+        tools = [{
+            'name': 'list_memos',
+            'description': '查询闪念 Memo 列表。',
+            'inputSchema': {
+                'type': 'object',
+                'properties': {
+                    'limit': {'type': 'integer'},
+                },
+            },
+        }]
+
+        def fake_tools_chat(*args, **kwargs):
+            kwargs['on_tool_call']('list_memos', {'limit': 5})
+            return '最近有 5 条闪念'
+
+        with patch('system_settings.feishu_im.fetch_mcp_tools', return_value=(tools, None)) as mock_fetch, \
+                patch('system_settings.feishu_im.AIService.chat_completion_messages_with_tools', side_effect=fake_tools_chat) as mock_tools_chat, \
+                patch('system_settings.feishu_im.AIService.chat_completion_messages') as mock_plain_chat, \
+                patch('system_settings.feishu_im.send_feishu_reply', return_value={}) as mock_reply, \
+                patch('system_settings.feishu_im.store_short_term_memory'), \
+                patch('system_settings.feishu_im._try_add_feishu_message_reaction', return_value=''), \
+                patch('system_settings.feishu_im._try_delete_feishu_message_reaction'):
+            _process_feishu_record(record.id)
+
+        record.refresh_from_db()
+        self.assertEqual(record.status, AgentIMMessage.STATUS_REPLIED)
+        self.assertEqual(record.response, '最近有 5 条闪念')
+        mock_fetch.assert_called_once()
+        mock_plain_chat.assert_not_called()
+        mock_tools_chat.assert_called_once()
+        self.assertEqual(mock_reply.call_args_list[0].args[2], '🔧 正在使用闪念 MCP...')
+        self.assertEqual(mock_reply.call_args_list[1].args[2], '最近有 5 条闪念')
+        _, tools_arg, _, = mock_tools_chat.call_args.args[:3]
+        self.assertEqual(tools_arg[0]['function']['name'], 'list_memos')
+
+    def test_feishu_memo_create_request_uses_bound_mcp_directly(self):
+        server = MCPServer.objects.create(
+            name='闪念 MCP',
+            transport='streamableHttp',
+            url='http://testserver/api/system-mcp/memos/',
+            headers={'Authorization': 'Bearer test-key'},
+            enabled=True,
+            source='system',
+            tools=[],
+        )
+        self.agent.feishu_im_enabled = True
+        self.agent.feishu_app_id = 'cli_test'
+        self.agent.feishu_app_secret = 'secret_test'
+        self.agent.mcp_servers = [server.id]
+        self.agent.save(update_fields=[
+            'feishu_im_enabled',
+            'feishu_app_id',
+            'feishu_app_secret',
+            'mcp_servers',
+            'updated_at',
+        ])
+        record = AgentIMMessage.objects.create(
+            agent=self.agent,
+            platform=AgentIMMessage.PLATFORM_FEISHU,
+            event_id='event-mcp-fallback',
+            message_id='msg-mcp-fallback',
+            chat_id='chat-memory',
+            sender_id='user-memory',
+            message_type='text',
+            content='帮我记录闪念：今天天气不错',
             status=AgentIMMessage.STATUS_RECEIVED,
         )
         tools = [{
@@ -514,13 +581,9 @@ class AgentMemoryTests(TestCase):
             },
         }]
 
-        def fake_tools_chat(*args, **kwargs):
-            kwargs['on_tool_call']('create_memo', {'content': '今天要修好飞书 MCP'})
-            return '已记录闪念'
-
-        with patch('system_settings.feishu_im.fetch_mcp_tools', return_value=(tools, None)) as mock_fetch, \
-                patch('system_settings.feishu_im.AIService.chat_completion_messages_with_tools', side_effect=fake_tools_chat) as mock_tools_chat, \
-                patch('system_settings.feishu_im.AIService.chat_completion_messages') as mock_plain_chat, \
+        with patch('system_settings.feishu_im.fetch_mcp_tools', return_value=(tools, None)), \
+                patch('system_settings.feishu_im.AIService.chat_completion_messages_with_tools') as mock_tools_chat, \
+                patch('system_settings.feishu_im.call_mcp_tool', return_value=({'memo_id': 'memo_test'}, None)) as mock_call_tool, \
                 patch('system_settings.feishu_im.send_feishu_reply', return_value={}) as mock_reply, \
                 patch('system_settings.feishu_im.store_short_term_memory'), \
                 patch('system_settings.feishu_im._try_add_feishu_message_reaction', return_value=''), \
@@ -529,14 +592,72 @@ class AgentMemoryTests(TestCase):
 
         record.refresh_from_db()
         self.assertEqual(record.status, AgentIMMessage.STATUS_REPLIED)
-        self.assertEqual(record.response, '已记录闪念')
-        mock_fetch.assert_called_once()
-        mock_plain_chat.assert_not_called()
-        mock_tools_chat.assert_called_once()
+        self.assertEqual(record.response, '已记录闪念：今天天气不错')
+        mock_tools_chat.assert_not_called()
         self.assertEqual(mock_reply.call_args_list[0].args[2], '🔧 正在使用闪念 MCP...')
-        self.assertEqual(mock_reply.call_args_list[1].args[2], '已记录闪念')
-        _, tools_arg, _, = mock_tools_chat.call_args.args[:3]
-        self.assertEqual(tools_arg[0]['function']['name'], 'create_memo')
+        self.assertEqual(mock_reply.call_args_list[1].args[2], '已记录闪念：今天天气不错')
+        self.assertEqual(mock_call_tool.call_args.args[1], 'create_memo')
+        self.assertEqual(mock_call_tool.call_args.args[2]['content'], '今天天气不错')
+
+    def test_feishu_book_emoji_memo_request_uses_bound_mcp_directly(self):
+        server = MCPServer.objects.create(
+            name='闪念 MCP',
+            transport='streamableHttp',
+            url='http://testserver/api/system-mcp/memos/',
+            headers={'Authorization': 'Bearer test-key'},
+            enabled=True,
+            source='system',
+            tools=[],
+        )
+        self.agent.feishu_im_enabled = True
+        self.agent.feishu_app_id = 'cli_test'
+        self.agent.feishu_app_secret = 'secret_test'
+        self.agent.mcp_servers = [server.id]
+        self.agent.save(update_fields=[
+            'feishu_im_enabled',
+            'feishu_app_id',
+            'feishu_app_secret',
+            'mcp_servers',
+            'updated_at',
+        ])
+        record = AgentIMMessage.objects.create(
+            agent=self.agent,
+            platform=AgentIMMessage.PLATFORM_FEISHU,
+            event_id='event-mcp-book-fallback',
+            message_id='msg-mcp-book-fallback',
+            chat_id='chat-memory',
+            sender_id='user-memory',
+            message_type='text',
+            content='📚今天天气不错',
+            status=AgentIMMessage.STATUS_RECEIVED,
+        )
+        tools = [{
+            'name': 'create_memo',
+            'description': '创建一条闪念 Memo。',
+            'inputSchema': {
+                'type': 'object',
+                'properties': {
+                    'content': {'type': 'string'},
+                },
+                'required': ['content'],
+            },
+        }]
+
+        with patch('system_settings.feishu_im.fetch_mcp_tools', return_value=(tools, None)), \
+                patch('system_settings.feishu_im.AIService.chat_completion_messages_with_tools') as mock_tools_chat, \
+                patch('system_settings.feishu_im.call_mcp_tool', return_value=({'memo_id': 'memo_test'}, None)) as mock_call_tool, \
+                patch('system_settings.feishu_im.send_feishu_reply', return_value={}), \
+                patch('system_settings.feishu_im.store_short_term_memory'), \
+                patch('system_settings.feishu_im._try_add_feishu_message_reaction', return_value=''), \
+                patch('system_settings.feishu_im._try_delete_feishu_message_reaction'):
+            _process_feishu_record(record.id)
+
+        record.refresh_from_db()
+        self.assertEqual(record.status, AgentIMMessage.STATUS_REPLIED)
+        self.assertEqual(record.response, '已记录闪念：今天天气不错')
+        mock_tools_chat.assert_not_called()
+        self.assertEqual(mock_call_tool.call_args.args[1], 'create_memo')
+        self.assertEqual(mock_call_tool.call_args.args[2]['content'], '今天天气不错')
 
 
 class SystemConfigViewSetTests(TestCase):
