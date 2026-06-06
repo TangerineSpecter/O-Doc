@@ -514,10 +514,14 @@ class AgentMemoryTests(TestCase):
             },
         }]
 
+        def fake_tools_chat(*args, **kwargs):
+            kwargs['on_tool_call']('create_memo', {'content': '今天要修好飞书 MCP'})
+            return '已记录闪念'
+
         with patch('system_settings.feishu_im.fetch_mcp_tools', return_value=(tools, None)) as mock_fetch, \
-                patch('system_settings.feishu_im.AIService.chat_completion_messages_with_tools', return_value='已记录闪念') as mock_tools_chat, \
+                patch('system_settings.feishu_im.AIService.chat_completion_messages_with_tools', side_effect=fake_tools_chat) as mock_tools_chat, \
                 patch('system_settings.feishu_im.AIService.chat_completion_messages') as mock_plain_chat, \
-                patch('system_settings.feishu_im.send_feishu_reply', return_value={}), \
+                patch('system_settings.feishu_im.send_feishu_reply', return_value={}) as mock_reply, \
                 patch('system_settings.feishu_im.store_short_term_memory'), \
                 patch('system_settings.feishu_im._try_add_feishu_message_reaction', return_value=''), \
                 patch('system_settings.feishu_im._try_delete_feishu_message_reaction'):
@@ -529,6 +533,8 @@ class AgentMemoryTests(TestCase):
         mock_fetch.assert_called_once()
         mock_plain_chat.assert_not_called()
         mock_tools_chat.assert_called_once()
+        self.assertEqual(mock_reply.call_args_list[0].args[2], '🔧 正在使用闪念 MCP...')
+        self.assertEqual(mock_reply.call_args_list[1].args[2], '已记录闪念')
         _, tools_arg, _, = mock_tools_chat.call_args.args[:3]
         self.assertEqual(tools_arg[0]['function']['name'], 'create_memo')
 

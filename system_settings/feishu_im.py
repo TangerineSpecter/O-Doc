@@ -214,10 +214,18 @@ def _build_agent_reply(agent, user_text, record):
             '必须优先调用合适的 Tool；如果缺少必要参数，请先向用户追问，不要编造参数。'
         ),
     })
+    notified_mcp_servers = set()
     return AIService.chat_completion_messages_with_tools(
         messages,
         tool_context['tools'],
         lambda tool_name, arguments: _execute_agent_mcp_tool(tool_context, tool_name, arguments),
+        on_tool_call=lambda tool_name, arguments: _notify_feishu_mcp_usage(
+            agent,
+            record.message_id,
+            tool_context,
+            tool_name,
+            notified_mcp_servers,
+        ),
         model_id=agent.model_id,
     )
 
@@ -288,6 +296,28 @@ def _execute_agent_mcp_tool(tool_context, safe_tool_name, arguments):
     if error_msg:
         raise RuntimeError(f"{entry['server'].name}.{entry['tool_name']} 调用失败：{error_msg}")
     return result
+
+
+def _notify_feishu_mcp_usage(agent, message_id, tool_context, safe_tool_name, notified_server_ids):
+    entry = tool_context['tool_map'].get(safe_tool_name)
+    if not entry:
+        return
+
+    server = entry.get('server')
+    server_id = getattr(server, 'id', '') or getattr(server, 'name', '')
+    if not server or server_id in notified_server_ids:
+        return
+
+    notified_server_ids.add(server_id)
+    try:
+        send_feishu_reply(agent, message_id, f"🔧 正在使用{server.name}...")
+    except Exception:
+        logger.warning(
+            'Failed to send Feishu MCP usage notice: message=%s, server=%s',
+            message_id,
+            getattr(server, 'name', ''),
+            exc_info=True,
+        )
 
 
 def _build_safe_mcp_tool_name(server, tool_name, existing_map):
