@@ -21,6 +21,34 @@ def readline_with_timeout(stream, timeout):
 MCP_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 
 
+def is_builtin_memo_mcp(mcp_server):
+    return (
+        getattr(mcp_server, 'source', '') == 'system'
+        and getattr(mcp_server, 'name', '') == '闪念 MCP'
+    )
+
+
+def fetch_builtin_memo_tools():
+    from system_mcp.views import TOOLS, VISIBLE_MEMO_TOOL_NAMES
+
+    return format_mcp_tools([
+        tool for tool in TOOLS
+        if tool.get('name') in VISIBLE_MEMO_TOOL_NAMES
+    ]), None
+
+
+def call_builtin_memo_tool(tool_name, arguments=None):
+    from system_mcp.views import ODocSystemMCPView
+
+    view = ODocSystemMCPView(tool_scope='memos')
+    if not view._is_tool_available(tool_name):
+        return None, f"当前系统闪念 MCP 不提供 Tool：{tool_name}"
+    try:
+        return view._call_tool(tool_name, arguments or {}), None
+    except Exception as exc:
+        return None, str(exc)
+
+
 def extract_json_from_sse_body(body_text):
     """
     Extracts the JSON payload from SSE event stream raw text or returns raw JSON if not SSE.
@@ -503,6 +531,8 @@ def call_streamable_http_tool(url, headers=None, tool_name='', arguments=None, t
 
 
 def call_mcp_tool(mcp_server, tool_name, arguments=None, timeout=30):
+    if is_builtin_memo_mcp(mcp_server):
+        return call_builtin_memo_tool(tool_name, arguments or {})
     if mcp_server.transport == 'streamableHttp':
         return call_streamable_http_tool(
             url=mcp_server.url,
@@ -517,6 +547,9 @@ def fetch_mcp_tools(mcp_server):
     """
     Connect to the MCP server described by the mcp_server instance and return (tools, error_message).
     """
+    if is_builtin_memo_mcp(mcp_server):
+        return fetch_builtin_memo_tools()
+
     transport = mcp_server.transport
     if transport == 'stdio':
         return fetch_stdio_tools(

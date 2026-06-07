@@ -8,6 +8,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory
 
+from memos.models import Memo
 from system_settings.agent_memory import (
     get_or_create_im_session,
     purge_expired_short_term_memories,
@@ -21,6 +22,7 @@ from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentL
 from system_settings.sync_scheduler import should_start_webdav_scheduler
 from system_settings.views import AgentViewSet, SystemConfigViewSet
 from utils.ai_service import AIService
+from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
 from utils.sync_manager import SyncError, SyncManager
 from utils.webdav import WebDavClient
 
@@ -598,6 +600,32 @@ class AgentMemoryTests(TestCase):
         self.assertEqual(mock_reply.call_args_list[1].args[2], '已记录闪念：今天天气不错')
         self.assertEqual(mock_call_tool.call_args.args[1], 'create_memo')
         self.assertEqual(mock_call_tool.call_args.args[2]['content'], '今天天气不错')
+
+    def test_builtin_memo_mcp_uses_internal_tools_without_http(self):
+        server = MCPServer.objects.create(
+            name='闪念 MCP',
+            transport='streamableHttp',
+            url='http://unreachable.example.invalid/api/system-mcp/memos/',
+            headers={'Authorization': 'Bearer test-key'},
+            enabled=True,
+            source='system',
+            tools=[],
+        )
+
+        with patch('utils.mcp_client.fetch_sse_tools') as mock_fetch_http:
+            tools, error_msg = fetch_mcp_tools(server)
+
+        self.assertIsNone(error_msg)
+        self.assertIn('create_memo', [tool['name'] for tool in tools])
+        mock_fetch_http.assert_not_called()
+
+        with patch('utils.mcp_client.call_streamable_http_tool') as mock_call_http:
+            result, error_msg = call_mcp_tool(server, 'create_memo', {'content': '内部 MCP 测试'})
+
+        self.assertIsNone(error_msg)
+        self.assertEqual(result['memo']['content'], '内部 MCP 测试')
+        self.assertTrue(Memo.objects.filter(content='内部 MCP 测试', user_id='admin').exists())
+        mock_call_http.assert_not_called()
 
     def test_feishu_book_emoji_memo_request_uses_bound_mcp_directly(self):
         server = MCPServer.objects.create(

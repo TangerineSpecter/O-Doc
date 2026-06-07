@@ -112,7 +112,7 @@ const getAgentAvatar = (agent: Pick<AgentConfig, 'avatar' | 'name'>) => {
     return agent.name?.trim().slice(0, 1).toUpperCase() || 'A';
 };
 
-const isImageAvatar = (avatar: string) => /^https?:\/\//.test(avatar) || avatar.startsWith('/');
+const isImageAvatar = (avatar: string) => /^https?:\/\//.test(avatar) || avatar.startsWith('/') || avatar.startsWith('blob:') || avatar.startsWith('data:image/');
 
 const AgentAvatar = ({agent, size = 'md'}: { agent: Pick<AgentConfig, 'avatar' | 'name'>, size?: 'md' | 'lg' | 'xl' }) => {
     const avatar = getAgentAvatar(agent);
@@ -160,6 +160,7 @@ export const AgentSettings = ({
     const [saving, setSaving] = useState(false);
     const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
     const [avatarUploading, setAvatarUploading] = useState(false);
+    const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('');
     const [anthologies, setAnthologies] = useState<Anthology[]>([]);
     const [memoryModalAgent, setMemoryModalAgent] = useState<AgentConfig | null>(null);
     const [memories, setMemories] = useState<AgentLongTermMemoryConfig[]>([]);
@@ -168,6 +169,7 @@ export const AgentSettings = ({
     const [memoryError, setMemoryError] = useState('');
     const [memoryStatusFilter, setMemoryStatusFilter] = useState<'all' | AgentMemoryStatus>('active');
     const avatarInputRef = useRef<HTMLInputElement>(null);
+    const avatarPreviewObjectUrlRef = useRef<string | null>(null);
     const toast = useToast();
     const [form, setForm] = useState<AgentForm>({
         name: '',
@@ -276,6 +278,28 @@ export const AgentSettings = ({
             });
     }, []);
 
+    const clearAvatarPreview = () => {
+        if (avatarPreviewObjectUrlRef.current) {
+            URL.revokeObjectURL(avatarPreviewObjectUrlRef.current);
+            avatarPreviewObjectUrlRef.current = null;
+        }
+        setAvatarPreviewUrl('');
+    };
+
+    const setLocalAvatarPreview = (url: string) => {
+        clearAvatarPreview();
+        avatarPreviewObjectUrlRef.current = url;
+        setAvatarPreviewUrl(url);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (avatarPreviewObjectUrlRef.current) {
+                URL.revokeObjectURL(avatarPreviewObjectUrlRef.current);
+            }
+        };
+    }, []);
+
     const buildTaskSchedule = (task: Pick<AgentTaskForm, 'scheduleType' | 'scheduleTime' | 'scheduleWeekday' | 'scheduleMonthDay' | 'intervalMinutes'>) => {
         if (task.scheduleType === 'daily') {
             return `每天 ${task.scheduleTime}`;
@@ -293,6 +317,7 @@ export const AgentSettings = ({
     const isManualTask = taskForm.trigger === '手动执行';
 
     const openCreateModal = () => {
+        clearAvatarPreview();
         setForm({
             name: '',
             avatar: '',
@@ -357,6 +382,7 @@ export const AgentSettings = ({
     };
 
     const openEditModal = (agent: AgentConfig) => {
+        clearAvatarPreview();
         setForm({
             id: agent.id,
             name: agent.name,
@@ -495,6 +521,7 @@ export const AgentSettings = ({
         setSaving(false);
 
         if (success) {
+            clearAvatarPreview();
             setModalOpen(false);
         }
     };
@@ -670,11 +697,14 @@ export const AgentSettings = ({
         }
 
         setAvatarUploading(true);
+        const localPreviewUrl = URL.createObjectURL(file);
         try {
             const response = await uploadResource(file, 'image');
             setForm(prev => ({...prev, avatar: `/api/resource/view/${response.id}`}));
+            setLocalAvatarPreview(localPreviewUrl);
             toast.success('头像已上传');
         } catch (error) {
+            URL.revokeObjectURL(localPreviewUrl);
             toast.error('头像上传失败');
         } finally {
             setAvatarUploading(false);
@@ -1545,7 +1575,10 @@ export const AgentSettings = ({
                                 <p className="text-xs text-slate-500 mt-1">配置它的身份、模型能力、MCP 和默认技能</p>
                             </div>
                             <button
-                                onClick={() => setModalOpen(false)}
+                                onClick={() => {
+                                    clearAvatarPreview();
+                                    setModalOpen(false);
+                                }}
                                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                             >
                                 <X className="w-5 h-5"/>
@@ -1554,7 +1587,7 @@ export const AgentSettings = ({
 
                         <div className="p-6 space-y-6 max-h-[72vh] overflow-y-auto">
                             <div className="flex flex-col items-center text-center">
-                                <AgentAvatar agent={{name: form.name || 'Agent', avatar: form.avatar}} size="xl"/>
+                                <AgentAvatar agent={{name: form.name || 'Agent', avatar: avatarPreviewUrl || form.avatar}} size="xl"/>
                                 <input
                                     ref={avatarInputRef}
                                     type="file"
@@ -1579,7 +1612,10 @@ export const AgentSettings = ({
                                     {form.avatar && (
                                         <button
                                             type="button"
-                                            onClick={() => setForm({...form, avatar: ''})}
+                                            onClick={() => {
+                                                clearAvatarPreview();
+                                                setForm({...form, avatar: ''});
+                                            }}
                                             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 transition-colors hover:bg-red-50 hover:border-red-100 hover:text-red-600"
                                         >
                                             <X className="w-3.5 h-3.5"/>
@@ -1773,7 +1809,10 @@ export const AgentSettings = ({
 
                         <div className="flex items-center justify-end gap-3 px-6 py-4 bg-slate-50 border-t border-slate-100">
                             <button
-                                onClick={() => setModalOpen(false)}
+                                onClick={() => {
+                                    clearAvatarPreview();
+                                    setModalOpen(false);
+                                }}
                                 className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                             >
                                 取消
