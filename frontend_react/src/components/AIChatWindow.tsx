@@ -16,7 +16,7 @@ import {getArticleDetail} from '../api/article';
 import {getAnthologyList, type Anthology} from '../api/anthology';
 import {getImagesByAnthology, type Image} from '../api/image';
 import {getMCPServers, getSkills, type MCPServerConfig, type SkillConfig} from '../api/setting';
-import {CodeBlock, MermaidChart} from './Article/MarkdownElements';
+import {CodeBlock, MermaidChart, SimpleChart} from './Article/MarkdownElements';
 import {Select, type SelectOption} from './common/Select';
 
 interface Message {
@@ -307,6 +307,10 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             // Mermaid 流程图渲染
             if (!inline && lang === 'mermaid') {
                 return <MermaidChart chart={codeStr}/>;
+            }
+
+            if (!inline && lang === 'chart') {
+                return <SimpleChart chart={codeStr}/>;
             }
 
             // 代码高亮块

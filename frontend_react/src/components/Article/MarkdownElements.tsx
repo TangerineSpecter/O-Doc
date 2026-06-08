@@ -5,6 +5,21 @@ import mermaid from 'mermaid';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow as darkTheme } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Check, Copy, AlertTriangle, Maximize2, Minimize2, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+    Bar,
+    BarChart as ReBarChart,
+    CartesianGrid,
+    Cell,
+    Legend,
+    Line,
+    LineChart as ReLineChart,
+    Pie,
+    PieChart as RePieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from 'recharts';
 
 // --- 强制样式 ---
 export const CUSTOM_STYLES = `
@@ -71,9 +86,183 @@ export const CUSTOM_STYLES = `
 const MIN_MERMAID_SCALE = 1;
 const MAX_MERMAID_SCALE = 3;
 const MERMAID_SCALE_STEP = 0.1;
+const CHART_COLORS = ['#f97316', '#0ea5e9', '#84cc16', '#ec4899', '#8b5cf6', '#14b8a6', '#f59e0b', '#64748b'];
 
 const clampMermaidScale = (value: number) => Math.min(MAX_MERMAID_SCALE, Math.max(MIN_MERMAID_SCALE, value));
 const normalizeMermaidScale = (value: number) => Number(clampMermaidScale(value).toFixed(1));
+
+type SimpleChartType = 'line' | 'bar' | 'pie' | 'wordcloud';
+
+interface SimpleChartDataPoint {
+    name: string;
+    value: number;
+}
+
+interface ParsedSimpleChart {
+    type: SimpleChartType;
+    title: string;
+    data: SimpleChartDataPoint[];
+    error?: string;
+}
+
+const normalizeSimpleChartType = (value: string): SimpleChartType | null => {
+    const normalized = value.trim().toLowerCase();
+    if (['line', '折线', '折线图'].includes(normalized)) return 'line';
+    if (['bar', '柱状', '柱状图', 'bar chart'].includes(normalized)) return 'bar';
+    if (['pie', '饼图', 'pie chart'].includes(normalized)) return 'pie';
+    if (['wordcloud', 'word cloud', '词云', '词云图'].includes(normalized)) return 'wordcloud';
+    return null;
+};
+
+const parseNumberValue = (value: string) => {
+    const normalized = value.trim().replace(/,/g, '');
+    if (!normalized) return Number.NaN;
+    return Number(normalized);
+};
+
+const parseSimpleChart = (source: string): ParsedSimpleChart => {
+    const lines = source
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'));
+
+    let type: SimpleChartType = 'bar';
+    let title = '简单图表';
+    const dataLines: string[] = [];
+
+    lines.forEach(line => {
+        const optionMatch = line.match(/^([a-zA-Z\u4e00-\u9fa5]+)\s*[:：]\s*(.+)$/);
+        if (optionMatch) {
+            const key = optionMatch[1].trim().toLowerCase();
+            const value = optionMatch[2].trim();
+
+            if (['type', '类型'].includes(key)) {
+                type = normalizeSimpleChartType(value) || type;
+                return;
+            }
+
+            if (['title', '标题'].includes(key)) {
+                title = value || title;
+                return;
+            }
+        }
+
+        dataLines.push(line);
+    });
+
+    const rows = dataLines
+        .map(line => line.split(/[,，\t|]/).map(cell => cell.trim()))
+        .filter(cells => cells.length >= 2);
+
+    const data = rows
+        .filter((cells, index) => {
+            if (index !== 0) return true;
+            return Number.isFinite(parseNumberValue(cells[1]));
+        })
+        .map(cells => ({
+            name: cells[0],
+            value: parseNumberValue(cells[1]),
+        }))
+        .filter(item => item.name && Number.isFinite(item.value));
+
+    if (data.length === 0) {
+        return {
+            type,
+            title,
+            data,
+            error: '图表数据为空或格式不正确',
+        };
+    }
+
+    return {type, title, data};
+};
+
+const simpleChartTypeLabel: Record<SimpleChartType, string> = {
+    line: '折线图',
+    bar: '柱状图',
+    pie: '饼图',
+    wordcloud: '词云',
+};
+
+interface WordCloudLayoutItem extends SimpleChartDataPoint {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    fontSize: number;
+    color: string;
+    weight: number;
+    rotate: number;
+}
+
+const estimateWordWidth = (word: string, fontSize: number) => {
+    const visualLength = Array.from(word).reduce((total, char) => total + (/[\u4e00-\u9fa5]/.test(char) ? 1 : 0.58), 0);
+    return visualLength * fontSize + 18;
+};
+
+const hasWordCollision = (item: WordCloudLayoutItem, placed: WordCloudLayoutItem[]) => {
+    const gap = 8;
+    return placed.some(other => {
+        return !(
+            item.x + item.width / 2 + gap < other.x - other.width / 2 ||
+            item.x - item.width / 2 - gap > other.x + other.width / 2 ||
+            item.y + item.height / 2 + gap < other.y - other.height / 2 ||
+            item.y - item.height / 2 - gap > other.y + other.height / 2
+        );
+    });
+};
+
+const buildWordCloudItems = (data: SimpleChartDataPoint[], width: number, height: number) => {
+    const values = data.map(item => item.value);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = Math.max(max - min, 1);
+    const sortedData = [...data].sort((a, b) => b.value - a.value);
+    const placed: WordCloudLayoutItem[] = [];
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    sortedData.forEach((item, index) => {
+        const ratio = (item.value - min) / range;
+        const fontSize = Math.round(14 + ratio * 30);
+        const rotate = index % 7 === 2 ? -10 : index % 7 === 5 ? 8 : 0;
+        const wordWidth = estimateWordWidth(item.name, fontSize);
+        const wordHeight = fontSize * 1.25 + 10;
+        const maxAttempts = 1500;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+            const angle = attempt * 0.34;
+            const radius = 2.8 * Math.sqrt(attempt) + attempt * 0.12;
+            const candidate: WordCloudLayoutItem = {
+                ...item,
+                x: centerX + Math.cos(angle) * radius * 1.45,
+                y: centerY + Math.sin(angle) * radius,
+                width: wordWidth,
+                height: wordHeight,
+                fontSize,
+                color: CHART_COLORS[index % CHART_COLORS.length],
+                weight: ratio > 0.65 ? 800 : ratio > 0.35 ? 700 : 600,
+                rotate,
+            };
+
+            const inBounds = candidate.x - candidate.width / 2 >= 10
+                && candidate.x + candidate.width / 2 <= width - 10
+                && candidate.y - candidate.height / 2 >= 10
+                && candidate.y + candidate.height / 2 <= height - 10;
+
+            if (inBounds && !hasWordCollision(candidate, placed)) {
+                placed.push(candidate);
+                return;
+            }
+        }
+    });
+
+    return placed.map(item => ({
+            ...item,
+            left: (item.x / width) * 100,
+            top: (item.y / height) * 100,
+        }));
+};
 
 // --- SVG Icons ---
 export const ArticleIcons = {
@@ -333,6 +522,183 @@ export const MermaidChart = ({ chart }: { chart: string }) => {
                     <div className="relative h-full w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
                         <div className="absolute right-4 top-4 z-10">{controls(true)}</div>
                         {chartBody(true)}
+                    </div>
+                </div>
+            )}
+        </>
+    );
+};
+
+export const SimpleChart = ({ chart }: { chart: string }) => {
+    const parsed = parseSimpleChart(chart);
+    const [activeWord, setActiveWord] = useState<SimpleChartDataPoint | null>(null);
+    const [isWordCloudFullscreen, setIsWordCloudFullscreen] = useState(false);
+
+    if (parsed.error) {
+        return (
+            <div className="not-prose my-6 rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-700">
+                <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+                    <div>
+                        <p className="font-bold">图表渲染失败</p>
+                        <p className="mt-1 text-xs text-amber-700/80">{parsed.error}</p>
+                        <p className="mt-2 text-xs text-amber-700/80">
+                            支持 type: bar / line / pie / wordcloud；数据使用“名称,数值”，每行一条。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const renderWordCloud = (fullscreen = false) => {
+        const canvas = fullscreen ? {width: 1680, height: 860} : {width: 1180, height: 360};
+        const words = buildWordCloudItems(parsed.data, canvas.width, canvas.height);
+
+        return (
+            <div className={`relative h-full w-full overflow-hidden rounded-lg bg-gradient-to-br from-orange-50/70 via-white to-sky-50/80 ${fullscreen ? 'p-5' : ''}`}>
+                {activeWord && (
+                    <div className="pointer-events-none absolute right-4 top-4 z-20 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-700 shadow-lg shadow-slate-900/10">
+                        <span className="font-semibold text-slate-900">{activeWord.name}</span>
+                        <span className="mx-1 text-slate-400">·</span>
+                        <span>{activeWord.value}</span>
+                    </div>
+                )}
+                {!fullscreen && (
+                    <button
+                        type="button"
+                        onClick={() => setIsWordCloudFullscreen(true)}
+                        className="absolute left-4 top-4 z-20 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:bg-orange-50 hover:text-orange-600"
+                        title="全屏查看词云"
+                    >
+                        <Maximize2 className="h-3.5 w-3.5" />
+                        全屏
+                    </button>
+                )}
+                {words.length < parsed.data.length && (
+                    <div className="absolute bottom-4 right-4 z-20 rounded-lg border border-orange-100 bg-white/95 px-3 py-2 text-xs text-slate-500 shadow-sm">
+                        已显示 {words.length} / {parsed.data.length}
+                    </div>
+                )}
+                <div className="relative h-full w-full">
+                    {words.map(word => (
+                        <span
+                            key={word.name}
+                            className="absolute -translate-x-1/2 -translate-y-1/2 cursor-default whitespace-nowrap rounded-md px-1.5 py-1 leading-none transition-all hover:z-10 hover:-translate-y-[55%] hover:bg-white/85 hover:shadow-sm"
+                            style={{
+                                left: `${word.left}%`,
+                                top: `${word.top}%`,
+                                color: word.color,
+                                fontSize: word.fontSize,
+                                fontWeight: word.weight,
+                                transform: `translate(-50%, -50%) rotate(${word.rotate}deg)`,
+                            }}
+                            onMouseEnter={() => setActiveWord({name: word.name, value: word.value})}
+                            onMouseLeave={() => setActiveWord(null)}
+                        >
+                            {word.name}
+                        </span>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    const renderChart = () => {
+        if (parsed.type === 'wordcloud') {
+            return renderWordCloud(false);
+        }
+
+        if (parsed.type === 'line') {
+            return (
+                <ReLineChart data={parsed.data} margin={{top: 12, right: 20, bottom: 4, left: 0}}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} tickLine={false} axisLine={{stroke: '#cbd5e1'}} />
+                    <YAxis tick={{fill: '#64748b', fontSize: 12}} tickLine={false} axisLine={false} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="value" name="数值" stroke="#f97316" strokeWidth={3} dot={{r: 4, fill: '#ffffff', strokeWidth: 2}} activeDot={{r: 6}} />
+                </ReLineChart>
+            );
+        }
+
+        if (parsed.type === 'pie') {
+            return (
+                <RePieChart margin={{top: 6, right: 8, bottom: 6, left: 8}}>
+                    <Pie
+                        data={parsed.data}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius="45%"
+                        outerRadius="72%"
+                        paddingAngle={2}
+                        label={({name, percent}) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                    >
+                        {parsed.data.map((entry, index) => (
+                            <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend iconType="circle" wrapperStyle={{fontSize: 12}} />
+                </RePieChart>
+            );
+        }
+
+        return (
+            <ReBarChart data={parsed.data} margin={{top: 12, right: 20, bottom: 4, left: 0}}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} tickLine={false} axisLine={{stroke: '#cbd5e1'}} />
+                <YAxis tick={{fill: '#64748b', fontSize: 12}} tickLine={false} axisLine={false} />
+                <Tooltip />
+                <Bar dataKey="value" name="数值" radius={[8, 8, 0, 0]}>
+                    {parsed.data.map((entry, index) => (
+                        <Cell key={entry.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                </Bar>
+            </ReBarChart>
+        );
+    };
+
+    return (
+        <>
+            <div className="not-prose my-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-900">{parsed.title}</h3>
+                        <p className="mt-0.5 text-xs text-slate-500">{simpleChartTypeLabel[parsed.type]} · {parsed.data.length} 项数据</p>
+                    </div>
+                </div>
+                <div className="h-80 w-full p-4">
+                    {parsed.type === 'wordcloud' ? renderChart() : (
+                        <ResponsiveContainer width="100%" height="100%">
+                            {renderChart()}
+                        </ResponsiveContainer>
+                    )}
+                </div>
+            </div>
+
+            {isWordCloudFullscreen && parsed.type === 'wordcloud' && (
+                <div className="fixed inset-0 z-[200] bg-slate-950/80 p-4 backdrop-blur-sm">
+                    <div className="relative h-full w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+                        <div className="absolute left-5 top-5 z-30">
+                            <h3 className="text-base font-bold text-slate-900">{parsed.title}</h3>
+                            <p className="mt-0.5 text-xs text-slate-500">词云 · {parsed.data.length} 项数据</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsWordCloudFullscreen(false);
+                                setActiveWord(null);
+                            }}
+                            className="absolute right-5 top-5 z-30 rounded-lg border border-slate-200 bg-white/95 p-2 text-slate-500 shadow-sm transition-colors hover:bg-orange-50 hover:text-orange-600"
+                            title="退出全屏"
+                        >
+                            <Minimize2 className="h-4 w-4" />
+                        </button>
+                        <div className="h-full w-full p-16 pt-20">
+                            {renderWordCloud(true)}
+                        </div>
                     </div>
                 </div>
             )}

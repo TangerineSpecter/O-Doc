@@ -8,6 +8,7 @@ import {useToast} from '../components/common/ToastProvider';
 import {uploadResource} from '../api/resources';
 import {AIConfigError, continueWritingWithAI, generateTagsWithAI, generateTitleWithAI, polishArticleWithAI} from '../api/ai';
 import {
+    BarChart2,
     CheckSquare,
     Code,
     Heading1,
@@ -105,6 +106,13 @@ const COMMANDS_CONFIG: Omit<CommandItem, 'icon'>[] = [
     {id: 'imageLink', label: '图片链接', value: '', desc: '通过URL插入图片'},
     {id: 'video', label: '视频', value: '', desc: '插入视频地址'},
     {
+        id: 'chart',
+        label: '简单图表',
+        value: '\n```chart\n# 支持 type: bar / line / pie / wordcloud\n# 也可以写：柱状图 / 折线图 / 饼图 / 词云\n# 数据格式：名称,数值，每行一条数据\ntype: bar\ntitle: 月度阅读量\n月份,数值\n1月,120\n2月,180\n3月,150\n4月,230\n```\n',
+        cursorOffset: 0,
+        desc: '支持 bar/line/pie/wordcloud'
+    },
+    {
         id: 'mermaid',
         label: 'Mermaid 图表',
         value: '\n```mermaid\ngraph TD\n    A[Start] --> B{Is it?}\n    B -- Yes --> C[OK]\n    B -- No --> D[End]\n```\n',
@@ -142,6 +150,7 @@ const getCommandsWithIcons = (): CommandItem[] => {
         image: <ImageIcon size={18}/>,
         imageLink: <ImageIcon size={18}/>,
         video: <VideoIcon size={18}/>,
+        chart: <BarChart2 size={18}/>,
         mermaid: <Workflow size={18}/>,
         text: <Type size={18}/>,
         h1: <Heading1 size={18}/>,
@@ -205,7 +214,7 @@ export const useEditor = () => {
 
     // State: Content
     const [title, setTitle] = useState("未命名文档");
-    const [content, setContent] = useState(`> 💡 **提示**: 试一下插入图片、视频和 Mermaid 图表功能吧！\n\n## 1. 图片测试\n试试复制一张图片粘贴到这里，或者使用 \`/图片\` 命令。\n\n## 2. Mermaid 图表\n使用 \`/图表\` 命令插入一个流程图。\n`);
+    const [content, setContent] = useState(`> 💡 **提示**: 试一下插入图片、视频和简单图表功能吧！\n\n## 1. 图片测试\n试试复制一张图片粘贴到这里，或者使用 \`/图片\` 命令。\n\n## 2. 简单图表\n使用 \`/简单图表\` 命令插入折线图、柱状图、饼图或词云，模板里会带可修改的格式说明。\n`);
 
     // Toast
     const toast = useToast();

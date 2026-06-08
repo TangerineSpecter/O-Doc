@@ -9,7 +9,7 @@ import {Download, FileDown, Loader2, Paperclip} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {useToast} from '../components/common/ToastProvider';
 import {useArticle} from '../hooks/useArticle';
-import {ArticleIcons, CodeBlock, CUSTOM_STYLES, MermaidChart} from '../components/Article/MarkdownElements';
+import {ArticleIcons, CodeBlock, CUSTOM_STYLES, MermaidChart, SimpleChart} from '../components/Article/MarkdownElements';
 import {SyncStatusType, TableOfContents} from '../components/Article/TableOfContents';
 import {formatFileSize} from '@/utils/format';
 import {useReadStats} from '../hooks/useReadStats';
@@ -390,6 +390,10 @@ export default function Article({
 
             if (!inline && lang === 'mermaid') {
                 return <MermaidChart chart={codeStr}/>;
+            }
+
+            if (!inline && lang === 'chart') {
+                return <SimpleChart chart={codeStr}/>;
             }
 
             if (!inline && match) {

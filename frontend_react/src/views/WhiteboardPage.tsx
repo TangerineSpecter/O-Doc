@@ -7,7 +7,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import {Article, getArticles} from '../api/article';
-import {CodeBlock, CUSTOM_STYLES, MermaidChart} from '../components/Article/MarkdownElements';
+import {CodeBlock, CUSTOM_STYLES, MermaidChart, SimpleChart} from '../components/Article/MarkdownElements';
 import 'katex/dist/katex.min.css';
 
 // 引入新拆分的组件和 Hooks
@@ -427,6 +427,7 @@ export default function WhiteboardPage() {
             const {inline, className, children, ...rest} = props;
             const match = /language-(\w+)/.exec(className || '');
             if (!inline && match?.[1] === 'mermaid') return <MermaidChart chart={String(children)}/>;
+            if (!inline && match?.[1] === 'chart') return <SimpleChart chart={String(children)}/>;
             if (!inline && match) return <CodeBlock language={match[1]} code={String(children)} {...rest} />;
             return <code
                 className="bg-pink-50 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-md font-mono text-sm" {...rest}>{children}</code>;
