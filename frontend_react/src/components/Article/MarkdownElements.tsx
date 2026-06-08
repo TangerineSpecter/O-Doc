@@ -1,10 +1,10 @@
 // frontend_react/src/components/Article/MarkdownElements.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import mermaid from 'mermaid';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow as darkTheme } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Check, Copy, AlertTriangle } from 'lucide-react';
+import { Check, Copy, AlertTriangle, Maximize2, Minimize2, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 
 // --- 强制样式 ---
 export const CUSTOM_STYLES = `
@@ -26,7 +26,54 @@ export const CUSTOM_STYLES = `
     border-radius: 0.25rem; font-size: 0.85em; font-weight: 500;
     color: #4f46e5; background-color: #eef2ff; border: 1px solid #e0e7ff;
   }
+
+  /* 5. Mermaid 缩放滑条 */
+  .mermaid-zoom-slider {
+    width: 132px;
+    height: 16px;
+    cursor: pointer;
+    background: transparent;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .mermaid-zoom-slider::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: 999px;
+    background: var(--mermaid-zoom-track, #e2e8f0);
+  }
+  .mermaid-zoom-slider::-webkit-slider-thumb {
+    width: 12px;
+    height: 12px;
+    margin-top: -4.5px;
+    border-radius: 999px;
+    border: 2px solid #ffffff;
+    background: #f97316;
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.18);
+    cursor: pointer;
+    -webkit-appearance: none;
+  }
+  .mermaid-zoom-slider::-moz-range-track {
+    height: 3px;
+    border-radius: 999px;
+    background: var(--mermaid-zoom-track, #e2e8f0);
+  }
+  .mermaid-zoom-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    border: 2px solid #ffffff;
+    background: #f97316;
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.18);
+    cursor: pointer;
+  }
 `;
+
+const MIN_MERMAID_SCALE = 1;
+const MAX_MERMAID_SCALE = 3;
+const MERMAID_SCALE_STEP = 0.1;
+
+const clampMermaidScale = (value: number) => Math.min(MAX_MERMAID_SCALE, Math.max(MIN_MERMAID_SCALE, value));
+const normalizeMermaidScale = (value: number) => Number(clampMermaidScale(value).toFixed(1));
 
 // --- SVG Icons ---
 export const ArticleIcons = {
@@ -58,6 +105,60 @@ export const CopyButton = ({ text }: { text: string }) => {
 export const MermaidChart = ({ chart }: { chart: string }) => {
     const [svg, setSvg] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [scale, setScale] = useState(1);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isDraggingChart, setIsDraggingChart] = useState(false);
+    const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
+    const chartContentRef = useRef<HTMLDivElement>(null);
+    const chartDragRef = useRef({
+        startX: 0,
+        startY: 0,
+        scrollLeft: 0,
+        scrollTop: 0,
+    });
+
+    const zoomOut = () => setScale(current => normalizeMermaidScale(current - MERMAID_SCALE_STEP));
+    const zoomIn = () => setScale(current => normalizeMermaidScale(current + MERMAID_SCALE_STEP));
+    const resetZoom = () => setScale(1);
+    const updateScaleFromSlider = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setScale(normalizeMermaidScale(Number(event.target.value) / 100));
+    };
+    const handleChartWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        const direction = event.deltaY < 0 ? 1 : -1;
+        setScale(current => normalizeMermaidScale(current + direction * MERMAID_SCALE_STEP));
+    };
+    const handleChartMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+        if (event.button !== 0 || scale <= MIN_MERMAID_SCALE) return;
+
+        chartDragRef.current = {
+            startX: event.clientX,
+            startY: event.clientY,
+            scrollLeft: event.currentTarget.scrollLeft,
+            scrollTop: event.currentTarget.scrollTop,
+        };
+        setIsDraggingChart(true);
+    };
+    const handleChartMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+        if (!isDraggingChart) return;
+
+        event.preventDefault();
+        const dragState = chartDragRef.current;
+        event.currentTarget.scrollLeft = dragState.scrollLeft - (event.clientX - dragState.startX);
+        event.currentTarget.scrollTop = dragState.scrollTop - (event.clientY - dragState.startY);
+    };
+    const stopChartDrag = () => setIsDraggingChart(false);
+
+    useEffect(() => {
+        if (!isFullscreen) return;
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setIsFullscreen(false);
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isFullscreen]);
 
     useEffect(() => {
         let isMounted = true;
@@ -107,6 +208,17 @@ export const MermaidChart = ({ chart }: { chart: string }) => {
         };
     }, [chart]);
 
+    useLayoutEffect(() => {
+        if (!svg) return;
+
+        const svgElement = chartContentRef.current?.querySelector('svg');
+        if (!svgElement) return;
+
+        const measuredWidth = svgElement.getBoundingClientRect().width || svgElement.viewBox.baseVal.width;
+        const measuredHeight = svgElement.getBoundingClientRect().height || svgElement.viewBox.baseVal.height;
+        setChartSize({ width: measuredWidth, height: measuredHeight });
+    }, [svg]);
+
     // 错误状态展示（比默认的 SVG 好看）
     if (error) {
         return (
@@ -126,10 +238,105 @@ export const MermaidChart = ({ chart }: { chart: string }) => {
         );
     }
 
-    return (
-        <div className="my-8 w-full bg-white border border-slate-200 rounded-xl shadow-sm p-6 overflow-x-auto flex justify-center">
-            <div dangerouslySetInnerHTML={{ __html: svg }} />
+    const controls = (fullscreen = false) => (
+        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white/95 p-1.5 shadow-sm">
+            <button
+                type="button"
+                onClick={zoomOut}
+                disabled={scale <= MIN_MERMAID_SCALE}
+                className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+                title="缩小"
+            >
+                <ZoomOut className="w-4 h-4" />
+            </button>
+            <input
+                type="range"
+                min={MIN_MERMAID_SCALE * 100}
+                max={MAX_MERMAID_SCALE * 100}
+                step={MERMAID_SCALE_STEP * 100}
+                value={Math.round(scale * 100)}
+                onChange={updateScaleFromSlider}
+                className="mermaid-zoom-slider"
+                style={{
+                    '--mermaid-zoom-track': `linear-gradient(to right, #f97316 0%, #f97316 ${((scale - MIN_MERMAID_SCALE) / (MAX_MERMAID_SCALE - MIN_MERMAID_SCALE)) * 100}%, #e2e8f0 ${((scale - MIN_MERMAID_SCALE) / (MAX_MERMAID_SCALE - MIN_MERMAID_SCALE)) * 100}%, #e2e8f0 100%)`,
+                } as React.CSSProperties}
+                aria-label="调整流程图缩放比例"
+                title="拖动调整缩放"
+            />
+            <span className="min-w-12 text-center text-xs font-medium tabular-nums text-slate-500">
+                {Math.round(scale * 100)}%
+            </span>
+            <button
+                type="button"
+                onClick={zoomIn}
+                disabled={scale >= MAX_MERMAID_SCALE}
+                className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+                title="放大"
+            >
+                <ZoomIn className="w-4 h-4" />
+            </button>
+            <button
+                type="button"
+                onClick={resetZoom}
+                className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                title="还原"
+            >
+                <RotateCcw className="w-4 h-4" />
+            </button>
+            <button
+                type="button"
+                onClick={() => setIsFullscreen(!fullscreen)}
+                className="p-1.5 rounded-md text-slate-500 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                title={fullscreen ? '退出全屏' : '全屏展示'}
+            >
+                {fullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
         </div>
+    );
+
+    const chartBody = (fullscreen = false) => (
+        <div
+            className={`overflow-auto select-none ${scale > MIN_MERMAID_SCALE ? isDraggingChart ? 'cursor-grabbing' : 'cursor-grab' : ''} ${fullscreen ? 'h-full p-8 pt-16' : 'max-h-[70vh] p-6 pt-14'}`}
+            onWheel={handleChartWheel}
+            onMouseDown={handleChartMouseDown}
+            onMouseMove={handleChartMouseMove}
+            onMouseUp={stopChartDrag}
+            onMouseLeave={stopChartDrag}
+        >
+            <div
+                className="mx-auto"
+                style={{
+                    width: chartSize.width ? chartSize.width * scale : 'max-content',
+                    height: chartSize.height ? chartSize.height * scale : 'auto',
+                    minWidth: chartSize.width ? chartSize.width * scale : undefined,
+                }}
+            >
+                <div
+                    ref={chartContentRef}
+                    className="inline-block [&_svg]:max-w-none"
+                    style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
+                    dangerouslySetInnerHTML={{ __html: svg }}
+                />
+            </div>
+        </div>
+    );
+
+    return (
+        <>
+            <div className="not-prose relative my-8 w-full bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="absolute right-3 top-3 z-10">{controls()}</div>
+                {!isFullscreen && chartBody()}
+            </div>
+
+            {isFullscreen && (
+                <div className="fixed inset-0 z-[200] bg-slate-950/80 backdrop-blur-sm p-4">
+                    <div className="relative h-full w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+                        <div className="absolute right-4 top-4 z-10">{controls(true)}</div>
+                        {chartBody(true)}
+                    </div>
+                </div>
+            )}
+        </>
     );
 };
 
