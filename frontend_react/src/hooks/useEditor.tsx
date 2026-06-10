@@ -3,7 +3,7 @@ import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {CommandItem} from '../components/Editor/SlashMenu';
 import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
 import {createArticle, getArticleDetail, getArticlesByAnthology, updateArticle} from '../api/article';
-import {getCategoryList} from '../api/category';
+import {createCategory, getCategoryList} from '../api/category';
 import {useToast} from '../components/common/ToastProvider';
 import {uploadResource} from '../api/resources';
 import {AIConfigError, continueWritingWithAI, generateTagsWithAI, generateTitleWithAI, polishArticleWithAI} from '../api/ai';
@@ -97,6 +97,17 @@ const THEME_DOT_COLORS: Record<string, string> = {
     sky: 'bg-sky-600',
     amber: 'bg-amber-600',
     slate: 'bg-slate-500',
+};
+
+const mapEditorCategory = (item: { categoryId: string; name: string; themeId?: string }): Category => {
+    const themeId = item.themeId || 'blue';
+    const dotColor = THEME_DOT_COLORS[themeId] || THEME_DOT_COLORS['blue'];
+
+    return {
+        id: item.categoryId,
+        name: item.name,
+        color: item.categoryId === 'uncategorized' ? 'bg-slate-400' : dotColor
+    };
 };
 
 // React Node 需要在组件中渲染，这里定义配置，图标在组件中实例化或者这里直接用
@@ -915,18 +926,7 @@ export const useEditor = () => {
             try {
                 const data = await getCategoryList(); // 获取分类列表（包含未分类，因为未分类已入库）
 
-                const mappedCategories = data.map((item) => {
-                    // 获取主题色，默认为蓝色
-                    const themeId = item.themeId || 'blue';
-                    const dotColor = THEME_DOT_COLORS[themeId] || THEME_DOT_COLORS['blue'];
-
-                    return {
-                        id: item.categoryId,
-                        name: item.name,
-                        // 使用映射后的颜色，如果是未分类则使用灰色
-                        color: item.categoryId === 'uncategorized' ? 'bg-slate-400' : dotColor
-                    };
-                });
+                const mappedCategories = data.map(mapEditorCategory);
                 setCategories(mappedCategories);
 
                 // 如果没有分类，默认选中未分类（如果存在），否则选中第一个分类
@@ -944,6 +944,29 @@ export const useEditor = () => {
         };
         loadCategories();
     }, []); // 空依赖数组，只在组件挂载时加载一次
+
+    const handleCreateCategory = async (name: string) => {
+        const trimmedName = name.trim();
+        if (!trimmedName) return null;
+
+        try {
+            const createdCategory = await createCategory({
+                name: trimmedName,
+                description: '',
+                themeId: 'blue',
+                iconKey: 'Folder'
+            });
+            const mappedCategory = mapEditorCategory(createdCategory);
+            setCategories(prev => [...prev, mappedCategory]);
+            setCategory(mappedCategory);
+            toast.success('分类创建成功');
+            return mappedCategory;
+        } catch (error) {
+            console.error('创建分类失败:', error);
+            toast.error('创建分类失败');
+            return null;
+        }
+    };
 
     // 根据文集ID加载父级文章列表的函数
     const loadParentArticlesByCollId = async (collId: string) => {
@@ -1099,6 +1122,7 @@ export const useEditor = () => {
         title, setTitle,
         content,
         category, setCategory,
+        onCreateCategory: handleCreateCategory,
         categories,
         loadingCategories,
         parentArticle, setParentArticle,

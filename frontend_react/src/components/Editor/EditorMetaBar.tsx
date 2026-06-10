@@ -1,5 +1,5 @@
-import React, {useState} from 'react';
-import {ChevronDown, File, FileText, Folder, Loader2, Minus, Paperclip, Plus, Sparkles, Tag, X} from 'lucide-react';
+import React, {useEffect, useRef, useState} from 'react';
+import {Check, ChevronDown, File, FileText, Folder, Loader2, Minus, Paperclip, Plus, Sparkles, Tag, X} from 'lucide-react';
 import {formatFileSize} from '@/utils/format.ts';
 
 
@@ -27,6 +27,7 @@ export interface ParentArticleItem {
 export interface EditorMetaBarProps {
     category: Category | null;
     setCategory: (cat: Category | null) => void;
+    onCreateCategory?: (name: string) => Promise<Category | null>;
     categories: Category[];
     loadingCategories?: boolean;
 
@@ -50,6 +51,7 @@ export interface EditorMetaBarProps {
 export const EditorMetaBar = ({
     category,
     setCategory,
+    onCreateCategory,
     categories,
     loadingCategories,
     parentArticle,
@@ -69,6 +71,39 @@ export const EditorMetaBar = ({
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const [isParentOpen, setIsParentOpen] = useState(false);
     const [tagInput, setTagInput] = useState('');
+    const [isAddingCategory, setIsAddingCategory] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+    const categoryInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (isAddingCategory) {
+            categoryInputRef.current?.focus();
+        }
+    }, [isAddingCategory]);
+
+    const closeCategoryMenu = () => {
+        setIsCategoryOpen(false);
+        setIsAddingCategory(false);
+        setNewCategoryName('');
+    };
+
+    const handleCreateCategory = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const trimmedName = newCategoryName.trim();
+        if (!onCreateCategory || !trimmedName || isCreatingCategory) return;
+
+        try {
+            setIsCreatingCategory(true);
+            const createdCategory = await onCreateCategory(trimmedName);
+
+            if (createdCategory) {
+                closeCategoryMenu();
+            }
+        } finally {
+            setIsCreatingCategory(false);
+        }
+    };
 
     const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter' && tagInput.trim()) {
@@ -96,13 +131,50 @@ export const EditorMetaBar = ({
                     </button>
                     {isCategoryOpen && (
                         <>
-                            <div className="fixed inset-0 z-20" onClick={() => setIsCategoryOpen(false)}></div>
-                            <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100 z-[100]">
-                                {categories.map(cat => (
-                                    <button key={cat.id} onClick={() => { setCategory(cat); setIsCategoryOpen(false); }} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 text-slate-700 flex items-center gap-2 ${category?.id === cat.id ? 'bg-slate-50' : ''}`}>
-                                        <span className={`w-2 h-2 rounded-full ${cat.color}`}></span>{cat.name}
-                                    </button>
-                                ))}
+                            <div className="fixed inset-0 z-20" onClick={closeCategoryMenu}></div>
+                            <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-slate-100 py-1 animate-in fade-in zoom-in-95 duration-100 z-[100]">
+                                <div className="max-h-56 overflow-y-auto py-1">
+                                    {categories.map(cat => (
+                                        <button key={cat.id} onClick={() => { setCategory(cat); closeCategoryMenu(); }} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 text-slate-700 flex items-center gap-2 ${category?.id === cat.id ? 'bg-slate-50' : ''}`}>
+                                            <span className={`w-2 h-2 rounded-full ${cat.color}`}></span>{cat.name}
+                                        </button>
+                                    ))}
+                                </div>
+                                {onCreateCategory && (
+                                    <div className="border-t border-slate-100 p-2">
+                                        {isAddingCategory ? (
+                                            <form onSubmit={handleCreateCategory} className="flex items-center gap-1.5">
+                                                <input
+                                                    ref={categoryInputRef}
+                                                    type="text"
+                                                    value={newCategoryName}
+                                                    onChange={e => setNewCategoryName(e.target.value.replace(/\s+/g, ''))}
+                                                    maxLength={10}
+                                                    placeholder="新分类名称"
+                                                    disabled={isCreatingCategory}
+                                                    className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 disabled:opacity-60"
+                                                />
+                                                <button
+                                                    type="submit"
+                                                    disabled={!newCategoryName.trim() || isCreatingCategory}
+                                                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-orange-500 text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    title="创建分类"
+                                                >
+                                                    {isCreatingCategory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                                                </button>
+                                            </form>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsAddingCategory(true)}
+                                                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium text-orange-600 transition-colors hover:bg-orange-50"
+                                            >
+                                                <Plus className="h-3.5 w-3.5" />
+                                                新建分类
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </>
                     )}

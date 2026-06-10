@@ -121,7 +121,7 @@ export default function EditorPage() {
         textareaRef, fileInputRef, attachmentInputRef,
         title, setTitle,
         content,
-        category, setCategory,
+        category, setCategory, onCreateCategory,
         categories, loadingCategories,
         parentArticle, setParentArticle,
         parentArticles, loadingParentArticles,
@@ -341,6 +341,7 @@ export default function EditorPage() {
                                 className={`transition-all duration-500 ${isPolishing ? 'opacity-0 translate-y-[-10px]' : 'opacity-100 translate-y-0'} relative z-20`}>
                                 <EditorMetaBar
                                     category={category} setCategory={setCategory} categories={categories}
+                                    onCreateCategory={onCreateCategory}
                                     loadingCategories={loadingCategories}
                                     parentArticle={parentArticle} setParentArticle={setParentArticle}
                                     parentArticles={parentArticles} loadingParentArticles={loadingParentArticles}
