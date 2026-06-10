@@ -1,8 +1,10 @@
 import base64
 from io import BytesIO
+import json
 import logging
 import mimetypes
 import os
+import re
 import threading
 from urllib.parse import unquote
 
@@ -16,7 +18,7 @@ from PIL import Image as PILImage
 from rest_framework.views import APIView
 
 from article.models import Article, Image
-from article.prompts import POLISH_ARTICLE_PROMPT_TEMPLATE
+from article.prompts import ARTICLE_MIND_MAP_PROMPT_TEMPLATE, POLISH_ARTICLE_PROMPT_TEMPLATE
 from article.serializers import ArticleSerializer, ArticleTreeSerializer, ImageSerializer
 from utils.ai_service import AIService
 from utils.error_codes import ErrorCode
@@ -39,6 +41,9 @@ logger = logging.getLogger(__name__)
 
 IMAGE_DESCRIPTION_MAX_EDGE = 1280
 IMAGE_DESCRIPTION_JPEG_QUALITY = 82
+MIND_MAP_MAX_CONTENT_CHARS = 10000
+MIND_MAP_MAX_DEPTH = 4
+MIND_MAP_MAX_CHILDREN = 6
 
 
 def get_visible_anthology_queryset(request):
@@ -152,6 +157,67 @@ def refresh_anthology_stats(coll_id):
         anthology.update_stats()
     except Anthology.DoesNotExist:
         pass
+
+
+def _extract_json_object(raw_text):
+    if not raw_text:
+        raise ValueError("AI 未返回内容")
+
+    text = AIService.strip_thinking(raw_text).strip()
+    fenced_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL | re.IGNORECASE)
+    if fenced_match:
+        text = fenced_match.group(1).strip()
+    elif not text.startswith('{'):
+        start = text.find('{')
+        end = text.rfind('}')
+        if start >= 0 and end > start:
+            text = text[start:end + 1]
+
+    return json.loads(text)
+
+
+def _normalize_mind_map_node(node, fallback_title, depth=1):
+    if not isinstance(node, dict):
+        return None
+
+    title = str(node.get('title') or fallback_title or '思维导图').strip()
+    if not title:
+        title = fallback_title or '思维导图'
+    title = title[:48]
+
+    normalized = {
+        'title': title,
+        'children': [],
+    }
+
+    if depth >= MIND_MAP_MAX_DEPTH:
+        return normalized
+
+    raw_children = node.get('children') if isinstance(node.get('children'), list) else []
+    children = []
+    for child in raw_children[:MIND_MAP_MAX_CHILDREN]:
+        normalized_child = _normalize_mind_map_node(child, '', depth + 1)
+        if normalized_child:
+            children.append(normalized_child)
+    normalized['children'] = children
+
+    return normalized
+
+
+def build_article_mind_map(article):
+    content_snippet = (article.content or '')[:MIND_MAP_MAX_CONTENT_CHARS]
+    prompt = ARTICLE_MIND_MAP_PROMPT_TEMPLATE.format(
+        title=article.title,
+        content=content_snippet,
+    )
+    raw_result = AIService.chat_completion(prompt, use_simple_model=True)
+    parsed = _extract_json_object(raw_result)
+    mind_map = _normalize_mind_map_node(parsed, article.title)
+
+    if not mind_map or not mind_map.get('children'):
+        raise ValueError("AI 未生成可用的思维导图")
+
+    return mind_map
 
 
 class ArticlePolisher:
@@ -307,6 +373,45 @@ class ArticleDetailView(APIView):
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
 
 
+class ArticleMindMapGenerateView(APIView):
+    """
+    生成或获取文章思维导图。
+    如果文章已记录思维导图，直接返回；否则根据文章内容生成并保存。
+    """
+
+    def post(self, request, article_id):
+        try:
+            article = get_object_or_404(Article, article_id=article_id, is_valid=True)
+            if not can_access_anthology(request, article.coll_id):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+            if article.mind_map:
+                return success_result(data={
+                    'mind_map': article.mind_map,
+                    'generated': False,
+                })
+
+            if not can_manage_anthology(request, article.coll_id, 'article'):
+                return error_result(ErrorCode.PERMISSION_DENIED)
+
+            if not (article.content or '').strip():
+                return error_result(ErrorCode.PARAM_ERROR, "文章内容为空，无法生成思维导图")
+
+            mind_map = build_article_mind_map(article)
+            article.mind_map = mind_map
+            article.save(update_fields=['mind_map', 'updated_at'])
+
+            return success_result(data={
+                'mind_map': mind_map,
+                'generated': True,
+            })
+        except ValueError as e:
+            return error_result(ErrorCode.AI_SERVICE_ERROR, str(e))
+        except Exception as e:
+            logger.error(f"ArticleMindMapGenerateView Exception: {e}", exc_info=True)
+            return error_result(ErrorCode.SYSTEM_ERROR, str(e))
+
+
 class ArticleUpdateView(APIView):
     """
     更新文章视图
@@ -329,8 +434,12 @@ class ArticleUpdateView(APIView):
         if not can_manage_anthology(request, target_coll_id, 'article'):
             return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
+        update_kwargs = {'is_rag_synced': False}
+        if 'content' in serializer.validated_data and serializer.validated_data['content'] != article.content:
+            update_kwargs['mind_map'] = {}
+
         # 保存更新
-        article = serializer.save(is_rag_synced=False)
+        article = serializer.save(**update_kwargs)
 
         # 必然更新当前文集
         refresh_anthology_stats(article.coll_id)

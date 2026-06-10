@@ -306,6 +306,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                                 updatedAt={articleDetail?.updatedAt}
                                 lastRagSyncedAt={articleDetail?.lastRagSyncedAt}
                                 isRagSynced={articleDetail?.isRagSynced}
+                                mindMap={articleDetail?.mindMap}
                                 tocLayout="inline"
                             />
                         </div>

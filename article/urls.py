@@ -4,6 +4,7 @@ from article.views import (
     ArticleUpdateView, ArticleDeleteView,
     ArticleListView, ArticleTreeListView,
     ArticleSaveWebView, ArticlePolishView,
+    ArticleMindMapGenerateView,
     ImageListView, ImageDetailView,
     ImageCreateView, ImageUpdateView, ImageDeleteView,
     ImageDescriptionGenerateView
@@ -31,6 +32,9 @@ urlpatterns = [
     path('save-web/', ArticleSaveWebView.as_view(), name='save_web_article'),
     # 文章润色同步API
     path('polish', ArticlePolishView.as_view(), name='polish-article'),
+
+    # 生成或获取文章思维导图
+    path('mind-map/<str:article_id>', ArticleMindMapGenerateView.as_view(), name='article-mind-map'),
 
     # ========== 图片相关 ==========
     # 图片列表（按文集ID）

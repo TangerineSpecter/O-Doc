@@ -1,4 +1,9 @@
 // 文章接口定义
+export interface MindMapNode {
+    title: string;
+    children?: MindMapNode[];
+}
+
 export interface Article {
     id: number;
     articleId: string;
@@ -44,6 +49,7 @@ export interface Article {
     source_url?: string;
     isRagSynced?: boolean;
     lastRagSyncedAt?: string;
+    mindMap?: MindMapNode;
 }
 
 //前端列表通用的文章项类型 (ViewModel)

@@ -179,6 +179,13 @@ class Article(models.Model):
         db_comment="上次同步到RAG的时间"
     )
 
+    mind_map = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="文章思维导图结构化数据",
+        db_comment="文章思维导图结构化数据"
+    )
+
     class Meta:
         verbose_name = '文章'
         verbose_name_plural = '文章管理'

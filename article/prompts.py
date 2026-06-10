@@ -34,3 +34,33 @@ POLISH_ARTICLE_PROMPT_TEMPLATE = """
 待润色内容：
 {content}
 """
+
+
+ARTICLE_MIND_MAP_PROMPT_TEMPLATE = """
+请根据以下文章生成一份适合前端展示的思维导图。
+
+要求：
+1. 只返回 JSON，不要返回 Markdown 代码块、解释、前后缀。
+2. JSON 根节点格式必须是：
+{{
+  "title": "根节点标题",
+  "children": [
+    {{
+      "title": "一级节点",
+      "children": [
+        {{"title": "二级节点", "children": []}}
+      ]
+    }}
+  ]
+}}
+3. title 必须简洁，每个节点不超过 18 个中文字符或 36 个英文字符。
+4. 最多 4 层，每层最多 6 个子节点，优先保留文章主线、关键概念、步骤、结论。
+5. 使用文章本身的语言。
+6. 不要编造文章没有的信息。
+
+文章标题：
+{title}
+
+文章内容：
+{content}
+"""

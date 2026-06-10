@@ -5,7 +5,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
-import {Download, FileDown, Loader2, Paperclip} from 'lucide-react';
+import {BrainCircuit, Download, FileDown, Loader2, Paperclip} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {useToast} from '../components/common/ToastProvider';
 import {useArticle} from '../hooks/useArticle';
@@ -14,6 +14,9 @@ import {SyncStatusType, TableOfContents} from '../components/Article/TableOfCont
 import {formatFileSize} from '@/utils/format';
 import {useReadStats} from '../hooks/useReadStats';
 import {syncArticleToRag} from '../api/rag';
+import {generateArticleMindMap} from '../api/article';
+import MindMapModal from '../components/Article/MindMapModal';
+import type {MindMapNode} from '@/types/api/article';
 
 export interface AttachmentItem {
     id: string;
@@ -214,6 +217,7 @@ interface ArticleProps {
     updatedAt?: string;
     lastRagSyncedAt?: string;
     isRagSynced?: boolean;
+    mindMap?: MindMapNode;
     tocLayout?: 'absolute' | 'inline';
     author?: string;
     authorName?: string;
@@ -238,6 +242,7 @@ export default function Article({
                                     disableLinks = false,
                                     lastRagSyncedAt,
                                     isRagSynced,
+                                    mindMap,
                                     tocLayout = 'absolute',
                                     author,
                                     authorName
@@ -283,6 +288,13 @@ export default function Article({
     const toast = useToast();
     const [isSyncing, setIsSyncing] = React.useState(false);
     const [isExportingPdf, setIsExportingPdf] = useState(false);
+    const [isMindMapOpen, setIsMindMapOpen] = useState(false);
+    const [isGeneratingMindMap, setIsGeneratingMindMap] = useState(false);
+    const [localMindMap, setLocalMindMap] = useState<MindMapNode | undefined>(mindMap);
+
+    useEffect(() => {
+        setLocalMindMap(mindMap);
+    }, [mindMap, articleId]);
 
     // 2. 计算同步状态逻辑
     const syncStatus: SyncStatusType = useMemo(() => {
@@ -316,6 +328,28 @@ export default function Article({
             toast.error(error instanceof Error ? error.message : '同步失败，请检查模型连通性');
         } finally {
             setIsSyncing(false);
+        }
+    };
+
+    const handleOpenMindMap = async () => {
+        if (localMindMap?.children?.length) {
+            setIsMindMapOpen(true);
+            return;
+        }
+
+        if (!articleId || isGeneratingMindMap) return;
+
+        setIsGeneratingMindMap(true);
+        try {
+            const result = await generateArticleMindMap(articleId);
+            setLocalMindMap(result.mindMap);
+            setIsMindMapOpen(true);
+            toast.success(result.generated ? '思维导图生成完成' : '已打开思维导图');
+        } catch (error) {
+            console.error(error);
+            toast.error(error instanceof Error ? error.message : '生成思维导图失败');
+        } finally {
+            setIsGeneratingMindMap(false);
         }
     };
 
@@ -464,11 +498,18 @@ export default function Article({
     }
 
     const useInlineToc = tocLayout === 'inline';
+    const hasMindMap = !!localMindMap?.children?.length;
+    const canShowMindMapButton = !!articleId && (canManage || hasMindMap);
 
     return (
         <>
             <style>{CUSTOM_STYLES}</style>
             <style>{PRINT_STYLES}</style>
+            <MindMapModal
+                isOpen={isMindMapOpen}
+                mindMap={localMindMap}
+                onClose={() => setIsMindMapOpen(false)}
+            />
 
             <div
                 className={`min-h-screen bg-white transition-colors duration-300 ${isEmbedded ? '!bg-transparent !min-h-full' : ''}`}>
@@ -500,11 +541,33 @@ export default function Article({
                                     </button>
                                 ))}
 
+                                {canShowMindMapButton && (
+                                    <button
+                                        type="button"
+                                        onClick={handleOpenMindMap}
+                                        disabled={isGeneratingMindMap}
+                                        className={`
+                                            article-print-hidden ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors disabled:opacity-70 disabled:cursor-not-allowed
+                                            ${hasMindMap
+                                                ? 'text-orange-600 bg-orange-50 hover:bg-orange-100 border-orange-100 hover:border-orange-200'
+                                                : 'text-slate-600 bg-white hover:bg-slate-50 border-slate-200 hover:border-orange-200 hover:text-orange-600'}
+                                        `}
+                                        title={hasMindMap ? '查看思维导图' : '生成思维导图'}
+                                    >
+                                        {isGeneratingMindMap ? (
+                                            <Loader2 className="w-4 h-4 animate-spin"/>
+                                        ) : (
+                                            <BrainCircuit className="w-4 h-4"/>
+                                        )}
+                                        {isGeneratingMindMap ? '生成中' : hasMindMap ? '查看导图' : '生成导图'}
+                                    </button>
+                                )}
+
                                 <button
                                     type="button"
                                     onClick={handleExportPdf}
                                     disabled={isExportingPdf}
-                                    className="article-print-hidden ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-100 hover:border-orange-200 rounded-lg transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                                    className="article-print-hidden inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-100 hover:border-orange-200 rounded-lg transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                                     title="导出为 PDF"
                                 >
                                     {isExportingPdf ? (

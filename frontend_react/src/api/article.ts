@@ -1,8 +1,13 @@
 import request from '../utils/request';
-import type { Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams } from '../types/api/article';
+import type { Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams, MindMapNode } from '../types/api/article';
 
 // 重新导出类型以便其他组件使用
 export type { Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams };
+
+export interface ArticleMindMapResult {
+    mindMap: MindMapNode;
+    generated: boolean;
+}
 
 /**
  * 创建文章
@@ -64,4 +69,11 @@ export const getArticleTreeByAnthology = async (collId: string): Promise<Article
  */
 export const saveWebpageAsArticle = async (params?: SaveWebpageParams): Promise<Article> => {    // 假设后端接口路径为 /article/save-web/，请根据实际情况修改
     return request.post('/article/save-web/', params, {timeout: 60000});
+};
+
+/**
+ * 生成或获取文章思维导图
+ */
+export const generateArticleMindMap = async (articleId: string): Promise<ArticleMindMapResult> => {
+    return request.post(`/article/mind-map/${articleId}`, {}, {timeout: 60000});
 };
