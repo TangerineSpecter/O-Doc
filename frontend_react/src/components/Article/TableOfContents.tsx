@@ -1,3 +1,4 @@
+import type {ReactNode} from 'react';
 import {AlertTriangle, CheckCircle2, Edit3, RefreshCw, Trash2, X} from 'lucide-react'; // [修改] 引入 RefreshCw
 import {HeaderItem} from '@/hooks/useArticle.ts';
 
@@ -16,6 +17,7 @@ interface TableOfContentsProps {
     lastSyncedTime?: string;
     layout?: 'absolute' | 'inline' | 'mobile';
     onClose?: () => void;
+    topActions?: ReactNode;
 }
 
 export const TableOfContents = ({
@@ -29,7 +31,8 @@ export const TableOfContents = ({
                                     syncStatus = 'not_synced', // 默认为未同步
                                     lastSyncedTime,
                                     layout = 'absolute',
-                                    onClose
+                                    onClose,
+                                    topActions
                                 }: TableOfContentsProps) => {
     // 根据状态计算按钮样式和提示文案
     const getSyncButtonState = () => {
@@ -121,6 +124,12 @@ export const TableOfContents = ({
                                 <Trash2 className="w-3.5 h-3.5"/>
                             </button>
                         )}
+                    </div>
+                )}
+
+                {topActions && (
+                    <div className={isMobileLayout ? 'px-4 pb-3' : 'mb-4'}>
+                        {topActions}
                     </div>
                 )}
 

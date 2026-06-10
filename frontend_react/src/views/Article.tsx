@@ -510,6 +510,46 @@ export default function Article({
     const useInlineToc = tocLayout === 'inline';
     const hasMindMap = !!localMindMap?.children?.length;
     const canShowMindMapButton = !!articleId && (canManage || hasMindMap);
+    const tocTopActions = (
+        <div className="flex flex-wrap items-center gap-2">
+            {canShowMindMapButton && (
+                <button
+                    type="button"
+                    onClick={handleOpenMindMap}
+                    disabled={isGeneratingMindMap}
+                    className={`
+                        inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border shadow-sm transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-70
+                        ${hasMindMap
+                            ? 'text-orange-600 bg-orange-50 hover:bg-orange-100 border-orange-100 hover:border-orange-200'
+                            : 'text-slate-600 bg-white hover:bg-orange-50 border-slate-200 hover:border-orange-200 hover:text-orange-600'}
+                    `}
+                    title={hasMindMap ? '查看思维导图' : '生成思维导图'}
+                >
+                    {isGeneratingMindMap ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin"/>
+                    ) : (
+                        <BrainCircuit className="h-3.5 w-3.5"/>
+                    )}
+                    <span>{isGeneratingMindMap ? '生成中' : hasMindMap ? '查看导图' : '生成导图'}</span>
+                </button>
+            )}
+
+            <button
+                type="button"
+                onClick={handleExportPdf}
+                disabled={isExportingPdf}
+                className="inline-flex items-center justify-center rounded-md border border-orange-100 bg-orange-50 p-1.5 text-orange-600 shadow-sm transition-all duration-200 hover:border-orange-200 hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-70"
+                title={isExportingPdf ? '正在生成 PDF' : '导出 PDF'}
+                aria-label={isExportingPdf ? '正在生成 PDF' : '导出 PDF'}
+            >
+                {isExportingPdf ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin"/>
+                ) : (
+                    <FileDown className="h-3.5 w-3.5"/>
+                )}
+            </button>
+        </div>
+    );
 
     return (
         <>
@@ -554,43 +594,6 @@ export default function Article({
                                 </div>
 
                                 <div className="article-print-hidden flex flex-wrap items-center gap-2 sm:justify-end">
-                                    {canShowMindMapButton && (
-                                        <button
-                                            type="button"
-                                            onClick={handleOpenMindMap}
-                                            disabled={isGeneratingMindMap}
-                                            className={`
-                                                inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors disabled:opacity-70 disabled:cursor-not-allowed
-                                                ${hasMindMap
-                                                    ? 'text-orange-600 bg-orange-50 hover:bg-orange-100 border-orange-100 hover:border-orange-200'
-                                                    : 'text-slate-600 bg-white hover:bg-slate-50 border-slate-200 hover:border-orange-200 hover:text-orange-600'}
-                                            `}
-                                            title={hasMindMap ? '查看思维导图' : '生成思维导图'}
-                                        >
-                                            {isGeneratingMindMap ? (
-                                                <Loader2 className="w-4 h-4 animate-spin"/>
-                                            ) : (
-                                                <BrainCircuit className="w-4 h-4"/>
-                                            )}
-                                            {isGeneratingMindMap ? '生成中' : hasMindMap ? '查看导图' : '生成导图'}
-                                        </button>
-                                    )}
-
-                                    <button
-                                        type="button"
-                                        onClick={handleExportPdf}
-                                        disabled={isExportingPdf}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-100 hover:border-orange-200 rounded-lg transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
-                                        title="导出为 PDF"
-                                    >
-                                        {isExportingPdf ? (
-                                            <Loader2 className="w-4 h-4 animate-spin"/>
-                                        ) : (
-                                            <FileDown className="w-4 h-4"/>
-                                        )}
-                                        {isExportingPdf ? '生成中' : '导出 PDF'}
-                                    </button>
-
                                     {onBack && !disableLinks && (
                                         <button onClick={onBack}
                                                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
@@ -687,6 +690,7 @@ export default function Article({
                             syncStatus={syncStatus}
                             lastSyncedTime={localSyncedTime}
                             layout={tocLayout}
+                            topActions={tocTopActions}
                         />
                     </div>
                     </div>
