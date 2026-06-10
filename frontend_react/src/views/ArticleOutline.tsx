@@ -1,5 +1,5 @@
-import {useEffect, useRef, useState} from 'react';
-import {Menu} from 'lucide-react';
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {ListTree, Menu} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import Article from './Article';
 import ConfirmationModal from '../components/common/ConfirmationModal';
@@ -41,7 +41,9 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
     } = useArticleTree(collId);
 
     const [activeDocId, setActiveDocId] = useState<string | undefined>(articleId);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 768);
+    const [isMobileTocOpen, setIsMobileTocOpen] = useState(false);
+    const [hasArticleToc, setHasArticleToc] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isWebpageModalOpen, setIsWebpageModalOpen] = useState(false); // 新增状态
 
@@ -57,6 +59,8 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
     useEffect(() => {
         setActiveDocId(articleId);
+        setIsMobileTocOpen(false);
+        setHasArticleToc(false);
     }, [articleId]);
 
     useEffect(() => {
@@ -102,6 +106,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
     const handleSelectDoc = (docArticleId: string) => {
         setActiveDocId(docArticleId);
         if (window.innerWidth < 768) setIsSidebarOpen(false);
+        setIsMobileTocOpen(false);
         const mainContainer = document.getElementById('right-content-window');
         if (mainContainer) mainContainer.scrollTo({top: 0, behavior: 'smooth'});
         if (onNavigate) onNavigate('article', {collId, articleId: docArticleId});
@@ -109,8 +114,15 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
     const handleResetView = () => {
         setActiveDocId(undefined);
+        setIsMobileTocOpen(false);
+        setHasArticleToc(false);
         if (onNavigate) onNavigate('article', {collId});
     };
+
+    const handleTocAvailabilityChange = useCallback((hasToc: boolean) => {
+        setHasArticleToc(hasToc);
+        if (!hasToc) setIsMobileTocOpen(false);
+    }, []);
 
     //新建文档
     const handleCreateDoc = () => {
@@ -235,8 +247,21 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                 />
             )}
 
+            {isSidebarOpen && (
+                <button
+                    type="button"
+                    className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[1px] md:hidden"
+                    onClick={() => setIsSidebarOpen(false)}
+                    aria-label="关闭文集目录"
+                />
+            )}
+
             <OutlineSidebar
-                className={`${isSidebarOpen ? 'block' : 'hidden md:flex'} w-72`}
+                className={`
+                    fixed inset-y-0 left-0 z-50 w-[min(82vw,20rem)] transform shadow-2xl transition-transform duration-300 ease-out
+                    md:relative md:inset-auto md:z-auto md:w-72 md:translate-x-0 md:shadow-none
+                    ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+                `}
                 title={displayTitle}
                 docs={filteredDocs}
                 activeDocId={activeDocId}
@@ -254,13 +279,30 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
             />
 
             <main id="right-content-window"
-                  className="flex-1 bg-white relative overflow-y-auto overflow-x-hidden scroll-smooth">
+                  className="min-w-0 flex-1 bg-white relative overflow-y-auto overflow-x-hidden scroll-smooth">
                 <div
-                    className="md:hidden sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 h-12 flex items-center">
-                    <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="mr-3 text-slate-600">
-                        <Menu size={20}/>
+                    className="md:hidden sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-3 h-12 flex items-center justify-between">
+                    <button
+                        type="button"
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                    >
+                        <Menu size={18}/>
+                        <span>文集目录</span>
                     </button>
-                    <span className="font-bold text-slate-700">{activeDocId ? '文章详情' : '目录大纲'}</span>
+                    <span className="min-w-0 truncate px-2 text-sm font-bold text-slate-700">{activeDocId ? '文章详情' : '目录大纲'}</span>
+                    {activeDocId && hasArticleToc ? (
+                        <button
+                            type="button"
+                            onClick={() => setIsMobileTocOpen(true)}
+                            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-orange-600 transition-colors hover:bg-orange-50"
+                        >
+                            <ListTree size={18}/>
+                            <span>本文目录</span>
+                        </button>
+                    ) : (
+                        <span className="w-[5.5rem]" aria-hidden="true"/>
+                    )}
                 </div>
 
                 {activeDocId ? (
@@ -308,6 +350,9 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                                 isRagSynced={articleDetail?.isRagSynced}
                                 mindMap={articleDetail?.mindMap}
                                 tocLayout="inline"
+                                mobileTocOpen={isMobileTocOpen}
+                                onMobileTocClose={() => setIsMobileTocOpen(false)}
+                                onTocAvailabilityChange={handleTocAvailabilityChange}
                             />
                         </div>
                     </div>

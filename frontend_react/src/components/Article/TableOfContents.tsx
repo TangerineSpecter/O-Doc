@@ -1,4 +1,4 @@
-import {AlertTriangle, CheckCircle2, Edit3, RefreshCw, Trash2} from 'lucide-react'; // [修改] 引入 RefreshCw
+import {AlertTriangle, CheckCircle2, Edit3, RefreshCw, Trash2, X} from 'lucide-react'; // [修改] 引入 RefreshCw
 import {HeaderItem} from '@/hooks/useArticle.ts';
 
 // 定义三种状态类型
@@ -14,7 +14,8 @@ interface TableOfContentsProps {
     isSyncing?: boolean;
     syncStatus?: SyncStatusType;
     lastSyncedTime?: string;
-    layout?: 'absolute' | 'inline';
+    layout?: 'absolute' | 'inline' | 'mobile';
+    onClose?: () => void;
 }
 
 export const TableOfContents = ({
@@ -27,7 +28,8 @@ export const TableOfContents = ({
                                     isSyncing = false,
                                     syncStatus = 'not_synced', // 默认为未同步
                                     lastSyncedTime,
-                                    layout = 'absolute'
+                                    layout = 'absolute',
+                                    onClose
                                 }: TableOfContentsProps) => {
     // 根据状态计算按钮样式和提示文案
     const getSyncButtonState = () => {
@@ -72,18 +74,21 @@ export const TableOfContents = ({
 
     const btnState = getSyncButtonState();
     const Icon = btnState.icon;
-    const visibilityClass = isEmbedded ? 'hidden 2xl:block' : 'hidden xl:block';
-    const layoutClass = layout === 'inline'
-        ? 'relative h-full w-64 shrink-0'
-        : 'absolute left-full top-0 ml-4 h-full w-64';
+    const isMobileLayout = layout === 'mobile';
+    const visibilityClass = isMobileLayout ? 'block' : isEmbedded ? 'hidden 2xl:block' : 'hidden xl:block';
+    const layoutClass = isMobileLayout
+        ? 'h-full w-full'
+        : layout === 'inline'
+            ? 'relative h-full w-64 shrink-0'
+            : 'absolute left-full top-0 ml-4 h-full w-64';
 
     return (
         <div className={`${visibilityClass} ${layoutClass}`}>
-            <div className="sticky top-6">
+            <div className={isMobileLayout ? 'flex h-full flex-col' : 'sticky top-6'}>
 
                 {/* 操作按钮组 */}
                 {(onEdit || onDelete || onSync) && (
-                    <div className="flex items-center gap-2 mb-4">
+                    <div className={`${isMobileLayout ? 'px-4 pb-3' : 'mb-4'} flex items-center gap-2`}>
                         {onEdit && (
                             <button
                                 onClick={onEdit}
@@ -121,13 +126,26 @@ export const TableOfContents = ({
 
                 {headers && headers.length > 0 && (
                     <>
-                        <h5 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> 目录
-                        </h5>
-                        <ul className="space-y-1 relative border-l border-slate-200">
+                        <div className={`${isMobileLayout ? 'px-4 py-3 border-b border-slate-100' : 'mb-4'} flex items-center justify-between`}>
+                            <h5 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> 目录
+                            </h5>
+                            {isMobileLayout && onClose && (
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                                    title="关闭目录"
+                                >
+                                    <X className="h-4 w-4"/>
+                                </button>
+                            )}
+                        </div>
+                        <ul className={`${isMobileLayout ? 'flex-1 overflow-y-auto px-4 py-3 custom-scrollbar' : 'max-h-[calc(100vh-7rem)] overflow-y-auto pr-2 custom-scrollbar'} space-y-1 relative border-l border-slate-200`}>
                             {headers.map((h, i) => (
                                 <li key={i}>
                                     <a href={`#${h.slug}`}
+                                       onClick={onClose}
                                        className={`block text-sm py-1.5 border-l-2 transition-all truncate ${h.level > 2 ? 'pl-6 text-xs' : 'pl-4'} ${activeId === h.slug ? 'border-[#0ea5e9] text-[#0ea5e9] font-medium bg-sky-50/30' : 'border-transparent text-slate-500 hover:text-slate-900'}`}>
                                         {h.text}
                                     </a>

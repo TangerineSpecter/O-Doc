@@ -26,6 +26,15 @@ export const CUSTOM_STYLES = `
   /* 1. 隐藏行内代码的反引号 */
   .prose :where(code):not(:where([class~="not-prose"] *))::before { content: none !important; }
   .prose :where(code):not(:where([class~="not-prose"] *))::after { content: none !important; }
+  .article-inline-code {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+    word-break: break-word;
+  }
+  .prose table .article-inline-code {
+    white-space: nowrap;
+    word-break: normal;
+  }
 
   /* 2. 确保公式过长时可以内部滚动，而不是撑开页面 */
   .katex-display { overflow-x: auto; overflow-y: hidden; max-width: 100%; }

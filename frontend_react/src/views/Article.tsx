@@ -221,6 +221,9 @@ interface ArticleProps {
     tocLayout?: 'absolute' | 'inline';
     author?: string;
     authorName?: string;
+    mobileTocOpen?: boolean;
+    onMobileTocClose?: () => void;
+    onTocAvailabilityChange?: (hasToc: boolean) => void;
 }
 
 export default function Article({
@@ -245,7 +248,10 @@ export default function Article({
                                     mindMap,
                                     tocLayout = 'absolute',
                                     author,
-                                    authorName
+                                    authorName,
+                                    mobileTocOpen = false,
+                                    onMobileTocClose,
+                                    onTocAvailabilityChange
                                 }: ArticleProps) {
     const navigate = useNavigate();
 
@@ -272,6 +278,10 @@ export default function Article({
         showScrollTop,
         handleScrollToTop
     } = useArticle(displayMarkdown, scrollContainerId);
+
+    useEffect(() => {
+        onTocAvailabilityChange?.(headers.length > 0);
+    }, [headers.length, onTocAvailabilityChange]);
 
     // 1. 本地状态管理同步时间，以便同步成功后即时刷新 UI，无需重新请求接口
     const [localSyncedTime, setLocalSyncedTime] = useState<string | undefined>(lastRagSyncedAt);
@@ -435,7 +445,7 @@ export default function Article({
             }
             return (
                 <code
-                    className="bg-pink-50 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] mx-1 break-words" {...props}>
+                    className="article-inline-code bg-pink-50 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] mx-1 break-words leading-[1.9]" {...props}>
                     {children}
                 </code>
             );
@@ -465,8 +475,8 @@ export default function Article({
         h4: ({children}: { children: ReactNode }) => <h4
             id={String(children).toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-')}>{children}</h4>,
         table: ({children}: { children: ReactNode }) => <div
-            className="overflow-x-auto my-8 border border-gray-200 rounded-lg">
-            <table className="w-full text-sm text-left my-0">{children}</table>
+            className="not-prose overflow-x-auto my-8 border border-gray-200 rounded-lg">
+            <table className="w-full min-w-[36rem] text-sm text-left my-0">{children}</table>
         </div>,
         th: ({children}: { children: ReactNode }) => <th
             className="bg-gray-50 px-4 py-3 font-semibold text-gray-700 border-b border-gray-200">{children}</th>,
@@ -515,83 +525,87 @@ export default function Article({
                 className={`min-h-screen bg-white transition-colors duration-300 ${isEmbedded ? '!bg-transparent !min-h-full' : ''}`}>
 
                 <main
-                    className={`relative z-10 mx-auto px-4 ${useInlineToc ? 'max-w-[82rem]' : 'max-w-5xl'} ${isEmbedded ? 'py-6' : 'py-20'}`}>
+                    className={`relative z-10 mx-auto px-3 sm:px-4 ${useInlineToc ? 'max-w-[82rem]' : 'max-w-5xl'} ${isEmbedded ? 'py-4 sm:py-6' : 'py-10 sm:py-20'}`}>
                     <div className={useInlineToc ? 'grid grid-cols-1 justify-center gap-4 2xl:grid-cols-[minmax(0,64rem)_16rem]' : ''}>
-                    <div ref={articlePrintRef} className="article-print-page w-full max-w-5xl bg-white rounded-2xl p-8 sm:p-14 shadow-none ring-1 ring-slate-900/5">
+                    <div ref={articlePrintRef} className="article-print-page w-full max-w-5xl bg-white rounded-2xl p-5 sm:p-14 shadow-none ring-1 ring-slate-900/5">
 
                         {/* Header */}
-                        <header className="mb-10 pb-8 border-b border-slate-100">
-                            <div className="flex flex-wrap items-center gap-3 mb-6">
-                                <button
-                                    onClick={() => !disableLinks && navigate(`/categories?catId=${categoryId || displayCategory}`)}
-                                    // 修改：使用动态计算的 className 替代硬编码的 blue-600
-                                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold shadow-sm cursor-pointer hover:opacity-90 transition-all ${categoryThemeClass}`}
-                                >
-                                    {displayCategory}
-                                </button>
-
-                                {displayTags.map(tag => (
+                        <header className="mb-8 border-b border-slate-100 pb-6 sm:mb-10 sm:pb-8">
+                            <div className="mb-5 flex flex-col gap-4 sm:mb-6 lg:flex-row lg:items-start lg:justify-between">
+                                <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
                                     <button
-                                        key={tag}
-                                        onClick={() => !disableLinks && navigate(`/tags?tagId=${tag}`)}
-                                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 cursor-pointer hover:bg-indigo-100 transition-colors"
+                                        onClick={() => !disableLinks && navigate(`/categories?catId=${categoryId || displayCategory}`)}
+                                        // 修改：使用动态计算的 className 替代硬编码的 blue-600
+                                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold shadow-sm cursor-pointer hover:opacity-90 transition-all ${categoryThemeClass}`}
                                     >
-                                        <ArticleIcons.Tag className="w-3 h-3 mr-1 opacity-50"/>
-                                        {tag}
+                                        {displayCategory}
                                     </button>
-                                ))}
 
-                                {canShowMindMapButton && (
+                                    {displayTags.map(tag => (
+                                        <button
+                                            key={tag}
+                                            onClick={() => !disableLinks && navigate(`/tags?tagId=${tag}`)}
+                                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 cursor-pointer hover:bg-indigo-100 transition-colors"
+                                        >
+                                            <ArticleIcons.Tag className="w-3 h-3 mr-1 opacity-50"/>
+                                            {tag}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div className="article-print-hidden flex flex-wrap items-center gap-2 sm:justify-end">
+                                    {canShowMindMapButton && (
+                                        <button
+                                            type="button"
+                                            onClick={handleOpenMindMap}
+                                            disabled={isGeneratingMindMap}
+                                            className={`
+                                                inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors disabled:opacity-70 disabled:cursor-not-allowed
+                                                ${hasMindMap
+                                                    ? 'text-orange-600 bg-orange-50 hover:bg-orange-100 border-orange-100 hover:border-orange-200'
+                                                    : 'text-slate-600 bg-white hover:bg-slate-50 border-slate-200 hover:border-orange-200 hover:text-orange-600'}
+                                            `}
+                                            title={hasMindMap ? '查看思维导图' : '生成思维导图'}
+                                        >
+                                            {isGeneratingMindMap ? (
+                                                <Loader2 className="w-4 h-4 animate-spin"/>
+                                            ) : (
+                                                <BrainCircuit className="w-4 h-4"/>
+                                            )}
+                                            {isGeneratingMindMap ? '生成中' : hasMindMap ? '查看导图' : '生成导图'}
+                                        </button>
+                                    )}
+
                                     <button
                                         type="button"
-                                        onClick={handleOpenMindMap}
-                                        disabled={isGeneratingMindMap}
-                                        className={`
-                                            article-print-hidden ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors disabled:opacity-70 disabled:cursor-not-allowed
-                                            ${hasMindMap
-                                                ? 'text-orange-600 bg-orange-50 hover:bg-orange-100 border-orange-100 hover:border-orange-200'
-                                                : 'text-slate-600 bg-white hover:bg-slate-50 border-slate-200 hover:border-orange-200 hover:text-orange-600'}
-                                        `}
-                                        title={hasMindMap ? '查看思维导图' : '生成思维导图'}
+                                        onClick={handleExportPdf}
+                                        disabled={isExportingPdf}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-100 hover:border-orange-200 rounded-lg transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                                        title="导出为 PDF"
                                     >
-                                        {isGeneratingMindMap ? (
+                                        {isExportingPdf ? (
                                             <Loader2 className="w-4 h-4 animate-spin"/>
                                         ) : (
-                                            <BrainCircuit className="w-4 h-4"/>
+                                            <FileDown className="w-4 h-4"/>
                                         )}
-                                        {isGeneratingMindMap ? '生成中' : hasMindMap ? '查看导图' : '生成导图'}
+                                        {isExportingPdf ? '生成中' : '导出 PDF'}
                                     </button>
-                                )}
 
-                                <button
-                                    type="button"
-                                    onClick={handleExportPdf}
-                                    disabled={isExportingPdf}
-                                    className="article-print-hidden inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-100 hover:border-orange-200 rounded-lg transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
-                                    title="导出为 PDF"
-                                >
-                                    {isExportingPdf ? (
-                                        <Loader2 className="w-4 h-4 animate-spin"/>
-                                    ) : (
-                                        <FileDown className="w-4 h-4"/>
+                                    {onBack && !disableLinks && (
+                                        <button onClick={onBack}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                                            <ArticleIcons.ArrowLeft className="w-4 h-4"/>
+                                            返回文集
+                                        </button>
                                     )}
-                                    {isExportingPdf ? '生成中' : '导出 PDF'}
-                                </button>
-
-                                {onBack && !disableLinks && (
-                                    <button onClick={onBack}
-                                            className="article-print-hidden flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                                        <ArticleIcons.ArrowLeft className="w-4 h-4"/>
-                                        返回文集
-                                    </button>
-                                )}
+                                </div>
                             </div>
 
-                            <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight mb-6">
+                            <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight mb-5 sm:mb-6">
                                 {displayTitle}
                             </h1>
 
-                            <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500 font-medium">
+                            <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm text-slate-500 font-medium">
                                 {displayAuthor && (
                                     <div className="flex items-center gap-2">
                                         <ArticleIcons.User className="w-4 h-4 text-slate-400"/>
@@ -610,10 +624,10 @@ export default function Article({
                         {/* Markdown Render */}
                         <article className="
                             mx-auto
-                            prose prose-lg prose-slate
+                            prose prose-slate sm:prose-lg
                             max-w-[75ch]
                             prose-img:rounded-xl prose-img:shadow-lg prose-img:my-8
-                            prose-p:text-justify prose-p:my-6
+                            prose-p:text-left sm:prose-p:text-justify prose-p:my-4 sm:prose-p:my-6
                         ">
                             <ReactMarkdown
                                 remarkPlugins={[remarkQuoteVariants, remarkSoftLineBreaks, remarkGfm, remarkMath]}
@@ -677,6 +691,26 @@ export default function Article({
                     </div>
                     </div>
                 </main>
+
+                {mobileTocOpen && headers.length > 0 && (
+                    <div
+                        className="article-print-hidden fixed inset-0 z-50 bg-slate-950/30 backdrop-blur-[1px] 2xl:hidden"
+                        onClick={onMobileTocClose}
+                    >
+                        <div
+                            className="absolute inset-x-3 top-20 h-[calc(100vh-6rem)] max-h-[36rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <TableOfContents
+                                headers={headers}
+                                activeId={activeHeader}
+                                isEmbedded={isEmbedded ?? false}
+                                layout="mobile"
+                                onClose={onMobileTocClose}
+                            />
+                        </div>
+                    </div>
+                )}
 
                 <button
                     onClick={handleScrollToTop}
