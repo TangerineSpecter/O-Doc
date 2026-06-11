@@ -234,7 +234,6 @@ function AppWithRouter() {
                     </Layout>
                 </RequireAuth>
             }/>
-            <Route path="/todo" element={<Navigate to="/memos" replace/>}/>
             <Route path="/whiteboard" element={
                 <RequireAuth>
                     <Layout onNavigate={handleNavigate}>
