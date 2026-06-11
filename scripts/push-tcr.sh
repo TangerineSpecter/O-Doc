@@ -6,6 +6,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCAL_ENV_FILE="$PROJECT_ROOT/.env.tcr.local"
 TCR_REGISTRY="${TCR_REGISTRY:-ccr.ccs.tencentyun.com}"
 TCR_IMAGE="${TCR_IMAGE:-ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest}"
+TCR_PLATFORM="${TCR_PLATFORM:-linux/amd64}"
 
 if [ -f "$LOCAL_ENV_FILE" ]; then
     set -a
@@ -45,6 +46,7 @@ if [ ! -f "$LOCAL_ENV_FILE" ]; then
             cat >"$LOCAL_ENV_FILE" <<EOF
 TCR_REGISTRY=$TCR_REGISTRY
 TCR_IMAGE=$TCR_IMAGE
+TCR_PLATFORM=$TCR_PLATFORM
 TCR_USERNAME=$TCR_USERNAME
 TCR_PASSWORD=$TCR_PASSWORD
 EOF
@@ -56,10 +58,7 @@ fi
 echo "登录腾讯云 TCR：$TCR_REGISTRY"
 printf "%s" "$TCR_PASSWORD" | docker login "$TCR_REGISTRY" --username "$TCR_USERNAME" --password-stdin
 
-echo "构建镜像：$TCR_IMAGE"
-docker build -t "$TCR_IMAGE" "$PROJECT_ROOT"
-
-echo "推送镜像：$TCR_IMAGE"
-docker push "$TCR_IMAGE"
+echo "构建并推送镜像：$TCR_IMAGE ($TCR_PLATFORM)"
+docker buildx build --platform "$TCR_PLATFORM" -t "$TCR_IMAGE" --push "$PROJECT_ROOT"
 
 echo "腾讯云 TCR 镜像推送完成：$TCR_IMAGE"
