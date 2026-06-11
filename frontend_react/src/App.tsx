@@ -156,6 +156,10 @@ function AppWithRouter() {
             navigate('/login');
         } else if (viewName === 'settings') { // 新增：处理设置页跳转
             navigate('/settings');
+        } else if (viewName === 'memos') {
+            navigate('/memos');
+        } else if (viewName === 'resources') {
+            navigate('/resources');
         }
     };
 

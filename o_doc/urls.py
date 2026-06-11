@@ -34,6 +34,7 @@ urlpatterns = [
     path('api/rag/', include('rag.urls')),  # RAG接口
     path('api/message/', include('message.urls')),  # 消息模块接口
     path('api/memo/', include('memos.urls')),  # 闪念备忘接口
+    path('api/search/', include('search.urls')),  # 全局搜索接口
     path('api/system-mcp/', include('system_mcp.urls')),  # 外部系统 MCP 接口
 ]
 

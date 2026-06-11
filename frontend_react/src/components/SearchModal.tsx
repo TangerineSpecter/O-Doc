@@ -1,16 +1,26 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Search, Loader2, Library, CornerDownLeft, Zap, FileText } from 'lucide-react';
-import { Article, getArticles } from '../api/article';
-import request from '../utils/request';
+import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
+import {
+    CornerDownLeft,
+    File,
+    FileText,
+    Image as ImageIcon,
+    Library,
+    Loader2,
+    MessageSquareText,
+    Search,
+    Sparkles,
+    Zap
+} from 'lucide-react';
+import {globalSearch, type GlobalSearchItem, type GlobalSearchType} from '../api/search';
 
-// 定义搜索建议项的类型
-export interface SuggestionItem {
+interface SuggestionItem {
     id: string;
-    type: 'ai' | 'article';
+    type: 'ai' | GlobalSearchType;
     title: string;
     subtitle: string;
+    excerpt?: string;
     icon: ReactNode;
-    data?: any;
+    data?: GlobalSearchItem;
 }
 
 interface SearchModalProps {
@@ -20,184 +30,313 @@ interface SearchModalProps {
     onChatStart?: () => void;
 }
 
-export default function SearchModal({ isOpen, onClose, onNavigate, onChatStart }: SearchModalProps) {
+const SEARCH_FILTERS: Array<{type: 'all' | GlobalSearchType; label: string}> = [
+    {type: 'all', label: '全部'},
+    {type: 'article', label: '文章'},
+    {type: 'memo', label: '闪念'},
+    {type: 'image', label: '图片'},
+    {type: 'resource', label: '资源'},
+];
+
+const TYPE_META: Record<GlobalSearchType, {label: string; icon: ReactNode; activeClass: string; idleClass: string}> = {
+    article: {
+        label: '文章',
+        icon: <FileText className="h-4 w-4"/>,
+        activeClass: 'bg-blue-50 text-blue-600',
+        idleClass: 'bg-slate-100 text-slate-500',
+    },
+    memo: {
+        label: '闪念',
+        icon: <MessageSquareText className="h-4 w-4"/>,
+        activeClass: 'bg-lime-50 text-lime-700',
+        idleClass: 'bg-slate-100 text-slate-500',
+    },
+    image: {
+        label: '图片',
+        icon: <ImageIcon className="h-4 w-4"/>,
+        activeClass: 'bg-pink-50 text-pink-600',
+        idleClass: 'bg-slate-100 text-slate-500',
+    },
+    resource: {
+        label: '资源',
+        icon: <File className="h-4 w-4"/>,
+        activeClass: 'bg-indigo-50 text-indigo-600',
+        idleClass: 'bg-slate-100 text-slate-500',
+    },
+};
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const highlightKeyword = (text: string, keyword: string) => {
+    if (!keyword.trim()) return text;
+
+    const parts = text.split(new RegExp(`(${escapeRegExp(keyword.trim())})`, 'ig'));
+    return parts.map((part, index) => (
+        part.toLowerCase() === keyword.trim().toLowerCase()
+            ? <mark key={`${part}-${index}`} className="rounded bg-orange-100 px-0.5 text-orange-700">{part}</mark>
+            : <span key={`${part}-${index}`}>{part}</span>
+    ));
+};
+
+export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: SearchModalProps) {
     const [searchIndex, setSearchIndex] = useState(0);
-    const searchInputRef = useRef<HTMLInputElement>(null);
     const [keyword, setKeyword] = useState('');
-    const [articleResults, setArticleResults] = useState<Article[]>([]);
+    const [activeFilter, setActiveFilter] = useState<'all' | GlobalSearchType>('all');
+    const [results, setResults] = useState<GlobalSearchItem[]>([]);
+    const [counts, setCounts] = useState<Record<GlobalSearchType, number>>({
+        article: 0,
+        memo: 0,
+        image: 0,
+        resource: 0,
+    });
     const [isSearching, setIsSearching] = useState(false);
-    const [anthologyMap, setAnthologyMap] = useState<Record<string, string>>({});
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
-    // 初始化加载文集列表
-    useEffect(() => {
-        const fetchAnthologies = async () => {
-            try {
-                const res: any = await request.get('/anthology/list');
-                const list = Array.isArray(res) ? res : (res.list || []);
-                const map: Record<string, string> = {};
-                list.forEach((item: any) => {
-                    const id = item.collId || item.coll_id;
-                    const title = item.title;
-                    if (id && title) map[id] = title;
-                });
-                setAnthologyMap(map);
-            } catch (error) {
-                console.warn("SearchModal: Failed to load anthology map", error);
-            }
-        };
-        if (isOpen) fetchAnthologies();
-    }, [isOpen]);
+    const selectedTypes = useMemo(
+        () => activeFilter === 'all' ? undefined : [activeFilter],
+        [activeFilter]
+    );
 
-    // 搜索逻辑
     useEffect(() => {
         const timer = setTimeout(async () => {
-            if (!keyword.trim()) {
-                setArticleResults([]);
+            const normalizedKeyword = keyword.trim();
+            if (!normalizedKeyword) {
+                setResults([]);
+                setCounts({article: 0, memo: 0, image: 0, resource: 0});
+                setIsSearching(false);
                 return;
             }
+
             setIsSearching(true);
             try {
-                const res = await getArticles({ keyword });
-                setArticleResults(res.slice(0, 8));
+                const response = await globalSearch({
+                    keyword: normalizedKeyword,
+                    types: selectedTypes,
+                    limit: 6,
+                });
+                setResults(response.items || []);
+                setCounts({
+                    article: response.counts?.article || 0,
+                    memo: response.counts?.memo || 0,
+                    image: response.counts?.image || 0,
+                    resource: response.counts?.resource || 0,
+                });
+                setSearchIndex(0);
             } catch (error) {
-                console.error("搜索失败", error);
+                console.error('全局搜索失败', error);
+                setResults([]);
             } finally {
                 setIsSearching(false);
             }
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [keyword]);
+        }, 260);
 
-    // 焦点控制
+        return () => clearTimeout(timer);
+    }, [keyword, selectedTypes]);
+
     useEffect(() => {
         if (isOpen) {
             setSearchIndex(0);
             setKeyword('');
-            setArticleResults([]);
+            setActiveFilter('all');
+            setResults([]);
+            setCounts({article: 0, memo: 0, image: 0, resource: 0});
             setTimeout(() => searchInputRef.current?.focus(), 50);
         }
     }, [isOpen]);
 
-    // 构建建议列表
-    const suggestions: SuggestionItem[] = [
-        {
+    const suggestions: SuggestionItem[] = useMemo(() => {
+        const aiSuggestion: SuggestionItem = {
             id: 'ai-chat',
             type: 'ai',
-            title: keyword ? `询问 AI 关于 "${keyword}"` : "AI 智能对话",
-            subtitle: "基于知识库回答问题",
-            icon: <Zap className="w-4 h-4" />
-        },
-        ...articleResults.map(article => {
-            const authorName = (article as any).author || (article as any).userName || 'admin';
-            const collName = anthologyMap[article.collId] || article.collId || '未知文集';
-            return {
-                id: `art-${article.articleId}`,
-                type: 'article' as const,
-                title: article.title,
-                subtitle: `文集: ${collName} · 作者: ${authorName}`,
-                icon: <FileText className="w-4 h-4" />,
-                data: article
-            };
-        })
-    ];
+            title: keyword.trim() ? `询问 AI 关于 "${keyword.trim()}"` : 'AI 智能对话',
+            subtitle: '基于知识库回答问题',
+            icon: <Zap className="h-4 w-4"/>,
+        };
 
-    const handleSelectSuggestion = (item: SuggestionItem) => {
+        return [
+            aiSuggestion,
+            ...results.map((item) => {
+                const meta = TYPE_META[item.type];
+                return {
+                    id: item.id,
+                    type: item.type,
+                    title: item.title,
+                    subtitle: item.subtitle || meta.label,
+                    excerpt: item.excerpt,
+                    icon: meta.icon,
+                    data: item,
+                };
+            }),
+        ];
+    }, [keyword, results]);
+
+    const handleSelectSuggestion = (item?: SuggestionItem) => {
+        if (!item) return;
+
         onClose();
         if (item.type === 'ai') {
             onChatStart?.();
-        } else if (item.type === 'article' && item.data && onNavigate) {
-            onNavigate('article', item.data);
+            return;
+        }
+
+        const route = item.data?.route;
+        if (route && onNavigate) {
+            onNavigate(route.view, route.params);
         }
     };
 
-    // 键盘事件
     useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
+        const handleKeyDown = (event: KeyboardEvent) => {
             if (!isOpen) return;
-            if (e.key === 'Escape') onClose();
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setSearchIndex(prev => (prev + 1) % suggestions.length);
+            if (event.key === 'Escape') onClose();
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setSearchIndex(prev => (prev + 1) % Math.max(suggestions.length, 1));
             }
-            if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setSearchIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+            if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setSearchIndex(prev => (prev - 1 + suggestions.length) % Math.max(suggestions.length, 1));
             }
-            if (e.key === 'Enter') {
-                e.preventDefault();
+            if (event.key === 'Enter') {
+                event.preventDefault();
                 handleSelectSuggestion(suggestions[searchIndex]);
             }
         };
+
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, searchIndex, suggestions]);
+    }, [isOpen, onClose, searchIndex, suggestions]);
 
     if (!isOpen) return null;
 
+    const hasKeyword = Boolean(keyword.trim());
+    const hasResults = results.length > 0;
+
     return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4 animate-in fade-in duration-200">
-            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose}></div>
-            <div className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/5 overflow-hidden flex flex-col animate-in zoom-in-95 slide-in-from-bottom-2 duration-200" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center border-b border-slate-100 px-4 py-4 gap-3">
-                    <Search className="w-5 h-5 text-slate-400" />
-                    <input
-                        ref={searchInputRef}
-                        type="text"
-                        value={keyword}
-                        onChange={(e) => setKeyword(e.target.value)}
-                        placeholder="输入问题唤起 AI，或搜索文档标题..."
-                        className="flex-1 text-lg bg-transparent border-none outline-none text-slate-800 placeholder:text-slate-400 h-8"
-                    />
-                    {isSearching && <Loader2 className="w-4 h-4 text-orange-500 animate-spin" />}
-                    <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-mono">ESC</span>
+        <div className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[10vh] animate-in fade-in duration-200">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose}/>
+            <div
+                className="relative flex max-h-[78vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/5 animate-in zoom-in-95 slide-in-from-bottom-2 duration-200"
+                onClick={event => event.stopPropagation()}
+            >
+                <div className="border-b border-slate-100 px-4 py-4">
+                    <div className="flex items-center gap-3">
+                        <Search className="h-5 w-5 text-slate-400"/>
+                        <input
+                            ref={searchInputRef}
+                            type="text"
+                            value={keyword}
+                            onChange={(event) => setKeyword(event.target.value)}
+                            placeholder="搜索文章正文、闪念、图片描述或资源文件..."
+                            className="h-8 flex-1 border-none bg-transparent text-lg text-slate-800 outline-none placeholder:text-slate-400"
+                        />
+                        {isSearching && <Loader2 className="h-4 w-4 animate-spin text-orange-500"/>}
+                        <span className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-500">ESC</span>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {SEARCH_FILTERS.map(filter => {
+                            const isActive = activeFilter === filter.type;
+                            const count = filter.type === 'all'
+                                ? counts.article + counts.memo + counts.image + counts.resource
+                                : counts[filter.type];
+
+                            return (
+                                <button
+                                    key={filter.type}
+                                    type="button"
+                                    onClick={() => {
+                                        setActiveFilter(filter.type);
+                                        setSearchIndex(0);
+                                    }}
+                                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                                        isActive
+                                            ? 'border-orange-200 bg-orange-50 text-orange-700'
+                                            : 'border-slate-200 bg-white text-slate-500 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600'
+                                    }`}
+                                >
+                                    {filter.label}
+                                    {hasKeyword && <span className="ml-1 text-[10px] opacity-70">{count}</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
 
-                <div className="max-h-[60vh] overflow-y-auto p-2">
-                    {suggestions.length === 0 ? (
-                        <div className="p-8 text-center text-slate-400 text-sm">暂无搜索结果</div>
+                <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                    {!hasKeyword ? (
+                        <div className="flex flex-col items-center justify-center px-8 py-12 text-center">
+                            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-orange-50 text-orange-500">
+                                <Sparkles className="h-5 w-5"/>
+                            </div>
+                            <p className="text-sm font-semibold text-slate-800">输入关键词开始全局搜索</p>
+                            <p className="mt-1 text-xs text-slate-500">支持文章正文、闪念内容、图片描述与资源文件名。</p>
+                        </div>
+                    ) : !hasResults && !isSearching ? (
+                        <div className="px-8 py-12 text-center text-sm text-slate-400">暂无搜索结果</div>
                     ) : (
                         <div className="space-y-1">
-                            {suggestions.map((item, index) => (
-                                <div key={item.id}>
-                                    {index === 1 && item.type === 'article' && (
-                                        <div className="px-3 pt-3 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 border-t border-slate-100 mt-1">
-                                            <Library className="w-3 h-3" />
-                                            文章检索结果
-                                        </div>
-                                    )}
-                                    <div
-                                        onClick={() => handleSelectSuggestion(item)}
-                                        onMouseEnter={() => setSearchIndex(index)}
-                                        className={`flex items-center justify-between px-3 py-3 rounded-lg cursor-pointer transition-colors ${index === searchIndex ? 'bg-orange-50' : 'hover:bg-slate-50'
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-3 overflow-hidden">
-                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${item.type === 'ai'
-                                                ? (index === searchIndex ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-orange-500')
-                                                : (index === searchIndex ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500')
-                                                }`}>
-                                                {item.icon}
-                                            </div>
-                                            <div className="flex flex-col min-w-0">
-                                                <span className={`text-sm truncate ${index === searchIndex ? 'text-slate-900 font-medium' : 'text-slate-700'}`}>
-                                                    {item.title}
-                                                </span>
-                                                <span className="text-xs text-slate-400 truncate">
-                                                    {item.subtitle}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        {index === searchIndex && (
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                <span className="text-xs text-orange-600 font-medium">
-                                                    {item.type === 'ai' ? '开始对话' : '跳转文档'}
-                                                </span>
-                                                <CornerDownLeft className="w-3.5 h-3.5 text-orange-400" />
+                            {suggestions.map((item, index) => {
+                                const isSelected = index === searchIndex;
+                                const typeMeta = item.type === 'ai' ? null : TYPE_META[item.type];
+
+                                return (
+                                    <div key={item.id}>
+                                        {index === 1 && (
+                                            <div className="mt-1 flex items-center gap-2 border-t border-slate-100 px-3 pb-1.5 pt-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                <Library className="h-3 w-3"/>
+                                                全局检索结果
                                             </div>
                                         )}
+                                        <div
+                                            onClick={() => handleSelectSuggestion(item)}
+                                            onMouseEnter={() => setSearchIndex(index)}
+                                            className={`flex cursor-pointer items-center justify-between gap-4 rounded-lg px-3 py-3 transition-colors ${
+                                                isSelected ? 'bg-orange-50' : 'hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <div className="flex min-w-0 items-start gap-3">
+                                                <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                                                    item.type === 'ai'
+                                                        ? (isSelected ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-orange-500')
+                                                        : (isSelected ? typeMeta!.activeClass : typeMeta!.idleClass)
+                                                }`}>
+                                                    {item.icon}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                                        {item.type !== 'ai' && (
+                                                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                                                                {TYPE_META[item.type].label}
+                                                            </span>
+                                                        )}
+                                                        <span className={`line-clamp-1 text-sm ${isSelected ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
+                                                            {highlightKeyword(item.title, keyword)}
+                                                        </span>
+                                                    </div>
+                                                    <p className="mt-1 line-clamp-1 text-xs text-slate-400">
+                                                        {highlightKeyword(item.subtitle, keyword)}
+                                                    </p>
+                                                    {item.excerpt && (
+                                                        <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-500">
+                                                            {highlightKeyword(item.excerpt, keyword)}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {isSelected && (
+                                                <div className="hidden shrink-0 items-center gap-2 sm:flex">
+                                                    <span className="text-xs font-medium text-orange-600">
+                                                        {item.type === 'ai' ? '开始对话' : '打开'}
+                                                    </span>
+                                                    <CornerDownLeft className="h-3.5 w-3.5 text-orange-400"/>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
