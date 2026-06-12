@@ -7,5 +7,9 @@ export interface NotificationItem {
     type: 'info' | 'success' | 'warning' | 'error';
     link?: string;
     isRead: boolean;
+    isDeleted?: boolean;
     createdAt: string;
+    deletedAt?: string | null;
 }
+
+export type NotificationStatus = 'all' | 'read' | 'unread' | 'deleted';

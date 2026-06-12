@@ -20,11 +20,14 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
     const [hasNewVersion, setHasNewVersion] = useState(false);
 
     const fetchUnread = async () => {
+        if (!userInfo) {
+            setUnreadCount(0);
+            return;
+        }
         try {
-            const res = await getNotifications();
+            const res = await getNotifications('unread');
             if (Array.isArray(res)) {
-                const count = res.filter((n: any) => !n.isRead).length;
-                setUnreadCount(count);
+                setUnreadCount(res.length);
             }
         } catch (error) {
             console.warn("Failed to fetch notifications", error);
@@ -43,7 +46,11 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
 
     // 获取未读消息数量
     useEffect(() => {
-        if (!userInfo) return;
+        if (!userInfo) {
+            setUnreadCount(0);
+            setIsNotificationOpen(false);
+            return;
+        }
         fetchUnread();
         // 简单轮询，每分钟检查一次
         const timer = setInterval(fetchUnread, 60000);
@@ -169,6 +176,7 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                                 </button>
                                 {isNotificationOpen && (
                                     <NotificationPopover
+                                        isAuthenticated={Boolean(userInfo)}
                                         onClose={() => setIsNotificationOpen(false)}
                                         onNavigate={onNavigate}
                                         onUnreadChange={setUnreadCount}

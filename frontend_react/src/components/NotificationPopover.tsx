@@ -1,18 +1,34 @@
 import { useEffect, useState, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Check, Info, AlertTriangle, XCircle, CheckCircle2, Loader2, ExternalLink } from 'lucide-react';
-import { deleteNotification, getNotifications, markAllRead, markRead, NotificationItem } from '../api/message';
+import { Archive, Bell, Check, CheckCircle2, ExternalLink, Info, AlertTriangle, Inbox, Loader2, RotateCcw, Trash2, XCircle } from 'lucide-react';
+import {
+    clearNotificationTrash,
+    deleteNotification,
+    deleteNotificationPermanently,
+    getNotifications,
+    markAllRead,
+    markRead,
+    NotificationItem,
+    NotificationStatus,
+    restoreNotification
+} from '../api/message';
 
 interface NotificationPopoverProps {
+    isAuthenticated: boolean;
     onClose: () => void;
     onNavigate?: (viewName: string, params?: any) => void;
     onUnreadChange?: (count: number) => void;
 }
 
-export default function NotificationPopover({ onClose, onNavigate, onUnreadChange }: NotificationPopoverProps) {
+export default function NotificationPopover({ isAuthenticated, onClose, onNavigate, onUnreadChange }: NotificationPopoverProps) {
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+    const [historyNotifications, setHistoryNotifications] = useState<NotificationItem[]>([]);
     const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
     const [loading, setLoading] = useState(true);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [historyStatus, setHistoryStatus] = useState<NotificationStatus>('all');
     const [deleting, setDeleting] = useState(false);
     const [tearing, setTearing] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
@@ -65,34 +81,66 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
     };
 
     const fetchList = async () => {
+        if (!isAuthenticated) {
+            setNotifications([]);
+            onUnreadChange?.(0);
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
         try {
-            const res = await getNotifications();
+            const res = await getNotifications('unread');
             // 假设返回的是标准数组，如果是分页结构需调整
             const list = Array.isArray(res) ? res : [];
             setNotifications(list);
-            onUnreadChange?.(list.filter(item => !item.isRead).length);
+            onUnreadChange?.(list.length);
         } catch (e) {
             console.error(e);
+            setNotifications([]);
+            onUnreadChange?.(0);
         } finally {
             setLoading(false);
         }
     };
 
+    const fetchHistory = async (status: NotificationStatus = historyStatus) => {
+        if (!isAuthenticated) {
+            setHistoryNotifications([]);
+            return;
+        }
+        setHistoryLoading(true);
+        try {
+            const res = await getNotifications(status);
+            setHistoryNotifications(Array.isArray(res) ? res : []);
+        } catch (error) {
+            console.error('Failed to fetch notification history', error);
+            setHistoryNotifications([]);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
     useEffect(() => {
         fetchList();
-    }, []);
+    }, [isAuthenticated]);
+
+    useEffect(() => {
+        if (historyOpen) {
+            fetchHistory(historyStatus);
+        }
+    }, [historyOpen, historyStatus, isAuthenticated]);
 
     useEffect(() => {
         // 点击外部关闭
         const handleClickOutside = (event: MouseEvent) => {
-            if (selectedNotification) return;
+            if (selectedNotification || historyOpen) return;
             if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
                 onClose();
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [selectedNotification]);
+    }, [selectedNotification, historyOpen]);
 
     useEffect(() => {
         if (!selectedNotification) return;
@@ -108,22 +156,37 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
         return () => document.removeEventListener('keydown', closeOnEscape);
     }, [selectedNotification, deleting]);
 
+    useEffect(() => {
+        if (!historyOpen) return;
+
+        const closeHistoryOnEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setHistoryOpen(false);
+            }
+        };
+
+        document.addEventListener('keydown', closeHistoryOnEscape);
+        return () => document.removeEventListener('keydown', closeHistoryOnEscape);
+    }, [historyOpen]);
+
     const handleMarkAllRead = async () => {
+        if (!isAuthenticated) return;
         await markAllRead();
-        setNotifications(prev => prev.map(item => ({...item, isRead: true})));
+        setNotifications([]);
         onUnreadChange?.(0);
-        fetchList(); // 刷新列表
+        if (historyOpen) fetchHistory();
     };
 
     const handleClickItem = async (item: NotificationItem) => {
         setTearing(false);
         setSelectedNotification({...item, isRead: true});
 
-        if (!item.isRead) {
+        if (isAuthenticated && !item.isRead) {
             await markRead(item.id);
-            const next = notifications.map(n => n.id === item.id ? { ...n, isRead: true } : n);
+            const next = notifications.filter(n => n.id !== item.id);
             setNotifications(next);
-            onUnreadChange?.(next.filter(n => !n.isRead).length);
+            onUnreadChange?.(next.length);
+            if (historyOpen) fetchHistory();
         }
     };
 
@@ -137,7 +200,8 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
             await deleteNotification(selectedNotification.id);
             const next = notifications.filter(item => item.id !== selectedNotification.id);
             setNotifications(next);
-            onUnreadChange?.(next.filter(item => !item.isRead).length);
+            onUnreadChange?.(next.length);
+            if (historyOpen) await fetchHistory();
             setSelectedNotification(null);
         } catch (error) {
             console.error('Failed to delete notification', error);
@@ -145,6 +209,34 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
         } finally {
             setDeleting(false);
         }
+    };
+
+    const handleOpenHistory = () => {
+        setHistoryOpen(true);
+        setHistoryStatus('all');
+    };
+
+    const handleHistoryStatusChange = (status: NotificationStatus) => {
+        setHistoryStatus(status);
+    };
+
+    const handleRestore = async (item: NotificationItem) => {
+        await restoreNotification(item.id);
+        await fetchHistory();
+        await fetchList();
+    };
+
+    const handlePermanentDelete = async (item: NotificationItem) => {
+        if (!window.confirm('确定要彻底删除这条消息吗？此操作不可恢复。')) return;
+        await deleteNotificationPermanently(item.id);
+        await fetchHistory();
+    };
+
+    const handleClearTrash = async () => {
+        if (historyNotifications.length === 0) return;
+        if (!window.confirm('确定要清空回收站吗？回收站中的消息会被彻底删除。')) return;
+        await clearNotificationTrash();
+        await fetchHistory();
     };
 
     const handleOpenLink = (item: NotificationItem) => {
@@ -182,6 +274,94 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
             />
         </svg>
     );
+
+    const historyTabs: Array<{ value: NotificationStatus; label: string; icon: ReactNode }> = [
+        { value: 'all', label: '全部', icon: <Inbox className="h-4 w-4" /> },
+        { value: 'read', label: '已读', icon: <CheckCircle2 className="h-4 w-4" /> },
+        { value: 'unread', label: '未读', icon: <Bell className="h-4 w-4" /> },
+        { value: 'deleted', label: '回收站', icon: <Archive className="h-4 w-4" /> },
+    ];
+
+    const renderNotificationCard = (item: NotificationItem, mode: 'dropdown' | 'history' = 'dropdown') => {
+        const tone = getTone(item.type);
+        const isTrash = historyStatus === 'deleted' || item.isDeleted;
+        return (
+            <button
+                key={item.id}
+                type="button"
+                onClick={() => handleClickItem(item)}
+                className={`group relative w-full overflow-hidden rounded-lg border-[3px] border-slate-950 bg-white text-left shadow-[5px_5px_0_#0f172a] transition-all duration-300 hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#0f172a] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[3px_3px_0_#0f172a] ${!item.isRead && !isTrash ? 'ring-2 ring-orange-300/60' : ''}`}
+            >
+                <CardPattern />
+                <BoldPattern className="-right-2 -top-2 h-16 w-16 text-slate-950" />
+                <span className={`absolute -right-5 -top-5 z-10 h-14 w-14 rotate-45 border-[3px] border-slate-950 ${tone.accent}`} />
+                <span className="absolute right-2 top-1 z-20 text-sm font-black text-slate-950">★</span>
+
+                <div className="relative z-10 flex items-center justify-between gap-2 border-b-[3px] border-slate-950 bg-orange-500 px-3 py-2 text-white">
+                    <span className="min-w-0 truncate text-sm font-black uppercase tracking-wide">{item.title}</span>
+                    <span className={`shrink-0 rotate-2 rounded border-2 border-slate-950 bg-white px-2 py-0.5 text-[9px] font-black tracking-[0.12em] text-slate-950 shadow-[2px_2px_0_#0f172a] ${item.isRead ? 'opacity-75' : ''}`}>
+                        {isTrash ? 'TRASH' : (item.isRead ? 'READ' : 'NEW')}
+                    </span>
+                </div>
+
+                <div className={`relative z-10 p-3 ${mode === 'history' ? 'sm:p-4' : ''}`}>
+                    <div className="flex gap-3">
+                        <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border-[3px] border-slate-950 shadow-[3px_3px_0_rgba(15,23,42,0.35)] transition-transform duration-200 group-hover:-rotate-6 ${tone.iconBox}`}>
+                            {getIcon(item.type)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <p className={`${mode === 'history' ? 'line-clamp-3 text-sm' : 'line-clamp-2 text-xs'} font-semibold leading-5 text-slate-700`}>
+                                {item.content}
+                            </p>
+                            <div className="mt-3 flex items-center justify-between gap-3 border-t-2 border-dashed border-slate-200 pt-2">
+                                <span className="truncate text-[10px] font-semibold text-slate-400">
+                                    {isTrash && item.deletedAt ? item.deletedAt : item.createdAt}
+                                </span>
+                                {isTrash ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-black uppercase text-red-600">
+                                        <Trash2 className="h-3 w-3" />
+                                        Deleted
+                                    </span>
+                                ) : (
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${tone.tag}`}>
+                                        {item.link && <ExternalLink className="h-3 w-3" />}
+                                        {tone.label}
+                                    </span>
+                                )}
+                            </div>
+                            {isTrash && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            handleRestore(item);
+                                        }}
+                                        className="inline-flex items-center gap-1 rounded border-2 border-slate-900 bg-lime-50 px-2 py-1 text-[11px] font-black text-lime-700 shadow-[2px_2px_0_#0f172a] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5"
+                                    >
+                                        <RotateCcw className="h-3 w-3" />
+                                        恢复
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            handlePermanentDelete(item);
+                                        }}
+                                        className="inline-flex items-center gap-1 rounded border-2 border-slate-900 bg-red-50 px-2 py-1 text-[11px] font-black text-red-600 shadow-[2px_2px_0_#0f172a] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5"
+                                    >
+                                        <Trash2 className="h-3 w-3" />
+                                        删除
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="pointer-events-none absolute -bottom-3 -right-3 h-8 w-8 rotate-45 rounded border-[3px] border-slate-950 bg-sky-400 transition-transform duration-300 group-hover:rotate-[55deg] group-hover:scale-110" />
+                </div>
+            </button>
+        );
+    };
 
     const detailModal = selectedNotification ? createPortal(
         <div
@@ -307,17 +487,101 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
         document.body
     ) : null;
 
+    const historyModal = historyOpen ? createPortal(
+        <div
+            className="fixed inset-0 z-[190] flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm animate-in fade-in duration-150"
+            onMouseDown={() => setHistoryOpen(false)}
+        >
+            <div
+                className="relative flex max-h-[82vh] w-full max-w-5xl overflow-hidden rounded-xl border-[4px] border-slate-950 bg-white shadow-[16px_16px_0_#0f172a] animate-in zoom-in-95 duration-150"
+                onMouseDown={(event) => event.stopPropagation()}
+            >
+                <CardPattern />
+                <aside className="relative z-10 flex w-28 shrink-0 flex-col gap-2 border-r-[4px] border-slate-950 bg-orange-50 p-3 sm:w-36">
+                    <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-orange-600">History</div>
+                    {historyTabs.map(tab => (
+                        <button
+                            key={tab.value}
+                            type="button"
+                            onClick={() => handleHistoryStatusChange(tab.value)}
+                            className={`flex items-center gap-2 rounded border-[3px] border-slate-950 px-3 py-2 text-sm font-black shadow-[3px_3px_0_#0f172a] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 ${
+                                historyStatus === tab.value
+                                    ? 'bg-orange-500 text-white'
+                                    : 'bg-white text-slate-800 hover:bg-orange-100'
+                            }`}
+                        >
+                            {tab.icon}
+                            <span>{tab.label}</span>
+                        </button>
+                    ))}
+                </aside>
+
+                <section className="relative z-10 flex min-w-0 flex-1 flex-col bg-white">
+                    <header className="flex items-center justify-between gap-4 border-b-[4px] border-slate-950 bg-orange-500 px-5 py-4 text-white">
+                        <div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-100">小橘通知</div>
+                            <h3 className="mt-1 text-xl font-black">历史消息</h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {historyStatus === 'deleted' && (
+                                <button
+                                    type="button"
+                                    onClick={handleClearTrash}
+                                    disabled={historyNotifications.length === 0}
+                                    className="inline-flex items-center gap-1.5 rounded border-[3px] border-slate-950 bg-red-50 px-3 py-2 text-xs font-black text-red-600 shadow-[3px_3px_0_#0f172a] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    清空
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setHistoryOpen(false)}
+                                className="rounded border-[3px] border-slate-950 bg-white p-1.5 text-slate-800 shadow-[3px_3px_0_#0f172a] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5"
+                                aria-label="关闭历史消息"
+                            >
+                                <XCircle className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </header>
+
+                    <div className="min-h-[420px] overflow-y-auto bg-slate-50/70 p-4">
+                        {historyLoading ? (
+                            <div className="flex h-64 items-center justify-center">
+                                <Loader2 className="h-6 w-6 animate-spin text-slate-300" />
+                            </div>
+                        ) : historyNotifications.length === 0 ? (
+                            <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
+                                <Bell className="h-10 w-10 text-slate-200" />
+                                <p className="text-sm font-semibold text-slate-400">这里还没有消息</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                {historyNotifications.map(item => renderNotificationCard(item, 'history'))}
+                            </div>
+                        )}
+                    </div>
+                </section>
+            </div>
+        </div>,
+        document.body
+    ) : null;
+
     return (
         <>
-        <div ref={wrapperRef} className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 animate-in fade-in slide-in-from-top-2 duration-200 sm:w-96">
-            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
-                <h3 className="text-sm font-bold text-slate-800">系统通知</h3>
+        <div ref={wrapperRef} className="absolute right-0 top-full z-50 mt-3 w-80 overflow-hidden rounded-lg border-[4px] border-slate-950 bg-white shadow-[10px_10px_0_#0f172a] animate-in fade-in slide-in-from-top-2 duration-200 sm:w-96">
+            <div className="relative overflow-hidden border-b-[4px] border-slate-950 bg-white px-4 py-3">
+                <CardPattern />
+                <div className="relative z-10 flex items-center justify-between">
+                <h3 className="text-sm font-black text-slate-900">系统通知</h3>
                 <button
                     onClick={handleMarkAllRead}
-                    className="flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold text-orange-600 transition-colors hover:bg-orange-50 hover:text-orange-700"
+                    disabled={!isAuthenticated || notifications.length === 0}
+                    className="flex items-center gap-1 rounded border-2 border-slate-950 bg-orange-50 px-2 py-1 text-xs font-black text-orange-600 shadow-[2px_2px_0_#0f172a] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                     <Check className="h-3 w-3" /> 全部已读
                 </button>
+                </div>
             </div>
 
             <div className="max-h-[430px] overflow-y-auto bg-slate-50/60 p-3">
@@ -332,62 +596,25 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {notifications.map(item => {
-                            const tone = getTone(item.type);
-                            return (
-                                <button
-                                    key={item.id}
-                                    type="button"
-                                    onClick={() => handleClickItem(item)}
-                                    className={`group relative w-full overflow-hidden rounded-lg border-[3px] border-slate-950 bg-white text-left shadow-[5px_5px_0_#0f172a] transition-all duration-300 hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#0f172a] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[3px_3px_0_#0f172a] ${!item.isRead ? 'ring-2 ring-orange-300/60' : ''}`}
-                                >
-                                    <CardPattern />
-                                    <BoldPattern className="-right-2 -top-2 h-16 w-16 text-slate-950" />
-                                    <span className={`absolute -right-5 -top-5 z-10 h-14 w-14 rotate-45 border-[3px] border-slate-950 ${tone.accent}`} />
-                                    <span className="absolute right-2 top-1 z-20 text-sm font-black text-slate-950">★</span>
-
-                                    <div className="relative z-10 flex items-center justify-between gap-2 border-b-[3px] border-slate-950 bg-orange-500 px-3 py-2 text-white">
-                                        <span className="min-w-0 truncate text-sm font-black uppercase tracking-wide">{item.title}</span>
-                                        <span className={`shrink-0 rotate-2 rounded border-2 border-slate-950 bg-white px-2 py-0.5 text-[9px] font-black tracking-[0.12em] text-slate-950 shadow-[2px_2px_0_#0f172a] ${!item.isRead ? '' : 'opacity-75'}`}>
-                                            {item.isRead ? 'READ' : 'NEW'}
-                                        </span>
-                                    </div>
-
-                                    <div className="relative z-10 p-3">
-                                        <div className="flex gap-3">
-                                            <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border-[3px] border-slate-950 shadow-[3px_3px_0_rgba(15,23,42,0.35)] transition-transform duration-200 group-hover:-rotate-6 ${tone.iconBox}`}>
-                                                {getIcon(item.type)}
-                                            </span>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="line-clamp-2 text-xs font-semibold leading-5 text-slate-700">
-                                                    {item.content}
-                                                </p>
-                                                <div className="mt-3 flex items-center justify-between gap-3 border-t-2 border-dashed border-slate-200 pt-2">
-                                                    <span className="truncate text-[10px] font-semibold text-slate-400">{item.createdAt}</span>
-                                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${tone.tag}`}>
-                                                        {item.link && <ExternalLink className="h-3 w-3" />}
-                                                        {tone.label}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="pointer-events-none absolute -bottom-3 -right-3 h-8 w-8 rotate-45 rounded border-[3px] border-slate-950 bg-sky-400 transition-transform duration-300 group-hover:rotate-[55deg] group-hover:scale-110" />
-                                    </div>
-                                </button>
-                            );
-                        })}
+                        {notifications.map(item => renderNotificationCard(item))}
                     </div>
                 )}
             </div>
 
-            <div className="border-t border-slate-100 bg-white px-4 py-2 text-center">
-                <button className="text-xs text-slate-400 transition-colors hover:text-slate-600">
+            <div className="border-t-[4px] border-slate-950 bg-white px-4 py-2 text-center">
+                <button
+                    type="button"
+                    onClick={handleOpenHistory}
+                    disabled={!isAuthenticated}
+                    className="text-xs font-black text-slate-500 transition-colors hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-45"
+                >
                     查看历史通知
                 </button>
             </div>
         </div>
 
         {detailModal}
+        {historyModal}
         </>
     );
 }
