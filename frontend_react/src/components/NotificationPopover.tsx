@@ -17,13 +17,50 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
     const [tearing, setTearing] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
 
-    // 获取图标
-    const getIcon = (type: string) => {
+    const getTone = (type: NotificationItem['type']) => {
         switch (type) {
-            case 'success': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-            case 'warning': return <AlertTriangle className="w-4 h-4 text-amber-500" />;
-            case 'error': return <XCircle className="w-4 h-4 text-red-500" />;
-            default: return <Info className="w-4 h-4 text-blue-500" />;
+            case 'success':
+                return {
+                    label: 'DONE',
+                    iconBox: 'bg-lime-500',
+                    tag: 'bg-lime-100 text-lime-800',
+                    accent: 'bg-lime-400',
+                    text: 'text-lime-700',
+                };
+            case 'warning':
+                return {
+                    label: 'WATCH',
+                    iconBox: 'bg-amber-400',
+                    tag: 'bg-amber-100 text-amber-800',
+                    accent: 'bg-amber-300',
+                    text: 'text-amber-700',
+                };
+            case 'error':
+                return {
+                    label: 'ALERT',
+                    iconBox: 'bg-rose-500',
+                    tag: 'bg-rose-100 text-rose-800',
+                    accent: 'bg-rose-300',
+                    text: 'text-rose-700',
+                };
+            default:
+                return {
+                    label: 'INFO',
+                    iconBox: 'bg-sky-500',
+                    tag: 'bg-sky-100 text-sky-800',
+                    accent: 'bg-sky-300',
+                    text: 'text-sky-700',
+                };
+        }
+    };
+
+    // 获取图标
+    const getIcon = (type: NotificationItem['type']) => {
+        switch (type) {
+            case 'success': return <CheckCircle2 className="h-3.5 w-3.5 text-white" />;
+            case 'warning': return <AlertTriangle className="h-3.5 w-3.5 text-white" />;
+            case 'error': return <XCircle className="h-3.5 w-3.5 text-white" />;
+            default: return <Info className="h-3.5 w-3.5 text-white" />;
         }
     };
 
@@ -127,14 +164,23 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
         }
     };
 
-    const TangerineLogo = () => (
-        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 shadow-[0_4px_18px_rgba(249,115,22,0.22)]">
-            <svg viewBox="0 0 24 24" fill="none" className="h-10 w-10">
-                <path d="M12 3.5V6.5" stroke="#9a3412" strokeWidth="1.5" strokeLinecap="round" />
-                <circle cx="12" cy="14" r="8.5" className="fill-orange-500" />
-                <path d="M12 6.5C12 6.5 10 1 5 3C1 5 4 10 12 6.5Z" className="fill-lime-500" />
-            </svg>
-        </div>
+    const CardPattern = () => (
+        <>
+            <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(to_right,rgba(15,23,42,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.06)_1px,transparent_1px)] bg-[size:9px_9px] opacity-70 transition-opacity duration-300 group-hover:opacity-100" />
+            <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(rgba(148,163,184,0.65)_1px,transparent_1px)] bg-[size:16px_16px] bg-[-8px_-8px] opacity-0 transition-opacity duration-300 group-hover:opacity-70" />
+        </>
+    );
+
+    const BoldPattern = ({ className = '' }: { className?: string }) => (
+        <svg viewBox="0 0 100 100" className={`pointer-events-none absolute z-0 opacity-10 ${className}`}>
+            <path
+                strokeDasharray="15 10"
+                strokeWidth="10"
+                stroke="currentColor"
+                fill="none"
+                d="M0,0 L100,0 L100,100 L0,100 Z"
+            />
+        </svg>
     );
 
     const detailModal = selectedNotification ? createPortal(
@@ -142,36 +188,40 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
             className="fixed inset-0 z-[200] flex items-start justify-center bg-slate-900/30 px-4 pt-[15vh] pb-6 backdrop-blur-sm"
         >
             <div
-            className="group relative w-full max-w-md text-slate-900 animate-in fade-in zoom-in-95 duration-150"
-            onClick={(event) => event.stopPropagation()}
-        >
-                <div className="relative rounded-2xl bg-transparent shadow-[0_24px_48px_rgba(15,23,42,0.18)] transition-all duration-500 group-hover:-rotate-1 group-hover:scale-[1.01] group-hover:drop-shadow-[0_0_28px_rgba(249,115,22,0.35)]">
-                    <section className="relative overflow-hidden rounded-t-2xl bg-white px-7 pb-5 pt-5">
-                        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(249,115,22,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(249,115,22,0.08)_1px,transparent_1px)] bg-[size:22px_22px]" />
-                        <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-orange-100 blur-2xl" />
-                        <div className="pointer-events-none absolute -left-10 bottom-0 h-28 w-28 rounded-full bg-amber-100 blur-xl" />
-                        <div className="relative z-10">
-                            <div className="mb-4 flex items-start justify-between gap-4 pr-8">
-                                <div className="flex items-center gap-2 text-sm font-black tracking-tight text-slate-900">
-                                    <TangerineLogo />
-                                    <span>小橘通知</span>
-                                </div>
-                                <div className="rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-orange-600">
-                                    Message
+                className="group relative w-full max-w-md text-slate-900 animate-in fade-in zoom-in-95 duration-150"
+                onClick={(event) => event.stopPropagation()}
+            >
+                <div className="relative rounded-lg border-[5px] border-slate-950 bg-white shadow-[14px_14px_0_#0f172a] transition-all duration-300 group-hover:-translate-x-1 group-hover:-translate-y-1 group-hover:shadow-[20px_20px_0_#0f172a]">
+                    <CardPattern />
+                    <BoldPattern className="right-2 top-2 h-28 w-28 text-slate-950" />
+                    <span className={`absolute -right-6 -top-6 z-10 h-20 w-20 rotate-45 border-[3px] border-slate-950 ${getTone(selectedNotification.type).accent}`} />
+
+                    <section className="relative z-10 overflow-hidden border-b-[5px] border-slate-950 bg-orange-500 px-5 py-4 text-white">
+                        <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(45deg,rgba(15,23,42,0.14),rgba(15,23,42,0.14)_8px,transparent_8px,transparent_16px)] opacity-60" />
+                        <div className="relative">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-100">小橘通知</div>
+                                <div className="flex shrink-0 items-center gap-2">
+                                    <div className="rotate-3 rounded border-[3px] border-slate-950 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-950 shadow-[3px_3px_0_#0f172a]">
+                                        {getTone(selectedNotification.type).label}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            setSelectedNotification(null);
+                                            setTearing(false);
+                                        }}
+                                        className="rounded border-[3px] border-slate-950 bg-white p-1 text-slate-800 shadow-[3px_3px_0_#0f172a] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5"
+                                        aria-label="关闭通知详情"
+                                    >
+                                        <XCircle className="h-4 w-4" />
+                                    </button>
                                 </div>
                             </div>
-
-                            <h3 className="break-words bg-gradient-to-br from-slate-950 to-orange-500 bg-clip-text text-4xl font-black uppercase leading-[1.05] text-transparent">
+                            <h3 className="mt-3 break-words text-2xl font-black uppercase leading-tight text-white">
                                 {selectedNotification.title}
                             </h3>
-                            <p className="mt-2 text-sm font-medium text-slate-500">
-                                {selectedNotification.createdAt}
-                            </p>
-                        </div>
-                        <div className="absolute -bottom-3 left-0 right-0 z-20 flex items-center">
-                            <div className="-ml-3 h-6 w-6 shrink-0 rounded-full bg-slate-900/30 shadow-inner" />
-                            <div className="h-px flex-1 border-t-2 border-dashed border-slate-200" />
-                            <div className="-mr-3 h-6 w-6 shrink-0 rounded-full bg-slate-900/30 shadow-inner" />
                         </div>
                     </section>
 
@@ -187,17 +237,26 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
                                 handleDiscardSelected();
                             }
                         }}
-                        className={`relative overflow-hidden rounded-b-2xl bg-slate-50 px-7 pb-8 pt-9 outline-none transition-all duration-300 hover:bg-orange-50 focus-visible:ring-2 focus-visible:ring-orange-500/30 ${tearing ? 'translate-y-8 rotate-2' : ''} ${deleting ? 'cursor-wait' : 'cursor-pointer'}`}
+                        className={`relative z-10 overflow-hidden bg-white px-5 pb-6 pt-5 outline-none transition-all duration-300 focus-visible:ring-2 focus-visible:ring-orange-500/40 ${tearing ? 'translate-y-8 rotate-2 opacity-80' : ''} ${deleting ? 'cursor-wait' : 'cursor-pointer'}`}
                     >
-                        <div className="absolute -top-3 left-0 right-0 z-20 flex items-center">
-                            <div className="-ml-3 h-6 w-6 shrink-0 rounded-full bg-slate-900/30 shadow-inner" />
-                            <div className="h-px flex-1 border-t-2 border-dashed border-transparent" />
-                            <div className="-mr-3 h-6 w-6 shrink-0 rounded-full bg-slate-900/30 shadow-inner" />
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <span className={`flex h-7 w-7 items-center justify-center rounded border-[3px] border-slate-950 shadow-[3px_3px_0_rgba(15,23,42,0.35)] ${getTone(selectedNotification.type).iconBox}`}>
+                                    {getIcon(selectedNotification.type)}
+                                </span>
+                                <span className="text-xs font-bold text-slate-500">{selectedNotification.createdAt}</span>
+                            </div>
+                            <span className="rounded-full border-2 border-dashed border-slate-300 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                                {deleting ? 'Tearing' : 'Ticket'}
+                            </span>
                         </div>
-                        <div className="max-h-[34vh] overflow-y-auto whitespace-pre-wrap break-words text-sm font-medium leading-7 text-slate-700">
+
+                        <div className="max-h-[34vh] overflow-y-auto whitespace-pre-wrap break-words text-sm font-semibold leading-7 text-slate-800">
                             {selectedNotification.content}
                         </div>
-                        <div className="mt-6 flex items-end justify-between gap-5">
+
+                        <div className="relative mt-6 flex items-center justify-between gap-4 border-t-[3px] border-dashed border-slate-200 pt-5">
+                            <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-2 text-sm font-black text-slate-300">✂</span>
                             {selectedNotification.link ? (
                                 <button
                                     type="button"
@@ -205,24 +264,42 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
                                         event.stopPropagation();
                                         handleOpenLink(selectedNotification);
                                     }}
-                                    className="inline-flex items-center gap-1.5 rounded-md bg-orange-500 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-orange-600"
+                                    className="inline-flex items-center gap-1.5 rounded border-[3px] border-slate-950 bg-sky-500 px-3 py-2 text-xs font-black text-white shadow-[4px_4px_0_#0f172a] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:bg-sky-600"
                                 >
                                     <ExternalLink className="h-3.5 w-3.5"/>
                                     查看文章
                                 </button>
                             ) : <span/>}
                             <div className="text-right">
-                                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                                    {deleting ? 'Tearing' : 'Tear'}
-                                </p>
-                                <p className="text-3xl font-black leading-none text-orange-500 drop-shadow-[0_0_12px_rgba(249,115,22,0.25)]">
-                                    {deleting ? '...' : selectedNotification.type.toUpperCase()}
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Status</p>
+                                <p className={`text-2xl font-black leading-none ${getTone(selectedNotification.type).text}`}>
+                                    {selectedNotification.type.toUpperCase()}
                                 </p>
                             </div>
                         </div>
-                        <p className="mt-5 text-center text-[11px] font-medium text-slate-400">
-                            点击票根撕下并丢弃 · Esc 关闭
+                        <p className="mt-5 text-center text-[11px] font-semibold text-slate-400">
+                            点击卡片主体撕下并丢弃 · Esc 关闭
                         </p>
+                        <div className="pointer-events-none absolute bottom-3 right-12 flex h-16 w-16 items-center justify-center rounded-full border-[4px] border-red-500/70 text-[11px] font-black uppercase tracking-wide text-red-500/70 opacity-80 [animation:notification-read-stamp_520ms_cubic-bezier(0.2,1.4,0.35,1)_180ms_both]">
+                            Read
+                        </div>
+                        <div className="pointer-events-none absolute -bottom-4 -right-4 h-10 w-10 rotate-45 rounded border-[3px] border-slate-950 bg-sky-400" />
+                        <style>{`
+                            @keyframes notification-read-stamp {
+                                0% {
+                                    opacity: 0;
+                                    transform: translateY(10px) scale(1.35) rotate(-24deg);
+                                }
+                                62% {
+                                    opacity: 0.82;
+                                    transform: translateY(0) scale(0.92) rotate(-12deg);
+                                }
+                                100% {
+                                    opacity: 0.7;
+                                    transform: translateY(0) scale(1) rotate(-12deg);
+                                }
+                            }
+                        `}</style>
                     </section>
                 </div>
             </div>
@@ -232,67 +309,79 @@ export default function NotificationPopover({ onClose, onNavigate, onUnreadChang
 
     return (
         <>
-        <div ref={wrapperRef} className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <h3 className="font-semibold text-slate-800 text-sm">系统通知</h3>
+        <div ref={wrapperRef} className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 animate-in fade-in slide-in-from-top-2 duration-200 sm:w-96">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+                <h3 className="text-sm font-bold text-slate-800">系统通知</h3>
                 <button
                     onClick={handleMarkAllRead}
-                    className="text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                    className="flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold text-orange-600 transition-colors hover:bg-orange-50 hover:text-orange-700"
                 >
-                    <Check className="w-3 h-3" /> 全部已读
+                    <Check className="h-3 w-3" /> 全部已读
                 </button>
             </div>
 
-            <div className="max-h-[400px] overflow-y-auto">
+            <div className="max-h-[430px] overflow-y-auto bg-slate-50/60 p-3">
                 {loading ? (
-                    <div className="py-8 flex justify-center">
-                        <Loader2 className="w-5 h-5 text-slate-300 animate-spin" />
+                    <div className="flex justify-center py-8">
+                        <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
                     </div>
                 ) : notifications.length === 0 ? (
-                    <div className="py-8 text-center flex flex-col items-center gap-2">
-                        <Bell className="w-8 h-8 text-slate-200" />
+                    <div className="flex flex-col items-center gap-2 py-8 text-center">
+                        <Bell className="h-8 w-8 text-slate-200" />
                         <p className="text-xs text-slate-400">暂无新通知</p>
                     </div>
                 ) : (
-                    <div className="divide-y divide-slate-50">
-                        {notifications.map(item => (
-                            <div
-                                key={item.id}
-                                onClick={() => handleClickItem(item)}
-                                className={`px-4 py-3 hover:bg-slate-50 cursor-pointer transition-colors relative group ${!item.isRead ? 'bg-blue-50/30' : ''}`}
-                            >
-                                <div className="flex gap-3 items-start">
-                                    <div className="mt-0.5 shrink-0">
-                                        {getIcon(item.type)}
+                    <div className="space-y-3">
+                        {notifications.map(item => {
+                            const tone = getTone(item.type);
+                            return (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => handleClickItem(item)}
+                                    className={`group relative w-full overflow-hidden rounded-lg border-[3px] border-slate-950 bg-white text-left shadow-[5px_5px_0_#0f172a] transition-all duration-300 hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#0f172a] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[3px_3px_0_#0f172a] ${!item.isRead ? 'ring-2 ring-orange-300/60' : ''}`}
+                                >
+                                    <CardPattern />
+                                    <BoldPattern className="-right-2 -top-2 h-16 w-16 text-slate-950" />
+                                    <span className={`absolute -right-5 -top-5 z-10 h-14 w-14 rotate-45 border-[3px] border-slate-950 ${tone.accent}`} />
+                                    <span className="absolute right-2 top-1 z-20 text-sm font-black text-slate-950">★</span>
+
+                                    <div className="relative z-10 flex items-center justify-between gap-2 border-b-[3px] border-slate-950 bg-orange-500 px-3 py-2 text-white">
+                                        <span className="min-w-0 truncate text-sm font-black uppercase tracking-wide">{item.title}</span>
+                                        <span className={`shrink-0 rotate-2 rounded border-2 border-slate-950 bg-white px-2 py-0.5 text-[9px] font-black tracking-[0.12em] text-slate-950 shadow-[2px_2px_0_#0f172a] ${!item.isRead ? '' : 'opacity-75'}`}>
+                                            {item.isRead ? 'READ' : 'NEW'}
+                                        </span>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex justify-between items-start gap-2">
-                                            <p className={`text-sm ${!item.isRead ? 'font-semibold text-slate-800' : 'text-slate-600'}`}>
-                                                {item.title}
-                                            </p>
-                                            {!item.isRead && (
-                                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />
-                                            )}
+
+                                    <div className="relative z-10 p-3">
+                                        <div className="flex gap-3">
+                                            <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border-[3px] border-slate-950 shadow-[3px_3px_0_rgba(15,23,42,0.35)] transition-transform duration-200 group-hover:-rotate-6 ${tone.iconBox}`}>
+                                                {getIcon(item.type)}
+                                            </span>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="line-clamp-2 text-xs font-semibold leading-5 text-slate-700">
+                                                    {item.content}
+                                                </p>
+                                                <div className="mt-3 flex items-center justify-between gap-3 border-t-2 border-dashed border-slate-200 pt-2">
+                                                    <span className="truncate text-[10px] font-semibold text-slate-400">{item.createdAt}</span>
+                                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${tone.tag}`}>
+                                                        {item.link && <ExternalLink className="h-3 w-3" />}
+                                                        {tone.label}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
-                                            {item.content}
-                                        </p>
-                                        <div className="flex justify-between items-center mt-2">
-                                            <span className="text-[10px] text-slate-400">{item.createdAt}</span>
-                                            {item.link && (
-                                                <ExternalLink className="w-3 h-3 text-slate-300 group-hover:text-orange-400" />
-                                            )}
-                                        </div>
+                                        <div className="pointer-events-none absolute -bottom-3 -right-3 h-8 w-8 rotate-45 rounded border-[3px] border-slate-950 bg-sky-400 transition-transform duration-300 group-hover:rotate-[55deg] group-hover:scale-110" />
                                     </div>
-                                </div>
-                            </div>
-                        ))}
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
             </div>
 
-            <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 text-center">
-                <button className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+            <div className="border-t border-slate-100 bg-white px-4 py-2 text-center">
+                <button className="text-xs text-slate-400 transition-colors hover:text-slate-600">
                     查看历史通知
                 </button>
             </div>
