@@ -212,6 +212,37 @@ class BuiltinSystemMCPTests(TestCase):
             'cc-switch 是一款便捷的可视化工具，支持快速切换 Claude Code 的 API 配置。',
         )
 
+    def test_builtin_comment_mcp_matches_plus_highlight_at_selection_end_with_unicode_dash(self):
+        User.objects.create_user(username='admin', password='password')
+        anthology = Anthology.objects.create(coll_id='coll_comment_plus_mark', title='加号高亮评论文集', user_id='admin')
+        article = Article.objects.create(
+            article_id='art_comment_plus_mark',
+            title='加号高亮评论文章',
+            content='DeepSeek-R1 采用强化学习实现高效推理，训练成本仅为同类模型的 30%。2025 年 9 月在《自然》发表论文并登封面，标志着中国 AI 研发进入++国际前沿行列++。',
+            coll_id=anthology.coll_id,
+            author='admin',
+        )
+        server = MCPServer.objects.create(
+            name='评论 MCP',
+            transport='streamableHttp',
+            url='http://unreachable.example.invalid/api/system-mcp/comments/',
+            source='system',
+            enabled=True,
+            tools=[],
+        )
+
+        result, error_msg = call_mcp_tool(server, 'create_article_annotation', {
+            'article_id': article.article_id,
+            'selected_text': 'DeepSeek‑R1 采用强化学习实现高效推理，训练成本仅为同类模型的 30%。2025 年 9 月在《自然》发表论文并登封面，标志着中国 AI 研发进入国际前沿行列。',
+            'comment': '这是一条命中结尾加号高亮文本的评论',
+        })
+
+        self.assertIsNone(error_msg)
+        self.assertEqual(
+            result['annotation']['selected_text'],
+            'DeepSeek-R1 采用强化学习实现高效推理，训练成本仅为同类模型的 30%。2025 年 9 月在《自然》发表论文并登封面，标志着中国 AI 研发进入国际前沿行列。',
+        )
+
     def test_builtin_comment_mcp_fuzzy_match_still_requires_unique_text(self):
         User.objects.create_user(username='admin', password='password')
         anthology = Anthology.objects.create(coll_id='coll_comment_fuzzy_unique', title='不唯一评论文集', user_id='admin')

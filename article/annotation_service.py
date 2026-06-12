@@ -1,6 +1,8 @@
 import hashlib
 import re
+import unicodedata
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 
 from django.db import transaction
 from django.db.models import Q
@@ -15,7 +17,12 @@ MAX_COMMENT_LENGTH = 2000
 MAX_SELECTED_TEXT_LENGTH = 1000
 FUZZY_ANCHOR_CHARS = 8
 FUZZY_LENGTH_TOLERANCE = 10
-FUZZY_IGNORED_CHARS = set('`*_~=#|[]{}<>%')
+FUZZY_IGNORED_CHARS = set('`*_~=#|[]{}<>%+')
+FUZZY_MIN_ANCHOR_CHARS = 4
+FUZZY_MIN_SIMILARITY = 0.86
+DASH_CHARS = set('-‐‑‒–—―−﹣－')
+SINGLE_QUOTE_CHARS = set("'‘’‚‛")
+DOUBLE_QUOTE_CHARS = set('"“”„‟')
 
 
 class AnnotationError(ValueError):
@@ -36,11 +43,23 @@ def article_content_hash(content):
     return hashlib.sha256((content or '').encode('utf-8')).hexdigest()
 
 
+def _unwrap_known_inline_markup(text):
+    previous = None
+    while previous != text:
+        previous = text
+        text = re.sub(r'\[\[([^\]|]+)\|([^\]]+)]]', r'\2', text)
+        text = re.sub(r'\[\[([^\]]+)]]', r'\1', text)
+        text = re.sub(r'==([^=\n]+)==', r'\1', text)
+        text = re.sub(r'\+\+([^+\n]+)\+\+', r'\1', text)
+        text = re.sub(r'%%([^%\n]+)%%', r'\1', text)
+    return text
+
+
 def markdown_to_plain_text(markdown):
     text = markdown or ''
     text = re.sub(r'```[\s\S]*?```', ' ', text)
     text = re.sub(r'`([^`]+)`', r'\1', text)
-    text = re.sub(r'==([^=]+)==', r'\1', text)
+    text = _unwrap_known_inline_markup(text)
     text = re.sub(r'!\[[^\]]*]\([^)]+\)', ' ', text)
     text = re.sub(r'\[([^\]]+)]\([^)]+\)', r'\1', text)
     text = re.sub(r'<[^>]+>', ' ', text)
@@ -57,9 +76,36 @@ def normalize_selected_text(value):
     return re.sub(r'\s+', ' ', (value or '').strip())
 
 
+def _find_all_indexes(source, target):
+    indexes = []
+    if not source or not target:
+        return indexes
+
+    cursor = source.find(target)
+    while cursor >= 0:
+        indexes.append(cursor)
+        cursor = source.find(target, cursor + 1)
+    return indexes
+
+
+def _normalize_char_for_fuzzy_match(char):
+    chars = []
+    for normalized_char in unicodedata.normalize('NFKC', char or ''):
+        if normalized_char.isspace() or normalized_char in FUZZY_IGNORED_CHARS:
+            continue
+        if normalized_char in DASH_CHARS:
+            normalized_char = '-'
+        elif normalized_char in SINGLE_QUOTE_CHARS:
+            normalized_char = "'"
+        elif normalized_char in DOUBLE_QUOTE_CHARS:
+            normalized_char = '"'
+        chars.append(normalized_char.casefold())
+    return ''.join(chars)
+
+
 def _build_anchor(plain_text, selected_text, start_offset, end_offset, content_hash):
     return Anchor(
-        selected_text=selected_text,
+        selected_text=normalize_selected_text(selected_text),
         start_offset=start_offset,
         end_offset=end_offset,
         prefix_text=plain_text[max(0, start_offset - ANCHOR_CONTEXT_CHARS):start_offset],
@@ -72,11 +118,40 @@ def _fuzzy_normalize_with_map(value):
     chars = []
     index_map = []
     for index, char in enumerate(value or ''):
-        if char.isspace() or char in FUZZY_IGNORED_CHARS:
-            continue
-        chars.append(char.casefold())
-        index_map.append(index)
+        normalized_char = _normalize_char_for_fuzzy_match(char)
+        for fuzzy_char in normalized_char:
+            chars.append(fuzzy_char)
+            index_map.append(index)
     return ''.join(chars), index_map
+
+
+def _fuzzy_normalize(value):
+    return _fuzzy_normalize_with_map(value)[0]
+
+
+def _span_from_normalized_match(index_map, start, length):
+    return index_map[start], index_map[start + length - 1] + 1
+
+
+def _dedupe_spans(spans):
+    return list(dict.fromkeys(spans))
+
+
+def _canonicalize_fuzzy_match(plain_slice, requested_text):
+    raw_text = normalize_selected_text(plain_slice)
+    cleaned_text = normalize_selected_text(_unwrap_known_inline_markup(plain_slice))
+    requested_normalized = _fuzzy_normalize(requested_text)
+
+    if cleaned_text and cleaned_text != raw_text and _fuzzy_normalize(cleaned_text) == requested_normalized:
+        return cleaned_text
+    if raw_text and _fuzzy_normalize(raw_text) == requested_normalized:
+        return raw_text
+
+    raw_score = SequenceMatcher(None, _fuzzy_normalize(raw_text), requested_normalized).ratio() if raw_text else 0
+    cleaned_score = SequenceMatcher(None, _fuzzy_normalize(cleaned_text), requested_normalized).ratio() if cleaned_text else 0
+    if cleaned_text and cleaned_score > raw_score:
+        return cleaned_text
+    return raw_text or normalize_selected_text(requested_text)
 
 
 def _find_unique_fuzzy_span(plain_text, selected_text):
@@ -85,17 +160,23 @@ def _find_unique_fuzzy_span(plain_text, selected_text):
     if not normalized_text or not normalized_selected:
         return None
 
-    matches = [match.start() for match in re.finditer(re.escape(normalized_selected), normalized_text)]
-    if len(matches) > 1:
+    matches = _find_all_indexes(normalized_text, normalized_selected)
+    direct_spans = _dedupe_spans([
+        _span_from_normalized_match(index_map, match_start, len(normalized_selected))
+        for match_start in matches
+    ])
+    if len(direct_spans) > 1:
         raise AnnotationError('文本不唯一，请提供更长的 selectedText')
-    if len(matches) == 1:
-        start = index_map[matches[0]]
-        end = index_map[matches[0] + len(normalized_selected) - 1] + 1
-        return start, end
+    if len(direct_spans) == 1:
+        return direct_spans[0]
 
-    anchor_size = min(FUZZY_ANCHOR_CHARS, max(2, len(normalized_selected) // 3))
+    if len(normalized_selected) < FUZZY_MIN_ANCHOR_CHARS:
+        return None
+
+    anchor_size = min(FUZZY_ANCHOR_CHARS, max(FUZZY_MIN_ANCHOR_CHARS, len(normalized_selected) // 3))
     prefix = normalized_selected[:anchor_size]
     suffix = normalized_selected[-anchor_size:]
+    length_tolerance = max(FUZZY_LENGTH_TOLERANCE, int(len(normalized_selected) * 0.2))
     candidates = []
     search_start = 0
     while True:
@@ -108,9 +189,14 @@ def _find_unique_fuzzy_span(plain_text, selected_text):
             if suffix_index < 0:
                 break
             candidate_length = suffix_index + len(suffix) - prefix_index
-            if candidate_length > len(normalized_selected) + FUZZY_LENGTH_TOLERANCE:
+            if candidate_length > len(normalized_selected) + length_tolerance:
                 break
-            if abs(candidate_length - len(normalized_selected)) <= FUZZY_LENGTH_TOLERANCE:
+            if abs(candidate_length - len(normalized_selected)) <= length_tolerance:
+                candidate_text = normalized_text[prefix_index:suffix_index + len(suffix)]
+                similarity = SequenceMatcher(None, candidate_text, normalized_selected).ratio()
+                if similarity < FUZZY_MIN_SIMILARITY:
+                    suffix_search_from = suffix_index + 1
+                    continue
                 start = index_map[prefix_index]
                 end = index_map[suffix_index + len(suffix) - 1] + 1
                 candidates.append((start, end))
@@ -160,12 +246,13 @@ def locate_unique_text(article, selected_text):
         raise AnnotationError('selectedText 不能超过 1000 字')
 
     content_hash = article_content_hash(article.content)
-    matches = [match.start() for match in re.finditer(re.escape(selected_text), plain_text)]
+    matches = _find_all_indexes(plain_text, selected_text)
     if not matches:
         fuzzy_span = _find_unique_fuzzy_span(plain_text, selected_text)
         if not fuzzy_span:
             return None
-        return _build_anchor(plain_text, selected_text, fuzzy_span[0], fuzzy_span[1], content_hash)
+        canonical_text = _canonicalize_fuzzy_match(plain_text[fuzzy_span[0]:fuzzy_span[1]], selected_text)
+        return _build_anchor(plain_text, canonical_text, fuzzy_span[0], fuzzy_span[1], content_hash)
     if len(matches) > 1:
         raise AnnotationError('文本不唯一，请提供更长的 selectedText')
 
@@ -187,13 +274,18 @@ def relocate_annotation(annotation):
         }
 
     selected_text = normalize_selected_text(annotation.selected_text)
-    candidates = [match.start() for match in re.finditer(re.escape(selected_text), plain_text)]
+    candidates = [(start, start + len(selected_text)) for start in _find_all_indexes(plain_text, selected_text)]
     if not candidates:
-        return {'located': False, 'start_offset': None, 'end_offset': None, 'reason': '原文已变化，未找到划线内容'}
+        try:
+            fuzzy_span = _find_unique_fuzzy_span(plain_text, selected_text)
+        except AnnotationError:
+            return {'located': False, 'start_offset': None, 'end_offset': None, 'reason': '原文已变化，划线内容不唯一'}
+        if not fuzzy_span:
+            return {'located': False, 'start_offset': None, 'end_offset': None, 'reason': '原文已变化，未找到划线内容'}
+        candidates = [fuzzy_span]
 
     scored = []
-    for start in candidates:
-        end = start + len(selected_text)
+    for start, end in candidates:
         prefix = plain_text[max(0, start - ANCHOR_CONTEXT_CHARS):start]
         suffix = plain_text[end:end + ANCHOR_CONTEXT_CHARS]
         score = 0

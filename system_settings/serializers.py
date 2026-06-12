@@ -281,6 +281,13 @@ class SkillSerializer(serializers.ModelSerializer):
 
 class AgentTaskSerializer(serializers.ModelSerializer):
     agent_name = serializers.CharField(source='agent.name', read_only=True)
+    agents = serializers.ListField(
+        child=serializers.CharField(),
+        source='agent_ids',
+        required=False,
+        allow_empty=False,
+    )
+    agent_names = serializers.SerializerMethodField()
 
     class Meta:
         model = AgentTask
@@ -289,6 +296,9 @@ class AgentTaskSerializer(serializers.ModelSerializer):
             'name',
             'agent',
             'agent_name',
+            'agents',
+            'agent_names',
+            'execution_mode',
             'trigger',
             'schedule',
             'schedule_type',
@@ -304,7 +314,16 @@ class AgentTaskSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'agent_name', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'agent_name', 'agent_names', 'created_at', 'updated_at']
+
+    def get_agent_names(self, obj):
+        ids = obj.agent_ids if isinstance(obj.agent_ids, list) else []
+        if not ids and obj.agent_id:
+            ids = [obj.agent_id]
+        if not ids:
+            return []
+        agents = {agent.id: agent.name for agent in Agent.objects.filter(id__in=ids)}
+        return [agents[agent_id] for agent_id in ids if agent_id in agents]
 
     def validate_name(self, value):
         value = value.strip()
@@ -318,6 +337,28 @@ class AgentTaskSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
+        agent_ids = attrs.get('agent_ids')
+        selected_agent = attrs.get('agent') or getattr(self.instance, 'agent', None)
+
+        if agent_ids is not None:
+            cleaned_agent_ids = []
+            for agent_id in agent_ids:
+                agent_id = str(agent_id).strip()
+                if agent_id and agent_id not in cleaned_agent_ids:
+                    cleaned_agent_ids.append(agent_id)
+            if not cleaned_agent_ids:
+                raise serializers.ValidationError({"agents": "请至少选择一个 Agent"})
+            existing_agents = list(Agent.objects.filter(id__in=cleaned_agent_ids))
+            existing_ids = {agent.id for agent in existing_agents}
+            missing_ids = [agent_id for agent_id in cleaned_agent_ids if agent_id not in existing_ids]
+            if missing_ids:
+                raise serializers.ValidationError({"agents": f"Agent 不存在：{', '.join(missing_ids)}"})
+            attrs['agent_ids'] = cleaned_agent_ids
+            first_agent = next(agent for agent in existing_agents if agent.id == cleaned_agent_ids[0])
+            attrs['agent'] = first_agent
+        elif selected_agent and not getattr(self.instance, 'agent_ids', None):
+            attrs['agent_ids'] = [selected_agent.id]
+
         notify_enabled = attrs.get('notify_enabled', getattr(self.instance, 'notify_enabled', False))
         notify_webhook_url = attrs.get('notify_webhook_url', getattr(self.instance, 'notify_webhook_url', ''))
         if notify_enabled and not notify_webhook_url:
@@ -334,6 +375,7 @@ class AgentRunRecordSerializer(serializers.ModelSerializer):
             'task_name',
             'agent',
             'agent_name',
+            'agent_runs',
             'trigger',
             'status',
             'started_at',

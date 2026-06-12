@@ -321,12 +321,12 @@ TOOLS = [
     },
     {
         'name': 'create_article_annotation',
-        'description': '为文章指定原文创建划线批注，并添加一条 Agent 评论。selected_text 必须从文章正文渲染后的纯文本中逐字复制一段连续原文，且唯一出现。不支持 fenced 代码块、图片、HTML 标签等会被纯文本化时移除的内容；链接只匹配展示文字，行内代码只匹配去掉反引号后的文字。不要传翻译、总结、改写、补写、省略或替换标点后的文本。',
+        'description': '为文章指定原文创建划线批注，并添加一条 Agent 评论。selected_text 必须从文章正文渲染后的纯文本中逐字复制一段连续原文，且唯一出现。服务端会兼容常见内联标记（如 ==、++、%%、[[ ]]）、空白折叠、全角/半角、Unicode 连字符/引号差异。不支持 fenced 代码块、图片、HTML 标签等会被纯文本化时移除的内容；链接只匹配展示文字，行内代码只匹配去掉反引号后的文字。不要传翻译、总结、改写、补写、省略或替换标点后的文本。',
         'inputSchema': {
             'type': 'object',
             'properties': {
                 'article_id': {'type': 'string', 'description': '文章 ID。'},
-                'selected_text': {'type': 'string', 'description': '需要划线批注的连续原文。必须逐字复制自 article.content 渲染后的纯文本，并且只出现一次。不要选择 fenced 代码块、图片、HTML 标签等会被移除的内容；标题/列表/引用需去掉 Markdown 标记，链接取展示文字，行内代码取去掉反引号后的文字；不要传总结、翻译、改写、截断拼接或标点变化后的文本。'},
+                'selected_text': {'type': 'string', 'description': '需要划线批注的连续原文。必须逐字复制自 article.content 渲染后的纯文本，并且只出现一次。服务端会兼容常见内联标记、空白折叠、全角/半角、Unicode 连字符/引号差异；不要选择 fenced 代码块、图片、HTML 标签等会被移除的内容；标题/列表/引用需去掉 Markdown 标记，链接取展示文字，行内代码取去掉反引号后的文字；不要传总结、翻译、改写、截断拼接或标点变化后的文本。'},
                 'comment': {'type': 'string', 'description': '评论内容，最多 2000 字。'},
             },
             'required': ['article_id', 'selected_text', 'comment'],

@@ -18,7 +18,7 @@ from utils.mcp_client import (
     fetch_mcp_tools,
     hide_agent_identity_parameters,
 )
-from .models import AgentRunRecord, AgentTask, MCPServer, Skill
+from .models import Agent, AgentRunRecord, AgentTask, MCPServer, Skill
 from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial_delay_seconds
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,7 @@ class AgentTaskScheduler:
         self._start_lock = threading.Lock()
         self._stop_event = threading.Event()
         self._run_lock = threading.Lock()
+        self._record_update_lock = threading.Lock()
         self.runner_id = f"{socket.gethostname()}:{os.getpid()}"
 
     @property
@@ -188,11 +189,26 @@ class AgentTaskScheduler:
 
     def _run_task(self, task, trigger='scheduler'):
         started = timezone.now()
+        agents = self._get_task_agents(task)
+        primary_agent = agents[0] if agents else None
+        agent_runs = [
+            {
+                'agent': agent.id,
+                'agentName': agent.name,
+                'agentAvatar': agent.avatar,
+                'status': 'running',
+                'summary': '等待执行',
+                'duration': '',
+                'steps': [],
+            }
+            for agent in agents
+        ]
         record = AgentRunRecord.objects.create(
             task=task,
             task_name=task.name,
-            agent=task.agent,
-            agent_name=task.agent.name if task.agent else '',
+            agent=primary_agent,
+            agent_name=self._format_agent_names(agents),
+            agent_runs=agent_runs,
             trigger=trigger,
             status='running',
             summary='任务开始执行',
@@ -201,38 +217,88 @@ class AgentTaskScheduler:
         )
         try:
             self._append_run_step(record, 'running', '开始执行任务', f"任务：{task.name}，触发方式：{trigger}")
+            if not agents:
+                raise RuntimeError('未配置 Agent')
+
+            mode = task.execution_mode if task.execution_mode in ('parallel', 'serial') else 'parallel'
             self._append_run_step(
                 record,
                 'info',
                 '装载 Agent',
-                f"Agent：{task.agent.name}" if task.agent else '未配置 Agent',
+                f"{self._format_agent_names(agents)} · {'并行执行' if mode == 'parallel' else '串行执行'}",
             )
-            tool_context = self._append_agent_context_steps(record, task)
-            self._append_run_step(record, 'running', '调用 AI 生成内容', '正在根据任务提示词生成最终内容')
-            if tool_context['tools']:
-                content = AIService.chat_completion_with_tools(
-                    self._build_prompt(task, has_mcp_tools=True),
-                    tool_context['tools'],
-                    lambda tool_name, arguments: self._execute_mcp_tool(tool_context, tool_name, arguments),
-                    on_tool_call=lambda tool_name, arguments: self._append_run_step(
-                        record,
-                        'running',
-                        '调用 MCP Tool',
-                        f"{tool_name} 参数：{json.dumps(arguments, ensure_ascii=False)[:500]}",
-                    )
-                )
+
+            run_results = []
+            if mode == 'serial':
+                previous_content = ''
+                for index, agent in enumerate(agents):
+                    result = self._run_task_for_agent(record, task, agent, previous_content=previous_content)
+                    run_results.append(result)
+                    if result['status'] != 'success':
+                        for skipped_agent in agents[index + 1:]:
+                            skipped_summary = '前置 Agent 失败，未执行'
+                            self._append_agent_run_step(record, skipped_agent.id, 'failed', '跳过执行', skipped_summary)
+                            self._finish_agent_run(record, skipped_agent.id, 'failed', skipped_summary, '')
+                            run_results.append({
+                                'agent': skipped_agent.id,
+                                'agentName': skipped_agent.name,
+                                'agentAvatar': skipped_agent.avatar,
+                                'status': 'failed',
+                                'summary': skipped_summary,
+                                'duration': '',
+                                'content': '',
+                            })
+                        break
+                    previous_content = result.get('content') or previous_content
             else:
-                content = AIService.chat_completion(self._build_prompt(task))
-            self._append_run_step(record, 'success', 'AI 内容生成完成', f"生成内容长度：{len(content or '')} 字符")
-            summary = self._build_completion_summary(content)
+                result_lock = threading.Lock()
+
+                def runner(agent):
+                    try:
+                        close_old_connections()
+                        result = self._run_task_for_agent(record, task, agent)
+                    except Exception as exc:
+                        result = {
+                            'agent': agent.id,
+                            'agentName': agent.name,
+                            'agentAvatar': agent.avatar,
+                            'status': 'failed',
+                            'summary': str(exc)[:255],
+                            'content': '',
+                        }
+                    with result_lock:
+                        run_results.append(result)
+                    close_old_connections()
+
+                threads = [
+                    threading.Thread(
+                        target=runner,
+                        args=(agent,),
+                        name=f'agent-task-{task.id}-{agent.id}',
+                        daemon=True,
+                    )
+                    for agent in agents
+                ]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join()
+
+            failed_results = [result for result in run_results if result.get('status') != 'success']
             duration_seconds = max(0, int((timezone.now() - started).total_seconds()))
-            record.status = 'success'
+            record.status = 'failed' if failed_results else 'success'
             record.duration = self._format_duration(duration_seconds)
-            record.summary = summary
+            record.summary = self._build_multi_agent_summary(run_results)
             record.save(update_fields=['status', 'duration', 'summary', 'updated_at'])
-            self._send_task_notification(task, record)
-            self._append_run_step(record, 'success', '执行结束', f"总耗时：{record.duration}")
-            _scheduler_log(f"task success: id={task.id}, name={task.name}")
+            if record.status == 'success':
+                self._send_task_notification(task, record)
+            self._append_run_step(
+                record,
+                record.status,
+                '执行结束' if record.status == 'success' else '执行结束，有 Agent 失败',
+                f"总耗时：{record.duration}",
+            )
+            _scheduler_log(f"task {record.status}: id={task.id}, name={task.name}")
             logger.info('Agent task finished: %s', task.id)
         except Exception as exc:
             duration_seconds = max(0, int((timezone.now() - started).total_seconds()))
@@ -244,6 +310,60 @@ class AgentTaskScheduler:
             _scheduler_log(f"task failed: id={task.id}, name={task.name}, error={exc}")
             logger.exception('Agent task failed: %s', task.id)
 
+    def _run_task_for_agent(self, record, task, agent, previous_content=''):
+        agent_started = timezone.now()
+        self._append_agent_run_step(record, agent.id, 'running', '开始执行', f"Agent：{agent.name}")
+        try:
+            self._append_agent_run_step(record, agent.id, 'info', '装载 Agent', f"Agent：{agent.name}")
+            tool_context = self._append_agent_context_steps(record, task, agent=agent)
+            self._append_agent_run_step(record, agent.id, 'running', '调用 AI 生成内容', '正在根据任务提示词生成最终内容')
+            if tool_context['tools']:
+                content = AIService.chat_completion_with_tools(
+                    self._build_prompt(task, has_mcp_tools=True, agent=agent, previous_content=previous_content),
+                    tool_context['tools'],
+                    lambda tool_name, arguments: self._execute_mcp_tool(tool_context, tool_name, arguments),
+                    on_tool_call=lambda tool_name, arguments: self._append_agent_run_step(
+                        record,
+                        agent.id,
+                        'running',
+                        '调用 MCP Tool',
+                        f"{tool_name} 参数：{json.dumps(arguments, ensure_ascii=False)[:500]}",
+                    )
+                )
+            else:
+                content = AIService.chat_completion(
+                    self._build_prompt(task, agent=agent, previous_content=previous_content)
+                )
+            self._append_agent_run_step(record, agent.id, 'success', 'AI 内容生成完成', f"生成内容长度：{len(content or '')} 字符")
+            summary = self._build_completion_summary(content)
+            duration = self._format_duration(max(0, int((timezone.now() - agent_started).total_seconds())))
+            self._finish_agent_run(record, agent.id, 'success', summary, duration)
+            self._append_agent_run_step(record, agent.id, 'success', '执行结束', f"耗时：{duration}")
+            return {
+                'agent': agent.id,
+                'agentName': agent.name,
+                'agentAvatar': agent.avatar,
+                'status': 'success',
+                'summary': summary,
+                'duration': duration,
+                'content': content or '',
+            }
+        except Exception as exc:
+            summary = str(exc)[:255]
+            duration = self._format_duration(max(0, int((timezone.now() - agent_started).total_seconds())))
+            self._append_agent_run_step(record, agent.id, 'failed', '执行失败', str(exc)[:500])
+            self._finish_agent_run(record, agent.id, 'failed', summary, duration)
+            logger.exception('Agent task failed for agent %s: %s', agent.id, task.id)
+            return {
+                'agent': agent.id,
+                'agentName': agent.name,
+                'agentAvatar': agent.avatar,
+                'status': 'failed',
+                'summary': summary,
+                'duration': duration,
+                'content': '',
+            }
+
     def _append_run_step(self, record, status, title, detail=''):
         step = {
             'time': _local_now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -251,12 +371,61 @@ class AgentTaskScheduler:
             'title': title,
             'detail': detail or '',
         }
-        steps = record.steps if isinstance(record.steps, list) else []
-        record.steps = [*steps, step]
-        record.save(update_fields=['steps', 'updated_at'])
+        with self._record_update_lock:
+            steps = record.steps if isinstance(record.steps, list) else []
+            record.steps = [*steps, step]
+            record.save(update_fields=['steps', 'updated_at'])
 
-    def _append_agent_context_steps(self, record, task):
-        agent = task.agent
+    def _append_agent_run_step(self, record, agent_id, status, title, detail=''):
+        step = {
+            'time': _local_now().strftime('%Y-%m-%d %H:%M:%S'),
+            'status': status,
+            'title': title,
+            'detail': detail or '',
+        }
+        with self._record_update_lock:
+            agent_runs = record.agent_runs if isinstance(record.agent_runs, list) else []
+            next_runs = []
+            found = False
+            for agent_run in agent_runs:
+                if not isinstance(agent_run, dict) or agent_run.get('agent') != agent_id:
+                    next_runs.append(agent_run)
+                    continue
+                found = True
+                steps = agent_run.get('steps') if isinstance(agent_run.get('steps'), list) else []
+                next_runs.append({
+                    **agent_run,
+                    'status': status if status in ('running', 'success', 'failed') else agent_run.get('status', 'running'),
+                    'steps': [*steps, step],
+                })
+            if not found:
+                next_runs.append({
+                    'agent': agent_id,
+                    'agentName': '',
+                    'status': status if status in ('running', 'success', 'failed') else 'running',
+                    'summary': '',
+                    'duration': '',
+                    'steps': [step],
+                })
+            record.agent_runs = next_runs
+            record.save(update_fields=['agent_runs', 'updated_at'])
+
+    def _finish_agent_run(self, record, agent_id, status, summary, duration):
+        with self._record_update_lock:
+            agent_runs = record.agent_runs if isinstance(record.agent_runs, list) else []
+            record.agent_runs = [
+                {
+                    **agent_run,
+                    'status': status,
+                    'summary': summary,
+                    'duration': duration,
+                } if isinstance(agent_run, dict) and agent_run.get('agent') == agent_id else agent_run
+                for agent_run in agent_runs
+            ]
+            record.save(update_fields=['agent_runs', 'updated_at'])
+
+    def _append_agent_context_steps(self, record, task, agent=None):
+        agent = agent or task.agent
         if not agent:
             return {'tools': [], 'tool_map': {}}
 
@@ -269,17 +438,17 @@ class AgentTaskScheduler:
                 for server in mcp_servers:
                     if not server.enabled:
                         detail = f"{server.name} 已停用"
-                        self._append_run_step(record, 'failed', 'MCP 执行失败', detail)
+                        self._append_agent_run_step(record, agent.id, 'failed', 'MCP 执行失败', detail)
                         raise RuntimeError(detail)
-                    self._append_run_step(record, 'running', '检查 MCP 连接', f"{server.name}：正在同步 Tool")
+                    self._append_agent_run_step(record, agent.id, 'running', '检查 MCP 连接', f"{server.name}：正在同步 Tool")
                     tools, error_msg = fetch_mcp_tools(server)
                     if error_msg:
                         detail = f"{server.name}：{error_msg}"
-                        self._append_run_step(record, 'failed', 'MCP 执行失败', detail)
+                        self._append_agent_run_step(record, agent.id, 'failed', 'MCP 执行失败', detail)
                         raise RuntimeError(detail)
                     if not tools:
                         detail = f"{server.name}：未发现可用 Tool"
-                        self._append_run_step(record, 'failed', 'MCP 执行失败', detail)
+                        self._append_agent_run_step(record, agent.id, 'failed', 'MCP 执行失败', detail)
                         raise RuntimeError(detail)
                     server.tools = self._merge_enabled_tools(tools, server.tools)
                     server.save(update_fields=['tools', 'updated_at'])
@@ -313,17 +482,17 @@ class AgentTaskScheduler:
                                 'parameters': parameters,
                             }
                         })
-                self._append_run_step(record, 'info', '装载 MCP', '；'.join(details))
+                self._append_agent_run_step(record, agent.id, 'info', '装载 MCP', '；'.join(details))
             else:
-                self._append_run_step(record, 'info', '装载 MCP', 'Agent 已绑定 MCP，但未找到对应配置')
+                self._append_agent_run_step(record, agent.id, 'info', '装载 MCP', 'Agent 已绑定 MCP，但未找到对应配置')
         else:
-            self._append_run_step(record, 'info', '装载 MCP', '未绑定 MCP')
+            self._append_agent_run_step(record, agent.id, 'info', '装载 MCP', '未绑定 MCP')
 
         skill_prompts = self._get_skill_prompts(agent)
         if skill_prompts:
-            self._append_run_step(record, 'info', '装载技能', f"已装载 {len(skill_prompts)} 个技能")
+            self._append_agent_run_step(record, agent.id, 'info', '装载技能', f"已装载 {len(skill_prompts)} 个技能")
         else:
-            self._append_run_step(record, 'info', '装载技能', '未绑定可用技能')
+            self._append_agent_run_step(record, agent.id, 'info', '装载技能', '未绑定可用技能')
 
         return tool_context
 
@@ -358,14 +527,46 @@ class AgentTaskScheduler:
             if name in existing:
                 merged_tools.append({
                     **tool,
-                    'enabled': existing[name].get('enabled', True),
+                'enabled': existing[name].get('enabled', True),
                 })
             else:
                 merged_tools.append(tool)
         return merged_tools
 
-    def _build_prompt(self, task, has_mcp_tools=False):
-        agent = task.agent
+    @staticmethod
+    def _get_task_agents(task):
+        agent_ids = task.agent_ids if isinstance(task.agent_ids, list) else []
+        if not agent_ids and task.agent_id:
+            agent_ids = [task.agent_id]
+        if not agent_ids:
+            return []
+
+        agents = {agent.id: agent for agent in Agent.objects.filter(id__in=agent_ids)}
+        return [agents[agent_id] for agent_id in agent_ids if agent_id in agents]
+
+    @staticmethod
+    def _format_agent_names(agents):
+        names = [agent.name for agent in agents if agent]
+        if not names:
+            return ''
+        if len(names) <= 3:
+            return '、'.join(names)
+        return f"{'、'.join(names[:3])} 等 {len(names)} 个 Agent"
+
+    @staticmethod
+    def _build_multi_agent_summary(results):
+        if not results:
+            return '任务未执行'
+        parts = []
+        for result in results:
+            agent_name = result.get('agentName') or 'Agent'
+            status_text = '成功' if result.get('status') == 'success' else '失败'
+            summary = result.get('summary') or ''
+            parts.append(f"{agent_name}：{status_text}，{summary}")
+        return '；'.join(parts)[:255]
+
+    def _build_prompt(self, task, has_mcp_tools=False, agent=None, previous_content=''):
+        agent = agent or task.agent
         now = _local_now()
         today = now.strftime('%Y-%m-%d')
         current_time = now.strftime('%Y-%m-%d %H:%M:%S')
@@ -378,6 +579,12 @@ class AgentTaskScheduler:
         skill_prompts = self._get_skill_prompts(agent)
         if skill_prompts:
             parts.append("你已装载以下 O-Doc 系统技能。请按技能边界使用它们：\n" + "\n\n".join(skill_prompts))
+
+        if previous_content:
+            parts.append(
+                "上一个 Agent 的执行结果如下。请把它作为上下文继续完成你的职责，不要重复无关过程：\n"
+                + previous_content[:6000]
+            )
 
         parts.append(
             "你正在执行一个定时 Agent 任务。请直接输出最终内容，不要描述执行过程。\n"

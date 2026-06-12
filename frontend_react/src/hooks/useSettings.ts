@@ -313,10 +313,15 @@ export const useSettings = () => {
         setIsSaving(true);
         try {
             const intervalMinutes = Number(taskData.intervalMinutes) || 60;
+            const agentIds = taskData.agents?.length
+                ? taskData.agents
+                : (taskData.agent ? [taskData.agent] : []);
             const payload = {
                 id: taskData.id,
                 name: taskData.name || '',
-                agent: taskData.agent || '',
+                agent: agentIds[0] || taskData.agent || '',
+                agents: agentIds,
+                executionMode: taskData.executionMode || 'parallel',
                 trigger: taskData.trigger || '定时任务',
                 schedule: taskData.schedule || '',
                 scheduleType: taskData.scheduleType || 'daily',

@@ -89,6 +89,7 @@ export type SaveAgentLongTermMemoryParams = Pick<AgentLongTermMemoryConfig, 'mem
 
 export type AgentTaskScheduleType = 'daily' | 'weekly' | 'monthly' | 'interval';
 export type AgentTaskNotifyPlatform = 'feishu';
+export type AgentTaskExecutionMode = 'parallel' | 'serial';
 export type AgentRunStatus = 'success' | 'failed' | 'running';
 export type AgentRunStepStatus = AgentRunStatus | 'info';
 
@@ -97,6 +98,9 @@ export interface AgentTaskConfig {
     name: string;
     agent: string;
     agentName: string;
+    agents?: string[];
+    agentNames?: string[];
+    executionMode: AgentTaskExecutionMode;
     trigger: string;
     schedule: string;
     scheduleType: AgentTaskScheduleType;
@@ -113,7 +117,7 @@ export interface AgentTaskConfig {
     updatedAt?: string;
 }
 
-export type SaveAgentTaskConfigParams = Omit<AgentTaskConfig, 'id' | 'agentName' | 'createdAt' | 'updatedAt'> & {
+export type SaveAgentTaskConfigParams = Omit<AgentTaskConfig, 'id' | 'agentName' | 'agentNames' | 'createdAt' | 'updatedAt'> & {
     id?: string;
 };
 
@@ -123,6 +127,7 @@ export interface AgentRunRecordConfig {
     taskName: string;
     agent?: string | null;
     agentName: string;
+    agentRuns?: AgentRunAgentConfig[];
     trigger: string;
     status: AgentRunStatus;
     startedAt: string;
@@ -138,6 +143,16 @@ export interface AgentRunStepConfig {
     status: AgentRunStepStatus;
     title: string;
     detail?: string;
+}
+
+export interface AgentRunAgentConfig {
+    agent: string;
+    agentName: string;
+    agentAvatar?: string;
+    status: AgentRunStatus;
+    summary: string;
+    duration?: string;
+    steps?: AgentRunStepConfig[];
 }
 
 export type MCPTransport = 'stdio' | 'sse' | 'streamableHttp';

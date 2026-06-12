@@ -562,6 +562,11 @@ class AgentTask(models.Model):
         ('feishu', '飞书机器人'),
     ]
 
+    EXECUTION_MODES = [
+        ('parallel', '并行执行'),
+        ('serial', '串行执行'),
+    ]
+
     id = models.CharField(
         max_length=40,
         primary_key=True,
@@ -577,6 +582,8 @@ class AgentTask(models.Model):
         verbose_name='执行 Agent',
         db_comment='执行 Agent ID'
     )
+    agent_ids = models.JSONField(default=list, blank=True, verbose_name='执行 Agent 列表', db_comment='多 Agent 执行 ID 列表')
+    execution_mode = models.CharField(max_length=20, choices=EXECUTION_MODES, default='parallel', verbose_name='执行模式', db_comment='多 Agent 执行模式')
     trigger = models.CharField(max_length=40, default='定时任务', verbose_name='触发方式', db_comment='触发方式')
     schedule = models.CharField(max_length=80, blank=True, default='', verbose_name='执行周期展示', db_comment='执行周期展示')
     schedule_type = models.CharField(max_length=20, choices=SCHEDULE_TYPES, default='daily', verbose_name='执行周期类型', db_comment='执行周期类型')
@@ -639,6 +646,7 @@ class AgentRunRecord(models.Model):
         db_comment='执行 Agent ID'
     )
     agent_name = models.CharField(max_length=50, blank=True, default='', verbose_name='Agent 名称', db_comment='Agent 名称快照')
+    agent_runs = models.JSONField(default=list, blank=True, verbose_name='Agent 执行明细', db_comment='多 Agent 执行明细')
     trigger = models.CharField(max_length=40, default='定时任务', verbose_name='触发方式', db_comment='触发方式')
     status = models.CharField(max_length=20, choices=STATUS_TYPES, default='running', verbose_name='状态', db_comment='执行状态')
     duration = models.CharField(max_length=40, blank=True, default='', verbose_name='耗时', db_comment='耗时展示')

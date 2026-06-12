@@ -5,6 +5,7 @@ import {
     Bot,
     BrainCircuit,
     CalendarClock,
+    ChevronDown,
     CheckCircle2,
     Clock3,
     Code2,
@@ -18,6 +19,7 @@ import {
     Sparkles,
     Trash2,
     Upload,
+    Users,
     WandSparkles,
     X,
     XCircle,
@@ -29,6 +31,7 @@ import type {
     AgentMemoryStatus,
     AgentMemoryType,
     AgentRunRecordConfig,
+    AgentTaskExecutionMode,
     AgentTaskConfig,
     AgentTaskNotifyPlatform,
     AgentTaskScheduleType,
@@ -84,7 +87,8 @@ type AgentMemoryForm = {
 type AgentTaskForm = {
     id?: string;
     name: string;
-    agent: string;
+    agents: string[];
+    executionMode: AgentTaskExecutionMode;
     trigger: string;
     schedule: string;
     scheduleType: AgentTaskScheduleType;
@@ -109,9 +113,10 @@ const getAgentAvatar = (agent: Pick<AgentConfig, 'avatar' | 'name'>) => {
 
 const isImageAvatar = (avatar: string) => /^https?:\/\//.test(avatar) || avatar.startsWith('/') || avatar.startsWith('blob:') || avatar.startsWith('data:image/');
 
-const AgentAvatar = ({agent, size = 'md'}: { agent: Pick<AgentConfig, 'avatar' | 'name'>, size?: 'md' | 'lg' | 'xl' }) => {
+const AgentAvatar = ({agent, size = 'md'}: { agent: Pick<AgentConfig, 'avatar' | 'name'>, size?: 'sm' | 'md' | 'lg' | 'xl' }) => {
     const avatar = getAgentAvatar(agent);
     const sizeClass = {
+        sm: 'w-9 h-9 text-sm rounded-lg',
         md: 'w-11 h-11 text-base rounded-xl',
         lg: 'w-16 h-16 text-xl rounded-2xl',
         xl: 'w-24 h-24 text-3xl rounded-[1.35rem]',
@@ -151,6 +156,7 @@ export const AgentSettings = ({
     const [modalOpen, setModalOpen] = useState(false);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
     const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+    const [expandedAgentRuns, setExpandedAgentRuns] = useState<Record<string, boolean>>({});
     const [, setElapsedTick] = useState(0);
     const [saving, setSaving] = useState(false);
     const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
@@ -181,7 +187,8 @@ export const AgentSettings = ({
     const getDefaultAgentId = () => agents[0]?.id || '';
     const [taskForm, setTaskForm] = useState<AgentTaskForm>({
         name: '',
-        agent: getDefaultAgentId(),
+        agents: getDefaultAgentId() ? [getDefaultAgentId()] : [],
+        executionMode: 'parallel',
         trigger: '定时任务',
         schedule: '每天 09:00',
         scheduleType: 'daily',
@@ -215,6 +222,10 @@ export const AgentSettings = ({
     const taskAgentOptions = useMemo<SettingsSelectOption<string>[]>(() => {
         return agents.map(agent => ({value: agent.id, label: agent.name}));
     }, [agents]);
+    const executionModeOptions: SettingsSelectOption<AgentTaskExecutionMode>[] = [
+        {value: 'parallel', label: '并行执行', description: '多个 Agent 同时执行，适合独立产出和快速对比'},
+        {value: 'serial', label: '串行执行', description: '按选择顺序执行，后一个 Agent 会参考前一个结果'},
+    ];
     const taskTriggerOptions: SettingsSelectOption<string>[] = [
         {value: '定时任务', label: '定时任务'},
         {value: '手动执行', label: '手动执行'},
@@ -307,9 +318,11 @@ export const AgentSettings = ({
     };
 
     const openCreateTaskModal = () => {
+        const defaultAgentId = taskAgentOptions[0]?.value || getDefaultAgentId();
         setTaskForm({
             name: '',
-            agent: taskAgentOptions[0]?.value || getDefaultAgentId(),
+            agents: defaultAgentId ? [defaultAgentId] : [],
+            executionMode: 'parallel',
             trigger: '定时任务',
             schedule: '每天 09:00',
             scheduleType: 'daily',
@@ -327,10 +340,12 @@ export const AgentSettings = ({
     };
 
     const openEditTaskModal = (task: AgentTaskConfig) => {
+        const taskAgentIds = task.agents?.length ? task.agents : (task.agent ? [task.agent] : []);
         setTaskForm({
             id: task.id,
             name: task.name,
-            agent: task.agent,
+            agents: taskAgentIds,
+            executionMode: task.executionMode || 'parallel',
             trigger: task.trigger,
             schedule: task.schedule,
             enabled: task.enabled,
@@ -497,6 +512,10 @@ export const AgentSettings = ({
             toast.warning('请填写任务名称和任务目标');
             return;
         }
+        if (taskForm.agents.length === 0) {
+            toast.warning('请至少选择一个 Agent');
+            return;
+        }
         if (!isManualTask && taskForm.scheduleType === 'interval' && (!taskForm.intervalMinutes || Number(taskForm.intervalMinutes) < 1)) {
             toast.warning('请填写大于 0 的间隔分钟数');
             return;
@@ -509,7 +528,9 @@ export const AgentSettings = ({
         const success = await onSaveTask({
             id: taskForm.id,
             name: taskForm.name.trim(),
-            agent: taskForm.agent,
+            agent: taskForm.agents[0],
+            agents: taskForm.agents,
+            executionMode: taskForm.executionMode,
             trigger: taskForm.trigger,
             schedule: isManualTask ? '手动执行' : buildTaskSchedule(taskForm),
             scheduleType: taskForm.scheduleType,
@@ -573,6 +594,55 @@ export const AgentSettings = ({
     const enabledSkills = skills.filter(skill => skill.enabled);
     const getSkillName = (skillId: string) => skills.find(skill => skill.id === skillId)?.name || skillId;
     const selectedRecord = selectedRecordId ? runRecords.find(record => record.id === selectedRecordId) : null;
+    const selectedRecordAgentRuns = selectedRecord?.agentRuns?.length ? selectedRecord.agentRuns : [];
+    const getAgentById = (agentId: string) => agents.find(agent => agent.id === agentId);
+    const getTaskAgentIds = (task: AgentTaskConfig) => task.agents?.length ? task.agents : (task.agent ? [task.agent] : []);
+    const getTaskAgentNames = (task: AgentTaskConfig) => {
+        if (task.agentNames?.length) return task.agentNames;
+        const agentIds = getTaskAgentIds(task);
+        const names = agentIds.map(agentId => agents.find(agent => agent.id === agentId)?.name).filter(Boolean) as string[];
+        return names.length ? names : [task.agentName].filter(Boolean);
+    };
+    const formatAgentSummary = (names: string[]) => {
+        if (names.length <= 1) return names[0] || '-';
+        return `Agent x ${names.length}`;
+    };
+    const renderAgentSummary = (names: string[], className = '') => {
+        const isSingle = names.length <= 1;
+
+        return (
+            <span
+                className={`inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap rounded-md bg-orange-600 px-2 py-1 text-xs font-bold text-white shadow-sm shadow-orange-200/70 ${className}`}
+                title={names.join('、')}
+            >
+                <Bot className="h-3.5 w-3.5"/>
+                <span className={isSingle ? 'truncate' : 'font-mono text-[11px] leading-none text-orange-100'}>
+                    {isSingle ? formatAgentSummary(names) : `x ${names.length}`}
+                </span>
+            </span>
+        );
+    };
+    const getAgentRunAvatar = (agentRun: {agent: string; agentName: string; agentAvatar?: string}) => {
+        const currentAgent = getAgentById(agentRun.agent);
+        return {
+            name: agentRun.agentName || currentAgent?.name || 'Agent',
+            avatar: agentRun.agentAvatar || currentAgent?.avatar || '',
+        };
+    };
+    const toggleTaskAgent = (agentId: string) => {
+        setTaskForm(prev => {
+            const selected = new Set(prev.agents);
+            if (selected.has(agentId)) {
+                selected.delete(agentId);
+            } else {
+                selected.add(agentId);
+            }
+            return {...prev, agents: Array.from(selected)};
+        });
+    };
+    const toggleAgentRunExpanded = (agentId: string) => {
+        setExpandedAgentRuns(prev => ({...prev, [agentId]: !prev[agentId]}));
+    };
 
     useEffect(() => {
         if (!runRecords.some(record => record.status === 'running')) return;
@@ -740,7 +810,10 @@ export const AgentSettings = ({
                             <CalendarClock className="w-8 h-8 mx-auto mb-3 text-slate-300"/>
                             <p className="text-sm">暂无任务，创建一个定时或手动触发的 Agent 任务。</p>
                         </div>
-                    ) : tasks.map(task => (
+                    ) : tasks.map(task => {
+                        const taskAgentNames = getTaskAgentNames(task);
+                        const executionModeLabel = task.executionMode === 'serial' ? '串行' : '并行';
+                        return (
                         <div key={task.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-orange-200 hover:shadow-md">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                                 <div className="min-w-0 flex-1">
@@ -765,10 +838,10 @@ export const AgentSettings = ({
 		                                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-3 lg:w-[24rem]">
                                     <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
                                         <div className="mb-1 flex items-center gap-1.5 font-semibold text-orange-700">
-                                            <Bot className="h-3.5 w-3.5"/>
-                                            Agent
+                                            <Users className="h-3.5 w-3.5"/>
+                                            Agent · {executionModeLabel}
                                         </div>
-                                        <p className="truncate">{task.agentName}</p>
+                                        {renderAgentSummary(taskAgentNames, 'mt-1')}
                                     </div>
                                     <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
                                         <div className="mb-1 flex items-center gap-1.5 font-semibold text-blue-700">
@@ -816,7 +889,8 @@ export const AgentSettings = ({
                                 </div>
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             ) : activeView === 'records' ? (
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -831,6 +905,9 @@ export const AgentSettings = ({
                     <div className="divide-y divide-slate-100">
                         {runRecords.map(record => {
                             const statusMeta = getRecordStatusMeta(record.status);
+                            const recordAgentNames = record.agentRuns?.length
+                                ? record.agentRuns.map(agentRun => agentRun.agentName).filter(Boolean)
+                                : [record.agentName].filter(Boolean);
                             return (
                                 <div key={record.id} className="grid grid-cols-1 gap-3 px-4 py-4 text-sm transition-colors hover:bg-orange-50/30 md:grid-cols-[1.05fr_0.75fr_0.7fr_0.75fr_0.55fr_0.45fr] md:items-center md:gap-4">
                                     <div className="min-w-0">
@@ -841,7 +918,7 @@ export const AgentSettings = ({
                                         <p className="mt-1 truncate font-semibold text-slate-800">执行「{record.taskName}」任务</p>
                                         <p className="mt-0.5 truncate text-xs text-slate-500">{record.summary}</p>
                                     </div>
-                                    <span className="truncate text-slate-600">{record.agentName}</span>
+                                    {renderAgentSummary(recordAgentNames)}
                                     <span className="truncate text-slate-500">{getRecordTriggerLabel(record.trigger)}</span>
                                     <span className={`inline-flex w-fit items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium ${statusMeta.className}`}>
                                         {statusMeta.icon}
@@ -1009,7 +1086,11 @@ export const AgentSettings = ({
                             <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm sm:grid-cols-3">
                                 <div>
                                     <div className="text-xs font-medium text-slate-400">Agent</div>
-                                    <div className="mt-1 truncate font-semibold text-slate-700">{selectedRecord.agentName || '-'}</div>
+                                    <div className="mt-1">
+                                        {selectedRecordAgentRuns.length > 0
+                                            ? renderAgentSummary(selectedRecordAgentRuns.map(agentRun => agentRun.agentName).filter(Boolean), 'font-semibold')
+                                            : renderAgentSummary([selectedRecord.agentName].filter(Boolean), 'font-semibold')}
+                                    </div>
                                 </div>
                                 <div>
                                     <div className="text-xs font-medium text-slate-400">触发方式</div>
@@ -1026,7 +1107,64 @@ export const AgentSettings = ({
                                     <Activity className="h-4 w-4 text-orange-500"/>
                                     执行流程
                                 </div>
-                                {selectedRecord.steps && selectedRecord.steps.length > 0 ? (
+                                {selectedRecordAgentRuns.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {selectedRecordAgentRuns.map(agentRun => {
+                                            const expanded = expandedAgentRuns[agentRun.agent] ?? true;
+                                            const statusMeta = getRecordStatusMeta(agentRun.status);
+                                            const agentAvatar = getAgentRunAvatar(agentRun);
+                                            return (
+                                                <div key={agentRun.agent} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                                                    <button
+                                                        onClick={() => toggleAgentRunExpanded(agentRun.agent)}
+                                                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-orange-50/40"
+                                                    >
+                                                        <div className="min-w-0 flex items-center gap-3">
+                                                            <AgentAvatar agent={agentAvatar} size="sm"/>
+                                                            <div className="min-w-0">
+                                                                <div className="truncate text-sm font-bold text-slate-800">{agentAvatar.name}</div>
+                                                                <div className="mt-0.5 truncate text-xs text-slate-500">{agentRun.summary || '暂无摘要'}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex shrink-0 items-center gap-2">
+                                                            <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium ${statusMeta.className}`}>
+                                                                {statusMeta.icon}
+                                                                {statusMeta.label}
+                                                            </span>
+                                                            <span className="hidden font-mono text-[11px] text-slate-400 sm:inline">{agentRun.duration || '-'}</span>
+                                                            <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`}/>
+                                                        </div>
+                                                    </button>
+                                                    {expanded && (
+                                                        <div className="space-y-3 border-t border-slate-100 bg-slate-50/50 px-4 py-4">
+                                                            {agentRun.steps && agentRun.steps.length > 0 ? agentRun.steps.map((step, index) => (
+                                                                <div key={`${agentRun.agent}-${step.time}-${index}`} className="relative pl-7">
+                                                                    {index < (agentRun.steps?.length || 0) - 1 && (
+                                                                        <span className="absolute left-[0.45rem] top-6 h-full w-px bg-slate-200"/>
+                                                                    )}
+                                                                    <span className={`absolute left-0 top-1 h-3.5 w-3.5 rounded-full border-2 ${getRecordStepMeta(step.status)}`}/>
+                                                                    <div className="rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+                                                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                            <div className="font-semibold text-slate-800">{step.title}</div>
+                                                                            <div className="font-mono text-[11px] text-slate-400">{step.time}</div>
+                                                                        </div>
+                                                                        {step.detail && (
+                                                                            <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-500">{step.detail}</p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )) : (
+                                                                <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-xs text-slate-400">
+                                                                    这个 Agent 暂无阶段明细。
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : selectedRecord.steps && selectedRecord.steps.length > 0 ? (
                                     <div className="space-y-3">
                                         {selectedRecord.steps.map((step, index) => (
                                             <div key={`${step.time}-${index}`} className="relative pl-7">
@@ -1087,14 +1225,39 @@ export const AgentSettings = ({
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-700">执行 Agent</label>
+                                    <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+                                        {agents.length === 0 ? (
+                                            <div className="px-3 py-6 text-center text-xs text-slate-400">暂无可选 Agent</div>
+                                        ) : agents.map(agent => {
+                                            const selected = taskForm.agents.includes(agent.id);
+                                            return (
+                                                <button
+                                                    key={agent.id}
+                                                    type="button"
+                                                    onClick={() => toggleTaskAgent(agent.id)}
+                                                    className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${selected ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-slate-100 bg-white text-slate-600 hover:border-orange-100 hover:bg-orange-50/50'}`}
+                                                >
+                                                    <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selected ? 'border-orange-500 bg-orange-500' : 'border-slate-300 bg-white'}`}>
+                                                        {selected && <CheckCircle2 className="h-3 w-3 text-white"/>}
+                                                    </span>
+                                                    <span className="truncate font-medium">{agent.name}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700">执行模式</label>
                                     <SettingsSelect
-                                        value={taskForm.agent}
-                                        options={taskAgentOptions}
-                                        onChange={agent => setTaskForm({...taskForm, agent})}
+                                        value={taskForm.executionMode}
+                                        options={executionModeOptions}
+                                        onChange={executionMode => setTaskForm({...taskForm, executionMode})}
                                         buttonClassName="bg-slate-50"
-                                        showSelectedDescription={false}
                                     />
                                 </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-700">触发方式</label>
                                     <SettingsSelect
