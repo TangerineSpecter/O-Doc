@@ -21,32 +21,90 @@ def readline_with_timeout(stream, timeout):
 MCP_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 
 
+BUILTIN_SYSTEM_MCP_SCOPES = {
+    '闪念 MCP': 'memos',
+    '文集 MCP': 'anthologies',
+    '文章 MCP': 'articles',
+    '评论 MCP': 'comments',
+}
+
+AGENT_IDENTITY_TOOL_NAMES = {'create_article_annotation', 'add_article_annotation_comment'}
+
+
+def hide_agent_identity_parameters(parameters, tool_name):
+    if tool_name not in AGENT_IDENTITY_TOOL_NAMES or not isinstance(parameters, dict):
+        return parameters
+
+    next_parameters = dict(parameters)
+    properties = dict(next_parameters.get('properties') or {})
+    properties.pop('agent_name', None)
+    properties.pop('agent_avatar', None)
+    properties.pop('agentName', None)
+    properties.pop('agentAvatar', None)
+    next_parameters['properties'] = properties
+    if isinstance(next_parameters.get('required'), list):
+        next_parameters['required'] = [
+            item for item in next_parameters['required']
+            if item not in {'agent_name', 'agent_avatar', 'agentName', 'agentAvatar'}
+        ]
+    return next_parameters
+
+
+def get_builtin_system_mcp_scope(mcp_server):
+    if getattr(mcp_server, 'source', '') != 'system':
+        return None
+    return BUILTIN_SYSTEM_MCP_SCOPES.get(getattr(mcp_server, 'name', ''))
+
+
 def is_builtin_memo_mcp(mcp_server):
     return (
-        getattr(mcp_server, 'source', '') == 'system'
-        and getattr(mcp_server, 'name', '') == '闪念 MCP'
+        get_builtin_system_mcp_scope(mcp_server) == 'memos'
     )
 
 
-def fetch_builtin_memo_tools():
-    from system_mcp.views import TOOLS, VISIBLE_MEMO_TOOL_NAMES
+def fetch_builtin_system_mcp_tools(scope):
+    from system_mcp.views import (
+        TOOLS,
+        VISIBLE_ANTHOLOGY_TOOL_NAMES,
+        VISIBLE_ARTICLE_TOOL_NAMES,
+        VISIBLE_COMMENT_TOOL_NAMES,
+        VISIBLE_MEMO_TOOL_NAMES,
+    )
+
+    tool_names_by_scope = {
+        'memos': VISIBLE_MEMO_TOOL_NAMES,
+        'anthologies': VISIBLE_ANTHOLOGY_TOOL_NAMES,
+        'articles': VISIBLE_ARTICLE_TOOL_NAMES,
+        'comments': VISIBLE_COMMENT_TOOL_NAMES,
+    }
+    tool_names = tool_names_by_scope.get(scope)
+    if not tool_names:
+        return [], f"未知系统 MCP 范围：{scope}"
 
     return format_mcp_tools([
         tool for tool in TOOLS
-        if tool.get('name') in VISIBLE_MEMO_TOOL_NAMES
+        if tool.get('name') in tool_names
     ]), None
 
 
-def call_builtin_memo_tool(tool_name, arguments=None):
+def fetch_builtin_memo_tools():
+    return fetch_builtin_system_mcp_tools('memos')
+
+
+def call_builtin_system_mcp_tool(scope, tool_name, arguments=None, agent=None):
     from system_mcp.views import ODocSystemMCPView
 
-    view = ODocSystemMCPView(tool_scope='memos')
+    view = ODocSystemMCPView(tool_scope=scope, agent_context=agent)
     if not view._is_tool_available(tool_name):
-        return None, f"当前系统闪念 MCP 不提供 Tool：{tool_name}"
+        return None, f"当前系统 MCP 不提供 Tool：{tool_name}"
     try:
         return view._call_tool(tool_name, arguments or {}), None
     except Exception as exc:
         return None, str(exc)
+
+
+def call_builtin_memo_tool(tool_name, arguments=None):
+    return call_builtin_system_mcp_tool('memos', tool_name, arguments or {})
 
 
 def extract_json_from_sse_body(body_text):
@@ -530,9 +588,10 @@ def call_streamable_http_tool(url, headers=None, tool_name='', arguments=None, t
     return None, last_error or "调用 Tool 失败"
 
 
-def call_mcp_tool(mcp_server, tool_name, arguments=None, timeout=30):
-    if is_builtin_memo_mcp(mcp_server):
-        return call_builtin_memo_tool(tool_name, arguments or {})
+def call_mcp_tool(mcp_server, tool_name, arguments=None, timeout=30, agent=None):
+    builtin_scope = get_builtin_system_mcp_scope(mcp_server)
+    if builtin_scope:
+        return call_builtin_system_mcp_tool(builtin_scope, tool_name, arguments or {}, agent=agent)
     if mcp_server.transport == 'streamableHttp':
         return call_streamable_http_tool(
             url=mcp_server.url,
@@ -547,8 +606,9 @@ def fetch_mcp_tools(mcp_server):
     """
     Connect to the MCP server described by the mcp_server instance and return (tools, error_message).
     """
-    if is_builtin_memo_mcp(mcp_server):
-        return fetch_builtin_memo_tools()
+    builtin_scope = get_builtin_system_mcp_scope(mcp_server)
+    if builtin_scope:
+        return fetch_builtin_system_mcp_tools(builtin_scope)
 
     transport = mcp_server.transport
     if transport == 'stdio':

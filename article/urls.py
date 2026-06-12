@@ -2,6 +2,8 @@ from django.urls import path
 from article.views import (
     ArticleCreateView, ArticleDetailView,
     ArticleUpdateView, ArticleDeleteView,
+    ArticleAnnotationCommentCreateView, ArticleAnnotationCommentDeleteView,
+    ArticleAnnotationDeleteView, ArticleAnnotationListCreateView,
     ArticleListView, ArticleTreeListView,
     ArticleSaveWebView, ArticlePolishView,
     ArticleMindMapGenerateView,
@@ -25,6 +27,12 @@ urlpatterns = [
 
     # 文章列表，支持多条件查询
     path('list', ArticleListView.as_view(), name='article-list'),
+
+    # 文章划线批注
+    path('annotations', ArticleAnnotationListCreateView.as_view(), name='article-annotations'),
+    path('annotations/<str:annotation_id>/comments', ArticleAnnotationCommentCreateView.as_view(), name='article-annotation-comments'),
+    path('annotations/<str:annotation_id>', ArticleAnnotationDeleteView.as_view(), name='article-annotation-delete'),
+    path('annotation-comments/<str:comment_id>', ArticleAnnotationCommentDeleteView.as_view(), name='article-annotation-comment-delete'),
 
     # 树形结构文章列表，按文集ID返回树形结构的文章列表
     path('tree-list', ArticleTreeListView.as_view(), name='article-tree-list'),

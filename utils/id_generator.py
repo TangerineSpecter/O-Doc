@@ -184,3 +184,19 @@ def generate_image_id() -> str:
     :return: 带img前缀的唯一ID字符串
     """
     return generate_unique_id("img")
+
+
+def generate_article_annotation_id() -> str:
+    """
+    生成带 ann 前缀的文章批注 ID
+    :return: 带 ann 前缀的唯一ID字符串
+    """
+    return generate_unique_id("ann")
+
+
+def generate_article_annotation_comment_id() -> str:
+    """
+    生成带 anc 前缀的文章批注评论 ID
+    :return: 带 anc 前缀的唯一ID字符串
+    """
+    return generate_unique_id("anc")

@@ -17,7 +17,14 @@ from system_settings.agent_memory import (
     store_short_term_memory,
     promote_short_term_memory,
 )
-from system_settings.feishu_im import _build_context_messages, _process_feishu_record, _select_context_records, _trim_to_estimated_tokens
+from system_settings.feishu_im import (
+    _build_agent_mcp_tool_context,
+    _build_context_messages,
+    _execute_agent_mcp_tool,
+    _process_feishu_record,
+    _select_context_records,
+    _trim_to_estimated_tokens,
+)
 from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentLongTermMemory, AgentShortTermMemory, MCPServer, SystemSetting
 from system_settings.sync_scheduler import should_start_webdav_scheduler
 from system_settings.views import AgentViewSet, SystemConfigViewSet
@@ -626,6 +633,55 @@ class AgentMemoryTests(TestCase):
         self.assertEqual(result['memo']['content'], '内部 MCP 测试')
         self.assertTrue(Memo.objects.filter(content='内部 MCP 测试', user_id='admin').exists())
         mock_call_http.assert_not_called()
+
+    def test_agent_mcp_tool_identity_is_injected_by_code(self):
+        self.agent.name = '哈哈'
+        self.agent.avatar = 'https://example.com/haha.png'
+        server = MCPServer.objects.create(
+            name='评论 MCP',
+            transport='streamableHttp',
+            url='http://testserver/api/system-mcp/comments/',
+            headers={'Authorization': 'Bearer test-key'},
+            enabled=True,
+            source='system',
+            tools=[],
+        )
+        self.agent.mcp_servers = [server.id]
+        self.agent.save(update_fields=['name', 'avatar', 'mcp_servers', 'updated_at'])
+        tools = [{
+            'name': 'create_article_annotation',
+            'description': '创建文章批注',
+            'inputSchema': {
+                'type': 'object',
+                'properties': {
+                    'article_id': {'type': 'string'},
+                    'selected_text': {'type': 'string'},
+                    'comment': {'type': 'string'},
+                    'agent_name': {'type': 'string'},
+                    'agent_avatar': {'type': 'string'},
+                },
+                'required': ['article_id', 'selected_text', 'comment'],
+            },
+        }]
+
+        with patch('system_settings.feishu_im.fetch_mcp_tools', return_value=(tools, None)):
+            tool_context = _build_agent_mcp_tool_context(self.agent)
+
+        parameters = tool_context['tools'][0]['function']['parameters']
+        self.assertNotIn('agent_name', parameters['properties'])
+        self.assertNotIn('agent_avatar', parameters['properties'])
+
+        with patch('system_settings.feishu_im.call_mcp_tool', return_value=({'ok': True}, None)) as mock_call_tool:
+            _execute_agent_mcp_tool(tool_context, 'create_article_annotation', {
+                'article_id': 'art_test',
+                'selected_text': '原文',
+                'comment': '评论',
+            })
+
+        arguments = mock_call_tool.call_args.args[2]
+        self.assertNotIn('agent_name', arguments)
+        self.assertNotIn('agent_avatar', arguments)
+        self.assertEqual(mock_call_tool.call_args.kwargs['agent'], self.agent)
 
     def test_feishu_book_emoji_memo_request_uses_bound_mcp_directly(self):
         server = MCPServer.objects.create(

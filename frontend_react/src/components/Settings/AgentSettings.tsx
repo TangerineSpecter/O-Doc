@@ -31,14 +31,12 @@ import type {
     AgentRunRecordConfig,
     AgentTaskConfig,
     AgentTaskNotifyPlatform,
-    AgentTaskOutput,
     AgentTaskScheduleType,
     AIModel,
     MCPServerConfig,
     ModelType,
     SkillConfig,
 } from '@/api/setting';
-import {getAnthologyList, type Anthology} from '@/api/anthology';
 import {uploadResource} from '@/api/resources';
 import {useToast} from '../common/ToastProvider';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
@@ -94,9 +92,6 @@ type AgentTaskForm = {
     scheduleWeekday: string;
     scheduleMonthDay: string;
     intervalMinutes: string;
-    output: AgentTaskOutput;
-    targetCollectionId?: string;
-    targetCollectionTitle?: string;
     enabled: boolean;
     prompt: string;
     notifyEnabled: boolean;
@@ -161,7 +156,6 @@ export const AgentSettings = ({
     const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('');
-    const [anthologies, setAnthologies] = useState<Anthology[]>([]);
     const [memoryModalAgent, setMemoryModalAgent] = useState<AgentConfig | null>(null);
     const [memories, setMemories] = useState<AgentLongTermMemoryConfig[]>([]);
     const [memoryLoading, setMemoryLoading] = useState(false);
@@ -195,9 +189,6 @@ export const AgentSettings = ({
         scheduleWeekday: '1',
         scheduleMonthDay: '1',
         intervalMinutes: '60',
-        output: 'collection',
-        targetCollectionId: '',
-        targetCollectionTitle: '',
         enabled: true,
         prompt: '',
         notifyEnabled: false,
@@ -230,10 +221,6 @@ export const AgentSettings = ({
         {value: '编辑器触发', label: '编辑器触发'},
         {value: 'Memos 触发', label: 'Memos 触发'},
     ];
-    const taskOutputOptions: SettingsSelectOption<AgentTaskOutput>[] = [
-        {value: 'collection', label: '指定文集'},
-        {value: 'memos', label: 'Memos'},
-    ];
     const notifyPlatformOptions: SettingsSelectOption<AgentTaskNotifyPlatform>[] = [
         {value: 'feishu', label: '飞书机器人', description: '通过飞书自定义机器人 Webhook 发送文本消息'},
     ];
@@ -263,21 +250,6 @@ export const AgentSettings = ({
         const value = String(index + 1);
         return {value, label: `${value} 日`};
     });
-    const collectionOptions = useMemo<SettingsSelectOption<string>[]>(() => {
-        return anthologies.map(item => ({
-            value: item.collId,
-            label: item.title,
-        }));
-    }, [anthologies]);
-
-    useEffect(() => {
-        getAnthologyList('article')
-            .then(data => setAnthologies(data || []))
-            .catch(error => {
-                console.warn('加载文集列表失败:', error);
-            });
-    }, []);
-
     const clearAvatarPreview = () => {
         if (avatarPreviewObjectUrlRef.current) {
             URL.revokeObjectURL(avatarPreviewObjectUrlRef.current);
@@ -345,9 +317,6 @@ export const AgentSettings = ({
             scheduleWeekday: '1',
             scheduleMonthDay: '1',
             intervalMinutes: '60',
-            output: 'collection',
-            targetCollectionId: collectionOptions[0]?.value || '',
-            targetCollectionTitle: collectionOptions[0]?.label || '',
             enabled: true,
             prompt: '',
             notifyEnabled: false,
@@ -364,9 +333,6 @@ export const AgentSettings = ({
             agent: task.agent,
             trigger: task.trigger,
             schedule: task.schedule,
-            output: task.output,
-            targetCollectionId: task.targetCollectionId || '',
-            targetCollectionTitle: task.targetCollectionTitle || '',
             enabled: task.enabled,
             prompt: task.prompt || '',
             scheduleType: task.scheduleType || 'daily',
@@ -551,9 +517,6 @@ export const AgentSettings = ({
             scheduleWeekday: taskForm.scheduleWeekday,
             scheduleMonthDay: taskForm.scheduleMonthDay,
             intervalMinutes: Number(taskForm.intervalMinutes || 60),
-            output: taskForm.output,
-            targetCollectionId: taskForm.output === 'collection' ? taskForm.targetCollectionId : '',
-            targetCollectionTitle: taskForm.output === 'collection' ? taskForm.targetCollectionTitle : '',
             enabled: taskForm.enabled,
             prompt: taskForm.prompt.trim(),
             notifyEnabled: taskForm.notifyEnabled,
@@ -799,7 +762,7 @@ export const AgentSettings = ({
 	                                    </div>
 	                                </div>
 
-	                                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-4 lg:w-[32rem]">
+		                                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-3 lg:w-[24rem]">
                                     <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
                                         <div className="mb-1 flex items-center gap-1.5 font-semibold text-orange-700">
                                             <Bot className="h-3.5 w-3.5"/>
@@ -821,15 +784,6 @@ export const AgentSettings = ({
 	                                        </div>
 	                                        <p className="truncate">{task.trigger === '手动执行' ? '手动执行' : task.schedule}</p>
 	                                    </div>
-                                    <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
-                                        <div className="mb-1 flex items-center gap-1.5 font-semibold text-emerald-700">
-                                            <Sparkles className="h-3.5 w-3.5"/>
-                                            输出
-                                        </div>
-                                        <p className="truncate">
-                                            {task.output === 'collection' ? (task.targetCollectionTitle || '指定文集') : 'Memos'}
-                                        </p>
-                                    </div>
                                 </div>
 
 	                                <div className="flex items-center justify-end gap-1 lg:w-9 lg:flex-col lg:justify-center">
@@ -1225,48 +1179,6 @@ export const AgentSettings = ({
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-slate-700">输出位置</label>
-                                    <SettingsSelect
-                                        value={taskForm.output}
-                                        options={taskOutputOptions}
-                                        onChange={output => {
-                                            const firstCollection = collectionOptions[0];
-                                            setTaskForm({
-                                                ...taskForm,
-                                                output,
-                                                targetCollectionId: output === 'collection' ? (taskForm.targetCollectionId || firstCollection?.value || '') : '',
-                                                targetCollectionTitle: output === 'collection' ? (taskForm.targetCollectionTitle || firstCollection?.label || '') : '',
-                                            });
-                                        }}
-                                        buttonClassName="bg-slate-50"
-                                        showSelectedDescription={false}
-                                    />
-                                </div>
-                                {taskForm.output === 'collection' && (
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-slate-700">选择文集</label>
-                                        <SettingsSelect
-                                            value={taskForm.targetCollectionId || ''}
-                                            options={collectionOptions}
-                                            onChange={targetCollectionId => {
-                                                const collection = collectionOptions.find(item => item.value === targetCollectionId);
-                                                setTaskForm({
-                                                    ...taskForm,
-                                                    targetCollectionId,
-                                                    targetCollectionTitle: collection?.label || '',
-                                                });
-                                            }}
-                                            placeholder="请选择输出文集"
-                                            emptyMessage="暂无文章文集，请先创建文集"
-                                            buttonClassName="bg-slate-50"
-                                            showSelectedDescription={false}
-                                        />
-                                    </div>
-	                                )}
-	                            </div>
-
                             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                                 <label className="flex cursor-pointer items-center justify-between gap-4">
                                     <div className="flex items-start gap-3">
@@ -1275,7 +1187,7 @@ export const AgentSettings = ({
                                         </div>
                                         <div>
                                             <div className="text-sm font-semibold text-slate-700">任务完成通知</div>
-                                            <div className="mt-0.5 text-xs text-slate-500">仅通知当前任务，消息内容包含任务名称和生成文章标题</div>
+                                            <div className="mt-0.5 text-xs text-slate-500">仅通知当前任务，消息内容包含任务名称</div>
                                         </div>
                                     </div>
                                     <input

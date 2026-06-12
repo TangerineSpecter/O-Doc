@@ -9,7 +9,16 @@ from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
 from anthology.models import Anthology
-from article.models import Article
+from article.annotation_service import (
+    AnnotationError,
+    add_comment,
+    create_annotation_with_comment,
+    get_agent_identity,
+    locate_unique_text,
+    serialize_annotation,
+    serialize_comment,
+)
+from article.models import Article, ArticleAnnotation, ArticleAnnotationComment
 from memos.models import Memo
 from system_settings.models import SystemSetting
 
@@ -203,6 +212,17 @@ TOOLS = [
         },
     },
     {
+        'name': 'get_random_article',
+        'description': '随机获取一篇文章。可指定文集；不指定时从当前账号全局随机一篇。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'coll_id': {'type': 'string', 'description': '可选文集 ID。'},
+                'include_content': {'type': 'boolean', 'description': '是否包含正文，默认 true。'},
+            },
+        },
+    },
+    {
         'name': 'update_article',
         'description': '编辑文章，支持标题、正文、文集、父级、权限、排序等字段。',
         'inputSchema': {
@@ -221,6 +241,17 @@ TOOLS = [
         },
     },
     {
+        'name': 'delete_article',
+        'description': '删除文章。执行逻辑删除，不再出现在列表中。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'article_id': {'type': 'string', 'description': '文章 ID。'},
+            },
+            'required': ['article_id'],
+        },
+    },
+    {
         'name': 'list_anthologies',
         'description': '查询文集列表。',
         'inputSchema': {
@@ -230,6 +261,17 @@ TOOLS = [
                 'keyword': {'type': 'string', 'description': '可选标题关键词。'},
                 'limit': {'type': 'integer', 'description': '返回数量，默认 50，最大 200。'},
             },
+        },
+    },
+    {
+        'name': 'get_anthology',
+        'description': '查询单个文集详情。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'coll_id': {'type': 'string', 'description': '文集 ID。'},
+            },
+            'required': ['coll_id'],
         },
     },
     {
@@ -266,17 +308,81 @@ TOOLS = [
             'required': ['coll_id'],
         },
     },
+    {
+        'name': 'delete_anthology',
+        'description': '删除文集。执行逻辑删除，不再出现在列表中。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'coll_id': {'type': 'string', 'description': '文集 ID。'},
+            },
+            'required': ['coll_id'],
+        },
+    },
+    {
+        'name': 'create_article_annotation',
+        'description': '为文章指定原文创建划线批注，并添加一条 Agent 评论。selected_text 必须从文章正文渲染后的纯文本中逐字复制一段连续原文，且唯一出现。不支持 fenced 代码块、图片、HTML 标签等会被纯文本化时移除的内容；链接只匹配展示文字，行内代码只匹配去掉反引号后的文字。不要传翻译、总结、改写、补写、省略或替换标点后的文本。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'article_id': {'type': 'string', 'description': '文章 ID。'},
+                'selected_text': {'type': 'string', 'description': '需要划线批注的连续原文。必须逐字复制自 article.content 渲染后的纯文本，并且只出现一次。不要选择 fenced 代码块、图片、HTML 标签等会被移除的内容；标题/列表/引用需去掉 Markdown 标记，链接取展示文字，行内代码取去掉反引号后的文字；不要传总结、翻译、改写、截断拼接或标点变化后的文本。'},
+                'comment': {'type': 'string', 'description': '评论内容，最多 2000 字。'},
+            },
+            'required': ['article_id', 'selected_text', 'comment'],
+        },
+    },
+    {
+        'name': 'list_article_annotations',
+        'description': '查询一篇文章下的划线批注和评论。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'article_id': {'type': 'string', 'description': '文章 ID。'},
+            },
+            'required': ['article_id'],
+        },
+    },
+    {
+        'name': 'add_article_annotation_comment',
+        'description': '向已有文章划线批注追加一条 Agent 评论。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'annotation_id': {'type': 'string', 'description': '批注 ID。'},
+                'comment': {'type': 'string', 'description': '评论内容，最多 2000 字。'},
+            },
+            'required': ['annotation_id', 'comment'],
+        },
+    },
+    {
+        'name': 'delete_article_annotation_comment',
+        'description': '删除一条 Agent/系统创建的文章批注评论。执行逻辑删除。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'comment_id': {'type': 'string', 'description': '批注评论 ID。'},
+            },
+            'required': ['comment_id'],
+        },
+    },
 ]
 
 MEMO_TOOL_NAMES = {'insert_memo', 'create_memo', 'list_memos', 'get_memo', 'update_memo', 'delete_memo'}
+ARTICLE_TOOL_NAMES = {'create_article', 'list_articles', 'get_article', 'get_random_article', 'update_article', 'delete_article'}
+ANTHOLOGY_TOOL_NAMES = {'create_anthology', 'list_anthologies', 'get_anthology', 'update_anthology', 'delete_anthology'}
 VISIBLE_TOOL_NAMES = {tool['name'] for tool in TOOLS} - {'insert_memo'}
 VISIBLE_MEMO_TOOL_NAMES = MEMO_TOOL_NAMES - {'insert_memo'}
+VISIBLE_ARTICLE_TOOL_NAMES = ARTICLE_TOOL_NAMES
+VISIBLE_ANTHOLOGY_TOOL_NAMES = ANTHOLOGY_TOOL_NAMES
+VISIBLE_COMMENT_TOOL_NAMES = {'create_article_annotation', 'list_article_annotations', 'add_article_annotation_comment', 'delete_article_annotation_comment'}
 
 
 class ODocSystemMCPView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
     tool_scope = 'system'
+    agent_context = None
 
     def post(self, request):
         auth_error = self._auth_error(request)
@@ -317,11 +423,17 @@ class ODocSystemMCPView(APIView):
     def _available_tools(self):
         if self.tool_scope == 'memos':
             return [tool for tool in TOOLS if tool['name'] in VISIBLE_MEMO_TOOL_NAMES]
+        if self.tool_scope == 'articles':
+            return [tool for tool in TOOLS if tool['name'] in VISIBLE_ARTICLE_TOOL_NAMES]
+        if self.tool_scope == 'anthologies':
+            return [tool for tool in TOOLS if tool['name'] in VISIBLE_ANTHOLOGY_TOOL_NAMES]
+        if self.tool_scope == 'comments':
+            return [tool for tool in TOOLS if tool['name'] in VISIBLE_COMMENT_TOOL_NAMES]
         return [tool for tool in TOOLS if tool['name'] in VISIBLE_TOOL_NAMES]
 
     def _is_tool_available(self, name):
         if name == 'insert_memo':
-            return True
+            return self.tool_scope in {'system', 'memos'}
         return any(tool['name'] == name for tool in self._available_tools())
 
     @classmethod
@@ -382,14 +494,30 @@ class ODocSystemMCPView(APIView):
             return self._list_articles(arguments)
         if name == 'get_article':
             return self._get_article(arguments)
+        if name == 'get_random_article':
+            return self._get_random_article(arguments)
         if name == 'update_article':
             return self._update_article(arguments)
+        if name == 'delete_article':
+            return self._delete_article(arguments)
         if name == 'list_anthologies':
             return self._list_anthologies(arguments)
+        if name == 'get_anthology':
+            return self._get_anthology(arguments)
         if name == 'create_anthology':
             return self._create_anthology(arguments)
         if name == 'update_anthology':
             return self._update_anthology(arguments)
+        if name == 'delete_anthology':
+            return self._delete_anthology(arguments)
+        if name == 'create_article_annotation':
+            return self._create_article_annotation(arguments)
+        if name == 'list_article_annotations':
+            return self._list_article_annotations(arguments)
+        if name == 'add_article_annotation_comment':
+            return self._add_article_annotation_comment(arguments)
+        if name == 'delete_article_annotation_comment':
+            return self._delete_article_annotation_comment(arguments)
         raise ValueError(f'未知 Tool：{name}')
 
     @staticmethod
@@ -508,7 +636,7 @@ class ODocSystemMCPView(APIView):
     @staticmethod
     def _list_articles(arguments):
         limit = min(max(int(arguments.get('limit') or 50), 1), 200)
-        queryset = Article.objects.filter(is_valid=True).order_by('sort', '-updated_at')
+        queryset = Article.objects.filter(is_valid=True, author='admin').order_by('sort', '-updated_at')
         coll_id = str(arguments.get('coll_id') or '').strip()
         keyword = str(arguments.get('keyword') or '').strip()
         if coll_id:
@@ -524,14 +652,27 @@ class ODocSystemMCPView(APIView):
         article_id = str(arguments.get('article_id') or '').strip()
         if not article_id:
             raise ValueError('article_id 不能为空')
-        article = get_object_or_404(Article, article_id=article_id, is_valid=True)
+        article = get_object_or_404(Article, article_id=article_id, author='admin', is_valid=True)
         return {'article': _article_to_dict(article)}
+
+    @staticmethod
+    def _get_random_article(arguments):
+        queryset = Article.objects.filter(is_valid=True, author='admin')
+        coll_id = str(arguments.get('coll_id') or '').strip()
+        if coll_id:
+            get_object_or_404(Anthology, coll_id=coll_id, type='article', user_id='admin', is_valid=True)
+            queryset = queryset.filter(coll_id=coll_id)
+        article = queryset.order_by('?').first()
+        if not article:
+            raise ValueError('未找到可随机获取的文章')
+        include_content = bool(arguments.get('include_content', True))
+        return {'article': _article_to_dict(article, include_content=include_content)}
 
     def _update_article(self, arguments):
         article_id = str(arguments.get('article_id') or '').strip()
         if not article_id:
             raise ValueError('article_id 不能为空')
-        article = get_object_or_404(Article, article_id=article_id, is_valid=True)
+        article = get_object_or_404(Article, article_id=article_id, author='admin', is_valid=True)
         old_coll_id = article.coll_id
 
         if 'title' in arguments:
@@ -575,6 +716,20 @@ class ODocSystemMCPView(APIView):
         return {'article': _article_to_dict(article)}
 
     @staticmethod
+    def _delete_article(arguments):
+        article_id = str(arguments.get('article_id') or '').strip()
+        if not article_id:
+            raise ValueError('article_id 不能为空')
+        article = get_object_or_404(Article, article_id=article_id, author='admin', is_valid=True)
+        if Article.objects.filter(parent=article, is_valid=True).exists():
+            raise ValueError('文章下仍有子文章，不能删除')
+        coll_id = article.coll_id
+        article.is_valid = False
+        article.save(update_fields=['is_valid', 'updated_at'])
+        _refresh_anthology(coll_id)
+        return {'article_id': article_id, 'deleted': True}
+
+    @staticmethod
     def _list_anthologies(arguments):
         limit = min(max(int(arguments.get('limit') or 50), 1), 200)
         queryset = Anthology.objects.filter(is_valid=True, user_id='admin').order_by('-is_top', 'sort', '-updated_at')
@@ -588,6 +743,14 @@ class ODocSystemMCPView(APIView):
             queryset = queryset.filter(title__icontains=keyword)
         anthologies = [_anthology_to_dict(anthology) for anthology in queryset[:limit]]
         return {'anthologies': anthologies, 'count': len(anthologies)}
+
+    @staticmethod
+    def _get_anthology(arguments):
+        coll_id = str(arguments.get('coll_id') or '').strip()
+        if not coll_id:
+            raise ValueError('coll_id 不能为空')
+        anthology = get_object_or_404(Anthology, coll_id=coll_id, user_id='admin', is_valid=True)
+        return {'anthology': _anthology_to_dict(anthology)}
 
     @staticmethod
     def _create_anthology(arguments):
@@ -619,6 +782,16 @@ class ODocSystemMCPView(APIView):
         except IntegrityError:
             raise ValueError('同类型下文集名称不能重复')
         return {'anthology': _anthology_to_dict(anthology)}
+
+    @staticmethod
+    def _delete_anthology(arguments):
+        coll_id = str(arguments.get('coll_id') or '').strip()
+        if not coll_id:
+            raise ValueError('coll_id 不能为空')
+        anthology = get_object_or_404(Anthology, coll_id=coll_id, user_id='admin', is_valid=True)
+        anthology.is_valid = False
+        anthology.save(update_fields=['is_valid', 'updated_at'])
+        return {'coll_id': coll_id, 'deleted': True}
 
     @staticmethod
     def _update_anthology(arguments):
@@ -654,3 +827,72 @@ class ODocSystemMCPView(APIView):
         except IntegrityError:
             raise ValueError('同类型下文集名称不能重复')
         return {'anthology': _anthology_to_dict(anthology)}
+
+    def _get_annotation_agent_identity(self):
+        return get_agent_identity(self.agent_context)
+
+    def _create_article_annotation(self, arguments):
+        article_id = str(arguments.get('article_id') or '').strip()
+        selected_text = str(arguments.get('selected_text') or '').strip()
+        comment = str(arguments.get('comment') or '').strip()
+        if not article_id:
+            raise ValueError('article_id 不能为空')
+        article = get_object_or_404(Article, article_id=article_id, author='admin', is_valid=True)
+        try:
+            anchor = locate_unique_text(article, selected_text)
+            if not anchor:
+                raise AnnotationError('未找到选中文本')
+            annotation = create_annotation_with_comment(
+                article,
+                anchor,
+                comment,
+                self._get_annotation_agent_identity(),
+            )
+            return {'annotation': serialize_annotation(annotation)}
+        except AnnotationError as exc:
+            raise ValueError(str(exc))
+
+    @staticmethod
+    def _list_article_annotations(arguments):
+        article_id = str(arguments.get('article_id') or '').strip()
+        if not article_id:
+            raise ValueError('article_id 不能为空')
+        article = get_object_or_404(Article, article_id=article_id, author='admin', is_valid=True)
+        annotations = ArticleAnnotation.objects.filter(article=article, is_valid=True).prefetch_related('comments')
+        data = [serialize_annotation(annotation) for annotation in annotations]
+        return {'annotations': data, 'count': len(data)}
+
+    def _add_article_annotation_comment(self, arguments):
+        annotation_id = str(arguments.get('annotation_id') or '').strip()
+        if not annotation_id:
+            raise ValueError('annotation_id 不能为空')
+        annotation = get_object_or_404(
+            ArticleAnnotation,
+            annotation_id=annotation_id,
+            article__author='admin',
+            is_valid=True,
+        )
+        try:
+            comment = add_comment(
+                annotation,
+                arguments.get('comment'),
+                self._get_annotation_agent_identity(),
+            )
+            return {'comment': serialize_comment(comment)}
+        except AnnotationError as exc:
+            raise ValueError(str(exc))
+
+    @staticmethod
+    def _delete_article_annotation_comment(arguments):
+        comment_id = str(arguments.get('comment_id') or '').strip()
+        if not comment_id:
+            raise ValueError('comment_id 不能为空')
+        comment = get_object_or_404(
+            ArticleAnnotationComment,
+            comment_id=comment_id,
+            annotation__article__author='admin',
+            is_valid=True,
+        )
+        comment.is_valid = False
+        comment.save(update_fields=['is_valid', 'updated_at'])
+        return {'comment_id': comment_id, 'deleted': True}

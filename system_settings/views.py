@@ -83,11 +83,56 @@ def _memo_mcp_tools():
     ]
 
 
-def _sync_scanned_memo_mcp_server(request, value):
-    server = MCPServer.objects.filter(name='闪念 MCP').first()
+def _comment_mcp_tools():
+    from system_mcp.views import TOOLS, VISIBLE_COMMENT_TOOL_NAMES
+
+    return [
+        {
+            'name': tool['name'],
+            'description': tool.get('description') or '',
+            'inputSchema': tool.get('inputSchema') or {},
+            'enabled': True,
+        }
+        for tool in TOOLS
+        if tool['name'] in VISIBLE_COMMENT_TOOL_NAMES
+    ]
+
+
+def _anthology_mcp_tools():
+    from system_mcp.views import TOOLS, VISIBLE_ANTHOLOGY_TOOL_NAMES
+
+    return [
+        {
+            'name': tool['name'],
+            'description': tool.get('description') or '',
+            'inputSchema': tool.get('inputSchema') or {},
+            'enabled': True,
+        }
+        for tool in TOOLS
+        if tool['name'] in VISIBLE_ANTHOLOGY_TOOL_NAMES
+    ]
+
+
+def _article_mcp_tools():
+    from system_mcp.views import TOOLS, VISIBLE_ARTICLE_TOOL_NAMES
+
+    return [
+        {
+            'name': tool['name'],
+            'description': tool.get('description') or '',
+            'inputSchema': tool.get('inputSchema') or {},
+            'enabled': True,
+        }
+        for tool in TOOLS
+        if tool['name'] in VISIBLE_ARTICLE_TOOL_NAMES
+    ]
+
+
+def _sync_builtin_system_mcp_server(request, value, name, endpoint, description, tools):
+    server = MCPServer.objects.filter(name=name).first()
     if not server:
         return
-    server.url = request.build_absolute_uri('/api/system-mcp/memos/')
+    server.url = request.build_absolute_uri(endpoint)
     server.headers = {'Authorization': f"Bearer {value.get('apiKey', '')}"}
     server.enabled = bool(value.get('enabled', True))
     server.source = 'system'
@@ -95,21 +140,47 @@ def _sync_scanned_memo_mcp_server(request, value):
     server.command = ''
     server.args = []
     server.env = {}
-    server.description = 'O-Doc 内置系统 MCP，仅提供闪念 Memo 的创建、查询、更新和删除工具。'
-    server.tools = MCPServerViewSet._merge_tools(_memo_mcp_tools(), server.tools)
+    server.description = description
+    server.tools = MCPServerViewSet._merge_tools(tools, server.tools)
     server.save(update_fields=[
-        'url',
-        'headers',
-        'enabled',
-        'source',
-        'transport',
-        'command',
-        'args',
-        'env',
-        'description',
-        'tools',
-        'updated_at',
+        'url', 'headers', 'enabled', 'source', 'transport', 'command',
+        'args', 'env', 'description', 'tools', 'updated_at',
     ])
+
+
+def _sync_scanned_system_mcp_servers(request, value):
+    _sync_builtin_system_mcp_server(
+        request,
+        value,
+        '闪念 MCP',
+        '/api/system-mcp/memos/',
+        'O-Doc 内置系统 MCP，仅提供闪念 Memo 的创建、查询、更新和删除工具。',
+        _memo_mcp_tools(),
+    )
+    _sync_builtin_system_mcp_server(
+        request,
+        value,
+        '文集 MCP',
+        '/api/system-mcp/anthologies/',
+        'O-Doc 内置系统 MCP，仅提供文集的创建、查询、更新和删除工具。',
+        _anthology_mcp_tools(),
+    )
+    _sync_builtin_system_mcp_server(
+        request,
+        value,
+        '文章 MCP',
+        '/api/system-mcp/articles/',
+        'O-Doc 内置系统 MCP，仅提供文章的创建、查询、随机获取、更新和删除工具。',
+        _article_mcp_tools(),
+    )
+    _sync_builtin_system_mcp_server(
+        request,
+        value,
+        '评论 MCP',
+        '/api/system-mcp/comments/',
+        'O-Doc 内置系统 MCP，仅提供文章批注和评论相关的工具。',
+        _comment_mcp_tools(),
+    )
 
 
 class AIProviderViewSet(viewsets.ModelViewSet):
@@ -725,7 +796,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
     @staticmethod
     def _should_skip_scanned_server(server):
         command = server.get('command') or ''
-        if server.get('name') == 'node_repl' and command.endswith('/Contents/Resources/node_repl'):
+        if server.get('name') == 'node_repl' or os.path.basename(command) == 'node_repl':
             return True
         return False
 
@@ -778,6 +849,63 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             'enabled': bool(value.get('enabled', True)),
             'description': 'O-Doc 内置系统 MCP，仅提供闪念 Memo 的创建、查询、更新和删除工具。',
             'tools': cls._format_builtin_tools(VISIBLE_MEMO_TOOL_NAMES),
+        }
+
+    @classmethod
+    def _builtin_comment_server(cls, request):
+        from system_mcp.views import VISIBLE_COMMENT_TOOL_NAMES
+
+        value = cls._ensure_system_mcp_value()
+        return {
+            'name': '评论 MCP',
+            'transport': 'streamableHttp',
+            'command': '',
+            'args': [],
+            'url': request.build_absolute_uri('/api/system-mcp/comments/'),
+            'headers': {'Authorization': f"Bearer {value.get('apiKey', '')}"},
+            'env': {},
+            'source': 'system',
+            'enabled': bool(value.get('enabled', True)),
+            'description': 'O-Doc 内置系统 MCP，仅提供文章批注和评论相关的工具。',
+            'tools': cls._format_builtin_tools(VISIBLE_COMMENT_TOOL_NAMES),
+        }
+
+    @classmethod
+    def _builtin_anthology_server(cls, request):
+        from system_mcp.views import VISIBLE_ANTHOLOGY_TOOL_NAMES
+
+        value = cls._ensure_system_mcp_value()
+        return {
+            'name': '文集 MCP',
+            'transport': 'streamableHttp',
+            'command': '',
+            'args': [],
+            'url': request.build_absolute_uri('/api/system-mcp/anthologies/'),
+            'headers': {'Authorization': f"Bearer {value.get('apiKey', '')}"},
+            'env': {},
+            'source': 'system',
+            'enabled': bool(value.get('enabled', True)),
+            'description': 'O-Doc 内置系统 MCP，仅提供文集的创建、查询、更新和删除工具。',
+            'tools': cls._format_builtin_tools(VISIBLE_ANTHOLOGY_TOOL_NAMES),
+        }
+
+    @classmethod
+    def _builtin_article_server(cls, request):
+        from system_mcp.views import VISIBLE_ARTICLE_TOOL_NAMES
+
+        value = cls._ensure_system_mcp_value()
+        return {
+            'name': '文章 MCP',
+            'transport': 'streamableHttp',
+            'command': '',
+            'args': [],
+            'url': request.build_absolute_uri('/api/system-mcp/articles/'),
+            'headers': {'Authorization': f"Bearer {value.get('apiKey', '')}"},
+            'env': {},
+            'source': 'system',
+            'enabled': bool(value.get('enabled', True)),
+            'description': 'O-Doc 内置系统 MCP，仅提供文章的创建、查询、随机获取、更新和删除工具。',
+            'tools': cls._format_builtin_tools(VISIBLE_ARTICLE_TOOL_NAMES),
         }
 
     @staticmethod
@@ -842,11 +970,18 @@ class MCPServerViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def scan(self, request):
-        scanned = [self._builtin_memo_server(request), *self._scan_local_configs()]
+        builtin_servers = [
+            self._builtin_memo_server(request),
+            self._builtin_anthology_server(request),
+            self._builtin_article_server(request),
+            self._builtin_comment_server(request),
+        ]
+        builtin_names = {server['name'] for server in builtin_servers}
+        scanned = [*builtin_servers, *self._scan_local_configs()]
         saved = []
         from utils.mcp_client import fetch_mcp_tools
         for server in scanned:
-            if server['name'] == '闪念 MCP':
+            if server['name'] in builtin_names:
                 tools = server['tools']
             else:
                 # 构造临时 MCPServer 实体用于连接探测
@@ -1117,7 +1252,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
             config.value = value
             config.description = '系统级 MCP 配置'
             config.save(update_fields=['value', 'description'])
-        _sync_scanned_memo_mcp_server(request, value)
+        _sync_scanned_system_mcp_servers(request, value)
         return success_result({
             'enabled': bool(value.get('enabled', True)),
             'apiKey': value.get('apiKey', ''),
@@ -1140,7 +1275,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
         config.value = value
         config.description = '系统级 MCP 配置'
         config.save(update_fields=['value', 'description'])
-        _sync_scanned_memo_mcp_server(request, value)
+        _sync_scanned_system_mcp_servers(request, value)
         return success_result({
             'enabled': value['enabled'],
             'apiKey': value['apiKey'],
@@ -1162,7 +1297,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
         config.value = value
         config.description = '系统级 MCP 配置'
         config.save(update_fields=['value', 'description'])
-        _sync_scanned_memo_mcp_server(request, value)
+        _sync_scanned_system_mcp_servers(request, value)
         return success_result({
             'enabled': value['enabled'],
             'apiKey': value['apiKey'],

@@ -51,6 +51,20 @@ export const CUSTOM_STYLES = `
     color: #4f46e5; background-color: #eef2ff; border: 1px solid #e0e7ff;
   }
 
+  .article-annotation-mark {
+    cursor: pointer;
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+    text-decoration-color: #8b5cf6;
+    text-decoration-thickness: 3px;
+    text-underline-offset: 6px;
+    transition: background-color 0.16s ease, color 0.16s ease;
+  }
+  .article-annotation-mark:hover {
+    background: #f5f3ff;
+    color: #5b21b6;
+  }
+
   /* 5. Mermaid 缩放滑条 */
   .mermaid-zoom-slider {
     width: 132px;

@@ -17,7 +17,19 @@ from django.shortcuts import get_object_or_404
 from PIL import Image as PILImage
 from rest_framework.views import APIView
 
-from article.models import Article, Image
+from article.annotation_service import (
+    AnnotationError,
+    add_comment,
+    build_anchor_from_offsets,
+    can_delete_annotation,
+    can_delete_comment,
+    create_annotation_with_comment,
+    get_user_identity,
+    locate_unique_text,
+    serialize_annotation,
+    serialize_comment,
+)
+from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, Image
 from article.prompts import ARTICLE_MIND_MAP_PROMPT_TEMPLATE, POLISH_ARTICLE_PROMPT_TEMPLATE
 from article.serializers import ArticleSerializer, ArticleTreeSerializer, ImageSerializer
 from utils.ai_service import AIService
@@ -485,6 +497,124 @@ class ArticleDeleteView(APIView):
 
             return success_result(data=None)
 
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+
+class ArticleAnnotationListCreateView(APIView):
+    """
+    文章划线批注列表与创建接口。
+    """
+
+    def get(self, request):
+        try:
+            article_id = request.GET.get('articleId') or request.GET.get('article_id')
+            if not article_id:
+                return error_result(ErrorCode.PARAM_ERROR, "articleId 不能为空")
+
+            article = get_object_or_404(Article, article_id=article_id, is_valid=True)
+            if not can_access_anthology(request, article.coll_id):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+            annotations = ArticleAnnotation.objects.filter(article=article, is_valid=True).prefetch_related('comments')
+            data = [serialize_annotation(annotation) for annotation in annotations]
+            return success_result(data={
+                'annotations': data,
+                'count': len(data),
+            })
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+    def post(self, request):
+        try:
+            if not request.user or not request.user.is_authenticated:
+                return error_result(ErrorCode.PERMISSION_DENIED, "请先登录后再评论")
+
+            article_id = request.data.get('article_id') or request.data.get('articleId')
+            selected_text = request.data.get('selected_text') or request.data.get('selectedText')
+            comment = request.data.get('comment')
+            article = get_object_or_404(Article, article_id=article_id, is_valid=True)
+            if not can_access_anthology(request, article.coll_id):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+            if 'start_offset' in request.data or 'startOffset' in request.data:
+                anchor = build_anchor_from_offsets(
+                    article,
+                    selected_text,
+                    request.data.get('start_offset', request.data.get('startOffset')),
+                    request.data.get('end_offset', request.data.get('endOffset')),
+                )
+            else:
+                anchor = locate_unique_text(article, selected_text)
+                if not anchor:
+                    return error_result(ErrorCode.PARAM_ERROR, "未找到选中文本")
+
+            annotation = create_annotation_with_comment(article, anchor, comment, get_user_identity(request))
+            return success_result(data={'annotation': serialize_annotation(annotation)})
+        except AnnotationError as e:
+            return error_result(ErrorCode.PARAM_ERROR, str(e))
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+
+class ArticleAnnotationCommentCreateView(APIView):
+    """
+    文章划线批注追加评论接口。
+    """
+
+    def post(self, request, annotation_id):
+        try:
+            if not request.user or not request.user.is_authenticated:
+                return error_result(ErrorCode.PERMISSION_DENIED, "请先登录后再评论")
+
+            annotation = get_object_or_404(ArticleAnnotation, annotation_id=annotation_id, is_valid=True)
+            if not can_access_anthology(request, annotation.article.coll_id):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+            comment = add_comment(annotation, request.data.get('comment'), get_user_identity(request))
+            return success_result(data={'comment': serialize_comment(comment)})
+        except AnnotationError as e:
+            return error_result(ErrorCode.PARAM_ERROR, str(e))
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+
+class ArticleAnnotationDeleteView(APIView):
+    """
+    删除整条文章批注。
+    """
+
+    def delete(self, request, annotation_id):
+        try:
+            annotation = get_object_or_404(ArticleAnnotation, annotation_id=annotation_id, is_valid=True)
+            if not can_access_anthology(request, annotation.article.coll_id):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+            if not can_delete_annotation(request, annotation):
+                return error_result(ErrorCode.PERMISSION_DENIED)
+
+            annotation.is_valid = False
+            annotation.save(update_fields=['is_valid', 'updated_at'])
+            return success_result(data={'annotation_id': annotation_id, 'deleted': True})
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+
+class ArticleAnnotationCommentDeleteView(APIView):
+    """
+    删除文章批注下的单条评论。
+    """
+
+    def delete(self, request, comment_id):
+        try:
+            comment = get_object_or_404(ArticleAnnotationComment, comment_id=comment_id, is_valid=True)
+            if not can_access_anthology(request, comment.annotation.article.coll_id):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+            if not can_delete_comment(request, comment):
+                return error_result(ErrorCode.PERMISSION_DENIED)
+
+            comment.is_valid = False
+            comment.save(update_fields=['is_valid', 'updated_at'])
+            return success_result(data={'comment_id': comment_id, 'deleted': True})
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
 

@@ -1,11 +1,12 @@
 import React, {ReactNode, useEffect, useMemo, useRef, useState} from 'react';
+import {createPortal} from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
-import {BrainCircuit, Download, FileDown, Loader2, Paperclip} from 'lucide-react';
+import {Bot, BrainCircuit, ChevronLeft, ChevronRight, Download, FileDown, Loader2, MessageCircle, Paperclip, Send, Trash2, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {useToast} from '../components/common/ToastProvider';
 import {useArticle} from '../hooks/useArticle';
@@ -17,6 +18,17 @@ import {syncArticleToRag} from '../api/rag';
 import {generateArticleMindMap} from '../api/article';
 import MindMapModal from '../components/Article/MindMapModal';
 import type {MindMapNode} from '@/types/api/article';
+import {
+    addArticleAnnotationComment,
+    createArticleAnnotation,
+    deleteArticleAnnotation,
+    deleteArticleAnnotationComment,
+    getArticleAnnotations,
+    type ArticleAnnotation,
+    type ArticleAnnotationComment
+} from '../api/articleAnnotation';
+import {rehypeArticleAnnotations} from '../utils/articleAnnotationPlugin';
+import {useAuth} from '../contexts/AuthContext';
 
 export interface AttachmentItem {
     id: string;
@@ -197,6 +209,36 @@ const getQuoteVariant = (props: any): QuoteVariant => {
     return variant && variant in QUOTE_VARIANT_STYLES ? variant : 'default';
 };
 
+const normalizeSelectionText = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+const formatAnnotationTime = (value?: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value.replace('T', ' ').slice(0, 16);
+    }
+    const pad = (num: number) => String(num).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const isAnnotationBlockedElement = (node: Node | null, root: HTMLElement | null) => {
+    let current = node instanceof Element ? node : node?.parentElement;
+    while (current && current !== root) {
+        const tag = current.tagName.toLowerCase();
+        if (['pre', 'code', 'table', 'img', 'svg', 'iframe', 'video', 'button', 'a'].includes(tag)) {
+            return true;
+        }
+        current = current.parentElement;
+    }
+    return false;
+};
+
+const getCreatorInitial = (name: string) => (name || '小').trim().slice(0, 1).toUpperCase();
+
+const getSelectionPopoverLeft = (x: number, containerWidth: number) => {
+    return Math.min(Math.max(168, x), Math.max(168, containerWidth - 168));
+};
+
 interface ArticleProps {
     isEmbedded?: boolean;
     scrollContainerId?: string;
@@ -254,6 +296,7 @@ export default function Article({
                                     onTocAvailabilityChange
                                 }: ArticleProps) {
     const navigate = useNavigate();
+    const {userInfo, isAuthenticated} = useAuth();
 
     // 1. 准备数据
     const displayTitle = title || "";
@@ -287,6 +330,7 @@ export default function Article({
     const [localSyncedTime, setLocalSyncedTime] = useState<string | undefined>(lastRagSyncedAt);
     const [localIsSynced, setLocalIsSynced] = useState<boolean>(!!isRagSynced);
     const articlePrintRef = useRef<HTMLDivElement>(null);
+    const articleContentRef = useRef<HTMLElement>(null);
     const printCloneRef = useRef<HTMLDivElement | null>(null);
 
     // 监听 props 变化，同步更新本地状态 (响应父组件的数据刷新)
@@ -301,10 +345,65 @@ export default function Article({
     const [isMindMapOpen, setIsMindMapOpen] = useState(false);
     const [isGeneratingMindMap, setIsGeneratingMindMap] = useState(false);
     const [localMindMap, setLocalMindMap] = useState<MindMapNode | undefined>(mindMap);
+    const [annotations, setAnnotations] = useState<ArticleAnnotation[]>([]);
+    const [annotationLoading, setAnnotationLoading] = useState(false);
+    const [selectionAnchor, setSelectionAnchor] = useState<{
+        selectedText: string;
+        startOffset: number;
+        endOffset: number;
+        x: number;
+        y: number;
+    } | null>(null);
+    const [newAnnotationComment, setNewAnnotationComment] = useState('');
+    const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
+    const [replyDraft, setReplyDraft] = useState('');
+    const [isAnnotationDrawerOpen, setIsAnnotationDrawerOpen] = useState(false);
+    const [submittingAnnotation, setSubmittingAnnotation] = useState(false);
 
     useEffect(() => {
         setLocalMindMap(mindMap);
     }, [mindMap, articleId]);
+
+    const loadAnnotations = React.useCallback(async () => {
+        if (!articleId) {
+            setAnnotations([]);
+            return;
+        }
+        setAnnotationLoading(true);
+        try {
+            const result = await getArticleAnnotations(articleId);
+            setAnnotations(result.annotations || []);
+        } catch (error) {
+            console.error('加载文章批注失败:', error);
+        } finally {
+            setAnnotationLoading(false);
+        }
+    }, [articleId]);
+
+    useEffect(() => {
+        loadAnnotations();
+    }, [loadAnnotations]);
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape') return;
+            if (activeAnnotationId) {
+                setActiveAnnotationId(null);
+                setReplyDraft('');
+                return;
+            }
+            if (isAnnotationDrawerOpen) {
+                setIsAnnotationDrawerOpen(false);
+                return;
+            }
+            if (selectionAnchor) {
+                setSelectionAnchor(null);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [activeAnnotationId, isAnnotationDrawerOpen, selectionAnchor]);
 
     // 2. 计算同步状态逻辑
     const syncStatus: SyncStatusType = useMemo(() => {
@@ -407,6 +506,35 @@ export default function Article({
         }
     };
 
+    const annotationPlugin = useMemo(() => rehypeArticleAnnotations(annotations), [annotations]);
+
+    const activeAnnotation = useMemo(
+        () => annotations.find(item => item.annotationId === activeAnnotationId) || null,
+        [annotations, activeAnnotationId]
+    );
+
+    const activeAnnotationGroup = useMemo(() => {
+        if (!activeAnnotation) return [];
+        return annotations
+            .filter(annotation => (
+                annotation.located
+                && annotation.startOffset < activeAnnotation.endOffset
+                && annotation.endOffset > activeAnnotation.startOffset
+            ))
+            .sort((a, b) => (
+                (b.endOffset - b.startOffset) - (a.endOffset - a.startOffset)
+                || a.startOffset - b.startOffset
+            ));
+    }, [activeAnnotation, annotations]);
+
+    const activeAnnotationIndex = activeAnnotationGroup.findIndex(annotation => annotation.annotationId === activeAnnotationId);
+    const hasAnnotationSwitch = activeAnnotationGroup.length > 1 && activeAnnotationIndex >= 0;
+
+    const annotationCommentCount = useMemo(
+        () => annotations.reduce((total, item) => total + (item.comments?.length || 0), 0),
+        [annotations]
+    );
+
     // 3. 配置 Markdown 组件 (Hook: useMemo)
     const components = useMemo(() => ({
         pre: (props: any) => <div className="not-prose">{props.children}</div>,
@@ -499,6 +627,173 @@ export default function Article({
         )
     }), []);
 
+    const getSelectionOffsets = () => {
+        const root = articleContentRef.current;
+        const selection = window.getSelection();
+        if (!root || !selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
+
+        const range = selection.getRangeAt(0);
+        if (!root.contains(range.commonAncestorContainer)) return null;
+        if (isAnnotationBlockedElement(range.startContainer, root) || isAnnotationBlockedElement(range.endContainer, root)) {
+            return null;
+        }
+
+        const selectedText = normalizeSelectionText(selection.toString());
+        if (!selectedText) return null;
+
+        const containerRect = articlePrintRef.current?.getBoundingClientRect();
+        if (!containerRect) return null;
+
+        const preRange = document.createRange();
+        preRange.selectNodeContents(root);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        const startOffset = preRange.toString().length;
+        const endOffset = startOffset + selection.toString().length;
+        const rect = range.getBoundingClientRect();
+
+        return {
+            selectedText,
+            startOffset,
+            endOffset,
+            x: rect.left + rect.width / 2 - containerRect.left,
+            y: rect.bottom + 12 - containerRect.top,
+        };
+    };
+
+    const handleArticleMouseUp = () => {
+        window.setTimeout(() => {
+            const selectionData = getSelectionOffsets();
+            if (!selectionData) {
+                setSelectionAnchor(null);
+                return;
+            }
+            setSelectionAnchor(selectionData);
+            setNewAnnotationComment('');
+        }, 0);
+    };
+
+    const handleArticleClick = (event: React.MouseEvent<HTMLElement>) => {
+        const target = event.target as HTMLElement;
+        const mark = target.closest<HTMLElement>('.article-annotation-mark');
+        if (!mark) return;
+        const ids = (mark.dataset.annotationIds || mark.dataset.annotationId || '').split(',').filter(Boolean);
+        const nextId = ids[0];
+        if (nextId) {
+            setActiveAnnotationId(nextId);
+            setReplyDraft('');
+            setSelectionAnchor(null);
+        }
+    };
+
+    const handleCreateAnnotation = async () => {
+        if (!articleId || !selectionAnchor || submittingAnnotation) return;
+        if (!isAuthenticated) {
+            toast.error('请先登录后再评论');
+            return;
+        }
+        if (!newAnnotationComment.trim()) {
+            toast.error('评论内容不能为空');
+            return;
+        }
+
+        setSubmittingAnnotation(true);
+        try {
+            const result = await createArticleAnnotation({
+                articleId,
+                selectedText: selectionAnchor.selectedText,
+                startOffset: selectionAnchor.startOffset,
+                endOffset: selectionAnchor.endOffset,
+                comment: newAnnotationComment.trim(),
+            });
+            setAnnotations(current => [...current, result.annotation].sort((a, b) => a.startOffset - b.startOffset));
+            setSelectionAnchor(null);
+            setNewAnnotationComment('');
+            window.getSelection()?.removeAllRanges();
+            toast.success('批注已添加');
+        } catch (error) {
+            console.error(error);
+            toast.error(error instanceof Error ? error.message : '添加批注失败');
+        } finally {
+            setSubmittingAnnotation(false);
+        }
+    };
+
+    const handleAddComment = async (annotationId: string) => {
+        if (!replyDraft.trim()) {
+            toast.error('评论内容不能为空');
+            return;
+        }
+        if (!isAuthenticated) {
+            toast.error('请先登录后再评论');
+            return;
+        }
+        try {
+            const result = await addArticleAnnotationComment(annotationId, replyDraft.trim());
+            setAnnotations(current => current.map(annotation => annotation.annotationId === annotationId
+                ? {
+                    ...annotation,
+                    comments: [...annotation.comments, result.comment],
+                    commentCount: annotation.commentCount + 1,
+                }
+                : annotation
+            ));
+            setReplyDraft('');
+            toast.success('评论已添加');
+        } catch (error) {
+            console.error(error);
+            toast.error(error instanceof Error ? error.message : '添加评论失败');
+        }
+    };
+
+    const handleDeleteAnnotation = async (annotationId: string) => {
+        try {
+            await deleteArticleAnnotation(annotationId);
+            setAnnotations(current => current.filter(annotation => annotation.annotationId !== annotationId));
+            if (activeAnnotationId === annotationId) setActiveAnnotationId(null);
+            toast.success('批注已删除');
+        } catch (error) {
+            console.error(error);
+            toast.error(error instanceof Error ? error.message : '删除批注失败');
+        }
+    };
+
+    const handleDeleteComment = async (annotationId: string, commentId: string) => {
+        try {
+            await deleteArticleAnnotationComment(commentId);
+            setAnnotations(current => current.map(annotation => annotation.annotationId === annotationId
+                ? {
+                    ...annotation,
+                    comments: annotation.comments.filter(comment => comment.commentId !== commentId),
+                    commentCount: Math.max(0, annotation.commentCount - 1),
+                }
+                : annotation
+            ));
+            toast.success('评论已删除');
+        } catch (error) {
+            console.error(error);
+            toast.error(error instanceof Error ? error.message : '删除评论失败');
+        }
+    };
+
+    const handleLocateAnnotation = (annotation: ArticleAnnotation) => {
+        if (!annotation.located) return;
+        const root = articleContentRef.current;
+        let mark = root?.querySelector<HTMLElement>(`.article-annotation-mark[data-annotation-id="${annotation.annotationId}"]`);
+        if (!mark && root) {
+            mark = Array.from(root.querySelectorAll<HTMLElement>('.article-annotation-mark'))
+                .find(item => (item.dataset.annotationIds || '').split(',').includes(annotation.annotationId));
+        }
+        if (mark) {
+            mark.scrollIntoView({behavior: 'smooth', block: 'center'});
+            setActiveAnnotationId(annotation.annotationId);
+            setReplyDraft('');
+        }
+    };
+
+    const canDeleteComment = (comment: ArticleAnnotationComment) => (
+        canManage || (comment.creatorType === 'user' && comment.creatorId === userInfo?.userid)
+    );
+
     // 只要传入了 articleId，组件挂载后就会自动开始计时并上报
     useReadStats(articleId);
 
@@ -512,6 +807,18 @@ export default function Article({
     const canShowMindMapButton = !!articleId && (canManage || hasMindMap);
     const tocTopActions = (
         <div className="flex flex-wrap items-center gap-2">
+            {!!articleId && (
+                <button
+                    type="button"
+                    onClick={() => setIsAnnotationDrawerOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-violet-100 bg-violet-50 text-violet-700 shadow-sm transition-all duration-200 hover:border-violet-200 hover:bg-violet-100"
+                    title="查看文章评论"
+                >
+                    <MessageCircle className="h-3.5 w-3.5"/>
+                    <span>{annotationLoading ? '加载中' : `评论 ${annotationCommentCount}`}</span>
+                </button>
+            )}
+
             {canShowMindMapButton && (
                 <button
                     type="button"
@@ -550,6 +857,7 @@ export default function Article({
             </button>
         </div>
     );
+    const portalRoot = typeof document === 'undefined' ? null : document.body;
 
     return (
         <>
@@ -567,7 +875,7 @@ export default function Article({
                 <main
                     className={`relative z-10 mx-auto px-3 sm:px-4 ${useInlineToc ? 'max-w-[82rem]' : 'max-w-5xl'} ${isEmbedded ? 'py-4 sm:py-6' : 'py-10 sm:py-20'}`}>
                     <div className={useInlineToc ? 'grid grid-cols-1 justify-center gap-4 2xl:grid-cols-[minmax(0,64rem)_16rem]' : ''}>
-                    <div ref={articlePrintRef} className="article-print-page w-full max-w-5xl bg-white rounded-2xl p-5 sm:p-14 shadow-none ring-1 ring-slate-900/5">
+                    <div ref={articlePrintRef} className="article-print-page relative w-full max-w-5xl bg-white rounded-2xl p-5 sm:p-14 shadow-none ring-1 ring-slate-900/5">
 
                         {/* Header */}
                         <header className="mb-8 border-b border-slate-100 pb-6 sm:mb-10 sm:pb-8">
@@ -625,7 +933,11 @@ export default function Article({
                         </header>
 
                         {/* Markdown Render */}
-                        <article className="
+                        <article
+                            ref={articleContentRef}
+                            onMouseUp={handleArticleMouseUp}
+                            onClick={handleArticleClick}
+                            className="
                             mx-auto
                             prose prose-slate sm:prose-lg
                             max-w-[75ch]
@@ -634,12 +946,51 @@ export default function Article({
                         ">
                             <ReactMarkdown
                                 remarkPlugins={[remarkQuoteVariants, remarkSoftLineBreaks, remarkGfm, remarkMath]}
-                                rehypePlugins={[rehypeKatex, rehypeRaw]}
+                                rehypePlugins={[rehypeKatex, rehypeRaw, annotationPlugin]}
                                 components={components as any}
                             >
                                 {contentWithSyntax}
                             </ReactMarkdown>
                         </article>
+
+                        {selectionAnchor && (
+                            <div
+                                className="article-print-hidden absolute z-[70] w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-violet-100 bg-white p-3 shadow-2xl ring-1 ring-violet-100/60"
+                                style={{
+                                    left: getSelectionPopoverLeft(selectionAnchor.x, articlePrintRef.current?.clientWidth || 320),
+                                    top: Math.max(16, selectionAnchor.y),
+                                }}
+                                onMouseDown={(event) => event.stopPropagation()}
+                            >
+                                <div className="mb-2 line-clamp-2 rounded-lg bg-violet-50 px-3 py-2 text-xs leading-5 text-violet-700">
+                                    {selectionAnchor.selectedText}
+                                </div>
+                                <textarea
+                                    value={newAnnotationComment}
+                                    onChange={(event) => setNewAnnotationComment(event.target.value)}
+                                    placeholder="写下评论..."
+                                    className="h-20 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                                />
+                                <div className="mt-2 flex items-center justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectionAnchor(null)}
+                                        className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100"
+                                    >
+                                        取消
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleCreateAnnotation}
+                                        disabled={submittingAnnotation}
+                                        className="inline-flex items-center gap-1.5 rounded-md bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {submittingAnnotation ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <Send className="h-3.5 w-3.5"/>}
+                                        评论
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Attachments */}
                         {attachments && attachments.length > 0 && (
@@ -695,6 +1046,201 @@ export default function Article({
                     </div>
                     </div>
                 </main>
+
+                {portalRoot && createPortal(
+                    <>
+                    {activeAnnotation && (
+                        <div className="article-print-hidden fixed right-4 top-24 z-[9999] w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-violet-100 bg-white shadow-2xl ring-1 ring-violet-100/70">
+                        <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2 text-xs font-semibold text-violet-600">
+                                    <span>划线评论</span>
+                                    {hasAnnotationSwitch && (
+                                        <span className="rounded-full bg-violet-50 px-2 py-0.5 text-violet-500">
+                                            {activeAnnotationIndex + 1}/{activeAnnotationGroup.length}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="mt-1 line-clamp-3 text-sm leading-6 text-slate-800">{activeAnnotation.selectedText}</div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1">
+                                {hasAnnotationSwitch && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const nextIndex = (activeAnnotationIndex - 1 + activeAnnotationGroup.length) % activeAnnotationGroup.length;
+                                                setActiveAnnotationId(activeAnnotationGroup[nextIndex].annotationId);
+                                                setReplyDraft('');
+                                            }}
+                                            className="rounded-md p-1.5 text-slate-400 hover:bg-violet-50 hover:text-violet-600"
+                                            aria-label="上一条批注"
+                                        >
+                                            <ChevronLeft className="h-4 w-4"/>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const nextIndex = (activeAnnotationIndex + 1) % activeAnnotationGroup.length;
+                                                setActiveAnnotationId(activeAnnotationGroup[nextIndex].annotationId);
+                                                setReplyDraft('');
+                                            }}
+                                            className="rounded-md p-1.5 text-slate-400 hover:bg-violet-50 hover:text-violet-600"
+                                            aria-label="下一条批注"
+                                        >
+                                            <ChevronRight className="h-4 w-4"/>
+                                        </button>
+                                    </>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveAnnotationId(null)}
+                                    className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                    aria-label="关闭评论"
+                                >
+                                    <X className="h-4 w-4"/>
+                                </button>
+                            </div>
+                        </div>
+                        <div className="max-h-72 overflow-y-auto px-4 py-3">
+                            {activeAnnotation.comments.map(comment => (
+                                <div key={comment.commentId} className="mb-4 last:mb-0">
+                                    <div className="flex items-start gap-3">
+                                        {comment.creatorAvatar ? (
+                                            <img src={comment.creatorAvatar} alt={comment.creatorName}
+                                                 className="h-8 w-8 rounded-full object-cover"/>
+                                        ) : (
+                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                                                {comment.creatorType === 'agent' ? <Bot className="h-4 w-4"/> : getCreatorInitial(comment.creatorName)}
+                                            </div>
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                                                <span className="font-semibold text-slate-800">{comment.creatorName}</span>
+                                                {comment.creatorType === 'agent' && (
+                                                    <span className="rounded-full bg-orange-50 px-1.5 py-0.5 font-medium text-orange-600">Agent</span>
+                                                )}
+                                                <span className="text-slate-400">{formatAnnotationTime(comment.createdAt)}</span>
+                                                {canDeleteComment(comment) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteComment(activeAnnotation.annotationId, comment.commentId)}
+                                                        className="ml-auto rounded p-1 text-slate-300 hover:bg-rose-50 hover:text-rose-500"
+                                                        title="删除评论"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5"/>
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{comment.content}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="border-t border-slate-100 p-3">
+                            <textarea
+                                value={replyDraft}
+                                onChange={(event) => setReplyDraft(event.target.value)}
+                                placeholder="追加评论..."
+                                className="h-20 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                            />
+                            <div className="mt-2 flex items-center justify-between">
+                                {canManage && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDeleteAnnotation(activeAnnotation.annotationId)}
+                                        className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-rose-500 hover:bg-rose-50"
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5"/>
+                                        删除批注
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => handleAddComment(activeAnnotation.annotationId)}
+                                    className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-violet-700"
+                                >
+                                    <Send className="h-3.5 w-3.5"/>
+                                    发送
+                                </button>
+                            </div>
+                        </div>
+                        </div>
+                    )}
+
+                    {isAnnotationDrawerOpen && (
+                        <div className="article-print-hidden fixed inset-0 z-[9998]">
+                        <div className="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px]" onClick={() => setIsAnnotationDrawerOpen(false)}/>
+                        <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-slate-200 bg-white shadow-2xl">
+                            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                                <div>
+                                    <div className="text-sm font-bold text-slate-900">文章评论</div>
+                                    <div className="mt-1 text-xs text-slate-500">{annotations.length} 处批注，{annotationCommentCount} 条评论</div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAnnotationDrawerOpen(false)}
+                                    className="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                    aria-label="关闭文章评论"
+                                >
+                                    <X className="h-4 w-4"/>
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-4">
+                                {annotations.length === 0 ? (
+                                    <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                                        暂无划线评论
+                                    </div>
+                                ) : annotations.map(annotation => (
+                                    <div key={annotation.annotationId} className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm last:mb-0">
+                                        <div className="mb-3 flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="line-clamp-3 text-sm font-semibold leading-6 text-slate-800">{annotation.selectedText}</div>
+                                                {!annotation.located && (
+                                                    <div className="mt-1 text-xs text-amber-600">{annotation.locationReason || '定位失效'}</div>
+                                                )}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleLocateAnnotation(annotation)}
+                                                disabled={!annotation.located}
+                                                className="shrink-0 rounded-md border border-violet-100 px-2.5 py-1 text-xs font-medium text-violet-600 hover:bg-violet-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                                            >
+                                                定位
+                                            </button>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {annotation.comments.map(comment => (
+                                                <div key={comment.commentId} className="flex items-start gap-2">
+                                                    {comment.creatorAvatar ? (
+                                                        <img src={comment.creatorAvatar} alt={comment.creatorName}
+                                                             className="h-7 w-7 rounded-full object-cover"/>
+                                                    ) : (
+                                                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600">
+                                                            {comment.creatorType === 'agent' ? <Bot className="h-3.5 w-3.5"/> : getCreatorInitial(comment.creatorName)}
+                                                        </div>
+                                                    )}
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2 text-xs">
+                                                            <span className="font-semibold text-slate-700">{comment.creatorName}</span>
+                                                            {comment.creatorType === 'agent' && <span className="text-orange-600">Agent</span>}
+                                                            <span className="text-slate-400">{formatAnnotationTime(comment.createdAt)}</span>
+                                                        </div>
+                                                        <div className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">{comment.content}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </aside>
+                        </div>
+                    )}
+                    </>,
+                    portalRoot
+                )}
 
                 {mobileTocOpen && headers.length > 0 && (
                     <div

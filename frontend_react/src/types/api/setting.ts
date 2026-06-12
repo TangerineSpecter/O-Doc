@@ -88,7 +88,6 @@ export type SaveAgentLongTermMemoryParams = Pick<AgentLongTermMemoryConfig, 'mem
 };
 
 export type AgentTaskScheduleType = 'daily' | 'weekly' | 'monthly' | 'interval';
-export type AgentTaskOutput = 'collection' | 'memos';
 export type AgentTaskNotifyPlatform = 'feishu';
 export type AgentRunStatus = 'success' | 'failed' | 'running';
 export type AgentRunStepStatus = AgentRunStatus | 'info';
@@ -105,9 +104,6 @@ export interface AgentTaskConfig {
     scheduleWeekday: string;
     scheduleMonthDay: string;
     intervalMinutes: number;
-    output: AgentTaskOutput;
-    targetCollectionId?: string;
-    targetCollectionTitle?: string;
     enabled: boolean;
     prompt: string;
     notifyEnabled: boolean;

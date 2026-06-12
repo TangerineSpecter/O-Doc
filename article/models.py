@@ -4,7 +4,12 @@ import re
 from django.db import models
 from django.utils import timezone
 
-from utils.id_generator import generate_article_id, generate_image_id
+from utils.id_generator import (
+    generate_article_annotation_comment_id,
+    generate_article_annotation_id,
+    generate_article_id,
+    generate_image_id,
+)
 
 
 # Create your models here.
@@ -411,3 +416,105 @@ class Image(models.Model):
         if not self.tags:
             return []
         return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
+
+
+class ArticleAnnotation(models.Model):
+    """
+    文章划线批注锚点。
+    """
+
+    CREATOR_TYPE_CHOICES = [
+        ('user', '用户'),
+        ('agent', 'Agent'),
+    ]
+
+    annotation_id = models.CharField(
+        max_length=32,
+        unique=True,
+        primary_key=True,
+        default=generate_article_annotation_id,
+        editable=False,
+        help_text='批注唯一标识',
+        db_comment='批注唯一标识'
+    )
+    article = models.ForeignKey(
+        Article,
+        on_delete=models.CASCADE,
+        related_name='annotations',
+        verbose_name='所属文章',
+        db_comment='所属文章ID'
+    )
+    selected_text = models.TextField(help_text='划线原文', db_comment='划线原文')
+    start_offset = models.PositiveIntegerField(help_text='纯文本开始偏移', db_comment='纯文本开始偏移')
+    end_offset = models.PositiveIntegerField(help_text='纯文本结束偏移', db_comment='纯文本结束偏移')
+    prefix_text = models.CharField(max_length=160, blank=True, default='', help_text='划线前文', db_comment='划线前文')
+    suffix_text = models.CharField(max_length=160, blank=True, default='', help_text='划线后文', db_comment='划线后文')
+    content_hash = models.CharField(max_length=64, blank=True, default='', help_text='创建时文章内容哈希', db_comment='创建时文章内容哈希')
+    creator_type = models.CharField(max_length=20, choices=CREATOR_TYPE_CHOICES, default='user', db_comment='创建者类型')
+    creator_id = models.CharField(max_length=80, blank=True, default='', db_comment='创建者标识')
+    creator_name = models.CharField(max_length=120, blank=True, default='', db_comment='创建者名称')
+    creator_avatar = models.CharField(max_length=500, blank=True, default='', db_comment='创建者头像')
+    is_valid = models.BooleanField(default=True, help_text='是否有效', db_comment='是否有效')
+    created_at = models.DateTimeField(auto_now_add=True, help_text='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, help_text='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'article_annotations'
+        db_table_comment = '文章批注表'
+        verbose_name = '文章批注'
+        verbose_name_plural = '文章批注'
+        ordering = ['start_offset', 'created_at']
+        indexes = [
+            models.Index(fields=['article', 'is_valid']),
+            models.Index(fields=['creator_type', 'creator_id']),
+        ]
+
+    def __str__(self):
+        return self.selected_text[:40]
+
+
+class ArticleAnnotationComment(models.Model):
+    """
+    文章划线批注下的评论。
+    """
+
+    CREATOR_TYPE_CHOICES = ArticleAnnotation.CREATOR_TYPE_CHOICES
+
+    comment_id = models.CharField(
+        max_length=32,
+        unique=True,
+        primary_key=True,
+        default=generate_article_annotation_comment_id,
+        editable=False,
+        help_text='批注评论唯一标识',
+        db_comment='批注评论唯一标识'
+    )
+    annotation = models.ForeignKey(
+        ArticleAnnotation,
+        on_delete=models.CASCADE,
+        related_name='comments',
+        verbose_name='所属批注',
+        db_comment='所属批注ID'
+    )
+    content = models.TextField(help_text='评论内容', db_comment='评论内容')
+    creator_type = models.CharField(max_length=20, choices=CREATOR_TYPE_CHOICES, default='user', db_comment='创建者类型')
+    creator_id = models.CharField(max_length=80, blank=True, default='', db_comment='创建者标识')
+    creator_name = models.CharField(max_length=120, blank=True, default='', db_comment='创建者名称')
+    creator_avatar = models.CharField(max_length=500, blank=True, default='', db_comment='创建者头像')
+    is_valid = models.BooleanField(default=True, help_text='是否有效', db_comment='是否有效')
+    created_at = models.DateTimeField(auto_now_add=True, help_text='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, help_text='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'article_annotation_comments'
+        db_table_comment = '文章批注评论表'
+        verbose_name = '文章批注评论'
+        verbose_name_plural = '文章批注评论'
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['annotation', 'is_valid']),
+            models.Index(fields=['creator_type', 'creator_id']),
+        ]
+
+    def __str__(self):
+        return self.content[:40]

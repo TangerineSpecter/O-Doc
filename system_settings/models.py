@@ -558,11 +558,6 @@ class AgentTask(models.Model):
         ('interval', '间隔'),
     ]
 
-    OUTPUT_TYPES = [
-        ('collection', '指定文集'),
-        ('memos', 'Memos'),
-    ]
-
     NOTIFY_PLATFORMS = [
         ('feishu', '飞书机器人'),
     ]
@@ -589,9 +584,6 @@ class AgentTask(models.Model):
     schedule_weekday = models.CharField(max_length=2, blank=True, default='1', verbose_name='执行星期', db_comment='执行星期 0-6')
     schedule_month_day = models.CharField(max_length=2, blank=True, default='1', verbose_name='执行日期', db_comment='每月执行日期')
     interval_minutes = models.PositiveIntegerField(default=60, verbose_name='间隔分钟', db_comment='间隔执行分钟数')
-    output = models.CharField(max_length=20, choices=OUTPUT_TYPES, default='collection', verbose_name='输出位置', db_comment='输出位置')
-    target_collection_id = models.CharField(max_length=40, blank=True, default='', verbose_name='目标文集ID', db_comment='目标文集ID')
-    target_collection_title = models.CharField(max_length=100, blank=True, default='', verbose_name='目标文集名称', db_comment='目标文集名称')
     enabled = models.BooleanField(default=True, verbose_name='是否启用', db_comment='是否启用')
     prompt = models.TextField(blank=True, default='', verbose_name='任务提示词', db_comment='任务提示词')
     notify_enabled = models.BooleanField(default=False, verbose_name='是否通知', db_comment='任务完成后是否发送 Webhook 通知')

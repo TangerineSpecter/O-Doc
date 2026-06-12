@@ -9,7 +9,7 @@ interface NotificationPopoverProps {
     onUnreadChange?: (count: number) => void;
 }
 
-export default function NotificationPopover({ onClose, onUnreadChange }: NotificationPopoverProps) {
+export default function NotificationPopover({ onClose, onNavigate, onUnreadChange }: NotificationPopoverProps) {
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
     const [loading, setLoading] = useState(true);
@@ -110,6 +110,23 @@ export default function NotificationPopover({ onClose, onUnreadChange }: Notific
         }
     };
 
+    const handleOpenLink = (item: NotificationItem) => {
+        const link = item.link || '';
+        const articleMatch = link.match(/^\/article\/([^/]+)\/([^/?#]+)/);
+        if (articleMatch && onNavigate) {
+            onNavigate('article', {
+                collId: decodeURIComponent(articleMatch[1]),
+                articleId: decodeURIComponent(articleMatch[2]),
+            });
+            setSelectedNotification(null);
+            onClose();
+            return;
+        }
+        if (link) {
+            window.location.href = link;
+        }
+    };
+
     const TangerineLogo = () => (
         <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 shadow-[0_4px_18px_rgba(249,115,22,0.22)]">
             <svg viewBox="0 0 24 24" fill="none" className="h-10 w-10">
@@ -180,7 +197,20 @@ export default function NotificationPopover({ onClose, onUnreadChange }: Notific
                         <div className="max-h-[34vh] overflow-y-auto whitespace-pre-wrap break-words text-sm font-medium leading-7 text-slate-700">
                             {selectedNotification.content}
                         </div>
-                        <div className="mt-6 flex items-end justify-end gap-5">
+                        <div className="mt-6 flex items-end justify-between gap-5">
+                            {selectedNotification.link ? (
+                                <button
+                                    type="button"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleOpenLink(selectedNotification);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 rounded-md bg-orange-500 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-orange-600"
+                                >
+                                    <ExternalLink className="h-3.5 w-3.5"/>
+                                    查看文章
+                                </button>
+                            ) : <span/>}
                             <div className="text-right">
                                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
                                     {deleting ? 'Tearing' : 'Tear'}

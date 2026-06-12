@@ -20,7 +20,11 @@ from system_settings.agent_memory import (
 )
 from system_settings.models import Agent, AgentIMMessage, SystemSetting
 from utils.ai_service import AIService
-from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
+from utils.mcp_client import (
+    call_mcp_tool,
+    fetch_mcp_tools,
+    hide_agent_identity_parameters,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +240,7 @@ def _build_agent_reply(agent, user_text, record):
 
 
 def _build_agent_mcp_tool_context(agent):
-    tool_context = {'tools': [], 'tool_map': {}, 'errors': []}
+    tool_context = {'agent': agent, 'tools': [], 'tool_map': {}, 'errors': []}
     if not isinstance(agent.mcp_servers, list) or not agent.mcp_servers:
         return tool_context
 
@@ -281,6 +285,7 @@ def _build_agent_mcp_tool_context(agent):
                 parameters = {'type': 'object', 'properties': {}}
             parameters.setdefault('type', 'object')
             parameters.setdefault('properties', {})
+            parameters = hide_agent_identity_parameters(parameters, original_name)
             tool_context['tools'].append({
                 'type': 'function',
                 'function': {
@@ -297,7 +302,12 @@ def _execute_agent_mcp_tool(tool_context, safe_tool_name, arguments):
     entry = tool_context['tool_map'].get(safe_tool_name)
     if not entry:
         raise RuntimeError(f"未知 MCP Tool：{safe_tool_name}")
-    result, error_msg = call_mcp_tool(entry['server'], entry['tool_name'], arguments)
+    result, error_msg = call_mcp_tool(
+        entry['server'],
+        entry['tool_name'],
+        arguments,
+        agent=tool_context.get('agent'),
+    )
     if error_msg:
         raise RuntimeError(f"{entry['server'].name}.{entry['tool_name']} 调用失败：{error_msg}")
     return result

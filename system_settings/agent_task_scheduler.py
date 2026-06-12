@@ -12,11 +12,12 @@ from django.db import OperationalError, ProgrammingError, close_old_connections
 from django.utils import timezone
 
 from ai_assistant.prompts import CHAT_SYSTEM_PROMPT
-from anthology.models import Anthology
-from article.models import Article
-from memos.models import Memo
 from utils.ai_service import AIService
-from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
+from utils.mcp_client import (
+    call_mcp_tool,
+    fetch_mcp_tools,
+    hide_agent_identity_parameters,
+)
 from .models import AgentRunRecord, AgentTask, MCPServer, Skill
 from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial_delay_seconds
 
@@ -223,17 +224,15 @@ class AgentTaskScheduler:
             else:
                 content = AIService.chat_completion(self._build_prompt(task))
             self._append_run_step(record, 'success', 'AI 内容生成完成', f"生成内容长度：{len(content or '')} 字符")
-            self._append_run_step(record, 'running', '写入输出', '正在保存生成内容')
-            output_info = self._save_output(task, content)
-            self._append_run_step(record, 'success', output_info['step_title'], output_info['summary'])
+            summary = self._build_completion_summary(content)
             duration_seconds = max(0, int((timezone.now() - started).total_seconds()))
             record.status = 'success'
             record.duration = self._format_duration(duration_seconds)
-            record.summary = output_info['summary']
+            record.summary = summary
             record.save(update_fields=['status', 'duration', 'summary', 'updated_at'])
-            self._send_task_notification(task, output_info['title'], record)
+            self._send_task_notification(task, record)
             self._append_run_step(record, 'success', '执行结束', f"总耗时：{record.duration}")
-            _scheduler_log(f"task success: id={task.id}, name={task.name}, title={output_info['title']}")
+            _scheduler_log(f"task success: id={task.id}, name={task.name}")
             logger.info('Agent task finished: %s', task.id)
         except Exception as exc:
             duration_seconds = max(0, int((timezone.now() - started).total_seconds()))
@@ -261,7 +260,7 @@ class AgentTaskScheduler:
         if not agent:
             return {'tools': [], 'tool_map': {}}
 
-        tool_context = {'tools': [], 'tool_map': {}}
+        tool_context = {'agent': agent, 'tools': [], 'tool_map': {}}
 
         if isinstance(agent.mcp_servers, list) and agent.mcp_servers:
             mcp_servers = list(MCPServer.objects.filter(id__in=agent.mcp_servers))
@@ -305,6 +304,7 @@ class AgentTaskScheduler:
                             parameters = {'type': 'object', 'properties': {}}
                         parameters.setdefault('type', 'object')
                         parameters.setdefault('properties', {})
+                        parameters = hide_agent_identity_parameters(parameters, original_name)
                         tool_context['tools'].append({
                             'type': 'function',
                             'function': {
@@ -339,7 +339,12 @@ class AgentTaskScheduler:
         entry = tool_context['tool_map'].get(safe_tool_name)
         if not entry:
             raise RuntimeError(f"未知 MCP Tool：{safe_tool_name}")
-        result, error_msg = call_mcp_tool(entry['server'], entry['tool_name'], arguments)
+        result, error_msg = call_mcp_tool(
+            entry['server'],
+            entry['tool_name'],
+            arguments,
+            agent=tool_context.get('agent'),
+        )
         if error_msg:
             raise RuntimeError(f"{entry['server'].name}.{entry['tool_name']} 调用失败：{error_msg}")
         return result
@@ -379,7 +384,6 @@ class AgentTaskScheduler:
             + f"当前日期：{today}\n"
             + f"当前时间：{current_time}\n"
             + "如果任务里出现“今天”“今日”“最新”等相对时间，必须按上述当前日期理解，不要使用其他年份。\n"
-            + "如果需要指定保存后的文章标题，请把标题作为输出第一行的一级 Markdown 标题，例如：# 标题。\n"
             + ("当前 Agent 绑定了 MCP Tools。凡是任务需要外部实时信息、搜索、读取链接或操作外部系统时，必须先调用合适的 Tool；如果 Tool 调用失败，不要编造结果。\n" if has_mcp_tools else "")
             + f"任务名称：{task.name}\n"
             + f"任务提示词：{task.prompt or '请根据 Agent 职责完成本次任务。'}"
@@ -397,40 +401,14 @@ class AgentTaskScheduler:
         )
         return [f"### {skill.name}\n{skill.prompt}" for skill in skills if skill.prompt]
 
-    def _save_output(self, task, content):
-        if task.output == 'memos':
-            Memo.objects.create(
-                content=(content or '')[:2000],
-                tag='Agent任务',
-                user_id='admin',
-            )
-            return {
-                'summary': '已输出到 Memos',
-                'title': task.name,
-                'step_title': '输出到 Memos',
-            }
+    @staticmethod
+    def _build_completion_summary(content):
+        text = (content or '').strip()
+        if not text:
+            return '任务执行完成'
+        return text[:255]
 
-        if not task.target_collection_id:
-            raise ValueError('任务未配置输出文集')
-
-        title, article_content = self._extract_article_title(task, content)
-        article = Article.objects.create(
-            title=title,
-            content=article_content,
-            coll_id=task.target_collection_id,
-            author='admin',
-            permission='public',
-        )
-        anthology = Anthology.objects.filter(coll_id=task.target_collection_id).first()
-        if anthology:
-            anthology.update_stats()
-        return {
-            'summary': f"已输出到文集：{task.target_collection_title or task.target_collection_id} / {article.title}",
-            'title': article.title,
-            'step_title': '输出文章',
-        }
-
-    def _send_task_notification(self, task, output_title, record=None):
+    def _send_task_notification(self, task, record=None):
         if not task.notify_enabled or not task.notify_webhook_url:
             if record:
                 self._append_run_step(record, 'info', '跳过通知', '任务未启用通知')
@@ -442,7 +420,7 @@ class AgentTaskScheduler:
                 self._append_run_step(record, 'failed', '通知失败', f"暂不支持通知平台：{task.notify_platform}")
             return
 
-        text = f"{task.name} 任务执行完毕，执行内容为 {output_title}"
+        text = f"{task.name} 任务执行完毕"
         try:
             if record:
                 self._append_run_step(record, 'running', '发送飞书通知', text)
@@ -479,24 +457,6 @@ class AgentTaskScheduler:
                     response.headers,
                     None,
                 )
-
-    @staticmethod
-    def _build_article_title(task):
-        timestamp = _local_now().strftime('%Y-%m-%d %H:%M:%S')
-        return f"{task.name} {timestamp}"[:255]
-
-    def _extract_article_title(self, task, content):
-        text = content or ''
-        match = re.match(r'^\s*#\s+(.+?)\s*(?:\n+|$)', text)
-        if not match:
-            return self._build_article_title(task), text
-
-        title = match.group(1).strip().strip('#').strip()
-        if not title:
-            return self._build_article_title(task), text
-
-        article_content = text[match.end():].lstrip()
-        return title[:255], article_content
 
     @staticmethod
     def _format_duration(seconds):

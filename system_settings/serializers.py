@@ -296,9 +296,6 @@ class AgentTaskSerializer(serializers.ModelSerializer):
             'schedule_weekday',
             'schedule_month_day',
             'interval_minutes',
-            'output',
-            'target_collection_id',
-            'target_collection_title',
             'enabled',
             'prompt',
             'notify_enabled',
@@ -321,10 +318,6 @@ class AgentTaskSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        output = attrs.get('output', getattr(self.instance, 'output', 'collection'))
-        target_collection_id = attrs.get('target_collection_id', getattr(self.instance, 'target_collection_id', ''))
-        if output == 'collection' and not target_collection_id:
-            raise serializers.ValidationError({"target_collection_id": "请选择输出文集"})
         notify_enabled = attrs.get('notify_enabled', getattr(self.instance, 'notify_enabled', False))
         notify_webhook_url = attrs.get('notify_webhook_url', getattr(self.instance, 'notify_webhook_url', ''))
         if notify_enabled and not notify_webhook_url:
