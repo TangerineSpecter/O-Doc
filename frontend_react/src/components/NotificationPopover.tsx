@@ -80,6 +80,15 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
         }
     };
 
+    const getPlainIcon = (type: NotificationItem['type']) => {
+        switch (type) {
+            case 'success': return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+            case 'warning': return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+            case 'error': return <XCircle className="h-4 w-4 text-red-500" />;
+            default: return <Info className="h-4 w-4 text-blue-500" />;
+        }
+    };
+
     const fetchList = async () => {
         if (!isAuthenticated) {
             setNotifications([]);
@@ -363,6 +372,38 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
         );
     };
 
+    const renderDropdownNotificationItem = (item: NotificationItem) => (
+        <button
+            key={item.id}
+            type="button"
+            onClick={() => handleClickItem(item)}
+            className="group relative w-full px-4 py-3 text-left transition-colors hover:bg-slate-50"
+        >
+            <div className="flex items-start gap-3">
+                <div className="mt-0.5 shrink-0 rounded-lg bg-slate-50 p-2 ring-1 ring-slate-100 transition-colors group-hover:bg-orange-50">
+                    {getPlainIcon(item.type)}
+                </div>
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                        <p className="line-clamp-1 text-sm font-semibold text-slate-800 transition-colors group-hover:text-orange-600">
+                            {item.title}
+                        </p>
+                        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                        {item.content}
+                    </p>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                        <span className="truncate text-[10px] font-medium text-slate-400">{item.createdAt}</span>
+                        {item.link && (
+                            <ExternalLink className="h-3 w-3 shrink-0 text-slate-300 transition-colors group-hover:text-orange-400" />
+                        )}
+                    </div>
+                </div>
+            </div>
+        </button>
+    );
+
     const detailModal = selectedNotification ? createPortal(
         <div
             className="fixed inset-0 z-[200] flex items-start justify-center bg-slate-900/30 px-4 pt-[15vh] pb-6 backdrop-blur-sm"
@@ -569,22 +610,19 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
 
     return (
         <>
-        <div ref={wrapperRef} className="absolute right-0 top-full z-50 mt-3 w-80 overflow-hidden rounded-lg border-[4px] border-slate-950 bg-white shadow-[10px_10px_0_#0f172a] animate-in fade-in slide-in-from-top-2 duration-200 sm:w-96">
-            <div className="relative overflow-hidden border-b-[4px] border-slate-950 bg-white px-4 py-3">
-                <CardPattern />
-                <div className="relative z-10 flex items-center justify-between">
-                <h3 className="text-sm font-black text-slate-900">系统通知</h3>
+        <div ref={wrapperRef} className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xl shadow-slate-900/10 animate-in fade-in slide-in-from-top-2 duration-200 sm:w-96">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-3">
+                <h3 className="text-sm font-semibold text-slate-800">系统通知</h3>
                 <button
                     onClick={handleMarkAllRead}
                     disabled={!isAuthenticated || notifications.length === 0}
-                    className="flex items-center gap-1 rounded border-2 border-slate-950 bg-orange-50 px-2 py-1 text-xs font-black text-orange-600 shadow-[2px_2px_0_#0f172a] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
+                    className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-orange-600 transition-colors hover:bg-orange-50 hover:text-orange-700 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                     <Check className="h-3 w-3" /> 全部已读
                 </button>
-                </div>
             </div>
 
-            <div className="max-h-[430px] overflow-y-auto bg-slate-50/60 p-3">
+            <div className="max-h-[400px] overflow-y-auto bg-white">
                 {loading ? (
                     <div className="flex justify-center py-8">
                         <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
@@ -595,18 +633,18 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
                         <p className="text-xs text-slate-400">暂无新通知</p>
                     </div>
                 ) : (
-                    <div className="space-y-3">
-                        {notifications.map(item => renderNotificationCard(item))}
+                    <div className="divide-y divide-slate-50">
+                        {notifications.map(item => renderDropdownNotificationItem(item))}
                     </div>
                 )}
             </div>
 
-            <div className="border-t-[4px] border-slate-950 bg-white px-4 py-2 text-center">
+            <div className="border-t border-slate-100 bg-slate-50 px-4 py-2 text-center">
                 <button
                     type="button"
                     onClick={handleOpenHistory}
                     disabled={!isAuthenticated}
-                    className="text-xs font-black text-slate-500 transition-colors hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-45"
+                    className="text-xs font-medium text-slate-400 transition-colors hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                     查看历史通知
                 </button>
