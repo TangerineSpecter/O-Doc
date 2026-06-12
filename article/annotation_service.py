@@ -13,6 +13,9 @@ from utils.drf_utils import get_current_user_identifier
 ANCHOR_CONTEXT_CHARS = 60
 MAX_COMMENT_LENGTH = 2000
 MAX_SELECTED_TEXT_LENGTH = 1000
+FUZZY_ANCHOR_CHARS = 8
+FUZZY_LENGTH_TOLERANCE = 10
+FUZZY_IGNORED_CHARS = set('`*_~=#|[]{}<>%')
 
 
 class AnnotationError(ValueError):
@@ -37,6 +40,7 @@ def markdown_to_plain_text(markdown):
     text = markdown or ''
     text = re.sub(r'```[\s\S]*?```', ' ', text)
     text = re.sub(r'`([^`]+)`', r'\1', text)
+    text = re.sub(r'==([^=]+)==', r'\1', text)
     text = re.sub(r'!\[[^\]]*]\([^)]+\)', ' ', text)
     text = re.sub(r'\[([^\]]+)]\([^)]+\)', r'\1', text)
     text = re.sub(r'<[^>]+>', ' ', text)
@@ -51,6 +55,73 @@ def markdown_to_plain_text(markdown):
 
 def normalize_selected_text(value):
     return re.sub(r'\s+', ' ', (value or '').strip())
+
+
+def _build_anchor(plain_text, selected_text, start_offset, end_offset, content_hash):
+    return Anchor(
+        selected_text=selected_text,
+        start_offset=start_offset,
+        end_offset=end_offset,
+        prefix_text=plain_text[max(0, start_offset - ANCHOR_CONTEXT_CHARS):start_offset],
+        suffix_text=plain_text[end_offset:end_offset + ANCHOR_CONTEXT_CHARS],
+        content_hash=content_hash,
+    )
+
+
+def _fuzzy_normalize_with_map(value):
+    chars = []
+    index_map = []
+    for index, char in enumerate(value or ''):
+        if char.isspace() or char in FUZZY_IGNORED_CHARS:
+            continue
+        chars.append(char.casefold())
+        index_map.append(index)
+    return ''.join(chars), index_map
+
+
+def _find_unique_fuzzy_span(plain_text, selected_text):
+    normalized_text, index_map = _fuzzy_normalize_with_map(plain_text)
+    normalized_selected, _ = _fuzzy_normalize_with_map(selected_text)
+    if not normalized_text or not normalized_selected:
+        return None
+
+    matches = [match.start() for match in re.finditer(re.escape(normalized_selected), normalized_text)]
+    if len(matches) > 1:
+        raise AnnotationError('文本不唯一，请提供更长的 selectedText')
+    if len(matches) == 1:
+        start = index_map[matches[0]]
+        end = index_map[matches[0] + len(normalized_selected) - 1] + 1
+        return start, end
+
+    anchor_size = min(FUZZY_ANCHOR_CHARS, max(2, len(normalized_selected) // 3))
+    prefix = normalized_selected[:anchor_size]
+    suffix = normalized_selected[-anchor_size:]
+    candidates = []
+    search_start = 0
+    while True:
+        prefix_index = normalized_text.find(prefix, search_start)
+        if prefix_index < 0:
+            break
+        suffix_search_from = prefix_index + len(prefix)
+        while True:
+            suffix_index = normalized_text.find(suffix, suffix_search_from)
+            if suffix_index < 0:
+                break
+            candidate_length = suffix_index + len(suffix) - prefix_index
+            if candidate_length > len(normalized_selected) + FUZZY_LENGTH_TOLERANCE:
+                break
+            if abs(candidate_length - len(normalized_selected)) <= FUZZY_LENGTH_TOLERANCE:
+                start = index_map[prefix_index]
+                end = index_map[suffix_index + len(suffix) - 1] + 1
+                candidates.append((start, end))
+                break
+            suffix_search_from = suffix_index + 1
+        search_start = prefix_index + 1
+
+    unique_candidates = list(dict.fromkeys(candidates))
+    if len(unique_candidates) > 1:
+        raise AnnotationError('文本不唯一，请提供更长的 selectedText')
+    return unique_candidates[0] if unique_candidates else None
 
 
 def build_anchor_from_offsets(article, selected_text, start_offset, end_offset):
@@ -77,14 +148,7 @@ def build_anchor_from_offsets(article, selected_text, start_offset, end_offset):
             return fallback
         raise AnnotationError('选区内容与文章正文不匹配')
 
-    return Anchor(
-        selected_text=selected_text,
-        start_offset=start_offset,
-        end_offset=end_offset,
-        prefix_text=plain_text[max(0, start_offset - ANCHOR_CONTEXT_CHARS):start_offset],
-        suffix_text=plain_text[end_offset:end_offset + ANCHOR_CONTEXT_CHARS],
-        content_hash=article_content_hash(article.content),
-    )
+    return _build_anchor(plain_text, selected_text, start_offset, end_offset, article_content_hash(article.content))
 
 
 def locate_unique_text(article, selected_text):
@@ -95,22 +159,19 @@ def locate_unique_text(article, selected_text):
     if len(selected_text) > MAX_SELECTED_TEXT_LENGTH:
         raise AnnotationError('selectedText 不能超过 1000 字')
 
+    content_hash = article_content_hash(article.content)
     matches = [match.start() for match in re.finditer(re.escape(selected_text), plain_text)]
     if not matches:
-        return None
+        fuzzy_span = _find_unique_fuzzy_span(plain_text, selected_text)
+        if not fuzzy_span:
+            return None
+        return _build_anchor(plain_text, selected_text, fuzzy_span[0], fuzzy_span[1], content_hash)
     if len(matches) > 1:
         raise AnnotationError('文本不唯一，请提供更长的 selectedText')
 
     start_offset = matches[0]
     end_offset = start_offset + len(selected_text)
-    return Anchor(
-        selected_text=selected_text,
-        start_offset=start_offset,
-        end_offset=end_offset,
-        prefix_text=plain_text[max(0, start_offset - ANCHOR_CONTEXT_CHARS):start_offset],
-        suffix_text=plain_text[end_offset:end_offset + ANCHOR_CONTEXT_CHARS],
-        content_hash=article_content_hash(article.content),
-    )
+    return _build_anchor(plain_text, selected_text, start_offset, end_offset, content_hash)
 
 
 def relocate_annotation(annotation):

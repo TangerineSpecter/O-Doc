@@ -150,6 +150,98 @@ class BuiltinSystemMCPTests(TestCase):
         self.assertEqual(comment['creator_name'], '访客')
         self.assertEqual(comment['creator_avatar'], '')
 
+    def test_builtin_comment_mcp_can_match_rendered_highlight_text(self):
+        User.objects.create_user(username='admin', password='password')
+        anthology = Anthology.objects.create(coll_id='coll_comment_mark', title='高亮评论文集', user_id='admin')
+        article = Article.objects.create(
+            article_id='art_comment_mark',
+            title='高亮评论文章',
+            content='`cc-switch` 是一款便捷的可视化工具，支持==快速切换 Claude Code 的 API 配置==。',
+            coll_id=anthology.coll_id,
+            author='admin',
+        )
+        server = MCPServer.objects.create(
+            name='评论 MCP',
+            transport='streamableHttp',
+            url='http://unreachable.example.invalid/api/system-mcp/comments/',
+            source='system',
+            enabled=True,
+            tools=[],
+        )
+
+        result, error_msg = call_mcp_tool(server, 'create_article_annotation', {
+            'article_id': article.article_id,
+            'selected_text': 'cc-switch 是一款便捷的可视化工具，支持快速切换 Claude Code 的 API 配置。',
+            'comment': '这是一条命中高亮文本的评论',
+        })
+
+        self.assertIsNone(error_msg)
+        self.assertEqual(
+            result['annotation']['selected_text'],
+            'cc-switch 是一款便捷的可视化工具，支持快速切换 Claude Code 的 API 配置。',
+        )
+
+    def test_builtin_comment_mcp_fuzzy_matches_unknown_inline_markup(self):
+        User.objects.create_user(username='admin', password='password')
+        anthology = Anthology.objects.create(coll_id='coll_comment_fuzzy', title='兼容评论文集', user_id='admin')
+        article = Article.objects.create(
+            article_id='art_comment_fuzzy',
+            title='兼容评论文章',
+            content='[[cc-switch]] 是一款便捷的可视化工具，支持%%快速切换 Claude Code 的 API 配置%%。',
+            coll_id=anthology.coll_id,
+            author='admin',
+        )
+        server = MCPServer.objects.create(
+            name='评论 MCP',
+            transport='streamableHttp',
+            url='http://unreachable.example.invalid/api/system-mcp/comments/',
+            source='system',
+            enabled=True,
+            tools=[],
+        )
+
+        result, error_msg = call_mcp_tool(server, 'create_article_annotation', {
+            'article_id': article.article_id,
+            'selected_text': 'cc-switch 是一款便捷的可视化工具，支持快速切换 Claude Code 的 API 配置。',
+            'comment': '这是一条通过兼容定位命中的评论',
+        })
+
+        self.assertIsNone(error_msg)
+        self.assertEqual(
+            result['annotation']['selected_text'],
+            'cc-switch 是一款便捷的可视化工具，支持快速切换 Claude Code 的 API 配置。',
+        )
+
+    def test_builtin_comment_mcp_fuzzy_match_still_requires_unique_text(self):
+        User.objects.create_user(username='admin', password='password')
+        anthology = Anthology.objects.create(coll_id='coll_comment_fuzzy_unique', title='不唯一评论文集', user_id='admin')
+        article = Article.objects.create(
+            article_id='art_comment_fuzzy_unique',
+            title='不唯一评论文章',
+            content=(
+                '[[cc-switch]] 是一款便捷的可视化工具，支持%%快速切换 Claude Code 的 API 配置%%。\n'
+                '[[cc-switch]] 是一款便捷的可视化工具，支持%%快速切换 Claude Code 的 API 配置%%。'
+            ),
+            coll_id=anthology.coll_id,
+            author='admin',
+        )
+        server = MCPServer.objects.create(
+            name='评论 MCP',
+            transport='streamableHttp',
+            url='http://unreachable.example.invalid/api/system-mcp/comments/',
+            source='system',
+            enabled=True,
+            tools=[],
+        )
+
+        _, error_msg = call_mcp_tool(server, 'create_article_annotation', {
+            'article_id': article.article_id,
+            'selected_text': 'cc-switch 是一款便捷的可视化工具，支持快速切换 Claude Code 的 API 配置。',
+            'comment': '这条评论不应该命中多处文本',
+        })
+
+        self.assertIn('文本不唯一', error_msg)
+
     def test_builtin_comment_mcp_rejects_non_admin_article(self):
         anthology = Anthology.objects.create(coll_id='coll_comment_other', title='其他用户文集', user_id='other-user')
         article = Article.objects.create(
