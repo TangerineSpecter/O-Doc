@@ -11,7 +11,8 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  docker:
+  docker-ghcr:
+    name: Publish GitHub Container Registry
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -45,3 +46,27 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  docker-tcr:
+    name: Publish Tencent Cloud TCR
+    runs-on: [self-hosted, Linux, X64]
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build and push Docker image to Tencent Cloud TCR
+        env:
+          TCR_USERNAME: ${{ secrets.TCR_USERNAME }}
+          TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
+          TCR_REGISTRY: ccr.ccs.tencentyun.com
+          TCR_IMAGE: ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest
+          TCR_PLATFORM: linux/amd64
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            export TCR_EXTRA_TAGS="ccr.ccs.tencentyun.com/tangerine_specter/o-doc:${GITHUB_REF_NAME}"
+          fi
+
+          ./scripts/push-tcr.sh
