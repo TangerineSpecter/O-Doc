@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework.views import APIView
 
 from utils.response_utils import success_result
@@ -23,26 +24,29 @@ class NotificationView(APIView):
     def get(self, request):
         # 只看自己的通知
         current_user = get_notification_user(request)
-        msg_list = Notification.objects.filter(user=current_user)
+        msg_list = Notification.objects.filter(user=current_user, is_deleted=False)
         json_data = NotificationSerializer(msg_list, many=True).data
         return success_result(json_data)
 
     def post(self, request):
         # 只处理自己的通知
         current_user = get_notification_user(request)
-        Notification.objects.filter(user=current_user).update(is_read=True)
+        Notification.objects.filter(user=current_user, is_deleted=False).update(is_read=True)
         return success_result()
 
 
 class NotificationDetailView(APIView):
     def patch(self, request, notification_id):
         current_user = get_notification_user(request)
-        Notification.objects.filter(id=notification_id, user=current_user).update(is_read=True)
+        Notification.objects.filter(id=notification_id, user=current_user, is_deleted=False).update(is_read=True)
         return success_result()
 
     def delete(self, request, notification_id):
         current_user = get_notification_user(request)
-        Notification.objects.filter(id=notification_id, user=current_user).delete()
+        Notification.objects.filter(id=notification_id, user=current_user, is_deleted=False).update(
+            is_deleted=True,
+            deleted_at=timezone.now()
+        )
         return success_result()
 
 

@@ -28,7 +28,9 @@ class Notification(models.Model):
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='info', verbose_name="类型", db_comment="通知类型")
     link = models.CharField(max_length=255, blank=True, null=True, verbose_name="关联链接", db_comment="关联链接")
     is_read = models.BooleanField(default=False, verbose_name="已读", db_comment="是否已读")
+    is_deleted = models.BooleanField(default=False, verbose_name="已删除", db_comment="是否已逻辑删除")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间", db_comment="创建时间")
+    deleted_at = models.DateTimeField(blank=True, null=True, verbose_name="删除时间", db_comment="逻辑删除时间")
 
     class Meta:
         ordering = ['-created_at']
