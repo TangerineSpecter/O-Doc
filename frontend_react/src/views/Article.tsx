@@ -785,7 +785,8 @@ export default function Article({
         }
         if (mark) {
             mark.scrollIntoView({behavior: 'smooth', block: 'center'});
-            setActiveAnnotationId(annotation.annotationId);
+            setActiveAnnotationId(null);
+            setSelectionAnchor(null);
             setReplyDraft('');
         }
     };
