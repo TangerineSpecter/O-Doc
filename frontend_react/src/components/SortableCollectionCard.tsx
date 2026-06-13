@@ -1,6 +1,7 @@
 import React from 'react';
 import {
     ArrowUp,
+    Bot,
     ChevronDown,
     CloudOff,
     Edit,
@@ -62,6 +63,17 @@ export const SortableCollectionCard = ({
     };
     const hideCoverContent = item.hideCoverContent ?? item.hide_cover_content ?? false;
     const shouldMaskCover = hideCoverContent && item.count > 0;
+    const isAgentCollection = item.type === 'agent';
+    const navigateTarget = isAgentCollection ? 'article' : item.type === 'image' ? 'image' : 'article';
+    const countTitle = isAgentCollection ? `${item.count} 条帖子` : item.type === 'image' ? `${item.count} 张图片` : `${item.count} 篇文档`;
+    const renderAgentAvatar = (avatar?: string, name?: string) => {
+        const value = avatar?.trim();
+        const initial = (name || 'A').trim().slice(0, 1).toUpperCase();
+        if (value && (/^https?:\/\//.test(value) || value.startsWith('/') || value.startsWith('data:image/') || value.startsWith('blob:'))) {
+            return <img src={value} alt={name || 'Agent'} className="h-full w-full object-cover" />;
+        }
+        return <span className="text-[10px] font-bold text-indigo-700">{value || initial}</span>;
+    };
 
     return (
         <div
@@ -69,7 +81,7 @@ export const SortableCollectionCard = ({
             style={style}
             className={`
                 group bg-white rounded-xl border transition-all duration-200 flex flex-col overflow-hidden relative
-                ${isDragging ? 'shadow-2xl ring-2 ring-orange-400 opacity-90 scale-[1.02] z-50' : 'border-slate-200 hover:border-orange-200 hover:shadow-lg'}
+                ${isDragging ? 'shadow-2xl ring-2 ring-orange-400 opacity-90 scale-[1.02] z-50' : isAgentCollection ? 'border-indigo-300 bg-indigo-50/20 hover:border-indigo-400 hover:shadow-lg' : 'border-slate-200 hover:border-orange-200 hover:shadow-lg'}
                 ${item.isTop ? 'bg-slate-50/30' : ''}
             `}
         >
@@ -132,11 +144,14 @@ export const SortableCollectionCard = ({
                         </div>
                         <div className="flex items-center gap-2">
                             <h3
-                                onClick={() => onNavigate(item.type === 'image' ? 'image' : 'article', { collId: item.collId, title: item.title })}
+                                onClick={() => onNavigate(navigateTarget, { collId: item.collId, title: item.title })}
                                 className="font-bold text-slate-800 text-base leading-tight group-hover:text-orange-600 transition-colors cursor-pointer line-clamp-1"
                             >
                                 {item.title}
                             </h3>
+                            {isAgentCollection && <span
+                                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-indigo-100 border border-indigo-200 text-[10px] font-bold text-indigo-700 leading-none"><Bot
+                                    className="w-2.5 h-2.5" strokeWidth={3} />Agent</span>}
                             {item.isTop && <span
                                 className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-50 border border-red-100 text-[10px] font-bold text-red-600 leading-none"><ArrowUp
                                     className="w-2.5 h-2.5" strokeWidth={3} />置顶</span>}
@@ -158,7 +173,7 @@ export const SortableCollectionCard = ({
                         ) : null}
                         <span
                             className="bg-slate-50 text-slate-400 text-[10px] font-semibold px-1.5 py-0.5 rounded min-w-[1.5rem] text-center"
-                            title={item.type === 'image' ? `${item.count} 张图片` : `${item.count} 篇文档`}
+                            title={countTitle}
                         >
                             {item.count}
                         </span>
@@ -172,7 +187,7 @@ export const SortableCollectionCard = ({
                 {shouldMaskCover ? (
                     <button
                         type="button"
-                        onClick={() => onNavigate(item.type === 'image' ? 'image' : 'article', { collId: item.collId, title: item.title })}
+                        onClick={() => onNavigate(navigateTarget, { collId: item.collId, title: item.title })}
                         className="w-full h-full min-h-[5.75rem] flex flex-col items-center justify-center text-slate-400 py-4 gap-2 rounded-lg hover:bg-white hover:shadow-sm transition-all"
                         title="查看文集"
                     >
@@ -181,6 +196,37 @@ export const SortableCollectionCard = ({
                         </div>
                         <span className="text-[10px]">(^_^) 嘻嘻，啥也看不到嗷～</span>
                     </button>
+                ) : isAgentCollection ? (
+                    item.articles && item.articles.length > 0 ? (
+                        <div className="space-y-1 p-1">
+                            {item.articles.slice(0, 3).map((post, idx) => (
+                                <button
+                                    key={post.articleId || idx}
+                                    onClick={() => onNavigate('article', { collId: item.collId, title: item.title })}
+                                    className="w-full rounded-lg bg-white/80 px-2 py-1.5 text-left transition-all hover:bg-white hover:shadow-sm"
+                                >
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <div className="line-clamp-1 text-xs font-bold text-slate-700">{post.title}</div>
+                                            <div className="mt-0.5 line-clamp-1 text-[10px] leading-4 text-slate-500">{post.summary || '暂无摘要'}</div>
+                                        </div>
+                                        <span className="shrink-0 text-[10px] font-mono text-slate-300">{post.date}</span>
+                                    </div>
+                                    <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400">
+                                        <span className="flex h-4 w-4 items-center justify-center overflow-hidden rounded-full bg-indigo-100 ring-1 ring-indigo-200">
+                                            {renderAgentAvatar(post.agentAvatar, post.agentName)}
+                                        </span>
+                                        <span className="truncate">{post.agentName || 'Agent'}</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400 py-4 gap-2">
+                            <div className="bg-white p-2 rounded-full border border-dashed border-indigo-300"><Bot className="w-4 h-4 text-indigo-500" /></div>
+                            <span className="text-[10px]">暂无 Agent 帖子</span>
+                        </div>
+                    )
                 ) : item.type === 'image' ? (
                     // 图片文集展示：九宫格缩略图
                     item.articles && item.articles.length > 0 ? (
@@ -250,10 +296,10 @@ export const SortableCollectionCard = ({
             <div
                 className="bg-white border-t border-slate-50 h-0 group-hover:h-8 transition-all duration-300 overflow-hidden flex items-center justify-center">
                 <button
-                    onClick={() => onNavigate(item.type === 'image' ? 'image' : 'article', { collId: item.collId, title: item.title })}
-                    className="text-[10px] font-medium text-orange-600 hover:text-orange-700 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity delay-75"
+                    onClick={() => onNavigate(navigateTarget, { collId: item.collId, title: item.title })}
+                    className={`text-[10px] font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity delay-75 ${isAgentCollection ? 'text-indigo-700 hover:text-indigo-800' : 'text-orange-600 hover:text-orange-700'}`}
                 >
-                    查看全部 <ChevronDown className="w-2.5 h-2.5 -rotate-90" />
+                    {isAgentCollection ? '查看帖子' : '查看全部'} <ChevronDown className="w-2.5 h-2.5 -rotate-90" />
                 </button>
             </div>
         </div>

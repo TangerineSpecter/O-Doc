@@ -45,7 +45,8 @@ class Anthology(models.Model):
         max_length=10,
         choices=[
             ('article', '文章文集'),
-            ('image', '图片文集')
+            ('image', '图片文集'),
+            ('agent', 'Agent 文集')
         ],
         default='article',
         verbose_name='文集类型',

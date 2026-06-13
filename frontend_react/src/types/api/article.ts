@@ -50,6 +50,10 @@ export interface Article {
     isRagSynced?: boolean;
     lastRagSyncedAt?: string;
     mindMap?: MindMapNode;
+    postSummary?: string;
+    agentPostCreatorId?: string;
+    agentPostCreatorName?: string;
+    agentPostCreatorAvatar?: string;
 }
 
 //前端列表通用的文章项类型 (ViewModel)

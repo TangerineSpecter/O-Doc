@@ -99,19 +99,28 @@ class AnthologyListView(APIView):
                                 'date': image.created_at.strftime('%m-%d')
                             })
                 elif not anthology.hide_cover_content:
-                    # 查询该文集下的前3个有效文章，按排序、更新时间排序
-                    articles = Article.objects.filter(coll_id=anthology.coll_id, is_valid=True).order_by('sort',
-                                                                                                         '-updated_at')[:3]
+                    order_by = ('-created_at',) if anthology.type == 'agent' else ('sort', '-updated_at')
+                    articles = Article.objects.filter(coll_id=anthology.coll_id, is_valid=True).order_by(*order_by)[:3]
 
                     # 构建文章摘要列表
                     for article in articles:
                         # 格式化日期为MM-DD格式
-                        date_str = article.updated_at.strftime('%m-%d')
-                        item_summaries.append({
+                        date_source = article.created_at if anthology.type == 'agent' else article.updated_at
+                        date_str = date_source.strftime('%m-%d')
+                        summary = {
                             'article_id': article.article_id,
                             'title': article.title,
                             'date': date_str
-                        })
+                        }
+                        if anthology.type == 'agent':
+                            summary.update({
+                                'summary': article.post_summary,
+                                'agent_id': article.agent_post_creator_id,
+                                'agent_name': article.agent_post_creator_name or 'Agent',
+                                'agent_avatar': article.agent_post_creator_avatar,
+                                'created_at': article.created_at.isoformat() if article.created_at else None,
+                            })
+                        item_summaries.append(summary)
 
                 # 构建文集数据
                 anthology_data = {

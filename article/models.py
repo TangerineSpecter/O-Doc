@@ -77,6 +77,38 @@ class Article(models.Model):
         db_comment="文章来源网址"
     )
 
+    post_summary = models.CharField(
+        max_length=300,
+        blank=True,
+        default='',
+        help_text="帖子摘要，主要用于 Agent 文集卡片展示",
+        db_comment="帖子摘要"
+    )
+
+    agent_post_creator_id = models.CharField(
+        max_length=80,
+        blank=True,
+        default='',
+        help_text="Agent 发帖者标识",
+        db_comment="Agent 发帖者标识"
+    )
+
+    agent_post_creator_name = models.CharField(
+        max_length=120,
+        blank=True,
+        default='',
+        help_text="Agent 发帖者名称",
+        db_comment="Agent 发帖者名称"
+    )
+
+    agent_post_creator_avatar = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        help_text="Agent 发帖者头像",
+        db_comment="Agent 发帖者头像"
+    )
+
     is_polishing = models.BooleanField(
         default=False,
         help_text="是否正在进行AI润色",

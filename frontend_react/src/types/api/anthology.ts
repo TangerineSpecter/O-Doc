@@ -5,6 +5,11 @@ export interface ArticleSummary {
     title: string;
     date: string;
     imageUrl?: string;
+    summary?: string;
+    agentId?: string;
+    agentName?: string;
+    agentAvatar?: string;
+    createdAt?: string;
 }
 
 // 定义创建文集参数类型
@@ -16,7 +21,7 @@ export interface CreateAnthologyParams {
     isTop?: boolean;
     hideCoverContent?: boolean;
     sort?: number;
-    type?: 'article' | 'image';
+    type?: 'article' | 'image' | 'agent';
 }
 
 // 定义文集返回数据类型
@@ -33,5 +38,5 @@ export interface Anthology {
     articles: ArticleSummary[];
     permission: 'public' | 'private';
     sort?: number;
-    type?: 'article' | 'image'; // Added type field
+    type?: 'article' | 'image' | 'agent'; // Added type field
 }

@@ -20,7 +20,7 @@ from article.annotation_service import (
 )
 from article.models import Article, ArticleAnnotation, ArticleAnnotationComment
 from memos.models import Memo
-from system_settings.models import SystemSetting
+from system_settings.models import Agent, SystemSetting
 
 
 PROTOCOL_VERSION = '2025-06-18'
@@ -51,6 +51,10 @@ def _article_to_dict(article, include_content=True):
         'read_time': article.read_time,
         'read_count': article.read_count,
         'is_rag_synced': article.is_rag_synced,
+        'post_summary': article.post_summary,
+        'agent_post_creator_id': article.agent_post_creator_id,
+        'agent_post_creator_name': article.agent_post_creator_name,
+        'agent_post_creator_avatar': article.agent_post_creator_avatar,
         'created_at': article.created_at.isoformat() if article.created_at else None,
         'updated_at': article.updated_at.isoformat() if article.updated_at else None,
     }
@@ -90,9 +94,24 @@ def _memo_to_dict(memo):
 def _refresh_anthology(coll_id):
     if not coll_id:
         return
-    anthology = Anthology.objects.filter(coll_id=coll_id, type='article', is_valid=True).first()
+    anthology = Anthology.objects.filter(coll_id=coll_id, type__in=['article', 'agent'], is_valid=True).first()
     if anthology:
         anthology.update_stats()
+
+
+def _build_summary(content, summary=''):
+    summary = str(summary or '').strip()
+    if summary:
+        return summary[:300]
+    compact = ' '.join(
+        str(content or '')
+        .replace('#', ' ')
+        .replace('*', ' ')
+        .replace('`', ' ')
+        .replace('>', ' ')
+        .split()
+    )
+    return compact[:140]
 
 
 TOOLS = [
@@ -257,7 +276,7 @@ TOOLS = [
         'inputSchema': {
             'type': 'object',
             'properties': {
-                'type': {'type': 'string', 'enum': ['article', 'image'], 'description': '文集类型。'},
+                'type': {'type': 'string', 'enum': ['article', 'image', 'agent'], 'description': '文集类型。'},
                 'keyword': {'type': 'string', 'description': '可选标题关键词。'},
                 'limit': {'type': 'integer', 'description': '返回数量，默认 50，最大 200。'},
             },
@@ -283,7 +302,7 @@ TOOLS = [
                 'title': {'type': 'string', 'description': '文集名称，最多 20 字。'},
                 'description': {'type': 'string', 'description': '文集简介，最多 100 字。'},
                 'icon_id': {'type': 'string', 'description': '图标 ID。'},
-                'type': {'type': 'string', 'enum': ['article', 'image'], 'description': '文集类型，默认 article。'},
+                'type': {'type': 'string', 'enum': ['article', 'image', 'agent'], 'description': '文集类型，默认 article。'},
                 'permission': {'type': 'string', 'enum': ['public', 'private'], 'description': '访问权限。'},
                 'is_top': {'type': 'boolean', 'description': '是否置顶。'},
                 'sort': {'type': 'integer', 'description': '排序值。'},
@@ -317,6 +336,26 @@ TOOLS = [
                 'coll_id': {'type': 'string', 'description': '文集 ID。'},
             },
             'required': ['coll_id'],
+        },
+    },
+    {
+        'name': 'create_agent_post',
+        'description': '在 Agent 文集中创建一条卡片帖子。用于 Agent 通过 MCP 发布标题、摘要和正文；账号端只展示和删除帖子。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'title': {'type': 'string', 'description': '帖子标题。'},
+                'content': {'type': 'string', 'description': '帖子正文，Markdown 格式。'},
+                'summary': {'type': 'string', 'description': '帖子摘要，最多 300 字；不传则从正文自动截取。'},
+                'coll_id': {'type': 'string', 'description': '所属 Agent 文集 ID。'},
+                'agent_id': {'type': 'string', 'description': '可选 Agent 配置 ID，传入后服务端读取名称和头像。'},
+                'agent_name': {'type': 'string', 'description': '可选发帖 Agent 名称。'},
+                'agent_avatar': {'type': 'string', 'description': '可选发帖 Agent 头像 URL、资源路径或 Emoji。'},
+                'permission': {'type': 'string', 'enum': ['public', 'private'], 'description': '帖子权限。'},
+                'sort': {'type': 'integer', 'description': '排序值。'},
+                'source_url': {'type': 'string', 'description': '可选来源 URL。'},
+            },
+            'required': ['title', 'content', 'coll_id'],
         },
     },
     {
@@ -369,7 +408,7 @@ TOOLS = [
 ]
 
 MEMO_TOOL_NAMES = {'insert_memo', 'create_memo', 'list_memos', 'get_memo', 'update_memo', 'delete_memo'}
-ARTICLE_TOOL_NAMES = {'create_article', 'list_articles', 'get_article', 'get_random_article', 'update_article', 'delete_article'}
+ARTICLE_TOOL_NAMES = {'create_article', 'list_articles', 'get_article', 'get_random_article', 'update_article', 'delete_article', 'create_agent_post'}
 ANTHOLOGY_TOOL_NAMES = {'create_anthology', 'list_anthologies', 'get_anthology', 'update_anthology', 'delete_anthology'}
 VISIBLE_TOOL_NAMES = {tool['name'] for tool in TOOLS} - {'insert_memo'}
 VISIBLE_MEMO_TOOL_NAMES = MEMO_TOOL_NAMES - {'insert_memo'}
@@ -490,6 +529,8 @@ class ODocSystemMCPView(APIView):
             return self._delete_memo(arguments)
         if name == 'create_article':
             return self._create_article(arguments)
+        if name == 'create_agent_post':
+            return self._create_agent_post(arguments)
         if name == 'list_articles':
             return self._list_articles(arguments)
         if name == 'get_article':
@@ -597,6 +638,12 @@ class ODocSystemMCPView(APIView):
         return get_object_or_404(Anthology, coll_id=coll_id, type='article', is_valid=True)
 
     @staticmethod
+    def _validate_agent_collection(coll_id):
+        if not coll_id:
+            raise ValueError('coll_id 不能为空')
+        return get_object_or_404(Anthology, coll_id=coll_id, type='agent', is_valid=True)
+
+    @staticmethod
     def _validate_parent(parent_id):
         if parent_id in (None, ''):
             return None
@@ -632,6 +679,59 @@ class ODocSystemMCPView(APIView):
         except IntegrityError:
             raise ValueError('同一文集下文章标题已存在')
         return {'article': _article_to_dict(article)}
+
+    def _resolve_agent_post_identity(self, arguments):
+        if self.agent_context:
+            return get_agent_identity(self.agent_context)
+
+        agent_id = str(arguments.get('agent_id') or '').strip()
+        if agent_id:
+            agent = Agent.objects.filter(id=agent_id).first()
+            if agent:
+                return get_agent_identity(agent)
+
+        name = str(arguments.get('agent_name') or '').strip() or 'Agent'
+        avatar = str(arguments.get('agent_avatar') or '').strip()
+        return {
+            'creator_type': 'agent',
+            'creator_id': f'agent:{agent_id or name}',
+            'creator_name': name,
+            'creator_avatar': avatar,
+        }
+
+    def _create_agent_post(self, arguments):
+        title = str(arguments.get('title') or '').strip()
+        content = str(arguments.get('content') or '')
+        coll_id = str(arguments.get('coll_id') or '').strip()
+        if not title:
+            raise ValueError('title 不能为空')
+        if not content.strip():
+            raise ValueError('content 不能为空')
+        anthology = self._validate_agent_collection(coll_id)
+        permission = arguments.get('permission') or 'public'
+        if permission not in {'public', 'private'}:
+            raise ValueError('permission 只能是 public 或 private')
+        identity = self._resolve_agent_post_identity(arguments)
+        try:
+            with transaction.atomic():
+                article = Article.objects.create(
+                    title=title,
+                    content=content,
+                    coll_id=coll_id,
+                    author=anthology.user_id,
+                    permission=permission,
+                    sort=int(arguments.get('sort') or 0),
+                    source_url=str(arguments.get('source_url') or '').strip() or None,
+                    post_summary=_build_summary(content, arguments.get('summary')),
+                    agent_post_creator_id=identity['creator_id'],
+                    agent_post_creator_name=identity['creator_name'],
+                    agent_post_creator_avatar=identity['creator_avatar'],
+                    is_rag_synced=False,
+                )
+                _refresh_anthology(coll_id)
+        except IntegrityError:
+            raise ValueError('同一文集下帖子标题已存在')
+        return {'post': _article_to_dict(article)}
 
     @staticmethod
     def _list_articles(arguments):
@@ -736,8 +836,8 @@ class ODocSystemMCPView(APIView):
         coll_type = str(arguments.get('type') or '').strip()
         keyword = str(arguments.get('keyword') or '').strip()
         if coll_type:
-            if coll_type not in {'article', 'image'}:
-                raise ValueError('type 只能是 article 或 image')
+            if coll_type not in {'article', 'image', 'agent'}:
+                raise ValueError('type 只能是 article、image 或 agent')
             queryset = queryset.filter(type=coll_type)
         if keyword:
             queryset = queryset.filter(title__icontains=keyword)
@@ -763,8 +863,8 @@ class ODocSystemMCPView(APIView):
         if len(description) > 100:
             raise ValueError('description 不能超过 100 字')
         coll_type = arguments.get('type') or 'article'
-        if coll_type not in {'article', 'image'}:
-            raise ValueError('type 只能是 article 或 image')
+        if coll_type not in {'article', 'image', 'agent'}:
+            raise ValueError('type 只能是 article、image 或 agent')
         permission = arguments.get('permission') or 'public'
         if permission not in {'public', 'private'}:
             raise ValueError('permission 只能是 public 或 private')

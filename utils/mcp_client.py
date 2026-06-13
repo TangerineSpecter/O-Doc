@@ -28,7 +28,7 @@ BUILTIN_SYSTEM_MCP_SCOPES = {
     '评论 MCP': 'comments',
 }
 
-AGENT_IDENTITY_TOOL_NAMES = {'create_article_annotation', 'add_article_annotation_comment'}
+AGENT_IDENTITY_TOOL_NAMES = {'create_article_annotation', 'add_article_annotation_comment', 'create_agent_post'}
 
 
 def hide_agent_identity_parameters(parameters, tool_name):
@@ -39,13 +39,15 @@ def hide_agent_identity_parameters(parameters, tool_name):
     properties = dict(next_parameters.get('properties') or {})
     properties.pop('agent_name', None)
     properties.pop('agent_avatar', None)
+    properties.pop('agent_id', None)
     properties.pop('agentName', None)
     properties.pop('agentAvatar', None)
+    properties.pop('agentId', None)
     next_parameters['properties'] = properties
     if isinstance(next_parameters.get('required'), list):
         next_parameters['required'] = [
             item for item in next_parameters['required']
-            if item not in {'agent_name', 'agent_avatar', 'agentName', 'agentAvatar'}
+            if item not in {'agent_name', 'agent_avatar', 'agent_id', 'agentName', 'agentAvatar', 'agentId'}
         ]
     return next_parameters
 

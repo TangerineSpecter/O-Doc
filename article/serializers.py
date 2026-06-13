@@ -192,7 +192,8 @@ class ArticleSerializer(serializers.ModelSerializer):
             'tag_details', 'category_detail', 'parent_detail', 'attachments',
             'word_count', 'read_time', 'word_count', 'read_time',
             'source_url', 'is_polishing', 'is_rag_synced', 'last_rag_synced_at',
-            'mind_map'
+            'mind_map', 'post_summary', 'agent_post_creator_id',
+            'agent_post_creator_name', 'agent_post_creator_avatar'
         ]
         # 只读字段
         read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'tag_details', 'category_detail',

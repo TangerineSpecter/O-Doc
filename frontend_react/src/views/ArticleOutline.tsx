@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {ListTree, Menu} from 'lucide-react';
+import {Bot, Clock, ListTree, Menu, Trash2} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import Article from './Article';
 import ConfirmationModal from '../components/common/ConfirmationModal';
@@ -7,7 +7,7 @@ import SaveWebpageModal from '../components/common/SaveWebpageModal';
 import OutlineSidebar from '../components/Outline/OutlineSidebar';
 import OutlineContent from '../components/Outline/OutlineContent';
 import {useArticleTree} from '../hooks/useArticleTree';
-import {Article as ArticleType, deleteArticle, getArticleDetail, saveWebpageAsArticle} from '../api/article';
+import {Article as ArticleType, deleteArticle, getArticleDetail, getArticles, saveWebpageAsArticle} from '../api/article';
 import {useToast} from '../components/common/ToastProvider';
 import {Anthology, getAnthologyDetail} from '../api/anthology';
 import {getIconComponent} from '../constants/iconList';
@@ -18,11 +18,171 @@ import {useAuth} from '../contexts/AuthContext';
 // 定义最小 Loading 时间 (毫秒)，防止闪烁
 const MIN_LOADING_TIME = 500;
 
+const formatPostTime = (value?: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value.replace('T', ' ').slice(0, 16);
+    const pad = (num: number) => String(num).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const getPostSummary = (post: ArticleType) => {
+    if (post.postSummary?.trim()) return post.postSummary.trim();
+    return (post.content || '').replace(/[#*`>~-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+};
+
+const AgentAvatar = ({name, avatar}: { name?: string; avatar?: string }) => {
+    const value = avatar?.trim();
+    const initial = (name || 'A').trim().slice(0, 1).toUpperCase();
+    const isImage = value && (/^https?:\/\//.test(value) || value.startsWith('/') || value.startsWith('data:image/') || value.startsWith('blob:'));
+
+    return (
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-indigo-100 ring-1 ring-indigo-200">
+            {isImage ? (
+                <img src={value} alt={name || 'Agent'} className="h-full w-full object-cover" />
+            ) : (
+                <span className="text-xs font-bold text-indigo-700">{value || initial}</span>
+            )}
+        </span>
+    );
+};
+
 interface ArticleOutlineProps {
     onNavigate?: (viewName: string, params?: any) => void;
     collId?: string;
     title?: string;
     articleId?: string;
+}
+
+function AgentPostCollectionView({
+                                     collId,
+                                     anthologyInfo,
+                                     onBackHome,
+                                     canManage
+                                 }: {
+    collId?: string;
+    anthologyInfo: Anthology | null;
+    onBackHome?: () => void;
+    canManage: boolean;
+}) {
+    const [posts, setPosts] = useState<ArticleType[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<ArticleType | null>(null);
+    const toast = useToast();
+
+    const loadPosts = useCallback(async () => {
+        if (!collId) return;
+        setLoading(true);
+        try {
+            const data = await getArticles({collId});
+            setPosts([...data].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        } catch (error) {
+            console.error('加载 Agent 帖子失败:', error);
+            toast.error('加载 Agent 帖子失败');
+        } finally {
+            setLoading(false);
+        }
+    }, [collId, toast]);
+
+    useEffect(() => {
+        loadPosts();
+    }, [loadPosts]);
+
+    const confirmDeletePost = async () => {
+        if (!deleteTarget) return;
+        try {
+            await deleteArticle(deleteTarget.articleId);
+            setPosts(prev => prev.filter(post => post.articleId !== deleteTarget.articleId));
+            setDeleteTarget(null);
+            toast.success('帖子已删除');
+        } catch (error) {
+            console.error('删除 Agent 帖子失败:', error);
+            toast.error(error instanceof Error ? error.message : '删除帖子失败');
+        }
+    };
+
+    return (
+        <div className="min-h-[calc(100vh-64px)] bg-slate-50">
+            {canManage && (
+                <ConfirmationModal
+                    isOpen={!!deleteTarget}
+                    onClose={() => setDeleteTarget(null)}
+                    onConfirm={confirmDeletePost}
+                    title="删除 Agent 帖子"
+                    description="确定要删除这条 Agent 帖子吗？此操作无法恢复。"
+                    confirmText="删除"
+                    type="danger"
+                />
+            )}
+            <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+                <div className="mb-5 flex flex-col gap-3 rounded-xl border border-indigo-200 bg-white px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                        <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-700">
+                            <Bot className="h-3.5 w-3.5" />
+                            Agent 文集
+                        </div>
+                        <h1 className="truncate text-xl font-bold text-slate-900">{anthologyInfo?.title || 'Agent 文集'}</h1>
+                        <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{anthologyInfo?.description || '暂无简介'}</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onBackHome}
+                        className="inline-flex shrink-0 items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
+                    >
+                        返回首页
+                    </button>
+                </div>
+
+                {loading ? (
+                    <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-slate-100 bg-white">
+                        <StarLoader />
+                        <span className="mt-2 text-xs font-medium text-slate-400">正在加载 Agent 帖子...</span>
+                    </div>
+                ) : posts.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {posts.map(post => (
+                            <article key={post.articleId} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md">
+                                <div className="mb-3 flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <h2 className="line-clamp-2 text-base font-bold leading-6 text-slate-900">{post.title}</h2>
+                                        <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+                                            <Clock className="h-3.5 w-3.5" />
+                                            <span>{formatPostTime(post.createdAt)}</span>
+                                        </div>
+                                    </div>
+                                    {canManage && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setDeleteTarget(post)}
+                                            className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
+                                            title="删除帖子"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                <p className="mb-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-slate-600">{getPostSummary(post) || '暂无摘要'}</p>
+
+                                <div className="flex items-center gap-2 border-t border-slate-100 pt-3">
+                                    <AgentAvatar name={post.agentPostCreatorName} avatar={post.agentPostCreatorAvatar} />
+                                    <div className="min-w-0">
+                                        <div className="truncate text-sm font-semibold text-slate-700">{post.agentPostCreatorName || 'Agent'}</div>
+                                        <div className="truncate text-xs text-slate-400">发帖 Agent</div>
+                                    </div>
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-indigo-300 bg-white text-slate-400">
+                        <Bot className="h-8 w-8 text-indigo-500" />
+                        <p className="mt-3 text-sm">暂无 Agent 帖子</p>
+                    </div>
+                )}
+            </main>
+        </div>
+    );
 }
 
 export default function ArticleOutline({onNavigate, collId, title, articleId}: ArticleOutlineProps) {
@@ -202,6 +362,17 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
     const displayTitle = anthologyInfo?.title || title || '文档目录';
     const anthologyIcon = anthologyInfo ? getIconComponent(anthologyInfo.iconId, "w-6 h-6") : null;
+
+    if (anthologyInfo?.type === 'agent') {
+        return (
+            <AgentPostCollectionView
+                collId={collId}
+                anthologyInfo={anthologyInfo}
+                onBackHome={() => onNavigate && onNavigate('home')}
+                canManage={isAuthenticated}
+            />
+        );
+    }
 
     // [新增] 处理文集同步
     const handleSyncCollection = async () => {

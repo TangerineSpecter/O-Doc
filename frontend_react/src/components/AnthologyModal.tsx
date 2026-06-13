@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Globe, Lock, Loader2, Save, Plus, Pin, FileText, Image, EyeOff } from 'lucide-react';
+import { X, Globe, Lock, Loader2, Save, Plus, Pin, FileText, Image, EyeOff, Bot } from 'lucide-react';
 import { AVAILABLE_ICONS } from '../constants/iconList';
 
 export interface AnthologyFormData {
@@ -13,7 +13,7 @@ export interface AnthologyFormData {
     hideCoverContent?: boolean;
     hide_cover_content?: boolean;
     sort?: number;
-    type?: 'article' | 'image';
+    type?: 'article' | 'image' | 'agent';
 }
 
 interface CreateAnthologyModalProps {
@@ -103,7 +103,7 @@ export default function CreateAnthologyModal({
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
                 onClick={() => !isSubmitting && onClose()}></div>
             <div
-                className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-2 duration-200"
+                className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-2 duration-200"
                 onClick={e => e.stopPropagation()}>
 
                 {/* Header */}
@@ -165,9 +165,9 @@ export default function CreateAnthologyModal({
                                     key={item.id}
                                     disabled={isSubmitting}
                                     onClick={() => setFormData({ ...formData, iconId: item.id })}
-                                    className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border transition-all ${formData.iconId === item.id ? 'bg-orange-50 border-orange-500 text-orange-600 ring-2 ring-orange-200' : 'bg-white border-slate-200 text-slate-400 hover:border-orange-300 hover:text-slate-600'}`}
+                                    className={`flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center border transition-all overflow-visible ${formData.iconId === item.id ? 'bg-orange-50 border-orange-500 text-orange-600 ring-2 ring-orange-200' : 'bg-white border-slate-200 text-slate-400 hover:border-orange-300 hover:text-slate-600'}`}
                                 >
-                                    {React.cloneElement(item.icon, { className: "w-5 h-5" })}
+                                    {React.cloneElement(item.icon, { className: "w-5 h-5 overflow-visible" })}
                                 </button>
                             ))}
                         </div>
@@ -207,7 +207,7 @@ export default function CreateAnthologyModal({
                     {/* 文集类型选择 */}
                     <div className="space-y-2">
                         <label className="text-sm font-semibold text-slate-700">文集类型</label>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div
                                 onClick={() => !isSubmitting && setFormData({ ...formData, type: 'article' })}
                                 className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.type === 'article' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -215,9 +215,9 @@ export default function CreateAnthologyModal({
                                 <div
                                     className={`p-2 rounded-full ${formData.type === 'article' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
                                     <FileText className="w-4 h-4" /></div>
-                                <div>
-                                    <div className="text-sm font-medium text-slate-800">文章文集</div>
-                                    <div className="text-xs text-slate-500">存储文章内容</div>
+                                <div className="min-w-0">
+                                    <div className="text-sm font-medium text-slate-800 whitespace-nowrap">文章文集</div>
+                                    <div className="text-xs text-slate-500 truncate">存储文章内容</div>
                                 </div>
                             </div>
                             <div
@@ -227,9 +227,21 @@ export default function CreateAnthologyModal({
                                 <div
                                     className={`p-2 rounded-full ${formData.type === 'image' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
                                     <Image className="w-4 h-4" /></div>
-                                <div>
-                                    <div className="text-sm font-medium text-slate-800">图片文集</div>
-                                    <div className="text-xs text-slate-500">存储图片资源</div>
+                                <div className="min-w-0">
+                                    <div className="text-sm font-medium text-slate-800 whitespace-nowrap">图片文集</div>
+                                    <div className="text-xs text-slate-500 truncate">存储图片资源</div>
+                                </div>
+                            </div>
+                            <div
+                                onClick={() => !isSubmitting && setFormData({ ...formData, type: 'agent' })}
+                                className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.type === 'agent' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                <div
+                                    className={`p-2 rounded-full ${formData.type === 'agent' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                                    <Bot className="w-4 h-4" /></div>
+                                <div className="min-w-0">
+                                    <div className="text-sm font-medium text-slate-800 whitespace-nowrap">Agent 文集</div>
+                                    <div className="text-xs text-slate-500 truncate">Agent 发帖展示</div>
                                 </div>
                             </div>
                         </div>

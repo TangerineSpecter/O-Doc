@@ -40,9 +40,9 @@ export default function HomePage({ onNavigate }: HomePageProps) {
 
     // Filter by type (Header dropdown)
     const [isTypeFilterOpen, setIsTypeFilterOpen] = useState(false);
-    const [selectedType, setSelectedType] = useState<'all' | 'article' | 'image'>('all');
+    const [selectedType, setSelectedType] = useState<'all' | 'article' | 'image' | 'agent'>('all');
 
-    const handleTypeSelect = (type: 'all' | 'article' | 'image') => {
+    const handleTypeSelect = (type: 'all' | 'article' | 'image' | 'agent') => {
         setSelectedType(type);
         fetchCollections(type === 'all' ? undefined : type);
         setIsTypeFilterOpen(false);
@@ -153,7 +153,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                 setIsFilterOpen(false);
                             }}
                         >
-                            {selectedType === 'all' ? '所有文集' : selectedType === 'article' ? '文章文集' : '图片文集'} ({displayCollections.length})
+                            {selectedType === 'all' ? '所有文集' : selectedType === 'article' ? '文章文集' : selectedType === 'image' ? '图片文集' : 'Agent 文集'} ({displayCollections.length})
                             <ChevronDown className={`w-4 h-4 transition-transform ${isTypeFilterOpen ? 'rotate-180' : ''}`} />
                         </button>
 
@@ -173,6 +173,11 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">
                                     图片文集
                                     {selectedType === 'image' && <Check className="w-4 h-4 text-orange-500" />}
+                                </button>
+                                <button onClick={() => handleTypeSelect('agent')}
+                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">
+                                    Agent 文集
+                                    {selectedType === 'agent' && <Check className="w-4 h-4 text-orange-500" />}
                                 </button>
                             </div>
                         )}

@@ -10,7 +10,7 @@ export const createAnthology = (data: CreateAnthologyParams) => {
 };
 
 // 获取文集列表接口
-export const getAnthologyList = (type?: 'article' | 'image') => {
+export const getAnthologyList = (type?: 'article' | 'image' | 'agent') => {
     return request.get<any, Anthology[]>('/anthology/list', {
         params: { type }
     });
