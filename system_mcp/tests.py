@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 
 from anthology.models import Anthology
-from article.models import Article
+from article.models import Article, ArticlePostComment, ArticlePostRating
 from message.models import Notification
 from system_settings.models import Agent, MCPServer
 from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
@@ -52,6 +52,9 @@ class BuiltinSystemMCPTests(TestCase):
         tool_names = {tool['name'] for tool in tools}
         self.assertIn('create_agent_post', tool_names)
         self.assertIn('list_agent_posts', tool_names)
+        self.assertIn('get_random_agent_post', tool_names)
+        self.assertIn('add_agent_post_comment', tool_names)
+        self.assertIn('rate_agent_post', tool_names)
         self.assertNotIn('create_article', tool_names)
 
         result, error_msg = call_mcp_tool(server, 'create_agent_post', {
@@ -70,6 +73,77 @@ class BuiltinSystemMCPTests(TestCase):
         })
         self.assertIsNone(error_msg)
         self.assertEqual(result['post']['agent_post_category'], '效率工具')
+
+    def test_builtin_agent_post_mcp_can_comment_rate_and_random_skips_commented(self):
+        anthology = Anthology.objects.create(
+            coll_id='coll_agent_interact',
+            title='Agent 互动文集',
+            type='agent',
+            user_id='admin',
+        )
+        first_post = Article.objects.create(
+            article_id='art_agent_first',
+            title='第一条帖子',
+            content='first content',
+            coll_id=anthology.coll_id,
+            author='admin',
+            agent_post_category='效率工具',
+            agent_post_creator_id='agent:poster',
+            agent_post_creator_name='发帖 Agent',
+        )
+        second_post = Article.objects.create(
+            article_id='art_agent_second',
+            title='第二条帖子',
+            content='second content',
+            coll_id=anthology.coll_id,
+            author='admin',
+            agent_post_category='效率工具',
+            agent_post_creator_id='agent:poster',
+            agent_post_creator_name='发帖 Agent',
+        )
+        server = MCPServer.objects.create(
+            name='Agent 帖子 MCP',
+            transport='streamableHttp',
+            url='http://unreachable.example.invalid/api/system-mcp/agent-posts/',
+            source='system',
+            enabled=True,
+            tools=[],
+        )
+        agent = Agent.objects.create(name='评论 Agent', avatar='https://example.com/agent.png')
+
+        result, error_msg = call_mcp_tool(server, 'add_agent_post_comment', {
+            'article_id': first_post.article_id,
+            'comment': '我已经评论过第一条',
+        }, agent=agent)
+
+        self.assertIsNone(error_msg)
+        self.assertEqual(result['comment']['creator_name'], '评论 Agent')
+        self.assertEqual(ArticlePostComment.objects.filter(article=first_post, is_valid=True).count(), 1)
+
+        result, error_msg = call_mcp_tool(server, 'get_random_agent_post', {
+            'coll_id': anthology.coll_id,
+            'category': '效率工具',
+        }, agent=agent)
+
+        self.assertIsNone(error_msg)
+        self.assertEqual(result['post']['article_id'], second_post.article_id)
+
+        result, error_msg = call_mcp_tool(server, 'rate_agent_post', {
+            'article_id': second_post.article_id,
+            'rating': 8,
+        }, agent=agent)
+        self.assertIsNone(error_msg)
+        self.assertEqual(result['my_rating'], 8)
+        self.assertEqual(result['rating'], 8)
+
+        result, error_msg = call_mcp_tool(server, 'rate_agent_post', {
+            'article_id': second_post.article_id,
+            'rating': 6,
+        }, agent=agent)
+        self.assertIsNone(error_msg)
+        self.assertEqual(result['my_rating'], 6)
+        self.assertEqual(result['rating'], 6)
+        self.assertEqual(ArticlePostRating.objects.filter(article=second_post, is_valid=True).count(), 1)
 
     def test_builtin_anthology_mcp_can_crud_anthology(self):
         server = MCPServer.objects.create(

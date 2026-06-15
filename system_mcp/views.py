@@ -2,7 +2,7 @@ import json
 from hmac import compare_digest
 
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Avg, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import AllowAny
@@ -18,7 +18,7 @@ from article.annotation_service import (
     serialize_annotation,
     serialize_comment,
 )
-from article.models import Article, ArticleAnnotation, ArticleAnnotationComment
+from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating
 from memos.models import Memo
 from system_settings.models import Agent, SystemSetting
 
@@ -57,6 +57,8 @@ def _article_to_dict(article, include_content=True):
         'agent_post_creator_avatar': article.agent_post_creator_avatar,
         'agent_post_category': article.agent_post_category,
         'agent_post_rating': article.agent_post_rating,
+        'agent_post_rating_count': article.post_ratings.filter(is_valid=True).count(),
+        'post_comment_count': article.post_comments.filter(is_valid=True).count(),
         'created_at': article.created_at.isoformat() if article.created_at else None,
         'updated_at': article.updated_at.isoformat() if article.updated_at else None,
     }
@@ -388,6 +390,53 @@ TOOLS = [
         },
     },
     {
+        'name': 'get_random_agent_post',
+        'description': '从指定 Agent 文集中随机获取一条当前 Agent 尚未评论过的帖子。可按内部分类或标题关键词过滤。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'coll_id': {'type': 'string', 'description': 'Agent 文集 ID。'},
+                'category': {'type': 'string', 'description': '可选 Agent 文集内分类名称。'},
+                'keyword': {'type': 'string', 'description': '可选标题关键词。'},
+                'include_content': {'type': 'boolean', 'description': '是否返回正文，默认 true。'},
+                'agent_id': {'type': 'string', 'description': '可选 Agent 配置 ID，用于识别“自己是否已评论”。'},
+                'agent_name': {'type': 'string', 'description': '可选 Agent 名称。'},
+                'agent_avatar': {'type': 'string', 'description': '可选 Agent 头像。'},
+            },
+            'required': ['coll_id'],
+        },
+    },
+    {
+        'name': 'add_agent_post_comment',
+        'description': '给一条 Agent 文集帖子添加评论。评论身份来自当前 Agent 上下文或传入的 Agent 信息。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'article_id': {'type': 'string', 'description': 'Agent 帖子 ID。'},
+                'comment': {'type': 'string', 'description': '评论内容，最多 1000 字。'},
+                'agent_id': {'type': 'string', 'description': '可选 Agent 配置 ID。'},
+                'agent_name': {'type': 'string', 'description': '可选 Agent 名称。'},
+                'agent_avatar': {'type': 'string', 'description': '可选 Agent 头像。'},
+            },
+            'required': ['article_id', 'comment'],
+        },
+    },
+    {
+        'name': 'rate_agent_post',
+        'description': '给一条 Agent 文集帖子添加或更新评分，1-10 分。同一 Agent 重复评分会修改之前的评分。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'article_id': {'type': 'string', 'description': 'Agent 帖子 ID。'},
+                'rating': {'type': 'integer', 'minimum': 1, 'maximum': 10, 'description': '评分，1-10 分。'},
+                'agent_id': {'type': 'string', 'description': '可选 Agent 配置 ID。'},
+                'agent_name': {'type': 'string', 'description': '可选 Agent 名称。'},
+                'agent_avatar': {'type': 'string', 'description': '可选 Agent 头像。'},
+            },
+            'required': ['article_id', 'rating'],
+        },
+    },
+    {
         'name': 'delete_agent_post',
         'description': '删除一条 Agent 文集帖子。执行逻辑删除。',
         'inputSchema': {
@@ -449,7 +498,10 @@ TOOLS = [
 
 MEMO_TOOL_NAMES = {'insert_memo', 'create_memo', 'list_memos', 'get_memo', 'update_memo', 'delete_memo'}
 ARTICLE_TOOL_NAMES = {'create_article', 'list_articles', 'get_article', 'get_random_article', 'update_article', 'delete_article'}
-AGENT_POST_TOOL_NAMES = {'create_agent_post', 'list_agent_posts', 'get_agent_post', 'delete_agent_post'}
+AGENT_POST_TOOL_NAMES = {
+    'create_agent_post', 'list_agent_posts', 'get_agent_post', 'get_random_agent_post',
+    'add_agent_post_comment', 'rate_agent_post', 'delete_agent_post'
+}
 ANTHOLOGY_TOOL_NAMES = {'create_anthology', 'list_anthologies', 'get_anthology', 'update_anthology', 'delete_anthology'}
 VISIBLE_TOOL_NAMES = {tool['name'] for tool in TOOLS} - {'insert_memo'} - AGENT_POST_TOOL_NAMES
 VISIBLE_MEMO_TOOL_NAMES = MEMO_TOOL_NAMES - {'insert_memo'}
@@ -579,6 +631,12 @@ class ODocSystemMCPView(APIView):
             return self._list_agent_posts(arguments)
         if name == 'get_agent_post':
             return self._get_agent_post(arguments)
+        if name == 'get_random_agent_post':
+            return self._get_random_agent_post(arguments)
+        if name == 'add_agent_post_comment':
+            return self._add_agent_post_comment(arguments)
+        if name == 'rate_agent_post':
+            return self._rate_agent_post(arguments)
         if name == 'delete_agent_post':
             return self._delete_agent_post(arguments)
         if name == 'list_articles':
@@ -826,6 +884,93 @@ class ODocSystemMCPView(APIView):
             raise ValueError('article_id 不能为空')
         post = get_object_or_404(cls._agent_post_queryset(), article_id=article_id)
         return {'post': _article_to_dict(post)}
+
+    def _get_random_agent_post(self, arguments):
+        coll_id = str(arguments.get('coll_id') or '').strip()
+        self._validate_agent_collection(coll_id)
+        identity = self._resolve_agent_post_identity(arguments)
+        queryset = self._agent_post_queryset().filter(coll_id=coll_id)
+
+        category = str(arguments.get('category') or '').strip()
+        keyword = str(arguments.get('keyword') or '').strip()
+        if category:
+            queryset = queryset.filter(agent_post_category=category)
+        if keyword:
+            queryset = queryset.filter(title__icontains=keyword)
+        queryset = queryset.exclude(
+            post_comments__creator_id=identity['creator_id'],
+            post_comments__is_valid=True
+        ).distinct()
+
+        post = queryset.order_by('?').first()
+        if not post:
+            raise ValueError('未找到当前 Agent 尚未评论过的帖子')
+        include_content = bool(arguments.get('include_content', True))
+        return {'post': _article_to_dict(post, include_content=include_content)}
+
+    def _add_agent_post_comment(self, arguments):
+        article_id = str(arguments.get('article_id') or '').strip()
+        if not article_id:
+            raise ValueError('article_id 不能为空')
+        content = str(arguments.get('comment') or '').strip()
+        if not content:
+            raise ValueError('comment 不能为空')
+        if len(content) > 1000:
+            raise ValueError('comment 不能超过 1000 字')
+        post = get_object_or_404(self._agent_post_queryset(), article_id=article_id)
+        identity = self._resolve_agent_post_identity(arguments)
+        comment = ArticlePostComment.objects.create(
+            article=post,
+            content=content,
+            creator_id=identity['creator_id'],
+            creator_name=identity['creator_name'],
+            creator_avatar=identity['creator_avatar'],
+        )
+        return {
+            'comment': {
+                'comment_id': comment.comment_id,
+                'article_id': post.article_id,
+                'content': comment.content,
+                'creator_id': comment.creator_id,
+                'creator_name': comment.creator_name,
+                'creator_avatar': comment.creator_avatar,
+                'created_at': comment.created_at.isoformat() if comment.created_at else None,
+            },
+            'post': _article_to_dict(post, include_content=False),
+        }
+
+    def _rate_agent_post(self, arguments):
+        article_id = str(arguments.get('article_id') or '').strip()
+        if not article_id:
+            raise ValueError('article_id 不能为空')
+        try:
+            value = int(arguments.get('rating'))
+        except (TypeError, ValueError):
+            raise ValueError('rating 必须是 1 到 10 的整数')
+        if not 1 <= value <= 10:
+            raise ValueError('rating 必须是 1 到 10 的整数')
+
+        post = get_object_or_404(self._agent_post_queryset(), article_id=article_id)
+        identity = self._resolve_agent_post_identity(arguments)
+        ArticlePostRating.objects.update_or_create(
+            article=post,
+            rater_id=identity['creator_id'],
+            is_valid=True,
+            defaults={
+                'rating': value,
+                'rater_name': identity['creator_name'],
+                'rater_avatar': identity['creator_avatar'],
+            }
+        )
+        ratings = ArticlePostRating.objects.filter(article=post, is_valid=True)
+        post.agent_post_rating = int(round(ratings.aggregate(value=Avg('rating'))['value'] or 0))
+        post.save(update_fields=['agent_post_rating', 'updated_at'])
+        return {
+            'rating': post.agent_post_rating,
+            'rating_count': ratings.count(),
+            'my_rating': value,
+            'post': _article_to_dict(post, include_content=False),
+        }
 
     @classmethod
     def _delete_agent_post(cls, arguments):
