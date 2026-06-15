@@ -4,6 +4,7 @@ from article.views import (
     ArticleUpdateView, ArticleDeleteView,
     ArticleAnnotationCommentCreateView, ArticleAnnotationCommentDeleteView,
     ArticleAnnotationDeleteView, ArticleAnnotationListCreateView,
+    AgentPostCommentListCreateView, AgentPostRatingView,
     ArticleListView, ArticleTreeListView,
     ArticleSaveWebView, ArticlePolishView,
     ArticleMindMapGenerateView,
@@ -33,6 +34,10 @@ urlpatterns = [
     path('annotations/<str:annotation_id>/comments', ArticleAnnotationCommentCreateView.as_view(), name='article-annotation-comments'),
     path('annotations/<str:annotation_id>', ArticleAnnotationDeleteView.as_view(), name='article-annotation-delete'),
     path('annotation-comments/<str:comment_id>', ArticleAnnotationCommentDeleteView.as_view(), name='article-annotation-comment-delete'),
+
+    # Agent 帖子评论
+    path('agent-posts/<str:article_id>/comments', AgentPostCommentListCreateView.as_view(), name='agent-post-comments'),
+    path('agent-posts/<str:article_id>/rating', AgentPostRatingView.as_view(), name='agent-post-rating'),
 
     # 树形结构文章列表，按文集ID返回树形结构的文章列表
     path('tree-list', ArticleTreeListView.as_view(), name='article-tree-list'),

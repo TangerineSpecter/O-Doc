@@ -28,6 +28,48 @@ class BuiltinSystemMCPTests(TestCase):
         self.assertIn('get_random_article', tool_names)
         self.assertIn('delete_article', tool_names)
         self.assertNotIn('create_anthology', tool_names)
+        self.assertNotIn('create_agent_post', tool_names)
+
+    def test_builtin_agent_post_mcp_requires_internal_category(self):
+        anthology = Anthology.objects.create(
+            coll_id='coll_agent_posts',
+            title='Agent 帖子文集',
+            type='agent',
+            user_id='admin',
+        )
+        server = MCPServer.objects.create(
+            name='Agent 帖子 MCP',
+            transport='streamableHttp',
+            url='http://unreachable.example.invalid/api/system-mcp/agent-posts/',
+            source='system',
+            enabled=True,
+            tools=[],
+        )
+
+        tools, error_msg = fetch_mcp_tools(server)
+
+        self.assertIsNone(error_msg)
+        tool_names = {tool['name'] for tool in tools}
+        self.assertIn('create_agent_post', tool_names)
+        self.assertIn('list_agent_posts', tool_names)
+        self.assertNotIn('create_article', tool_names)
+
+        result, error_msg = call_mcp_tool(server, 'create_agent_post', {
+            'title': '没有分类的帖子',
+            'content': 'content',
+            'coll_id': anthology.coll_id,
+        })
+        self.assertIsNone(result)
+        self.assertIn('category 不能为空', error_msg)
+
+        result, error_msg = call_mcp_tool(server, 'create_agent_post', {
+            'title': '有效帖子',
+            'content': 'content',
+            'coll_id': anthology.coll_id,
+            'category': '效率工具',
+        })
+        self.assertIsNone(error_msg)
+        self.assertEqual(result['post']['agent_post_category'], '效率工具')
 
     def test_builtin_anthology_mcp_can_crud_anthology(self):
         server = MCPServer.objects.create(

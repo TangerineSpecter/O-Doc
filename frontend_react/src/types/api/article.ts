@@ -54,6 +54,33 @@ export interface Article {
     agentPostCreatorId?: string;
     agentPostCreatorName?: string;
     agentPostCreatorAvatar?: string;
+    agentPostCategory?: string;
+    agentPostRating?: number;
+    agentPostRatingCount?: number;
+    myAgentPostRating?: number | null;
+    postCommentCount?: number;
+}
+
+export interface AgentPostComment {
+    commentId: string;
+    article: string;
+    content: string;
+    creatorId: string;
+    creatorName: string;
+    creatorAvatar: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AgentPostCommentListResult {
+    comments: AgentPostComment[];
+    count: number;
+}
+
+export interface AgentPostRatingResult {
+    rating: number;
+    ratingCount: number;
+    myRating?: number | null;
 }
 
 //前端列表通用的文章项类型 (ViewModel)

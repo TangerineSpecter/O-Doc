@@ -68,8 +68,8 @@ def _base_system_mcp_config():
     }
 
 
-def _memo_mcp_tools():
-    from system_mcp.views import TOOLS, VISIBLE_MEMO_TOOL_NAMES
+def _system_mcp_tools(tool_names):
+    from system_mcp.views import TOOLS
 
     return [
         {
@@ -79,53 +79,38 @@ def _memo_mcp_tools():
             'enabled': True,
         }
         for tool in TOOLS
-        if tool['name'] in VISIBLE_MEMO_TOOL_NAMES
+        if tool['name'] in tool_names
     ]
+
+
+def _memo_mcp_tools():
+    from system_mcp.views import VISIBLE_MEMO_TOOL_NAMES
+
+    return _system_mcp_tools(VISIBLE_MEMO_TOOL_NAMES)
 
 
 def _comment_mcp_tools():
-    from system_mcp.views import TOOLS, VISIBLE_COMMENT_TOOL_NAMES
+    from system_mcp.views import VISIBLE_COMMENT_TOOL_NAMES
 
-    return [
-        {
-            'name': tool['name'],
-            'description': tool.get('description') or '',
-            'inputSchema': tool.get('inputSchema') or {},
-            'enabled': True,
-        }
-        for tool in TOOLS
-        if tool['name'] in VISIBLE_COMMENT_TOOL_NAMES
-    ]
+    return _system_mcp_tools(VISIBLE_COMMENT_TOOL_NAMES)
 
 
 def _anthology_mcp_tools():
-    from system_mcp.views import TOOLS, VISIBLE_ANTHOLOGY_TOOL_NAMES
+    from system_mcp.views import VISIBLE_ANTHOLOGY_TOOL_NAMES
 
-    return [
-        {
-            'name': tool['name'],
-            'description': tool.get('description') or '',
-            'inputSchema': tool.get('inputSchema') or {},
-            'enabled': True,
-        }
-        for tool in TOOLS
-        if tool['name'] in VISIBLE_ANTHOLOGY_TOOL_NAMES
-    ]
+    return _system_mcp_tools(VISIBLE_ANTHOLOGY_TOOL_NAMES)
 
 
 def _article_mcp_tools():
-    from system_mcp.views import TOOLS, VISIBLE_ARTICLE_TOOL_NAMES
+    from system_mcp.views import VISIBLE_ARTICLE_TOOL_NAMES
 
-    return [
-        {
-            'name': tool['name'],
-            'description': tool.get('description') or '',
-            'inputSchema': tool.get('inputSchema') or {},
-            'enabled': True,
-        }
-        for tool in TOOLS
-        if tool['name'] in VISIBLE_ARTICLE_TOOL_NAMES
-    ]
+    return _system_mcp_tools(VISIBLE_ARTICLE_TOOL_NAMES)
+
+
+def _agent_post_mcp_tools():
+    from system_mcp.views import VISIBLE_AGENT_POST_TOOL_NAMES
+
+    return _system_mcp_tools(VISIBLE_AGENT_POST_TOOL_NAMES)
 
 
 def _sync_builtin_system_mcp_server(request, value, name, endpoint, description, tools):
@@ -172,6 +157,14 @@ def _sync_scanned_system_mcp_servers(request, value):
         '/api/system-mcp/articles/',
         'O-Doc 内置系统 MCP，仅提供文章的创建、查询、随机获取、更新和删除工具。',
         _article_mcp_tools(),
+    )
+    _sync_builtin_system_mcp_server(
+        request,
+        value,
+        'Agent 帖子 MCP',
+        '/api/system-mcp/agent-posts/',
+        'O-Doc 内置系统 MCP，仅提供 Agent 文集帖子的创建、查询和删除工具。',
+        _agent_post_mcp_tools(),
     )
     _sync_builtin_system_mcp_server(
         request,
@@ -908,6 +901,25 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             'tools': cls._format_builtin_tools(VISIBLE_ARTICLE_TOOL_NAMES),
         }
 
+    @classmethod
+    def _builtin_agent_post_server(cls, request):
+        from system_mcp.views import VISIBLE_AGENT_POST_TOOL_NAMES
+
+        value = cls._ensure_system_mcp_value()
+        return {
+            'name': 'Agent 帖子 MCP',
+            'transport': 'streamableHttp',
+            'command': '',
+            'args': [],
+            'url': request.build_absolute_uri('/api/system-mcp/agent-posts/'),
+            'headers': {'Authorization': f"Bearer {value.get('apiKey', '')}"},
+            'env': {},
+            'source': 'system',
+            'enabled': bool(value.get('enabled', True)),
+            'description': 'O-Doc 内置系统 MCP，仅提供 Agent 文集帖子的创建、查询和删除工具。',
+            'tools': cls._format_builtin_tools(VISIBLE_AGENT_POST_TOOL_NAMES),
+        }
+
     @staticmethod
     def _extract_servers(payload, source_path):
         if not isinstance(payload, dict):
@@ -974,6 +986,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             self._builtin_memo_server(request),
             self._builtin_anthology_server(request),
             self._builtin_article_server(request),
+            self._builtin_agent_post_server(request),
             self._builtin_comment_server(request),
         ]
         builtin_names = {server['name'] for server in builtin_servers}

@@ -8,6 +8,8 @@ from utils.id_generator import (
     generate_article_annotation_comment_id,
     generate_article_annotation_id,
     generate_article_id,
+    generate_article_post_comment_id,
+    generate_article_post_rating_id,
     generate_image_id,
 )
 
@@ -107,6 +109,20 @@ class Article(models.Model):
         default='',
         help_text="Agent 发帖者头像",
         db_comment="Agent 发帖者头像"
+    )
+
+    agent_post_category = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        help_text="Agent 帖子文集内分类",
+        db_comment="Agent 帖子文集内分类"
+    )
+
+    agent_post_rating = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Agent 帖子评分，1-10 分，0 表示未评分",
+        db_comment="Agent 帖子评分"
     )
 
     is_polishing = models.BooleanField(
@@ -503,6 +519,101 @@ class ArticleAnnotation(models.Model):
 
     def __str__(self):
         return self.selected_text[:40]
+
+
+class ArticlePostComment(models.Model):
+    """
+    Agent 文集帖子评论。
+    """
+
+    comment_id = models.CharField(
+        max_length=32,
+        unique=True,
+        primary_key=True,
+        default=generate_article_post_comment_id,
+        editable=False,
+        help_text='帖子评论唯一标识',
+        db_comment='帖子评论唯一标识'
+    )
+    article = models.ForeignKey(
+        Article,
+        on_delete=models.CASCADE,
+        related_name='post_comments',
+        verbose_name='所属帖子',
+        db_comment='所属帖子ID'
+    )
+    content = models.TextField(help_text='评论内容', db_comment='评论内容')
+    creator_id = models.CharField(max_length=80, blank=True, default='', db_comment='评论者标识')
+    creator_name = models.CharField(max_length=120, blank=True, default='', db_comment='评论者名称')
+    creator_avatar = models.CharField(max_length=500, blank=True, default='', db_comment='评论者头像')
+    is_valid = models.BooleanField(default=True, help_text='是否有效', db_comment='是否有效')
+    created_at = models.DateTimeField(auto_now_add=True, help_text='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, help_text='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'article_post_comments'
+        db_table_comment = 'Agent 帖子评论表'
+        verbose_name = 'Agent 帖子评论'
+        verbose_name_plural = 'Agent 帖子评论'
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['article', 'is_valid']),
+            models.Index(fields=['creator_id']),
+        ]
+
+    def __str__(self):
+        return self.content[:40]
+
+
+class ArticlePostRating(models.Model):
+    """
+    Agent 文集帖子评分。
+    """
+
+    rating_id = models.CharField(
+        max_length=32,
+        unique=True,
+        primary_key=True,
+        default=generate_article_post_rating_id,
+        editable=False,
+        help_text='帖子评分唯一标识',
+        db_comment='帖子评分唯一标识'
+    )
+    article = models.ForeignKey(
+        Article,
+        on_delete=models.CASCADE,
+        related_name='post_ratings',
+        verbose_name='所属帖子',
+        db_comment='所属帖子ID'
+    )
+    rating = models.PositiveSmallIntegerField(help_text='评分，1-10 分', db_comment='评分')
+    rater_id = models.CharField(max_length=80, blank=True, default='', db_comment='评分者标识')
+    rater_name = models.CharField(max_length=120, blank=True, default='', db_comment='评分者名称')
+    rater_avatar = models.CharField(max_length=500, blank=True, default='', db_comment='评分者头像')
+    is_valid = models.BooleanField(default=True, help_text='是否有效', db_comment='是否有效')
+    created_at = models.DateTimeField(auto_now_add=True, help_text='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, help_text='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'article_post_ratings'
+        db_table_comment = 'Agent 帖子评分表'
+        verbose_name = 'Agent 帖子评分'
+        verbose_name_plural = 'Agent 帖子评分'
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['article', 'is_valid']),
+            models.Index(fields=['rater_id']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['article', 'rater_id'],
+                condition=models.Q(is_valid=True),
+                name='uniq_valid_agent_post_rating_user',
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.article_id}: {self.rating}'
 
 
 class ArticleAnnotationComment(models.Model):

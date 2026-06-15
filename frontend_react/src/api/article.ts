@@ -1,8 +1,8 @@
 import request from '../utils/request';
-import type { Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams, MindMapNode } from '../types/api/article';
+import type { AgentPostComment, AgentPostCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams, MindMapNode } from '../types/api/article';
 
 // 重新导出类型以便其他组件使用
-export type { Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams };
+export type { AgentPostComment, AgentPostCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams };
 
 export interface ArticleMindMapResult {
     mindMap: MindMapNode;
@@ -76,4 +76,16 @@ export const saveWebpageAsArticle = async (params?: SaveWebpageParams): Promise<
  */
 export const generateArticleMindMap = async (articleId: string): Promise<ArticleMindMapResult> => {
     return request.post(`/article/mind-map/${articleId}`, {}, {timeout: 60000});
+};
+
+export const getAgentPostComments = async (articleId: string): Promise<AgentPostCommentListResult> => {
+    return request.get(`/article/agent-posts/${articleId}/comments`);
+};
+
+export const createAgentPostComment = async (articleId: string, content: string): Promise<{ comment: AgentPostComment }> => {
+    return request.post(`/article/agent-posts/${articleId}/comments`, {content});
+};
+
+export const rateAgentPost = async (articleId: string, rating: number): Promise<AgentPostRatingResult> => {
+    return request.post(`/article/agent-posts/${articleId}/rating`, {rating});
 };

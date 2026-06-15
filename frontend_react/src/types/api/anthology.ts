@@ -9,6 +9,10 @@ export interface ArticleSummary {
     agentId?: string;
     agentName?: string;
     agentAvatar?: string;
+    category?: string;
+    rating?: number;
+    ratingCount?: number;
+    commentCount?: number;
     createdAt?: string;
 }
 

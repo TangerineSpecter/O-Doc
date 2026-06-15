@@ -11,7 +11,7 @@ from urllib.parse import unquote
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction, models, close_old_connections
-from django.db.models import Q
+from django.db.models import Avg, Q
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from PIL import Image as PILImage
@@ -29,9 +29,9 @@ from article.annotation_service import (
     serialize_annotation,
     serialize_comment,
 )
-from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, Image
+from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating, Image
 from article.prompts import ARTICLE_MIND_MAP_PROMPT_TEMPLATE, POLISH_ARTICLE_PROMPT_TEMPLATE
-from article.serializers import ArticleSerializer, ArticleTreeSerializer, ImageSerializer
+from article.serializers import ArticlePostCommentSerializer, ArticleSerializer, ArticleTreeSerializer, ImageSerializer
 from utils.ai_service import AIService
 from utils.error_codes import ErrorCode
 from utils.drf_utils import get_current_user_identifier
@@ -615,6 +615,127 @@ class ArticleAnnotationCommentDeleteView(APIView):
             comment.is_valid = False
             comment.save(update_fields=['is_valid', 'updated_at'])
             return success_result(data={'comment_id': comment_id, 'deleted': True})
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+
+class AgentPostCommentListCreateView(APIView):
+    """
+    Agent 帖子评论列表与创建接口。
+    """
+
+    def get(self, request, article_id):
+        try:
+            article = Article.objects.filter(article_id=article_id, is_valid=True).first()
+            if not article:
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+            if not can_access_anthology(request, article.coll_id, 'agent'):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+            comments = ArticlePostComment.objects.filter(article=article, is_valid=True)
+            return success_result(data={
+                'comments': ArticlePostCommentSerializer(comments, many=True).data,
+                'count': comments.count(),
+            })
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+    def post(self, request, article_id):
+        try:
+            if not request.user or not request.user.is_authenticated:
+                return error_result(ErrorCode.PERMISSION_DENIED, "请先登录后再评论")
+
+            article = Article.objects.filter(article_id=article_id, is_valid=True).first()
+            if not article:
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+            if not can_access_anthology(request, article.coll_id, 'agent'):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+            content = str(request.data.get('content') or '').strip()
+            if not content:
+                return error_result(ErrorCode.PARAM_ERROR, "评论内容不能为空")
+            if len(content) > 1000:
+                return error_result(ErrorCode.PARAM_ERROR, "评论内容不能超过 1000 字")
+
+            identity = get_user_identity(request)
+            comment = ArticlePostComment.objects.create(
+                article=article,
+                content=content,
+                creator_id=identity.get('creator_id', ''),
+                creator_name=identity.get('creator_name', ''),
+                creator_avatar=identity.get('creator_avatar', ''),
+            )
+            return success_result(data={'comment': ArticlePostCommentSerializer(comment).data})
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+
+class AgentPostRatingView(APIView):
+    """
+    Agent 帖子评分接口。每个登录用户对同一帖子保留一条有效评分。
+    """
+
+    def get(self, request, article_id):
+        try:
+            article = Article.objects.filter(article_id=article_id, is_valid=True).first()
+            if not article:
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+            if not can_access_anthology(request, article.coll_id, 'agent'):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+            ratings = ArticlePostRating.objects.filter(article=article, is_valid=True)
+            my_rating = None
+            if request.user and request.user.is_authenticated:
+                rater_id = get_current_user_identifier(request)
+                rating = ratings.filter(rater_id=rater_id).first()
+                my_rating = rating.rating if rating else None
+            return success_result(data={
+                'rating': article.agent_post_rating,
+                'rating_count': ratings.count(),
+                'my_rating': my_rating,
+            })
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+    def post(self, request, article_id):
+        try:
+            if not request.user or not request.user.is_authenticated:
+                return error_result(ErrorCode.PERMISSION_DENIED, "请先登录后再评分")
+
+            article = Article.objects.filter(article_id=article_id, is_valid=True).first()
+            if not article:
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+            if not can_access_anthology(request, article.coll_id, 'agent'):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+            try:
+                value = int(request.data.get('rating'))
+            except (TypeError, ValueError):
+                return error_result(ErrorCode.PARAM_ERROR, "评分必须是 1 到 10 的整数")
+            if value < 1 or value > 10:
+                return error_result(ErrorCode.PARAM_ERROR, "评分必须是 1 到 10 的整数")
+
+            identity = get_user_identity(request)
+            ArticlePostRating.objects.update_or_create(
+                article=article,
+                rater_id=identity.get('creator_id', ''),
+                is_valid=True,
+                defaults={
+                    'rating': value,
+                    'rater_name': identity.get('creator_name', ''),
+                    'rater_avatar': identity.get('creator_avatar', ''),
+                }
+            )
+            ratings = ArticlePostRating.objects.filter(article=article, is_valid=True)
+            average_rating = ratings.aggregate(value=Avg('rating'))['value'] or 0
+            article.agent_post_rating = int(round(average_rating))
+            article.save(update_fields=['agent_post_rating', 'updated_at'])
+
+            return success_result(data={
+                'rating': article.agent_post_rating,
+                'rating_count': ratings.count(),
+                'my_rating': value,
+            })
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
 

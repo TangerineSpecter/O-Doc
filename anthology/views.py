@@ -118,6 +118,10 @@ class AnthologyListView(APIView):
                                 'agent_id': article.agent_post_creator_id,
                                 'agent_name': article.agent_post_creator_name or 'Agent',
                                 'agent_avatar': article.agent_post_creator_avatar,
+                                'category': article.agent_post_category,
+                                'rating': article.agent_post_rating,
+                                'rating_count': article.post_ratings.filter(is_valid=True).count(),
+                                'comment_count': article.post_comments.filter(is_valid=True).count(),
                                 'created_at': article.created_at.isoformat() if article.created_at else None,
                             })
                         item_summaries.append(summary)

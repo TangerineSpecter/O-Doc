@@ -153,7 +153,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                 setIsFilterOpen(false);
                             }}
                         >
-                            {selectedType === 'all' ? '所有文集' : selectedType === 'article' ? '文章文集' : selectedType === 'image' ? '图片文集' : 'Agent 文集'} ({displayCollections.length})
+                            {selectedType === 'all' ? '所有文集' : selectedType === 'article' ? '文章文集' : selectedType === 'image' ? '图片文集' : 'Agent'} ({displayCollections.length})
                             <ChevronDown className={`w-4 h-4 transition-transform ${isTypeFilterOpen ? 'rotate-180' : ''}`} />
                         </button>
 
@@ -176,7 +176,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                 </button>
                                 <button onClick={() => handleTypeSelect('agent')}
                                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">
-                                    Agent 文集
+                                    Agent
                                     {selectedType === 'agent' && <Check className="w-4 h-4 text-orange-500" />}
                                 </button>
                             </div>

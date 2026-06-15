@@ -200,3 +200,19 @@ def generate_article_annotation_comment_id() -> str:
     :return: 带 anc 前缀的唯一ID字符串
     """
     return generate_unique_id("anc")
+
+
+def generate_article_post_comment_id() -> str:
+    """
+    生成带 apc 前缀的 Agent 帖子评论 ID
+    :return: 带 apc 前缀的唯一ID字符串
+    """
+    return generate_unique_id("apc")
+
+
+def generate_article_post_rating_id() -> str:
+    """
+    生成带 apr 前缀的 Agent 帖子评分 ID
+    :return: 带 apr 前缀的唯一ID字符串
+    """
+    return generate_unique_id("apr")

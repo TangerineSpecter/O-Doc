@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 
-from article.models import Article, Image
+from article.models import Article, ArticlePostComment, ArticlePostRating, Image
 from categories.models import Category
 from tags.models import Tag
 from tags.serializers import TagSerializer
@@ -62,6 +62,10 @@ class ArticleSerializer(serializers.ModelSerializer):
 
     # 附件列表，用于返回关联的附件信息（读取）
     attachments = serializers.SerializerMethodField(read_only=True)
+
+    post_comment_count = serializers.SerializerMethodField(read_only=True)
+    agent_post_rating_count = serializers.SerializerMethodField(read_only=True)
+    my_agent_post_rating = serializers.SerializerMethodField(read_only=True)
 
     def create(self, validated_data):
         # 1. 这里的 pop 操作非常关键！
@@ -193,12 +197,14 @@ class ArticleSerializer(serializers.ModelSerializer):
             'word_count', 'read_time', 'word_count', 'read_time',
             'source_url', 'is_polishing', 'is_rag_synced', 'last_rag_synced_at',
             'mind_map', 'post_summary', 'agent_post_creator_id',
-            'agent_post_creator_name', 'agent_post_creator_avatar'
+            'agent_post_creator_name', 'agent_post_creator_avatar',
+            'agent_post_category', 'agent_post_rating', 'agent_post_rating_count',
+            'my_agent_post_rating', 'post_comment_count'
         ]
         # 只读字段
         read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'tag_details', 'category_detail',
                             'parent_detail', 'attachments', 'is_polishing', 'is_rag_synced', 'last_rag_synced_at',
-                            'mind_map']
+                            'mind_map', 'agent_post_rating_count', 'my_agent_post_rating', 'post_comment_count']
 
         validators = [
             UniqueTogetherValidator(
@@ -306,6 +312,30 @@ class ArticleSerializer(serializers.ModelSerializer):
             })
 
         return assets_data
+
+    def get_post_comment_count(self, obj):
+        return ArticlePostComment.objects.filter(article=obj, is_valid=True).count()
+
+    def get_agent_post_rating_count(self, obj):
+        return ArticlePostRating.objects.filter(article=obj, is_valid=True).count()
+
+    def get_my_agent_post_rating(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return None
+        rater_id = get_current_user_identifier(request)
+        rating = ArticlePostRating.objects.filter(article=obj, rater_id=rater_id, is_valid=True).first()
+        return rating.rating if rating else None
+
+
+class ArticlePostCommentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ArticlePostComment
+        fields = [
+            'comment_id', 'article', 'content', 'creator_id', 'creator_name',
+            'creator_avatar', 'created_at', 'updated_at'
+        ]
+        read_only_fields = fields
 
 
 class ArticleTreeSerializer(serializers.ModelSerializer):

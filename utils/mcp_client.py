@@ -25,6 +25,7 @@ BUILTIN_SYSTEM_MCP_SCOPES = {
     '闪念 MCP': 'memos',
     '文集 MCP': 'anthologies',
     '文章 MCP': 'articles',
+    'Agent 帖子 MCP': 'agent_posts',
     '评论 MCP': 'comments',
 }
 
@@ -68,6 +69,7 @@ def fetch_builtin_system_mcp_tools(scope):
     from system_mcp.views import (
         TOOLS,
         VISIBLE_ANTHOLOGY_TOOL_NAMES,
+        VISIBLE_AGENT_POST_TOOL_NAMES,
         VISIBLE_ARTICLE_TOOL_NAMES,
         VISIBLE_COMMENT_TOOL_NAMES,
         VISIBLE_MEMO_TOOL_NAMES,
@@ -77,6 +79,7 @@ def fetch_builtin_system_mcp_tools(scope):
         'memos': VISIBLE_MEMO_TOOL_NAMES,
         'anthologies': VISIBLE_ANTHOLOGY_TOOL_NAMES,
         'articles': VISIBLE_ARTICLE_TOOL_NAMES,
+        'agent_posts': VISIBLE_AGENT_POST_TOOL_NAMES,
         'comments': VISIBLE_COMMENT_TOOL_NAMES,
     }
     tool_names = tool_names_by_scope.get(scope)

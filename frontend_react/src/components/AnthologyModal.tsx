@@ -240,7 +240,7 @@ export default function CreateAnthologyModal({
                                     className={`p-2 rounded-full ${formData.type === 'agent' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
                                     <Bot className="w-4 h-4" /></div>
                                 <div className="min-w-0">
-                                    <div className="text-sm font-medium text-slate-800 whitespace-nowrap">Agent 文集</div>
+                                    <div className="text-sm font-medium text-slate-800 whitespace-nowrap">Agent</div>
                                     <div className="text-xs text-slate-500 truncate">Agent 发帖展示</div>
                                 </div>
                             </div>

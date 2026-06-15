@@ -55,6 +55,8 @@ def _article_to_dict(article, include_content=True):
         'agent_post_creator_id': article.agent_post_creator_id,
         'agent_post_creator_name': article.agent_post_creator_name,
         'agent_post_creator_avatar': article.agent_post_creator_avatar,
+        'agent_post_category': article.agent_post_category,
+        'agent_post_rating': article.agent_post_rating,
         'created_at': article.created_at.isoformat() if article.created_at else None,
         'updated_at': article.updated_at.isoformat() if article.updated_at else None,
     }
@@ -348,14 +350,52 @@ TOOLS = [
                 'content': {'type': 'string', 'description': '帖子正文，Markdown 格式。'},
                 'summary': {'type': 'string', 'description': '帖子摘要，最多 300 字；不传则从正文自动截取。'},
                 'coll_id': {'type': 'string', 'description': '所属 Agent 文集 ID。'},
+                'category': {'type': 'string', 'description': 'Agent 文集内分类名称，仅用于文集内顶部筛选，不进入全局分类管理。'},
                 'agent_id': {'type': 'string', 'description': '可选 Agent 配置 ID，传入后服务端读取名称和头像。'},
                 'agent_name': {'type': 'string', 'description': '可选发帖 Agent 名称。'},
                 'agent_avatar': {'type': 'string', 'description': '可选发帖 Agent 头像 URL、资源路径或 Emoji。'},
+                'rating': {'type': 'integer', 'minimum': 1, 'maximum': 10, 'description': '可选评分，1-10 分。'},
                 'permission': {'type': 'string', 'enum': ['public', 'private'], 'description': '帖子权限。'},
                 'sort': {'type': 'integer', 'description': '排序值。'},
                 'source_url': {'type': 'string', 'description': '可选来源 URL。'},
             },
-            'required': ['title', 'content', 'coll_id'],
+            'required': ['title', 'content', 'coll_id', 'category'],
+        },
+    },
+    {
+        'name': 'list_agent_posts',
+        'description': '查询 Agent 文集帖子列表，可按 Agent 文集、内部分类、关键词过滤。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'coll_id': {'type': 'string', 'description': '可选 Agent 文集 ID。'},
+                'category': {'type': 'string', 'description': '可选 Agent 文集内分类名称。'},
+                'keyword': {'type': 'string', 'description': '标题关键词。'},
+                'limit': {'type': 'integer', 'description': '返回数量，1-200，默认 50。'},
+                'include_content': {'type': 'boolean', 'description': '是否返回正文，默认 false。'},
+            },
+        },
+    },
+    {
+        'name': 'get_agent_post',
+        'description': '获取一条 Agent 文集帖子详情。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'article_id': {'type': 'string', 'description': 'Agent 帖子 ID。'},
+            },
+            'required': ['article_id'],
+        },
+    },
+    {
+        'name': 'delete_agent_post',
+        'description': '删除一条 Agent 文集帖子。执行逻辑删除。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'article_id': {'type': 'string', 'description': 'Agent 帖子 ID。'},
+            },
+            'required': ['article_id'],
         },
     },
     {
@@ -408,11 +448,13 @@ TOOLS = [
 ]
 
 MEMO_TOOL_NAMES = {'insert_memo', 'create_memo', 'list_memos', 'get_memo', 'update_memo', 'delete_memo'}
-ARTICLE_TOOL_NAMES = {'create_article', 'list_articles', 'get_article', 'get_random_article', 'update_article', 'delete_article', 'create_agent_post'}
+ARTICLE_TOOL_NAMES = {'create_article', 'list_articles', 'get_article', 'get_random_article', 'update_article', 'delete_article'}
+AGENT_POST_TOOL_NAMES = {'create_agent_post', 'list_agent_posts', 'get_agent_post', 'delete_agent_post'}
 ANTHOLOGY_TOOL_NAMES = {'create_anthology', 'list_anthologies', 'get_anthology', 'update_anthology', 'delete_anthology'}
-VISIBLE_TOOL_NAMES = {tool['name'] for tool in TOOLS} - {'insert_memo'}
+VISIBLE_TOOL_NAMES = {tool['name'] for tool in TOOLS} - {'insert_memo'} - AGENT_POST_TOOL_NAMES
 VISIBLE_MEMO_TOOL_NAMES = MEMO_TOOL_NAMES - {'insert_memo'}
 VISIBLE_ARTICLE_TOOL_NAMES = ARTICLE_TOOL_NAMES
+VISIBLE_AGENT_POST_TOOL_NAMES = AGENT_POST_TOOL_NAMES
 VISIBLE_ANTHOLOGY_TOOL_NAMES = ANTHOLOGY_TOOL_NAMES
 VISIBLE_COMMENT_TOOL_NAMES = {'create_article_annotation', 'list_article_annotations', 'add_article_annotation_comment', 'delete_article_annotation_comment'}
 
@@ -464,6 +506,8 @@ class ODocSystemMCPView(APIView):
             return [tool for tool in TOOLS if tool['name'] in VISIBLE_MEMO_TOOL_NAMES]
         if self.tool_scope == 'articles':
             return [tool for tool in TOOLS if tool['name'] in VISIBLE_ARTICLE_TOOL_NAMES]
+        if self.tool_scope == 'agent_posts':
+            return [tool for tool in TOOLS if tool['name'] in VISIBLE_AGENT_POST_TOOL_NAMES]
         if self.tool_scope == 'anthologies':
             return [tool for tool in TOOLS if tool['name'] in VISIBLE_ANTHOLOGY_TOOL_NAMES]
         if self.tool_scope == 'comments':
@@ -531,6 +575,12 @@ class ODocSystemMCPView(APIView):
             return self._create_article(arguments)
         if name == 'create_agent_post':
             return self._create_agent_post(arguments)
+        if name == 'list_agent_posts':
+            return self._list_agent_posts(arguments)
+        if name == 'get_agent_post':
+            return self._get_agent_post(arguments)
+        if name == 'delete_agent_post':
+            return self._delete_agent_post(arguments)
         if name == 'list_articles':
             return self._list_articles(arguments)
         if name == 'get_article':
@@ -708,9 +758,20 @@ class ODocSystemMCPView(APIView):
         if not content.strip():
             raise ValueError('content 不能为空')
         anthology = self._validate_agent_collection(coll_id)
+        category = str(arguments.get('category') or '').strip()
+        if not category:
+            raise ValueError('category 不能为空')
+        if len(category) > 50:
+            raise ValueError('category 不能超过 50 字')
         permission = arguments.get('permission') or 'public'
         if permission not in {'public', 'private'}:
             raise ValueError('permission 只能是 public 或 private')
+        try:
+            rating = int(arguments.get('rating') or 0)
+        except (TypeError, ValueError):
+            raise ValueError('rating 必须是 1 到 10 的整数')
+        if rating and not 1 <= rating <= 10:
+            raise ValueError('rating 必须是 1 到 10 的整数')
         identity = self._resolve_agent_post_identity(arguments)
         try:
             with transaction.atomic():
@@ -726,12 +787,57 @@ class ODocSystemMCPView(APIView):
                     agent_post_creator_id=identity['creator_id'],
                     agent_post_creator_name=identity['creator_name'],
                     agent_post_creator_avatar=identity['creator_avatar'],
+                    agent_post_category=category,
+                    agent_post_rating=rating,
                     is_rag_synced=False,
                 )
                 _refresh_anthology(coll_id)
         except IntegrityError:
             raise ValueError('同一文集下帖子标题已存在')
         return {'post': _article_to_dict(article)}
+
+    @staticmethod
+    def _agent_post_queryset():
+        agent_coll_ids = Anthology.objects.filter(type='agent', is_valid=True).values_list('coll_id', flat=True)
+        return Article.objects.filter(is_valid=True, coll_id__in=agent_coll_ids)
+
+    @classmethod
+    def _list_agent_posts(cls, arguments):
+        limit = min(max(int(arguments.get('limit') or 50), 1), 200)
+        queryset = cls._agent_post_queryset().order_by('-created_at')
+        coll_id = str(arguments.get('coll_id') or '').strip()
+        keyword = str(arguments.get('keyword') or '').strip()
+        category = str(arguments.get('category') or '').strip()
+        if coll_id:
+            get_object_or_404(Anthology, coll_id=coll_id, type='agent', is_valid=True)
+            queryset = queryset.filter(coll_id=coll_id)
+        if category:
+            queryset = queryset.filter(agent_post_category=category)
+        if keyword:
+            queryset = queryset.filter(title__icontains=keyword)
+        include_content = bool(arguments.get('include_content', False))
+        posts = [_article_to_dict(article, include_content=include_content) for article in queryset[:limit]]
+        return {'posts': posts, 'count': len(posts)}
+
+    @classmethod
+    def _get_agent_post(cls, arguments):
+        article_id = str(arguments.get('article_id') or '').strip()
+        if not article_id:
+            raise ValueError('article_id 不能为空')
+        post = get_object_or_404(cls._agent_post_queryset(), article_id=article_id)
+        return {'post': _article_to_dict(post)}
+
+    @classmethod
+    def _delete_agent_post(cls, arguments):
+        article_id = str(arguments.get('article_id') or '').strip()
+        if not article_id:
+            raise ValueError('article_id 不能为空')
+        post = get_object_or_404(cls._agent_post_queryset(), article_id=article_id)
+        coll_id = post.coll_id
+        post.is_valid = False
+        post.save(update_fields=['is_valid', 'updated_at'])
+        _refresh_anthology(coll_id)
+        return {'article_id': article_id, 'deleted': True}
 
     @staticmethod
     def _list_articles(arguments):

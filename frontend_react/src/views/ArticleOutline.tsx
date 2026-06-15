@@ -1,13 +1,26 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {Bot, Clock, ListTree, Menu, Trash2} from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import {ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, Send, Star, Trash2} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import Article from './Article';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import SaveWebpageModal from '../components/common/SaveWebpageModal';
+import {CUSTOM_STYLES} from '../components/Article/MarkdownElements';
 import OutlineSidebar from '../components/Outline/OutlineSidebar';
 import OutlineContent from '../components/Outline/OutlineContent';
 import {useArticleTree} from '../hooks/useArticleTree';
-import {Article as ArticleType, deleteArticle, getArticleDetail, getArticles, saveWebpageAsArticle} from '../api/article';
+import {
+    AgentPostComment,
+    Article as ArticleType,
+    createAgentPostComment,
+    deleteArticle,
+    getAgentPostComments,
+    getArticleDetail,
+    getArticles,
+    rateAgentPost,
+    saveWebpageAsArticle
+} from '../api/article';
 import {useToast} from '../components/common/ToastProvider';
 import {Anthology, getAnthologyDetail} from '../api/anthology';
 import {getIconComponent} from '../constants/iconList';
@@ -29,6 +42,58 @@ const formatPostTime = (value?: string) => {
 const getPostSummary = (post: ArticleType) => {
     if (post.postSummary?.trim()) return post.postSummary.trim();
     return (post.content || '').replace(/[#*`>~-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+};
+
+const splitAgentPostInlineSyntax = (value: string) => {
+    const pattern = /(\+\+([\s\S]+?)\+\+|\^\^([\s\S]+?)\^\^|==([\s\S]+?)==)/g;
+    const nodes: any[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = pattern.exec(value)) !== null) {
+        const content = match[2] ?? match[3] ?? match[4] ?? '';
+        if (match.index > lastIndex) {
+            nodes.push({type: 'text', value: value.slice(lastIndex, match.index)});
+        }
+        nodes.push({
+            type: 'element',
+            tagName: 'span',
+            properties: {
+                className: match[2]
+                    ? 'custom-underline-red'
+                    : match[3]
+                        ? 'custom-underline-wavy'
+                        : 'custom-watercolor'
+            },
+            children: [{type: 'text', value: content}]
+        });
+        lastIndex = pattern.lastIndex;
+    }
+
+    if (lastIndex < value.length) {
+        nodes.push({type: 'text', value: value.slice(lastIndex)});
+    }
+
+    return nodes.length > 0 ? nodes : [{type: 'text', value}];
+};
+
+const rehypeAgentPostInlineSyntax = () => (tree: any) => {
+    const visit = (node: any, disabled = false) => {
+        if (!node || !Array.isArray(node.children)) return;
+
+        const tagName = typeof node.tagName === 'string' ? node.tagName.toLowerCase() : '';
+        const shouldSkip = disabled || ['code', 'pre', 'script', 'style'].includes(tagName);
+
+        node.children = node.children.flatMap((child: any) => {
+            if (!shouldSkip && child?.type === 'text' && typeof child.value === 'string' && /(\+\+|\^\^|==)/.test(child.value)) {
+                return splitAgentPostInlineSyntax(child.value);
+            }
+            visit(child, shouldSkip);
+            return [child];
+        });
+    };
+
+    visit(tree);
 };
 
 const AgentAvatar = ({name, avatar}: { name?: string; avatar?: string }) => {
@@ -56,19 +121,43 @@ interface ArticleOutlineProps {
 
 function AgentPostCollectionView({
                                      collId,
+                                     articleId,
                                      anthologyInfo,
+                                     onNavigate,
                                      onBackHome,
                                      canManage
                                  }: {
     collId?: string;
+    articleId?: string;
     anthologyInfo: Anthology | null;
+    onNavigate?: (viewName: string, params?: any) => void;
     onBackHome?: () => void;
     canManage: boolean;
 }) {
     const [posts, setPosts] = useState<ArticleType[]>([]);
     const [loading, setLoading] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<ArticleType | null>(null);
+    const [activePost, setActivePost] = useState<ArticleType | null>(null);
+    const [postLoading, setPostLoading] = useState(false);
+    const [comments, setComments] = useState<AgentPostComment[]>([]);
+    const [commentsLoading, setCommentsLoading] = useState(false);
+    const [commentDraft, setCommentDraft] = useState('');
+    const [commentSubmitting, setCommentSubmitting] = useState(false);
+    const [activeCategory, setActiveCategory] = useState('all');
+    const [ratingSubmitting, setRatingSubmitting] = useState(false);
     const toast = useToast();
+
+    const categoryStats = posts.reduce<Array<{ name: string; count: number }>>((acc, post) => {
+        const name = post.agentPostCategory?.trim() || '未分类';
+        const found = acc.find(item => item.name === name);
+        if (found) found.count += 1;
+        else acc.push({name, count: 1});
+        return acc;
+    }, []);
+
+    const visiblePosts = activeCategory === 'all'
+        ? posts
+        : posts.filter(post => (post.agentPostCategory?.trim() || '未分类') === activeCategory);
 
     const loadPosts = useCallback(async () => {
         if (!collId) return;
@@ -88,11 +177,45 @@ function AgentPostCollectionView({
         loadPosts();
     }, [loadPosts]);
 
+    const loadPostDetail = useCallback(async () => {
+        if (!articleId) {
+            setActivePost(null);
+            setComments([]);
+            return;
+        }
+        setPostLoading(true);
+        setCommentsLoading(true);
+        try {
+            const [detail, commentResult] = await Promise.all([
+                getArticleDetail(articleId),
+                getAgentPostComments(articleId)
+            ]);
+            setActivePost(detail);
+            setComments(commentResult.comments || []);
+        } catch (error) {
+            console.error('加载 Agent 帖子详情失败:', error);
+            toast.error('加载帖子详情失败');
+            setActivePost(null);
+            setComments([]);
+        } finally {
+            setPostLoading(false);
+            setCommentsLoading(false);
+        }
+    }, [articleId, toast]);
+
+    useEffect(() => {
+        loadPostDetail();
+    }, [loadPostDetail]);
+
     const confirmDeletePost = async () => {
         if (!deleteTarget) return;
         try {
             await deleteArticle(deleteTarget.articleId);
             setPosts(prev => prev.filter(post => post.articleId !== deleteTarget.articleId));
+            if (activePost?.articleId === deleteTarget.articleId) {
+                setActivePost(null);
+                onNavigate?.('article', {collId});
+            }
             setDeleteTarget(null);
             toast.success('帖子已删除');
         } catch (error) {
@@ -101,8 +224,233 @@ function AgentPostCollectionView({
         }
     };
 
+    const handleSubmitComment = async () => {
+        if (!activePost || !commentDraft.trim() || commentSubmitting) return;
+        setCommentSubmitting(true);
+        try {
+            const result = await createAgentPostComment(activePost.articleId, commentDraft.trim());
+            setComments(prev => [...prev, result.comment]);
+            setActivePost(prev => prev ? {
+                ...prev,
+                postCommentCount: (prev.postCommentCount || 0) + 1
+            } : prev);
+            setPosts(prev => prev.map(post => post.articleId === activePost.articleId ? {
+                ...post,
+                postCommentCount: (post.postCommentCount || 0) + 1
+            } : post));
+            setCommentDraft('');
+            toast.success('评论已发布');
+        } catch (error) {
+            console.error('发布评论失败:', error);
+            toast.error(error instanceof Error ? error.message : '发布评论失败');
+        } finally {
+            setCommentSubmitting(false);
+        }
+    };
+
+    const handleRatePost = async (rating: number) => {
+        if (!activePost || ratingSubmitting) return;
+        setRatingSubmitting(true);
+        try {
+            const result = await rateAgentPost(activePost.articleId, rating);
+            setActivePost(prev => prev ? {
+                ...prev,
+                agentPostRating: result.rating,
+                agentPostRatingCount: result.ratingCount,
+                myAgentPostRating: result.myRating
+            } : prev);
+            setPosts(prev => prev.map(post => post.articleId === activePost.articleId ? {
+                ...post,
+                agentPostRating: result.rating,
+                agentPostRatingCount: result.ratingCount,
+                myAgentPostRating: result.myRating
+            } : post));
+            toast.success('评分已保存');
+        } catch (error) {
+            console.error('保存评分失败:', error);
+            toast.error(error instanceof Error ? error.message : '保存评分失败');
+        } finally {
+            setRatingSubmitting(false);
+        }
+    };
+
+    if (articleId) {
+        return (
+            <div className="min-h-[calc(100vh-64px)] bg-slate-50">
+                <style>{CUSTOM_STYLES}</style>
+                {canManage && (
+                    <ConfirmationModal
+                        isOpen={!!deleteTarget}
+                        onClose={() => setDeleteTarget(null)}
+                        onConfirm={confirmDeletePost}
+                        title="删除 Agent 帖子"
+                        description="确定要删除这条 Agent 帖子吗？此操作无法恢复。"
+                        confirmText="删除"
+                        type="danger"
+                    />
+                )}
+                <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+                    <button
+                        type="button"
+                        onClick={() => onNavigate?.('article', {collId})}
+                        className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-white hover:text-indigo-700"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                        返回帖子列表
+                    </button>
+
+                    {postLoading || !activePost ? (
+                        <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-slate-100 bg-white">
+                            <StarLoader />
+                            <span className="mt-2 text-xs font-medium text-slate-400">正在加载帖子...</span>
+                        </div>
+                    ) : (
+                        <article className="rounded-xl border border-indigo-200 bg-white shadow-sm">
+                            <header className="border-b border-slate-100 p-5 sm:p-6">
+                                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700">
+                                    <ListTree className="h-3.5 w-3.5" />
+                                    {activePost.agentPostCategory || '未分类'}
+                                </div>
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <h1 className="text-2xl font-bold leading-tight text-slate-900">{activePost.title}</h1>
+                                        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+                                            <span className="inline-flex items-center gap-1.5">
+                                                <Clock className="h-4 w-4" />
+                                                {formatPostTime(activePost.createdAt)}
+                                            </span>
+                                            <span className="inline-flex items-center gap-1.5">
+                                                <MessageCircle className="h-4 w-4" />
+                                                {activePost.postCommentCount || comments.length || 0}
+                                            </span>
+                                            <span className="inline-flex items-center gap-1.5 text-amber-500">
+                                                <Star className="h-4 w-4 fill-current" />
+                                                {activePost.agentPostRating ? `${activePost.agentPostRating}/10` : '未评分'}
+                                                {activePost.agentPostRatingCount ? <span className="text-slate-400">({activePost.agentPostRatingCount})</span> : null}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {canManage && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setDeleteTarget(activePost)}
+                                            className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
+                                            title="删除帖子"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="mt-5 flex items-center gap-2">
+                                    <AgentAvatar name={activePost.agentPostCreatorName} avatar={activePost.agentPostCreatorAvatar} />
+                                    <div className="min-w-0">
+                                        <div className="truncate text-sm font-semibold text-slate-800">{activePost.agentPostCreatorName || 'Agent'}</div>
+                                        <div className="truncate text-xs text-slate-400">发帖 Agent</div>
+                                    </div>
+                                </div>
+                            </header>
+
+                            <div className="prose prose-slate max-w-none px-5 py-6 text-slate-700 sm:px-6">
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    rehypePlugins={[rehypeAgentPostInlineSyntax]}
+                                >
+                                    {activePost.content || ''}
+                                </ReactMarkdown>
+                            </div>
+
+                            <section className="border-t border-slate-100 px-5 py-5 sm:px-6">
+                                <div className="mb-5 rounded-xl border border-amber-100 bg-amber-50/50 p-4">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <h2 className="text-base font-bold text-slate-900">评分</h2>
+                                            <p className="mt-1 text-xs text-slate-500">
+                                                当前 {activePost.agentPostRating ? `${activePost.agentPostRating}/10` : '未评分'}
+                                                {activePost.agentPostRatingCount ? `，${activePost.agentPostRatingCount} 人评分` : ''}
+                                            </p>
+                                        </div>
+                                        {canManage && (
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {Array.from({length: 10}, (_, index) => index + 1).map(value => (
+                                                    <button
+                                                        key={value}
+                                                        type="button"
+                                                        onClick={() => handleRatePost(value)}
+                                                        disabled={ratingSubmitting}
+                                                        className={`h-8 min-w-8 rounded-lg border px-2 text-xs font-bold transition-all ${
+                                                            activePost.myAgentPostRating === value
+                                                                ? 'border-amber-400 bg-amber-400 text-white shadow-sm shadow-amber-400/30'
+                                                                : 'border-amber-200 bg-white text-amber-600 hover:border-amber-300 hover:bg-amber-100'
+                                                        } disabled:cursor-not-allowed disabled:opacity-60`}
+                                                    >
+                                                        {value}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="mb-4 flex items-center justify-between">
+                                    <h2 className="text-base font-bold text-slate-900">评论</h2>
+                                    <span className="text-xs text-slate-400">{comments.length} 条</span>
+                                </div>
+
+                                {commentsLoading ? (
+                                    <div className="py-6 text-center text-xs text-slate-400">正在加载评论...</div>
+                                ) : comments.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {comments.map(comment => (
+                                            <div key={comment.commentId} className="flex gap-3 rounded-lg bg-slate-50 px-3 py-3">
+                                                <AgentAvatar name={comment.creatorName} avatar={comment.creatorAvatar} />
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="text-sm font-semibold text-slate-800">{comment.creatorName || '用户'}</span>
+                                                        <span className="text-xs text-slate-400">{formatPostTime(comment.createdAt)}</span>
+                                                    </div>
+                                                    <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">{comment.content}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">暂无评论</div>
+                                )}
+
+                                {canManage && (
+                                    <div className="mt-5 rounded-xl border border-slate-200 bg-white p-3">
+                                        <textarea
+                                            value={commentDraft}
+                                            onChange={(event) => setCommentDraft(event.target.value)}
+                                            maxLength={1000}
+                                            rows={3}
+                                            placeholder="写一条评论..."
+                                            className="w-full resize-none border-0 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                                        />
+                                        <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
+                                            <span className="text-xs text-slate-400">{commentDraft.length}/1000</span>
+                                            <button
+                                                type="button"
+                                                onClick={handleSubmitComment}
+                                                disabled={!commentDraft.trim() || commentSubmitting}
+                                                className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white shadow-sm shadow-orange-500/20 transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                <Send className="h-3.5 w-3.5" />
+                                                {commentSubmitting ? '发布中...' : '发布评论'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </section>
+                        </article>
+                    )}
+                </main>
+            </div>
+        );
+    }
+
     return (
-        <div className="min-h-[calc(100vh-64px)] bg-slate-50">
+        <div className="min-h-[calc(100vh-64px)] bg-[#f8fbff]">
             {canManage && (
                 <ConfirmationModal
                     isOpen={!!deleteTarget}
@@ -114,14 +462,14 @@ function AgentPostCollectionView({
                     type="danger"
                 />
             )}
-            <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-                <div className="mb-5 flex flex-col gap-3 rounded-xl border border-indigo-200 bg-white px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+                <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                        <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-700">
-                            <Bot className="h-3.5 w-3.5" />
-                            Agent 文集
+                        <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700">
+                            <ListTree className="h-3.5 w-3.5" />
+                            帖子
                         </div>
-                        <h1 className="truncate text-xl font-bold text-slate-900">{anthologyInfo?.title || 'Agent 文集'}</h1>
+                        <h1 className="truncate text-xl font-bold text-slate-900">{anthologyInfo?.title || 'Agent'}</h1>
                         <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{anthologyInfo?.description || '暂无简介'}</p>
                     </div>
                     <button
@@ -133,27 +481,75 @@ function AgentPostCollectionView({
                     </button>
                 </div>
 
+                <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
+                    <button
+                        type="button"
+                        onClick={() => setActiveCategory('all')}
+                        className={`shrink-0 rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
+                            activeCategory === 'all'
+                                ? 'border-red-400 bg-white text-slate-900 shadow-sm'
+                                : 'border-slate-200 bg-white/80 text-slate-600 hover:border-slate-300 hover:bg-white'
+                        }`}
+                    >
+                        全部 {posts.length}
+                    </button>
+                    {categoryStats.map(category => (
+                        <button
+                            key={category.name}
+                            type="button"
+                            onClick={() => setActiveCategory(category.name)}
+                            className={`shrink-0 rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
+                                activeCategory === category.name
+                                    ? 'border-red-400 bg-white text-slate-900 shadow-sm'
+                                    : 'border-slate-200 bg-white/80 text-slate-600 hover:border-slate-300 hover:bg-white'
+                            }`}
+                        >
+                            {category.name} {category.count}
+                        </button>
+                    ))}
+                </div>
+
                 {loading ? (
                     <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-slate-100 bg-white">
                         <StarLoader />
                         <span className="mt-2 text-xs font-medium text-slate-400">正在加载 Agent 帖子...</span>
                     </div>
-                ) : posts.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        {posts.map(post => (
-                            <article key={post.articleId} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md">
+                ) : visiblePosts.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                        {visiblePosts.map(post => (
+                            <article
+                                key={post.articleId}
+                                onClick={() => onNavigate?.('article', {collId, articleId: post.articleId})}
+                                className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
+                            >
                                 <div className="mb-3 flex items-start justify-between gap-3">
                                     <div className="min-w-0">
+                                        <div className="mb-3 inline-flex rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+                                            {post.agentPostCategory || '未分类'}
+                                        </div>
                                         <h2 className="line-clamp-2 text-base font-bold leading-6 text-slate-900">{post.title}</h2>
                                         <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
                                             <Clock className="h-3.5 w-3.5" />
                                             <span>{formatPostTime(post.createdAt)}</span>
                                         </div>
+                                        <div className="mt-2 flex items-center gap-3 text-xs text-slate-400">
+                                            <span className="inline-flex items-center gap-1">
+                                                <MessageCircle className="h-3.5 w-3.5" />
+                                                {post.postCommentCount || 0}
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 text-amber-500">
+                                                <Star className="h-3.5 w-3.5 fill-current" />
+                                                {post.agentPostRating ? `${post.agentPostRating}/10` : '-'}
+                                            </span>
+                                        </div>
                                     </div>
                                     {canManage && (
                                         <button
                                             type="button"
-                                            onClick={() => setDeleteTarget(post)}
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                setDeleteTarget(post);
+                                            }}
                                             className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
                                             title="删除帖子"
                                         >
@@ -365,12 +761,14 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
     if (anthologyInfo?.type === 'agent') {
         return (
-            <AgentPostCollectionView
-                collId={collId}
-                anthologyInfo={anthologyInfo}
-                onBackHome={() => onNavigate && onNavigate('home')}
-                canManage={isAuthenticated}
-            />
+                <AgentPostCollectionView
+                    collId={collId}
+                    articleId={articleId}
+                    anthologyInfo={anthologyInfo}
+                    onNavigate={onNavigate}
+                    onBackHome={() => onNavigate && onNavigate('home')}
+                    canManage={isAuthenticated}
+                />
         );
     }
 
