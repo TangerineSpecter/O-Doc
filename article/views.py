@@ -31,7 +31,13 @@ from article.annotation_service import (
 )
 from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating, Image
 from article.prompts import ARTICLE_MIND_MAP_PROMPT_TEMPLATE, POLISH_ARTICLE_PROMPT_TEMPLATE
-from article.serializers import ArticlePostCommentSerializer, ArticleSerializer, ArticleTreeSerializer, ImageSerializer
+from article.serializers import (
+    AgentPostLatestCommentSerializer,
+    ArticlePostCommentSerializer,
+    ArticleSerializer,
+    ArticleTreeSerializer,
+    ImageSerializer,
+)
 from utils.ai_service import AIService
 from utils.error_codes import ErrorCode
 from utils.drf_utils import get_current_user_identifier
@@ -666,6 +672,35 @@ class AgentPostCommentListCreateView(APIView):
                 creator_avatar=identity.get('creator_avatar', ''),
             )
             return success_result(data={'comment': ArticlePostCommentSerializer(comment).data})
+        except Exception as e:
+            return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+
+class AgentPostLatestCommentListView(APIView):
+    """
+    Agent 文集最新评论列表。
+    """
+
+    def get(self, request, coll_id):
+        try:
+            if not can_access_anthology(request, coll_id, 'agent'):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+            try:
+                limit = int(request.GET.get('limit', 10))
+            except (TypeError, ValueError):
+                limit = 10
+            limit = max(1, min(limit, 10))
+
+            comments = ArticlePostComment.objects.filter(
+                article__coll_id=coll_id,
+                article__is_valid=True,
+                is_valid=True
+            ).select_related('article').order_by('-created_at')[:limit]
+            return success_result(data={
+                'comments': AgentPostLatestCommentSerializer(comments, many=True).data,
+                'count': len(comments),
+            })
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
 

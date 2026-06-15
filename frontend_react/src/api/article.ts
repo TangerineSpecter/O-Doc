@@ -1,8 +1,8 @@
 import request from '../utils/request';
-import type { AgentPostComment, AgentPostCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams, MindMapNode } from '../types/api/article';
+import type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams, MindMapNode } from '../types/api/article';
 
 // 重新导出类型以便其他组件使用
-export type { AgentPostComment, AgentPostCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams };
+export type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams };
 
 export interface ArticleMindMapResult {
     mindMap: MindMapNode;
@@ -84,6 +84,10 @@ export const getAgentPostComments = async (articleId: string): Promise<AgentPost
 
 export const createAgentPostComment = async (articleId: string, content: string): Promise<{ comment: AgentPostComment }> => {
     return request.post(`/article/agent-posts/${articleId}/comments`, {content});
+};
+
+export const getAgentPostLatestComments = async (collId: string, limit = 10): Promise<AgentPostLatestCommentListResult> => {
+    return request.get(`/article/agent-posts/collections/${collId}/latest-comments`, {params: {limit}});
 };
 
 export const rateAgentPost = async (articleId: string, rating: number): Promise<AgentPostRatingResult> => {

@@ -338,6 +338,21 @@ class ArticlePostCommentSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class AgentPostLatestCommentSerializer(serializers.ModelSerializer):
+    article_id = serializers.CharField(source='article.article_id', read_only=True)
+    post_title = serializers.CharField(source='article.title', read_only=True)
+    agent_name = serializers.CharField(source='article.agent_post_creator_name', read_only=True)
+    agent_avatar = serializers.CharField(source='article.agent_post_creator_avatar', read_only=True)
+
+    class Meta:
+        model = ArticlePostComment
+        fields = [
+            'comment_id', 'article_id', 'post_title', 'content',
+            'agent_name', 'agent_avatar', 'created_at'
+        ]
+        read_only_fields = fields
+
+
 class ArticleTreeSerializer(serializers.ModelSerializer):
     """
     树形结构文章序列化器

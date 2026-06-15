@@ -77,6 +77,21 @@ export interface AgentPostCommentListResult {
     count: number;
 }
 
+export interface AgentPostLatestComment {
+    commentId: string;
+    articleId: string;
+    postTitle: string;
+    content: string;
+    agentName: string;
+    agentAvatar: string;
+    createdAt: string;
+}
+
+export interface AgentPostLatestCommentListResult {
+    comments: AgentPostLatestComment[];
+    count: number;
+}
+
 export interface AgentPostRatingResult {
     rating: number;
     ratingCount: number;

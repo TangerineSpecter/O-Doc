@@ -12,9 +12,11 @@ import OutlineContent from '../components/Outline/OutlineContent';
 import {useArticleTree} from '../hooks/useArticleTree';
 import {
     AgentPostComment,
+    AgentPostLatestCommentListResult,
     Article as ArticleType,
     createAgentPostComment,
     deleteArticle,
+    getAgentPostLatestComments,
     getAgentPostComments,
     getArticleDetail,
     getArticles,
@@ -145,6 +147,7 @@ function AgentPostCollectionView({
     const [commentSubmitting, setCommentSubmitting] = useState(false);
     const [activeCategory, setActiveCategory] = useState('all');
     const [ratingSubmitting, setRatingSubmitting] = useState(false);
+    const [latestComments, setLatestComments] = useState<AgentPostLatestCommentListResult['comments']>([]);
     const toast = useToast();
 
     const categoryStats = posts.reduce<Array<{ name: string; count: number }>>((acc, post) => {
@@ -159,12 +162,25 @@ function AgentPostCollectionView({
         ? posts
         : posts.filter(post => (post.agentPostCategory?.trim() || '未分类') === activeCategory);
 
+    const commentRankPosts = [...posts]
+        .sort((a, b) => (b.postCommentCount || 0) - (a.postCommentCount || 0))
+        .slice(0, 5);
+
+    const truncateText = (value?: string, max = 56) => {
+        const text = (value || '').replace(/\s+/g, ' ').trim();
+        return text.length > max ? `${text.slice(0, max)}...` : text;
+    };
+
     const loadPosts = useCallback(async () => {
         if (!collId) return;
         setLoading(true);
         try {
-            const data = await getArticles({collId});
+            const [data, latestCommentResult] = await Promise.all([
+                getArticles({collId}),
+                getAgentPostLatestComments(collId, 10)
+            ]);
             setPosts([...data].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+            setLatestComments(latestCommentResult.comments || []);
         } catch (error) {
             console.error('加载 Agent 帖子失败:', error);
             toast.error('加载 Agent 帖子失败');
@@ -238,6 +254,15 @@ function AgentPostCollectionView({
                 ...post,
                 postCommentCount: (post.postCommentCount || 0) + 1
             } : post));
+            setLatestComments(prev => [{
+                commentId: result.comment.commentId,
+                articleId: activePost.articleId,
+                postTitle: activePost.title,
+                content: result.comment.content,
+                agentName: activePost.agentPostCreatorName || 'Agent',
+                agentAvatar: activePost.agentPostCreatorAvatar || '',
+                createdAt: result.comment.createdAt
+            }, ...prev].slice(0, 10));
             setCommentDraft('');
             toast.success('评论已发布');
         } catch (error) {
@@ -316,10 +341,6 @@ function AgentPostCollectionView({
                                         <h1 className="text-2xl font-bold leading-tight text-slate-900">{activePost.title}</h1>
                                         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-500">
                                             <span className="inline-flex items-center gap-1.5">
-                                                <Clock className="h-4 w-4" />
-                                                {formatPostTime(activePost.createdAt)}
-                                            </span>
-                                            <span className="inline-flex items-center gap-1.5">
                                                 <MessageCircle className="h-4 w-4" />
                                                 {activePost.postCommentCount || comments.length || 0}
                                             </span>
@@ -345,7 +366,10 @@ function AgentPostCollectionView({
                                     <AgentAvatar name={activePost.agentPostCreatorName} avatar={activePost.agentPostCreatorAvatar} />
                                     <div className="min-w-0">
                                         <div className="truncate text-sm font-semibold text-slate-800">{activePost.agentPostCreatorName || 'Agent'}</div>
-                                        <div className="truncate text-xs text-slate-400">发帖 Agent</div>
+                                        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400">
+                                            <Clock className="h-3.5 w-3.5" />
+                                            {formatPostTime(activePost.createdAt)}
+                                        </div>
                                     </div>
                                 </div>
                             </header>
@@ -515,60 +539,126 @@ function AgentPostCollectionView({
                         <span className="mt-2 text-xs font-medium text-slate-400">正在加载 Agent 帖子...</span>
                     </div>
                 ) : visiblePosts.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-                        {visiblePosts.map(post => (
-                            <article
-                                key={post.articleId}
-                                onClick={() => onNavigate?.('article', {collId, articleId: post.articleId})}
-                                className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
-                            >
-                                <div className="mb-3 flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <div className="mb-3 inline-flex rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-                                            {post.agentPostCategory || '未分类'}
+                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                            {visiblePosts.map(post => (
+                                <article
+                                    key={post.articleId}
+                                    onClick={() => onNavigate?.('article', {collId, articleId: post.articleId})}
+                                    className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
+                                >
+                                    <div className="mb-3 flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <h2 className="line-clamp-2 text-base font-bold leading-6 text-slate-900">{post.title}</h2>
+                                            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                                                <span className="inline-flex max-w-[9rem] items-center rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 font-medium text-orange-700">
+                                                    <span className="truncate">{post.agentPostCategory || '未分类'}</span>
+                                                </span>
+                                                <span className="inline-flex items-center gap-1">
+                                                    <MessageCircle className="h-3.5 w-3.5" />
+                                                    {post.postCommentCount || 0}
+                                                </span>
+                                                <span className="inline-flex items-center gap-1 text-amber-500">
+                                                    <Star className="h-3.5 w-3.5 fill-current" />
+                                                    {post.agentPostRating ? `${post.agentPostRating}/10` : '-'}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <h2 className="line-clamp-2 text-base font-bold leading-6 text-slate-900">{post.title}</h2>
-                                        <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
-                                            <Clock className="h-3.5 w-3.5" />
-                                            <span>{formatPostTime(post.createdAt)}</span>
+                                        {canManage && (
+                                            <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    setDeleteTarget(post);
+                                                }}
+                                                className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
+                                                title="删除帖子"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <p className="mb-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-slate-600">{getPostSummary(post) || '暂无摘要'}</p>
+
+                                    <div className="flex items-center gap-2 border-t border-slate-100 pt-3">
+                                        <AgentAvatar name={post.agentPostCreatorName} avatar={post.agentPostCreatorAvatar} />
+                                        <div className="min-w-0">
+                                            <div className="truncate text-sm font-semibold text-slate-700">{post.agentPostCreatorName || 'Agent'}</div>
+                                            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400">
+                                                <Clock className="h-3.5 w-3.5" />
+                                                {formatPostTime(post.createdAt)}
+                                            </div>
                                         </div>
-                                        <div className="mt-2 flex items-center gap-3 text-xs text-slate-400">
-                                            <span className="inline-flex items-center gap-1">
-                                                <MessageCircle className="h-3.5 w-3.5" />
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+
+                        <aside className="space-y-5">
+                            <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+                                <div className="border-b border-slate-100 px-5 py-4">
+                                    <h2 className="text-lg font-bold text-red-700">评论排行榜</h2>
+                                </div>
+                                <div className="divide-y divide-slate-100">
+                                    {commentRankPosts.length > 0 ? commentRankPosts.map((post, index) => (
+                                        <button
+                                            key={post.articleId}
+                                            type="button"
+                                            onClick={() => onNavigate?.('article', {collId, articleId: post.articleId})}
+                                            className="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-orange-50/50"
+                                        >
+                                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                                                index === 0
+                                                    ? 'bg-yellow-300 text-orange-800'
+                                                    : index === 1
+                                                        ? 'bg-slate-200 text-slate-600'
+                                                        : index === 2
+                                                            ? 'bg-orange-200 text-orange-800'
+                                                            : 'text-slate-400'
+                                            }`}>
+                                                {index + 1}
+                                            </span>
+                                            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{post.title}</span>
+                                            <span className="inline-flex shrink-0 items-center gap-1 text-sm text-slate-500">
+                                                <MessageCircle className="h-4 w-4" />
                                                 {post.postCommentCount || 0}
                                             </span>
-                                            <span className="inline-flex items-center gap-1 text-amber-500">
-                                                <Star className="h-3.5 w-3.5 fill-current" />
-                                                {post.agentPostRating ? `${post.agentPostRating}/10` : '-'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    {canManage && (
-                                        <button
-                                            type="button"
-                                            onClick={(event) => {
-                                                event.stopPropagation();
-                                                setDeleteTarget(post);
-                                            }}
-                                            className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
-                                            title="删除帖子"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
                                         </button>
+                                    )) : (
+                                        <div className="px-5 py-8 text-center text-sm text-slate-400">暂无评论数据</div>
                                     )}
                                 </div>
+                            </section>
 
-                                <p className="mb-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-slate-600">{getPostSummary(post) || '暂无摘要'}</p>
-
-                                <div className="flex items-center gap-2 border-t border-slate-100 pt-3">
-                                    <AgentAvatar name={post.agentPostCreatorName} avatar={post.agentPostCreatorAvatar} />
-                                    <div className="min-w-0">
-                                        <div className="truncate text-sm font-semibold text-slate-700">{post.agentPostCreatorName || 'Agent'}</div>
-                                        <div className="truncate text-xs text-slate-400">发帖 Agent</div>
-                                    </div>
+                            <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+                                <div className="border-b border-slate-100 px-5 py-4">
+                                    <h2 className="text-lg font-bold text-red-700">最新评论</h2>
                                 </div>
-                            </article>
-                        ))}
+                                <div className="divide-y divide-slate-100">
+                                    {latestComments.length > 0 ? latestComments.map(comment => (
+                                        <button
+                                            key={comment.commentId}
+                                            type="button"
+                                            onClick={() => onNavigate?.('article', {collId, articleId: comment.articleId})}
+                                            className="flex w-full gap-3 px-5 py-4 text-left transition-colors hover:bg-orange-50/50"
+                                        >
+                                            <AgentAvatar name={comment.agentName} avatar={comment.agentAvatar} />
+                                            <span className="min-w-0 flex-1">
+                                                <span className="flex items-center justify-between gap-2">
+                                                    <span className="truncate text-sm font-semibold text-slate-800">{comment.agentName || 'Agent'}</span>
+                                                    <span className="shrink-0 text-[11px] text-slate-400">{formatPostTime(comment.createdAt)}</span>
+                                                </span>
+                                                <span className="mt-1 block truncate text-xs font-medium text-slate-500">{comment.postTitle}</span>
+                                                <span className="mt-1 block text-xs leading-5 text-slate-500">{truncateText(comment.content, 64) || '暂无内容'}</span>
+                                            </span>
+                                        </button>
+                                    )) : (
+                                        <div className="px-5 py-8 text-center text-sm text-slate-400">暂无最新评论</div>
+                                    )}
+                                </div>
+                            </section>
+                        </aside>
                     </div>
                 ) : (
                     <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-indigo-300 bg-white text-slate-400">

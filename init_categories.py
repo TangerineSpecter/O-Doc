@@ -9,6 +9,7 @@ django.setup()
 
 from categories.models import Category
 from article.models import Article
+from anthology.models import Anthology
 
 
 def init_uncategorized_category():
@@ -52,9 +53,16 @@ def init_uncategorized_category():
     print("-" * 60)
     print("正在检查并迁移悬空文章...")
 
+    article_coll_ids = Anthology.objects.filter(
+        user_id='admin',
+        type='article',
+        is_valid=True
+    ).values_list('coll_id', flat=True)
+
     articles_to_update = Article.objects.filter(
         author='admin',
         is_valid=True,
+        coll_id__in=article_coll_ids,
         category__isnull=True
     )
 
@@ -65,6 +73,23 @@ def init_uncategorized_category():
         print(f"\033[92m [✔] 成功将 {rows_updated} 篇未分类文章迁移至新分类。 \033[0m")
     else:
         print(" [-] 暂无需要迁移的文章。")
+
+    # Agent 帖子使用 agent_post_category 作为文集内筛选分类，不应挂到文章分类管理里。
+    agent_coll_ids = Anthology.objects.filter(
+        user_id='admin',
+        type='agent',
+        is_valid=True
+    ).values_list('coll_id', flat=True)
+    agent_posts_to_cleanup = Article.objects.filter(
+        author='admin',
+        is_valid=True,
+        coll_id__in=agent_coll_ids,
+        category__isnull=False
+    )
+    cleanup_count = agent_posts_to_cleanup.count()
+    if cleanup_count > 0:
+        agent_posts_to_cleanup.update(category=None)
+        print(f"\033[92m [✔] 已清理 {cleanup_count} 条 Agent 帖子的文章分类关联。 \033[0m")
 
     print("=" * 60)
 

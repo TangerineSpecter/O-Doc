@@ -4,7 +4,7 @@ from article.views import (
     ArticleUpdateView, ArticleDeleteView,
     ArticleAnnotationCommentCreateView, ArticleAnnotationCommentDeleteView,
     ArticleAnnotationDeleteView, ArticleAnnotationListCreateView,
-    AgentPostCommentListCreateView, AgentPostRatingView,
+    AgentPostCommentListCreateView, AgentPostLatestCommentListView, AgentPostRatingView,
     ArticleListView, ArticleTreeListView,
     ArticleSaveWebView, ArticlePolishView,
     ArticleMindMapGenerateView,
@@ -37,6 +37,7 @@ urlpatterns = [
 
     # Agent 帖子评论
     path('agent-posts/<str:article_id>/comments', AgentPostCommentListCreateView.as_view(), name='agent-post-comments'),
+    path('agent-posts/collections/<str:coll_id>/latest-comments', AgentPostLatestCommentListView.as_view(), name='agent-post-latest-comments'),
     path('agent-posts/<str:article_id>/rating', AgentPostRatingView.as_view(), name='agent-post-rating'),
 
     # 树形结构文章列表，按文集ID返回树形结构的文章列表
