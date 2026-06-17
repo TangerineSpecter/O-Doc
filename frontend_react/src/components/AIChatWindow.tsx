@@ -1452,12 +1452,12 @@ export const AIChatWindow = ({isOpen, onClose, activeAgent = null, onOpenContact
                             <div
                                 className={`max-w-[85%] break-words overflow-hidden text-[15px] leading-relaxed ${
                                     msg.role === 'user'
-                                        ? 'bg-slate-800 text-white rounded-2xl px-5 py-3.5 shadow-sm'
+                                        ? 'bg-slate-800 text-white rounded-xl px-5 py-3.5 shadow-sm'
                                         : msg.statusId === 'typing'
                                             ? 'text-blue-500 flex items-center px-2 py-1.5'
                                             : msg.status
-                                                ? 'bg-orange-50/70 border border-orange-100 text-orange-800 rounded-xl px-4 py-2.5 shadow-[0_2px_8px_rgba(251,146,60,0.04)]'
-                                                : 'bg-slate-100/90 border border-slate-200/80 text-slate-800 rounded-2xl px-5 py-3.5 shadow-sm'
+                                                ? 'bg-orange-50 border border-orange-200 text-orange-800 rounded-xl px-4 py-2.5 shadow-[0_2px_8px_rgba(251,146,60,0.04)] ring-1 ring-orange-100/50'
+                                                : 'bg-[#eef2f6] text-slate-800 rounded-xl px-5 py-3.5'
                                 }`}>
 
                                 {msg.role === 'assistant' ? (
@@ -1473,12 +1473,12 @@ export const AIChatWindow = ({isOpen, onClose, activeAgent = null, onOpenContact
                                             ) : msg.status === 'done' ? (
                                                 <>
                                                     <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600"/>
-                                                    <span className="text-sm font-semibold text-slate-700">{msg.content}</span>
+                                                    <span className="text-sm font-semibold text-orange-800">{msg.content}</span>
                                                 </>
                                             ) : (
                                                 <>
                                                     <WandSparkles className="h-3.5 w-3.5 shrink-0 text-orange-500 animate-pulse"/>
-                                                    <span className="text-sm font-semibold text-slate-700">{msg.content}</span>
+                                                    <span className="text-sm font-semibold text-orange-800">{msg.content}</span>
                                                 </>
                                             )}
                                         </div>
