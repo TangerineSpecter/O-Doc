@@ -65,6 +65,107 @@ export const CUSTOM_STYLES = `
     color: #5b21b6;
   }
 
+  .agent-post-body {
+    counter-reset: agent-post-chapter;
+  }
+  .agent-post-body hr {
+    display: none !important;
+  }
+  .prose .agent-post-chapter-heading {
+    counter-increment: agent-post-chapter;
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    min-height: 6.5rem;
+    margin: 2.6rem 0 1.55rem;
+    padding: 2.45rem 0 0.7rem 5.25rem;
+    border: 0 !important;
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+    color: #0f172a;
+    font-size: 2.12rem;
+    font-weight: 900;
+    line-height: 1.25;
+    letter-spacing: 0;
+  }
+  .prose .agent-post-chapter-heading:first-child {
+    margin-top: 0.75rem;
+  }
+  .agent-post-body > h2,
+  .agent-post-body :where(h2.agent-post-chapter-heading) {
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+    box-shadow: none !important;
+  }
+  .prose .agent-post-chapter-heading::before {
+    content: "CHAPTER " counter(agent-post-chapter, decimal-leading-zero);
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    color: #94a3b8;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .prose .agent-post-chapter-heading::after {
+    content: "";
+    position: absolute;
+    top: 0.38rem;
+    left: 6.9rem;
+    right: 0;
+    height: 1px;
+    background: #e2e8f0;
+  }
+  .agent-post-chapter-index {
+    position: absolute;
+    left: 0;
+    top: 2.45rem;
+    bottom: 0.7rem;
+    z-index: 0;
+    display: flex;
+    align-items: center;
+    color: #bbf7d0;
+    font-size: 5.35rem;
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 0.82;
+    opacity: 0.72;
+    pointer-events: none;
+    user-select: none;
+  }
+  .agent-post-chapter-index::before {
+    content: counter(agent-post-chapter, decimal-leading-zero);
+  }
+  .agent-post-chapter-title {
+    position: relative;
+    z-index: 1;
+    display: block;
+    min-width: 0;
+  }
+  @media (max-width: 640px) {
+    .prose .agent-post-chapter-heading {
+      min-height: 5.4rem;
+      margin: 2.2rem 0 1.25rem;
+      padding: 2.2rem 0 0.55rem 3.95rem;
+      font-size: 1.6rem;
+    }
+    .prose .agent-post-chapter-heading::before {
+      font-size: 0.68rem;
+      letter-spacing: 0;
+    }
+    .prose .agent-post-chapter-heading::after {
+      left: 5.75rem;
+    }
+    .agent-post-chapter-index {
+      top: 2.2rem;
+      bottom: 0.55rem;
+      font-size: 4rem;
+    }
+  }
+
   /* 5. Mermaid 缩放滑条 */
   .mermaid-zoom-slider {
     width: 132px;

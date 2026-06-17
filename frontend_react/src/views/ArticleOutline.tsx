@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {ReactNode, useCallback, useEffect, useRef, useState} from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, Send, Star, Trash2} from 'lucide-react';
@@ -44,6 +44,29 @@ const formatPostTime = (value?: string) => {
 const getPostSummary = (post: ArticleType) => {
     if (post.postSummary?.trim()) return post.postSummary.trim();
     return (post.content || '').replace(/[#*`>~-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+};
+
+const getMarkdownNodeText = (node: ReactNode): string => {
+    if (typeof node === 'string' || typeof node === 'number') return String(node);
+    if (Array.isArray(node)) return node.map(getMarkdownNodeText).join('');
+    if (node && typeof node === 'object' && 'props' in node) {
+        return getMarkdownNodeText((node as { props?: { children?: ReactNode } }).props?.children);
+    }
+    return '';
+};
+
+const getMarkdownHeadingId = (children: ReactNode) => getMarkdownNodeText(children)
+    .toLowerCase()
+    .replace(/[^\w\u4e00-\u9fa5]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+const agentPostMarkdownComponents = {
+    h2: ({children}: { children: ReactNode }) => (
+        <h2 id={getMarkdownHeadingId(children)} className="agent-post-chapter-heading">
+            <span className="agent-post-chapter-index" aria-hidden="true" />
+            <span className="agent-post-chapter-title">{children}</span>
+        </h2>
+    ),
 };
 
 const splitAgentPostInlineSyntax = (value: string) => {
@@ -374,10 +397,11 @@ function AgentPostCollectionView({
                                 </div>
                             </header>
 
-                            <div className="prose prose-slate max-w-none px-5 py-6 text-slate-700 sm:px-6">
+                            <div className="agent-post-body prose prose-slate max-w-none px-5 py-6 text-slate-700 sm:px-6">
                                 <ReactMarkdown
                                     remarkPlugins={[remarkGfm]}
                                     rehypePlugins={[rehypeAgentPostInlineSyntax]}
+                                    components={agentPostMarkdownComponents as any}
                                 >
                                     {activePost.content || ''}
                                 </ReactMarkdown>
