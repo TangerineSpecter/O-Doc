@@ -6,7 +6,7 @@ import {useNavigate} from 'react-router-dom';
 import Article from './Article';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import SaveWebpageModal from '../components/common/SaveWebpageModal';
-import {CUSTOM_STYLES} from '../components/Article/MarkdownElements';
+import {CodeBlock, CUSTOM_STYLES, MermaidChart, SimpleChart} from '../components/Article/MarkdownElements';
 import OutlineSidebar from '../components/Outline/OutlineSidebar';
 import OutlineContent from '../components/Outline/OutlineContent';
 import {useArticleTree} from '../hooks/useArticleTree';
@@ -61,6 +61,34 @@ const getMarkdownHeadingId = (children: ReactNode) => getMarkdownNodeText(childr
     .replace(/^-+|-+$/g, '');
 
 const agentPostMarkdownComponents = {
+    pre: (props: any) => <div className="not-prose">{props.children}</div>,
+    code(props: any) {
+        const {inline, className, children, ...rest} = props;
+        const match = /language-(\w+)/.exec(className || '');
+        const lang = match ? match[1] : '';
+        const codeStr = String(children).replace(/\n$/, '');
+
+        if (!inline && lang === 'mermaid') {
+            return <MermaidChart chart={codeStr} />;
+        }
+
+        if (!inline && lang === 'chart') {
+            return <SimpleChart chart={codeStr} />;
+        }
+
+        if (!inline && match) {
+            return <CodeBlock language={lang} code={codeStr} {...rest} />;
+        }
+
+        return (
+            <code
+                className="article-inline-code bg-pink-50 text-pink-600 border border-pink-200 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] mx-1 break-words leading-[1.9]"
+                {...props}
+            >
+                {children}
+            </code>
+        );
+    },
     h2: ({children}: { children: ReactNode }) => (
         <h2 id={getMarkdownHeadingId(children)} className="agent-post-chapter-heading">
             <span className="agent-post-chapter-index" aria-hidden="true" />
