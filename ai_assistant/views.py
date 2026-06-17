@@ -114,14 +114,15 @@ class ChatView(APIView):
 
             tool_context = self._build_mcp_tool_context(selected_mcp_servers)
             if tool_context['tools']:
-                tool_prompt = (
+                tool_system_prompt = (
                     system_prompt
                     + "\n\n当前对话已装载 MCP Tools。凡是用户请求需要外部信息、检索、读取链接、操作系统或调用工具时，必须优先调用合适的 Tool；"
                     + "如果缺少必要参数，请先向用户追问，不要编造参数。"
-                    + f"\n\n用户消息：{message}"
                 )
+                tool_messages = [{'role': 'system', 'content': tool_system_prompt}] + history + [
+                    {'role': 'user', 'content': message}]
                 return StreamingHttpResponse(
-                    self._stream_tool_response_generator(tool_prompt, tool_context, include_thinking, use_simple_model),
+                    self._stream_tool_response_generator(tool_messages, tool_context, include_thinking, use_simple_model),
                     content_type='text/event-stream'
                 )
 
@@ -265,7 +266,7 @@ class ChatView(APIView):
             yield json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False) + "\n"
 
     @classmethod
-    def _stream_tool_response_generator(cls, prompt, tool_context, include_thinking=False, use_simple_model=False):
+    def _stream_tool_response_generator(cls, messages, tool_context, include_thinking=False, use_simple_model=False):
         event_queue = queue.Queue()
         done_marker = object()
 
@@ -292,8 +293,8 @@ class ChatView(APIView):
                     event_queue.put({'type': 'mcp_tool_result', **payload})
                     return result
 
-                content = AIService.chat_completion_with_tools(
-                    prompt,
+                content = AIService.chat_completion_messages_with_tools(
+                    messages,
                     tool_context['tools'],
                     execute_with_events,
                     use_simple_model=use_simple_model,

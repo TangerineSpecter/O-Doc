@@ -1427,7 +1427,7 @@ export const AIChatWindow = ({isOpen, onClose, activeAgent = null, onOpenContact
                                 {/* 头像 */}
                                 {showAvatar ? (
                                     <div
-                                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-sm overflow-hidden ${
+                                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm overflow-hidden ${
                                             msg.role === 'user'
                                                 ? 'bg-white text-slate-600 border-slate-200'
                                                 : 'bg-orange-100 text-orange-600 border-orange-200'
@@ -1445,7 +1445,7 @@ export const AIChatWindow = ({isOpen, onClose, activeAgent = null, onOpenContact
                                         )}
                                     </div>
                                 ) : (
-                                    <div className="w-9 h-9 shrink-0" />
+                                    <div className="w-10 h-10 shrink-0" />
                                 )}
 
                             {/* 消息气泡 */}
