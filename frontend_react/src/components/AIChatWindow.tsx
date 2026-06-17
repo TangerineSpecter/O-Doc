@@ -1454,7 +1454,7 @@ export const AIChatWindow = ({isOpen, onClose, activeAgent = null, onOpenContact
                                     msg.role === 'user'
                                         ? 'bg-slate-800 text-white rounded-xl px-5 py-3.5 shadow-sm'
                                         : msg.statusId === 'typing'
-                                            ? 'text-blue-500 flex items-center px-2 py-1.5'
+                                            ? 'flex items-center px-2 py-1.5'
                                             : msg.status
                                                 ? 'bg-orange-50 border border-orange-200 text-orange-800 rounded-xl px-4 py-2.5 shadow-[0_2px_8px_rgba(251,146,60,0.04)] ring-1 ring-orange-100/50'
                                                 : 'bg-[#eef2f6] text-slate-800 rounded-xl px-5 py-3.5'
@@ -1465,11 +1465,15 @@ export const AIChatWindow = ({isOpen, onClose, activeAgent = null, onOpenContact
                                     msg.status ? (
                                         <div className="flex items-center gap-2 px-0.5">
                                             {msg.statusId === 'typing' ? (
-                                                <>
-                                                    <span className="h-2 w-2 animate-bounce rounded-full bg-current [animation-delay:-0.2s]"/>
-                                                    <span className="h-2 w-2 animate-bounce rounded-full bg-current [animation-delay:-0.1s]"/>
-                                                    <span className="h-2 w-2 animate-bounce rounded-full bg-current"/>
-                                                </>
+                                                <div className="flex items-center gap-1.5">
+                                                    <WandSparkles className="w-3.5 h-3.5 shrink-0 text-orange-500" style={{ animation: 'spin 6s linear infinite' }} />
+                                                    <span className="text-[11px] font-semibold text-slate-400 tracking-wider select-none">思考中</span>
+                                                    <span className="flex gap-1 items-center ml-0.5">
+                                                        <span className="h-1 w-1 rounded-full bg-orange-400/80 animate-pulse" style={{ animationDuration: '1.2s' }}/>
+                                                        <span className="h-1 w-1 rounded-full bg-orange-400/80 animate-pulse" style={{ animationDuration: '1.2s', animationDelay: '0.2s' }}/>
+                                                        <span className="h-1 w-1 rounded-full bg-orange-400/80 animate-pulse" style={{ animationDuration: '1.2s', animationDelay: '0.4s' }}/>
+                                                    </span>
+                                                </div>
                                             ) : msg.status === 'done' ? (
                                                 <>
                                                     <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600"/>
