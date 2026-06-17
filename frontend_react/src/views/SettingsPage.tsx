@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import {useSearchParams} from 'react-router-dom';
 import { Save, Bot, CalendarClock, Code2, Cpu, Info, MapPin, RefreshCw, Settings, WandSparkles } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useSettings } from '../hooks/useSettings';
@@ -29,8 +30,15 @@ import { ModelModal } from '../components/Settings/ModelModal';
 import { LocationSettings } from '../components/Settings/LocationSettings';
 import { AboutSettings } from '../components/Settings/AboutSettings';
 
+type SettingsTab = 'ai' | 'agent' | 'mcp' | 'skill' | 'sync' | 'schedule' | 'location' | 'general' | 'about';
+const SETTINGS_TABS: SettingsTab[] = ['ai', 'agent', 'mcp', 'skill', 'sync', 'schedule', 'location', 'general', 'about'];
+
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState<'ai' | 'agent' | 'mcp' | 'skill' | 'sync' | 'schedule' | 'location' | 'general' | 'about'>('ai');
+    const [searchParams] = useSearchParams();
+    const initialTab = searchParams.get('tab');
+    const [activeTab, setActiveTab] = useState<SettingsTab>(
+        SETTINGS_TABS.includes(initialTab as SettingsTab) ? initialTab as SettingsTab : 'ai'
+    );
     const toast = useToast();
     const [headerSaving, setHeaderSaving] = useState(false);
     const [memosPushConfig, setMemosPushConfig] = useState<MemosPushConfig>({
@@ -59,8 +67,15 @@ export default function SettingsPage() {
     const [modelModal, setModelModal] = useState<{ open: boolean, providerId?: string }>({ open: false });
     const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, target?: any }>({ open: false });
 
+    React.useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (SETTINGS_TABS.includes(tab as SettingsTab)) {
+            setActiveTab(tab as SettingsTab);
+        }
+    }, [searchParams]);
+
     // 辅助组件：侧边栏按钮
-    const TabButton = ({ id, label, icon }: { id: typeof activeTab, label: string, icon: React.ReactNode }) => (
+    const TabButton = ({ id, label, icon }: { id: SettingsTab, label: string, icon: React.ReactNode }) => (
         <button
             onClick={() => setActiveTab(id)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all w-full text-left ${activeTab === id

@@ -53,7 +53,8 @@ function HomeRoute() {
         } else if (viewName === 'login') { // 新增
             navigate('/login');
         } else if (viewName === 'settings') { // 新增：处理设置页跳转
-            navigate('/settings');
+            const {tab} = params as { tab?: string };
+            navigate(tab ? `/settings?tab=${encodeURIComponent(tab)}` : '/settings');
         } else if (viewName === 'whiteboard') { // 新增这一行
             navigate('/whiteboard');
         }
@@ -155,7 +156,8 @@ function AppWithRouter() {
         } else if (viewName === 'login') { // 新增：处理登录跳转
             navigate('/login');
         } else if (viewName === 'settings') { // 新增：处理设置页跳转
-            navigate('/settings');
+            const {tab} = params as { tab?: string };
+            navigate(tab ? `/settings?tab=${encodeURIComponent(tab)}` : '/settings');
         } else if (viewName === 'memos') {
             navigate('/memos');
         } else if (viewName === 'resources') {

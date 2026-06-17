@@ -2,6 +2,8 @@
 import logging
 import json
 import re
+import queue
+import threading
 
 from django.http import StreamingHttpResponse
 from rest_framework.permissions import AllowAny
@@ -264,21 +266,49 @@ class ChatView(APIView):
 
     @classmethod
     def _stream_tool_response_generator(cls, prompt, tool_context, include_thinking=False, use_simple_model=False):
-        try:
-            if include_thinking:
-                yield json.dumps({
-                    'type': 'thinking',
-                    'content': '已装载 MCP Tools，正在判断是否需要调用工具。\n'
-                }, ensure_ascii=False) + "\n"
+        event_queue = queue.Queue()
+        done_marker = object()
 
-            content = AIService.chat_completion_with_tools(
-                prompt,
-                tool_context['tools'],
-                lambda tool_name, arguments: cls._execute_mcp_tool(tool_context, tool_name, arguments),
-                use_simple_model=use_simple_model,
-            )
+        def describe_tool(safe_tool_name):
+            entry = tool_context['tool_map'].get(safe_tool_name) or {}
+            server = entry.get('server')
+            return {
+                'toolName': entry.get('tool_name') or safe_tool_name,
+                'serverName': getattr(server, 'name', '') or 'MCP',
+            }
 
-            yield json.dumps({'type': 'answer', 'content': content}, ensure_ascii=False) + "\n"
-        except Exception as e:
-            logger.error(f"Tool Stream Generation Error: {e}")
-            yield json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False) + "\n"
+        def run_tool_chat():
+            try:
+                if include_thinking:
+                    event_queue.put({
+                        'type': 'thinking',
+                        'content': '已装载 MCP Tools，正在判断是否需要调用工具。\n'
+                    })
+
+                def execute_with_events(tool_name, arguments):
+                    payload = describe_tool(tool_name)
+                    event_queue.put({'type': 'mcp_tool_call', **payload})
+                    result = cls._execute_mcp_tool(tool_context, tool_name, arguments)
+                    event_queue.put({'type': 'mcp_tool_result', **payload})
+                    return result
+
+                content = AIService.chat_completion_with_tools(
+                    prompt,
+                    tool_context['tools'],
+                    execute_with_events,
+                    use_simple_model=use_simple_model,
+                )
+                event_queue.put({'type': 'answer', 'content': content})
+            except Exception as e:
+                logger.error(f"Tool Stream Generation Error: {e}")
+                event_queue.put({'type': 'error', 'content': str(e)})
+            finally:
+                event_queue.put(done_marker)
+
+        threading.Thread(target=run_tool_chat, daemon=True).start()
+
+        while True:
+            event = event_queue.get()
+            if event is done_marker:
+                break
+            yield json.dumps(event, ensure_ascii=False) + "\n"

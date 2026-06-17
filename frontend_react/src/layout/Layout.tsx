@@ -2,8 +2,10 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { Bot, MessageCircle } from 'lucide-react';
 import FloatingActionMenu from '../components/FloatingActionMenu';
 import { AIChatWindow } from '../components/AIChatWindow';
+import AgentContactPanel from '../components/AgentContactPanel';
 import { getUserInfo } from '../api/user';
 import type { UserInfo } from '../types/api/user';
+import type { AgentConfig } from '../types/api/setting';
 import Navbar from './Navbar';
 import SearchModal from '../components/SearchModal';
 import ProfileCenterModal from '../components/ProfileCenterModal';
@@ -19,6 +21,8 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
     // --- 状态管理 ---
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [isAgentPanelOpen, setIsAgentPanelOpen] = useState(false);
+    const [activeAgent, setActiveAgent] = useState<AgentConfig | null>(null);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
@@ -40,7 +44,36 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
         clearAuthToken();
         setUserInfo(null);
         setIsProfileOpen(false);
+        setIsAgentPanelOpen(false);
+        setActiveAgent(null);
         if (onNavigate) onNavigate('login');
+    };
+
+    const handleOpenAIEntry = () => {
+        if (isAuthenticated) {
+            setIsAgentPanelOpen(true);
+            return;
+        }
+        setActiveAgent(null);
+        setIsChatOpen(true);
+    };
+
+    const handleStartPublicChat = () => {
+        setActiveAgent(null);
+        setIsAgentPanelOpen(false);
+        setIsChatOpen(true);
+    };
+
+    const handleStartAgentChat = (agent: AgentConfig) => {
+        setActiveAgent(agent);
+        setIsAgentPanelOpen(false);
+        setIsChatOpen(true);
+    };
+
+    const handleOpenContactsFromChat = () => {
+        if (!isAuthenticated) return;
+        setIsChatOpen(false);
+        setIsAgentPanelOpen(true);
     };
 
     // --- 键盘快捷键 (⌘K) ---
@@ -61,14 +94,31 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
         <AuthProvider value={{ userInfo, isAuthenticated }}>
         <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-orange-100 selection:text-orange-900">
 
-            <AIChatWindow isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+            <AIChatWindow
+                isOpen={isChatOpen}
+                onClose={() => setIsChatOpen(false)}
+                activeAgent={activeAgent}
+                onOpenContacts={isAuthenticated ? handleOpenContactsFromChat : undefined}
+                onSelectAgent={isAuthenticated ? setActiveAgent : undefined}
+            />
 
-            {!isChatOpen && (
+            <AgentContactPanel
+                isOpen={isAgentPanelOpen}
+                onClose={() => setIsAgentPanelOpen(false)}
+                onStartPublicChat={handleStartPublicChat}
+                onStartAgentChat={handleStartAgentChat}
+                onManageAgents={() => {
+                    setIsAgentPanelOpen(false);
+                    onNavigate?.('settings', {tab: 'agent'});
+                }}
+            />
+
+            {!isChatOpen && !isAgentPanelOpen && (
                 <button
                     type="button"
-                    onClick={() => setIsChatOpen(true)}
+                    onClick={handleOpenAIEntry}
                     className="fixed right-0 top-1/2 -translate-y-1/2 z-[80] bg-gradient-to-r from-orange-500 to-orange-600 text-white p-3 rounded-l-xl shadow-lg cursor-pointer hover:w-20 transition-all w-12 flex flex-col items-center gap-3 group border-y border-l border-white/20"
-                    title="打开小橘 AI助手"
+                    title={isAuthenticated ? '打开 AI 中心' : '打开小橘 AI助手'}
                 >
                     <Bot className="w-6 h-6"/>
                     <div className="flex flex-col items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">

@@ -1,13 +1,14 @@
 // frontend_react/src/components/AIChatWindow.tsx
 
 import {useEffect, useRef, useState, useMemo} from 'react';
-import {BookOpen, Bot, BrainCircuit, Check, ChevronDown, Loader2, Maximize2, Minimize2, Plug, Send, Sparkles, Trash2, User, WandSparkles, X} from 'lucide-react';
+import {BookOpen, Bot, BrainCircuit, Check, ChevronDown, Loader2, Maximize2, MessageCircle, Minimize2, Plug, Search, Send, Trash2, User, WandSparkles, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import { useAuth } from '../contexts/AuthContext';
 
 // 引入自定义组件和 API
 import {AIConfigError} from '../api/ai';
@@ -15,7 +16,7 @@ import ConfirmationModal from './common/ConfirmationModal';
 import {getArticleDetail} from '../api/article';
 import {getAnthologyList, type Anthology} from '../api/anthology';
 import {getImagesByAnthology, type Image} from '../api/image';
-import {getMCPServers, getSkills, type MCPServerConfig, type SkillConfig} from '../api/setting';
+import {getAgents, getMCPServers, getSkills, type AgentConfig, type MCPServerConfig, type SkillConfig} from '../api/setting';
 import {CodeBlock, MermaidChart, SimpleChart} from './Article/MarkdownElements';
 import {Select, type SelectOption} from './common/Select';
 
@@ -23,9 +24,16 @@ interface Message {
     role: 'user' | 'assistant';
     content: string;
     thinking?: string;
+    statusId?: string;
+    status?: ActivityStatus;
 }
 
 type ActivityStatus = 'queued' | 'active' | 'done';
+
+interface StreamChar {
+    conversationKey: string;
+    value: string;
+}
 
 interface ActivityStep {
     id: string;
@@ -37,11 +45,102 @@ interface ActivityStep {
 interface AIChatWindowProps {
     isOpen: boolean;
     onClose: () => void;
+    activeAgent?: AgentConfig | null;
+    onOpenContacts?: () => void;
+    onSelectAgent?: (agent: AgentConfig | null) => void;
 }
 
 type AssistantMode = 'disabled' | 'manual' | 'auto';
 
 const PHOTOGRAPHY_MCP_ID = 'system:photography';
+const CHAT_STORAGE_PREFIX = 'o-doc:ai-chat:';
+
+const getAgentId = (agent?: AgentConfig | null) => {
+    if (!agent) return '';
+    const raw = agent as AgentConfig & {agentId?: string; agent_id?: string};
+    return String(raw.id || raw.agentId || raw.agent_id || '').trim();
+};
+
+const getAgentConversationKey = (agent?: AgentConfig | null) => {
+    const id = getAgentId(agent);
+    if (id) return `agent:${id}`;
+    const name = agent?.name?.trim();
+    return name ? `agent-name:${name}` : 'public';
+};
+
+const getChatStorageKey = (conversationKey: string) => `${CHAT_STORAGE_PREFIX}${conversationKey}`;
+
+const readStoredConversation = (conversationKey: string): {messages: Message[]; updatedAt?: string} => {
+    try {
+        const raw = localStorage.getItem(getChatStorageKey(conversationKey));
+        if (!raw) return {messages: []};
+        const parsed = JSON.parse(raw) as {messages?: Message[]};
+        return {
+            messages: Array.isArray(parsed.messages) ? parsed.messages : [],
+            updatedAt: (parsed as {updatedAt?: string}).updatedAt,
+        };
+    } catch (error) {
+        console.warn('读取本地聊天记录失败:', error);
+        return {messages: []};
+    }
+};
+
+const loadStoredMessages = (conversationKey: string): Message[] => readStoredConversation(conversationKey).messages;
+
+const getConversationSummary = (conversationKey: string, liveMessages?: Message[]) => {
+    const stored = liveMessages ? {messages: liveMessages, updatedAt: new Date().toISOString()} : readStoredConversation(conversationKey);
+    const lastMessage = [...stored.messages].reverse().find(message => message.content?.trim());
+    return {
+        content: lastMessage?.content?.trim().replace(/\s+/g, ' ') || '还没有对话，点开开始聊天',
+        updatedAt: lastMessage ? stored.updatedAt || '' : '',
+    };
+};
+
+const formatSummaryDate = (value: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    if (date.toDateString() === new Date().toDateString()) {
+        return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    }
+    return `${date.getMonth() + 1}月${date.getDate()}日`;
+};
+
+const normalizeStreamContent = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (value == null) return '';
+    if (Array.isArray(value)) {
+        return value.map(item => normalizeStreamContent(item)).join('');
+    }
+    if (typeof value === 'object') {
+        const record = value as Record<string, unknown>;
+        return normalizeStreamContent(record.content ?? record.text ?? record.value ?? '');
+    }
+    return String(value);
+};
+
+const normalizeEventText = (value: unknown): string => {
+    return normalizeStreamContent(value).trim();
+};
+
+const saveStoredMessages = (conversationKey: string, messages: Message[]) => {
+    try {
+        localStorage.setItem(getChatStorageKey(conversationKey), JSON.stringify({
+            messages,
+            updatedAt: new Date().toISOString(),
+        }));
+    } catch (error) {
+        console.warn('保存本地聊天记录失败:', error);
+    }
+};
+
+const clearStoredMessages = (conversationKey: string) => {
+    try {
+        localStorage.removeItem(getChatStorageKey(conversationKey));
+    } catch (error) {
+        console.warn('清空本地聊天记录失败:', error);
+    }
+};
 
 const parseImageTags = (image: Image) => {
     const source = image.tagsList?.length ? image.tagsList : (image.tags || '').split(/[,，、;；\n]/);
@@ -224,8 +323,9 @@ ${samples || '暂无有焦段的图片样本'}
 5. 如果数据量太少或焦段缺失较多，请明确提醒。`;
 };
 
-export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
+export const AIChatWindow = ({isOpen, onClose, activeAgent = null, onOpenContacts, onSelectAgent}: AIChatWindowProps) => {
     const navigate = useNavigate();
+    const { userInfo } = useAuth();
 
     // 窗口状态
     const [isMinimized, setIsMinimized] = useState(false);
@@ -233,6 +333,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     // 对话状态
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
+    const [messagesConversationKey, setMessagesConversationKey] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [useKb, setUseKb] = useState(false);
     const [useThinking, setUseThinking] = useState(false);
@@ -247,6 +348,9 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
     const [skillPanelOpen, setSkillPanelOpen] = useState(false);
     const [activitySteps, setActivitySteps] = useState<ActivityStep[]>([]);
+    const [contactSidebarOpen, setContactSidebarOpen] = useState(true);
+    const [contactAgents, setContactAgents] = useState<AgentConfig[]>([]);
+    const [contactQuery, setContactQuery] = useState('');
 
     // 弹窗状态
     const [isClearModalOpen, setIsClearModalOpen] = useState(false);
@@ -284,16 +388,78 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
     const getSkillName = (skillId: string) => (
         chatSkills.find(skill => skill.id === skillId)?.name || skillId
     );
+    const activeAgentSkills = activeAgent?.skills?.map(getSkillName).filter(Boolean) || [];
+    const activeAgentMcpServers = activeAgent?.mcpServers?.map(getMcpName).filter(Boolean) || [];
+    const activeAgentName = activeAgent?.name || '小橘 AI助手';
+    const activeConversationKey = activeAgent ? getAgentConversationKey(activeAgent) : 'public';
+    const showContactSidebar = Boolean(onSelectAgent) && contactSidebarOpen;
+    const conversationItems = useMemo(() => {
+        const keyword = contactQuery.trim().toLowerCase();
+        const liveMessages = messagesConversationKey === activeConversationKey ? messages : undefined;
+        const publicSummary = getConversationSummary('public', activeConversationKey === 'public' ? liveMessages : undefined);
+        const items = [
+            {
+                id: 'public',
+                name: '小橘助手',
+                agent: null as AgentConfig | null,
+                avatar: '',
+                badge: '公共',
+                summary: publicSummary,
+            },
+            ...contactAgents.map(agent => ({
+                id: getAgentConversationKey(agent),
+                name: agent.name,
+                agent,
+                avatar: agent.avatar,
+                badge: '智能体',
+                summary: getConversationSummary(getAgentConversationKey(agent), activeConversationKey === getAgentConversationKey(agent) ? liveMessages : undefined),
+            })),
+        ];
+
+        if (!keyword) return items;
+        return items.filter(item => `${item.name} ${item.summary.content}`.toLowerCase().includes(keyword));
+    }, [activeConversationKey, contactAgents, contactQuery, messages, messagesConversationKey]);
 
     // --- 平滑输出相关的 Refs ---
     const chatBodyRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const mcpPanelRef = useRef<HTMLDivElement>(null);
-    const tokenQueueRef = useRef<string[]>([]); // 回答字符缓冲队列
-    const thinkingQueueRef = useRef<string[]>([]); // 思考字符缓冲队列
+    const tokenQueueRef = useRef<StreamChar[]>([]); // 回答字符缓冲队列
+    const thinkingQueueRef = useRef<StreamChar[]>([]); // 思考字符缓冲队列
     const isThinkingRef = useRef(false); // 标记是否正在输出中
     const streamFinishedRef = useRef(true);
     const shouldAutoScrollRef = useRef(true);
+    const conversationKeyRef = useRef('');
+    const generationConversationKeyRef = useRef('');
+
+    const updateConversationMessages = (conversationKey: string, updater: (prev: Message[]) => Message[]) => {
+        if (conversationKeyRef.current === conversationKey) {
+            setMessagesConversationKey(conversationKey);
+            setMessages(prev => {
+                const next = updater(prev);
+                if (next.length > 0) saveStoredMessages(conversationKey, next);
+                return next;
+            });
+            return;
+        }
+
+        const next = updater(loadStoredMessages(conversationKey));
+        if (next.length > 0) saveStoredMessages(conversationKey, next);
+    };
+
+    const updateStatusMessages = (conversationKey: string, updater: (step: ActivityStep) => ActivityStep) => {
+        const activityStatusIds = new Set(['typing', 'photography', 'knowledge', 'mcp', 'skill', 'answer']);
+        updateConversationMessages(conversationKey, prev => prev.map(message => {
+            if (!message.statusId || !message.status) return message;
+            if (!activityStatusIds.has(message.statusId)) return message;
+            const next = updater({
+                id: message.statusId,
+                label: message.content,
+                status: message.status,
+            });
+            return {...message, status: next.status};
+        }));
+    };
 
     // --- Markdown 组件配置 (使用 useMemo 避免重复创建导致重渲染) ---
     const markdownComponents = useMemo(() => ({
@@ -321,7 +487,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             // 行内代码
             return (
                 <code
-                    className="bg-slate-100 text-orange-600 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] mx-1 break-words border border-slate-200"
+                    className="bg-white text-orange-600 px-1.5 py-0.5 rounded-md font-mono text-[0.9em] mx-1 break-words border border-slate-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
                     {...props}
                 >
                     {children}
@@ -373,7 +539,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         },
         // 3. 优化表格样式
         table: ({children}: any) => (
-            <div className="overflow-x-auto my-4 border border-slate-200 rounded-lg bg-white/50">
+            <div className="overflow-x-auto my-4 border border-slate-200 rounded-lg bg-white shadow-sm">
                 <table className="w-full text-sm text-left">{children}</table>
             </div>
         ),
@@ -450,6 +616,25 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
 
     useEffect(() => {
         if (!isOpen) return;
+        if (conversationKeyRef.current === activeConversationKey) return;
+
+        conversationKeyRef.current = activeConversationKey;
+        setMessages(loadStoredMessages(activeConversationKey));
+        setMessagesConversationKey(activeConversationKey);
+        setInput('');
+        setActivitySteps([]);
+        setIsLoading(isThinkingRef.current && generationConversationKeyRef.current === activeConversationKey);
+    }, [activeConversationKey, isOpen]);
+
+    useEffect(() => {
+        if (!isOpen || conversationKeyRef.current !== activeConversationKey) return;
+        if (messagesConversationKey !== activeConversationKey) return;
+        if (messages.length === 0) return;
+        saveStoredMessages(activeConversationKey, messages);
+    }, [activeConversationKey, isOpen, messages, messagesConversationKey]);
+
+    useEffect(() => {
+        if (!isOpen) return;
 
         Promise.all([getSkills(), getMCPServers()])
             .then(([skillData, mcpData]) => {
@@ -466,6 +651,14 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 console.warn('加载 AI 对话配置失败:', error);
             });
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen || !onSelectAgent) return;
+
+        getAgents()
+            .then(data => setContactAgents((data || []) as unknown as AgentConfig[]))
+            .catch(error => console.warn('加载智能体列表失败:', error));
+    }, [isOpen, onSelectAgent]);
 
     useEffect(() => {
         if (!mcpPanelOpen) return;
@@ -491,27 +684,37 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
 
     // --- 核心逻辑 1: 平滑输出定时器 ---
     useEffect(() => {
-        const takeSmoothChars = (queue: string[]) => {
+        const takeSmoothChars = (queue: StreamChar[]) => {
             const length = queue.length;
-            if (length === 0) return '';
+            if (length === 0) return {conversationKey: '', text: ''};
 
             const count = length > 240 ? 6 : length > 120 ? 4 : length > 48 ? 2 : 1;
-            return queue.splice(0, count).join('');
+            const conversationKey = queue[0].conversationKey;
+            const chars: string[] = [];
+
+            while (chars.length < count && queue[0]?.conversationKey === conversationKey) {
+                chars.push(queue.shift()?.value || '');
+            }
+
+            return {conversationKey, text: chars.join('')};
         };
 
         const interval = setInterval(() => {
             const nextAnswerChars = takeSmoothChars(tokenQueueRef.current);
             const nextThinkingChars = takeSmoothChars(thinkingQueueRef.current);
 
-            if (nextAnswerChars || nextThinkingChars) {
-                setMessages(prev => {
+            if (nextAnswerChars.text || nextThinkingChars.text) {
+                const conversationKey = nextAnswerChars.conversationKey || nextThinkingChars.conversationKey;
+                updateConversationMessages(conversationKey, prev => {
                     const newMsgs = [...prev];
                     const lastMsg = newMsgs[newMsgs.length - 1];
                     if (lastMsg && lastMsg.role === 'assistant') {
                         newMsgs[newMsgs.length - 1] = {
                             ...lastMsg,
-                            content: `${lastMsg.content}${nextAnswerChars}`,
-                            thinking: `${lastMsg.thinking || ''}${nextThinkingChars}`
+                            status: undefined,
+                            statusId: undefined,
+                            content: `${lastMsg.content}${nextAnswerChars.text}`,
+                            thinking: `${lastMsg.thinking || ''}${nextThinkingChars.text}`
                         };
                     }
                     return newMsgs;
@@ -526,7 +729,8 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             ) {
                 isThinkingRef.current = false;
                 setIsLoading(false);
-                completeActivitySteps();
+                completeActivitySteps(generationConversationKeyRef.current);
+                generationConversationKeyRef.current = '';
             }
         }, 24);
 
@@ -644,26 +848,43 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         return steps;
     };
 
-    const activateWaitingSteps = () => {
-        setActivitySteps(prev => prev.map(step => {
+    const buildStatusMessages = (_steps: ActivityStep[]): Message[] => [{
+        role: 'assistant',
+        content: '',
+        statusId: 'typing',
+        status: 'active',
+    }];
+
+    const updateActivityStepMessages = (conversationKey: string, mapper: (step: ActivityStep) => ActivityStep) => {
+        updateStatusMessages(conversationKey, mapper);
+        if (conversationKeyRef.current === conversationKey) {
+            setActivitySteps(prev => prev.map(mapper));
+        }
+    };
+
+    const activateWaitingSteps = (conversationKey = activeConversationKey) => {
+        updateActivityStepMessages(conversationKey, step => {
             if (step.id === 'answer') return step.status === 'queued' ? {...step, status: 'queued'} : step;
             return step.status === 'queued' ? {...step, status: 'active'} : step;
-        }));
+        });
     };
 
-    const activateAnswerStep = () => {
-        setActivitySteps(prev => prev.map(step => {
+    const activateAnswerStep = (conversationKey = activeConversationKey) => {
+        updateActivityStepMessages(conversationKey, step => {
             if (step.id === 'answer') return {...step, status: 'active'};
             return step.status === 'active' || step.status === 'queued' ? {...step, status: 'done'} : step;
-        }));
+        });
     };
 
-    const completeActivitySteps = () => {
-        setActivitySteps(prev => prev.map(step => ({...step, status: 'done'})));
+    const completeActivitySteps = (conversationKey = activeConversationKey) => {
+        updateConversationMessages(conversationKey, prev => prev.filter(message => message.statusId !== 'typing'));
+        if (conversationKeyRef.current === conversationKey) {
+            setActivitySteps(prev => prev.map(step => ({...step, status: 'done'})));
+        }
     };
 
-    const completeActivityStep = (id: string) => {
-        setActivitySteps(prev => prev.map(step => step.id === id ? {...step, status: 'done'} : step));
+    const completeActivityStep = (id: string, conversationKey = activeConversationKey) => {
+        updateActivityStepMessages(conversationKey, step => step.id === id ? {...step, status: 'done'} : step);
     };
 
     // 执行清空操作
@@ -673,6 +894,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         streamFinishedRef.current = true;
         isThinkingRef.current = false;
         setMessages([]);
+        clearStoredMessages(activeConversationKey);
         setIsLoading(false);
         setActivitySteps([]);
         setIsClearModalOpen(false);
@@ -699,6 +921,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         if (!input.trim() || isLoading) return;
 
         const userMsg = input;
+        const requestConversationKey = activeConversationKey;
         setInput('');
 
         tokenQueueRef.current = [];
@@ -706,12 +929,10 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
         setActivitySteps([]);
         streamFinishedRef.current = false;
         shouldAutoScrollRef.current = true;
-        setMessages(prev => [...prev, {role: 'user', content: userMsg}]);
+        generationConversationKeyRef.current = requestConversationKey;
+        setMessagesConversationKey(requestConversationKey);
         setIsLoading(true);
         isThinkingRef.current = true;
-
-        // 预先添加一个空的 assistant 消息用于接收流
-        setMessages(prev => [...prev, {role: 'assistant', content: '', thinking: ''}]);
 
         try {
             let messageForAI = userMsg;
@@ -723,7 +944,13 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 : assistantMode === 'manual'
                     ? selectedMcpIds.filter(id => id !== PHOTOGRAPHY_MCP_ID)
                     : chatMcpServers.map(server => server.id);
-            setActivitySteps(buildActivitySteps(usePhotographyAssistant, activeMcpServerIds));
+            const nextActivitySteps = buildActivitySteps(usePhotographyAssistant, activeMcpServerIds);
+            setActivitySteps(nextActivitySteps);
+            updateConversationMessages(requestConversationKey, prev => [
+                ...prev,
+                {role: 'user', content: userMsg},
+                ...buildStatusMessages(nextActivitySteps),
+            ]);
 
             if (usePhotographyAssistant) {
                 const target = resolvePhotographyAnthologies(userMsg, imageAnthologies);
@@ -732,7 +959,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                     isThinkingRef.current = false;
                     setIsLoading(false);
                     setActivitySteps([]);
-                    setMessages(prev => {
+                    updateConversationMessages(requestConversationKey, prev => {
                         const newMsgs = [...prev];
                         newMsgs[newMsgs.length - 1] = {
                             role: 'assistant',
@@ -760,10 +987,10 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                 const anthologyTitle = target.title || `图片文集（${targetAnthologies.length} 个）`;
 
                 messageForAI = buildPhotographyAnalysisPrompt(userMsg, allImages, anthologyTitle);
-                completeActivityStep('photography');
+                completeActivityStep('photography', requestConversationKey);
             }
 
-            activateWaitingSteps();
+            activateWaitingSteps(requestConversationKey);
 
             const response = await fetch('/api/ai/chat/', {
                 method: 'POST',
@@ -774,6 +1001,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                     use_knowledge_base: useKb && !usePhotographyAssistant,
                     coll_id: useKb && !usePhotographyAssistant && selectedCollId ? selectedCollId : undefined,
                     include_thinking: useThinking,
+                    agent_id: activeAgent?.id,
                     mcp_server_ids: activeMcpServerIds,
                     skills: selectedSkillIds,
                 })
@@ -802,16 +1030,37 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             const decoder = new TextDecoder();
             let fullText = '';
             let buffer = '';
+            let hasCreatedAnswerBubble = false;
+
+            const ensureAnswerBubble = () => {
+                if (!hasCreatedAnswerBubble) {
+                    hasCreatedAnswerBubble = true;
+                    updateConversationMessages(requestConversationKey, prev => {
+                        // 过滤掉思考中（typing）占位气泡
+                        const filtered = prev.filter(msg => msg.statusId !== 'typing');
+                        return [
+                            ...filtered,
+                            {
+                                role: 'assistant',
+                                content: '',
+                                thinking: '',
+                            }
+                        ];
+                    });
+                }
+            };
 
             const appendAnswer = (content: string) => {
+                ensureAnswerBubble();
                 for (const char of content) {
-                    tokenQueueRef.current.push(char);
+                    tokenQueueRef.current.push({conversationKey: requestConversationKey, value: char});
                 }
             };
 
             const appendThinking = (content: string) => {
+                ensureAnswerBubble();
                 for (const char of content) {
-                    thinkingQueueRef.current.push(char);
+                    thinkingQueueRef.current.push({conversationKey: requestConversationKey, value: char});
                 }
             };
 
@@ -820,7 +1069,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
 
                 try {
                     const event = JSON.parse(line);
-                    const content = event.content || '';
+                    const content = normalizeStreamContent(event.content);
 
                     if (event.type === 'error') {
                         throw new Error(content || 'AI 服务异常，请检查配置');
@@ -831,8 +1080,52 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                         return;
                     }
 
+                    if (event.type === 'mcp_tool_call') {
+                        const serverName = normalizeEventText(event.serverName) || 'MCP';
+                        updateConversationMessages(requestConversationKey, prev => {
+                            // 过滤掉思考中（typing）占位气泡
+                            const filtered = prev.filter(msg => msg.statusId !== 'typing');
+                            return [
+                                ...filtered,
+                                {
+                                    role: 'assistant',
+                                    content: `正在使用 ${serverName}`,
+                                    statusId: `mcp-${Date.now()}`,
+                                    status: 'active',
+                                }
+                            ];
+                        });
+                        return;
+                    }
+
+                    if (event.type === 'mcp_tool_result') {
+                        const serverName = normalizeEventText(event.serverName) || 'MCP';
+                        updateConversationMessages(requestConversationKey, prev => {
+                            const newMsgs = [...prev];
+                            // 从后往前寻找最近的一条正在进行的该 MCP 气泡并更新
+                            for (let i = newMsgs.length - 1; i >= 0; i--) {
+                                const msg = newMsgs[i];
+                                if (
+                                    msg.role === 'assistant' &&
+                                    msg.status === 'active' &&
+                                    msg.statusId?.startsWith('mcp-')
+                                ) {
+                                    newMsgs[i] = {
+                                        ...msg,
+                                        content: `${serverName} 处理完毕`,
+                                        status: 'done',
+                                        statusId: `mcp-done-${Date.now()}`
+                                    };
+                                    break;
+                                }
+                            }
+                            return newMsgs;
+                        });
+                        return;
+                    }
+
                     if (content) {
-                        activateAnswerStep();
+                        activateAnswerStep(requestConversationKey);
                     }
                     appendAnswer(content);
                 } catch (error) {
@@ -879,7 +1172,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
             isThinkingRef.current = false;
             setIsLoading(false);
             setActivitySteps([]);
-            setMessages(prev => {
+            updateConversationMessages(requestConversationKey, prev => {
                 const newMsgs = [...prev];
                 if (error instanceof AIConfigError) {
                     newMsgs[newMsgs.length - 1].content = `⚠️ ${error.message}`;
@@ -930,22 +1223,127 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
 
             {/* 主对话框容器 */}
             <div
-                className="relative w-[900px] max-w-[95vw] h-[80vh] max-h-[820px] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 ring-1 ring-slate-900/5 overflow-hidden"
+                className="relative h-[80vh] max-h-[820px] w-[min(1120px,95vw)] bg-white rounded-2xl shadow-2xl border border-slate-200 flex animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 ring-1 ring-slate-900/5 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
+                {showContactSidebar && (
+                    <aside className="hidden w-72 shrink-0 border-r border-slate-100 bg-slate-50/80 md:flex md:flex-col">
+                        <div className="border-b border-slate-100 px-4 py-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-base font-bold text-slate-900">AI 中心</h2>
+                                    <p className="mt-0.5 text-xs text-slate-400">选择助手或智能体</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setContactSidebarOpen(false)}
+                                    className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
+                                    title="收起列表"
+                                >
+                                    <ChevronDown className="h-4 w-4 rotate-90"/>
+                                </button>
+                            </div>
+                            <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-orange-300 focus-within:ring-2 focus-within:ring-orange-500/10">
+                                <Search className="h-4 w-4 text-slate-400"/>
+                                <input
+                                    value={contactQuery}
+                                    onChange={(event) => setContactQuery(event.target.value)}
+                                    className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                                    placeholder="搜索会话"
+                                />
+                            </div>
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                            {conversationItems.map(item => {
+                                const active = activeConversationKey === item.id;
+                                return (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => onSelectAgent?.(item.agent)}
+                                        className={`mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all last:mb-0 ${
+                                            active
+                                                ? 'bg-orange-50 text-slate-900 shadow-sm ring-1 ring-orange-100'
+                                                : 'text-slate-600 hover:bg-white hover:shadow-sm'
+                                        }`}
+                                    >
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white bg-orange-50 text-orange-600 shadow-sm">
+                                            {item.avatar ? (
+                                                <img src={item.avatar} alt={item.name} className="h-full w-full object-cover"/>
+                                            ) : (
+                                                <Bot className="h-5 w-5"/>
+                                            )}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex min-w-0 items-center gap-1.5">
+                                                    <span className="truncate text-sm font-bold">{item.name}</span>
+                                                    <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-4 ${
+                                                        item.agent ? 'bg-violet-100 text-violet-600' : 'bg-slate-100 text-slate-500'
+                                                    }`}>
+                                                        {item.badge}
+                                                    </span>
+                                                </div>
+                                                <span className="shrink-0 text-[11px] text-slate-400">{formatSummaryDate(item.summary.updatedAt)}</span>
+                                            </div>
+                                            <p className="mt-1 truncate text-xs text-slate-400">{item.summary.content}</p>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </aside>
+                )}
+
+                <div className="flex min-w-0 flex-1 flex-col">
 
                 {/* Header */}
                 <div
                     className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur-sm">
-                    <div className="flex items-center gap-3 text-slate-800 font-bold text-lg">
-                        <div className="p-2 bg-orange-100 text-orange-600 rounded-xl shadow-sm">
-                            <Bot className="w-5 h-5"/>
+                    <div className="min-w-0 flex items-center gap-3 text-slate-800">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-orange-100 bg-orange-100 text-orange-600 shadow-sm">
+                            {activeAgent?.avatar ? (
+                                <img src={activeAgent.avatar} alt={activeAgent.name} className="h-full w-full object-cover"/>
+                            ) : (
+                                <Bot className="w-5 h-5"/>
+                            )}
                         </div>
-                        <span>小橘 AI助手</span>
-                        <span
-                            className="text-xs font-normal text-slate-400 px-2 py-0.5 bg-slate-100 rounded-full border border-slate-200">Pro</span>
+                        <div className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-2">
+                                <span className="truncate text-lg font-bold">{activeAgentName}</span>
+                                <span
+                                    className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold leading-5 ${
+                                        activeAgent
+                                            ? 'bg-violet-100 text-violet-600'
+                                            : 'bg-slate-100 text-slate-400'
+                                    }`}
+                                >
+                                    {activeAgent ? '智能体' : '公共'}
+                                </span>
+                            </div>
+                            {activeAgent && (
+                                <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] font-normal text-slate-400">
+                                    {activeAgent.modelDetail?.name && <span className="truncate">模型：{activeAgent.modelDetail.name}</span>}
+                                    {(activeAgentSkills.length > 0 || activeAgentMcpServers.length > 0) && (
+                                        <span className="truncate">
+                                            {activeAgent.modelDetail?.name ? ' · ' : ''}
+                                            {activeAgentSkills.length} 技能 / {activeAgentMcpServers.length} 工具
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div className="flex items-center gap-1">
+                        {onOpenContacts && (
+                            <button
+                                onClick={() => setContactSidebarOpen(prev => !prev)}
+                                className="mr-1 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-200 hover:text-orange-600"
+                                title={contactSidebarOpen ? '收起会话列表' : '展开会话列表'}
+                            >
+                                <MessageCircle className="w-5 h-5"/>
+                            </button>
+                        )}
                         <button
                             onClick={handleClearMessages}
                             disabled={messages.length === 0}
@@ -985,93 +1383,107 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                         <div
                             className="h-full flex flex-col items-center justify-center text-slate-400 space-y-6 -mt-10">
                             <div
-                                className="w-20 h-20 bg-white rounded-3xl shadow-sm border border-slate-100 flex items-center justify-center">
-                                <Bot className="w-10 h-10 text-orange-500"/>
+                                className="w-20 h-20 bg-white rounded-3xl shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
+                                {activeAgent?.avatar ? (
+                                    <img src={activeAgent.avatar} alt={activeAgent.name} className="h-full w-full object-cover"/>
+                                ) : (
+                                    <Bot className="w-10 h-10 text-orange-500"/>
+                                )}
                             </div>
                             <div className="text-center space-y-2">
-                                <p className="text-lg font-medium text-slate-600">有什么可以帮你的吗？</p>
+                                <p className="text-lg font-medium text-slate-600">
+                                    {activeAgent ? `和 ${activeAgent.name} 聊点什么？` : '有什么可以帮你的吗？'}
+                                </p>
                                 <div className="flex gap-2 justify-center text-xs text-slate-400">
-                                    <span
-                                        className="px-2 py-1 bg-white border border-slate-200 rounded-md">文档检索</span>
-                                    <span
-                                        className="px-2 py-1 bg-white border border-slate-200 rounded-md">代码生成</span>
-                                    <span
-                                        className="px-2 py-1 bg-white border border-slate-200 rounded-md">创意写作</span>
+                                    {activeAgent ? (
+                                        <>
+                                            <span className="px-2 py-1 bg-white border border-slate-200 rounded-md">
+                                                {activeAgent.modelDetail?.name || 'Agent 模型'}
+                                            </span>
+                                            <span className="px-2 py-1 bg-white border border-slate-200 rounded-md">
+                                                {activeAgentSkills.length} 个技能
+                                            </span>
+                                            <span className="px-2 py-1 bg-white border border-slate-200 rounded-md">
+                                                {activeAgentMcpServers.length} 个工具
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="px-2 py-1 bg-white border border-slate-200 rounded-md">文档检索</span>
+                                            <span className="px-2 py-1 bg-white border border-slate-200 rounded-md">代码生成</span>
+                                            <span className="px-2 py-1 bg-white border border-slate-200 rounded-md">创意写作</span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {messages.map((msg, idx) => (
-                        <div key={idx}
-                             className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                            {/* 头像 */}
-                            <div
-                                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${
-                                    msg.role === 'user'
-                                        ? 'bg-white text-slate-600 border-slate-200'
-                                        : 'bg-orange-100 text-orange-600 border-orange-200'
-                                }`}>
-                                {msg.role === 'user' ? <User className="w-5 h-5"/> : <Bot className="w-5 h-5"/>}
-                            </div>
+                    {messages.map((msg, idx) => {
+                        const showAvatar = idx === 0 || messages[idx - 1].role !== msg.role;
+                        return (
+                            <div key={idx}
+                                 className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                {/* 头像 */}
+                                {showAvatar ? (
+                                    <div
+                                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-sm overflow-hidden ${
+                                            msg.role === 'user'
+                                                ? 'bg-white text-slate-600 border-slate-200'
+                                                : 'bg-orange-100 text-orange-600 border-orange-200'
+                                        }`}>
+                                        {msg.role === 'user' ? (
+                                            userInfo?.avatar ? (
+                                                <img src={userInfo.avatar} alt="用户头像" className="h-full w-full object-cover"/>
+                                            ) : (
+                                                <User className="w-5 h-5"/>
+                                            )
+                                        ) : activeAgent?.avatar ? (
+                                            <img src={activeAgent.avatar} alt={activeAgent.name} className="h-full w-full object-cover"/>
+                                        ) : (
+                                            <Bot className="w-5 h-5"/>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="w-9 h-9 shrink-0" />
+                                )}
 
                             {/* 消息气泡 */}
                             <div
-                                className={`max-w-[85%] px-5 py-3.5 text-[15px] leading-relaxed shadow-sm break-words overflow-hidden ${
+                                className={`max-w-[85%] break-words overflow-hidden text-[15px] leading-relaxed ${
                                     msg.role === 'user'
-                                        ? 'bg-slate-800 text-white rounded-2xl rounded-tr-none'
-                                        : 'bg-white border border-slate-100 text-slate-700 rounded-2xl rounded-tl-none'
+                                        ? 'bg-slate-800 text-white rounded-2xl px-5 py-3.5 shadow-sm'
+                                        : msg.statusId === 'typing'
+                                            ? 'text-blue-500 flex items-center px-2 py-1.5'
+                                            : msg.status
+                                                ? 'bg-orange-50/70 border border-orange-100 text-orange-800 rounded-xl px-4 py-2.5 shadow-[0_2px_8px_rgba(251,146,60,0.04)]'
+                                                : 'bg-slate-100/90 border border-slate-200/80 text-slate-800 rounded-2xl px-5 py-3.5 shadow-sm'
                                 }`}>
 
                                 {msg.role === 'assistant' ? (
                                     /* AI 回复使用 ReactMarkdown 渲染，支持引用链接点击跳转 */
+                                    msg.status ? (
+                                        <div className="flex items-center gap-2 px-0.5">
+                                            {msg.statusId === 'typing' ? (
+                                                <>
+                                                    <span className="h-2 w-2 animate-bounce rounded-full bg-current [animation-delay:-0.2s]"/>
+                                                    <span className="h-2 w-2 animate-bounce rounded-full bg-current [animation-delay:-0.1s]"/>
+                                                    <span className="h-2 w-2 animate-bounce rounded-full bg-current"/>
+                                                </>
+                                            ) : msg.status === 'done' ? (
+                                                <>
+                                                    <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600"/>
+                                                    <span className="text-sm font-semibold text-slate-700">{msg.content}</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <WandSparkles className="h-3.5 w-3.5 shrink-0 text-orange-500 animate-pulse"/>
+                                                    <span className="text-sm font-semibold text-slate-700">{msg.content}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    ) : (
                                     <>
-                                        {idx === messages.length - 1 && activitySteps.length > 0 && (isLoading || msg.content.length === 0) && (
-                                            <div className="mb-3 rounded-xl border border-orange-100 bg-orange-50/60 px-3 py-2">
-                                                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-orange-700">
-                                                    <Sparkles className="h-3.5 w-3.5"/>
-                                                    <span>正在处理</span>
-                                                </div>
-                                                <div className="space-y-1.5">
-                                                    {activitySteps.map(step => (
-                                                        <div
-                                                            key={step.id}
-                                                            className={`flex items-start gap-2 rounded-lg px-2 py-1.5 text-xs ${
-                                                                step.status === 'active'
-                                                                    ? 'bg-white/80 text-slate-700 shadow-sm'
-                                                                    : step.status === 'done'
-                                                                        ? 'text-slate-500'
-                                                                        : 'text-slate-400'
-                                                            }`}
-                                                        >
-                                                            <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${
-                                                                step.status === 'done'
-                                                                    ? 'bg-orange-500 text-white'
-                                                                    : step.status === 'active'
-                                                                        ? 'bg-orange-100 text-orange-600'
-                                                                        : 'bg-slate-100 text-slate-300'
-                                                            }`}>
-                                                                {step.status === 'done' ? (
-                                                                    <Check className="h-3 w-3"/>
-                                                                ) : step.status === 'active' ? (
-                                                                    <Loader2 className="h-3 w-3 animate-spin"/>
-                                                                ) : (
-                                                                    <span className="h-1.5 w-1.5 rounded-full bg-current"/>
-                                                                )}
-                                                            </span>
-                                                            <span className="min-w-0">
-                                                                <span className="block font-semibold">{step.label}</span>
-                                                                {step.detail && (
-                                                                    <span className="mt-0.5 block truncate text-[11px] opacity-70">
-                                                                        {step.detail}
-                                                                    </span>
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
                                         {msg.thinking && (
                                             <details
                                                 open={isLoading && idx === messages.length - 1}
@@ -1098,13 +1510,14 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                             {msg.content}
                                         </ReactMarkdown>
                                     </>
+                                    )
                                 ) : (
                                     /* 用户消息保持纯文本渲染 */
                                     <div className="whitespace-pre-wrap">{msg.content}</div>
                                 )}
 
                                 {/* Loading 动画 */}
-                                {msg.role === 'assistant' && isLoading && msg.content.length === 0 && (
+                                {msg.role === 'assistant' && !msg.status && isLoading && msg.content.length === 0 && (
                                     activitySteps.length === 0 && (
                                         <span className="flex h-6 items-center gap-2 text-xs text-slate-400">
                                             <Loader2 className="h-3.5 w-3.5 animate-spin"/>
@@ -1114,12 +1527,13 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                                 )}
                             </div>
                         </div>
-                    ))}
+                    )})}
                     <div ref={messagesEndRef} className="h-6"/>
                 </div>
 
                 {/* Footer */}
                 <div className="p-5 bg-white border-t border-slate-100">
+                    {!activeAgent && (
                     <div className="flex items-center justify-between mb-3 px-1">
                         <div className="flex flex-wrap items-center gap-2">
                             <div ref={mcpPanelRef} className="relative">
@@ -1313,6 +1727,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                             Model: Auto
                         </span>
                     </div>
+                    )}
 
                     <div className="relative group">
                         <div
@@ -1340,6 +1755,7 @@ export const AIChatWindow = ({isOpen, onClose}: AIChatWindowProps) => {
                             </button>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
         </div>
