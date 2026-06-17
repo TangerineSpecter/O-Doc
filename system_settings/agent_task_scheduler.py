@@ -6,6 +6,8 @@ import json
 import urllib.error
 import urllib.request
 from datetime import timedelta
+from functools import lru_cache
+from pathlib import Path
 import re
 
 from django.db import OperationalError, ProgrammingError, close_old_connections
@@ -22,6 +24,17 @@ from .models import Agent, AgentRunRecord, AgentTask, MCPServer, Skill
 from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial_delay_seconds
 
 logger = logging.getLogger(__name__)
+
+AGENT_POST_MARKDOWN_GUIDE_PATH = Path(__file__).resolve().parent.parent / 'docs' / 'config' / 'agent_post_markdown_guide.md'
+
+
+@lru_cache(maxsize=1)
+def _get_agent_post_markdown_guide():
+    try:
+        return AGENT_POST_MARKDOWN_GUIDE_PATH.read_text(encoding='utf-8').strip()
+    except OSError:
+        logger.warning('Agent post markdown guide missing: %s', AGENT_POST_MARKDOWN_GUIDE_PATH)
+        return ''
 
 
 def _scheduler_log(message):
@@ -585,6 +598,10 @@ class AgentTaskScheduler:
                 "上一个 Agent 的执行结果如下。请把它作为上下文继续完成你的职责，不要重复无关过程：\n"
                 + previous_content[:6000]
             )
+
+        post_markdown_guide = _get_agent_post_markdown_guide()
+        if post_markdown_guide:
+            parts.append(post_markdown_guide)
 
         parts.append(
             "你正在执行一个定时 Agent 任务。请直接输出最终内容，不要描述执行过程。\n"
