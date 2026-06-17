@@ -65,8 +65,10 @@ jobs:
           TCR_IMAGE: ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest
           TCR_PLATFORM: linux/amd64
         run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            export TCR_EXTRA_TAGS="ccr.ccs.tencentyun.com/tangerine_specter/o-doc:${GITHUB_REF_NAME}"
-          fi
+          # 默认仅推送 latest 到腾讯云 TCR。
+          # 如需恢复 Git tag 版本号镜像推送，取消下面三行注释即可。
+          # if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+          #   export TCR_EXTRA_TAGS="ccr.ccs.tencentyun.com/tangerine_specter/o-doc:${GITHUB_REF_NAME}"
+          # fi
 
           ./scripts/push-tcr.sh
