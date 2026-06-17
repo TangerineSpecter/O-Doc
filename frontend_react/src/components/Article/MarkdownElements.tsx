@@ -83,10 +83,10 @@ export const CUSTOM_STYLES = `
     border-top: 0 !important;
     border-bottom: 0 !important;
     color: #0f172a;
-    font-size: 2.12rem;
-    font-weight: 900;
+    font-size: 1.85rem;
+    font-weight: 800;
     line-height: 1.25;
-    letter-spacing: 0;
+    letter-spacing: -0.025em;
   }
   .prose .agent-post-chapter-heading:first-child {
     margin-top: 0.75rem;
@@ -106,7 +106,7 @@ export const CUSTOM_STYLES = `
     color: #94a3b8;
     font-size: 0.82rem;
     font-weight: 800;
-    letter-spacing: 0;
+    letter-spacing: 0.12em;
     line-height: 1;
     white-space: nowrap;
   }
@@ -114,7 +114,7 @@ export const CUSTOM_STYLES = `
     content: "";
     position: absolute;
     top: 0.38rem;
-    left: 6.9rem;
+    left: 7.2rem;
     right: 0;
     height: 1px;
     background: #e2e8f0;
@@ -122,17 +122,17 @@ export const CUSTOM_STYLES = `
   .agent-post-chapter-index {
     position: absolute;
     left: 0;
-    top: 2.45rem;
-    bottom: 0.7rem;
+    top: 1.1rem;
+    height: 4.4rem;
     z-index: 0;
     display: flex;
     align-items: center;
-    color: #bbf7d0;
+    color: #a7f3d0;
     font-size: 5.35rem;
     font-weight: 900;
-    letter-spacing: 0;
+    letter-spacing: -0.05em;
     line-height: 0.82;
-    opacity: 0.72;
+    opacity: 0.8;
     pointer-events: none;
     user-select: none;
   }
@@ -150,19 +150,19 @@ export const CUSTOM_STYLES = `
       min-height: 5.4rem;
       margin: 2.2rem 0 1.25rem;
       padding: 2.2rem 0 0.55rem 3.95rem;
-      font-size: 1.6rem;
+      font-size: 1.45rem;
     }
     .prose .agent-post-chapter-heading::before {
       font-size: 0.68rem;
-      letter-spacing: 0;
+      letter-spacing: 0.08em;
     }
     .prose .agent-post-chapter-heading::after {
-      left: 5.75rem;
+      left: 5.8rem;
     }
     .agent-post-chapter-index {
-      top: 2.2rem;
-      bottom: 0.55rem;
-      font-size: 4rem;
+      top: 1.1rem;
+      height: 3.2rem;
+      font-size: 3.5rem;
     }
   }
 
