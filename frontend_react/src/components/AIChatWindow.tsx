@@ -797,6 +797,8 @@ export const AIChatWindow = ({isOpen, onClose, activeAgent = null, onOpenContact
     const buildActivitySteps = (
         usePhotographyAssistant: boolean,
         activeMcpServerIds: string[],
+        effectiveUseKb: boolean,
+        effectiveSelectedSkillIds: string[],
     ): ActivityStep[] => {
         const steps: ActivityStep[] = [];
 
@@ -809,7 +811,7 @@ export const AIChatWindow = ({isOpen, onClose, activeAgent = null, onOpenContact
             });
         }
 
-        if (useKb && !usePhotographyAssistant) {
+        if (effectiveUseKb && !usePhotographyAssistant) {
             steps.push({
                 id: 'knowledge',
                 label: '检索知识库',
@@ -829,11 +831,11 @@ export const AIChatWindow = ({isOpen, onClose, activeAgent = null, onOpenContact
             });
         }
 
-        if (selectedSkillIds.length > 0) {
+        if (effectiveSelectedSkillIds.length > 0) {
             steps.push({
                 id: 'skill',
                 label: '装载 Skill',
-                detail: selectedSkillIds.map(getSkillName).join('、'),
+                detail: effectiveSelectedSkillIds.map(getSkillName).join('、'),
                 status: steps.length === 0 ? 'active' : 'queued',
             });
         }
@@ -936,15 +938,30 @@ export const AIChatWindow = ({isOpen, onClose, activeAgent = null, onOpenContact
 
         try {
             let messageForAI = userMsg;
-            const usePhotographyAssistant = assistantMode === 'manual'
+            const isDefaultAgent = !activeAgent;
+
+            const usePhotographyAssistant = isDefaultAgent && (assistantMode === 'manual'
                 ? selectedMcpIds.includes(PHOTOGRAPHY_MCP_ID)
-                : assistantMode === 'auto' && shouldUsePhotographyAssistant(userMsg);
-            const activeMcpServerIds = assistantMode === 'disabled'
-                ? []
-                : assistantMode === 'manual'
-                    ? selectedMcpIds.filter(id => id !== PHOTOGRAPHY_MCP_ID)
-                    : chatMcpServers.map(server => server.id);
-            const nextActivitySteps = buildActivitySteps(usePhotographyAssistant, activeMcpServerIds);
+                : assistantMode === 'auto' && shouldUsePhotographyAssistant(userMsg));
+
+            const activeMcpServerIds = isDefaultAgent
+                ? (assistantMode === 'disabled'
+                    ? []
+                    : assistantMode === 'manual'
+                        ? selectedMcpIds.filter(id => id !== PHOTOGRAPHY_MCP_ID)
+                        : chatMcpServers.map(server => server.id))
+                : [];
+
+            const effectiveUseKb = isDefaultAgent && useKb;
+            const effectiveSelectedSkillIds = isDefaultAgent ? selectedSkillIds : [];
+            const effectiveUseThinking = isDefaultAgent && useThinking;
+
+            const nextActivitySteps = buildActivitySteps(
+                usePhotographyAssistant,
+                activeMcpServerIds,
+                effectiveUseKb,
+                effectiveSelectedSkillIds
+            );
             setActivitySteps(nextActivitySteps);
             updateConversationMessages(requestConversationKey, prev => [
                 ...prev,
@@ -998,12 +1015,12 @@ export const AIChatWindow = ({isOpen, onClose, activeAgent = null, onOpenContact
                 body: JSON.stringify({
                     message: messageForAI,
                     history: messages.map(m => ({role: m.role, content: m.content})),
-                    use_knowledge_base: useKb && !usePhotographyAssistant,
-                    coll_id: useKb && !usePhotographyAssistant && selectedCollId ? selectedCollId : undefined,
-                    include_thinking: useThinking,
+                    use_knowledge_base: effectiveUseKb && !usePhotographyAssistant,
+                    coll_id: effectiveUseKb && !usePhotographyAssistant && selectedCollId ? selectedCollId : undefined,
+                    include_thinking: effectiveUseThinking,
                     agent_id: activeAgent?.id,
                     mcp_server_ids: activeMcpServerIds,
-                    skills: selectedSkillIds,
+                    skills: effectiveSelectedSkillIds,
                 })
             });
 
