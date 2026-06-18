@@ -26,6 +26,7 @@ from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial
 logger = logging.getLogger(__name__)
 
 AGENT_POST_MARKDOWN_GUIDE_PATH = Path(__file__).resolve().parent.parent / 'docs' / 'config' / 'agent_post_markdown_guide.md'
+INTERRUPTED_RUN_STALE_MINUTES = 180
 
 
 @lru_cache(maxsize=1)
@@ -83,12 +84,21 @@ class AgentTaskScheduler:
         except (TypeError, ValueError):
             return 30
 
+    @property
+    def interrupted_run_stale_minutes(self):
+        raw_value = os.getenv('ODOC_AGENT_TASK_INTERRUPTED_STALE_MINUTES', str(INTERRUPTED_RUN_STALE_MINUTES))
+        try:
+            return max(1, int(raw_value))
+        except (TypeError, ValueError):
+            return INTERRUPTED_RUN_STALE_MINUTES
+
     def start(self):
         with self._start_lock:
             if self._started:
                 return
 
             self._started = True
+            self._mark_interrupted_runs()
             self._thread = threading.Thread(
                 target=self._run_loop,
                 name='agent-task-scheduler',
@@ -302,7 +312,8 @@ class AgentTaskScheduler:
             record.status = 'failed' if failed_results else 'success'
             record.duration = self._format_duration(duration_seconds)
             record.summary = self._build_multi_agent_summary(run_results)
-            record.save(update_fields=['status', 'duration', 'summary', 'updated_at'])
+            record.output = self._build_multi_agent_output(run_results)
+            record.save(update_fields=['status', 'duration', 'summary', 'output', 'updated_at'])
             if record.status == 'success':
                 self._send_task_notification(task, record)
             self._append_run_step(
@@ -341,16 +352,18 @@ class AgentTaskScheduler:
                         'running',
                         '调用 MCP Tool',
                         f"{tool_name} 参数：{json.dumps(arguments, ensure_ascii=False)[:500]}",
-                    )
+                    ),
+                    model_id=agent.model_id,
                 )
             else:
-                content = AIService.chat_completion(
-                    self._build_prompt(task, agent=agent, previous_content=previous_content)
+                content = AIService.chat_completion_messages(
+                    [{"role": "user", "content": self._build_prompt(task, agent=agent, previous_content=previous_content)}],
+                    model_id=agent.model_id,
                 )
             self._append_agent_run_step(record, agent.id, 'success', 'AI 内容生成完成', f"生成内容长度：{len(content or '')} 字符")
             summary = self._build_completion_summary(content)
             duration = self._format_duration(max(0, int((timezone.now() - agent_started).total_seconds())))
-            self._finish_agent_run(record, agent.id, 'success', summary, duration)
+            self._finish_agent_run(record, agent.id, 'success', summary, duration, content or '')
             self._append_agent_run_step(record, agent.id, 'success', '执行结束', f"耗时：{duration}")
             return {
                 'agent': agent.id,
@@ -365,7 +378,7 @@ class AgentTaskScheduler:
             summary = str(exc)[:255]
             duration = self._format_duration(max(0, int((timezone.now() - agent_started).total_seconds())))
             self._append_agent_run_step(record, agent.id, 'failed', '执行失败', str(exc)[:500])
-            self._finish_agent_run(record, agent.id, 'failed', summary, duration)
+            self._finish_agent_run(record, agent.id, 'failed', summary, duration, '')
             logger.exception('Agent task failed for agent %s: %s', agent.id, task.id)
             return {
                 'agent': agent.id,
@@ -423,7 +436,7 @@ class AgentTaskScheduler:
             record.agent_runs = next_runs
             record.save(update_fields=['agent_runs', 'updated_at'])
 
-    def _finish_agent_run(self, record, agent_id, status, summary, duration):
+    def _finish_agent_run(self, record, agent_id, status, summary, duration, content=''):
         with self._record_update_lock:
             agent_runs = record.agent_runs if isinstance(record.agent_runs, list) else []
             record.agent_runs = [
@@ -432,10 +445,42 @@ class AgentTaskScheduler:
                     'status': status,
                     'summary': summary,
                     'duration': duration,
+                    'content': content,
                 } if isinstance(agent_run, dict) and agent_run.get('agent') == agent_id else agent_run
                 for agent_run in agent_runs
             ]
             record.save(update_fields=['agent_runs', 'updated_at'])
+
+    def _mark_interrupted_runs(self):
+        try:
+            stale_before = timezone.now() - timedelta(minutes=self.interrupted_run_stale_minutes)
+            interrupted_records = list(AgentRunRecord.objects.filter(
+                status='running',
+                updated_at__lt=stale_before,
+            ))
+        except (OperationalError, ProgrammingError):
+            return
+
+        for record in interrupted_records:
+            duration_seconds = max(0, int((timezone.now() - record.started_at).total_seconds()))
+            record.status = 'failed'
+            record.duration = self._format_duration(duration_seconds)
+            record.summary = '服务重启或进程中断，执行状态已自动收敛'
+            record.save(update_fields=['status', 'duration', 'summary', 'updated_at'])
+            self._append_run_step(
+                record,
+                'failed',
+                '执行中断',
+                f"执行记录超过 {self.interrupted_run_stale_minutes} 分钟未更新，已按中断任务收敛为失败。Runner：{self.runner_id}",
+            )
+
+            agent_runs = record.agent_runs if isinstance(record.agent_runs, list) else []
+            for agent_run in agent_runs:
+                if isinstance(agent_run, dict) and agent_run.get('status') == 'running':
+                    agent_id = agent_run.get('agent')
+                    if agent_id:
+                        self._append_agent_run_step(record, agent_id, 'failed', '执行中断', '服务重启或进程中断')
+                        self._finish_agent_run(record, agent_id, 'failed', '服务重启或进程中断', agent_run.get('duration') or '', agent_run.get('content') or '')
 
     def _append_agent_context_steps(self, record, task, agent=None):
         agent = agent or task.agent
@@ -577,6 +622,17 @@ class AgentTaskScheduler:
             summary = result.get('summary') or ''
             parts.append(f"{agent_name}：{status_text}，{summary}")
         return '；'.join(parts)[:255]
+
+    @staticmethod
+    def _build_multi_agent_output(results):
+        outputs = []
+        for result in results:
+            content = (result.get('content') or '').strip()
+            if not content:
+                continue
+            agent_name = result.get('agentName') or 'Agent'
+            outputs.append(f"## {agent_name}\n\n{content}")
+        return "\n\n---\n\n".join(outputs)
 
     def _build_prompt(self, task, has_mcp_tools=False, agent=None, previous_content=''):
         agent = agent or task.agent

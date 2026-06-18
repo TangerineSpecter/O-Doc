@@ -6,7 +6,14 @@ import {useNavigate} from 'react-router-dom';
 import Article from './Article';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import SaveWebpageModal from '../components/common/SaveWebpageModal';
-import {CodeBlock, CUSTOM_STYLES, MermaidChart, SimpleChart} from '../components/Article/MarkdownElements';
+import {
+    CodeBlock,
+    CUSTOM_STYLES,
+    MermaidChart,
+    remarkQuoteVariants,
+    SimpleChart,
+    VariantBlockquote,
+} from '../components/Article/MarkdownElements';
 import OutlineSidebar from '../components/Outline/OutlineSidebar';
 import OutlineContent from '../components/Outline/OutlineContent';
 import {useArticleTree} from '../hooks/useArticleTree';
@@ -95,6 +102,7 @@ const agentPostMarkdownComponents = {
             <span className="agent-post-chapter-title">{children}</span>
         </h2>
     ),
+    blockquote: VariantBlockquote,
 };
 
 const splitAgentPostInlineSyntax = (value: string) => {
@@ -427,7 +435,7 @@ function AgentPostCollectionView({
 
                             <div className="agent-post-body prose prose-slate max-w-none px-5 py-6 text-slate-700 sm:px-6">
                                 <ReactMarkdown
-                                    remarkPlugins={[remarkGfm]}
+                                    remarkPlugins={[remarkQuoteVariants, remarkGfm]}
                                     rehypePlugins={[rehypeAgentPostInlineSyntax]}
                                     components={agentPostMarkdownComponents as any}
                                 >

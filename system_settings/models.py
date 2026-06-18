@@ -651,6 +651,7 @@ class AgentRunRecord(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_TYPES, default='running', verbose_name='状态', db_comment='执行状态')
     duration = models.CharField(max_length=40, blank=True, default='', verbose_name='耗时', db_comment='耗时展示')
     summary = models.CharField(max_length=255, blank=True, default='', verbose_name='摘要', db_comment='执行摘要')
+    output = models.TextField(blank=True, default='', verbose_name='输出内容', db_comment='Agent 生成的完整输出内容')
     steps = models.JSONField(default=list, blank=True, verbose_name='执行步骤', db_comment='执行步骤')
     started_at = models.DateTimeField(default=timezone.now, verbose_name='开始时间', db_comment='开始时间')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')

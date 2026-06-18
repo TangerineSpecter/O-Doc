@@ -21,6 +21,79 @@ import {
     YAxis,
 } from 'recharts';
 
+export type QuoteVariant = 'default' | 'danger' | 'warning' | 'info';
+
+export const QUOTE_VARIANT_STYLES: Record<QuoteVariant, {
+    container: string;
+    mark: string;
+}> = {
+    default: {
+        container: 'border-violet-500 bg-gradient-to-r from-violet-50 to-transparent text-violet-800',
+        mark: 'text-violet-500/10',
+    },
+    danger: {
+        container: 'border-red-500 bg-gradient-to-r from-red-50 to-transparent text-red-800',
+        mark: 'text-red-500/10',
+    },
+    warning: {
+        container: 'border-amber-400 bg-gradient-to-r from-amber-50 to-transparent text-amber-800',
+        mark: 'text-amber-500/10',
+    },
+    info: {
+        container: 'border-slate-400 bg-gradient-to-r from-slate-50 to-transparent text-slate-700',
+        mark: 'text-slate-500/10',
+    },
+};
+
+const QUOTE_MARKER_VARIANTS: Record<string, QuoteVariant> = {
+    d: 'danger',
+    w: 'warning',
+    i: 'info',
+};
+
+export const remarkQuoteVariants = () => {
+    const visit = (node: any) => {
+        if (node.type === 'blockquote') {
+            const firstText = node.children?.[0]?.children?.[0];
+            if (firstText?.type === 'text') {
+                const match = firstText.value.match(/^([dwi])(?:[ \t]+|(?=\n|$))(.*)$/s);
+                if (match) {
+                    firstText.value = match[2];
+                    node.data = {
+                        ...node.data,
+                        hProperties: {
+                            ...node.data?.hProperties,
+                            'data-quote-variant': QUOTE_MARKER_VARIANTS[match[1]],
+                        },
+                    };
+                }
+            }
+        }
+
+        node.children?.forEach(visit);
+    };
+
+    return (tree: any) => visit(tree);
+};
+
+export const getQuoteVariant = (props: any): QuoteVariant => {
+    const variant = props['data-quote-variant'] || props.node?.properties?.['data-quote-variant'];
+    return variant && variant in QUOTE_VARIANT_STYLES ? variant : 'default';
+};
+
+export const VariantBlockquote = ({children, ...props}: { children: React.ReactNode; node?: any; [key: string]: any }) => {
+    const styles = QUOTE_VARIANT_STYLES[getQuoteVariant(props)];
+
+    return (
+        <blockquote
+            className={`not-prose relative my-8 pl-6 pr-10 py-4 border-l-4 ${styles.container} rounded-r-lg flex items-center min-h-[60px] [&_p]:my-0 [&_p]:leading-7`}
+        >
+            <div className={`absolute top-0 right-4 text-6xl ${styles.mark} font-serif leading-none select-none`}>”</div>
+            <div className="relative z-10 w-full">{children}</div>
+        </blockquote>
+    );
+};
+
 // --- 强制样式 ---
 export const CUSTOM_STYLES = `
   /* 1. 隐藏行内代码的反引号 */

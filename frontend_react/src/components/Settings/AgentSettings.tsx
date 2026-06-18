@@ -1102,6 +1102,18 @@ export const AgentSettings = ({
                                 </div>
                             </div>
 
+                            {selectedRecord.output && (
+                                <div>
+                                    <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-800">
+                                        <Sparkles className="h-4 w-4 text-orange-500"/>
+                                        生成结果
+                                    </div>
+                                    <div className="max-h-80 overflow-y-auto rounded-xl border border-orange-100 bg-orange-50/30 px-4 py-3 text-sm leading-6 text-slate-700">
+                                        <div className="whitespace-pre-wrap break-words">{selectedRecord.output}</div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div>
                                 <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-800">
                                     <Activity className="h-4 w-4 text-orange-500"/>

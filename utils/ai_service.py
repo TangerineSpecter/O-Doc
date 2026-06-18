@@ -129,7 +129,9 @@ class AIService:
 
             client = OpenAI(
                 api_key=config['api_key'],
-                base_url=config['base_url']
+                base_url=config['base_url'],
+                timeout=120.0,
+                max_retries=1,
             )
 
             response = client.chat.completions.create(
@@ -155,7 +157,9 @@ class AIService:
             config = cls.get_client_config_for_model(model_id)
             client = OpenAI(
                 api_key=config['api_key'],
-                base_url=config['base_url']
+                base_url=config['base_url'],
+                timeout=120.0,
+                max_retries=1,
             )
 
             response = client.chat.completions.create(
@@ -175,13 +179,14 @@ class AIService:
             raise e
 
     @classmethod
-    def chat_completion_with_tools(cls, prompt, tools, tool_executor, on_tool_call=None, use_simple_model=False, max_rounds=5):
+    def chat_completion_with_tools(cls, prompt, tools, tool_executor, on_tool_call=None, model_id=None, use_simple_model=False, max_rounds=5):
         """执行支持 OpenAI-compatible tool calls 的 AI 对话。"""
         return cls.chat_completion_messages_with_tools(
             [{"role": "user", "content": prompt}],
             tools,
             tool_executor,
             on_tool_call=on_tool_call,
+            model_id=model_id,
             use_simple_model=use_simple_model,
             max_rounds=max_rounds,
         )
@@ -207,7 +212,9 @@ class AIService:
             )
             client = OpenAI(
                 api_key=config['api_key'],
-                base_url=config['base_url']
+                base_url=config['base_url'],
+                timeout=120.0,
+                max_retries=1,
             )
             messages = [dict(message) for message in messages]
 

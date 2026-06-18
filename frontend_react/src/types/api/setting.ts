@@ -133,6 +133,7 @@ export interface AgentRunRecordConfig {
     startedAt: string;
     duration: string;
     summary: string;
+    output?: string;
     steps?: AgentRunStepConfig[];
     createdAt?: string;
     updatedAt?: string;
@@ -151,6 +152,7 @@ export interface AgentRunAgentConfig {
     agentAvatar?: string;
     status: AgentRunStatus;
     summary: string;
+    content?: string;
     duration?: string;
     steps?: AgentRunStepConfig[];
 }

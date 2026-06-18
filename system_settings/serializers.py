@@ -381,6 +381,7 @@ class AgentRunRecordSerializer(serializers.ModelSerializer):
             'started_at',
             'duration',
             'summary',
+            'output',
             'steps',
             'created_at',
             'updated_at',
