@@ -186,7 +186,16 @@ export const CUSTOM_STYLES = `
   /* 3. 自定义高亮特效 */
   .custom-underline-red { text-decoration: underline; text-decoration-color: #FF5582A6; text-decoration-thickness: 7px; text-underline-offset: -3px; }
   .custom-underline-wavy { text-decoration: underline; text-decoration-style: wavy; text-decoration-color: #0ea5e9; text-decoration-thickness: 2px; text-underline-offset: 4px; }
-  .custom-watercolor { background: linear-gradient(120deg, #fef08a 0%, #fde047 100%); padding: 0.1em 0.3em; border-radius: 0.2em; color: #854d0e; }
+  .custom-watercolor {
+    display: inline;
+    background: linear-gradient(180deg, rgba(220, 252, 231, 0.92) 0%, rgba(187, 247, 208, 0.92) 100%);
+    padding: 0.04em 0.36em 0.08em;
+    border-radius: 0.28em;
+    color: #16a34a;
+    font-weight: 700;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
 
   /* 4. 内联标签 */
   .md-tag-inline {
