@@ -94,3 +94,34 @@ code, pre {
   font-synthesis-weight: none;
   text-rendering: optimizeLegibility;
 }
+
+/* AI 流式打印时的平滑文字自适应渐显效果 */
+.streaming-bubble > :last-child p:last-child,
+.streaming-bubble > :last-child li:last-child,
+.streaming-bubble > p:last-child,
+.streaming-bubble > ul:last-child > li:last-child,
+.streaming-bubble > ol:last-child > li:last-child {
+  position: relative;
+}
+
+/* 仅在消息气泡最底端（最后一个直接子节点内）的最新文字末尾挂载渐显遮罩 */
+.streaming-bubble > :last-child p:last-child::after,
+.streaming-bubble > :last-child li:last-child::after,
+.streaming-bubble > p:last-child::after,
+.streaming-bubble > ul:last-child > li:last-child::after,
+.streaming-bubble > ol:last-child > li:last-child::after {
+  content: "";
+  display: inline-block;
+  width: 4.5rem;
+  height: 1.25em;
+  margin-left: -4.5rem; /* 宽度拉回0，不占用排版空间，覆盖最新文字 */
+  background: linear-gradient(
+    to right, 
+    rgba(238, 242, 246, 0) 0%, 
+    rgba(238, 242, 246, 0.8) 70%, 
+    rgba(238, 242, 246, 1) 100%
+  );
+  vertical-align: -0.15em;
+  pointer-events: none;
+  z-index: 10;
+}

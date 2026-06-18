@@ -10,6 +10,7 @@ import {
     X
 } from 'lucide-react';
 import {getAgents, type AgentConfig} from '../api/setting';
+import { formatSummaryDate } from '../utils/format';
 
 interface AgentContactPanelProps {
     isOpen: boolean;
@@ -65,20 +66,6 @@ const getChatSummary = (conversationKey: string): ChatSummary | null => {
     }
 };
 
-const formatSummaryDate = (value: string) => {
-    if (!value) return '';
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    if (isToday) {
-        return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-    }
-
-    return `${date.getMonth() + 1}月${date.getDate()}日`;
-};
 
 const AgentAvatar = ({agent, size = 'md'}: { agent?: Pick<AgentConfig, 'name' | 'avatar'>; size?: 'sm' | 'md' | 'lg' }) => {
     const sizeClass = size === 'lg' ? 'h-12 w-12 rounded-2xl' : size === 'sm' ? 'h-9 w-9 rounded-xl' : 'h-12 w-12 rounded-2xl';

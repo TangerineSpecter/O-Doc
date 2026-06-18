@@ -16,3 +16,16 @@ export const formatFileSize = (bytes?: number): string => {
     // 保留2位小数 (parseFloat 可以去掉末尾多余的0，比如 "1.00" -> "1")
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
+
+/**
+ * 格式化会话更新时间，今天显示时:分，昨天及以前显示月日
+ */
+export const formatSummaryDate = (value: string): string => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    if (date.toDateString() === new Date().toDateString()) {
+        return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    }
+    return `${date.getMonth() + 1}月${date.getDate()}日`;
+};
