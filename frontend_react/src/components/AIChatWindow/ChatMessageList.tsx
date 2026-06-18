@@ -13,7 +13,14 @@ import { type Message, type ActivityStep } from './types';
 import { type AgentConfig } from '../../api/setting';
 import { useAuth } from '../../contexts/AuthContext';
 import { getArticleDetail } from '../../api/article';
-import { CodeBlock, MermaidChart, SimpleChart } from '../Article/MarkdownElements';
+import {
+    CodeBlock,
+    CompactVariantBlockquote,
+    MermaidChart,
+    rehypeInlineStyleSyntax,
+    remarkQuoteVariants,
+    SimpleChart,
+} from '../Article/MarkdownElements';
 
 interface ChatMessageListProps {
     messages: Message[];
@@ -146,11 +153,7 @@ export const ChatMessageList = ({
             },
             ul: ({ children }: any) => <ul className="list-disc pl-5 space-y-1 my-2 marker:text-slate-400">{children}</ul>,
             ol: ({ children }: any) => <ol className="list-decimal pl-5 space-y-1 my-2 marker:text-slate-400">{children}</ol>,
-            blockquote: ({ children }: any) => (
-                <blockquote className="border-l-4 border-orange-200 pl-4 py-1 my-3 bg-orange-50/50 text-slate-600 italic rounded-r">
-                    {children}
-                </blockquote>
-            ),
+            blockquote: CompactVariantBlockquote,
         };
     }, [navigate, setIsMinimized]);
 
@@ -282,8 +285,8 @@ export const ChatMessageList = ({
                                             </details>
                                         )}
                                         <ReactMarkdown
-                                            remarkPlugins={[remarkGfm, remarkMath]}
-                                            rehypePlugins={[rehypeKatex]}
+                                            remarkPlugins={[remarkQuoteVariants, remarkGfm, remarkMath]}
+                                            rehypePlugins={[rehypeKatex, rehypeInlineStyleSyntax]}
                                             components={markdownComponents as any}
                                         >
                                             {msg.content}

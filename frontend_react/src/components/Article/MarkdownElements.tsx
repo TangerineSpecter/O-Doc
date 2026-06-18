@@ -94,6 +94,77 @@ export const VariantBlockquote = ({children, ...props}: { children: React.ReactN
     );
 };
 
+const COMPACT_QUOTE_VARIANT_STYLES: Record<QuoteVariant, string> = {
+    default: 'border-violet-300 bg-violet-50/45 text-violet-800',
+    danger: 'border-red-300 bg-red-50/55 text-red-800',
+    warning: 'border-amber-300 bg-amber-50/55 text-amber-800',
+    info: 'border-slate-300 bg-white/55 text-slate-700',
+};
+
+export const CompactVariantBlockquote = ({children, ...props}: { children: React.ReactNode; node?: any; [key: string]: any }) => {
+    const styles = COMPACT_QUOTE_VARIANT_STYLES[getQuoteVariant(props)];
+
+    return (
+        <blockquote
+            className={`my-3 rounded-r-md border-l-4 py-2 pl-4 pr-3 ${styles} [&_p]:my-0 [&_p]:leading-6`}
+        >
+            {children}
+        </blockquote>
+    );
+};
+
+const splitInlineStyleSyntax = (value: string) => {
+    const pattern = /(\+\+([\s\S]+?)\+\+|\^\^([\s\S]+?)\^\^|==([\s\S]+?)==)/g;
+    const nodes: any[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = pattern.exec(value)) !== null) {
+        const content = match[2] ?? match[3] ?? match[4] ?? '';
+        if (match.index > lastIndex) {
+            nodes.push({type: 'text', value: value.slice(lastIndex, match.index)});
+        }
+        nodes.push({
+            type: 'element',
+            tagName: 'span',
+            properties: {
+                className: match[2]
+                    ? 'custom-underline-red'
+                    : match[3]
+                        ? 'custom-underline-wavy'
+                        : 'custom-watercolor'
+            },
+            children: [{type: 'text', value: content}]
+        });
+        lastIndex = pattern.lastIndex;
+    }
+
+    if (lastIndex < value.length) {
+        nodes.push({type: 'text', value: value.slice(lastIndex)});
+    }
+
+    return nodes.length > 0 ? nodes : [{type: 'text', value}];
+};
+
+export const rehypeInlineStyleSyntax = () => (tree: any) => {
+    const visit = (node: any, disabled = false) => {
+        if (!node || !Array.isArray(node.children)) return;
+
+        const tagName = typeof node.tagName === 'string' ? node.tagName.toLowerCase() : '';
+        const shouldSkip = disabled || ['code', 'pre', 'script', 'style'].includes(tagName);
+
+        node.children = node.children.flatMap((child: any) => {
+            if (!shouldSkip && child?.type === 'text' && typeof child.value === 'string' && /(\+\+|\^\^|==)/.test(child.value)) {
+                return splitInlineStyleSyntax(child.value);
+            }
+            visit(child, shouldSkip);
+            return [child];
+        });
+    };
+
+    visit(tree);
+};
+
 // --- 强制样式 ---
 export const CUSTOM_STYLES = `
   /* 1. 隐藏行内代码的反引号 */

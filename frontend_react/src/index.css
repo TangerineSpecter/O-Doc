@@ -95,6 +95,28 @@ code, pre {
   text-rendering: optimizeLegibility;
 }
 
+.custom-underline-red {
+  text-decoration: underline;
+  text-decoration-color: #ff5582a6;
+  text-decoration-thickness: 7px;
+  text-underline-offset: -3px;
+}
+
+.custom-underline-wavy {
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: #0ea5e9;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.custom-watercolor {
+  background: linear-gradient(120deg, #fef08a 0%, #fde047 100%);
+  padding: 0.1em 0.3em;
+  border-radius: 0.2em;
+  color: #854d0e;
+}
+
 /* AI 流式打印时的平滑文字自适应渐显效果 */
 .streaming-bubble > :last-child p:last-child,
 .streaming-bubble > :last-child li:last-child,

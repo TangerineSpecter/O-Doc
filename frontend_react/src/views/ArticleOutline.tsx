@@ -10,6 +10,7 @@ import {
     CodeBlock,
     CUSTOM_STYLES,
     MermaidChart,
+    rehypeInlineStyleSyntax,
     remarkQuoteVariants,
     SimpleChart,
     VariantBlockquote,
@@ -103,58 +104,6 @@ const agentPostMarkdownComponents = {
         </h2>
     ),
     blockquote: VariantBlockquote,
-};
-
-const splitAgentPostInlineSyntax = (value: string) => {
-    const pattern = /(\+\+([\s\S]+?)\+\+|\^\^([\s\S]+?)\^\^|==([\s\S]+?)==)/g;
-    const nodes: any[] = [];
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = pattern.exec(value)) !== null) {
-        const content = match[2] ?? match[3] ?? match[4] ?? '';
-        if (match.index > lastIndex) {
-            nodes.push({type: 'text', value: value.slice(lastIndex, match.index)});
-        }
-        nodes.push({
-            type: 'element',
-            tagName: 'span',
-            properties: {
-                className: match[2]
-                    ? 'custom-underline-red'
-                    : match[3]
-                        ? 'custom-underline-wavy'
-                        : 'custom-watercolor'
-            },
-            children: [{type: 'text', value: content}]
-        });
-        lastIndex = pattern.lastIndex;
-    }
-
-    if (lastIndex < value.length) {
-        nodes.push({type: 'text', value: value.slice(lastIndex)});
-    }
-
-    return nodes.length > 0 ? nodes : [{type: 'text', value}];
-};
-
-const rehypeAgentPostInlineSyntax = () => (tree: any) => {
-    const visit = (node: any, disabled = false) => {
-        if (!node || !Array.isArray(node.children)) return;
-
-        const tagName = typeof node.tagName === 'string' ? node.tagName.toLowerCase() : '';
-        const shouldSkip = disabled || ['code', 'pre', 'script', 'style'].includes(tagName);
-
-        node.children = node.children.flatMap((child: any) => {
-            if (!shouldSkip && child?.type === 'text' && typeof child.value === 'string' && /(\+\+|\^\^|==)/.test(child.value)) {
-                return splitAgentPostInlineSyntax(child.value);
-            }
-            visit(child, shouldSkip);
-            return [child];
-        });
-    };
-
-    visit(tree);
 };
 
 const AgentAvatar = ({name, avatar}: { name?: string; avatar?: string }) => {
@@ -436,7 +385,7 @@ function AgentPostCollectionView({
                             <div className="agent-post-body prose prose-slate max-w-none px-5 py-6 text-slate-700 sm:px-6">
                                 <ReactMarkdown
                                     remarkPlugins={[remarkQuoteVariants, remarkGfm]}
-                                    rehypePlugins={[rehypeAgentPostInlineSyntax]}
+                                    rehypePlugins={[rehypeInlineStyleSyntax]}
                                     components={agentPostMarkdownComponents as any}
                                 >
                                     {activePost.content || ''}

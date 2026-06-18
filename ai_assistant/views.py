@@ -43,6 +43,10 @@ class ChatView(APIView):
             selected_mcp_servers = data.get('mcp_server_ids') or data.get('mcpServerIds') or []
             if not isinstance(selected_mcp_servers, list):
                 selected_mcp_servers = []
+            agent_skill_ids = []
+            chat_skill_ids = []
+            agent_mcp_server_ids = []
+            chat_mcp_server_ids = selected_mcp_servers
             if use_simple_model:
                 include_thinking = False
 
@@ -59,9 +63,9 @@ class ChatView(APIView):
                     else:
                         system_prompt = CHAT_SYSTEM_PROMPT
                     if isinstance(agent.skills, list):
-                        skill_ids.extend(agent.skills)
+                        agent_skill_ids.extend(agent.skills)
                     if isinstance(agent.mcp_servers, list):
-                        selected_mcp_servers = [*agent.mcp_servers, *selected_mcp_servers]
+                        agent_mcp_server_ids.extend(agent.mcp_servers)
                 except Agent.DoesNotExist:
                     logger.warning("ChatView received unknown agent_id: %s", selected_agent_id)
                     system_prompt = CHAT_SYSTEM_PROMPT
@@ -69,17 +73,18 @@ class ChatView(APIView):
                 system_prompt = CHAT_SYSTEM_PROMPT
 
             if isinstance(selected_skills, list):
-                skill_ids.extend(selected_skills)
+                chat_skill_ids.extend(selected_skills)
 
-            skill_ids = list(dict.fromkeys(skill_ids))
+            skill_ids = list(dict.fromkeys([*agent_skill_ids, *chat_skill_ids]))
             if skill_ids:
-                skills = list(Skill.objects.filter(
-                    id__in=skill_ids,
-                    enabled=True,
-                    available_in_chat=True,
-                ))
+                agent_skills = list(Skill.objects.filter(id__in=agent_skill_ids, enabled=True))
+                chat_skills = list(Skill.objects.filter(id__in=chat_skill_ids, enabled=True, available_in_chat=True))
+                skills_by_id = {skill.id: skill for skill in [*agent_skills, *chat_skills]}
                 skill_prompts = []
-                for skill in skills:
+                for skill_id in skill_ids:
+                    skill = skills_by_id.get(skill_id)
+                    if not skill:
+                        continue
                     if skill.prompt:
                         skill_prompts.append(f"### {skill.name}\n{skill.prompt}")
 
@@ -112,7 +117,10 @@ class ChatView(APIView):
             full_messages = [{'role': 'system', 'content': system_prompt}] + history + [
                 {'role': 'user', 'content': message}]
 
-            tool_context = self._build_mcp_tool_context(selected_mcp_servers)
+            tool_context = self._build_mcp_tool_context(
+                agent_server_ids=agent_mcp_server_ids,
+                chat_server_ids=chat_mcp_server_ids,
+            )
             if tool_context['tools']:
                 tool_system_prompt = (
                     system_prompt
@@ -158,20 +166,31 @@ class ChatView(APIView):
         return markdown
 
     @classmethod
-    def _build_mcp_tool_context(cls, server_ids):
-        if not isinstance(server_ids, list):
-            return {'tools': [], 'tool_map': {}}
+    def _build_mcp_tool_context(cls, server_ids=None, *, agent_server_ids=None, chat_server_ids=None):
+        if server_ids is not None and agent_server_ids is None and chat_server_ids is None:
+            chat_server_ids = server_ids
 
-        normalized_ids = list(dict.fromkeys([
-            str(server_id).strip()
-            for server_id in server_ids
-            if str(server_id or '').strip()
-        ]))
+        if not isinstance(agent_server_ids, list):
+            agent_server_ids = []
+        if not isinstance(chat_server_ids, list):
+            chat_server_ids = []
+
+        normalized_agent_ids = cls._normalize_id_list(agent_server_ids)
+        normalized_chat_ids = cls._normalize_id_list(chat_server_ids)
+        normalized_ids = list(dict.fromkeys([*normalized_agent_ids, *normalized_chat_ids]))
         if not normalized_ids:
             return {'tools': [], 'tool_map': {}}
 
+        agent_id_set = set(normalized_agent_ids)
+        chat_id_set = set(normalized_chat_ids)
+
         tool_context = {'tools': [], 'tool_map': {}}
-        servers = list(MCPServer.objects.filter(id__in=normalized_ids, enabled=True, available_in_chat=True))
+        server_map = {
+            server.id: server
+            for server in MCPServer.objects.filter(id__in=normalized_ids, enabled=True)
+            if server.id in agent_id_set or (server.id in chat_id_set and server.available_in_chat)
+        }
+        servers = [server_map[server_id] for server_id in normalized_ids if server_id in server_map]
 
         for server in servers:
             tools, error_msg = fetch_mcp_tools(server)
@@ -206,6 +225,14 @@ class ChatView(APIView):
                 })
 
         return tool_context
+
+    @staticmethod
+    def _normalize_id_list(values):
+        return list(dict.fromkeys([
+            str(value).strip()
+            for value in values
+            if str(value or '').strip()
+        ]))
 
     @staticmethod
     def _build_safe_tool_name(server, tool_name, existing_map):
