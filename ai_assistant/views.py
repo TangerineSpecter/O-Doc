@@ -6,6 +6,7 @@ import queue
 import threading
 
 from django.http import StreamingHttpResponse
+from django.utils import timezone
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -22,6 +23,28 @@ from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
 from utils.rag_client import RagClient
 
 logger = logging.getLogger(__name__)
+
+
+def _local_now():
+    now = timezone.now()
+    if timezone.is_naive(now):
+        return now
+    return timezone.localtime(now)
+
+
+def _build_time_context():
+    now = _local_now()
+    current_date = now.strftime('%Y-%m-%d')
+    current_time = now.strftime('%Y-%m-%d %H:%M:%S')
+    timezone_name = timezone.get_current_timezone_name()
+    return (
+        "当前对话时间上下文：\n"
+        + f"- 当前日期：{current_date}\n"
+        + f"- 当前时间：{current_time}\n"
+        + f"- 当前时区：{timezone_name}\n"
+        + "- 用户提到“今天”“今日”“昨天”“昨晚”“今年”“最新”“当前”等相对时间时，必须以上述日期时间为准。\n"
+        + "- 需要搜索或调用工具时，必须把相对时间换算为正确的年份、日期或时间范围；不要使用训练数据里的旧年份。"
+    )
 
 
 class ChatView(APIView):
@@ -72,10 +95,13 @@ class ChatView(APIView):
             else:
                 system_prompt = CHAT_SYSTEM_PROMPT
 
+            system_prompt += "\n\n" + _build_time_context()
+
             if isinstance(selected_skills, list):
                 chat_skill_ids.extend(selected_skills)
 
             skill_ids = list(dict.fromkeys([*agent_skill_ids, *chat_skill_ids]))
+            loaded_skills = []
             if skill_ids:
                 agent_skills = list(Skill.objects.filter(id__in=agent_skill_ids, enabled=True))
                 chat_skills = list(Skill.objects.filter(id__in=chat_skill_ids, enabled=True, available_in_chat=True))
@@ -87,6 +113,13 @@ class ChatView(APIView):
                         continue
                     if skill.prompt:
                         skill_prompts.append(f"### {skill.name}\n{skill.prompt}")
+                        loaded_skills.append({
+                            'id': skill.id,
+                            'name': skill.name,
+                            'version': skill.version,
+                            'description': skill.description,
+                            'source': skill.source,
+                        })
 
                 if skill_prompts:
                     system_prompt += "\n\n你已装载以下 O-Doc 系统技能。请按技能边界使用它们：\n" + "\n\n".join(skill_prompts)
@@ -130,13 +163,13 @@ class ChatView(APIView):
                 tool_messages = [{'role': 'system', 'content': tool_system_prompt}] + history + [
                     {'role': 'user', 'content': message}]
                 return StreamingHttpResponse(
-                    self._stream_tool_response_generator(tool_messages, tool_context, include_thinking, use_simple_model),
+                    self._stream_tool_response_generator(tool_messages, tool_context, include_thinking, use_simple_model, loaded_skills),
                     content_type='text/event-stream'
                 )
 
             # 5. 调用 AI 服务并返回流式响应
             return StreamingHttpResponse(
-                self._stream_response_generator(full_messages, sources_markdown, include_thinking, use_simple_model),
+                self._stream_response_generator(full_messages, sources_markdown, include_thinking, use_simple_model, loaded_skills),
                 content_type='text/event-stream'
             )
 
@@ -268,9 +301,12 @@ class ChatView(APIView):
         return result
 
     @staticmethod
-    def _stream_response_generator(messages, sources_markdown, include_thinking=False, use_simple_model=False):
+    def _stream_response_generator(messages, sources_markdown, include_thinking=False, use_simple_model=False, loaded_skills=None):
         """生成器：负责流式输出 AI 内容，并在最后追加来源信息"""
         try:
+            if loaded_skills:
+                yield json.dumps({'type': 'skills_loaded', 'skills': loaded_skills}, ensure_ascii=False) + "\n"
+
             # 获取来自 AI Service 的流生成器
             ai_stream = AIService.stream_chat_completion(
                 messages,
@@ -293,7 +329,7 @@ class ChatView(APIView):
             yield json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False) + "\n"
 
     @classmethod
-    def _stream_tool_response_generator(cls, messages, tool_context, include_thinking=False, use_simple_model=False):
+    def _stream_tool_response_generator(cls, messages, tool_context, include_thinking=False, use_simple_model=False, loaded_skills=None):
         event_queue = queue.Queue()
         done_marker = object()
 
@@ -307,6 +343,9 @@ class ChatView(APIView):
 
         def run_tool_chat():
             try:
+                if loaded_skills:
+                    event_queue.put({'type': 'skills_loaded', 'skills': loaded_skills})
+
                 if include_thinking:
                     event_queue.put({
                         'type': 'thinking',
@@ -315,9 +354,9 @@ class ChatView(APIView):
 
                 def execute_with_events(tool_name, arguments):
                     payload = describe_tool(tool_name)
-                    event_queue.put({'type': 'mcp_tool_call', **payload})
+                    event_queue.put({'type': 'mcp_tool_call', **payload, 'arguments': arguments})
                     result = cls._execute_mcp_tool(tool_context, tool_name, arguments)
-                    event_queue.put({'type': 'mcp_tool_result', **payload})
+                    event_queue.put({'type': 'mcp_tool_result', **payload, 'arguments': arguments})
                     return result
 
                 content = AIService.chat_completion_messages_with_tools(

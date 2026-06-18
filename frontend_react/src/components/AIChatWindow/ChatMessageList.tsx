@@ -9,7 +9,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { Bot, User, WandSparkles, Check, BrainCircuit, ChevronDown, Loader2 } from 'lucide-react';
 
-import { type Message, type ActivityStep } from './types';
+import { type Message, type ActivityStep, type LoadedSkill } from './types';
 import { type AgentConfig } from '../../api/setting';
 import { useAuth } from '../../contexts/AuthContext';
 import { getArticleDetail } from '../../api/article';
@@ -35,6 +35,44 @@ interface ChatMessageListProps {
     setIsMinimized: (minimized: boolean) => void;
     useThinking?: boolean;
 }
+
+const truncateText = (value: string, maxLength = 800) => (
+    value.length > maxLength ? `${value.slice(0, maxLength)}...（已截断 ${value.length - maxLength} 字符）` : value
+);
+
+const compactValue = (value: unknown, depth = 0): unknown => {
+    if (typeof value === 'string') return truncateText(value, 500);
+    if (value == null || typeof value !== 'object') return value;
+    if (depth >= 3) return '[Object]';
+
+    if (Array.isArray(value)) {
+        const items = value.slice(0, 12).map(item => compactValue(item, depth + 1));
+        return value.length > 12 ? [...items, `...（已省略 ${value.length - 12} 项）`] : items;
+    }
+
+    const entries = Object.entries(value as Record<string, unknown>);
+    return entries.slice(0, 24).reduce<Record<string, unknown>>((result, [key, item]) => {
+        result[key] = compactValue(item, depth + 1);
+        if (key === 'content' && typeof item === 'string') {
+            result[key] = truncateText(item, 360);
+        }
+        return result;
+    }, entries.length > 24 ? { _truncated: `已省略 ${entries.length - 24} 个字段` } : {});
+};
+
+const formatJsonPreview = (value: unknown) => {
+    try {
+        return JSON.stringify(compactValue(value), null, 2);
+    } catch {
+        return String(value ?? '');
+    }
+};
+
+const formatSkillLine = (skill: LoadedSkill) => {
+    const version = skill.version ? ` v${skill.version}` : '';
+    const source = skill.source ? ` · ${skill.source}` : '';
+    return `${skill.name}${version}${source}${skill.description ? `\n${skill.description}` : ''}`;
+};
 
 export const ChatMessageList = ({
     messages,
@@ -241,7 +279,7 @@ export const ChatMessageList = ({
                         }`}>
                             {msg.role === 'assistant' ? (
                                 msg.status ? (
-                                    <div className="flex items-center gap-2 px-0.5">
+                                    <div className="px-0.5">
                                         {msg.statusId === 'typing' ? (
                                             <div className="flex items-center gap-1.5">
                                                 <WandSparkles className="w-3.5 h-3.5 shrink-0 text-orange-500" style={{ animation: 'spin 6s linear infinite' }} />
@@ -252,16 +290,53 @@ export const ChatMessageList = ({
                                                     <span className="h-1 w-1 rounded-full bg-orange-400/80 animate-pulse" style={{ animationDuration: '1.2s', animationDelay: '0.4s' }} />
                                                 </span>
                                             </div>
+                                        ) : msg.meta?.kind === 'mcp' ? (
+                                            <details className="group min-w-[240px]">
+                                                <summary className="flex cursor-pointer list-none items-center gap-2">
+                                                    {msg.status === 'done' ? (
+                                                        <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                                    ) : (
+                                                        <WandSparkles className="h-3.5 w-3.5 shrink-0 text-orange-500 animate-pulse" />
+                                                    )}
+                                                    <span className="text-sm font-semibold text-orange-800">{msg.content}</span>
+                                                    <ChevronDown className="ml-auto h-3.5 w-3.5 text-orange-500 transition-transform group-open:rotate-180" />
+                                                </summary>
+                                                <div className="mt-3 border-t border-orange-200/70 pt-3 text-xs text-orange-900/80">
+                                                    <div className="grid gap-2">
+                                                        <div>
+                                                            <span className="font-semibold">Tool：</span>
+                                                            <span className="font-mono">{msg.meta.toolName}</span>
+                                                        </div>
+                                                        <div>
+                                                            <div className="mb-1 font-semibold">参数</div>
+                                                            <pre className="max-h-64 overflow-auto rounded-lg border border-orange-200/70 bg-white/70 p-3 text-[11px] leading-5 text-slate-700 whitespace-pre-wrap">{formatJsonPreview(msg.meta.arguments ?? {})}</pre>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </details>
+                                        ) : msg.meta?.kind === 'skills' ? (
+                                            <details className="group min-w-[240px]">
+                                                <summary className="flex cursor-pointer list-none items-center gap-2">
+                                                    <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                                    <span className="text-sm font-semibold text-orange-800">{msg.content}</span>
+                                                    <ChevronDown className="ml-auto h-3.5 w-3.5 text-orange-500 transition-transform group-open:rotate-180" />
+                                                </summary>
+                                                <div className="mt-3 space-y-2 border-t border-orange-200/70 pt-3 text-xs text-orange-900/80">
+                                                    {msg.meta.skills.map((skill, skillIndex) => (
+                                                        <pre key={`${skill.id || skill.name}-${skillIndex}`} className="rounded-lg border border-orange-200/70 bg-white/70 p-3 whitespace-pre-wrap text-[11px] leading-5 text-slate-700">{formatSkillLine(skill)}</pre>
+                                                    ))}
+                                                </div>
+                                            </details>
                                         ) : msg.status === 'done' ? (
-                                            <>
+                                            <div className="flex items-center gap-2">
                                                 <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                                                 <span className="text-sm font-semibold text-orange-800">{msg.content}</span>
-                                            </>
+                                            </div>
                                         ) : (
-                                            <>
+                                            <div className="flex items-center gap-2">
                                                 <WandSparkles className="h-3.5 w-3.5 shrink-0 text-orange-500 animate-pulse" />
                                                 <span className="text-sm font-semibold text-orange-800">{msg.content}</span>
-                                            </>
+                                            </div>
                                         )}
                                     </div>
                                 ) : (

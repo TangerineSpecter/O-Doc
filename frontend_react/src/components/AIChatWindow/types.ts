@@ -10,6 +10,27 @@ export interface Message {
     thinking?: string;
     statusId?: string;
     status?: ActivityStatus;
+    meta?: MessageMeta;
+}
+
+export type MessageMeta =
+    | {
+        kind: 'mcp';
+        serverName: string;
+        toolName: string;
+        arguments?: unknown;
+    }
+    | {
+        kind: 'skills';
+        skills: LoadedSkill[];
+    };
+
+export interface LoadedSkill {
+    id?: string;
+    name: string;
+    version?: string;
+    description?: string;
+    source?: string;
 }
 
 export interface StreamChar {

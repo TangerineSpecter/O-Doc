@@ -1048,6 +1048,9 @@ class SkillViewSet(viewsets.ModelViewSet):
     serializer_class = SkillSerializer
 
     def list(self, request, *args, **kwargs):
+        from .builtin_skills import sync_builtin_skills
+
+        sync_builtin_skills()
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         return success_result(serializer.data)

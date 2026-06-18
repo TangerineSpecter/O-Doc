@@ -1,7 +1,7 @@
 // frontend_react/src/components/AIChatWindow/hooks/useChatSession.ts
 
 import { useState, useEffect, useRef } from 'react';
-import { type Message, type ActivityStep, type StreamChar } from '../types';
+import { type Message, type ActivityStep, type LoadedSkill, type StreamChar } from '../types';
 import { type AgentConfig } from '../../../api/setting';
 import { type Anthology } from '../../../api/anthology';
 import { getImagesByAnthology, type Image } from '../../../api/image';
@@ -232,6 +232,24 @@ const normalizeStreamContent = (value: unknown): string => {
 
 const normalizeEventText = (value: unknown): string => {
     return normalizeStreamContent(value).trim();
+};
+
+const normalizeLoadedSkills = (value: unknown): LoadedSkill[] => {
+    if (!Array.isArray(value)) return [];
+    return value.reduce<LoadedSkill[]>((result, item) => {
+        if (!item || typeof item !== 'object') return result;
+        const record = item as Record<string, unknown>;
+        const name = normalizeEventText(record.name);
+        if (!name) return result;
+        result.push({
+            id: normalizeEventText(record.id),
+            name,
+            version: normalizeEventText(record.version),
+            description: normalizeEventText(record.description),
+            source: normalizeEventText(record.source),
+        });
+        return result;
+    }, []);
 };
 
 export const getConversationSummary = (conversationKey: string, liveMessages?: Message[]) => {
@@ -635,8 +653,31 @@ export const useChatSession = ({
                         return;
                     }
 
+                    if (event.type === 'skills_loaded') {
+                        const skills = normalizeLoadedSkills(event.skills);
+                        if (skills.length === 0) return;
+                        updateConversationMessages(requestConversationKey, prev => {
+                            const filtered = prev.filter(msg => msg.statusId !== 'typing');
+                            return [
+                                ...filtered,
+                                {
+                                    role: 'assistant',
+                                    content: `已装载 ${skills.length} 个技能`,
+                                    statusId: `skills-loaded-${Date.now()}`,
+                                    status: 'done',
+                                    meta: {
+                                        kind: 'skills',
+                                        skills,
+                                    },
+                                }
+                            ];
+                        });
+                        return;
+                    }
+
                     if (event.type === 'mcp_tool_call') {
                         const serverName = normalizeEventText(event.serverName) || 'MCP';
+                        const toolName = normalizeEventText(event.toolName) || 'tool';
                         updateConversationMessages(requestConversationKey, prev => {
                             const filtered = prev.filter(msg => msg.statusId !== 'typing');
                             return [
@@ -646,6 +687,12 @@ export const useChatSession = ({
                                     content: `正在使用 ${serverName}`,
                                     statusId: `mcp-${Date.now()}`,
                                     status: 'active',
+                                    meta: {
+                                        kind: 'mcp',
+                                        serverName,
+                                        toolName,
+                                        arguments: event.arguments,
+                                    },
                                 }
                             ];
                         });
@@ -654,6 +701,7 @@ export const useChatSession = ({
 
                     if (event.type === 'mcp_tool_result') {
                         const serverName = normalizeEventText(event.serverName) || 'MCP';
+                        const toolName = normalizeEventText(event.toolName) || 'tool';
                         updateConversationMessages(requestConversationKey, prev => {
                             const newMsgs = [...prev];
                             for (let i = newMsgs.length - 1; i >= 0; i--) {
@@ -663,11 +711,18 @@ export const useChatSession = ({
                                     msg.status === 'active' &&
                                     msg.statusId?.startsWith('mcp-')
                                 ) {
+                                    const previousArguments = msg.meta?.kind === 'mcp' ? msg.meta.arguments : undefined;
                                     newMsgs[i] = {
                                         ...msg,
                                         content: `${serverName} 处理完毕`,
                                         status: 'done',
-                                        statusId: `mcp-done-${Date.now()}`
+                                        statusId: `mcp-done-${Date.now()}`,
+                                        meta: {
+                                            kind: 'mcp',
+                                            serverName,
+                                            toolName,
+                                            arguments: event.arguments ?? previousArguments,
+                                        },
                                     };
                                     break;
                                 }

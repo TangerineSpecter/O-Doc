@@ -6,8 +6,6 @@ import json
 import urllib.error
 import urllib.request
 from datetime import timedelta
-from functools import lru_cache
-from pathlib import Path
 import re
 
 from django.db import OperationalError, ProgrammingError, close_old_connections
@@ -20,22 +18,13 @@ from utils.mcp_client import (
     fetch_mcp_tools,
     hide_agent_identity_parameters,
 )
+from .builtin_skills import AGENT_POST_MARKDOWN_SKILL_KEY, read_agent_post_markdown_guide
 from .models import Agent, AgentRunRecord, AgentTask, MCPServer, Skill
 from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial_delay_seconds
 
 logger = logging.getLogger(__name__)
 
-AGENT_POST_MARKDOWN_GUIDE_PATH = Path(__file__).resolve().parent.parent / 'docs' / 'config' / 'agent_post_markdown_guide.md'
 INTERRUPTED_RUN_STALE_MINUTES = 180
-
-
-@lru_cache(maxsize=1)
-def _get_agent_post_markdown_guide():
-    try:
-        return AGENT_POST_MARKDOWN_GUIDE_PATH.read_text(encoding='utf-8').strip()
-    except OSError:
-        logger.warning('Agent post markdown guide missing: %s', AGENT_POST_MARKDOWN_GUIDE_PATH)
-        return ''
 
 
 def _scheduler_log(message):
@@ -655,7 +644,8 @@ class AgentTaskScheduler:
                 + previous_content[:6000]
             )
 
-        post_markdown_guide = _get_agent_post_markdown_guide()
+        agent_skill_ids = agent.skills if agent and isinstance(agent.skills, list) else []
+        post_markdown_guide = '' if self._has_agent_post_markdown_skill(agent_skill_ids) else read_agent_post_markdown_guide()
         if post_markdown_guide:
             parts.append(post_markdown_guide)
 
@@ -680,6 +670,16 @@ class AgentTaskScheduler:
             enabled=True,
         )
         return [f"### {skill.name}\n{skill.prompt}" for skill in skills if skill.prompt]
+
+    @staticmethod
+    def _has_agent_post_markdown_skill(skill_ids):
+        if not skill_ids:
+            return False
+        return Skill.objects.filter(
+            id__in=skill_ids,
+            skill_key=AGENT_POST_MARKDOWN_SKILL_KEY,
+            enabled=True,
+        ).exists()
 
     @staticmethod
     def _build_completion_summary(content):
