@@ -3,11 +3,14 @@ import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Loader2, Plus, Sparkles, Tag, Upload, X } from 'lucide-react';
 import { uploadResource } from '../../api/resources';
-import { createImage, generateImageDescription, Image, updateImage } from '../../api/image';
+import { createImage, generateImageDescription, updateImage } from '../../api/image';
+import type { Image } from '../../api/image';
 import { AIConfigError, recommendImageTagsWithAI } from '../../api/ai';
 import { GeoLocation, getGeoLocations } from '../../api/setting';
+import { getImageUploadConfig, ImageUploadConfig } from '../../api/setting';
 import { useToast } from '../common/ToastProvider';
 import { SettingsSelect } from '../Settings/SettingsSelect';
+import ImageResizeModal from './ImageResizeModal';
 
 interface ImageUploadModalProps {
   isOpen: boolean;
@@ -132,6 +135,22 @@ const readPhotoExifMetadata = async (file: File): Promise<PhotoExifMetadata> => 
   return {};
 };
 
+const getImageDimensions = (file: File) => new Promise<{ width: number; height: number }>((resolve, reject) => {
+  const url = URL.createObjectURL(file);
+  const image = new Image();
+  image.onload = () => {
+    URL.revokeObjectURL(url);
+    resolve({ width: image.naturalWidth, height: image.naturalHeight });
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(url);
+    reject(new Error('图片无法读取'));
+  };
+  image.src = url;
+});
+
+const DEFAULT_IMAGE_UPLOAD_CONFIG: ImageUploadConfig = { maxLongEdge: 2048, maxFileSizeMb: 10 };
+
 export default function ImageUploadModal({
   isOpen,
   onClose,
@@ -160,6 +179,8 @@ export default function ImageUploadModal({
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(dayjs());
   const [pickerPosition, setPickerPosition] = useState({ top: 0, left: 0 });
+  const [imageUploadConfig, setImageUploadConfig] = useState<ImageUploadConfig>(DEFAULT_IMAGE_UPLOAD_CONFIG);
+  const [pendingResizeFile, setPendingResizeFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dateButtonRef = useRef<HTMLButtonElement>(null);
   const tagMenuRef = useRef<HTMLDivElement>(null);
@@ -389,6 +410,10 @@ export default function ImageUploadModal({
   useEffect(() => {
     if (!isOpen) return;
 
+    getImageUploadConfig().then(setImageUploadConfig).catch(() => {
+      // 配置加载失败时仍使用默认阈值，避免影响上传。
+    });
+
     getGeoLocations()
       .then(setLocations)
       .catch((error) => {
@@ -465,19 +490,7 @@ export default function ImageUploadModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, isDatePickerOpen, isUploading]);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
-
-    if (!selectedFile.type.startsWith('image/')) {
-      toast.error('请选择图片文件');
-      return;
-    }
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      toast.error('图片大小不能超过 10MB');
-      return;
-    }
-
+  const useSelectedFile = (selectedFile: File, readMetadata = true) => {
     setFile(selectedFile);
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -488,32 +501,47 @@ export default function ImageUploadModal({
     if (!title.trim()) {
       setTitle(selectedFile.name.replace(/\.[^/.]+$/, ''));
     }
-    applyPhotoMetadata(selectedFile);
+    if (readMetadata) applyPhotoMetadata(selectedFile);
+  };
+
+  const selectFile = async (selectedFile?: File) => {
+    if (!selectedFile) return;
+    if (!selectedFile.type.startsWith('image/')) {
+      toast.error('请选择图片文件');
+      return;
+    }
+
+    // 先从原始 JPEG 读取信息，缩放后的浏览器输出不保证保留 EXIF。
+    void applyPhotoMetadata(selectedFile);
+
+    try {
+      const { width, height } = await getImageDimensions(selectedFile);
+      const exceedsLongEdge = Math.max(width, height) > imageUploadConfig.maxLongEdge;
+      const exceedsSize = selectedFile.size > imageUploadConfig.maxFileSizeMb * 1024 * 1024;
+      if (exceedsLongEdge || exceedsSize) {
+        setPendingResizeFile(selectedFile);
+        return;
+      }
+    } catch (error) {
+      console.warn('读取图片尺寸失败:', error);
+      toast.error('无法读取该图片，请选择 JPG 或 PNG 文件');
+      return;
+    }
+
+    useSelectedFile(selectedFile, false);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    // 立刻清空 input，以便取消处理后仍可选择同一个文件。
+    e.target.value = '';
+    void selectFile(selectedFile);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files?.[0];
-    if (!droppedFile || !droppedFile.type.startsWith('image/')) {
-      toast.error('请拖拽图片文件');
-      return;
-    }
-    if (droppedFile.size > 10 * 1024 * 1024) {
-      toast.error('图片大小不能超过 10MB');
-      return;
-    }
-
-    setFile(droppedFile);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setPreview(event.target?.result as string);
-    };
-    reader.readAsDataURL(droppedFile);
-
-    if (!title.trim()) {
-      setTitle(droppedFile.name.replace(/\.[^/.]+$/, ''));
-    }
-    applyPhotoMetadata(droppedFile);
+    void selectFile(droppedFile);
   };
 
   const handleSubmit = async () => {
@@ -982,6 +1010,15 @@ export default function ImageUploadModal({
           </button>
         </div>
       </div>
+      <ImageResizeModal
+        file={pendingResizeFile}
+        maxLongEdge={imageUploadConfig.maxLongEdge}
+        onCancel={() => setPendingResizeFile(null)}
+        onComplete={(processedFile) => {
+          setPendingResizeFile(null);
+          useSelectedFile(processedFile, false);
+        }}
+      />
     </div>
   );
 }

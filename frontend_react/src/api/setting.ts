@@ -19,6 +19,7 @@ import type {
     AIProvider,
     MemosPushConfig,
     SystemAIConfig,
+    ImageUploadConfig,
     WebDavConfig,
     WebDavSyncStatus,
     RuntimeInfo,
@@ -55,6 +56,7 @@ export type {
     AIProvider,
     MemosPushConfig,
     SystemAIConfig,
+    ImageUploadConfig,
     WebDavConfig,
     WebDavSyncStatus,
     RuntimeInfo,
@@ -164,6 +166,10 @@ export const getSystemAIConfig = () => request.get<SystemAIConfig>('/settings/co
 
 // 7. 保存系统 AI 配置
 export const saveSystemAIConfig = (data: SystemAIConfig) => request.post('/settings/config/save_ai_config/', data);
+
+export const getImageUploadConfig = () => request.get<any, ImageUploadConfig>('/settings/config/get_image_upload_config/');
+
+export const saveImageUploadConfig = (data: ImageUploadConfig) => request.post<any, ImageUploadConfig>('/settings/config/save_image_upload_config/', data);
 
 export const getAgents = () => request.get<AgentConfig[]>('/settings/agents/');
 

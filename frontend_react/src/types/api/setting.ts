@@ -36,6 +36,11 @@ export interface SystemAIConfig {
     defaultRerankModelId: string;
 }
 
+export interface ImageUploadConfig {
+    maxLongEdge: number;
+    maxFileSizeMb: number;
+}
+
 export interface AgentConfig {
     id: string;
     name: string;

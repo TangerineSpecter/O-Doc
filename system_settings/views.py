@@ -1208,6 +1208,44 @@ class SystemConfigViewSet(viewsets.ViewSet):
         return success_result({**default_value, **config.value})
 
     @action(detail=False, methods=['get'])
+    def get_image_upload_config(self, request):
+        """图片文集上传时的本地处理提示阈值。"""
+        default_value = {
+            'maxLongEdge': 2048,
+            'maxFileSizeMb': 10,
+        }
+        config, _ = SystemSetting.objects.get_or_create(
+            key='image_upload_config',
+            defaults={
+                'value': default_value,
+                'description': '图片文集上传尺寸处理设置',
+            }
+        )
+        return success_result({**default_value, **(config.value or {})})
+
+    @action(detail=False, methods=['post'])
+    def save_image_upload_config(self, request):
+        data = request.data or {}
+        try:
+            max_long_edge = int(data.get('maxLongEdge', 2048))
+            max_file_size_mb = float(data.get('maxFileSizeMb', 10))
+        except (TypeError, ValueError):
+            return error_result(ErrorCode.PARAM_ERROR, {'detail': '图片上传阈值格式不正确'})
+
+        if not 256 <= max_long_edge <= 16384 or not 0.5 <= max_file_size_mb <= 100:
+            return error_result(ErrorCode.PARAM_ERROR, {'detail': '最大边应在 256-16384px，文件大小应在 0.5-100MB'})
+
+        value = {
+            'maxLongEdge': max_long_edge,
+            'maxFileSizeMb': max_file_size_mb,
+        }
+        SystemSetting.objects.update_or_create(
+            key='image_upload_config',
+            defaults={'value': value, 'description': '图片文集上传尺寸处理设置'}
+        )
+        return success_result(value)
+
+    @action(detail=False, methods=['get'])
     def get_runtime_info(self, request):
         return success_result(get_runtime_info())
 
