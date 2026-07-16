@@ -198,25 +198,18 @@ export const SortableCollectionCard = ({
                     </button>
                 ) : isAgentCollection ? (
                     item.articles && item.articles.length > 0 ? (
-                        <div className="space-y-1 p-1">
+                        <div className="space-y-0.5">
                             {item.articles.slice(0, 3).map((post, idx) => (
                                 <button
                                     key={post.articleId || idx}
                                     onClick={() => onNavigate('article', { collId: item.collId, articleId: post.articleId, title: item.title })}
-                                    className="w-full rounded-lg bg-white/80 px-2 py-1.5 text-left transition-all hover:bg-white hover:shadow-sm"
+                                    className="group/item flex h-8 w-full items-center gap-2 rounded px-2 text-left transition-all hover:bg-white hover:shadow-sm"
                                 >
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
-                                            <div className="line-clamp-1 text-xs font-bold text-slate-700">{post.title}</div>
-                                            <div className="mt-0.5 line-clamp-1 text-[10px] leading-4 text-slate-500">{post.summary || '暂无摘要'}</div>
-                                        </div>
-                                    </div>
-                                    <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400">
-                                            <span className="flex h-4 w-4 items-center justify-center overflow-hidden rounded-full bg-indigo-100 ring-1 ring-indigo-200">
-                                                {renderAgentAvatar(post.agentAvatar, post.agentName)}
-                                            </span>
-                                            <span className="truncate">{post.agentName || 'Agent'}</span>
-                                    </div>
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-md bg-indigo-100 ring-1 ring-indigo-200">
+                                        {renderAgentAvatar(post.agentAvatar, post.agentName)}
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-600 transition-colors group-hover/item:text-slate-900">{post.title}</span>
+                                    <span className="max-w-12 shrink-0 truncate text-[10px] text-slate-400">{post.agentName || 'Agent'}</span>
                                 </button>
                             ))}
                         </div>
