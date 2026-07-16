@@ -106,13 +106,13 @@ const agentPostMarkdownComponents = {
     blockquote: VariantBlockquote,
 };
 
-const AgentAvatar = ({name, avatar}: { name?: string; avatar?: string }) => {
+const AgentAvatar = ({name, avatar, className = ''}: { name?: string; avatar?: string; className?: string }) => {
     const value = avatar?.trim();
     const initial = (name || 'A').trim().slice(0, 1).toUpperCase();
     const isImage = value && (/^https?:\/\//.test(value) || value.startsWith('/') || value.startsWith('data:image/') || value.startsWith('blob:'));
 
     return (
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-indigo-100 ring-1 ring-indigo-200">
+        <span className={`flex shrink-0 items-center justify-center overflow-hidden bg-indigo-100 ring-1 ring-indigo-200 ${className || 'h-8 w-8 rounded-full'}`}>
             {isImage ? (
                 <img src={value} alt={name || 'Agent'} className="h-full w-full object-cover" />
             ) : (
@@ -495,14 +495,16 @@ function AgentPostCollectionView({
                     type="danger"
                 />
             )}
-            <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+            <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
                 <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                        <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700">
-                            <ListTree className="h-3.5 w-3.5" />
-                            帖子
+                        <div className="flex items-center gap-3">
+                            <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700">
+                                <ListTree className="h-3.5 w-3.5" />
+                                帖子
+                            </div>
+                            <h1 className="min-w-0 flex-1 truncate text-xl font-bold text-slate-900">{anthologyInfo?.title || 'Agent'}</h1>
                         </div>
-                        <h1 className="truncate text-xl font-bold text-slate-900">{anthologyInfo?.title || 'Agent'}</h1>
                         <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{anthologyInfo?.description || '暂无简介'}</p>
                     </div>
                     <button
@@ -548,19 +550,19 @@ function AgentPostCollectionView({
                         <span className="mt-2 text-xs font-medium text-slate-400">正在加载 Agent 帖子...</span>
                     </div>
                 ) : visiblePosts.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px] min-[1900px]:relative min-[1900px]:block">
+                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3 min-[1900px]:mx-auto min-[1900px]:max-w-[1120px]">
                             {visiblePosts.map(post => (
                                 <article
                                     key={post.articleId}
                                     onClick={() => onNavigate?.('article', {collId, articleId: post.articleId})}
-                                    className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
+                                    className="flex h-full cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
                                 >
-                                    <div className="mb-3 flex items-start justify-between gap-3">
+                                    <div className="mb-2 flex items-start justify-between gap-3">
                                         <div className="min-w-0">
-                                            <h2 className="line-clamp-2 text-base font-bold leading-6 text-slate-900">{post.title}</h2>
-                                            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
-                                                <span className="inline-flex max-w-[9rem] items-center rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 font-medium text-orange-700">
+                                            <h2 className="truncate text-base font-bold leading-6 text-slate-900">{post.title}</h2>
+                                            <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-400">
+                                                <span className="inline-flex max-w-[8rem] items-center rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 font-medium text-orange-700">
                                                     <span className="truncate">{post.agentPostCategory || '未分类'}</span>
                                                 </span>
                                                 <span className="inline-flex items-center gap-1">
@@ -588,13 +590,13 @@ function AgentPostCollectionView({
                                         )}
                                     </div>
 
-                                    <p className="mb-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-slate-600">{getPostSummary(post) || '暂无摘要'}</p>
+                                    <p className="mb-3 line-clamp-2 min-h-10 text-sm leading-5 text-slate-600">{getPostSummary(post) || '暂无摘要'}</p>
 
-                                    <div className="flex items-center gap-2 border-t border-slate-100 pt-3">
-                                        <AgentAvatar name={post.agentPostCreatorName} avatar={post.agentPostCreatorAvatar} />
-                                        <div className="min-w-0">
-                                            <div className="truncate text-sm font-semibold text-slate-700">{post.agentPostCreatorName || 'Agent'}</div>
-                                            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400">
+                                    <div className="mt-auto flex items-center gap-2 border-t border-slate-100 pt-2.5">
+                                        <AgentAvatar name={post.agentPostCreatorName} avatar={post.agentPostCreatorAvatar} className="h-7 w-7 rounded-lg" />
+                                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                                            <div className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-700">{post.agentPostCreatorName || 'Agent'}</div>
+                                            <div className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-400">
                                                 <Clock className="h-3.5 w-3.5" />
                                                 {formatPostTime(post.createdAt)}
                                             </div>
@@ -604,7 +606,7 @@ function AgentPostCollectionView({
                             ))}
                         </div>
 
-                        <aside className="space-y-5">
+                        <aside className="space-y-5 min-[1900px]:absolute min-[1900px]:left-[calc(50%+584px)] min-[1900px]:top-0 min-[1900px]:w-[360px]">
                             <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
                                 <div className="border-b border-slate-100 px-5 py-4">
                                     <h2 className="text-lg font-bold text-red-700">评论排行榜</h2>
