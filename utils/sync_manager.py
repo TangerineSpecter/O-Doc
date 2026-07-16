@@ -5,8 +5,11 @@ import tempfile
 import uuid
 from collections import defaultdict
 from datetime import datetime
+from urllib.parse import urlparse
 
 from django.apps import apps
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.conf import settings
 from django.core import serializers
 from django.db import transaction
@@ -115,10 +118,26 @@ class SyncManager:
         return digest.hexdigest()
 
     def _iter_target_models(self):
+        yield Group
+        yield get_user_model()
         for app_label in self.TARGET_APPS:
             app_config = apps.get_app_config(app_label)
             for model in app_config.get_models():
                 yield model
+
+    @staticmethod
+    def _get_media_relative_path(media_url):
+        media_url_path = urlparse(settings.MEDIA_URL).path.rstrip('/') + '/'
+        url_path = urlparse(media_url).path
+        if not url_path.startswith(media_url_path):
+            return ''
+
+        media_root = os.path.realpath(settings.MEDIA_ROOT)
+        local_path = os.path.realpath(os.path.join(media_root, url_path[len(media_url_path):]))
+        if os.path.commonpath([media_root, local_path]) != media_root:
+            return ''
+
+        return os.path.relpath(local_path, media_root).replace(os.sep, '/')
 
     def _collect_asset_relative_paths(self):
         from assets.models import Asset
@@ -139,14 +158,39 @@ class SyncManager:
 
         return sorted(set(relative_paths)), missing_files
 
+    def _collect_user_avatar_relative_paths(self):
+        """收集保存在 MEDIA_ROOT 下的用户头像。"""
+        from user.models import UserProfile
+
+        relative_paths = []
+        missing_files = []
+        for avatar_url in UserProfile.objects.exclude(avatar='').values_list('avatar', flat=True):
+            rel_path = self._get_media_relative_path(avatar_url)
+            if not rel_path:
+                continue
+
+            local_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+            if not os.path.isfile(local_path):
+                missing_files.append(rel_path)
+                continue
+
+            relative_paths.append(rel_path)
+
+        return sorted(set(relative_paths)), missing_files
+
+    def _collect_media_relative_paths(self):
+        asset_paths, asset_missing = self._collect_asset_relative_paths()
+        avatar_paths, avatar_missing = self._collect_user_avatar_relative_paths()
+        return sorted(set(asset_paths) | set(avatar_paths)), asset_missing + avatar_missing
+
     def validate_upload_state(self):
-        _, missing_assets = self._collect_asset_relative_paths()
-        if not missing_assets:
+        _, missing_files = self._collect_media_relative_paths()
+        if not missing_files:
             return []
 
-        preview = '，'.join(missing_assets[:3])
-        if len(missing_assets) > 3:
-            preview += f' 等 {len(missing_assets)} 个文件'
+        preview = '，'.join(missing_files[:3])
+        if len(missing_files) > 3:
+            preview += f' 等 {len(missing_files)} 个文件'
 
         return [f"检测到资源记录存在但本地文件缺失：{preview}"]
 
@@ -264,26 +308,23 @@ class SyncManager:
         all_data = []
         total_count = 0
 
-        for app_label in self.TARGET_APPS:
-            try:
-                app_config = apps.get_app_config(app_label)
-                for model in app_config.get_models():
-                    model_name = model.__name__
-                    queryset = model.objects.all()
-                    count = queryset.count()
-                    if count > 0:
-                        yield json.dumps({
-                            "step": "processing",
-                            "msg": f"正在导出 {model_name} ({count}条)..."
-                        }) + "\n"
+        try:
+            for model in self._iter_target_models():
+                model_name = model.__name__
+                queryset = model.objects.all()
+                count = queryset.count()
+                if count > 0:
+                    yield json.dumps({
+                        "step": "processing",
+                        "msg": f"正在导出 {model_name} ({count}条)..."
+                    }) + "\n"
 
-                        json_str = serializers.serialize('json', queryset)
-                        data_list = json.loads(json_str)
-                        all_data.extend(data_list)
-                        total_count += count
-
-            except Exception as e:
-                raise SyncError(f"导出 {app_label} 失败: {str(e)}")
+                    json_str = serializers.serialize('json', queryset)
+                    data_list = json.loads(json_str)
+                    all_data.extend(data_list)
+                    total_count += count
+        except Exception as e:
+            raise SyncError(f"导出数据库快照失败: {str(e)}")
 
         yield json.dumps({"step": "processing", "msg": f"正在打包上传 {total_count} 条数据..."}) + "\n"
 
@@ -304,7 +345,7 @@ class SyncManager:
 
     def sync_assets_upload_stream(self):
         """按资产记录同步媒体资源，避免数据库与文件集脱节。"""
-        relative_paths, missing_files = self._collect_asset_relative_paths()
+        relative_paths, missing_files = self._collect_media_relative_paths()
         if missing_files:
             preview = '，'.join(missing_files[:3])
             if len(missing_files) > 3:
@@ -315,7 +356,7 @@ class SyncManager:
             local_root=settings.MEDIA_ROOT,
             remote_root=self.media_dir,
             relative_paths=relative_paths,
-            label='资源文件'
+            label='媒体文件'
         )
 
     def sync_data_download(self):
@@ -325,6 +366,10 @@ class SyncManager:
             raise SyncError("云端未找到数据快照 data_index.json")
 
         data_list = json.loads(content)
+        self._reuse_local_builtin_skill_ids(data_list)
+        group_id_mapping = self._reuse_local_group_ids(data_list)
+        user_id_mapping = self._reuse_local_user_ids(data_list, group_id_mapping)
+        self._reuse_local_user_profile_ids(data_list, user_id_mapping)
         remote_pk_map = defaultdict(set)
         model_map = {}
         for model in self._iter_target_models():
@@ -343,6 +388,9 @@ class SyncManager:
 
             for model in reversed(list(self._iter_target_models())):
                 model_label = f"{model._meta.app_label}.{model._meta.model_name}"
+                # 兼容旧快照：此前未导出 auth.User，不能在恢复时删除当前登录账号。
+                if model in (Group, get_user_model()) and model_label not in remote_pk_map:
+                    continue
                 remote_pks = remote_pk_map.get(model_label, set())
                 local_objects = model.objects.all()
 
@@ -355,9 +403,152 @@ class SyncManager:
 
         return len(data_list)
 
+    @staticmethod
+    def _reuse_local_builtin_skill_ids(data_list):
+        """将快照内置 Skill 映射到本地已有记录，避免启动初始化产生同名冲突。"""
+        from system_settings.models import Skill
+
+        skill_id_mapping = {}
+        for item in data_list:
+            if item.get('model') != 'system_settings.skill':
+                continue
+
+            fields = item.get('fields') or {}
+            skill_key = fields.get('skill_key') or ''
+            is_builtin = (
+                fields.get('is_system')
+                or fields.get('source') == 'built_in'
+                or bool(skill_key)
+            )
+            if not is_builtin:
+                continue
+
+            existing = None
+            if skill_key:
+                existing = Skill.objects.filter(skill_key=skill_key).first()
+            if not existing and fields.get('name'):
+                # 兼容早期内置 Skill 尚未写入 skill_key 的数据。
+                existing = Skill.objects.filter(name=fields['name']).first()
+
+            remote_id = str(item.get('pk'))
+            if existing and str(existing.pk) != remote_id:
+                skill_id_mapping[remote_id] = str(existing.pk)
+                item['pk'] = str(existing.pk)
+
+        if not skill_id_mapping:
+            return
+
+        for item in data_list:
+            if item.get('model') != 'system_settings.agent':
+                continue
+
+            fields = item.get('fields') or {}
+            skills = fields.get('skills')
+            if isinstance(skills, list):
+                fields['skills'] = [skill_id_mapping.get(str(skill_id), skill_id) for skill_id in skills]
+
+    @staticmethod
+    def _reuse_local_group_ids(data_list):
+        """按组名复用本地用户组，并返回远端到本地的主键映射。"""
+        group_label = Group._meta.label_lower
+        used_ids = set(Group.objects.values_list('pk', flat=True))
+        next_id = max(used_ids, default=0) + 1
+        group_id_mapping = {}
+
+        for item in data_list:
+            if item.get('model') != group_label:
+                continue
+
+            fields = item.get('fields') or {}
+            group_name = fields.get('name')
+            remote_id = item.get('pk')
+            if remote_id is None or not group_name:
+                continue
+
+            local_group = Group.objects.filter(name=group_name).first()
+            if local_group:
+                local_id = local_group.pk
+            elif remote_id in used_ids:
+                local_id = next_id
+                next_id += 1
+            else:
+                local_id = remote_id
+
+            group_id_mapping[str(remote_id)] = local_id
+            item['pk'] = local_id
+            used_ids.add(local_id)
+
+        return group_id_mapping
+
+    @staticmethod
+    def _reuse_local_user_ids(data_list, group_id_mapping):
+        """按用户名复用本地用户，并保留当前初始化管理员的密码。"""
+        User = get_user_model()
+        user_label = User._meta.label_lower
+        used_ids = set(User.objects.values_list('pk', flat=True))
+        next_id = max(used_ids, default=0) + 1
+        user_id_mapping = {}
+
+        for item in data_list:
+            if item.get('model') != user_label:
+                continue
+
+            fields = item.get('fields') or {}
+            username = fields.get('username')
+            remote_id = item.get('pk')
+            if remote_id is None or not username:
+                continue
+
+            local_user = User.objects.filter(username=username).first()
+            if local_user:
+                local_id = local_user.pk
+                if local_user.is_superuser:
+                    fields['password'] = local_user.password
+            elif remote_id in used_ids:
+                local_id = next_id
+                next_id += 1
+            else:
+                local_id = remote_id
+
+            user_id_mapping[str(remote_id)] = local_id
+            item['pk'] = local_id
+            used_ids.add(local_id)
+
+            groups = fields.get('groups')
+            if isinstance(groups, list):
+                fields['groups'] = [group_id_mapping.get(str(group_id), group_id) for group_id in groups]
+
+        return user_id_mapping
+
+    @staticmethod
+    def _reuse_local_user_profile_ids(data_list, user_id_mapping):
+        """按业务用户 ID 复用本地 Profile，避免跨环境使用自增用户 ID。"""
+        from user.models import UserProfile
+
+        for item in data_list:
+            if item.get('model') != 'user.userprofile':
+                continue
+
+            fields = item.get('fields') or {}
+            userid = fields.get('userid') or ''
+            if not userid:
+                continue
+
+            local_profile = UserProfile.objects.filter(userid=userid).first()
+            if local_profile:
+                # UserProfile 对 auth.User 是一对一关系，主键和外键都必须复用本地记录。
+                item['pk'] = local_profile.pk
+                fields['user'] = local_profile.user_id
+                continue
+
+            remote_user_id = str(fields.get('user'))
+            if remote_user_id in user_id_mapping:
+                fields['user'] = user_id_mapping[remote_user_id]
+
     def sync_assets_download(self):
         """根据数据库快照修复本地媒体资源，并清理多余文件。"""
         from assets.models import Asset
+        from user.models import UserProfile
 
         count = 0
         local_media_root = str(settings.MEDIA_ROOT)
@@ -387,6 +578,22 @@ class SyncManager:
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
             if not self.client.download_file(remote_path, local_path):
                 raise SyncError(f"资源文件下载失败：{rel_path}")
+            count += 1
+
+        for avatar_url in UserProfile.objects.exclude(avatar='').values_list('avatar', flat=True):
+            rel_path = self._get_media_relative_path(avatar_url)
+            if not rel_path:
+                continue
+            expected_rel_paths.add(rel_path)
+
+            local_path = os.path.join(local_media_root, rel_path)
+            if os.path.exists(local_path):
+                continue
+
+            remote_path = self._join_remote_path(self.media_dir, rel_path)
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            if not self.client.download_file(remote_path, local_path):
+                raise SyncError(f"用户头像下载失败：{rel_path}")
             count += 1
 
         self._remove_local_extra_files(local_media_root, expected_rel_paths)

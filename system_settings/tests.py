@@ -1,9 +1,12 @@
 import json
 import os
 import sys
+import tempfile
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.core import serializers
+from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory
@@ -25,13 +28,14 @@ from system_settings.feishu_im import (
     _select_context_records,
     _trim_to_estimated_tokens,
 )
-from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentLongTermMemory, AgentShortTermMemory, MCPServer, SystemSetting
+from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentLongTermMemory, AgentShortTermMemory, MCPServer, Skill, SystemSetting
 from system_settings.sync_scheduler import should_start_webdav_scheduler
 from system_settings.views import AgentViewSet, SystemConfigViewSet
 from utils.ai_service import AIService
 from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
 from utils.sync_manager import SyncError, SyncManager
 from utils.webdav import WebDavClient
+from user.models import UserProfile
 
 
 class FakeWebDavClient:
@@ -106,6 +110,116 @@ class SyncManagerTests(TestCase):
 
         with self.assertRaises(SyncError):
             manager.sync_data_download()
+
+    def test_sync_data_download_reuses_local_builtin_skill(self):
+        now = timezone.now()
+        local_skill = Skill.objects.create(
+            id='skill_local_builtin',
+            name='文章润色',
+            skill_key='odoc_agent_post_markdown_guide',
+            source='built_in',
+            is_system=True,
+        )
+        remote_skill = Skill(
+            id='skill_remote_builtin',
+            name='文章润色',
+            skill_key='odoc_agent_post_markdown_guide',
+            source='built_in',
+            is_system=True,
+        )
+        remote_skill.created_at = now
+        remote_skill.updated_at = now
+        remote_agent = Agent(id='agent_remote', name='远端 Agent', skills=['skill_remote_builtin'])
+        remote_agent.created_at = now
+        remote_agent.updated_at = now
+        snapshot = serializers.serialize('json', [remote_agent, remote_skill])
+        manager = SyncManager(FakeWebDavClient(content=snapshot), '/o-doc-sync/')
+
+        manager.sync_data_download()
+
+        self.assertEqual(Skill.objects.count(), 1)
+        local_skill.refresh_from_db()
+        self.assertEqual(local_skill.name, '文章润色')
+        self.assertEqual(Agent.objects.get(pk='agent_remote').skills, ['skill_local_builtin'])
+
+    def test_sync_data_download_reuses_local_user_profile(self):
+        now = timezone.now()
+        local_user = User.objects.create_user(username='admin', password='local-password')
+        local_profile = UserProfile.objects.create(
+            user=local_user,
+            userid='admin',
+            nickname='本地管理员',
+        )
+        remote_profile = UserProfile(
+            pk=99,
+            user_id=2,
+            userid='admin',
+            nickname='远端管理员',
+        )
+        remote_profile.created_at = now
+        remote_profile.updated_at = now
+        snapshot = serializers.serialize('json', [remote_profile])
+        manager = SyncManager(FakeWebDavClient(content=snapshot), '/o-doc-sync/')
+
+        manager.sync_data_download()
+
+        self.assertEqual(UserProfile.objects.count(), 1)
+        local_profile.refresh_from_db()
+        self.assertEqual(local_profile.user_id, local_user.id)
+        self.assertEqual(local_profile.nickname, '远端管理员')
+
+    def test_sync_data_download_restores_users_without_replacing_local_admin_password(self):
+        now = timezone.now()
+        local_admin = User.objects.create_superuser(username='admin', password='local-password')
+        local_admin_password = local_admin.password
+        UserProfile.objects.create(user=local_admin, userid='admin')
+        remote_group = Group(id=3, name='编辑')
+        remote_user = User(id=1, username='alice', password='remote-alice-password', is_staff=True)
+        remote_admin = User(id=2, username='admin', password='remote-admin-password', is_superuser=True, is_staff=True)
+        remote_alice_profile = UserProfile(pk=99, user_id=1, userid='alice', nickname='Alice')
+        remote_admin_profile = UserProfile(pk=100, user_id=2, userid='admin', nickname='远端管理员')
+        for profile in (remote_alice_profile, remote_admin_profile):
+            profile.created_at = now
+            profile.updated_at = now
+        snapshot_data = json.loads(serializers.serialize(
+            'json',
+            [remote_group, remote_user, remote_admin, remote_alice_profile, remote_admin_profile],
+        ))
+        for item in snapshot_data:
+            if item['model'] == 'auth.user' and item['fields']['username'] == 'alice':
+                item['fields']['groups'] = [3]
+        manager = SyncManager(FakeWebDavClient(content=json.dumps(snapshot_data)), '/o-doc-sync/')
+
+        manager.sync_data_download()
+
+        local_admin.refresh_from_db()
+        self.assertEqual(local_admin.password, local_admin_password)
+        alice = User.objects.get(username='alice')
+        self.assertTrue(alice.is_staff)
+        self.assertEqual(list(alice.groups.values_list('name', flat=True)), ['编辑'])
+        self.assertEqual(UserProfile.objects.get(userid='alice').user_id, alice.id)
+        self.assertEqual(UserProfile.objects.get(userid='admin').user_id, local_admin.id)
+
+    def test_sync_assets_download_includes_user_avatar(self):
+        user = User.objects.create_user(username='admin', password='password')
+        UserProfile.objects.create(user=user, userid='admin', avatar='/media/avatars/admin.png')
+        client = FakeWebDavClient()
+        manager = SyncManager(client, '/o-doc-sync/')
+
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.settings(MEDIA_ROOT=media_root):
+                downloaded_count = manager.sync_assets_download()
+
+        self.assertEqual(downloaded_count, 1)
+        self.assertEqual(client.downloaded, [('/o-doc-sync/media/avatars/admin.png', f'{media_root}/avatars/admin.png')])
+
+    def test_media_relative_path_rejects_parent_directory(self):
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.settings(MEDIA_ROOT=media_root):
+                path = manager._get_media_relative_path('/media/avatars/../../outside.png')
+
+        self.assertEqual(path, '')
 
     def test_write_snapshot_meta_includes_current_app_version(self):
         client = FakeWebDavClient()
