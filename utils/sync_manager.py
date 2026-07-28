@@ -141,9 +141,11 @@ class SyncManager:
 
     def _collect_asset_relative_paths(self):
         from assets.models import Asset
+        from anthology.models import Book
 
         relative_paths = []
         missing_files = []
+        released_asset_ids = set(Book.objects.filter(is_valid=True, local_state='cloud_only').values_list('asset_id', flat=True))
         for asset in Asset.objects.filter(is_valid=True):
             if not asset.file_path:
                 continue
@@ -151,6 +153,9 @@ class SyncManager:
             rel_path = self._normalize_rel_path(asset.file_path)
             local_path = os.path.join(settings.MEDIA_ROOT, rel_path)
             if not os.path.isfile(local_path):
+                # A cloud-only book has an explicit remote hash and is intentionally absent locally.
+                if asset.id in released_asset_ids:
+                    continue
                 missing_files.append(rel_path)
                 continue
 
@@ -248,7 +253,7 @@ class SyncManager:
 
         return deleted_count
 
-    def _sync_tree_upload_stream(self, *, local_root, remote_root, relative_paths, label):
+    def _sync_tree_upload_stream(self, *, local_root, remote_root, relative_paths, label, preserve_remote_rel_paths=()):
         local_root = str(local_root)
         self.client.ensure_directory(remote_root)
 
@@ -260,7 +265,10 @@ class SyncManager:
         }) + "\n"
 
         remote_existing_files = self._list_remote_files(remote_root) or set()
-        expected_remote_files = set()
+        expected_remote_files = {
+            self._join_remote_path(remote_root, rel_path)
+            for rel_path in preserve_remote_rel_paths
+        }
 
         for index, rel_path in enumerate(relative_paths, start=1):
             local_path = os.path.join(local_root, rel_path)
@@ -352,12 +360,25 @@ class SyncManager:
                 preview += f' 等 {len(missing_files)} 个文件'
             raise SyncError(f"资源同步前校验失败：以下文件缺失 {preview}")
 
+        from anthology.models import Book
+        from assets.models import Asset
+        released_paths = [self._normalize_rel_path(asset.file_path) for asset in Asset.objects.filter(
+            book_files__is_valid=True, book_files__local_state='cloud_only', is_valid=True
+        ).distinct() if asset.file_path]
         yield from self._sync_tree_upload_stream(
             local_root=settings.MEDIA_ROOT,
             remote_root=self.media_dir,
             relative_paths=relative_paths,
-            label='媒体文件'
+            label='媒体文件',
+            preserve_remote_rel_paths=released_paths,
         )
+        # File upload has completed successfully. Persist a hash-bound remote availability marker
+        # before the database snapshot is written by the caller.
+        local_books = Book.objects.filter(is_valid=True, local_state='local').select_related('asset')
+        for book in local_books:
+            path = os.path.join(settings.MEDIA_ROOT, book.asset.file_path)
+            if os.path.isfile(path):
+                Book.objects.filter(book_id=book.book_id).update(remote_available=True, remote_hash=book.asset.file_hash)
 
     def sync_data_download(self):
         """下载并恢复数据库快照，同时清理本地多余记录。"""
@@ -554,6 +575,8 @@ class SyncManager:
         local_media_root = str(settings.MEDIA_ROOT)
         expected_rel_paths = set()
 
+        from anthology.models import Book
+        released_asset_ids = set(Book.objects.filter(is_valid=True, local_state='cloud_only').values_list('asset_id', flat=True))
         assets = Asset.objects.filter(is_valid=True)
         for asset in assets:
             if not asset.file_path:
@@ -561,6 +584,12 @@ class SyncManager:
 
             rel_path = self._normalize_rel_path(asset.file_path)
             expected_rel_paths.add(rel_path)
+
+            # The cover is a regular asset and remains local; only the explicitly released
+            # original book body is excluded from bulk restore.
+            if asset.id in released_asset_ids:
+                expected_rel_paths.discard(rel_path)
+                continue
 
             local_path = os.path.join(local_media_root, rel_path)
             remote_path = self._join_remote_path(self.media_dir, rel_path)

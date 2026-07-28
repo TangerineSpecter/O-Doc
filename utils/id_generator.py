@@ -25,6 +25,10 @@ def generate_coll_id() -> str:
     return generate_unique_id("coll")
 
 
+def generate_book_id() -> str:
+    return generate_unique_id("book")
+
+
 # 为文章生成带art前缀的ID
 def generate_article_id() -> str:
     """

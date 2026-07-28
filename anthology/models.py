@@ -1,5 +1,5 @@
 from django.db import models
-from utils.id_generator import generate_coll_id
+from utils.id_generator import generate_coll_id, generate_book_id
 
 
 class Anthology(models.Model):
@@ -46,7 +46,8 @@ class Anthology(models.Model):
         choices=[
             ('article', '文章文集'),
             ('image', '图片文集'),
-            ('agent', 'Agent 文集')
+            ('agent', 'Agent 文集'),
+            ('book', '图书文集'),
         ],
         default='article',
         verbose_name='文集类型',
@@ -153,3 +154,44 @@ class Anthology(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class Book(models.Model):
+    """图书书架条目；正文和封面继续复用统一 Asset 存储与同步机制。"""
+    BOOK_FORMATS = [('pdf', 'PDF'), ('txt', 'TXT'), ('epub', 'EPUB'), ('mobi', 'MOBI')]
+    LOCAL_STATES = [('local', '本地可用'), ('cloud_only', '仅云端'), ('restoring', '恢复中')]
+
+    book_id = models.CharField(max_length=40, primary_key=True, default=generate_book_id)
+    anthology = models.ForeignKey(Anthology, on_delete=models.CASCADE, related_name='books')
+    asset = models.ForeignKey('assets.Asset', on_delete=models.PROTECT, related_name='book_files')
+    cover_asset = models.ForeignKey('assets.Asset', on_delete=models.SET_NULL, null=True, blank=True, related_name='book_covers')
+    title = models.CharField(max_length=255)
+    author = models.CharField(max_length=255, blank=True, default='')
+    book_format = models.CharField(max_length=10, choices=BOOK_FORMATS)
+    local_state = models.CharField(max_length=20, choices=LOCAL_STATES, default='local')
+    remote_available = models.BooleanField(default=False)
+    remote_hash = models.CharField(max_length=64, blank=True, default='')
+    metadata = models.JSONField(default=dict, blank=True)
+    is_valid = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'books'
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['anthology', 'is_valid'], name='books_antholo_5e8e5a_idx'),
+            models.Index(fields=['local_state'], name='books_local_s_9e1b7f_idx'),
+        ]
+
+
+class BookReadingProgress(models.Model):
+    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='reading_progresses')
+    user_id = models.CharField(max_length=50)
+    location = models.TextField(blank=True, default='')
+    progress = models.FloatField(default=0)
+    last_read_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'book_reading_progresses'
+        unique_together = ('book', 'user_id')

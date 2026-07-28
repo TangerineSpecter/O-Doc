@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Globe, Lock, Loader2, Save, Plus, Pin, FileText, Image, EyeOff, Bot } from 'lucide-react';
+import { X, Globe, Lock, Loader2, Save, Plus, Pin, FileText, Image, EyeOff, Bot, Library } from 'lucide-react';
 import { AVAILABLE_ICONS } from '../constants/iconList';
 
 export interface AnthologyFormData {
@@ -13,7 +13,7 @@ export interface AnthologyFormData {
     hideCoverContent?: boolean;
     hide_cover_content?: boolean;
     sort?: number;
-    type?: 'article' | 'image' | 'agent';
+    type?: 'article' | 'image' | 'agent' | 'book';
 }
 
 interface CreateAnthologyModalProps {
@@ -207,7 +207,7 @@ export default function CreateAnthologyModal({
                     {/* 文集类型选择 */}
                     <div className="space-y-2">
                         <label className="text-sm font-semibold text-slate-700">文集类型</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div
                                 onClick={() => !isSubmitting && setFormData({ ...formData, type: 'article' })}
                                 className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.type === 'article' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -219,6 +219,13 @@ export default function CreateAnthologyModal({
                                     <div className="text-sm font-medium text-slate-800 whitespace-nowrap">文章文集</div>
                                     <div className="text-xs text-slate-500 truncate">存储文章内容</div>
                                 </div>
+                            </div>
+                            <div
+                                onClick={() => !isSubmitting && setFormData({ ...formData, type: 'book' })}
+                                className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.type === 'book' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                <div className={`p-2 rounded-full ${formData.type === 'book' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}><Library className="w-4 h-4" /></div>
+                                <div className="min-w-0"><div className="text-sm font-medium text-slate-800 whitespace-nowrap">图书文集</div><div className="text-xs text-slate-500 truncate">书架与在线阅读</div></div>
                             </div>
                             <div
                                 onClick={() => !isSubmitting && setFormData({ ...formData, type: 'image' })}

@@ -25,7 +25,7 @@ export interface CreateAnthologyParams {
     isTop?: boolean;
     hideCoverContent?: boolean;
     sort?: number;
-    type?: 'article' | 'image' | 'agent';
+    type?: 'article' | 'image' | 'agent' | 'book';
 }
 
 // 定义文集返回数据类型
@@ -42,5 +42,5 @@ export interface Anthology {
     articles: ArticleSummary[];
     permission: 'public' | 'private';
     sort?: number;
-    type?: 'article' | 'image' | 'agent'; // Added type field
+    type?: 'article' | 'image' | 'agent' | 'book'; // Added type field
 }

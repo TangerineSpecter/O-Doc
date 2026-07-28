@@ -24,7 +24,7 @@ export const useCollections = () => {
     const [sortType, setSortType] = useState('default');
 
     // 1. 获取数据
-    const fetchCollections = useCallback(async (type?: 'article' | 'image' | 'agent') => {
+    const fetchCollections = useCallback(async (type?: 'article' | 'image' | 'agent' | 'book') => {
         setLoading(true);
         try {
             const data: Anthology[] = await getAnthologyList(type);

@@ -6,7 +6,7 @@ from article.models import Article, Image
 from utils.drf_utils import get_current_user_identifier
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
-from .models import Anthology
+from .models import Anthology, Book, BookReadingProgress
 from .serializers import AnthologySerializer
 
 
@@ -98,6 +98,13 @@ class AnthologyListView(APIView):
                                 'image_url': image.image_url,
                                 'date': image.created_at.strftime('%m-%d')
                             })
+                elif anthology.type == 'book':
+                    book_qs = Book.objects.filter(anthology=anthology, is_valid=True).select_related('cover_asset')
+                    item_count = book_qs.count()
+                    if not anthology.hide_cover_content:
+                        for book in book_qs[:3]:
+                            item_summaries.append({'book_id': book.book_id, 'title': book.title,
+                                'cover_url': f'/api/anthology/book/{book.book_id}/cover', 'date': book.updated_at.strftime('%m-%d')})
                 elif not anthology.hide_cover_content:
                     order_by = ('-created_at',) if anthology.type == 'agent' else ('sort', '-updated_at')
                     articles = Article.objects.filter(coll_id=anthology.coll_id, is_valid=True).order_by(*order_by)[:3]

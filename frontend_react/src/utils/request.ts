@@ -38,6 +38,12 @@ service.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
         // 在发送请求之前做些什么
 
+        // Let the browser add the multipart boundary for uploads. Keeping the global
+        // application/json header makes Django's request.FILES empty for FormData.
+        if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+            config.headers.delete('Content-Type');
+        }
+
         // 从本地登录态读取 token；普通登录 7 天过期，记住我长期有效。
         const token = getAuthToken();
         if (token) {

@@ -2,6 +2,7 @@ import React from 'react';
 import {
     ArrowUp,
     Bot,
+    Library,
     ChevronDown,
     CloudOff,
     Edit,
@@ -64,8 +65,9 @@ export const SortableCollectionCard = ({
     const hideCoverContent = item.hideCoverContent ?? item.hide_cover_content ?? false;
     const shouldMaskCover = hideCoverContent && item.count > 0;
     const isAgentCollection = item.type === 'agent';
-    const navigateTarget = isAgentCollection ? 'article' : item.type === 'image' ? 'image' : 'article';
-    const countTitle = isAgentCollection ? `${item.count} 条帖子` : item.type === 'image' ? `${item.count} 张图片` : `${item.count} 篇文档`;
+    const isBookCollection = item.type === 'book';
+    const navigateTarget = isAgentCollection ? 'article' : item.type === 'image' ? 'image' : isBookCollection ? 'book' : 'article';
+    const countTitle = isAgentCollection ? `${item.count} 条帖子` : item.type === 'image' ? `${item.count} 张图片` : isBookCollection ? `${item.count} 本图书` : `${item.count} 篇文档`;
     const renderAgentAvatar = (avatar?: string, name?: string) => {
         const value = avatar?.trim();
         const initial = (name || 'A').trim().slice(0, 1).toUpperCase();
@@ -218,6 +220,12 @@ export const SortableCollectionCard = ({
                             <div className="bg-white p-2 rounded-full border border-dashed border-indigo-300"><Bot className="w-4 h-4 text-indigo-500" /></div>
                             <span className="text-[10px]">暂无 Agent 帖子</span>
                         </div>
+                    )
+                ) : isBookCollection ? (
+                    item.count > 0 ? (
+                        <button onClick={() => onNavigate('book', {collId: item.collId, title: item.title})} className="h-full w-full min-h-[5.75rem] flex items-center gap-3 px-3 text-left hover:bg-orange-50/50"><div className="flex h-12 w-9 items-center justify-center rounded-sm bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm"><Library className="w-4 h-4"/></div><div><p className="text-xs font-semibold text-slate-700">打开书架</p><p className="mt-1 text-[10px] text-slate-400">收录 {item.count} 本图书</p></div></button>
+                    ) : (
+                        <button onClick={() => onNavigate('book', {collId: item.collId, title: item.title})} className="h-full w-full min-h-[5.75rem] flex flex-col items-center justify-center text-slate-400 py-4 gap-2 hover:bg-orange-50/50 transition-colors"><div className="bg-white p-2 rounded-full border border-dashed border-slate-300"><Plus className="w-4 h-4 text-slate-300" /></div><span className="text-[10px]">暂无图书，点击导入</span></button>
                     )
                 ) : item.type === 'image' ? (
                     // 图片文集展示：九宫格缩略图
