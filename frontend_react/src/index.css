@@ -121,6 +121,29 @@ code, pre {
   -webkit-box-decoration-break: clone;
 }
 
+/* 阅读器翻页：以轻微透视旋转模拟纸页从左右翻过的节奏。 */
+@keyframes reader-page-turn-next {
+  0% { opacity: 0.38; transform: perspective(1600px) rotateY(10deg) translateX(4%); }
+  52% { opacity: 0.82; transform: perspective(1600px) rotateY(-2deg) translateX(-0.8%); }
+  100% { opacity: 1; transform: perspective(1600px) rotateY(0) translateX(0); }
+}
+
+@keyframes reader-page-turn-prev {
+  0% { opacity: 0.38; transform: perspective(1600px) rotateY(-10deg) translateX(-4%); }
+  52% { opacity: 0.82; transform: perspective(1600px) rotateY(2deg) translateX(0.8%); }
+  100% { opacity: 1; transform: perspective(1600px) rotateY(0) translateX(0); }
+}
+
+.reader-page-turn-next {
+  transform-origin: left center;
+  animation: reader-page-turn-next 280ms cubic-bezier(.2,.75,.2,1);
+}
+
+.reader-page-turn-prev {
+  transform-origin: right center;
+  animation: reader-page-turn-prev 280ms cubic-bezier(.2,.75,.2,1);
+}
+
 /* AI 流式打印时的平滑文字自适应渐显效果 */
 .streaming-bubble > :last-child p:last-child,
 .streaming-bubble > :last-child li:last-child,

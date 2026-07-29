@@ -3,6 +3,9 @@ import mimetypes
 import os
 import tempfile
 import uuid
+import posixpath
+import zipfile
+from xml.etree import ElementTree
 
 from django.conf import settings
 from django.http import FileResponse, Http404
@@ -17,6 +20,8 @@ from .views import get_visible_anthology_queryset, get_owned_anthology_queryset
 
 ALLOWED_EXTENSIONS = {'.pdf': 'pdf', '.txt': 'txt', '.epub': 'epub', '.mobi': 'mobi'}
 MAX_BOOK_SIZE = 500 * 1024 * 1024
+MAX_EPUB_METADATA_SIZE = 2 * 1024 * 1024
+MAX_EPUB_COVER_SIZE = 20 * 1024 * 1024
 
 
 def _book_for_read(request, book_id):
@@ -31,6 +36,95 @@ def _book_for_owner(request, book_id):
 
 def _asset_path(asset):
     return os.path.join(settings.MEDIA_ROOT, asset.file_path)
+
+
+def _read_epub_member(archive, path, max_size):
+    """Read a small EPUB member without allowing a compressed entry to exhaust memory."""
+    info = archive.getinfo(path)
+    if info.file_size > max_size:
+        return None
+    with archive.open(info) as source:
+        data = source.read(max_size + 1)
+    return data if len(data) <= max_size else None
+
+
+def _epub_metadata_and_cover(path):
+    """Read the OPF package in an EPUB archive and return its title, author and cover bytes."""
+    if not zipfile.is_zipfile(path):
+        return '', '', None, ''
+    try:
+        with zipfile.ZipFile(path) as archive:
+            container_bytes = _read_epub_member(archive, 'META-INF/container.xml', MAX_EPUB_METADATA_SIZE)
+            if not container_bytes:
+                return '', '', None, ''
+            container = ElementTree.fromstring(container_bytes)
+            rootfile = container.find('.//{urn:oasis:names:tc:opendocument:xmlns:container}rootfile')
+            if rootfile is None or not rootfile.get('full-path'):
+                return '', '', None, ''
+            opf_path = rootfile.get('full-path')
+            opf_bytes = _read_epub_member(archive, opf_path, MAX_EPUB_METADATA_SIZE)
+            if not opf_bytes:
+                return '', '', None, ''
+            package = ElementTree.fromstring(opf_bytes)
+            metadata = package.find('{http://www.idpf.org/2007/opf}metadata')
+            manifest = package.find('{http://www.idpf.org/2007/opf}manifest')
+            if metadata is None or manifest is None:
+                return '', '', None, ''
+
+            title_node = metadata.find('{http://purl.org/dc/elements/1.1/}title')
+            creator_node = metadata.find('{http://purl.org/dc/elements/1.1/}creator')
+            title = (title_node.text or '').strip() if title_node is not None else ''
+            author = (creator_node.text or '').strip() if creator_node is not None else ''
+
+            cover_id = ''
+            for item in manifest.findall('{http://www.idpf.org/2007/opf}item'):
+                if 'cover-image' in (item.get('properties') or '').split():
+                    cover_id = item.get('id') or ''
+                    break
+            if not cover_id:
+                for meta in metadata.findall('{http://www.idpf.org/2007/opf}meta'):
+                    if meta.get('name') == 'cover':
+                        cover_id = meta.get('content') or ''
+                        break
+            cover_item = next((item for item in manifest.findall('{http://www.idpf.org/2007/opf}item') if item.get('id') == cover_id), None)
+            if cover_item is None or not cover_item.get('href'):
+                return title, author, None, ''
+            cover_path = posixpath.normpath(posixpath.join(posixpath.dirname(opf_path), cover_item.get('href')))
+            cover_bytes = _read_epub_member(archive, cover_path, MAX_EPUB_COVER_SIZE)
+            return title, author, cover_bytes, cover_item.get('media-type') or ''
+    except (ElementTree.ParseError, KeyError, OSError, zipfile.BadZipFile):
+        return '', '', None, ''
+
+
+def _extract_epub_details(book):
+    """Persist metadata and cover available inside a local EPUB; harmless for older imports."""
+    if book.book_format != 'epub' or not os.path.isfile(_asset_path(book.asset)):
+        return
+    title, author, cover_bytes, cover_mime = _epub_metadata_and_cover(_asset_path(book.asset))
+    changed = []
+    if title and (not book.title or book.title == os.path.splitext(book.asset.original_name)[0]):
+        book.title = title[:255]
+        changed.append('title')
+    if author and not book.author:
+        book.author = author[:255]
+        changed.append('author')
+    if cover_bytes and not book.cover_asset:
+        extension = mimetypes.guess_extension(cover_mime) or '.jpg'
+        cover_id = uuid.uuid4().hex[:16]
+        rel_path = os.path.join('book_covers', cover_id + extension)
+        abs_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        with open(abs_path, 'wb') as output:
+            output.write(cover_bytes)
+        book.cover_asset = Asset.objects.create(
+            id=cover_id, name=os.path.basename(rel_path), original_name=os.path.basename(rel_path),
+            file_type='image', file_size=len(cover_bytes), file_path=rel_path, file_extension=extension,
+            mime_type=cover_mime or 'image/jpeg', uploader=book.asset.uploader,
+            file_hash=hashlib.md5(cover_bytes).hexdigest(), source_type='other', metadata={'book_cover': True},
+        )
+        changed.append('cover_asset')
+    if changed:
+        book.save(update_fields=[*changed, 'updated_at'])
 
 
 class BookListView(APIView):
@@ -98,6 +192,7 @@ class BookUploadView(APIView):
             author=(request.data.get('author') or '')[:255], book_format=ALLOWED_EXTENSIONS[ext],
             local_state='local' if local_file_exists else 'cloud_only',
             remote_available=bool(synced_book), remote_hash=asset.file_hash if synced_book else '')
+        _extract_epub_details(book)
         anthology.update_stats()
         return success_result({'bookId': book.book_id})
 
@@ -116,6 +211,9 @@ class BookCoverView(APIView):
     def get(self, request, book_id):
         try: book = _book_for_read(request, book_id)
         except Book.DoesNotExist: raise Http404
+        # Covers were not extracted by early versions; recover them lazily on first display.
+        if not book.cover_asset:
+            _extract_epub_details(book)
         if book.cover_asset and os.path.isfile(_asset_path(book.cover_asset)):
             return FileResponse(open(_asset_path(book.cover_asset), 'rb'), content_type=book.cover_asset.mime_type)
         # A deliberately lightweight fallback cover, rendered by the frontend when no cover bytes exist.
