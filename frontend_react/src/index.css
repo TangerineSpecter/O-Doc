@@ -121,27 +121,322 @@ code, pre {
   -webkit-box-decoration-break: clone;
 }
 
-/* 阅读器翻页：以轻微透视旋转模拟纸页从左右翻过的节奏。 */
-@keyframes reader-page-turn-next {
-  0% { opacity: 0.38; transform: perspective(1600px) rotateY(10deg) translateX(4%); }
-  52% { opacity: 0.82; transform: perspective(1600px) rotateY(-2deg) translateX(-0.8%); }
-  100% { opacity: 1; transform: perspective(1600px) rotateY(0) translateX(0); }
+/* 图书阅读器：纸张、书脊和封壳共同构成摊开的实体书。 */
+.reader-desk {
+  background:
+    radial-gradient(ellipse at 50% 108%, rgba(71, 85, 105, .13), transparent 46%),
+    linear-gradient(115deg, rgba(255, 255, 255, .96), transparent 32%),
+    repeating-linear-gradient(92deg, rgba(100, 116, 139, .018) 0 1px, transparent 1px 9px),
+    #f8fafc;
 }
 
-@keyframes reader-page-turn-prev {
-  0% { opacity: 0.38; transform: perspective(1600px) rotateY(-10deg) translateX(-4%); }
-  52% { opacity: 0.82; transform: perspective(1600px) rotateY(2deg) translateX(0.8%); }
-  100% { opacity: 1; transform: perspective(1600px) rotateY(0) translateX(0); }
+.reader-loading-book {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px 9px 13px 13px;
+  background: #fff;
+  box-shadow:
+    0 2px 0 #e2e8f0,
+    0 5px 0 #cbd5e1,
+    0 20px 42px rgba(15, 23, 42, .12);
 }
 
-.reader-page-turn-next {
-  transform-origin: left center;
-  animation: reader-page-turn-next 280ms cubic-bezier(.2,.75,.2,1);
+.reader-loading-book > div {
+  flex: 1;
+  background:
+    radial-gradient(rgba(100, 116, 139, .035) .5px, transparent .7px),
+    #fff;
+  background-size: 5px 5px, auto;
 }
 
-.reader-page-turn-prev {
-  transform-origin: right center;
-  animation: reader-page-turn-prev 280ms cubic-bezier(.2,.75,.2,1);
+.reader-loading-book > div + div {
+  border-left: 1px solid #e2e8f0;
+  box-shadow: inset 14px 0 24px -22px rgba(15, 23, 42, .35);
+}
+
+.reader-loading-book::after {
+  content: "";
+  position: absolute;
+  inset-y: 0;
+  left: 50%;
+  width: 28px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgba(71, 85, 105, .08), rgba(255,255,255,.85), rgba(71, 85, 105, .05), transparent);
+  pointer-events: none;
+}
+
+.reader-book-spread {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid rgba(148, 163, 184, .38);
+  border-radius: 9px 9px 13px 13px;
+  background:
+    linear-gradient(90deg, #fff 0%, #fff 47.5%, #e2e8f0 49.8%, #cbd5e1 50%, #f1f5f9 50.25%, #fff 52.5%, #fff 100%);
+  box-shadow:
+    0 2px 0 #e2e8f0,
+    0 5px 0 #cbd5e1,
+    0 20px 42px rgba(15, 23, 42, .18),
+    -10px 12px 25px rgba(15, 23, 42, .06),
+    10px 12px 25px rgba(15, 23, 42, .06);
+}
+
+.reader-book-spread::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, transparent 0 47%, rgba(71, 85, 105, .05) 48.7%, rgba(51, 65, 85, .16) 49.92%, rgba(255,255,255,.8) 50.08%, rgba(71, 85, 105, .05) 51.3%, transparent 53%),
+    linear-gradient(90deg, rgba(71, 85, 105, .08), transparent 2.5%, transparent 97.5%, rgba(71, 85, 105, .08));
+  box-shadow: inset 0 0 30px rgba(71, 85, 105, .045);
+}
+
+.reader-book-spread::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -5px -8px -10px;
+  border-radius: 12px 12px 17px 17px;
+  background: linear-gradient(135deg, #e2e8f0, #94a3b8 46%, #cbd5e1);
+  box-shadow: 0 7px 16px rgba(15, 23, 42, .16);
+}
+
+.reader-book-page {
+  position: relative;
+  overflow: hidden;
+  background-color: #fff;
+  background-image: radial-gradient(rgba(100, 116, 139, .045) .55px, transparent .7px);
+  background-size: 5px 5px;
+}
+
+.reader-book-page-left { border-radius: 8px 0 0 10px; }
+.reader-book-page-right { border-radius: 0 8px 10px 0; }
+.reader-book-page canvas { box-shadow: none; }
+
+.reader-txt-page {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  background:
+    radial-gradient(rgba(100, 116, 139, .042) .55px, transparent .7px),
+    #fff;
+  background-size: 5px 5px, auto;
+}
+
+.reader-txt-page-content {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 3rem 4rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #334155;
+  font-family: "FZPingXianYaSong", "Songti SC", "STSong", serif;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 2.05;
+  letter-spacing: .02em;
+}
+
+.reader-txt-page > span {
+  position: absolute;
+  right: 0;
+  bottom: 1rem;
+  left: 0;
+  text-align: center;
+  color: #94a3b8;
+  font-family: Georgia, serif;
+  font-size: 11px;
+}
+
+.reader-txt-measurer {
+  position: fixed;
+  z-index: -9999;
+  top: 0;
+  left: -100000px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 拖拽翻页：半张纸围绕书脊旋转，正反面、投影和高光均跟随进度。 */
+.reader-turn-layer {
+  perspective: 2200px;
+  transform-style: preserve-3d;
+}
+
+.reader-turn-sheet,
+.reader-reveal-page {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+}
+
+.reader-turn-next .reader-turn-sheet,
+.reader-turn-next .reader-reveal-page { left: 50%; }
+.reader-turn-prev .reader-turn-sheet,
+.reader-turn-prev .reader-reveal-page { right: 50%; }
+
+.reader-reveal-page {
+  border: 1px solid rgba(148, 163, 184, .28);
+  background:
+    linear-gradient(90deg, rgba(71, 85, 105, .1), transparent 9%),
+    radial-gradient(rgba(100, 116, 139, .045) .55px, transparent .7px),
+    #fff;
+  background-size: auto, 5px 5px, auto;
+  box-shadow: inset 0 0 35px rgba(71, 85, 105, .06);
+}
+
+.reader-turn-prev .reader-reveal-page {
+  background:
+    linear-gradient(270deg, rgba(71, 85, 105, .1), transparent 9%),
+    radial-gradient(rgba(100, 116, 139, .045) .55px, transparent .7px),
+    #fff;
+  background-size: auto, 5px 5px, auto;
+}
+
+.reader-turn-sheet {
+  z-index: 2;
+  transform-style: preserve-3d;
+  transform: rotateY(var(--reader-turn-angle));
+  will-change: transform;
+}
+
+.reader-turn-next .reader-turn-sheet { transform-origin: left center; }
+.reader-turn-prev .reader-turn-sheet { transform-origin: right center; }
+.reader-turn-settling .reader-turn-sheet {
+  transition: transform 360ms cubic-bezier(.2,.72,.16,1);
+}
+
+.reader-turn-face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  backface-visibility: hidden;
+  border: 1px solid rgba(148, 163, 184, .3);
+  background:
+    linear-gradient(90deg, rgba(51, 65, 85, .08), transparent 7%, transparent 88%, rgba(71, 85, 105, calc(.035 + var(--reader-turn-progress) * .12))),
+    radial-gradient(rgba(100, 116, 139, .045) .55px, transparent .7px),
+    #fff;
+  background-size: auto, 5px 5px, auto;
+  box-shadow: -18px 2px 35px rgba(15, 23, 42, calc(.07 + var(--reader-turn-progress) * .22));
+  color: rgba(71, 85, 105, .48);
+}
+
+.reader-turn-prev .reader-turn-face {
+  background:
+    linear-gradient(270deg, rgba(51, 65, 85, .08), transparent 7%, transparent 88%, rgba(71, 85, 105, calc(.035 + var(--reader-turn-progress) * .12))),
+    radial-gradient(rgba(100, 116, 139, .045) .55px, transparent .7px),
+    #fff;
+  background-size: auto, 5px 5px, auto;
+  box-shadow: 18px 2px 35px rgba(15, 23, 42, calc(.07 + var(--reader-turn-progress) * .22));
+}
+
+.reader-turn-face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.72) 49%, transparent 58%);
+  transform: translateX(calc((var(--reader-turn-progress) - .5) * 80%));
+  opacity: .55;
+}
+
+.reader-turn-face span {
+  position: absolute;
+  top: 2rem;
+  left: 10%;
+  right: 10%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-family: "Songti SC", "STSong", serif;
+  font-size: 11px;
+  letter-spacing: .14em;
+}
+
+.reader-turn-face p {
+  position: absolute;
+  inset: 4.3rem 10% 3.5rem;
+  margin: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  color: #475569;
+  font-family: "FZPingXianYaSong", "Songti SC", "STSong", serif;
+  font-size: clamp(12px, 1.12vw, 17px);
+  line-height: 2;
+  letter-spacing: .02em;
+  text-align: left;
+  -webkit-mask-image: linear-gradient(to bottom, #000 84%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 84%, transparent 100%);
+}
+
+.reader-reveal-page p {
+  position: absolute;
+  inset: 3.8rem 10% 3.5rem;
+  z-index: 1;
+  margin: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  color: #475569;
+  font-family: "FZPingXianYaSong", "Songti SC", "STSong", serif;
+  font-size: clamp(12px, 1.12vw, 17px);
+  line-height: 2;
+  letter-spacing: .02em;
+  text-align: left;
+  -webkit-mask-image: linear-gradient(to bottom, #000 88%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 88%, transparent 100%);
+}
+
+.reader-turn-face i {
+  position: absolute;
+  bottom: 1.4rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: Georgia, serif;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.reader-turn-back {
+  transform: rotateY(180deg);
+  filter: brightness(.96);
+}
+
+.reader-turn-shadow {
+  position: absolute;
+  z-index: 1;
+  top: 1%;
+  bottom: 1%;
+  left: calc(50% - 12px);
+  width: 24px;
+  background: radial-gradient(ellipse at center, rgba(15, 23, 42, calc(var(--reader-turn-progress) * .26)), transparent 68%);
+  filter: blur(5px);
+}
+
+@media (max-width: 639px) {
+  .reader-book-spread::before {
+    background: linear-gradient(90deg, rgba(71, 85, 105, .07), transparent 4%, transparent 96%, rgba(71, 85, 105, .07));
+  }
+  .reader-txt-page-content {
+    padding: 2.5rem 2.25rem;
+    font-size: 17px;
+  }
+  .reader-turn-sheet,
+  .reader-reveal-page { width: 100%; }
+  .reader-turn-next .reader-turn-sheet,
+  .reader-turn-next .reader-reveal-page { left: 0; }
+  .reader-turn-prev .reader-turn-sheet,
+  .reader-turn-prev .reader-reveal-page { right: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-turn-settling .reader-turn-sheet { transition-duration: 1ms; }
 }
 
 /* AI 流式打印时的平滑文字自适应渐显效果 */

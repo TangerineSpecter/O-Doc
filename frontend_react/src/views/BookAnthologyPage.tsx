@@ -55,6 +55,42 @@ function PdfCanvas({document, pageNumber}: {document: any; pageNumber: number}) 
     return <canvas ref={canvasRef} className="max-h-full w-auto max-w-full bg-white shadow-sm"/>;
 }
 
+function paginatePlainText(content: string, pageWidth: number, pageHeight: number) {
+    if (!content) return [''];
+    const measurer = document.createElement('div');
+    measurer.className = 'reader-txt-page-content reader-txt-measurer';
+    measurer.style.width = `${Math.max(240, pageWidth)}px`;
+    measurer.style.height = `${Math.max(320, pageHeight)}px`;
+    document.body.appendChild(measurer);
+
+    const pages: string[] = [];
+    const usableWidth = Math.max(120, pageWidth - 128);
+    const usableHeight = Math.max(160, pageHeight - 96);
+    const estimatedChars = Math.max(240, Math.floor(usableWidth / 19) * Math.floor(usableHeight / 37));
+    let cursor = 0;
+    while (cursor < content.length) {
+        let low = cursor + 1;
+        let high = Math.min(content.length, cursor + Math.ceil(estimatedChars * 1.7));
+        measurer.textContent = content.slice(cursor, high);
+        while (high < content.length && measurer.scrollHeight <= measurer.clientHeight + 1) {
+            low = high;
+            high = Math.min(content.length, cursor + Math.ceil((high - cursor) * 1.45));
+            measurer.textContent = content.slice(cursor, high);
+        }
+        while (low < high) {
+            const middle = Math.ceil((low + high) / 2);
+            measurer.textContent = content.slice(cursor, middle);
+            if (measurer.scrollHeight <= measurer.clientHeight + 1) low = middle;
+            else high = middle - 1;
+        }
+        const end = Math.max(cursor + 1, low);
+        pages.push(content.slice(cursor, end));
+        cursor = end;
+    }
+    measurer.remove();
+    return pages;
+}
+
 async function fetchBookBlob(bookId: string) {
     const token = getAuthToken();
     const response = await fetch(`/api/anthology/book/${bookId}/file`, {
@@ -66,8 +102,8 @@ async function fetchBookBlob(bookId: string) {
 
 function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () => void; onProgressSaved: (progress: number) => void}) {
     const toast = useToast();
-    const [text, setText] = useState(''); const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(''); const [pdfDocument, setPdfDocument] = useState<any>(null); const [pdfPage, setPdfPage] = useState(1); const [pdfPageCount, setPdfPageCount] = useState(0); const [currentPage, setCurrentPage] = useState(1); const [totalPages, setTotalPages] = useState(0); const [toc, setToc] = useState<Array<{label: string; href: string}>>([]); const [panel, setPanel] = useState<'toc' | 'bookmarks' | null>(null); const [bookmarks, setBookmarks] = useState<Array<{page: number; label: string; location?: string}>>([]); const [epubLocation, setEpubLocation] = useState(''); const [pageMotion, setPageMotion] = useState<'prev' | 'next' | null>(null); const [controlsHovered, setControlsHovered] = useState(false); const [pageDrag, setPageDrag] = useState<{direction: 'prev' | 'next'; progress: number; settling: boolean} | null>(null);
-    const epubRef = useRef<HTMLDivElement>(null); const textRef = useRef<HTMLDivElement>(null); const renditionRef = useRef<any>(null); const epubBookRef = useRef<any>(null); const pdfDocumentRef = useRef<any>(null); const textRestoreLocationRef = useRef<number | null>(null); const dragStartRef = useRef<{x: number; y: number; time: number} | null>(null); const dragProgressRef = useRef(0); const dragDirectionRef = useRef<'prev' | 'next' | null>(null); const lastTurnAt = useRef(0); const wheelDeltaRef = useRef(0); const wheelResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); const controlsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [text, setText] = useState(''); const [txtPages, setTxtPages] = useState<string[]>([]); const [txtPagesPerSpread, setTxtPagesPerSpread] = useState(2); const [txtPaginating, setTxtPaginating] = useState(book.format === 'txt'); const [epubPreviewText, setEpubPreviewText] = useState(''); const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(''); const [pdfDocument, setPdfDocument] = useState<any>(null); const [pdfPage, setPdfPage] = useState(1); const [pdfPageCount, setPdfPageCount] = useState(0); const [currentPage, setCurrentPage] = useState(1); const [totalPages, setTotalPages] = useState(0); const [toc, setToc] = useState<Array<{label: string; href: string}>>([]); const [panel, setPanel] = useState<'toc' | 'bookmarks' | null>(null); const [bookmarks, setBookmarks] = useState<Array<{page: number; label: string; location?: string}>>([]); const [epubLocation, setEpubLocation] = useState(''); const [controlsHovered, setControlsHovered] = useState(false); const [pageDrag, setPageDrag] = useState<{direction: 'prev' | 'next'; progress: number; settling: boolean; source: 'pointer' | 'trackpad' | 'program'} | null>(null);
+    const epubRef = useRef<HTMLDivElement>(null); const textRef = useRef<HTMLDivElement>(null); const renditionRef = useRef<any>(null); const epubBookRef = useRef<any>(null); const pdfDocumentRef = useRef<any>(null); const textRestoreProgressRef = useRef<number | null>(null); const txtProgressRef = useRef(0); const dragStartRef = useRef<{x: number; y: number; time: number} | null>(null); const dragProgressRef = useRef(0); const dragDirectionRef = useRef<'prev' | 'next' | null>(null); const lastTurnAt = useRef(0); const turnAnimationRef = useRef(false); const wheelGestureRef = useRef<{direction: 'prev' | 'next'; distance: number; startedAt: number} | null>(null); const wheelResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); const epubWheelHandlerRef = useRef<((event: WheelEvent) => void) | null>(null); const controlsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingProgressRef = useRef<{location: string; progress: number} | null>(null);
     const bookmarkStorageKey = `o-doc:bookmarks:${book.bookId}`;
@@ -95,9 +131,9 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
                 if (cancelled) return;
                 if (book.format === 'txt') {
                     const content = decodePlainText(await fileBlob.arrayBuffer());
-                    const savedLocation = Number(progress.location);
-                    textRestoreLocationRef.current = progress.location !== '' && Number.isFinite(savedLocation) ? Math.max(0, savedLocation) : null;
-                    if (!cancelled) setText(content);
+                    textRestoreProgressRef.current = Math.max(0, Math.min(100, Number(progress.progress) || 0));
+                    txtProgressRef.current = textRestoreProgressRef.current;
+                    if (!cancelled) { setTxtPaginating(true); setText(content); }
                 } else if (book.format === 'pdf') {
                     const pdfjs = await import('pdfjs-dist');
                     pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
@@ -114,19 +150,31 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
                     await epub.opened;
                     if (cancelled || !epubRef.current) return;
                     const rendition = epub.renderTo(epubRef.current, {width: '100%', height: '100%', manager: 'default', flow: 'paginated', spread: 'always'}); renditionRef.current = rendition;
-                    rendition.on('relocated', (where: any) => { const pct = Math.round((where.start.percentage || 0) * 100); const location = where.start.cfi || ''; setEpubLocation(location); setCurrentPage(Math.max(1, (epub.locations.locationFromCfi?.(location) ?? 0) + 1)); persistProgress({location, progress: pct}); });
-                    let lastEpubTrackpadTurn = 0;
+                    rendition.themes?.default?.({
+                        'html, body': {'background-color': '#ffffff !important'},
+                        body: {'color': '#334155', 'font-family': '"Songti SC", "STSong", serif', 'line-height': '1.9'},
+                        'p, li': {'line-height': '1.9'},
+                    });
+                    const refreshEpubPreview = () => {
+                        const preview = (rendition.getContents?.() || [])
+                            .map((contents: any) => contents?.document?.body?.innerText || contents?.document?.body?.textContent || '')
+                            .join('\n\n')
+                            .replace(/\n{4,}/g, '\n\n')
+                            .trim();
+                        if (preview) setEpubPreviewText(preview);
+                    };
+                    rendition.on('relocated', (where: any) => {
+                        const pct = Math.round((where.start.percentage || 0) * 100);
+                        const location = where.start.cfi || '';
+                        setEpubLocation(location);
+                        setCurrentPage(Math.max(1, (epub.locations.locationFromCfi?.(location) ?? 0) + 1));
+                        persistProgress({location, progress: pct});
+                        window.requestAnimationFrame(refreshEpubPreview);
+                    });
                     rendition.on('rendered', (_section: any, view: any) => {
-                        view?.document?.addEventListener?.('wheel', (event: WheelEvent) => {
-                            const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-                            if (Math.abs(delta) > 24 && Date.now() - lastEpubTrackpadTurn > 380) {
-                                event.preventDefault();
-                                lastEpubTrackpadTurn = Date.now();
-                                setPageMotion(delta > 0 ? 'next' : 'prev');
-                                window.setTimeout(() => setPageMotion(null), 280);
-                                void rendition[delta > 0 ? 'next' : 'prev']?.();
-                            }
-                        }, {passive: false});
+                        const preview = (view?.document?.body?.innerText || view?.document?.body?.textContent || '').trim();
+                        if (preview) setEpubPreviewText(preview);
+                        view?.document?.addEventListener?.('wheel', (event: WheelEvent) => epubWheelHandlerRef.current?.(event), {passive: false});
                     });
                     await Promise.race([rendition.display(progress.location || undefined), new Promise((_, reject) => window.setTimeout(() => reject(new Error('EPUB_RENDER_TIMEOUT')), 30000))]);
                     const flattenToc = (items: any[]): Array<{label: string; href: string}> => items.flatMap(item => [{label: item.label || '未命名章节', href: item.href}, ...flattenToc(item.subitems || [])]);
@@ -147,17 +195,10 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
             void pdfDocumentRef.current?.destroy?.();
             if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
             if (controlsCloseTimerRef.current) clearTimeout(controlsCloseTimerRef.current);
+            if (wheelResetTimerRef.current) clearTimeout(wheelResetTimerRef.current);
             savePendingProgress();
         };
     }, [book, toast]);
-    const saveTxt = (event: React.UIEvent<HTMLDivElement>) => {
-        const target = event.currentTarget;
-        const percent = target.scrollWidth <= target.clientWidth ? 100 : Math.round(target.scrollLeft / (target.scrollWidth - target.clientWidth) * 100);
-        pendingProgressRef.current = {location: String(target.scrollLeft), progress: percent};
-        if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
-        progressTimerRef.current = setTimeout(savePendingProgress, 1000);
-        setCurrentPage(Math.max(1, Math.round(target.scrollLeft / Math.max(1, target.clientWidth)) + 1));
-    };
     const downloadBook = async () => {
         try {
             const blob = await fetchBookBlob(book.bookId);
@@ -173,24 +214,48 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
         setPdfPage(next); setCurrentPage(next);
         persistProgress({location: String(next), progress: Math.round(((next - 1) / Math.max(1, pdfPageCount - 1)) * 100)});
     };
-    const turnPage = (direction: 'prev' | 'next', withMotion = true) => {
+    const commitTxtPage = (page: number) => {
+        const next = Math.max(1, Math.min(Math.max(1, totalPages), page));
+        setCurrentPage(next);
+        const progress = Math.round(((next - 1) / Math.max(1, totalPages - 1)) * 100);
+        txtProgressRef.current = progress;
+        pendingProgressRef.current = {location: String(next), progress};
+        if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
+        progressTimerRef.current = setTimeout(savePendingProgress, 500);
+    };
+    const hasPage = (direction: 'prev' | 'next') => direction === 'prev'
+        ? currentPage > 1
+        : book.format === 'pdf' ? pdfPage + 1 < pdfPageCount : currentPage < totalPages;
+    const turnPage = (direction: 'prev' | 'next') => {
         if (Date.now() - lastTurnAt.current < 350) return;
         lastTurnAt.current = Date.now();
-        if (withMotion) { setPageMotion(direction); window.setTimeout(() => setPageMotion(null), 230); }
         if (book.format === 'epub') void renditionRef.current?.[direction]?.();
         if (book.format === 'pdf') commitPdfPage(pdfPage + (direction === 'next' ? 2 : -2));
-        if (book.format === 'txt' && textRef.current) textRef.current.scrollBy({left: textRef.current.clientWidth * (direction === 'next' ? 1 : -1), behavior: 'smooth'});
+        if (book.format === 'txt') commitTxtPage(currentPage + (direction === 'next' ? 1 : -1));
+    };
+    const animatePageTurn = (direction: 'prev' | 'next') => {
+        if (turnAnimationRef.current || !hasPage(direction)) return;
+        turnAnimationRef.current = true;
+        setPageDrag({direction, progress: .01, settling: false, source: 'program'});
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => setPageDrag({direction, progress: 1, settling: true, source: 'program'}));
+        });
+        window.setTimeout(() => {
+            turnPage(direction);
+            setPageDrag(null);
+            turnAnimationRef.current = false;
+        }, 360);
     };
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'ArrowLeft') turnPage('prev');
-            if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); turnPage('next'); }
+            if (event.key === 'ArrowLeft') animatePageTurn('prev');
+            if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); animatePageTurn('next'); }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [book.format, pdfPageCount]);
+    }, [book.format, pdfPageCount, currentPage, totalPages]);
     const onPagePointerDown = (event: React.PointerEvent<HTMLElement>) => {
-        if (event.button !== 0 || loading || loadError || (event.target instanceof Element && event.target.closest('button, input, aside'))) return;
+        if (event.button !== 0 || loading || txtPaginating || loadError || turnAnimationRef.current || (event.target instanceof Element && event.target.closest('button, input, aside'))) return;
         dragStartRef.current = {x: event.clientX, y: event.clientY, time: Date.now()}; dragProgressRef.current = 0; dragDirectionRef.current = null;
         event.currentTarget.setPointerCapture?.(event.pointerId);
     };
@@ -204,8 +269,21 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
         const direction = distance < 0 ? 'next' : 'prev';
         const progress = Math.min(.92, Math.abs(distance) / Math.max(1, event.currentTarget.clientWidth));
         dragDirectionRef.current = direction; dragProgressRef.current = progress;
-        setPageDrag({direction, progress, settling: false});
+        setPageDrag({direction, progress, settling: false, source: 'pointer'});
         event.preventDefault();
+    };
+    const settlePageDrag = (direction: 'prev' | 'next', progress: number, velocity: number, source: 'pointer' | 'trackpad') => {
+        const hasPageInDirection = direction === 'prev'
+            ? currentPage > 1
+            : book.format === 'pdf' ? pdfPage + 1 < pdfPageCount : currentPage < totalPages;
+        const shouldTurn = hasPageInDirection && (progress >= .3 || (progress >= .13 && velocity > .65));
+        turnAnimationRef.current = true;
+        setPageDrag({direction, progress: shouldTurn ? 1 : 0, settling: true, source});
+        window.setTimeout(() => {
+            if (shouldTurn) turnPage(direction);
+            setPageDrag(null);
+            turnAnimationRef.current = false;
+        }, shouldTurn ? 360 : 240);
     };
     const finishPageDrag = (event: React.PointerEvent<HTMLElement>) => {
         const start = dragStartRef.current;
@@ -214,31 +292,38 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
         dragStartRef.current = null; dragDirectionRef.current = null; dragProgressRef.current = 0;
         if (!start || !direction) { setPageDrag(null); return; }
         const velocity = Math.abs(event.clientX - start.x) / Math.max(1, Date.now() - start.time);
-        const hasPageInDirection = direction === 'prev'
-            ? currentPage > 1
-            : book.format === 'pdf' ? pdfPage + 1 < pdfPageCount : currentPage < totalPages;
-        const shouldTurn = hasPageInDirection && (progress >= .28 || (progress >= .14 && velocity > .7));
-        setPageDrag({direction, progress: shouldTurn ? 1 : 0, settling: true});
-        window.setTimeout(() => { if (shouldTurn) turnPage(direction, false); setPageDrag(null); }, shouldTurn ? 230 : 190);
+        settlePageDrag(direction, progress, velocity, 'pointer');
     };
-    const onWheel = (event: React.WheelEvent) => {
-        if (event.ctrlKey) return;
-        const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-        wheelDeltaRef.current += delta;
+    const handleTrackpadWheel = (deltaX: number, deltaY: number, viewportWidth: number, preventDefault: () => void, ctrlKey = false) => {
+        if (ctrlKey || turnAnimationRef.current || Math.abs(deltaX) < 2 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return;
+        preventDefault();
+        const direction: 'prev' | 'next' = deltaX > 0 ? 'next' : 'prev';
+        const now = Date.now();
+        const current = wheelGestureRef.current;
+        const distance = current?.direction === direction ? current.distance + Math.abs(deltaX) : Math.abs(deltaX);
+        const startedAt = current?.direction === direction ? current.startedAt : now;
+        const progress = Math.min(.96, distance / Math.max(180, viewportWidth * .46));
+        wheelGestureRef.current = {direction, distance, startedAt};
+        setPageDrag({direction, progress: hasPage(direction) ? progress : progress * .16, settling: false, source: 'trackpad'});
         if (wheelResetTimerRef.current) clearTimeout(wheelResetTimerRef.current);
-        wheelResetTimerRef.current = setTimeout(() => { wheelDeltaRef.current = 0; }, 120);
-        if (Math.abs(wheelDeltaRef.current) >= 42) {
-            event.preventDefault();
-            const direction = wheelDeltaRef.current > 0 ? 'next' : 'prev';
-            wheelDeltaRef.current = 0;
-            turnPage(direction);
-        }
+        wheelResetTimerRef.current = setTimeout(() => {
+            const gesture = wheelGestureRef.current;
+            wheelGestureRef.current = null;
+            if (!gesture) return;
+            const gestureProgress = Math.min(.96, gesture.distance / Math.max(180, viewportWidth * .46));
+            const velocity = gesture.distance / Math.max(1, Date.now() - gesture.startedAt);
+            settlePageDrag(gesture.direction, gestureProgress, velocity, 'trackpad');
+        }, 110);
     };
+    const onWheel = (event: React.WheelEvent<HTMLElement>) => {
+        handleTrackpadWheel(event.deltaX, event.deltaY, event.currentTarget.clientWidth, () => event.preventDefault(), event.ctrlKey);
+    };
+    epubWheelHandlerRef.current = (event: WheelEvent) => handleTrackpadWheel(event.deltaX, event.deltaY, epubRef.current?.clientWidth || window.innerWidth, () => event.preventDefault(), event.ctrlKey);
     const jumpToPage = (page: number) => {
         const target = Math.max(1, Math.min(totalPages || 1, page));
         if (book.format === 'pdf') commitPdfPage(target);
         if (book.format === 'epub') { const location = epubBookRef.current?.locations?.cfiFromLocation?.(target - 1); if (location) void renditionRef.current?.display?.(location); }
-        if (book.format === 'txt' && textRef.current) { textRef.current.scrollTo({left: (target - 1) * textRef.current.clientWidth, behavior: 'smooth'}); setCurrentPage(target); }
+        if (book.format === 'txt') commitTxtPage(target);
     };
     const toggleBookmark = () => {
         const exists = bookmarks.some(item => item.page === currentPage);
@@ -246,40 +331,92 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
         setBookmarks(next); localStorage.setItem(bookmarkStorageKey, JSON.stringify(next));
     };
     useEffect(() => {
-        if (book.format !== 'txt' || !text) return;
-        const timer = window.setTimeout(() => {
-            if (!textRef.current) return;
+        if (book.format !== 'txt' || !text || loading || !textRef.current) return;
+        let paginationTimer: number | null = null;
+        let lastSize = '';
+        const paginate = () => {
             const reader = textRef.current;
-            const restoredLocation = textRestoreLocationRef.current;
-            if (restoredLocation !== null) {
-                reader.scrollLeft = Math.min(restoredLocation, Math.max(0, reader.scrollWidth - reader.clientWidth));
-                textRestoreLocationRef.current = null;
-            }
-            const pages = Math.max(1, Math.ceil(reader.scrollWidth / reader.clientWidth));
-            setTotalPages(pages);
-            setCurrentPage(Math.max(1, Math.round(reader.scrollLeft / Math.max(1, reader.clientWidth)) + 1));
-        }, 80);
-        return () => window.clearTimeout(timer);
-    }, [book.format, text]);
+            if (!reader) return;
+            const pagesPerSpread = reader.clientWidth >= 640 ? 2 : 1;
+            const sizeKey = `${Math.round(reader.clientWidth)}x${Math.round(reader.clientHeight)}:${pagesPerSpread}`;
+            if (sizeKey === lastSize && txtPages.length) return;
+            lastSize = sizeKey;
+            setTxtPaginating(true);
+            const pages = paginatePlainText(text, reader.clientWidth / pagesPerSpread, reader.clientHeight);
+            const spreads = Math.max(1, Math.ceil(pages.length / pagesPerSpread));
+            const targetProgress = textRestoreProgressRef.current ?? txtProgressRef.current;
+            const restoredSpread = Math.max(1, Math.min(spreads, Math.round((targetProgress / 100) * Math.max(0, spreads - 1)) + 1));
+            textRestoreProgressRef.current = null;
+            setTxtPages(pages);
+            setTxtPagesPerSpread(pagesPerSpread);
+            setTotalPages(spreads);
+            setCurrentPage(restoredSpread);
+            setTxtPaginating(false);
+        };
+        paginationTimer = window.setTimeout(paginate, 40);
+        const observer = new ResizeObserver(() => {
+            if (paginationTimer !== null) window.clearTimeout(paginationTimer);
+            paginationTimer = window.setTimeout(paginate, 160);
+        });
+        observer.observe(textRef.current);
+        return () => {
+            observer.disconnect();
+            if (paginationTimer !== null) window.clearTimeout(paginationTimer);
+        };
+    }, [book.format, loading, text]);
     // 阅读器只覆盖内容区，保留全局导航，方便随时搜索、回到其他文集或打开个人操作。
     const hasBookmark = bookmarks.some(item => item.page === currentPage);
-    const dragEdge = pageDrag?.direction === 'next' ? 'right' : 'left';
-    const dragClip = pageDrag ? (pageDrag.direction === 'next'
-        ? `polygon(${100 - pageDrag.progress * 100}% 0, 100% 0, 100% 100%, ${100 - pageDrag.progress * 100}% 100%)`
-        : `polygon(0 0, ${pageDrag.progress * 100}% 0, ${pageDrag.progress * 100}% 100%, 0 100%)`) : undefined;
-    const dragRotation = pageDrag ? (pageDrag.direction === 'next' ? -1 : 1) * (1 - pageDrag.progress) * 54 : 0;
-    return <div className="fixed inset-x-0 bottom-0 top-16 z-[70] flex max-w-[100vw] flex-col overflow-hidden bg-slate-100 text-slate-800">
+    const dragRotation = pageDrag ? (pageDrag.direction === 'next' ? -1 : 1) * pageDrag.progress * 180 : 0;
+    const txtPagePreview = (spread: number, half: 'left' | 'right') => {
+        if (!txtPages.length || book.format !== 'txt') return '';
+        const safeSpread = Math.max(1, Math.min(Math.max(1, totalPages), spread));
+        const pageOffset = half === 'right' && txtPagesPerSpread > 1 ? 1 : 0;
+        return txtPages[(safeSpread - 1) * txtPagesPerSpread + pageOffset] || '';
+    };
+    const txtTurningFrontText = pageDrag?.direction === 'next'
+        ? txtPagePreview(currentPage, 'right')
+        : txtPagePreview(currentPage, 'left');
+    const txtTurningBackText = pageDrag?.direction === 'next'
+        ? txtPagePreview(currentPage + 1, 'left')
+        : txtPagePreview(currentPage - 1, 'right');
+    const txtTurningRevealText = pageDrag?.direction === 'next'
+        ? txtPagePreview(currentPage + 1, 'right')
+        : txtPagePreview(currentPage - 1, 'left');
+    const epubPreviewPage = (index: number) => {
+        if (book.format !== 'epub' || epubPreviewText.length < 80) return '';
+        const previewPageSize = 1100;
+        const pageCount = Math.max(1, Math.ceil(epubPreviewText.length / previewPageSize));
+        const safeIndex = ((index % pageCount) + pageCount) % pageCount;
+        return epubPreviewText.slice(safeIndex * previewPageSize, (safeIndex + 1) * previewPageSize);
+    };
+    const epubDirection = pageDrag?.direction === 'prev' ? -1 : 1;
+    const turningFrontText = book.format === 'txt' ? txtTurningFrontText : epubPreviewPage(0);
+    const turningBackText = book.format === 'txt' ? txtTurningBackText : epubPreviewPage(epubDirection);
+    const turningRevealText = book.format === 'txt' ? txtTurningRevealText : epubPreviewPage(epubDirection * 2);
+    const canRenderTurnOverlay = book.format !== 'epub' || epubPreviewText.length >= 80;
+    const txtLeftPage = txtPagePreview(currentPage, 'left');
+    const txtRightPage = txtPagesPerSpread > 1 ? txtPagePreview(currentPage, 'right') : '';
+    const readerBusy = loading || (book.format === 'txt' && txtPaginating);
+    return <div className="fixed inset-x-0 bottom-0 top-16 z-[70] flex max-w-[100vw] flex-col overflow-hidden bg-white text-slate-800">
         <header className="relative z-20 flex h-12 shrink-0 items-center justify-between border-b border-slate-200 bg-white/95 px-3 shadow-sm backdrop-blur sm:px-5"><div className="flex items-center gap-1"><button onClick={onClose} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"><ArrowLeft className="h-4 w-4"/>返回书架</button><button onClick={() => setPanel(panel === 'toc' ? null : 'toc')} className={`rounded-md p-2 transition ${panel === 'toc' ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title="目录"><List className="h-4 w-4"/></button><button onClick={() => setPanel(panel === 'bookmarks' ? null : 'bookmarks')} className={`rounded-md p-2 transition ${panel === 'bookmarks' ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title="书签列表"><Bookmark className="h-4 w-4"/></button></div><span className="absolute left-1/2 max-w-[42vw] -translate-x-1/2 truncate text-sm font-semibold tracking-wide text-slate-700">{book.title}</span><div className="flex items-center gap-1"><button onClick={toggleBookmark} className={`rounded-md p-2 transition ${hasBookmark ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title="添加书签">{hasBookmark ? <BookmarkCheck className="h-4 w-4"/> : <Bookmark className="h-4 w-4"/>}</button><button onClick={downloadBook} className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-orange-600" title="下载"><Download className="h-4 w-4"/></button></div></header>
-        <main onWheelCapture={onWheel} onPointerDown={onPagePointerDown} onPointerMove={onPagePointerMove} onPointerUp={finishPageDrag} onPointerCancel={finishPageDrag} className="relative min-h-0 flex-1 overflow-hidden bg-slate-100 p-3 touch-pan-y select-none sm:p-6">{loading && <div className="absolute inset-0 z-10 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-orange-500"/></div>}
+        <main onWheelCapture={onWheel} onPointerDown={onPagePointerDown} onPointerMove={onPagePointerMove} onPointerUp={finishPageDrag} onPointerCancel={finishPageDrag} className="reader-desk relative min-h-0 flex-1 overflow-hidden p-3 touch-pan-y select-none sm:p-6">
             {panel && <aside className="absolute left-3 top-3 z-30 flex max-h-[calc(100%-1.5rem)] w-80 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur sm:left-6 sm:top-6"><div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><p className="text-sm font-bold text-slate-800">{panel === 'toc' ? '目录' : '书签'}</p><button onClick={() => setPanel(null)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4"/></button></div><div className="min-h-0 overflow-y-auto p-2">{panel === 'toc' ? (toc.length ? toc.map((item, index) => <button key={`${item.href}-${index}`} onClick={() => { void renditionRef.current?.display?.(item.href); setPanel(null); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-orange-50 hover:text-orange-700"><span className="w-6 text-right font-mono text-[10px] text-slate-400">{index + 1}</span><span className="line-clamp-2">{item.label}</span></button>) : <p className="px-3 py-8 text-center text-xs leading-5 text-slate-400">此文件没有可读取的目录。</p>) : (bookmarks.length ? bookmarks.sort((a, b) => a.page - b.page).map(item => <button key={item.page} onClick={() => { if (book.format === 'epub' && item.location) void renditionRef.current?.display?.(item.location); else jumpToPage(item.page); setPanel(null); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-orange-50 hover:text-orange-700"><span>{item.label}</span><span className="font-mono text-xs text-slate-400">{item.page}</span></button>) : <p className="px-4 py-10 text-center text-xs leading-5 text-slate-400">还没有书签。<br/>可点击右上角书签图标添加。</p>)}</div></aside>}
-            {loadError && <div className="absolute inset-0 z-20 flex items-center justify-center p-6"><div className="max-w-sm rounded-xl border border-orange-100 bg-[#fdf8eb] p-5 text-center shadow-lg"><p className="font-semibold text-stone-700">图书未能打开</p><p className="mt-2 text-sm leading-6 text-stone-500">{loadError}</p><button onClick={onClose} className="mt-4 rounded-md bg-orange-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-orange-600">返回书架</button></div></div>}
-            {book.format === 'pdf' && pdfDocument && <div className={`mx-auto flex h-full max-w-7xl items-center justify-center gap-px overflow-hidden rounded-sm bg-slate-300 p-px shadow-[0_10px_30px_rgba(15,23,42,.18)] ${pageMotion ? `reader-page-turn-${pageMotion}` : ''}`}><div className="flex h-full min-w-0 flex-1 items-center justify-center bg-white"><PdfCanvas document={pdfDocument} pageNumber={pdfPage}/></div>{pdfPage + 1 <= pdfPageCount && <div className="hidden h-full min-w-0 flex-1 items-center justify-center bg-white md:flex"><PdfCanvas document={pdfDocument} pageNumber={pdfPage + 1}/></div>}</div>}
-            {book.format === 'txt' && <div ref={textRef} onScroll={saveTxt} className={`mx-auto h-full max-w-7xl snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-sm bg-white shadow-[0_10px_30px_rgba(15,23,42,.18)] [scrollbar-width:none] ${pageMotion ? `reader-page-turn-${pageMotion}` : ''}`}><article className="h-full min-w-full snap-start columns-1 [column-fill:auto] gap-0 break-words px-8 py-10 font-['FZPingXianYaSong'] text-[17px] leading-[2.05] tracking-[.02em] whitespace-pre-wrap text-slate-700 sm:columns-2 sm:gap-px sm:bg-slate-300 sm:p-1 sm:text-[18px]">{text}</article></div>}
+            {readerBusy && <div className="reader-loading-book absolute inset-y-3 left-1/2 z-10 flex w-[calc(100%-1.5rem)] max-w-7xl -translate-x-1/2 sm:inset-y-6 sm:w-[calc(100%-3rem)]" aria-label="正在打开图书"><div/><div/><Loader2 className="absolute left-1/2 top-1/2 z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 animate-spin text-orange-500"/></div>}
+            {loadError && <div className="absolute inset-0 z-20 flex items-center justify-center p-6"><div className="max-w-sm rounded-xl border border-slate-200 bg-white p-5 text-center shadow-lg"><p className="font-semibold text-slate-700">图书未能打开</p><p className="mt-2 text-sm leading-6 text-slate-500">{loadError}</p><button onClick={onClose} className="mt-4 rounded-md bg-orange-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-orange-600">返回书架</button></div></div>}
+            {!loading && book.format === 'pdf' && pdfDocument && <div className="reader-book-spread mx-auto flex h-full max-w-7xl items-center justify-center overflow-hidden"><div className="reader-book-page reader-book-page-left flex h-full min-w-0 flex-1 items-center justify-center"><PdfCanvas document={pdfDocument} pageNumber={pdfPage}/></div>{pdfPage + 1 <= pdfPageCount && <div className="reader-book-page reader-book-page-right hidden h-full min-w-0 flex-1 items-center justify-center md:flex"><PdfCanvas document={pdfDocument} pageNumber={pdfPage + 1}/></div>}</div>}
+            {!loading && book.format === 'txt' && <div ref={textRef} className={`reader-book-spread mx-auto flex h-full max-w-7xl overflow-hidden transition-opacity duration-150 ${txtPaginating ? 'opacity-0' : 'opacity-100'}`}><section className="reader-txt-page reader-book-page-left"><article className="reader-txt-page-content">{txtLeftPage}</article><span>{(currentPage - 1) * txtPagesPerSpread + 1}</span></section>{txtPagesPerSpread > 1 && <section className="reader-txt-page reader-book-page-right"><article className="reader-txt-page-content">{txtRightPage}</article><span>{Math.min(txtPages.length, (currentPage - 1) * txtPagesPerSpread + 2)}</span></section>}</div>}
             {book.format === 'epub' && (
-                <div ref={epubRef} className={`mx-auto h-full w-full max-w-7xl overflow-hidden rounded-sm bg-white shadow-[0_10px_30px_rgba(15,23,42,.18)] ${pageMotion ? `reader-page-turn-${pageMotion}` : ''}`}/>
+                <div ref={epubRef} className={`reader-book-spread mx-auto h-full w-full max-w-7xl overflow-hidden transition-opacity duration-150 ${loading ? 'opacity-0' : 'opacity-100'}`}/>
             )}
-            {pageDrag && <div aria-hidden="true" className="pointer-events-none absolute inset-3 z-10 overflow-hidden rounded-sm sm:inset-6" style={{perspective: '1800px'}}><div className="absolute inset-0" style={{clipPath: dragClip, background: pageDrag.direction === 'next' ? 'linear-gradient(270deg, rgba(79,54,29,.25), rgba(255,253,245,.95) 20%, rgba(247,238,219,.9) 57%, rgba(93,66,36,.22))' : 'linear-gradient(90deg, rgba(79,54,29,.25), rgba(255,253,245,.95) 20%, rgba(247,238,219,.9) 57%, rgba(93,66,36,.22))', boxShadow: `${pageDrag.direction === 'next' ? '-' : ''}18px 0 30px rgba(67,43,22,.28)`, transformOrigin: `${dragEdge} center`, transform: `rotateY(${dragRotation}deg)`, transition: pageDrag.settling ? 'clip-path 230ms cubic-bezier(.2,.8,.2,1), transform 230ms cubic-bezier(.2,.8,.2,1)' : 'none'}}><div className="absolute inset-0 opacity-45" style={{backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(120,87,48,.055) 4px)'}}/></div></div>}
-            {!loading && !loadError && <div onMouseEnter={revealControls} onMouseLeave={deferControlsClose} onFocus={revealControls} onBlur={deferControlsClose} className={`pointer-events-auto absolute bottom-0 left-1/2 z-20 -translate-x-1/2 overflow-hidden rounded-t-xl border border-b-0 border-slate-200 bg-white/95 shadow-[0_-6px_18px_rgba(15,23,42,.1)] backdrop-blur transition-[width,height,border-radius] duration-[300ms] ease-[cubic-bezier(.22,.8,.24,1)] ${controlsVisible ? 'h-14 w-[calc(100%-2rem)] max-w-3xl' : 'h-9 w-52 rounded-t-lg'}`}><button onClick={revealControls} className={`absolute inset-0 z-10 inline-flex items-center justify-center gap-2 text-xs font-semibold tracking-wide text-slate-500 transition-all duration-150 ${controlsVisible ? 'pointer-events-none -translate-y-1 opacity-0' : 'opacity-100 delay-100 hover:text-orange-600'}`} aria-expanded={controlsVisible}><span className="h-2 w-2 rounded-full bg-orange-400 shadow-[0_0_10px_rgba(251,146,60,.7)] animate-pulse"/>阅读控制<ChevronUp className="h-3.5 w-3.5"/></button><div className={`flex h-full items-center gap-2 px-3 transition-all duration-200 ${controlsVisible ? 'translate-y-0 opacity-100 delay-100' : 'translate-y-2 opacity-0'}`}><button onClick={() => turnPage('prev')} className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-xs font-medium text-slate-600 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700" aria-label="上一页"><ChevronLeft className="h-4 w-4"/>上一页</button><div className="relative min-w-0 flex-1"><input aria-label="快速跳转页码" type="range" min="1" max={Math.max(1, totalPages)} value={Math.min(currentPage, Math.max(1, totalPages))} onChange={event => jumpToPage(Number(event.target.value))} style={{background: `linear-gradient(to right, #f97316 0%, #f97316 ${((Math.min(currentPage, Math.max(1, totalPages)) - 1) / Math.max(1, (totalPages || 1) - 1)) * 100}%, #e2e8f0 ${((Math.min(currentPage, Math.max(1, totalPages)) - 1) / Math.max(1, (totalPages || 1) - 1)) * 100}%, #e2e8f0 100%)`}} className="h-1.5 w-full cursor-pointer appearance-none rounded-sm [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-sm [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:-mt-[5px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:shadow-sm"/></div><span className="min-w-16 text-center text-xs font-medium tabular-nums text-slate-500">{currentPage} / {totalPages || '—'}</span><button onClick={() => turnPage('next')} className="inline-flex h-8 items-center gap-1 rounded-md bg-orange-500 px-2.5 text-xs font-medium text-white shadow-sm transition hover:bg-orange-600" aria-label="下一页">下一页<ChevronRight className="h-4 w-4"/></button></div></div>}
+            {pageDrag && canRenderTurnOverlay && <div aria-hidden="true" className={`reader-turn-layer pointer-events-none absolute inset-y-3 left-1/2 z-10 w-[calc(100%-1.5rem)] max-w-7xl -translate-x-1/2 overflow-hidden rounded-[9px] sm:inset-y-6 sm:w-[calc(100%-3rem)] ${pageDrag.direction === 'next' ? 'reader-turn-next' : 'reader-turn-prev'} ${pageDrag.settling ? 'reader-turn-settling' : ''}`} style={{'--reader-turn-angle': `${dragRotation}deg`, '--reader-turn-progress': pageDrag.progress} as React.CSSProperties}>
+                <div className="reader-reveal-page">{turningRevealText && <p>{turningRevealText}</p>}</div>
+                <div className="reader-turn-sheet">
+                    <div className="reader-turn-face reader-turn-front"><span>{book.title}</span>{turningFrontText && <p>{turningFrontText}</p>}<i>{pageDrag.direction === 'next' ? currentPage + 1 : Math.max(1, currentPage - 1)}</i></div>
+                    <div className="reader-turn-face reader-turn-back"><span>{book.title}</span>{turningBackText && <p>{turningBackText}</p>}<i>{pageDrag.direction === 'next' ? currentPage + 2 : Math.max(1, currentPage - 2)}</i></div>
+                </div>
+                <div className="reader-turn-shadow"/>
+            </div>}
+            {!readerBusy && !loadError && <div onMouseEnter={revealControls} onMouseLeave={deferControlsClose} onFocus={revealControls} onBlur={deferControlsClose} className={`pointer-events-auto absolute bottom-0 left-1/2 z-20 -translate-x-1/2 overflow-hidden rounded-t-xl border border-b-0 border-slate-200 bg-white/95 shadow-[0_-6px_18px_rgba(15,23,42,.1)] backdrop-blur transition-[width,height,border-radius] duration-[300ms] ease-[cubic-bezier(.22,.8,.24,1)] ${controlsVisible ? 'h-14 w-[calc(100%-2rem)] max-w-3xl' : 'h-9 w-52 rounded-t-lg'}`}><button onClick={revealControls} className={`absolute inset-0 z-10 inline-flex items-center justify-center gap-2 text-xs font-semibold tracking-wide text-slate-500 transition-all duration-150 ${controlsVisible ? 'pointer-events-none -translate-y-1 opacity-0' : 'opacity-100 delay-100 hover:text-orange-600'}`} aria-expanded={controlsVisible}><span className="h-2 w-2 rounded-full bg-orange-400 shadow-[0_0_10px_rgba(251,146,60,.7)] animate-pulse"/>阅读控制<ChevronUp className="h-3.5 w-3.5"/></button><div className={`flex h-full items-center gap-2 px-3 transition-all duration-200 ${controlsVisible ? 'translate-y-0 opacity-100 delay-100' : 'translate-y-2 opacity-0'}`}><button onClick={() => animatePageTurn('prev')} className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-xs font-medium text-slate-600 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700" aria-label="上一页"><ChevronLeft className="h-4 w-4"/>上一页</button><div className="relative min-w-0 flex-1"><input aria-label="快速跳转页码" type="range" min="1" max={Math.max(1, totalPages)} value={Math.min(currentPage, Math.max(1, totalPages))} onChange={event => jumpToPage(Number(event.target.value))} style={{background: `linear-gradient(to right, #f97316 0%, #f97316 ${((Math.min(currentPage, Math.max(1, totalPages)) - 1) / Math.max(1, (totalPages || 1) - 1)) * 100}%, #e2e8f0 ${((Math.min(currentPage, Math.max(1, totalPages)) - 1) / Math.max(1, (totalPages || 1) - 1)) * 100}%, #e2e8f0 100%)`}} className="h-1.5 w-full cursor-pointer appearance-none rounded-sm [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-sm [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:-mt-[5px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:shadow-sm"/></div><span className="min-w-16 text-center text-xs font-medium tabular-nums text-slate-500">{currentPage} / {totalPages || '—'}</span><button onClick={() => animatePageTurn('next')} className="inline-flex h-8 items-center gap-1 rounded-md bg-orange-500 px-2.5 text-xs font-medium text-white shadow-sm transition hover:bg-orange-600" aria-label="下一页">下一页<ChevronRight className="h-4 w-4"/></button></div></div>}
         </main>
     </div>;
 }
