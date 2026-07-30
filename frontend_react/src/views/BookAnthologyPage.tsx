@@ -8,6 +8,8 @@ import ConfirmationModal from '../components/common/ConfirmationModal';
 interface Props { collId?: string; onNavigate: (view: string, params?: any) => void; }
 
 const formatLabel: Record<string, string> = {pdf: 'PDF', txt: 'TXT', epub: 'EPUB', mobi: 'MOBI'};
+type PdfCrop = {x: number; y: number; width: number; height: number};
+const pdfCropCache = new WeakMap<object, Map<number, Promise<PdfCrop>>>();
 
 /** TXT 常见来源为 UTF-8 或 Windows/GBK 编码；优先拒绝无效 UTF-8，再回退到 GB18030。 */
 function decodePlainText(buffer: ArrayBuffer) {
@@ -28,31 +30,136 @@ function FallbackCover({book}: {book: BookItem}) {
     </div>;
 }
 
-function PdfCanvas({document, pageNumber}: {document: any; pageNumber: number}) {
+function detectPdfContentBounds(document: any, page: any, pageNumber: number): Promise<PdfCrop> {
+    let documentCache = pdfCropCache.get(document);
+    if (!documentCache) {
+        documentCache = new Map();
+        pdfCropCache.set(document, documentCache);
+    }
+    const cached = documentCache.get(pageNumber);
+    if (cached) return cached;
+
+    const detection = (async () => {
+        const original = page.getViewport({scale: 1});
+        const detectionScale = Math.min(0.65, 760 / Math.max(original.width, original.height));
+        const viewport = page.getViewport({scale: detectionScale});
+        const canvas = window.document.createElement('canvas');
+        canvas.width = Math.max(1, Math.ceil(viewport.width));
+        canvas.height = Math.max(1, Math.ceil(viewport.height));
+        await page.render({canvas, viewport, background: '#ffffff'}).promise;
+        const context = canvas.getContext('2d', {willReadFrequently: true});
+        if (!context) return {x: 0, y: 0, width: original.width, height: original.height};
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        let minX = canvas.width;
+        let minY = canvas.height;
+        let maxX = -1;
+        let maxY = -1;
+        // A deliberately dark threshold ignores pale paper texture and watermarks while
+        // retaining body text, formulae, rules and ordinary illustrations.
+        for (let y = 0; y < canvas.height; y += 2) {
+            for (let x = 0; x < canvas.width; x += 2) {
+                const offset = (y * canvas.width + x) * 4;
+                const luminance = pixels[offset] * .2126 + pixels[offset + 1] * .7152 + pixels[offset + 2] * .0722;
+                if (pixels[offset + 3] > 160 && luminance < 190) {
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+        if (maxX < minX || maxY < minY) return {x: 0, y: 0, width: original.width, height: original.height};
+
+        const scaleBack = 1 / detectionScale;
+        const paddingX = original.width * .045;
+        const paddingY = original.height * .032;
+        const x = Math.max(0, minX * scaleBack - paddingX);
+        const y = Math.max(0, minY * scaleBack - paddingY);
+        const right = Math.min(original.width, (maxX + 2) * scaleBack + paddingX);
+        const bottom = Math.min(original.height, (maxY + 2) * scaleBack + paddingY);
+        const width = right - x;
+        const height = bottom - y;
+        // Avoid treating a sparse cover or divider page as a tiny fragment.
+        if (width < original.width * .48 || height < original.height * .42) {
+            return {x: 0, y: 0, width: original.width, height: original.height};
+        }
+        return {x, y, width, height};
+    })();
+    documentCache.set(pageNumber, detection);
+    return detection;
+}
+
+function PdfCanvas({document, pageNumber, cropWhitespace}: {document: any; pageNumber: number; cropWhitespace: boolean}) {
+    const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     useEffect(() => {
         let cancelled = false;
         let renderTask: any = null;
+        let renderFrame = 0;
+        let renderVersion = 0;
+
         const render = async () => {
-            if (!document || !canvasRef.current) return;
-            const page = await document.getPage(pageNumber);
-            const viewport = page.getViewport({scale: 1.65});
+            const container = containerRef.current;
             const canvas = canvasRef.current;
-            const context = canvas.getContext('2d');
-            if (!context || cancelled) return;
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            renderTask = page.render({canvasContext: context, viewport});
+            if (!document || !container || !canvas || !container.clientWidth || !container.clientHeight) return;
+            const version = ++renderVersion;
+            renderTask?.cancel?.();
+            const page = await document.getPage(pageNumber);
+            if (cancelled || version !== renderVersion) return;
+
+            const originalViewport = page.getViewport({scale: 1});
+            const crop = cropWhitespace
+                ? await detectPdfContentBounds(document, page, pageNumber)
+                : {x: 0, y: 0, width: originalViewport.width, height: originalViewport.height};
+            if (cancelled || version !== renderVersion) return;
+            const fitScale = Math.min(
+                container.clientWidth / crop.width,
+                container.clientHeight / crop.height,
+            );
+            const viewport = page.getViewport({scale: fitScale});
+            // PDF.js renders into physical pixels while CSS keeps the page at its fitted size.
+            // Capping the ratio avoids excessive memory use on unusually dense displays.
+            const outputScale = Math.min(window.devicePixelRatio || 1, 2.5);
+            const displayWidth = crop.width * fitScale;
+            const displayHeight = crop.height * fitScale;
+            canvas.width = Math.max(1, Math.floor(displayWidth * outputScale));
+            canvas.height = Math.max(1, Math.floor(displayHeight * outputScale));
+            canvas.style.width = `${Math.floor(displayWidth)}px`;
+            canvas.style.height = `${Math.floor(displayHeight)}px`;
+            renderTask = page.render({
+                canvas,
+                viewport,
+                background: '#ffffff',
+                transform: [
+                    outputScale, 0, 0, outputScale,
+                    -crop.x * fitScale * outputScale,
+                    -crop.y * fitScale * outputScale,
+                ],
+            });
             try {
                 await renderTask.promise;
             } catch (error: any) {
                 if (error?.name !== 'RenderingCancelledException') throw error;
             }
         };
-        void render();
-        return () => { cancelled = true; renderTask?.cancel?.(); };
-    }, [document, pageNumber]);
-    return <canvas ref={canvasRef} className="max-h-full w-auto max-w-full bg-white shadow-sm"/>;
+
+        const scheduleRender = () => {
+            window.cancelAnimationFrame(renderFrame);
+            renderFrame = window.requestAnimationFrame(() => void render());
+        };
+        const observer = new ResizeObserver(scheduleRender);
+        if (containerRef.current) observer.observe(containerRef.current);
+        scheduleRender();
+        return () => {
+            cancelled = true;
+            observer.disconnect();
+            window.cancelAnimationFrame(renderFrame);
+            renderTask?.cancel?.();
+        };
+    }, [cropWhitespace, document, pageNumber]);
+    return <div ref={containerRef} className="reader-pdf-page">
+        <canvas ref={canvasRef} className="reader-pdf-canvas"/>
+    </div>;
 }
 
 function paginatePlainText(content: string, pageWidth: number, pageHeight: number) {
@@ -102,8 +209,8 @@ async function fetchBookBlob(bookId: string) {
 
 function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () => void; onProgressSaved: (progress: number) => void}) {
     const toast = useToast();
-    const [text, setText] = useState(''); const [txtPages, setTxtPages] = useState<string[]>([]); const [txtPagesPerSpread, setTxtPagesPerSpread] = useState(2); const [txtPaginating, setTxtPaginating] = useState(book.format === 'txt'); const [epubPreviewText, setEpubPreviewText] = useState(''); const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(''); const [pdfDocument, setPdfDocument] = useState<any>(null); const [pdfPage, setPdfPage] = useState(1); const [pdfPageCount, setPdfPageCount] = useState(0); const [currentPage, setCurrentPage] = useState(1); const [totalPages, setTotalPages] = useState(0); const [toc, setToc] = useState<Array<{label: string; href: string}>>([]); const [panel, setPanel] = useState<'toc' | 'bookmarks' | null>(null); const [bookmarks, setBookmarks] = useState<Array<{page: number; label: string; location?: string}>>([]); const [epubLocation, setEpubLocation] = useState(''); const [controlsHovered, setControlsHovered] = useState(false); const [pageDrag, setPageDrag] = useState<{direction: 'prev' | 'next'; progress: number; settling: boolean; source: 'pointer' | 'trackpad' | 'program'} | null>(null);
-    const epubRef = useRef<HTMLDivElement>(null); const textRef = useRef<HTMLDivElement>(null); const renditionRef = useRef<any>(null); const epubBookRef = useRef<any>(null); const pdfDocumentRef = useRef<any>(null); const textRestoreProgressRef = useRef<number | null>(null); const txtProgressRef = useRef(0); const dragStartRef = useRef<{x: number; y: number; time: number} | null>(null); const dragProgressRef = useRef(0); const dragDirectionRef = useRef<'prev' | 'next' | null>(null); const lastTurnAt = useRef(0); const turnAnimationRef = useRef(false); const wheelGestureRef = useRef<{direction: 'prev' | 'next'; distance: number; startedAt: number} | null>(null); const wheelResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); const epubWheelHandlerRef = useRef<((event: WheelEvent) => void) | null>(null); const controlsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [text, setText] = useState(''); const [txtPages, setTxtPages] = useState<string[]>([]); const [txtPagesPerSpread, setTxtPagesPerSpread] = useState(2); const [txtPaginating, setTxtPaginating] = useState(book.format === 'txt'); const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(''); const [pdfDocument, setPdfDocument] = useState<any>(null); const [pdfPage, setPdfPage] = useState(1); const [pdfPageCount, setPdfPageCount] = useState(0); const [pdfCropWhitespace, setPdfCropWhitespace] = useState(true); const [currentPage, setCurrentPage] = useState(1); const [totalPages, setTotalPages] = useState(0); const [toc, setToc] = useState<Array<{label: string; href: string}>>([]); const [panel, setPanel] = useState<'toc' | 'bookmarks' | null>(null); const [bookmarks, setBookmarks] = useState<Array<{page: number; label: string; location?: string}>>([]); const [epubLocation, setEpubLocation] = useState(''); const [epubTurn, setEpubTurn] = useState<{direction: 'prev' | 'next'; progress: number; settling: boolean} | null>(null); const [epubLoading, setEpubLoading] = useState(false); const [jumpPreview, setJumpPreview] = useState<number | null>(null); const [controlsHovered, setControlsHovered] = useState(false); const [pageDrag, setPageDrag] = useState<{direction: 'prev' | 'next'; progress: number; settling: boolean; source: 'pointer' | 'trackpad' | 'program'} | null>(null);
+    const epubRef = useRef<HTMLDivElement>(null); const textRef = useRef<HTMLDivElement>(null); const renditionRef = useRef<any>(null); const epubBookRef = useRef<any>(null); const epubLocationRef = useRef(''); const pdfDocumentRef = useRef<any>(null); const textRestoreProgressRef = useRef<number | null>(null); const txtProgressRef = useRef(0); const dragStartRef = useRef<{x: number; y: number; time: number} | null>(null); const dragProgressRef = useRef(0); const dragDirectionRef = useRef<'prev' | 'next' | null>(null); const lastTurnAt = useRef(0); const turnAnimationRef = useRef(false); const wheelGestureRef = useRef<{offset: number; startedAt: number} | null>(null); const wheelResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); const epubWheelHandlerRef = useRef<((event: WheelEvent) => void) | null>(null); const controlsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingProgressRef = useRef<{location: string; progress: number} | null>(null);
     const bookmarkStorageKey = `o-doc:bookmarks:${book.bookId}`;
@@ -111,6 +218,18 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
     const revealControls = () => { if (controlsCloseTimerRef.current) clearTimeout(controlsCloseTimerRef.current); setControlsHovered(true); };
     const deferControlsClose = () => { if (controlsCloseTimerRef.current) clearTimeout(controlsCloseTimerRef.current); controlsCloseTimerRef.current = setTimeout(() => setControlsHovered(false), 700); };
     useEffect(() => { try { setBookmarks(JSON.parse(localStorage.getItem(bookmarkStorageKey) || '[]')); } catch { setBookmarks([]); } }, [bookmarkStorageKey]);
+    useEffect(() => {
+        const container = epubRef.current?.querySelector<HTMLElement>('.epub-container');
+        if (!container) return;
+        if (!epubTurn) {
+            container.style.transition = '';
+            container.style.transform = '';
+            return;
+        }
+        const distance = (epubTurn.direction === 'next' ? -1 : 1) * epubTurn.progress * 100;
+        container.style.transition = epubTurn.settling ? 'transform 260ms cubic-bezier(.22, .78, .2, 1)' : 'none';
+        container.style.transform = `translate3d(${distance}%, 0, 0)`;
+    }, [epubTurn]);
     const persistProgress = (payload: {location: string; progress: number}) => {
         void saveBookProgress(book.bookId, payload)
             .then(() => onProgressSaved(payload.progress))
@@ -135,8 +254,10 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
                     txtProgressRef.current = textRestoreProgressRef.current;
                     if (!cancelled) { setTxtPaginating(true); setText(content); }
                 } else if (book.format === 'pdf') {
-                    const pdfjs = await import('pdfjs-dist');
-                    pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+                    // TRAE's embedded Electron can lag behind the newest Chromium features.
+                    // The official legacy bundle supplies the Map/Promise polyfills required by PDF.js 6.
+                    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+                    pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/legacy/build/pdf.worker.min.mjs', import.meta.url).toString();
                     const document = await pdfjs.getDocument({data: new Uint8Array(await fileBlob.arrayBuffer())}).promise;
                     if (cancelled) { document.cleanup?.(); return; }
                     const savedPage = Number.parseInt(progress.location, 10);
@@ -149,37 +270,45 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
                     const {default: ePub} = await import('epubjs'); const epub = ePub(await fileBlob.arrayBuffer()); epubBookRef.current = epub;
                     await epub.opened;
                     if (cancelled || !epubRef.current) return;
+                    // epub.js's continuous manager does not reliably retain paginated spreads
+                    // in the embedded Electron iframe. Keep the stable default renderer here.
                     const rendition = epub.renderTo(epubRef.current, {width: '100%', height: '100%', manager: 'default', flow: 'paginated', spread: 'always'}); renditionRef.current = rendition;
                     rendition.themes?.default?.({
                         'html, body': {'background-color': '#ffffff !important'},
                         body: {'color': '#334155', 'font-family': '"Songti SC", "STSong", serif', 'line-height': '1.9'},
                         'p, li': {'line-height': '1.9'},
                     });
-                    const refreshEpubPreview = () => {
-                        const preview = (rendition.getContents?.() || [])
-                            .map((contents: any) => contents?.document?.body?.innerText || contents?.document?.body?.textContent || '')
-                            .join('\n\n')
-                            .replace(/\n{4,}/g, '\n\n')
-                            .trim();
-                        if (preview) setEpubPreviewText(preview);
-                    };
                     rendition.on('relocated', (where: any) => {
                         const pct = Math.round((where.start.percentage || 0) * 100);
                         const location = where.start.cfi || '';
+                        epubLocationRef.current = location;
                         setEpubLocation(location);
                         setCurrentPage(Math.max(1, (epub.locations.locationFromCfi?.(location) ?? 0) + 1));
                         persistProgress({location, progress: pct});
-                        window.requestAnimationFrame(refreshEpubPreview);
+                        // Keep adjacent spine documents parsed in memory. At a chapter boundary
+                        // epub.js can then render from this cache instead of fetching/parsing on turn.
+                        const index = where.start.index;
+                        [index - 1, index + 1].forEach(neighborIndex => {
+                            const section = epub.spine.get(neighborIndex);
+                            if (section && !section.contents) void section.load(epub.load.bind(epub)).catch(() => {});
+                        });
                     });
                     rendition.on('rendered', (_section: any, view: any) => {
-                        const preview = (view?.document?.body?.innerText || view?.document?.body?.textContent || '').trim();
-                        if (preview) setEpubPreviewText(preview);
                         view?.document?.addEventListener?.('wheel', (event: WheelEvent) => epubWheelHandlerRef.current?.(event), {passive: false});
                     });
                     await Promise.race([rendition.display(progress.location || undefined), new Promise((_, reject) => window.setTimeout(() => reject(new Error('EPUB_RENDER_TIMEOUT')), 30000))]);
                     const flattenToc = (items: any[]): Array<{label: string; href: string}> => items.flatMap(item => [{label: item.label || '未命名章节', href: item.href}, ...flattenToc(item.subitems || [])]);
                     setToc(flattenToc(epub.navigation?.toc || []));
-                    void epub.locations.generate(1600).then(() => { if (!cancelled) setTotalPages(Math.max(1, epub.locations.total || 0)); });
+                    // Location generation reads every spine item.  Do it after the reader is
+                    // interactive and with fewer breakpoints, rather than competing with turns.
+                    window.setTimeout(() => {
+                        void epub.locations.generate(3200).then(() => {
+                            if (cancelled) return;
+                            setTotalPages(Math.max(1, epub.locations.total || 0));
+                            const page = epub.locations.locationFromCfi?.(epubLocationRef.current);
+                            if (typeof page === 'number') setCurrentPage(page + 1);
+                        }).catch(() => {/* Reading must remain responsive if an EPUB lacks usable locations. */});
+                    }, 1200);
                 }
             } catch (error) {
                 if (!cancelled) {
@@ -223,18 +352,45 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
         if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
         progressTimerRef.current = setTimeout(savePendingProgress, 500);
     };
-    const hasPage = (direction: 'prev' | 'next') => direction === 'prev'
+    const hasPage = (direction: 'prev' | 'next') => book.format === 'epub' || (direction === 'prev'
         ? currentPage > 1
-        : book.format === 'pdf' ? pdfPage + 1 < pdfPageCount : currentPage < totalPages;
+        : book.format === 'pdf' ? pdfPage + 1 < pdfPageCount : currentPage < totalPages);
+    const turnEpubPage = async (direction: 'prev' | 'next', progress = .01) => {
+        const rendition = renditionRef.current;
+        if (!rendition) return;
+        turnAnimationRef.current = true;
+        setEpubTurn({direction, progress: Math.max(.01, progress), settling: true});
+        window.requestAnimationFrame(() => setEpubTurn(current => current ? {...current, progress: 1, settling: true} : current));
+        await new Promise(resolve => window.setTimeout(resolve, 260));
+        setEpubLoading(true);
+        try {
+            await rendition[direction]?.();
+        } catch {
+            // epub.js keeps the current page visible if its target cannot be loaded.
+        } finally {
+            await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
+            setEpubLoading(false);
+            setEpubTurn(null);
+            turnAnimationRef.current = false;
+        }
+    };
     const turnPage = (direction: 'prev' | 'next') => {
         if (Date.now() - lastTurnAt.current < 350) return;
         lastTurnAt.current = Date.now();
-        if (book.format === 'epub') void renditionRef.current?.[direction]?.();
+        if (book.format === 'epub') {
+            void turnEpubPage(direction);
+        }
         if (book.format === 'pdf') commitPdfPage(pdfPage + (direction === 'next' ? 2 : -2));
         if (book.format === 'txt') commitTxtPage(currentPage + (direction === 'next' ? 1 : -1));
     };
     const animatePageTurn = (direction: 'prev' | 'next') => {
         if (turnAnimationRef.current || !hasPage(direction)) return;
+        // epub.js paginates inside an iframe. Reusing its native page change avoids
+        // cloning and reflowing that iframe during every trackpad gesture.
+        if (book.format === 'epub') {
+            turnPage(direction);
+            return;
+        }
         turnAnimationRef.current = true;
         setPageDrag({direction, progress: .01, settling: false, source: 'program'});
         window.requestAnimationFrame(() => {
@@ -269,7 +425,11 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
         const direction = distance < 0 ? 'next' : 'prev';
         const progress = Math.min(.92, Math.abs(distance) / Math.max(1, event.currentTarget.clientWidth));
         dragDirectionRef.current = direction; dragProgressRef.current = progress;
-        setPageDrag({direction, progress, settling: false, source: 'pointer'});
+        if (book.format === 'epub') {
+            setEpubTurn({direction, progress, settling: false});
+        } else {
+            setPageDrag({direction, progress, settling: false, source: 'pointer'});
+        }
         event.preventDefault();
     };
     const settlePageDrag = (direction: 'prev' | 'next', progress: number, velocity: number, source: 'pointer' | 'trackpad') => {
@@ -277,6 +437,16 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
             ? currentPage > 1
             : book.format === 'pdf' ? pdfPage + 1 < pdfPageCount : currentPage < totalPages;
         const shouldTurn = hasPageInDirection && (progress >= .3 || (progress >= .13 && velocity > .65));
+        if (book.format === 'epub') {
+            setPageDrag(null);
+            if (shouldTurn) {
+                void turnEpubPage(direction, progress);
+            } else if (epubTurn) {
+                setEpubTurn({...epubTurn, progress: 0, settling: true});
+                window.setTimeout(() => setEpubTurn(null), 220);
+            }
+            return;
+        }
         turnAnimationRef.current = true;
         setPageDrag({direction, progress: shouldTurn ? 1 : 0, settling: true, source});
         window.setTimeout(() => {
@@ -297,33 +467,64 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
     const handleTrackpadWheel = (deltaX: number, deltaY: number, viewportWidth: number, preventDefault: () => void, ctrlKey = false) => {
         if (ctrlKey || turnAnimationRef.current || Math.abs(deltaX) < 2 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return;
         preventDefault();
-        const direction: 'prev' | 'next' = deltaX > 0 ? 'next' : 'prev';
         const now = Date.now();
         const current = wheelGestureRef.current;
-        const distance = current?.direction === direction ? current.distance + Math.abs(deltaX) : Math.abs(deltaX);
-        const startedAt = current?.direction === direction ? current.startedAt : now;
+        const offset = (current?.offset || 0) + deltaX;
+        const direction: 'prev' | 'next' = offset >= 0 ? 'next' : 'prev';
+        const distance = Math.abs(offset);
+        const startedAt = current?.startedAt || now;
         const progress = Math.min(.96, distance / Math.max(180, viewportWidth * .46));
-        wheelGestureRef.current = {direction, distance, startedAt};
-        setPageDrag({direction, progress: hasPage(direction) ? progress : progress * .16, settling: false, source: 'trackpad'});
+        wheelGestureRef.current = {offset, startedAt};
+        if (book.format === 'epub') {
+            setEpubTurn({direction, progress, settling: false});
+        } else {
+            setPageDrag({direction, progress: hasPage(direction) ? progress : progress * .16, settling: false, source: 'trackpad'});
+        }
         if (wheelResetTimerRef.current) clearTimeout(wheelResetTimerRef.current);
         wheelResetTimerRef.current = setTimeout(() => {
             const gesture = wheelGestureRef.current;
             wheelGestureRef.current = null;
             if (!gesture) return;
-            const gestureProgress = Math.min(.96, gesture.distance / Math.max(180, viewportWidth * .46));
-            const velocity = gesture.distance / Math.max(1, Date.now() - gesture.startedAt);
-            settlePageDrag(gesture.direction, gestureProgress, velocity, 'trackpad');
-        }, 110);
+            const direction: 'prev' | 'next' = gesture.offset >= 0 ? 'next' : 'prev';
+            const distance = Math.abs(gesture.offset);
+            const gestureProgress = Math.min(.96, distance / Math.max(180, viewportWidth * .46));
+            const velocity = distance / Math.max(1, Date.now() - gesture.startedAt);
+            settlePageDrag(direction, gestureProgress, velocity, 'trackpad');
+        // Wheel events do not expose a reliable "fingers lifted" signal. A longer
+        // quiet window keeps a slow, held two-finger drag in preview mode.
+        }, 280);
     };
     const onWheel = (event: React.WheelEvent<HTMLElement>) => {
         handleTrackpadWheel(event.deltaX, event.deltaY, event.currentTarget.clientWidth, () => event.preventDefault(), event.ctrlKey);
     };
     epubWheelHandlerRef.current = (event: WheelEvent) => handleTrackpadWheel(event.deltaX, event.deltaY, epubRef.current?.clientWidth || window.innerWidth, () => event.preventDefault(), event.ctrlKey);
-    const jumpToPage = (page: number) => {
+    const jumpToPage = async (page: number) => {
         const target = Math.max(1, Math.min(totalPages || 1, page));
         if (book.format === 'pdf') commitPdfPage(target);
-        if (book.format === 'epub') { const location = epubBookRef.current?.locations?.cfiFromLocation?.(target - 1); if (location) void renditionRef.current?.display?.(location); }
+        if (book.format === 'epub') {
+            const location = epubBookRef.current?.locations?.cfiFromLocation?.(target - 1);
+            if (location) {
+                const direction: 'prev' | 'next' = target < currentPage ? 'prev' : 'next';
+                if (target !== currentPage) {
+                    setEpubTurn({direction, progress: .01, settling: true});
+                    window.requestAnimationFrame(() => setEpubTurn(current => current ? {...current, progress: 1} : current));
+                    await new Promise(resolve => window.setTimeout(resolve, 260));
+                }
+                setEpubLoading(true);
+                try { await renditionRef.current?.display?.(location); }
+                finally {
+                    await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
+                    setEpubLoading(false);
+                }
+            }
+        }
         if (book.format === 'txt') commitTxtPage(target);
+    };
+    const commitJumpPreview = () => {
+        if (jumpPreview === null) return;
+        const page = jumpPreview;
+        setJumpPreview(null);
+        void jumpToPage(page);
     };
     const toggleBookmark = () => {
         const exists = bookmarks.some(item => item.page === currentPage);
@@ -382,41 +583,56 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
     const txtTurningRevealText = pageDrag?.direction === 'next'
         ? txtPagePreview(currentPage + 1, 'right')
         : txtPagePreview(currentPage - 1, 'left');
-    const epubPreviewPage = (index: number) => {
-        if (book.format !== 'epub' || epubPreviewText.length < 80) return '';
-        const previewPageSize = 1100;
-        const pageCount = Math.max(1, Math.ceil(epubPreviewText.length / previewPageSize));
-        const safeIndex = ((index % pageCount) + pageCount) % pageCount;
-        return epubPreviewText.slice(safeIndex * previewPageSize, (safeIndex + 1) * previewPageSize);
+    const txtPageNumber = (spread: number, half: 'left' | 'right') => {
+        const pageOffset = half === 'right' && txtPagesPerSpread > 1 ? 2 : 1;
+        return Math.max(1, Math.min(txtPages.length, (spread - 1) * txtPagesPerSpread + pageOffset));
     };
     const epubDirection = pageDrag?.direction === 'prev' ? -1 : 1;
-    const turningFrontText = book.format === 'txt' ? txtTurningFrontText : epubPreviewPage(0);
-    const turningBackText = book.format === 'txt' ? txtTurningBackText : epubPreviewPage(epubDirection);
-    const turningRevealText = book.format === 'txt' ? txtTurningRevealText : epubPreviewPage(epubDirection * 2);
-    const canRenderTurnOverlay = book.format !== 'epub' || epubPreviewText.length >= 80;
+    const turningFrontText = book.format === 'txt' ? txtTurningFrontText : '';
+    const turningBackText = book.format === 'txt' ? txtTurningBackText : '';
+    const turningRevealText = book.format === 'txt' ? txtTurningRevealText : '';
+    const turningFrontNumber = book.format === 'txt'
+        ? txtPageNumber(currentPage, pageDrag?.direction === 'next' ? 'right' : 'left')
+        : pageDrag?.direction === 'next' ? currentPage + 1 : Math.max(1, currentPage - 1);
+    const turningBackNumber = book.format === 'txt'
+        ? txtPageNumber(currentPage + epubDirection, pageDrag?.direction === 'next' ? 'left' : 'right')
+        : pageDrag?.direction === 'next' ? currentPage + 2 : Math.max(1, currentPage - 2);
+    const turningRevealNumber = book.format === 'txt'
+        ? txtPageNumber(currentPage + epubDirection, pageDrag?.direction === 'next' ? 'right' : 'left')
+        : pageDrag?.direction === 'next' ? currentPage + 3 : Math.max(1, currentPage - 3);
     const txtLeftPage = txtPagePreview(currentPage, 'left');
     const txtRightPage = txtPagesPerSpread > 1 ? txtPagePreview(currentPage, 'right') : '';
     const readerBusy = loading || (book.format === 'txt' && txtPaginating);
     return <div className="fixed inset-x-0 bottom-0 top-16 z-[70] flex max-w-[100vw] flex-col overflow-hidden bg-white text-slate-800">
-        <header className="relative z-20 flex h-12 shrink-0 items-center justify-between border-b border-slate-200 bg-white/95 px-3 shadow-sm backdrop-blur sm:px-5"><div className="flex items-center gap-1"><button onClick={onClose} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"><ArrowLeft className="h-4 w-4"/>返回书架</button><button onClick={() => setPanel(panel === 'toc' ? null : 'toc')} className={`rounded-md p-2 transition ${panel === 'toc' ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title="目录"><List className="h-4 w-4"/></button><button onClick={() => setPanel(panel === 'bookmarks' ? null : 'bookmarks')} className={`rounded-md p-2 transition ${panel === 'bookmarks' ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title="书签列表"><Bookmark className="h-4 w-4"/></button></div><span className="absolute left-1/2 max-w-[42vw] -translate-x-1/2 truncate text-sm font-semibold tracking-wide text-slate-700">{book.title}</span><div className="flex items-center gap-1"><button onClick={toggleBookmark} className={`rounded-md p-2 transition ${hasBookmark ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title="添加书签">{hasBookmark ? <BookmarkCheck className="h-4 w-4"/> : <Bookmark className="h-4 w-4"/>}</button><button onClick={downloadBook} className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-orange-600" title="下载"><Download className="h-4 w-4"/></button></div></header>
+        <header className="relative z-20 flex h-12 shrink-0 items-center justify-between border-b border-slate-200 bg-white/95 px-3 shadow-sm backdrop-blur sm:px-5"><div className="flex items-center gap-1"><button onClick={onClose} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"><ArrowLeft className="h-4 w-4"/>返回书架</button><button onClick={() => setPanel(panel === 'toc' ? null : 'toc')} className={`rounded-md p-2 transition ${panel === 'toc' ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title="目录"><List className="h-4 w-4"/></button><button onClick={() => setPanel(panel === 'bookmarks' ? null : 'bookmarks')} className={`rounded-md p-2 transition ${panel === 'bookmarks' ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title="书签列表"><Bookmark className="h-4 w-4"/></button></div><span className="absolute left-1/2 max-w-[42vw] -translate-x-1/2 truncate text-sm font-semibold tracking-wide text-slate-700">{book.title}</span><div className="flex items-center gap-1">{book.format === 'pdf' && <button onClick={() => setPdfCropWhitespace(value => !value)} className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition ${pdfCropWhitespace ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title={pdfCropWhitespace ? '当前已智能去除页边留白' : '当前显示 PDF 完整页面'}><BookOpen className="h-4 w-4"/><span className="hidden sm:inline">{pdfCropWhitespace ? '正文适配' : '完整页面'}</span></button>}<button onClick={toggleBookmark} className={`rounded-md p-2 transition ${hasBookmark ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title="添加书签">{hasBookmark ? <BookmarkCheck className="h-4 w-4"/> : <Bookmark className="h-4 w-4"/>}</button><button onClick={downloadBook} className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-orange-600" title="下载"><Download className="h-4 w-4"/></button></div></header>
         <main onWheelCapture={onWheel} onPointerDown={onPagePointerDown} onPointerMove={onPagePointerMove} onPointerUp={finishPageDrag} onPointerCancel={finishPageDrag} className="reader-desk relative min-h-0 flex-1 overflow-hidden p-3 touch-pan-y select-none sm:p-6">
             {panel && <aside className="absolute left-3 top-3 z-30 flex max-h-[calc(100%-1.5rem)] w-80 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur sm:left-6 sm:top-6"><div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><p className="text-sm font-bold text-slate-800">{panel === 'toc' ? '目录' : '书签'}</p><button onClick={() => setPanel(null)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4"/></button></div><div className="min-h-0 overflow-y-auto p-2">{panel === 'toc' ? (toc.length ? toc.map((item, index) => <button key={`${item.href}-${index}`} onClick={() => { void renditionRef.current?.display?.(item.href); setPanel(null); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-orange-50 hover:text-orange-700"><span className="w-6 text-right font-mono text-[10px] text-slate-400">{index + 1}</span><span className="line-clamp-2">{item.label}</span></button>) : <p className="px-3 py-8 text-center text-xs leading-5 text-slate-400">此文件没有可读取的目录。</p>) : (bookmarks.length ? bookmarks.sort((a, b) => a.page - b.page).map(item => <button key={item.page} onClick={() => { if (book.format === 'epub' && item.location) void renditionRef.current?.display?.(item.location); else jumpToPage(item.page); setPanel(null); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-orange-50 hover:text-orange-700"><span>{item.label}</span><span className="font-mono text-xs text-slate-400">{item.page}</span></button>) : <p className="px-4 py-10 text-center text-xs leading-5 text-slate-400">还没有书签。<br/>可点击右上角书签图标添加。</p>)}</div></aside>}
-            {readerBusy && <div className="reader-loading-book absolute inset-y-3 left-1/2 z-10 flex w-[calc(100%-1.5rem)] max-w-7xl -translate-x-1/2 sm:inset-y-6 sm:w-[calc(100%-3rem)]" aria-label="正在打开图书"><div/><div/><Loader2 className="absolute left-1/2 top-1/2 z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 animate-spin text-orange-500"/></div>}
+            {readerBusy && <div className="reader-loading-book absolute inset-y-3 left-1/2 z-10 flex w-[calc(100%-1.5rem)] max-w-7xl -translate-x-1/2 sm:inset-y-6 sm:w-[calc(100%-3rem)]" aria-label="正在打开图书"><div/><div/><span className="absolute left-1/2 top-1/2 z-10 grid h-5 w-5 -translate-x-1/2 -translate-y-1/2 place-items-center"><Loader2 className="h-5 w-5 animate-spin text-orange-500"/></span></div>}
             {loadError && <div className="absolute inset-0 z-20 flex items-center justify-center p-6"><div className="max-w-sm rounded-xl border border-slate-200 bg-white p-5 text-center shadow-lg"><p className="font-semibold text-slate-700">图书未能打开</p><p className="mt-2 text-sm leading-6 text-slate-500">{loadError}</p><button onClick={onClose} className="mt-4 rounded-md bg-orange-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-orange-600">返回书架</button></div></div>}
-            {!loading && book.format === 'pdf' && pdfDocument && <div className="reader-book-spread mx-auto flex h-full max-w-7xl items-center justify-center overflow-hidden"><div className="reader-book-page reader-book-page-left flex h-full min-w-0 flex-1 items-center justify-center"><PdfCanvas document={pdfDocument} pageNumber={pdfPage}/></div>{pdfPage + 1 <= pdfPageCount && <div className="reader-book-page reader-book-page-right hidden h-full min-w-0 flex-1 items-center justify-center md:flex"><PdfCanvas document={pdfDocument} pageNumber={pdfPage + 1}/></div>}</div>}
+            {!loading && book.format === 'pdf' && pdfDocument && <div className="reader-book-spread mx-auto flex h-full max-w-7xl items-center justify-center overflow-hidden"><div className="reader-book-page reader-book-page-left flex h-full min-w-0 flex-1 items-center justify-center"><PdfCanvas document={pdfDocument} pageNumber={pdfPage} cropWhitespace={pdfCropWhitespace}/></div>{pdfPage + 1 <= pdfPageCount && <div className="reader-book-page reader-book-page-right hidden h-full min-w-0 flex-1 items-center justify-center md:flex"><PdfCanvas document={pdfDocument} pageNumber={pdfPage + 1} cropWhitespace={pdfCropWhitespace}/></div>}</div>}
             {!loading && book.format === 'txt' && <div ref={textRef} className={`reader-book-spread mx-auto flex h-full max-w-7xl overflow-hidden transition-opacity duration-150 ${txtPaginating ? 'opacity-0' : 'opacity-100'}`}><section className="reader-txt-page reader-book-page-left"><article className="reader-txt-page-content">{txtLeftPage}</article><span>{(currentPage - 1) * txtPagesPerSpread + 1}</span></section>{txtPagesPerSpread > 1 && <section className="reader-txt-page reader-book-page-right"><article className="reader-txt-page-content">{txtRightPage}</article><span>{Math.min(txtPages.length, (currentPage - 1) * txtPagesPerSpread + 2)}</span></section>}</div>}
             {book.format === 'epub' && (
-                <div ref={epubRef} className={`reader-book-spread mx-auto h-full w-full max-w-7xl overflow-hidden transition-opacity duration-150 ${loading ? 'opacity-0' : 'opacity-100'}`}/>
+                <div ref={epubRef} className={`reader-book-spread reader-epub-spread mx-auto h-full w-full max-w-7xl overflow-hidden transition-opacity duration-150 ${loading ? 'opacity-0' : 'opacity-100'} ${epubTurn ? 'reader-epub-moving' : ''}`}/>
             )}
-            {pageDrag && canRenderTurnOverlay && <div aria-hidden="true" className={`reader-turn-layer pointer-events-none absolute inset-y-3 left-1/2 z-10 w-[calc(100%-1.5rem)] max-w-7xl -translate-x-1/2 overflow-hidden rounded-[9px] sm:inset-y-6 sm:w-[calc(100%-3rem)] ${pageDrag.direction === 'next' ? 'reader-turn-next' : 'reader-turn-prev'} ${pageDrag.settling ? 'reader-turn-settling' : ''}`} style={{'--reader-turn-angle': `${dragRotation}deg`, '--reader-turn-progress': pageDrag.progress} as React.CSSProperties}>
-                <div className="reader-reveal-page">{turningRevealText && <p>{turningRevealText}</p>}</div>
+            {epubLoading && <div className="reader-epub-loading" aria-live="polite" aria-label="正在加载下一页"><Loader2 className="h-7 w-7 animate-spin text-slate-400"/></div>}
+            {pageDrag && book.format !== 'epub' && <div aria-hidden="true" className={`reader-turn-layer pointer-events-none absolute inset-y-3 left-1/2 z-10 w-[calc(100%-1.5rem)] max-w-7xl -translate-x-1/2 overflow-hidden rounded-[9px] sm:inset-y-6 sm:w-[calc(100%-3rem)] ${pageDrag.direction === 'next' ? 'reader-turn-next' : 'reader-turn-prev'} ${pageDrag.settling ? 'reader-turn-settling' : ''}`} style={{'--reader-turn-angle': `${dragRotation}deg`, '--reader-turn-progress': pageDrag.progress} as React.CSSProperties}>
+                <div className="reader-reveal-page">
+                    {turningRevealText && <article className="reader-txt-page-content reader-turn-txt-content">{turningRevealText}</article>}
+                    <i>{turningRevealNumber}</i>
+                </div>
                 <div className="reader-turn-sheet">
-                    <div className="reader-turn-face reader-turn-front"><span>{book.title}</span>{turningFrontText && <p>{turningFrontText}</p>}<i>{pageDrag.direction === 'next' ? currentPage + 1 : Math.max(1, currentPage - 1)}</i></div>
-                    <div className="reader-turn-face reader-turn-back"><span>{book.title}</span>{turningBackText && <p>{turningBackText}</p>}<i>{pageDrag.direction === 'next' ? currentPage + 2 : Math.max(1, currentPage - 2)}</i></div>
+                    <div className="reader-turn-face reader-turn-front">
+                        {turningFrontText && <article className="reader-txt-page-content reader-turn-txt-content">{turningFrontText}</article>}
+                        <i>{turningFrontNumber}</i>
+                    </div>
+                    <div className="reader-turn-face reader-turn-back">
+                        {turningBackText && <article className="reader-txt-page-content reader-turn-txt-content">{turningBackText}</article>}
+                        <i>{turningBackNumber}</i>
+                    </div>
                 </div>
                 <div className="reader-turn-shadow"/>
             </div>}
-            {!readerBusy && !loadError && <div onMouseEnter={revealControls} onMouseLeave={deferControlsClose} onFocus={revealControls} onBlur={deferControlsClose} className={`pointer-events-auto absolute bottom-0 left-1/2 z-20 -translate-x-1/2 overflow-hidden rounded-t-xl border border-b-0 border-slate-200 bg-white/95 shadow-[0_-6px_18px_rgba(15,23,42,.1)] backdrop-blur transition-[width,height,border-radius] duration-[300ms] ease-[cubic-bezier(.22,.8,.24,1)] ${controlsVisible ? 'h-14 w-[calc(100%-2rem)] max-w-3xl' : 'h-9 w-52 rounded-t-lg'}`}><button onClick={revealControls} className={`absolute inset-0 z-10 inline-flex items-center justify-center gap-2 text-xs font-semibold tracking-wide text-slate-500 transition-all duration-150 ${controlsVisible ? 'pointer-events-none -translate-y-1 opacity-0' : 'opacity-100 delay-100 hover:text-orange-600'}`} aria-expanded={controlsVisible}><span className="h-2 w-2 rounded-full bg-orange-400 shadow-[0_0_10px_rgba(251,146,60,.7)] animate-pulse"/>阅读控制<ChevronUp className="h-3.5 w-3.5"/></button><div className={`flex h-full items-center gap-2 px-3 transition-all duration-200 ${controlsVisible ? 'translate-y-0 opacity-100 delay-100' : 'translate-y-2 opacity-0'}`}><button onClick={() => animatePageTurn('prev')} className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-xs font-medium text-slate-600 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700" aria-label="上一页"><ChevronLeft className="h-4 w-4"/>上一页</button><div className="relative min-w-0 flex-1"><input aria-label="快速跳转页码" type="range" min="1" max={Math.max(1, totalPages)} value={Math.min(currentPage, Math.max(1, totalPages))} onChange={event => jumpToPage(Number(event.target.value))} style={{background: `linear-gradient(to right, #f97316 0%, #f97316 ${((Math.min(currentPage, Math.max(1, totalPages)) - 1) / Math.max(1, (totalPages || 1) - 1)) * 100}%, #e2e8f0 ${((Math.min(currentPage, Math.max(1, totalPages)) - 1) / Math.max(1, (totalPages || 1) - 1)) * 100}%, #e2e8f0 100%)`}} className="h-1.5 w-full cursor-pointer appearance-none rounded-sm [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-sm [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:-mt-[5px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:shadow-sm"/></div><span className="min-w-16 text-center text-xs font-medium tabular-nums text-slate-500">{currentPage} / {totalPages || '—'}</span><button onClick={() => animatePageTurn('next')} className="inline-flex h-8 items-center gap-1 rounded-md bg-orange-500 px-2.5 text-xs font-medium text-white shadow-sm transition hover:bg-orange-600" aria-label="下一页">下一页<ChevronRight className="h-4 w-4"/></button></div></div>}
+            {!readerBusy && !loadError && <div onMouseEnter={revealControls} onMouseLeave={deferControlsClose} onFocus={revealControls} onBlur={deferControlsClose} className={`pointer-events-auto absolute bottom-0 left-1/2 z-20 -translate-x-1/2 overflow-hidden rounded-t-xl border border-b-0 border-slate-200 bg-white/95 shadow-[0_-6px_18px_rgba(15,23,42,.1)] backdrop-blur transition-[width,height,border-radius] duration-[300ms] ease-[cubic-bezier(.22,.8,.24,1)] ${controlsVisible ? 'h-14 w-[calc(100%-2rem)] max-w-3xl' : 'h-9 w-52 rounded-t-lg'}`}><button onClick={revealControls} className={`absolute inset-0 z-10 inline-flex items-center justify-center gap-2 text-xs font-semibold tracking-wide text-slate-500 transition-all duration-150 ${controlsVisible ? 'pointer-events-none -translate-y-1 opacity-0' : 'opacity-100 delay-100 hover:text-orange-600'}`} aria-expanded={controlsVisible}><span className="h-2 w-2 rounded-full bg-orange-400 shadow-[0_0_10px_rgba(251,146,60,.7)] animate-pulse"/>阅读控制<ChevronUp className="h-3.5 w-3.5"/></button><div className={`flex h-full items-center gap-2 px-3 transition-all duration-200 ${controlsVisible ? 'translate-y-0 opacity-100 delay-100' : 'translate-y-2 opacity-0'}`}><button onClick={() => animatePageTurn('prev')} className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-xs font-medium text-slate-600 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700" aria-label="上一页"><ChevronLeft className="h-4 w-4"/>上一页</button><div className="relative min-w-0 flex-1"><input aria-label="快速跳转页码" type="range" min="1" max={Math.max(1, totalPages)} value={Math.min(jumpPreview ?? currentPage, Math.max(1, totalPages))} onChange={event => setJumpPreview(Number(event.target.value))} onPointerUp={commitJumpPreview} onKeyUp={commitJumpPreview} style={{background: `linear-gradient(to right, #f97316 0%, #f97316 ${((Math.min(jumpPreview ?? currentPage, Math.max(1, totalPages)) - 1) / Math.max(1, (totalPages || 1) - 1)) * 100}%, #e2e8f0 ${((Math.min(jumpPreview ?? currentPage, Math.max(1, totalPages)) - 1) / Math.max(1, (totalPages || 1) - 1)) * 100}%, #e2e8f0 100%)`}} className="h-1.5 w-full cursor-pointer appearance-none rounded-sm [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-sm [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:-mt-[5px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500 [&::-webkit-slider-thumb]:shadow-sm"/></div><span className="min-w-16 text-center text-xs font-medium tabular-nums text-slate-500">{jumpPreview ?? currentPage} / {totalPages || '—'}</span><button onClick={() => animatePageTurn('next')} className="inline-flex h-8 items-center gap-1 rounded-md bg-orange-500 px-2.5 text-xs font-medium text-white shadow-sm transition hover:bg-orange-600" aria-label="下一页">下一页<ChevronRight className="h-4 w-4"/></button></div></div>}
         </main>
     </div>;
 }
@@ -426,13 +642,21 @@ export default function BookAnthologyPage({collId, onNavigate}: Props) {
     const [books, setBooks] = useState<BookItem[]>([]); const [loading, setLoading] = useState(true); const [selected, setSelected] = useState<BookItem | null>(null); const [reading, setReading] = useState<BookItem | null>(null); const [releaseCandidate, setReleaseCandidate] = useState<BookItem | null>(null); const [deleteCandidate, setDeleteCandidate] = useState<BookItem | null>(null); const [isActionLoading, setIsActionLoading] = useState(false);
     const reload = async () => { if (!collId) return; setLoading(true); try { setBooks(await getBooks(collId)); } catch { toast.error('获取书架失败'); } finally { setLoading(false); } };
     useEffect(() => { reload(); }, [collId]);
+    useEffect(() => {
+        if (!selected || releaseCandidate || deleteCandidate) return;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setSelected(null);
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selected, releaseCandidate, deleteCandidate]);
     const importBook = async (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file || !collId) return; const ext = file.name.split('.').pop()?.toLowerCase(); if (!['pdf','txt','epub','mobi'].includes(ext || '')) { toast.error('仅支持 PDF、TXT、EPUB、MOBI'); return; } const form = new FormData(); form.append('file', file); try { await uploadBook(collId, form); toast.success('图书已导入'); reload(); } catch { toast.error('图书导入失败'); } finally { event.target.value = ''; } };
     const ensureLocal = async (book: BookItem, read = false) => { try { if (book.localState === 'cloud_only') { toast.info('正在从云端恢复图书…'); await restoreBook(book.bookId); await reload(); } if (read && book.format !== 'mobi') setReading({...book, localState: 'local'}); else if (book.format === 'mobi') window.open(`/api/anthology/book/${book.bookId}/file`, '_blank'); } catch { toast.error('云端恢复失败，请检查 WebDAV'); } };
     const release = async (book: BookItem) => { setIsActionLoading(true); try { await releaseBook(book.bookId); toast.success('已释放本地副本'); setReleaseCandidate(null); setSelected(null); reload(); } catch { toast.error('释放失败，请稍后重试'); } finally { setIsActionLoading(false); } };
     const remove = async (book: BookItem) => { setIsActionLoading(true); try { await deleteBook(book.bookId); toast.success('图书已删除'); setDeleteCandidate(null); setSelected(null); reload(); } catch { toast.error('图书删除失败'); } finally { setIsActionLoading(false); } };
     return <><main className="min-h-[calc(100vh-4rem)] bg-[radial-gradient(circle_at_10%_0%,#fff4e6,transparent_32%),#f8fafc] px-4 py-6 sm:px-6 lg:px-8"><div className="mx-auto max-w-7xl">
         <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><button onClick={() => onNavigate('home')} className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-orange-600"><ArrowLeft className="h-3.5 w-3.5"/>全部文集</button><h1 className="font-serif text-2xl font-bold tracking-tight text-slate-900">我的书架</h1><p className="mt-1 text-sm text-slate-500">在这里收藏、阅读，或从云端按需取回你的书。</p></div><div><input ref={inputRef} type="file" accept=".pdf,.txt,.epub,.mobi" onChange={importBook} className="hidden"/><button onClick={() => inputRef.current?.click()} className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-orange-500/30 transition hover:bg-orange-600"><Upload className="h-4 w-4"/>导入图书</button></div></div>
-        {loading ? <div className="py-24 text-center text-slate-400"><Loader2 className="mx-auto h-6 w-6 animate-spin"/></div> : books.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white shadow-sm"><button onClick={() => inputRef.current?.click()} className="flex min-h-44 w-full items-center justify-center gap-4 rounded-xl px-6 text-left transition hover:bg-orange-50/40"><div className="flex h-14 w-11 items-center justify-center rounded-md bg-orange-50 text-orange-500 ring-1 ring-orange-100"><BookOpen className="h-5 w-5"/></div><div><p className="text-base font-bold text-slate-700">暂无图书，点击导入</p><p className="mt-1 text-xs text-slate-400">支持 PDF、TXT、EPUB 和 MOBI，单本最大 500 MB</p></div><Plus className="ml-3 h-5 w-5 text-slate-300"/></button></div> : <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,10.5rem))] gap-x-5 gap-y-7">{books.map(book => <div key={book.bookId} className="group relative"><button onClick={() => ensureLocal(book, true)} className="block w-full text-left"><div className="relative aspect-[3/4] overflow-hidden rounded-sm bg-orange-100 shadow-[5px_7px_0_rgba(148,91,43,.12)] transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[8px_12px_20px_rgba(148,91,43,.2)]"><FallbackCover book={book}/>{book.coverUrl ? <img src={book.coverUrl} onError={(event) => {event.currentTarget.style.display='none';}} alt="" className="absolute inset-0 h-full w-full object-cover"/> : null}<div className="absolute inset-x-0 bottom-0 h-1.5 bg-slate-950/30" aria-label={`阅读进度 ${Math.round(book.progress)}%`}><div className="h-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,.85)] transition-[width] duration-500" style={{width: `${book.progress}%`}}/></div>{book.localState === 'cloud_only' && <span className="absolute right-2 top-2 rounded-full bg-slate-900/75 p-1.5 text-white" title="仅云端可用"><CloudDownload className="h-3.5 w-3.5"/></span>}</div><h2 className="mt-3 line-clamp-2 text-sm font-bold text-slate-800 group-hover:text-orange-700">{book.title}</h2><p className="mt-0.5 truncate text-xs text-slate-400">{book.author || '未知作者'} · {formatLabel[book.format]}</p></button><button onClick={() => setSelected(book)} className="absolute right-0 top-0 rounded-bl-lg bg-white/90 p-1.5 text-slate-500 opacity-0 shadow-sm transition group-hover:opacity-100"><MoreHorizontal className="h-4 w-4"/></button><div className="pointer-events-none absolute inset-x-0 top-3 z-20 -translate-y-2 rounded-xl border border-orange-100 bg-white p-3 opacity-0 shadow-xl transition group-hover:translate-y-0 group-hover:opacity-100 group-hover:delay-[500ms]"><p className="font-semibold text-slate-800">{book.title}</p><p className="mt-1 text-xs text-slate-500">{book.author || '未知作者'} · {book.formattedSize}</p><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-orange-400" style={{width: `${book.progress}%`}}/></div><p className="mt-1 text-[10px] text-slate-400">阅读进度 {Math.round(book.progress)}%</p></div></div>)}</div>}
+        {loading ? <div className="py-24 text-center text-slate-400"><Loader2 className="mx-auto h-6 w-6 animate-spin"/></div> : books.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white shadow-sm"><button onClick={() => inputRef.current?.click()} className="flex min-h-44 w-full items-center justify-center gap-4 rounded-xl px-6 text-left transition hover:bg-orange-50/40"><div className="flex h-14 w-11 items-center justify-center rounded-md bg-orange-50 text-orange-500 ring-1 ring-orange-100"><BookOpen className="h-5 w-5"/></div><div><p className="text-base font-bold text-slate-700">暂无图书，点击导入</p><p className="mt-1 text-xs text-slate-400">支持 PDF、TXT、EPUB 和 MOBI，单本最大 500 MB</p></div><Plus className="ml-3 h-5 w-5 text-slate-300"/></button></div> : <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,10.5rem))] gap-x-5 gap-y-7">{books.map(book => <div key={book.bookId} className="group relative"><button onClick={() => ensureLocal(book, true)} className="block w-full text-left"><div className="relative aspect-[3/4] overflow-hidden rounded-sm bg-orange-100 shadow-[5px_7px_0_rgba(148,91,43,.12)] transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[8px_12px_20px_rgba(148,91,43,.2)]"><FallbackCover book={book}/>{book.coverUrl ? <img src={book.coverUrl} onError={(event) => {event.currentTarget.style.display='none';}} alt="" className="absolute inset-0 h-full w-full object-cover"/> : null}{book.localState === 'cloud_only' && <span className="absolute right-2 top-2 rounded-full bg-slate-900/75 p-1.5 text-white" title="仅云端可用"><CloudDownload className="h-3.5 w-3.5"/></span>}<div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex h-24 flex-col justify-end bg-gradient-to-t from-slate-950/85 via-slate-950/40 to-transparent px-3 pb-3 pt-8"><div className="flex items-center justify-between text-[10px] font-medium tracking-wide text-white/85"><span>阅读进度</span><span className="font-mono text-xs font-semibold text-white">{Math.round(book.progress)}%</span></div><div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/25"><div className="h-full rounded-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,.9)] transition-[width] duration-500" style={{width: `${book.progress}%`}}/></div></div></div><h2 className="mt-3 line-clamp-2 text-sm font-bold text-slate-800 group-hover:text-orange-700">{book.title}</h2><p className="mt-0.5 truncate text-xs text-slate-400">{book.author || '未知作者'} · {formatLabel[book.format]}</p></button><button onClick={() => setSelected(book)} className="absolute right-0 top-0 z-20 rounded-bl-lg bg-white/90 p-1.5 text-slate-500 opacity-0 shadow-sm transition group-hover:opacity-100"><MoreHorizontal className="h-4 w-4"/></button></div>)}</div>}
     </div></main>
     {selected && <div className="fixed inset-0 z-[110] flex items-end justify-center bg-slate-900/30 p-4 sm:items-center" onClick={() => setSelected(null)}><div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl" onClick={e => e.stopPropagation()}><div className="mb-3 flex items-start justify-between"><div><p className="font-bold text-slate-800">{selected.title}</p><p className="text-xs text-slate-400">{selected.formattedSize} · {formatLabel[selected.format]}</p></div><button onClick={() => setSelected(null)}><X className="h-4 w-4 text-slate-400"/></button></div><div className="space-y-1"><button onClick={() => ensureLocal(selected, true)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-orange-50"><BookOpen className="h-4 w-4 text-orange-500"/>{selected.canRead ? '在线阅读' : '下载 MOBI 文件'}</button>{selected.localState === 'cloud_only' && <button onClick={() => ensureLocal(selected)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-orange-50"><CloudDownload className="h-4 w-4 text-sky-500"/>从云端下载</button>}{selected.localState === 'local' && (selected.remoteAvailable ? <button onClick={() => setReleaseCandidate(selected)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-orange-50"><CloudDownload className="h-4 w-4 text-sky-500"/>释放本地副本</button> : <p className="flex items-center gap-2 px-3 py-2 text-xs leading-5 text-slate-400"><CloudDownload className="h-4 w-4 shrink-0"/>配置并完成 WebDAV 同步后，才可释放本地副本</p>)}<button onClick={() => setDeleteCandidate(selected)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4"/>删除图书</button></div></div></div>}
     <ConfirmationModal isOpen={Boolean(releaseCandidate)} onClose={() => setReleaseCandidate(null)} onConfirm={() => release(releaseCandidate!)} title="释放本地副本？" description={<>将删除《{releaseCandidate?.title}》的本地正文，封面和书籍数据会保留，可随时从云端恢复。</>} confirmText="确认释放" type="warning" isLoading={isActionLoading}/>

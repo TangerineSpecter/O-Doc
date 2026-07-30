@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import { AlertTriangle, Info, X, Loader2 } from 'lucide-react';
 
 type ModalType = 'danger' | 'warning' | 'info';
@@ -47,6 +47,15 @@ export default function ConfirmationModal({
     type = 'danger',
     isLoading = false
 }: ConfirmationModalProps) {
+    useEffect(() => {
+        if (!isOpen || isLoading) return;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, isLoading, onClose]);
+
     if (!isOpen) return null;
 
     const config = TYPE_CONFIG[type];

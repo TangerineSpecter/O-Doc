@@ -144,7 +144,7 @@ if ! command -v npm &> /dev/null; then
 fi
 
 # 安装后端依赖
-if ! python -c "import django, psycopg" &> /dev/null; then
+if ! python -c "import django, psycopg, fitz" &> /dev/null; then
     echo "📦 正在安装后端依赖..."
     python -m pip install -i "$PIP_INDEX_URL" -r requirements.txt
 fi

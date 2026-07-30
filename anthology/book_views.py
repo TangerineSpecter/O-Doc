@@ -22,6 +22,7 @@ ALLOWED_EXTENSIONS = {'.pdf': 'pdf', '.txt': 'txt', '.epub': 'epub', '.mobi': 'm
 MAX_BOOK_SIZE = 500 * 1024 * 1024
 MAX_EPUB_METADATA_SIZE = 2 * 1024 * 1024
 MAX_EPUB_COVER_SIZE = 20 * 1024 * 1024
+MAX_PDF_COVER_EDGE = 1600
 
 
 def _book_for_read(request, book_id):
@@ -96,6 +97,51 @@ def _epub_metadata_and_cover(path):
         return '', '', None, ''
 
 
+def _clean_pdf_metadata(value):
+    """Normalize PDF metadata, which often contains nulls or non-string values."""
+    return str(value or '').replace('\x00', '').strip()
+
+
+def _pdf_metadata_and_cover(path, include_cover=True):
+    """Read PDF document metadata and render its first page as a bookshelf cover."""
+    try:
+        import fitz
+        with fitz.open(path) as document:
+            metadata = document.metadata or {}
+            title = _clean_pdf_metadata(metadata.get('title'))
+            author = _clean_pdf_metadata(metadata.get('author'))
+            if not include_cover or document.page_count < 1:
+                return title, author, None, ''
+            page = document.load_page(0)
+            page_rect = page.rect
+            longest_edge = max(float(page_rect.width), float(page_rect.height), 1)
+            scale = max(0.5, min(2.0, MAX_PDF_COVER_EDGE / longest_edge))
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), colorspace=fitz.csRGB, alpha=False)
+            return title, author, pixmap.tobytes('png'), 'image/png'
+    except (ImportError, OSError, RuntimeError, ValueError):
+        return '', '', None, ''
+
+
+def _persist_book_cover(book, cover_bytes, cover_mime):
+    if not cover_bytes or book.cover_asset:
+        return False
+    extension = mimetypes.guess_extension(cover_mime) or '.jpg'
+    cover_id = uuid.uuid4().hex[:16]
+    rel_path = os.path.join('book_covers', cover_id + extension)
+    abs_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+    with open(abs_path, 'wb') as output:
+        output.write(cover_bytes)
+    book.cover_asset = Asset.objects.create(
+        id=cover_id, name=os.path.basename(rel_path), original_name=os.path.basename(rel_path),
+        file_type='image', file_size=len(cover_bytes), file_path=rel_path, file_extension=extension,
+        mime_type=cover_mime or 'image/jpeg', uploader=book.asset.uploader,
+        file_hash=hashlib.md5(cover_bytes).hexdigest(), source_type='other',
+        metadata={'book_cover': True, 'source_format': book.book_format},
+    )
+    return True
+
+
 def _extract_epub_details(book):
     """Persist metadata and cover available inside a local EPUB; harmless for older imports."""
     if book.book_format != 'epub' or not os.path.isfile(_asset_path(book.asset)):
@@ -108,20 +154,27 @@ def _extract_epub_details(book):
     if author and not book.author:
         book.author = author[:255]
         changed.append('author')
-    if cover_bytes and not book.cover_asset:
-        extension = mimetypes.guess_extension(cover_mime) or '.jpg'
-        cover_id = uuid.uuid4().hex[:16]
-        rel_path = os.path.join('book_covers', cover_id + extension)
-        abs_path = os.path.join(settings.MEDIA_ROOT, rel_path)
-        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-        with open(abs_path, 'wb') as output:
-            output.write(cover_bytes)
-        book.cover_asset = Asset.objects.create(
-            id=cover_id, name=os.path.basename(rel_path), original_name=os.path.basename(rel_path),
-            file_type='image', file_size=len(cover_bytes), file_path=rel_path, file_extension=extension,
-            mime_type=cover_mime or 'image/jpeg', uploader=book.asset.uploader,
-            file_hash=hashlib.md5(cover_bytes).hexdigest(), source_type='other', metadata={'book_cover': True},
-        )
+    if _persist_book_cover(book, cover_bytes, cover_mime):
+        changed.append('cover_asset')
+    if changed:
+        book.save(update_fields=[*changed, 'updated_at'])
+
+
+def _extract_pdf_details(book, include_cover=True):
+    """Persist metadata and a first-page cover for a local PDF."""
+    if book.book_format != 'pdf' or not os.path.isfile(_asset_path(book.asset)):
+        return
+    title, author, cover_bytes, cover_mime = _pdf_metadata_and_cover(
+        _asset_path(book.asset), include_cover=include_cover)
+    changed = []
+    default_title = os.path.splitext(book.asset.original_name)[0]
+    if title and (not book.title or book.title == default_title):
+        book.title = title[:255]
+        changed.append('title')
+    if author and not book.author:
+        book.author = author[:255]
+        changed.append('author')
+    if _persist_book_cover(book, cover_bytes, cover_mime):
         changed.append('cover_asset')
     if changed:
         book.save(update_fields=[*changed, 'updated_at'])
@@ -136,6 +189,10 @@ class BookListView(APIView):
         books = Book.objects.filter(anthology=anthology, is_valid=True).select_related('asset', 'cover_asset')
         result = []
         for book in books:
+            # Backfill metadata for PDFs imported before metadata extraction was supported.
+            if book.book_format == 'pdf' and (
+                    not book.author or book.title == os.path.splitext(book.asset.original_name)[0]):
+                _extract_pdf_details(book, include_cover=False)
             progress = BookReadingProgress.objects.filter(book=book, user_id=user_id).first()
             result.append({
                 'bookId': book.book_id, 'title': book.title, 'author': book.author, 'format': book.book_format,
@@ -192,7 +249,10 @@ class BookUploadView(APIView):
             author=(request.data.get('author') or '')[:255], book_format=ALLOWED_EXTENSIONS[ext],
             local_state='local' if local_file_exists else 'cloud_only',
             remote_available=bool(synced_book), remote_hash=asset.file_hash if synced_book else '')
-        _extract_epub_details(book)
+        if book.book_format == 'epub':
+            _extract_epub_details(book)
+        elif book.book_format == 'pdf':
+            _extract_pdf_details(book)
         anthology.update_stats()
         return success_result({'bookId': book.book_id})
 
@@ -213,7 +273,10 @@ class BookCoverView(APIView):
         except Book.DoesNotExist: raise Http404
         # Covers were not extracted by early versions; recover them lazily on first display.
         if not book.cover_asset:
-            _extract_epub_details(book)
+            if book.book_format == 'epub':
+                _extract_epub_details(book)
+            elif book.book_format == 'pdf':
+                _extract_pdf_details(book)
         if book.cover_asset and os.path.isfile(_asset_path(book.cover_asset)):
             return FileResponse(open(_asset_path(book.cover_asset), 'rb'), content_type=book.cover_asset.mime_type)
         # A deliberately lightweight fallback cover, rendered by the frontend when no cover bytes exist.
