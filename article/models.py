@@ -398,6 +398,23 @@ class Image(models.Model):
         db_comment="焦段"
     )
 
+    # 拍摄组。非空图片会在前端作为一组多焦段照片展示；空值兼容历史单图。
+    photo_group_id = models.CharField(
+        max_length=32,
+        blank=True,
+        default='',
+        db_index=True,
+        help_text="多照片拍摄组标识",
+        db_comment="多照片拍摄组标识"
+    )
+
+    # 图片在拍摄组内的展示顺序，第一张同时作为封面和 AI 识别依据。
+    group_index = models.PositiveIntegerField(
+        default=0,
+        help_text="拍摄组内展示顺序",
+        db_comment="拍摄组内展示顺序"
+    )
+
     # 标签（存储为逗号分隔的字符串）
     tags = models.CharField(
         max_length=500,

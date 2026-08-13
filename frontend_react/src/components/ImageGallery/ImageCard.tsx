@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { Aperture, Calendar, Edit3, Eye, MapPin, Trash2 } from 'lucide-react';
+import { Aperture, Calendar, Edit3, Eye, Images, MapPin, Trash2 } from 'lucide-react';
 import { DominantColorResult } from '../../utils/imageColor';
 
 interface ImageCardProps {
@@ -9,6 +9,8 @@ interface ImageCardProps {
   country?: string;
   city?: string;
   focalLength?: string;
+  photoCount?: number;
+  focalSummary?: string;
   dominantColor?: DominantColorResult | null;
   onClick?: () => void;
   onEdit?: () => void;
@@ -23,6 +25,8 @@ const ImageCard = memo(({
   country,
   city,
   focalLength,
+  photoCount = 1,
+  focalSummary,
   dominantColor,
   onClick,
   onEdit,
@@ -66,6 +70,11 @@ const ImageCard = memo(({
             ${isHovered ? 'scale-[1.04]' : 'scale-100'}
           `}
         />
+        {photoCount > 1 && (
+          <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-slate-900/70 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm">
+            <Images className="h-3 w-3" /> {photoCount} 张
+          </span>
+        )}
 
         {/* Hover Overlay */}
         <div 
@@ -152,10 +161,10 @@ const ImageCard = memo(({
             </div>
           )}
 
-          {focalLengthLabel && (
+          {(focalSummary || focalLengthLabel) && (
             <div className="flex items-center gap-2 text-xs text-slate-500 group-hover:text-slate-600 transition-colors">
               <Aperture className="w-3.5 h-3.5 text-sky-400" />
-              <span className="truncate">{focalLengthLabel}</span>
+              <span className="truncate">{focalSummary || focalLengthLabel}</span>
             </div>
           )}
         </div>

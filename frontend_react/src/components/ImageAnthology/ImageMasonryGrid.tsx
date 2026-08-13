@@ -3,15 +3,21 @@ import { Image } from '../../api/image';
 import { DominantColorResult } from '../../utils/imageColor';
 import ImageCard from '../ImageGallery/ImageCard';
 
+export interface ImageDisplayItem {
+  image: Image;
+  images: Image[];
+  index: number;
+}
+
 interface ImageMasonryGridProps {
   isHidden: boolean;
-  imageColumns: Array<Array<{ image: Image; index: number }>>;
+  imageColumns: Array<ImageDisplayItem[]>;
   visibleImageCount: number;
   dominantColors: Record<string, DominantColorResult | null>;
   isAuthenticated: boolean;
-  onImageClick: (index: number) => void;
-  onEditImage: (image: Image) => void;
-  onDeleteImage: (image: Image) => void;
+  onImageClick: (item: ImageDisplayItem) => void;
+  onEditImage: (item: ImageDisplayItem) => void;
+  onDeleteImage: (item: ImageDisplayItem) => void;
   onImageAspectRatio: (imageId: string, ratio: number) => void;
   onClearFilters: () => void;
 }
@@ -34,29 +40,31 @@ export default function ImageMasonryGrid({
         <div className="grid items-start gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {imageColumns.map((column, columnIndex) => (
             <div key={columnIndex} className="min-w-0">
-              {column.map(({ image, index }) => (
+              {column.map((item) => (
                 <div
-                  key={image.imageId}
+                  key={item.image.imageId}
                   className="animate-fade-in-up"
                   style={{
-                    animationDelay: `${index * 60}ms`,
+                    animationDelay: `${item.index * 60}ms`,
                     animationFillMode: 'both',
                   }}
                 >
                   <ImageCard
-                    imageUrl={image.imageUrl}
-                    title={image.title}
-                    shootingTime={image.shootingTimeStr}
-                    country={image.country}
-                    city={image.city}
-                    focalLength={image.focalLength}
-                    dominantColor={dominantColors[image.imageId]}
-                    onClick={() => onImageClick(index)}
-                    onEdit={isAuthenticated ? () => onEditImage(image) : undefined}
-                    onDelete={isAuthenticated ? () => onDeleteImage(image) : undefined}
+                    imageUrl={item.image.imageUrl}
+                    title={item.image.title}
+                    shootingTime={item.image.shootingTimeStr}
+                    country={item.image.country}
+                    city={item.image.city}
+                    focalLength={item.image.focalLength}
+                    photoCount={item.images.length}
+                    focalSummary={item.images.length > 1 ? item.images.map(image => image.focalLength ? `${image.focalLength}mm` : '未知').join(' · ') : undefined}
+                    dominantColor={dominantColors[item.image.imageId]}
+                    onClick={() => onImageClick(item)}
+                    onEdit={isAuthenticated ? () => onEditImage(item) : undefined}
+                    onDelete={isAuthenticated ? () => onDeleteImage(item) : undefined}
                     onImageLoad={({ width, height }) => {
                       if (width <= 0 || height <= 0) return;
-                      onImageAspectRatio(image.imageId, width / height);
+                      onImageAspectRatio(item.image.imageId, width / height);
                     }}
                   />
                 </div>

@@ -2,15 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Image as ImageIcon, Plus } from 'lucide-react';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
+import ImageGroupModal from '../components/ImageGallery/ImageGroupModal';
 import FocalLengthDetailChart, { FocalLengthFilterOption } from '../components/ImageAnthology/FocalLengthDetailChart';
 import ImageAnthologySidebar from '../components/ImageAnthology/ImageAnthologySidebar';
 import ImageGalleryFilters from '../components/ImageAnthology/ImageGalleryFilters';
 import ImageLocationPanel, { ImageLocationCountryGroup, ImageLocationStats } from '../components/ImageAnthology/ImageLocationPanel';
-import ImageMasonryGrid from '../components/ImageAnthology/ImageMasonryGrid';
+import ImageMasonryGrid, { ImageDisplayItem } from '../components/ImageAnthology/ImageMasonryGrid';
 import ImageTagStatsPanel from '../components/ImageAnthology/ImageTagStatsPanel';
 import { SelectOption } from '../components/common/Select';
 import { getAnthologyDetail, Anthology } from '../api/anthology';
-import { deleteImage, getImagesByAnthology, Image } from '../api/image';
+import { deleteImage, deleteImageGroup, getImagesByAnthology, Image } from '../api/image';
 import { getIconComponent } from '../constants/iconList';
 import StarLoader from '../components/common/StarLoader';
 import ConfirmationModal from '../components/common/ConfirmationModal';
@@ -82,10 +83,13 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
   const [images, setImages] = useState<Image[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<Image[] | null>(null);
+  const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Image[] | null>(null);
   const [editingImage, setEditingImage] = useState<Image | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Image | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ImageDisplayItem | null>(null);
   const [isLocationMapOpen, setIsLocationMapOpen] = useState(false);
   const [isFocalLengthDetailOpen, setIsFocalLengthDetailOpen] = useState(false);
   const [isTagDetailOpen, setIsTagDetailOpen] = useState(false);
@@ -138,36 +142,42 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     }
   };
 
-  const handleImageClick = (index: number) => {
-    setSelectedIndex(index);
+  const handleImageClick = (item: ImageDisplayItem) => {
+    setSelectedGroup(item.images);
+    setSelectedGroupIndex(0);
   };
 
   const handleCloseViewer = () => {
-    setSelectedIndex(null);
+    setSelectedGroup(null);
   };
 
   const handlePrevious = () => {
-    if (selectedIndex !== null && selectedIndex > 0) {
-      setSelectedIndex(selectedIndex - 1);
+    if (selectedGroupIndex > 0) {
+      setSelectedGroupIndex(selectedGroupIndex - 1);
     }
   };
 
   const handleNext = () => {
-    if (selectedIndex !== null && selectedIndex < visibleImages.length - 1) {
-      setSelectedIndex(selectedIndex + 1);
+    if (selectedGroup && selectedGroupIndex < selectedGroup.length - 1) {
+      setSelectedGroupIndex(selectedGroupIndex + 1);
     }
   };
 
   const handleOpenCreateModal = () => {
     if (!isAuthenticated) return;
-    setEditingImage(null);
-    setIsUploadModalOpen(true);
+    setEditingGroup(null);
+    setIsGroupModalOpen(true);
   };
 
-  const handleOpenEditModal = (image: Image) => {
+  const handleOpenEditModal = (item: ImageDisplayItem) => {
     if (!isAuthenticated) return;
-    setEditingImage(image);
-    setIsUploadModalOpen(true);
+    if (item.images.length > 1) {
+      setEditingGroup(item.images);
+      setIsGroupModalOpen(true);
+    } else {
+      setEditingImage(item.image);
+      setIsUploadModalOpen(true);
+    }
   };
 
   const handleCloseUploadModal = () => {
@@ -175,12 +185,24 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     setEditingImage(null);
   };
 
+  const handleConvertImageToGroup = (image: Image) => {
+    setIsUploadModalOpen(false);
+    setEditingImage(null);
+    setEditingGroup([image]);
+    setIsGroupModalOpen(true);
+  };
+
   const handleConfirmDelete = async () => {
     if (!isAuthenticated || !deleteTarget) return;
 
     try {
-      await deleteImage(deleteTarget.imageId);
-      toast.success('图片已删除');
+      if (deleteTarget.images.length > 1 && deleteTarget.image.photoGroupId) {
+        await deleteImageGroup(deleteTarget.image.photoGroupId);
+        toast.success('拍摄组已删除');
+      } else {
+        await deleteImage(deleteTarget.image.imageId);
+        toast.success('图片已删除');
+      }
       setDeleteTarget(null);
       await loadAnthologyData();
     } catch (error) {
@@ -449,13 +471,25 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     return baseVisibleImages.filter(image => dominantColors[image.imageId]?.key === selectedColor);
   }, [baseVisibleImages, dominantColors, selectedColor]);
 
+  const displayImages = useMemo<ImageDisplayItem[]>(() => {
+    const groups = new Map<string, Image[]>();
+    visibleImages.forEach(image => {
+      const key = image.photoGroupId || image.imageId;
+      groups.set(key, [...(groups.get(key) || []), image]);
+    });
+    return Array.from(groups.values()).map((group, index) => {
+      const ordered = group.slice().sort((a, b) => (a.groupIndex || 0) - (b.groupIndex || 0));
+      return { image: ordered[0], images: ordered, index };
+    });
+  }, [visibleImages]);
+
   const imageColumns = useMemo(() => {
     const columnCount = Math.max(galleryColumnCount, 1);
-    const columns = Array.from({ length: columnCount }, () => [] as Array<{ image: Image; index: number }>);
+    const columns = Array.from({ length: columnCount }, () => [] as ImageDisplayItem[]);
     const columnHeights = Array.from({ length: columnCount }, () => 0);
 
-    visibleImages.forEach((image, index) => {
-      const aspectRatio = imageAspectRatios[image.imageId] || 4 / 3;
+    displayImages.forEach((item, index) => {
+      const aspectRatio = imageAspectRatios[item.image.imageId] || 4 / 3;
       const estimatedCardHeight = (1 / aspectRatio) + 0.45;
       const columnIndex = index < columnCount
         ? index
@@ -463,15 +497,15 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
           height < columnHeights[shortestIndex] ? currentIndex : shortestIndex
         ), 0);
 
-      columns[columnIndex].push({ image, index });
+      columns[columnIndex].push(item);
       columnHeights[columnIndex] += estimatedCardHeight;
     });
 
     return columns;
-  }, [galleryColumnCount, imageAspectRatios, visibleImages]);
+  }, [displayImages, galleryColumnCount, imageAspectRatios]);
 
   useEffect(() => {
-    setSelectedIndex(null);
+    setSelectedGroup(null);
   }, [galleryCountry, galleryFocalMax, galleryFocalMin, galleryTags, selectedColor]);
 
   useEffect(() => {
@@ -567,7 +601,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   }
 
   const displayTitle = anthologyInfo?.title || title || '图片文集';
-  const selectedImage = selectedIndex !== null ? visibleImages[selectedIndex] : null;
+  const selectedImage = selectedGroup?.[selectedGroupIndex] || null;
   const isDetailPanelOpen = isFocalLengthDetailOpen || isTagDetailOpen || isLocationMapOpen;
 
   return (
@@ -727,7 +761,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
               <ImageMasonryGrid
                 isHidden={isDetailPanelOpen}
                 imageColumns={imageColumns}
-                visibleImageCount={visibleImages.length}
+                visibleImageCount={displayImages.length}
                 dominantColors={dominantColors}
                 isAuthenticated={isAuthenticated}
                 onImageClick={handleImageClick}
@@ -746,7 +780,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
       </div>
 
       <ImageViewer
-        isOpen={selectedIndex !== null}
+        isOpen={selectedGroup !== null}
         image={selectedImage ? {
           imageUrl: selectedImage.imageUrl,
           title: selectedImage.title,
@@ -766,9 +800,27 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
         onClose={handleCloseViewer}
         onPrevious={handlePrevious}
         onNext={handleNext}
-        hasPrevious={selectedIndex !== null && selectedIndex > 0}
-        hasNext={selectedIndex !== null && selectedIndex < visibleImages.length - 1}
+        hasPrevious={selectedGroupIndex > 0}
+        hasNext={Boolean(selectedGroup && selectedGroupIndex < selectedGroup.length - 1)}
+        currentGroupIndex={selectedGroupIndex}
+        groupImages={(selectedGroup || []).map(groupImage => ({
+          imageUrl: groupImage.imageUrl,
+          title: groupImage.title,
+          focalLength: groupImage.focalLength,
+        }))}
+        onSelectGroupImage={setSelectedGroupIndex}
       />
+
+      {isAuthenticated && (
+        <ImageGroupModal
+          isOpen={isGroupModalOpen}
+          onClose={() => { setIsGroupModalOpen(false); setEditingGroup(null); }}
+          onSuccess={loadAnthologyData}
+          collId={collId || ''}
+          initialImages={editingGroup}
+          existingTags={tagStats.map(item => item.name)}
+        />
+      )}
 
       {isAuthenticated && (
         <ImageUploadModal
@@ -778,14 +830,15 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
           collId={collId || ''}
           initialData={editingImage}
           existingTags={tagStats.map(item => item.name)}
+          onConvertToGroup={handleConvertImageToGroup}
         />
       )}
 
       {isAuthenticated && (
         <ConfirmationModal
           isOpen={deleteTarget !== null}
-          title="删除图片"
-          description={`确定要删除「${deleteTarget?.title || '这张图片'}」吗？此操作无法撤销。`}
+          title={deleteTarget?.images.length && deleteTarget.images.length > 1 ? '删除拍摄组' : '删除图片'}
+          description={`确定要删除「${deleteTarget?.image.title || '这张图片'}」${deleteTarget?.images.length && deleteTarget.images.length > 1 ? '及组内所有照片' : ''}吗？此操作无法撤销。`}
           confirmText="删除"
           cancelText="取消"
           type="danger"

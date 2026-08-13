@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Loader2, Plus, Sparkles, Tag, Upload, X } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, Loader2, Plus, Sparkles, Tag, Upload, X } from 'lucide-react';
 import { uploadResource } from '../../api/resources';
 import { createImage, generateImageDescription, updateImage } from '../../api/image';
 import type { Image } from '../../api/image';
@@ -19,9 +19,10 @@ interface ImageUploadModalProps {
   onSuccess: () => void;
   initialData?: Image | null;
   existingTags?: string[];
+  onConvertToGroup?: (image: Image) => void;
 }
 
-interface PhotoExifMetadata {
+export interface PhotoExifMetadata {
   shootingDate?: string;
   focalLength?: string;
 }
@@ -94,7 +95,7 @@ const parseExifIfd = (
   return exifIfdOffset;
 };
 
-const readPhotoExifMetadata = async (file: File): Promise<PhotoExifMetadata> => {
+export const readPhotoExifMetadata = async (file: File): Promise<PhotoExifMetadata> => {
   if (!/jpe?g$/i.test(file.name) && !['image/jpeg', 'image/jpg'].includes(file.type)) return {};
 
   const buffer = await file.arrayBuffer();
@@ -135,7 +136,7 @@ const readPhotoExifMetadata = async (file: File): Promise<PhotoExifMetadata> => 
   return {};
 };
 
-const getImageDimensions = (file: File) => new Promise<{ width: number; height: number }>((resolve, reject) => {
+export const getImageDimensions = (file: File) => new Promise<{ width: number; height: number }>((resolve, reject) => {
   const url = URL.createObjectURL(file);
   const image = new Image();
   image.onload = () => {
@@ -157,7 +158,8 @@ export default function ImageUploadModal({
   collId,
   onSuccess,
   initialData,
-  existingTags = []
+  existingTags = [],
+  onConvertToGroup
 }: ImageUploadModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState('');
@@ -661,6 +663,18 @@ export default function ImageUploadModal({
                 <p className="text-center text-xs text-slate-500 mt-3">
                   点击或拖拽{isEditing ? '替换' : '更换'}图片
                 </p>
+                {isEditing && initialData && onConvertToGroup && (
+                  <div className="mt-3 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={(event) => { event.stopPropagation(); onConvertToGroup(initialData); }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-xs font-semibold text-orange-700 transition-colors hover:bg-orange-50"
+                    >
+                      <ImagePlus className="h-3.5 w-3.5" />
+                      添加照片，转为拍摄组
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 px-6">

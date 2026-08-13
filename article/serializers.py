@@ -484,7 +484,7 @@ class ImageSerializer(serializers.ModelSerializer):
             'image_id', 'title', 'description', 'image_url', 'coll_id',
             'shooting_time', 'shooting_time_str', 'country', 'city', 'place_name',
             'location', 'location_id', 'location_detail', 'latitude', 'longitude',
-            'focal_length', 'tags', 'tags_list',
+            'focal_length', 'photo_group_id', 'group_index', 'tags', 'tags_list',
             'author', 'author_nickname', 'created_at', 'updated_at', 'is_valid'
         ]
         read_only_fields = [

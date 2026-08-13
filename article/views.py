@@ -974,6 +974,173 @@ class ImageCreateView(APIView):
             return error_result(ErrorCode.SYSTEM_ERROR, str(e))
 
 
+class ImageGroupCreateView(APIView):
+    """原子创建一组共享元数据、焦段独立的照片。"""
+
+    def post(self, request):
+        try:
+            payload = request.data.copy()
+            coll_id = payload.get('coll_id') or payload.get('collId')
+            photos = payload.get('photos') or []
+            if not coll_id or not isinstance(photos, list) or not photos:
+                return error_result(ErrorCode.PARAM_ERROR, '请至少提供一张照片')
+            if not can_manage_anthology(request, coll_id, 'image'):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+            from utils.id_generator import generate_unique_id
+            group_id = generate_unique_id('pgrp') if len(photos) > 1 else ''
+            shared = {
+                'title': payload.get('title', ''), 'description': payload.get('description', ''),
+                'coll_id': coll_id, 'shooting_time': payload.get('shooting_time') or payload.get('shootingTime'),
+                'country': payload.get('country', ''), 'city': payload.get('city', ''),
+                'place_name': payload.get('place_name') or payload.get('placeName') or '',
+                'location_id': payload.get('location_id') or payload.get('locationId') or '',
+                'tags': payload.get('tags', ''),
+            }
+            existing_ids = [str(photo.get('image_id') or photo.get('imageId') or '').strip() for photo in photos]
+            existing_ids = [image_id for image_id in existing_ids if image_id]
+            if len(existing_ids) != len(set(existing_ids)):
+                return error_result(ErrorCode.PARAM_ERROR, '同一张照片不能重复加入拍摄组')
+            existing_images = {
+                image.image_id: image
+                for image in Image.objects.filter(
+                    image_id__in=existing_ids,
+                    coll_id=coll_id,
+                    author=get_current_user_identifier(request),
+                    is_valid=True,
+                )
+            }
+            if len(existing_images) != len(existing_ids):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND, '待转换的图片不存在')
+            created = []
+            with transaction.atomic():
+                for index, photo in enumerate(photos):
+                    data = {
+                        **shared,
+                        'image_url': photo.get('image_url') or photo.get('imageUrl') or '',
+                        'focal_length': str(photo.get('focal_length') or photo.get('focalLength') or '').strip(),
+                        'photo_group_id': group_id,
+                        'group_index': index,
+                    }
+                    existing_id = str(photo.get('image_id') or photo.get('imageId') or '').strip()
+                    if existing_id:
+                        existing = existing_images[existing_id]
+                        serializer = ImageSerializer(existing, data=data, partial=True)
+                        serializer.is_valid(raise_exception=True)
+                        created.append(serializer.save())
+                    else:
+                        serializer = ImageSerializer(data=data)
+                        serializer.is_valid(raise_exception=True)
+                        created.append(serializer.save(author=get_current_user_identifier(request)))
+                Anthology.objects.filter(coll_id=coll_id).update(count=models.F('count') + len(photos) - len(existing_ids))
+            return success_result(data=ImageSerializer(created, many=True).data)
+        except Exception as e:
+            logger.error('Image group create error: %s', e, exc_info=True)
+            return error_result(ErrorCode.PARAM_ERROR, str(e))
+
+
+def cleanup_group_image_assets(images):
+    """软删除组内照片后，清理不再被任何图片引用的资源文件。"""
+    for image in images:
+        resource_id = extract_resource_id_from_view_url(image.image_url)
+        if not resource_id or is_asset_used_by_image(resource_id, exclude_image_id=image.image_id):
+            continue
+        asset = Asset.objects.filter(id=resource_id, is_valid=True, linked_article__isnull=True).first()
+        if asset:
+            delete_asset_record_and_file(asset)
+
+
+class ImageGroupUpdateView(APIView):
+    """同步更新组共享字段、组内排序及每张焦段。"""
+
+    def put(self, request, group_id):
+        try:
+            owner = get_current_user_identifier(request)
+            images = list(Image.objects.filter(photo_group_id=group_id, author=owner, is_valid=True).order_by('group_index'))
+            if not images or not can_manage_anthology(request, images[0].coll_id, 'image'):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+            payload = request.data.copy()
+            photos = payload.get('photos') or []
+            if not isinstance(photos, list) or not photos:
+                return error_result(ErrorCode.PARAM_ERROR, '请至少保留一张照片')
+            photo_map = {str(photo.get('image_id') or photo.get('imageId')): photo for photo in photos}
+            shared_keys = ('title', 'description', 'shooting_time', 'country', 'city', 'place_name', 'location_id', 'tags')
+            with transaction.atomic():
+                # 移除未提交的组内照片；前端用这一行为实现单张移除。
+                retained_ids = {image_id for image_id in photo_map if image_id and image_id != 'None'}
+                removed = [image for image in images if image.image_id not in retained_ids]
+                for image in removed:
+                    image.is_valid = False
+                    image.save(update_fields=['is_valid', 'updated_at'])
+                for image in images:
+                    if image.image_id not in retained_ids:
+                        continue
+                    photo = photo_map.get(image.image_id, {})
+                    data = {key: payload.get(key) for key in shared_keys if key in payload}
+                    if 'shootingTime' in payload: data['shooting_time'] = payload['shootingTime']
+                    if 'placeName' in payload: data['place_name'] = payload['placeName']
+                    if 'locationId' in payload: data['location_id'] = payload['locationId']
+                    data['focal_length'] = str(photo.get('focal_length', photo.get('focalLength', image.focal_length))).strip()
+                    data['group_index'] = int(photo.get('group_index', photo.get('groupIndex', image.group_index)))
+                    serializer = ImageSerializer(image, data=data, partial=True)
+                    serializer.is_valid(raise_exception=True)
+                    serializer.save()
+                # 无 imageId 的照片是编辑时新增的照片。
+                for index, photo in enumerate(photos):
+                    if photo.get('image_id') or photo.get('imageId'):
+                        continue
+                    data = {
+                        'title': payload.get('title', images[0].title),
+                        'description': payload.get('description', images[0].description),
+                        'coll_id': images[0].coll_id,
+                        'shooting_time': payload.get('shooting_time') or payload.get('shootingTime') or images[0].shooting_time,
+                        'country': payload.get('country', images[0].country), 'city': payload.get('city', images[0].city),
+                        'place_name': payload.get('place_name') or payload.get('placeName') or images[0].place_name,
+                        'location_id': payload.get('location_id') or payload.get('locationId') or '',
+                        'tags': payload.get('tags', images[0].tags),
+                        'image_url': photo.get('image_url') or photo.get('imageUrl') or '',
+                        'focal_length': str(photo.get('focal_length') or photo.get('focalLength') or '').strip(),
+                        'photo_group_id': group_id, 'group_index': index,
+                    }
+                    serializer = ImageSerializer(data=data)
+                    serializer.is_valid(raise_exception=True)
+                    serializer.save(author=owner)
+                current = Image.objects.filter(photo_group_id=group_id, is_valid=True)
+                if current.count() == 1:
+                    current.update(photo_group_id='', group_index=0)
+                Anthology.objects.filter(coll_id=images[0].coll_id).update(count=models.F('count') - len(removed) + sum(1 for photo in photos if not (photo.get('image_id') or photo.get('imageId'))))
+            cleanup_group_image_assets(removed)
+            refreshed = Image.objects.filter(photo_group_id=group_id, is_valid=True).order_by('group_index')
+            if not refreshed.exists():
+                # 组内只剩一张时已降级为普通图片，仍需在更新响应中返回它。
+                refreshed = Image.objects.filter(
+                    image_id__in=retained_ids,
+                    is_valid=True,
+                ).order_by('group_index')
+            return success_result(data=ImageSerializer(refreshed, many=True).data)
+        except Exception as e:
+            logger.error('Image group update error: %s', e, exc_info=True)
+            return error_result(ErrorCode.PARAM_ERROR, str(e))
+
+
+class ImageGroupDeleteView(APIView):
+    def delete(self, request, group_id):
+        try:
+            owner = get_current_user_identifier(request)
+            images = list(Image.objects.filter(photo_group_id=group_id, author=owner, is_valid=True))
+            if not images or not can_manage_anthology(request, images[0].coll_id, 'image'):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+            with transaction.atomic():
+                for image in images:
+                    image.is_valid = False
+                    image.save(update_fields=['is_valid', 'updated_at'])
+                Anthology.objects.filter(coll_id=images[0].coll_id).update(count=models.F('count') - len(images))
+            cleanup_group_image_assets(images)
+            return success_result(msg='删除成功')
+        except Exception as e:
+            return error_result(ErrorCode.SYSTEM_ERROR, str(e))
+
+
 class ImageUpdateView(APIView):
     """
     更新图片
@@ -1060,6 +1227,16 @@ class ImageDeleteView(APIView):
             resource_id = extract_resource_id_from_view_url(image.image_url)
             image.is_valid = False
             image.save()
+
+            # 组内仅剩一张时降级为普通单图，避免留下没有意义的拍摄组标识。
+            if image.photo_group_id:
+                remaining = Image.objects.filter(
+                    photo_group_id=image.photo_group_id,
+                    coll_id=image.coll_id,
+                    is_valid=True,
+                )
+                if remaining.count() == 1:
+                    remaining.update(photo_group_id='', group_index=0)
 
             if resource_id and not is_asset_used_by_image(resource_id, exclude_image_id=image.image_id):
                 from assets.models import Asset

@@ -24,6 +24,8 @@ export interface Image {
   latitude?: string;
   longitude?: string;
   focalLength?: string;
+  photoGroupId?: string;
+  groupIndex?: number;
   tags?: string;
   tagsList?: string[];
   author?: string;
@@ -71,6 +73,26 @@ export interface GenerateImageDescriptionParams {
   imageFile?: File;
 }
 
+export interface GroupPhotoPayload {
+  imageId?: string;
+  imageUrl: string;
+  focalLength?: string;
+  groupIndex: number;
+}
+
+export interface ImageGroupPayload {
+  collId: string;
+  title: string;
+  description?: string;
+  shootingTime?: string;
+  country?: string;
+  city?: string;
+  placeName?: string;
+  locationId?: string;
+  tags?: string;
+  photos: GroupPhotoPayload[];
+}
+
 export const getImagesByAnthology = (collId: string) => {
   return request.get<any, Image[]>(`/article/image/list/${collId}`);
 };
@@ -82,6 +104,15 @@ export const getImageDetail = (imageId: string) => {
 export const createImage = (data: CreateImageParams) => {
   return request.post<any, Image>('/article/image/create', data);
 };
+
+export const createImageGroup = (data: ImageGroupPayload) =>
+  request.post<any, Image[]>('/article/image/group/create', data);
+
+export const updateImageGroup = (groupId: string, data: Omit<ImageGroupPayload, 'collId'>) =>
+  request.put<any, Image[]>(`/article/image/group/${groupId}`, data);
+
+export const deleteImageGroup = (groupId: string) =>
+  request.delete<any, void>(`/article/image/group/${groupId}/delete`);
 
 export const updateImage = (imageId: string, data: UpdateImageParams) => {
   return request.put<any, Image>(`/article/image/update/${imageId}`, data);

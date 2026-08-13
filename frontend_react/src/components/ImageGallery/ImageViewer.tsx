@@ -36,6 +36,9 @@ interface ImageViewerProps {
   onNext?: () => void;
   hasPrevious?: boolean;
   hasNext?: boolean;
+  groupImages?: ImageData[];
+  currentGroupIndex?: number;
+  onSelectGroupImage?: (index: number) => void;
 }
 
 export default function ImageViewer({
@@ -45,7 +48,10 @@ export default function ImageViewer({
   onPrevious,
   onNext,
   hasPrevious,
-  hasNext
+  hasNext,
+  groupImages = [],
+  currentGroupIndex = 0,
+  onSelectGroupImage,
 }: ImageViewerProps) {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -96,6 +102,9 @@ export default function ImageViewer({
   const shootingDate = image.shootingTime ? image.shootingTime.replace('T', ' ').slice(0, 10) : '';
   const focalLengthLabel = image.focalLength ? `${image.focalLength}mm` : '';
   const authorName = image.authorNickname || image.author;
+  const isPhotoGroup = groupImages.length > 1;
+  const previousImage = currentGroupIndex > 0 ? groupImages[currentGroupIndex - 1] : null;
+  const nextImage = currentGroupIndex < groupImages.length - 1 ? groupImages[currentGroupIndex + 1] : null;
 
   return (
     <div
@@ -127,10 +136,15 @@ export default function ImageViewer({
                   disabled={!hasPrevious}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-600 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
                   aria-label="上一张"
-                  title="上一张"
+                  title={previousImage ? `上一张 · ${previousImage.focalLength || '未填写'}mm` : '上一张'}
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
+                {isPhotoGroup && (
+                  <div className="rounded-full border border-slate-200 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm backdrop-blur-sm">
+                    拍摄组 <span className="text-orange-600">{currentGroupIndex + 1}</span> / {groupImages.length}
+                  </div>
+                )}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -139,7 +153,7 @@ export default function ImageViewer({
                   disabled={!hasNext}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-600 shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
                   aria-label="下一张"
-                  title="下一张"
+                  title={nextImage ? `下一张 · ${nextImage.focalLength || '未填写'}mm` : '下一张'}
                 >
                   <ChevronRight className="h-5 w-5" />
                 </button>
@@ -153,6 +167,24 @@ export default function ImageViewer({
                 className="max-h-full max-w-full select-none rounded-sm object-contain shadow-[0_14px_44px_rgba(15,23,42,0.16)]"
               />
             </div>
+            {isPhotoGroup && (
+              <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center px-4 pb-4 md:pb-6">
+                <div className="flex max-w-full gap-2 overflow-x-auto rounded-xl border border-white/60 bg-slate-900/45 p-2 shadow-lg backdrop-blur-md">
+                  {groupImages.map((groupImage, index) => (
+                    <button
+                      key={`${groupImage.imageUrl}-${index}`}
+                      type="button"
+                      onClick={() => onSelectGroupImage?.(index)}
+                      className={`relative h-12 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${index === currentGroupIndex ? 'border-orange-400 ring-2 ring-orange-300/70' : 'border-white/50 opacity-70 hover:opacity-100'}`}
+                      aria-label={`查看第 ${index + 1} 张`}
+                    >
+                      <img src={groupImage.imageUrl} alt={`第 ${index + 1} 张`} className="h-full w-full object-cover" />
+                      <span className="absolute bottom-0 inset-x-0 bg-slate-950/55 py-0.5 text-[10px] font-semibold text-white">{groupImage.focalLength ? `${groupImage.focalLength}mm` : `${index + 1}`}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
 
           <aside className="flex min-h-0 flex-col border-t border-slate-100 bg-white lg:border-l lg:border-t-0">

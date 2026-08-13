@@ -9,7 +9,7 @@ from article.views import (
     ArticleSaveWebView, ArticlePolishView,
     ArticleMindMapGenerateView,
     ImageListView, ImageDetailView,
-    ImageCreateView, ImageUpdateView, ImageDeleteView,
+    ImageCreateView, ImageUpdateView, ImageDeleteView, ImageGroupCreateView, ImageGroupUpdateView, ImageGroupDeleteView,
     ImageDescriptionGenerateView
 )
 
@@ -59,6 +59,9 @@ urlpatterns = [
 
     # 创建图片
     path('image/create', ImageCreateView.as_view(), name='create-image'),
+    path('image/group/create', ImageGroupCreateView.as_view(), name='create-image-group'),
+    path('image/group/<str:group_id>', ImageGroupUpdateView.as_view(), name='update-image-group'),
+    path('image/group/<str:group_id>/delete', ImageGroupDeleteView.as_view(), name='delete-image-group'),
 
     # 更新图片
     path('image/update/<str:image_id>', ImageUpdateView.as_view(), name='update-image'),
