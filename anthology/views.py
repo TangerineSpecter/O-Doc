@@ -102,7 +102,8 @@ class AnthologyListView(APIView):
                     book_qs = Book.objects.filter(anthology=anthology, is_valid=True).select_related('cover_asset')
                     item_count = book_qs.count()
                     if not anthology.hide_cover_content:
-                        for book in book_qs[:3]:
+                        # 书架卡片会根据可用宽度横向展示封面；提供适量预览，窄卡片自动裁切更多图书。
+                        for book in book_qs.order_by('-updated_at')[:12]:
                             item_summaries.append({'book_id': book.book_id, 'title': book.title,
                                 'cover_url': f'/api/anthology/book/{book.book_id}/cover', 'date': book.updated_at.strftime('%m-%d')})
                 elif not anthology.hide_cover_content:

@@ -2,9 +2,14 @@
 export interface ArticleSummary {
     articleId?: string;
     imageId?: string;
+    bookId?: string;
+    book_id?: string;
     title: string;
     date: string;
     imageUrl?: string;
+    coverUrl?: string;
+    // 图书文集列表接口使用的 snake_case 字段；保留以兼容旧接口响应。
+    cover_url?: string;
     summary?: string;
     agentId?: string;
     agentName?: string;
