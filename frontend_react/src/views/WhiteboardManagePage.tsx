@@ -1,21 +1,11 @@
 import {useMemo, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {
-    CheckSquare,
-    Copy,
-    FileText,
-    MoreHorizontal,
-    Network,
-    PenLine,
-    Plus,
-    Search,
-    StickyNote,
-    Trash2
-} from 'lucide-react';
+import {Copy, MoreHorizontal, PenLine, Plus, Search, Trash2} from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import {useToast} from '../components/common/ToastProvider';
 import {useWhiteboardDocuments} from '../hooks/useWhiteboardDocuments';
-import {WhiteboardDocument} from '../types/whiteboard';
+import {BoardPreview} from '../components/Whiteboard/BoardPreview';
+import type {WhiteboardDocument} from '../types/whiteboard';
 
 const formatTime = (time: number) => {
     return new Date(time).toLocaleString('zh-CN', {
@@ -26,12 +16,10 @@ const formatTime = (time: number) => {
     });
 };
 
-const getBoardStats = (document: WhiteboardDocument) => {
-    const noteCount = document.nodes.filter(node => node.type === 'note').length;
-    const articleCount = document.nodes.filter(node => node.type === 'article').length;
-    const shapeCount = document.nodes.filter(node => node.type === 'shape').length;
-    return {noteCount, articleCount, shapeCount, edgeCount: document.edges.length};
-};
+const getBoardStats = (document: WhiteboardDocument) => ({
+    nodeCount: document.nodes.length,
+    edgeCount: document.edges.length,
+});
 
 export default function WhiteboardManagePage() {
     const navigate = useNavigate();
@@ -86,7 +74,6 @@ export default function WhiteboardManagePage() {
             />
 
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
-                <div>
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-orange-50 text-orange-600 rounded-xl border border-orange-100 shadow-sm shadow-orange-500/10">
                             <PenLine className="w-6 h-6"/>
@@ -96,26 +83,25 @@ export default function WhiteboardManagePage() {
                             <p className="mt-1 text-sm text-slate-500">创建、整理和继续编辑你的思路画布。</p>
                         </div>
                     </div>
-                </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="relative">
-                        <input
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="搜索白板..."
-                            className="w-full sm:w-56 pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
-                        />
-                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="relative">
+                            <input
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="搜索白板..."
+                                className="w-full sm:w-56 pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
+                            />
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/>
+                        </div>
+                        <button
+                            onClick={handleCreate}
+                            className="flex items-center justify-center gap-1.5 px-4 py-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-sm font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95"
+                        >
+                            <Plus className="w-4 h-4" strokeWidth={3}/>
+                            新建白板
+                        </button>
                     </div>
-                    <button
-                        onClick={handleCreate}
-                        className="flex items-center justify-center gap-1.5 px-4 py-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-sm font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95"
-                    >
-                        <Plus className="w-4 h-4" strokeWidth={3}/>
-                        新建白板
-                    </button>
-                </div>
             </div>
 
             {documents.length === 0 ? (
@@ -150,20 +136,18 @@ export default function WhiteboardManagePage() {
                                 onClick={() => navigate(`/whiteboard/${document.id}`)}
                                 className="group bg-white rounded-xl border border-slate-200 shadow-sm hover:border-orange-200 hover:shadow-lg transition-all duration-200 overflow-hidden cursor-pointer"
                             >
+                                <div className="h-36 border-b border-slate-100">
+                                    <BoardPreview document={document}/>
+                                </div>
                                 <div className="p-4">
                                     <div className="flex items-start justify-between gap-3">
-                                        <div className="flex items-start gap-3 min-w-0">
-                                            <div className="p-2 bg-orange-50 text-orange-600 rounded-lg border border-orange-100">
-                                                <PenLine className="w-5 h-5"/>
-                                            </div>
-                                            <div className="min-w-0">
-                                                <h3 className="font-bold text-slate-800 text-base leading-tight group-hover:text-orange-600 transition-colors truncate">
-                                                    {document.title}
-                                                </h3>
-                                                <p className="mt-1 text-xs text-slate-400">
-                                                    最近编辑 {formatTime(document.updatedAt)}
-                                                </p>
-                                            </div>
+                                        <div className="min-w-0">
+                                            <h3 className="font-bold text-slate-800 text-base leading-tight group-hover:text-orange-600 transition-colors truncate">
+                                                {document.title}
+                                            </h3>
+                                            <p className="mt-1 text-xs text-slate-400">
+                                                {stats.nodeCount} 个节点 · {stats.edgeCount} 条连线 · {formatTime(document.updatedAt)}
+                                            </p>
                                         </div>
 
                                         <div className="relative">
@@ -202,33 +186,12 @@ export default function WhiteboardManagePage() {
                                             )}
                                         </div>
                                     </div>
-
-                                    <div className="mt-4 grid grid-cols-4 gap-2">
-                                        <StatBadge icon={<StickyNote className="w-3 h-3"/>} label="便签" value={stats.noteCount}/>
-                                        <StatBadge icon={<FileText className="w-3 h-3"/>} label="文章" value={stats.articleCount}/>
-                                        <StatBadge icon={<CheckSquare className="w-3 h-3"/>} label="图形" value={stats.shapeCount}/>
-                                        <StatBadge icon={<Network className="w-3 h-3"/>} label="连线" value={stats.edgeCount}/>
-                                    </div>
                                 </div>
-
-                                <div className="h-1 bg-gradient-to-r from-orange-300 via-orange-500 to-lime-400 opacity-0 group-hover:opacity-100 transition-opacity"/>
                             </div>
                         );
                     })}
                 </div>
             )}
-        </div>
-    );
-}
-
-function StatBadge({icon, label, value}: { icon: React.ReactNode; label: string; value: number }) {
-    return (
-        <div className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-2 text-center">
-            <div className="flex items-center justify-center gap-1 text-slate-400">
-                {icon}
-                <span className="text-[10px]">{label}</span>
-            </div>
-            <div className="mt-1 text-sm font-bold text-slate-700">{value}</div>
         </div>
     );
 }

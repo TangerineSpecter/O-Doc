@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from 'react';
 import {WhiteboardDocument, WhiteboardEdge, WhiteboardNode} from '../types/whiteboard';
+import {normalizeDocument} from '../utils/whiteboardOps';
 
 const STORAGE_KEY = 'odoc-whiteboards';
 
@@ -12,7 +13,9 @@ const readDocuments = (): WhiteboardDocument[] => {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return [];
         const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
+        return Array.isArray(parsed)
+            ? parsed.filter((item): item is Partial<WhiteboardDocument> & {id: string} => Boolean(item?.id)).map(normalizeDocument)
+            : [];
     } catch (error) {
         console.warn('Failed to read whiteboards', error);
         return [];

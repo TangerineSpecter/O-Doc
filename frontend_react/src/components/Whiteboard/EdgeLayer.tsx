@@ -1,28 +1,22 @@
-// frontend_react/src/components/Whiteboard/EdgeLayer.tsx
-
 import React from 'react';
-import {HandlePosition, WhiteboardEdge, WhiteboardNode} from '../../types/whiteboard';
-import {getEdgePath, getHandleCoords} from '../../utils/whiteboardUtils';
+import type {WhiteboardEdge, WhiteboardNode} from '../../types/whiteboard';
+import {getEdgeLabelPoint, getEdgePath, getHandleCoords} from '../../utils/whiteboardUtils';
 
 interface EdgeLayerProps {
     edges: WhiteboardEdge[];
     nodes: WhiteboardNode[];
     selectedEdgeId: string | null;
     onSelectEdge: (id: string) => void;
-    // 修改：tempConnection 增加 targetHandle 可选字段
-    tempConnection: {
-        start: { x: number, y: number },
-        end: { x: number, y: number },
-        startHandle: HandlePosition,
-        targetHandle?: HandlePosition
-    } | null;
+    tempPathRef?: React.Ref<SVGPathElement>;
 }
 
 export const EdgeLayer: React.FC<EdgeLayerProps> = ({
-                                                        edges, nodes, selectedEdgeId, onSelectEdge, tempConnection
-                                                    }) => {
+    edges, nodes, selectedEdgeId, onSelectEdge, tempPathRef
+}) => {
+    const nodeById = new Map(nodes.map(node => [node.id, node]));
+
     return (
-        <svg className="overflow-visible absolute top-0 left-0 w-full h-full z-0 pointer-events-none">
+        <svg className="overflow-visible absolute top-0 left-0 w-[1px] h-[1px] z-0 pointer-events-none">
             <defs>
                 <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
                     <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8"/>
@@ -36,55 +30,76 @@ export const EdgeLayer: React.FC<EdgeLayerProps> = ({
             </defs>
 
             {edges.map(edge => {
-                const sNode = nodes.find(n => n.id === edge.sourceId);
-                const tNode = nodes.find(n => n.id === edge.targetId);
+                const sNode = nodeById.get(edge.sourceId);
+                const tNode = nodeById.get(edge.targetId);
                 if (!sNode || !tNode) return null;
 
                 const start = getHandleCoords(sNode, edge.sourceHandle);
                 const end = getHandleCoords(tNode, edge.targetHandle);
-
-                // 修改：传入 edge.targetHandle 以计算正确的曲线方向
                 const d = getEdgePath(start, end, edge.sourceHandle, edge.targetHandle);
                 const isSelected = selectedEdgeId === edge.id;
+                const labelPoint = getEdgeLabelPoint(start, end, edge.sourceHandle, edge.targetHandle);
+                const dashed = edge.style === 'dashed';
 
                 return (
-                    <g key={edge.id} className="pointer-events-auto cursor-pointer group" onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectEdge(edge.id);
-                    }}>
-                        {/* 透明粗线条，增加点击判定范围 */}
-                        <path d={d} fill="none" stroke="transparent" strokeWidth="20"/>
-
-                        {/* 实际显示的连线 */}
+                    <g
+                        key={edge.id}
+                        className="pointer-events-auto cursor-pointer group"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectEdge(edge.id);
+                        }}
+                    >
+                        <path data-edge-hit={edge.id} d={d} fill="none" stroke="transparent" strokeWidth="20"/>
                         <path
+                            data-edge-line={edge.id}
                             d={d}
                             fill="none"
-                            stroke={isSelected ? "#f97316" : "#cbd5e1"}
-                            strokeWidth={isSelected ? "3" : "2"}
+                            stroke={isSelected ? '#f97316' : '#cbd5e1'}
+                            strokeWidth={isSelected ? 2.8 : 2}
+                            strokeDasharray={dashed ? '9 7' : undefined}
                             markerEnd={`url(#${isSelected ? 'arrowhead-selected' : 'arrowhead'})`}
-                            className="transition-colors duration-200"
+                            strokeLinecap="round"
                         />
-
-                        {/* 选中时显示中间的小圆点，方便识别 */}
-                        {isSelected && (
-                            // 注意：对于贝塞尔曲线，简单的中点计算可能不在线上，这里仅做简略显示
-                            // 如果需要精确在线上，需要计算贝塞尔曲线的 t=0.5 处
-                            <circle cx={(start.x + end.x) / 2} cy={(start.y + end.y) / 2} r="4" fill="#f97316"
-                                    opacity="0.5"/>
-                        )}
+                        {edge.label ? (
+                            <g data-edge-label={edge.id} transform={`translate(${labelPoint.x} ${labelPoint.y})`}>
+                                <rect
+                                    x={-Math.max(18, edge.label.length * 6)}
+                                    y={-10}
+                                    width={Math.max(36, edge.label.length * 12)}
+                                    height={20}
+                                    rx={8}
+                                    fill="#f8fafc"
+                                    stroke={isSelected ? '#fdba74' : '#e2e8f0'}
+                                />
+                                <text
+                                    x={0}
+                                    y={4}
+                                    textAnchor="middle"
+                                    fill={isSelected ? '#c2410c' : '#64748b'}
+                                    fontSize="11"
+                                    fontWeight="600"
+                                >
+                                    {edge.label}
+                                </text>
+                            </g>
+                        ) : isSelected ? (
+                            <circle data-edge-label={edge.id} cx={labelPoint.x} cy={labelPoint.y} r="4" fill="#f97316" opacity="0.5"/>
+                        ) : null}
                     </g>
-                )
+                );
             })}
 
-            {/* 正在拖拽的连线 */}
-            {tempConnection && (
-                <path
-                    // 修改：传入 tempConnection.targetHandle (如果吸附了就有，没吸附就无)
-                    d={getEdgePath(tempConnection.start, tempConnection.end, tempConnection.startHandle, tempConnection.targetHandle)}
-                    fill="none" stroke="#f97316" strokeWidth="2" strokeDasharray="5,5"
-                    markerEnd="url(#arrowhead-temp)"
-                />
-            )}
+            <path
+                ref={tempPathRef}
+                d="M 0 0 L 0 0"
+                fill="none"
+                stroke="#f97316"
+                strokeWidth="2"
+                strokeDasharray="5,5"
+                markerEnd="url(#arrowhead-temp)"
+                style={{display: 'none'}}
+            />
         </svg>
     );
 };

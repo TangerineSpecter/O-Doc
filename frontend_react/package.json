@@ -11,7 +11,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:whiteboard": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/whiteboardOps.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
