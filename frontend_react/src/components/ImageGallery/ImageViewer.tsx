@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Aperture,
   Calendar,
@@ -54,9 +54,23 @@ export default function ImageViewer({
   onSelectGroupImage,
 }: ImageViewerProps) {
   const [isVisible, setIsVisible] = useState(false);
+  const [displayImage, setDisplayImage] = useState<ImageData | null>(image);
+  const [displayGroupImages, setDisplayGroupImages] = useState<ImageData[]>(groupImages);
+  const [displayGroupIndex, setDisplayGroupIndex] = useState(currentGroupIndex);
+  const [imageRetryTokens, setImageRetryTokens] = useState<Record<string, number>>({});
+  const thumbnailStripRef = useRef<HTMLDivElement>(null);
+  const thumbnailRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const closeTimerRef = useRef<number | null>(null);
+  const imageRetryAttemptsRef = useRef<Record<string, number>>({});
+  const groupImageUrls = groupImages.map(groupImage => groupImage.imageUrl).join('|');
 
   useEffect(() => {
-    if (isOpen) {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
+    if (isOpen && image) {
       requestAnimationFrame(() => {
         setIsVisible(true);
       });
@@ -64,12 +78,37 @@ export default function ImageViewer({
     } else {
       setIsVisible(false);
       document.body.style.overflow = 'unset';
+      closeTimerRef.current = window.setTimeout(() => {
+        setDisplayImage(null);
+        setDisplayGroupImages([]);
+      }, 300);
     }
 
     return () => {
-      document.body.style.overflow = 'unset';
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+      }
     };
-  }, [isOpen]);
+  }, [isOpen, image]);
+
+  useEffect(() => {
+    if (!isOpen || !image) return;
+
+    setDisplayImage(image);
+    setDisplayGroupImages(groupImages);
+    setDisplayGroupIndex(currentGroupIndex);
+  }, [currentGroupIndex, groupImages, image, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    imageRetryAttemptsRef.current = {};
+    setImageRetryTokens({});
+  }, [groupImageUrls, isOpen]);
+
+  useEffect(() => () => {
+    document.body.style.overflow = 'unset';
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -88,23 +127,64 @@ export default function ImageViewer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose, onPrevious, onNext, hasPrevious, hasNext]);
 
-  if (!isOpen || !image) return null;
+  useEffect(() => {
+    if (!isOpen || displayGroupImages.length < 2) return;
+
+    const thumbnailStrip = thumbnailStripRef.current;
+    const selectedThumbnail = thumbnailRefs.current[displayGroupIndex];
+    if (!thumbnailStrip || !selectedThumbnail) return;
+
+    const stripRect = thumbnailStrip.getBoundingClientRect();
+    const thumbnailRect = selectedThumbnail.getBoundingClientRect();
+    const padding = 8;
+    let scrollOffset = 0;
+
+    if (thumbnailRect.left < stripRect.left + padding) {
+      scrollOffset = thumbnailRect.left - stripRect.left - padding;
+    } else if (thumbnailRect.right > stripRect.right - padding) {
+      scrollOffset = thumbnailRect.right - stripRect.right + padding;
+    }
+
+    if (scrollOffset !== 0) {
+      thumbnailStrip.scrollBy({ left: scrollOffset, behavior: 'smooth' });
+    }
+  }, [displayGroupImages.length, displayGroupIndex, isOpen]);
+
+  const currentImage = isOpen && image ? image : displayImage;
+  const currentGroupImages = isOpen ? groupImages : displayGroupImages;
+  const currentIndex = isOpen ? currentGroupIndex : displayGroupIndex;
+
+  if (!currentImage) return null;
+
+  const getImageSource = (imageUrl: string) => {
+    const retryToken = imageRetryTokens[imageUrl];
+    if (!retryToken || imageUrl.startsWith('blob:') || imageUrl.startsWith('data:')) return imageUrl;
+    return `${imageUrl}${imageUrl.includes('?') ? '&' : '?'}imageRetry=${retryToken}`;
+  };
+
+  const retryImageOnce = (imageUrl: string) => {
+    const attempts = imageRetryAttemptsRef.current[imageUrl] || 0;
+    if (attempts >= 1) return;
+
+    imageRetryAttemptsRef.current[imageUrl] = attempts + 1;
+    setImageRetryTokens(currentTokens => ({ ...currentTokens, [imageUrl]: attempts + 1 }));
+  };
 
   const handleDownload = () => {
     const link = document.createElement('a');
-    link.href = image.imageUrl;
-    link.download = image.title || 'image';
+    link.href = currentImage.imageUrl;
+    link.download = currentImage.title || 'image';
     link.target = '_blank';
     link.click();
   };
-  const location = [image.country, image.city].filter(Boolean).join(' ');
-  const placeName = image.placeName?.trim() || '';
-  const shootingDate = image.shootingTime ? image.shootingTime.replace('T', ' ').slice(0, 10) : '';
-  const focalLengthLabel = image.focalLength ? `${image.focalLength}mm` : '';
-  const authorName = image.authorNickname || image.author;
-  const isPhotoGroup = groupImages.length > 1;
-  const previousImage = currentGroupIndex > 0 ? groupImages[currentGroupIndex - 1] : null;
-  const nextImage = currentGroupIndex < groupImages.length - 1 ? groupImages[currentGroupIndex + 1] : null;
+  const location = [currentImage.country, currentImage.city].filter(Boolean).join(' ');
+  const placeName = currentImage.placeName?.trim() || '';
+  const shootingDate = currentImage.shootingTime ? currentImage.shootingTime.replace('T', ' ').slice(0, 10) : '';
+  const focalLengthLabel = currentImage.focalLength ? `${currentImage.focalLength}mm` : '';
+  const authorName = currentImage.authorNickname || currentImage.author;
+  const isPhotoGroup = currentGroupImages.length > 1;
+  const previousImage = currentIndex > 0 ? currentGroupImages[currentIndex - 1] : null;
+  const nextImage = currentIndex < currentGroupImages.length - 1 ? currentGroupImages[currentIndex + 1] : null;
 
   return (
     <div
@@ -112,6 +192,7 @@ export default function ImageViewer({
         fixed inset-x-0 bottom-0 top-16 z-50 bg-slate-900/28 p-3 text-slate-900 backdrop-blur-sm md:p-6 lg:px-28 xl:px-32
         transition-opacity duration-300
         ${isVisible ? 'opacity-100' : 'opacity-0'}
+        ${isOpen ? 'pointer-events-auto' : 'pointer-events-none'}
       `}
       onClick={onClose}
     >
@@ -142,7 +223,7 @@ export default function ImageViewer({
                 </button>
                 {isPhotoGroup && (
                   <div className="rounded-full border border-slate-200 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm backdrop-blur-sm">
-                    拍摄组 <span className="text-orange-600">{currentGroupIndex + 1}</span> / {groupImages.length}
+                    拍摄组 <span className="text-orange-600">{currentIndex + 1}</span> / {currentGroupImages.length}
                   </div>
                 )}
                 <button
@@ -162,23 +243,27 @@ export default function ImageViewer({
 
             <div className="flex min-h-0 w-full items-center justify-center p-4 md:p-6 2xl:p-8">
               <img
-                src={image.imageUrl}
-                alt={image.title}
+                src={getImageSource(currentImage.imageUrl)}
+                alt={currentImage.title}
+                onError={() => retryImageOnce(currentImage.imageUrl)}
                 className="max-h-full max-w-full select-none rounded-sm object-contain shadow-[0_14px_44px_rgba(15,23,42,0.16)]"
               />
             </div>
             {isPhotoGroup && (
               <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center px-4 pb-4 md:pb-6">
-                <div className="flex max-w-full gap-2 overflow-x-auto rounded-xl border border-white/60 bg-slate-900/45 p-2 shadow-lg backdrop-blur-md">
-                  {groupImages.map((groupImage, index) => (
+                <div ref={thumbnailStripRef} className="flex max-w-full gap-2 overflow-x-auto rounded-xl border border-white/60 bg-slate-900/45 p-2 shadow-lg backdrop-blur-md">
+                  {currentGroupImages.map((groupImage, index) => (
                     <button
                       key={`${groupImage.imageUrl}-${index}`}
+                      ref={(element) => {
+                        thumbnailRefs.current[index] = element;
+                      }}
                       type="button"
                       onClick={() => onSelectGroupImage?.(index)}
-                      className={`relative h-12 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${index === currentGroupIndex ? 'border-orange-400 ring-2 ring-orange-300/70' : 'border-white/50 opacity-70 hover:opacity-100'}`}
+                      className={`relative h-12 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${index === currentIndex ? 'border-orange-400 ring-2 ring-orange-300/70' : 'border-white/50 opacity-70 hover:opacity-100'}`}
                       aria-label={`查看第 ${index + 1} 张`}
                     >
-                      <img src={groupImage.imageUrl} alt={`第 ${index + 1} 张`} className="h-full w-full object-cover" />
+                      <img src={getImageSource(groupImage.imageUrl)} alt={`第 ${index + 1} 张`} loading={index === currentIndex ? 'eager' : 'lazy'} onError={() => retryImageOnce(groupImage.imageUrl)} className="h-full w-full object-cover" />
                       <span className="absolute bottom-0 inset-x-0 bg-slate-950/55 py-0.5 text-[10px] font-semibold text-white">{groupImage.focalLength ? `${groupImage.focalLength}mm` : `${index + 1}`}</span>
                     </button>
                   ))}
@@ -192,7 +277,7 @@ export default function ImageViewer({
               <div className="min-w-0">
                 <div className="mb-3 h-1 w-12 rounded-full bg-orange-500" />
                 <h2 className="break-words text-2xl font-bold leading-tight text-slate-900">
-                  {image.title}
+                  {currentImage.title}
                 </h2>
                 {authorName && (
                   <p className="mt-2 text-sm text-slate-500">
@@ -226,14 +311,14 @@ export default function ImageViewer({
 
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
               <div className="space-y-6">
-                {image.description && (
+                {currentImage.description && (
                   <section>
                     <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
                       <FileText className="h-4 w-4 text-orange-500" />
                       <span>描述</span>
                     </div>
                     <p className="text-sm leading-7 text-slate-600">
-                      {image.description}
+                      {currentImage.description}
                     </p>
                   </section>
                 )}
@@ -282,14 +367,14 @@ export default function ImageViewer({
                   </section>
                 )}
 
-                {image.tags && image.tags.length > 0 && (
+                {currentImage.tags && currentImage.tags.length > 0 && (
                   <section>
                     <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
                       <TagIcon className="h-4 w-4 text-orange-500" />
                       <span>标签</span>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {image.tags.map((tag, index) => (
+                      {currentImage.tags.map((tag, index) => (
                         <span
                           key={index}
                           className="rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700"
@@ -303,9 +388,9 @@ export default function ImageViewer({
               </div>
             </div>
 
-            {image.createdAt && (
+            {currentImage.createdAt && (
               <div className="shrink-0 border-t border-slate-100 bg-slate-50/70 px-6 py-4 text-right text-xs font-medium text-slate-400">
-                上传于 {image.createdAt}
+                上传于 {currentImage.createdAt}
               </div>
             )}
           </aside>

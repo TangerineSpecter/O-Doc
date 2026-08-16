@@ -321,6 +321,8 @@ class ResourceDownloadView(APIView):
             # 根据文件类型设置不同的Content-Disposition
             if asset.file_type == 'image':
                 response['Content-Disposition'] = f'inline; filename="{asset.original_name}"'
+                # IDs are immutable; allow a short private cache.
+                response['Cache-Control'] = 'private, max-age=3600'
             else:
                 response['Content-Disposition'] = f'attachment; filename="{asset.original_name}"'
             response['Content-Length'] = asset.file_size

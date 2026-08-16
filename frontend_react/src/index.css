@@ -203,52 +203,101 @@ code, pre {
   box-shadow: 0 7px 16px rgba(15, 23, 42, .16);
 }
 
-/* EPUB moves the live rendered spread, so the drag always reflects exactly
-   what the reader saw before the gesture. */
 .reader-book-spread.reader-epub-spread,
 .reader-book-spread.reader-epub-spread .epub-container,
 .reader-book-spread.reader-epub-spread .epub-view {
   background: #fff !important;
 }
 
-.reader-book-spread.reader-epub-spread.reader-epub-moving::before {
-  z-index: 8;
-  opacity: 1;
-  background: #fff;
-  box-shadow: none;
+.reader-book-spread.reader-slide-active::before {
+  opacity: 0;
 }
 
-.reader-book-spread.reader-epub-spread.reader-epub-moving .epub-container {
-  z-index: 9;
-}
-
-.reader-epub-loading {
-  position: absolute;
-  inset-block: .75rem;
-  left: 0;
-  right: 0;
-  z-index: 12;
-  width: calc(100% - 1.5rem);
-  max-width: 80rem;
-  margin-inline: auto;
+.reader-paper-stack {
+  position: relative;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
-  border-radius: 9px 9px 13px 13px;
+  border-radius: inherit;
   background: #fff;
-  box-shadow: 0 2px 0 #e2e8f0, 0 5px 0 #cbd5e1, 0 20px 42px rgba(15, 23, 42, .18);
+}
+
+.reader-paper-under,
+.reader-paper-over {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #fff;
+}
+
+.reader-paper-under {
+  z-index: 1;
   pointer-events: none;
 }
 
-.reader-epub-loading {
-  display: grid;
-  place-items: center;
+.reader-paper-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #fff;
 }
 
-@media (min-width: 640px) {
-  .reader-epub-loading {
-    inset-block: 1.5rem;
-    width: calc(100% - 3rem);
-  }
+.reader-paper-live {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  background: #fff;
+}
 
+.reader-paper-over {
+  z-index: 2;
+  will-change: transform;
+}
+
+.reader-paper-over.is-turning.turn-next {
+  box-shadow: 18px 0 32px rgba(15, 23, 42, .18);
+}
+
+.reader-paper-over.is-turning.turn-prev {
+  box-shadow: -18px 0 32px rgba(15, 23, 42, .18);
+}
+
+.reader-paper-over.is-settling {
+  transition: transform 320ms cubic-bezier(.22, .8, .24, 1);
+}
+
+.reader-slide-blank {
+  width: 100%;
+  height: 100%;
+  background: #fff;
+}
+
+.reader-slide-spread {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.reader-epub-spread .reader-paper-live .epub-container,
+.reader-epub-spread .reader-paper-over .epub-container {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.reader-epub-snapshot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  pointer-events: none;
+}
+
+.reader-epub-snapshot iframe {
+  position: absolute;
+  border: 0;
+  background: #fff;
+  pointer-events: none;
 }
 
 .reader-book-page {
@@ -480,6 +529,7 @@ code, pre {
 
 @media (prefers-reduced-motion: reduce) {
   .reader-turn-settling .reader-turn-sheet { transition-duration: 1ms; }
+  .reader-paper-over.is-settling { transition-duration: 1ms; }
 }
 
 /* AI 流式打印时的平滑文字自适应渐显效果 */

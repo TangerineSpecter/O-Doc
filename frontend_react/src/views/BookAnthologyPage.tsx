@@ -8,7 +8,15 @@ import ConfirmationModal from '../components/common/ConfirmationModal';
 interface Props { collId?: string; onNavigate: (view: string, params?: any) => void; }
 
 const formatLabel: Record<string, string> = {pdf: 'PDF', txt: 'TXT', epub: 'EPUB', mobi: 'MOBI'};
+const SLIDE_SETTLE_MS = 320;
+const EPUB_THEME = {
+    'html, body': {'background-color': '#ffffff !important'},
+    body: {'color': '#334155', 'font-family': '"Songti SC", "STSong", serif', 'line-height': '1.9'},
+    'p, li': {'line-height': '1.9'},
+};
 type PdfCrop = {x: number; y: number; width: number; height: number};
+type SlideTurn = {direction: 'prev' | 'next'; progress: number; settling: boolean; source: 'pointer' | 'trackpad' | 'program'};
+type EpubFrameSnapshot = {srcdoc: string; left: number; top: number; width: number; height: number; scrollLeft: number; scrollTop: number};
 const pdfCropCache = new WeakMap<object, Map<number, Promise<PdfCrop>>>();
 
 /** TXT 常见来源为 UTF-8 或 Windows/GBK 编码；优先拒绝无效 UTF-8，再回退到 GB18030。 */
@@ -162,6 +170,110 @@ function PdfCanvas({document, pageNumber, cropWhitespace}: {document: any; pageN
     </div>;
 }
 
+function serializeEpubDocument(doc: Document) {
+    let copiedSheets = '';
+    for (const sheet of doc.styleSheets) {
+        try {
+            copiedSheets += `${[...sheet.cssRules].map(rule => rule.cssText).join('\n')}\n`;
+        } catch {
+            // Cross-origin sheets cannot be read; the document's own tags still serialize.
+        }
+    }
+    const inject = copiedSheets ? `<style data-odoc-epub-copy="true">${copiedSheets}</style>` : '';
+    const html = doc.documentElement.outerHTML.replace(/<head([^>]*)>/i, `<head$1>${inject}`);
+    return `<!DOCTYPE html>${html.includes(inject) || !inject ? html : `<head>${inject}</head>${html}`}`;
+}
+
+function captureEpubFrames(root: HTMLElement | null): EpubFrameSnapshot[] {
+    if (!root) return [];
+    const rootRect = root.getBoundingClientRect();
+    return [...root.querySelectorAll<HTMLElement>('.epub-view')].flatMap(view => {
+        const rect = view.getBoundingClientRect();
+        const visibleWidth = Math.min(rect.right, rootRect.right) - Math.max(rect.left, rootRect.left);
+        const visibleHeight = Math.min(rect.bottom, rootRect.bottom) - Math.max(rect.top, rootRect.top);
+        if (visibleWidth < 24 || visibleHeight < 24) return [];
+        const iframe = view.querySelector('iframe');
+        const doc = iframe?.contentDocument;
+        if (!iframe || !doc?.documentElement) return [];
+        const scrolling = doc.scrollingElement || doc.documentElement;
+        return [{
+            srcdoc: serializeEpubDocument(doc),
+            // Paginated chapters are often one very wide iframe translated into view.
+            // Keep that offset so the snapshot shows the same slice, not the chapter start.
+            left: rect.left - rootRect.left,
+            top: rect.top - rootRect.top,
+            width: rect.width,
+            height: rect.height,
+            scrollLeft: scrolling.scrollLeft || 0,
+            scrollTop: scrolling.scrollTop || 0,
+        }];
+    });
+}
+
+function sheetOffset(turn: SlideTurn | null) {
+    if (!turn) return '0%';
+    return `${(turn.direction === 'next' ? -turn.progress : turn.progress) * 100}%`;
+}
+
+function cfiOf(rendition: any) {
+    return rendition?.location?.start?.cfi || rendition?.currentLocation?.()?.start?.cfi || '';
+}
+
+function nudgeEpub(rendition: any, direction: 'next' | 'prev') {
+    const delta = rendition?.manager?.layout?.delta;
+    if (typeof delta === 'number' && delta > 0 && rendition?.manager?.scrollBy) {
+        rendition.manager.scrollBy(direction === 'next' ? delta : -delta, 0, true);
+        rendition.reportLocation?.();
+        return true;
+    }
+    return false;
+}
+
+function waitEpubRelocated(rendition: any, timeout = 900) {
+    return new Promise<boolean>(resolve => {
+        let done = false;
+        const finish = (moved: boolean) => {
+            if (done) return;
+            done = true;
+            rendition?.off?.('relocated', onRelocated);
+            resolve(moved);
+        };
+        const onRelocated = () => finish(true);
+        rendition?.on?.('relocated', onRelocated);
+        window.setTimeout(() => finish(false), timeout);
+    });
+}
+
+function EpubSnapshot({frames}: {frames: EpubFrameSnapshot[]}) {
+    if (!frames.length) return <div className="reader-slide-blank"/>;
+    return <div className="reader-epub-snapshot">
+        {frames.map((frame, index) => <iframe
+            key={`${frame.left}-${frame.top}-${index}`}
+            srcDoc={frame.srcdoc}
+            sandbox="allow-same-origin"
+            tabIndex={-1}
+            title=""
+            style={{left: frame.left, top: frame.top, width: frame.width, height: frame.height}}
+            onLoad={event => {
+                const win = event.currentTarget.contentWindow;
+                if (win && (frame.scrollLeft || frame.scrollTop)) win.scrollTo(frame.scrollLeft, frame.scrollTop);
+            }}
+        />)}
+    </div>;
+}
+
+function PdfSpread({document, startPage, pageCount, cropWhitespace}: {document: any; startPage: number; pageCount: number; cropWhitespace: boolean}) {
+    if (startPage < 1 || startPage > pageCount) return <div className="reader-slide-blank"/>;
+    return <div className="reader-slide-spread">
+        <div className="reader-book-page reader-book-page-left flex h-full min-w-0 flex-1 items-center justify-center">
+            <PdfCanvas document={document} pageNumber={startPage} cropWhitespace={cropWhitespace}/>
+        </div>
+        {startPage + 1 <= pageCount && <div className="reader-book-page reader-book-page-right hidden h-full min-w-0 flex-1 items-center justify-center md:flex">
+            <PdfCanvas document={document} pageNumber={startPage + 1} cropWhitespace={cropWhitespace}/>
+        </div>}
+    </div>;
+}
+
 function paginatePlainText(content: string, pageWidth: number, pageHeight: number) {
     if (!content) return [''];
     const measurer = document.createElement('div');
@@ -209,8 +321,8 @@ async function fetchBookBlob(bookId: string) {
 
 function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () => void; onProgressSaved: (progress: number) => void}) {
     const toast = useToast();
-    const [text, setText] = useState(''); const [txtPages, setTxtPages] = useState<string[]>([]); const [txtPagesPerSpread, setTxtPagesPerSpread] = useState(2); const [txtPaginating, setTxtPaginating] = useState(book.format === 'txt'); const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(''); const [pdfDocument, setPdfDocument] = useState<any>(null); const [pdfPage, setPdfPage] = useState(1); const [pdfPageCount, setPdfPageCount] = useState(0); const [pdfCropWhitespace, setPdfCropWhitespace] = useState(true); const [currentPage, setCurrentPage] = useState(1); const [totalPages, setTotalPages] = useState(0); const [toc, setToc] = useState<Array<{label: string; href: string}>>([]); const [panel, setPanel] = useState<'toc' | 'bookmarks' | null>(null); const [bookmarks, setBookmarks] = useState<Array<{page: number; label: string; location?: string}>>([]); const [epubLocation, setEpubLocation] = useState(''); const [epubTurn, setEpubTurn] = useState<{direction: 'prev' | 'next'; progress: number; settling: boolean} | null>(null); const [epubLoading, setEpubLoading] = useState(false); const [jumpPreview, setJumpPreview] = useState<number | null>(null); const [controlsHovered, setControlsHovered] = useState(false); const [pageDrag, setPageDrag] = useState<{direction: 'prev' | 'next'; progress: number; settling: boolean; source: 'pointer' | 'trackpad' | 'program'} | null>(null);
-    const epubRef = useRef<HTMLDivElement>(null); const textRef = useRef<HTMLDivElement>(null); const renditionRef = useRef<any>(null); const epubBookRef = useRef<any>(null); const epubLocationRef = useRef(''); const pdfDocumentRef = useRef<any>(null); const textRestoreProgressRef = useRef<number | null>(null); const txtProgressRef = useRef(0); const dragStartRef = useRef<{x: number; y: number; time: number} | null>(null); const dragProgressRef = useRef(0); const dragDirectionRef = useRef<'prev' | 'next' | null>(null); const lastTurnAt = useRef(0); const turnAnimationRef = useRef(false); const wheelGestureRef = useRef<{offset: number; startedAt: number} | null>(null); const wheelResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); const epubWheelHandlerRef = useRef<((event: WheelEvent) => void) | null>(null); const controlsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [text, setText] = useState(''); const [txtPages, setTxtPages] = useState<string[]>([]); const [txtPagesPerSpread, setTxtPagesPerSpread] = useState(2); const [txtPaginating, setTxtPaginating] = useState(book.format === 'txt'); const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(''); const [pdfDocument, setPdfDocument] = useState<any>(null); const [pdfPage, setPdfPage] = useState(1); const [pdfPageCount, setPdfPageCount] = useState(0); const [pdfCropWhitespace, setPdfCropWhitespace] = useState(true); const [pdfUnderPage, setPdfUnderPage] = useState<number | null>(null); const [currentPage, setCurrentPage] = useState(1); const [totalPages, setTotalPages] = useState(0); const [toc, setToc] = useState<Array<{label: string; href: string}>>([]); const [panel, setPanel] = useState<'toc' | 'bookmarks' | null>(null); const [bookmarks, setBookmarks] = useState<Array<{page: number; label: string; location?: string}>>([]); const [epubLocation, setEpubLocation] = useState(''); const [epubAtStart, setEpubAtStart] = useState(false); const [epubAtEnd, setEpubAtEnd] = useState(false); const [epubPrevFrames, setEpubPrevFrames] = useState<EpubFrameSnapshot[]>([]); const [epubNextFrames, setEpubNextFrames] = useState<EpubFrameSnapshot[]>([]); const [epubSheetFrames, setEpubSheetFrames] = useState<EpubFrameSnapshot[]>([]); const [epubFreezeFrames, setEpubFreezeFrames] = useState<EpubFrameSnapshot[] | null>(null); const [jumpPreview, setJumpPreview] = useState<number | null>(null); const [controlsHovered, setControlsHovered] = useState(false); const [pageDrag, setPageDrag] = useState<SlideTurn | null>(null);
+    const epubRef = useRef<HTMLDivElement>(null); const textRef = useRef<HTMLDivElement>(null); const renditionRef = useRef<any>(null); const epubBookRef = useRef<any>(null); const epubLocationRef = useRef(''); const refreshNeighborsRef = useRef<(cfi: string, mode?: 'both' | 'next' | 'prev', silent?: boolean) => Promise<void>>(async () => {}); const skipPersistRef = useRef(false); const neighborGenRef = useRef(0); const probeGenRef = useRef(0); const neighborProbeRef = useRef(false); const epubSheetLockRef = useRef<EpubFrameSnapshot[]>([]); const epubCurrentFramesRef = useRef<EpubFrameSnapshot[]>([]); const epubNextCfiRef = useRef(''); const epubPrevCfiRef = useRef(''); const pdfDocumentRef = useRef<any>(null); const pdfPageRef = useRef(1); const textRestoreProgressRef = useRef<number | null>(null); const txtProgressRef = useRef(0); const dragStartRef = useRef<{x: number; y: number; time: number} | null>(null); const dragProgressRef = useRef(0); const dragDirectionRef = useRef<'prev' | 'next' | null>(null); const lastTurnAt = useRef(0); const turnAnimationRef = useRef(false); const wheelGestureRef = useRef<{offset: number; startedAt: number} | null>(null); const wheelResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); const epubWheelHandlerRef = useRef<((event: WheelEvent) => void) | null>(null); const controlsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); const animatePageTurnRef = useRef<(direction: 'prev' | 'next') => void>(() => {});
     const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingProgressRef = useRef<{location: string; progress: number} | null>(null);
     const bookmarkStorageKey = `o-doc:bookmarks:${book.bookId}`;
@@ -218,18 +330,7 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
     const revealControls = () => { if (controlsCloseTimerRef.current) clearTimeout(controlsCloseTimerRef.current); setControlsHovered(true); };
     const deferControlsClose = () => { if (controlsCloseTimerRef.current) clearTimeout(controlsCloseTimerRef.current); controlsCloseTimerRef.current = setTimeout(() => setControlsHovered(false), 700); };
     useEffect(() => { try { setBookmarks(JSON.parse(localStorage.getItem(bookmarkStorageKey) || '[]')); } catch { setBookmarks([]); } }, [bookmarkStorageKey]);
-    useEffect(() => {
-        const container = epubRef.current?.querySelector<HTMLElement>('.epub-container');
-        if (!container) return;
-        if (!epubTurn) {
-            container.style.transition = '';
-            container.style.transform = '';
-            return;
-        }
-        const distance = (epubTurn.direction === 'next' ? -1 : 1) * epubTurn.progress * 100;
-        container.style.transition = epubTurn.settling ? 'transform 260ms cubic-bezier(.22, .78, .2, 1)' : 'none';
-        container.style.transform = `translate3d(${distance}%, 0, 0)`;
-    }, [epubTurn]);
+    useEffect(() => { pdfPageRef.current = pdfPage; }, [pdfPage]);
     const persistProgress = (payload: {location: string; progress: number}) => {
         void saveBookProgress(book.bookId, payload)
             .then(() => onProgressSaved(payload.progress))
@@ -267,22 +368,101 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
                     setPdfDocument(document); setPdfPage(spreadStart); setPdfPageCount(document.numPages); setCurrentPage(spreadStart); setTotalPages(document.numPages);
                 } else if (book.format === 'epub' && epubRef.current) {
                     // ArrayBuffer avoids URL / MIME inconsistencies when opening archived EPUB files.
-                    const {default: ePub} = await import('epubjs'); const epub = ePub(await fileBlob.arrayBuffer()); epubBookRef.current = epub;
+                    const {default: ePub} = await import('epubjs');
+                    const epub = ePub(await fileBlob.arrayBuffer());
                     await epub.opened;
-                    if (cancelled || !epubRef.current) return;
+                    if (cancelled || !epubRef.current) { epub.destroy?.(); return; }
+                    epubBookRef.current = epub;
                     // epub.js's continuous manager does not reliably retain paginated spreads
                     // in the embedded Electron iframe. Keep the stable default renderer here.
-                    const rendition = epub.renderTo(epubRef.current, {width: '100%', height: '100%', manager: 'default', flow: 'paginated', spread: 'always'}); renditionRef.current = rendition;
-                    rendition.themes?.default?.({
-                        'html, body': {'background-color': '#ffffff !important'},
-                        body: {'color': '#334155', 'font-family': '"Songti SC", "STSong", serif', 'line-height': '1.9'},
-                        'p, li': {'line-height': '1.9'},
-                    });
+                    const renditionOptions = {width: '100%', height: '100%', manager: 'default', flow: 'paginated', spread: 'always'};
+                    const rendition = epub.renderTo(epubRef.current, renditionOptions);
+                    renditionRef.current = rendition;
+                    rendition.themes?.default?.(EPUB_THEME);
+                    const refreshNeighbors = async (cfi: string, mode: 'both' | 'next' | 'prev' = 'both', silent = false) => {
+                        const live = epubRef.current;
+                        if (!live || !cfi) return;
+                        const gen = ++neighborGenRef.current;
+                        probeGenRef.current = gen;
+                        neighborProbeRef.current = true;
+                        skipPersistRef.current = true;
+                        const wait = (ms: number) => new Promise<void>(resolve => window.setTimeout(resolve, ms));
+                        const stillCurrent = () => gen === neighborGenRef.current;
+                        const newerProbeOwns = () => probeGenRef.current !== gen && probeGenRef.current === neighborGenRef.current;
+                        const restoreOrigin = async () => {
+                            try {
+                                if (cfiOf(rendition) !== cfi) await rendition.display(cfi);
+                            } catch { /* Restore best-effort. */ }
+                        };
+                        const peek = async (direction: 'next' | 'prev') => {
+                            const originLeft = live.querySelector('.epub-view')?.getBoundingClientRect().left ?? 0;
+                            try {
+                                const relocated = waitEpubRelocated(rendition);
+                                if (!nudgeEpub(rendition, direction)) await rendition[direction]();
+                                await Promise.race([relocated, wait(1200)]);
+                                if (stillCurrent()) {
+                                    await wait(60);
+                                    const after = cfiOf(rendition);
+                                    const afterLeft = live.querySelector('.epub-view')?.getBoundingClientRect().left ?? originLeft;
+                                    const moved = Math.abs(afterLeft - originLeft) >= 24 || (Boolean(after) && after !== cfi);
+                                    const frames = moved ? captureEpubFrames(live) : [];
+                                    if (direction === 'next') {
+                                        setEpubNextFrames(frames);
+                                        epubNextCfiRef.current = frames.length ? (after || '') : '';
+                                    } else {
+                                        setEpubPrevFrames(frames);
+                                        epubPrevCfiRef.current = frames.length ? (after || '') : '';
+                                    }
+                                }
+                            } finally {
+                                if (!stillCurrent()) return;
+                                if (nudgeEpub(rendition, direction === 'next' ? 'prev' : 'next')) {
+                                    rendition.reportLocation?.();
+                                    return;
+                                }
+                                await restoreOrigin();
+                            }
+                        };
+                        try {
+                            if (!silent) {
+                                const freeze = captureEpubFrames(live);
+                                setEpubFreezeFrames(freeze.length ? freeze : epubCurrentFramesRef.current);
+                                await wait(32);
+                                if (!stillCurrent()) return;
+                                live.style.visibility = 'hidden';
+                            }
+                            if (mode !== 'prev') await peek('next');
+                            if (!stillCurrent()) return;
+                            if (mode !== 'next') await peek('prev');
+                        } catch {
+                            if (stillCurrent()) await restoreOrigin();
+                        } finally {
+                            if (stillCurrent()) {
+                                live.style.visibility = '';
+                                setEpubFreezeFrames(null);
+                                skipPersistRef.current = false;
+                                neighborProbeRef.current = false;
+                                const current = captureEpubFrames(live);
+                                if (current.length) {
+                                    epubCurrentFramesRef.current = current;
+                                    setEpubSheetFrames(current);
+                                    epubSheetLockRef.current = [];
+                                }
+                            } else if (!newerProbeOwns()) {
+                                neighborProbeRef.current = false;
+                                skipPersistRef.current = false;
+                            }
+                        }
+                    };
+                    refreshNeighborsRef.current = refreshNeighbors;
                     rendition.on('relocated', (where: any) => {
+                        if (skipPersistRef.current) return;
                         const pct = Math.round((where.start.percentage || 0) * 100);
                         const location = where.start.cfi || '';
                         epubLocationRef.current = location;
                         setEpubLocation(location);
+                        setEpubAtStart(Boolean(where.atStart));
+                        setEpubAtEnd(Boolean(where.atEnd));
                         setCurrentPage(Math.max(1, (epub.locations.locationFromCfi?.(location) ?? 0) + 1));
                         persistProgress({location, progress: pct});
                         // Keep adjacent spine documents parsed in memory. At a chapter boundary
@@ -297,8 +477,18 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
                         view?.document?.addEventListener?.('wheel', (event: WheelEvent) => epubWheelHandlerRef.current?.(event), {passive: false});
                     });
                     await Promise.race([rendition.display(progress.location || undefined), new Promise((_, reject) => window.setTimeout(() => reject(new Error('EPUB_RENDER_TIMEOUT')), 30000))]);
+                    await waitEpubRelocated(rendition, 1200);
                     const flattenToc = (items: any[]): Array<{label: string; href: string}> => items.flatMap(item => [{label: item.label || '未命名章节', href: item.href}, ...flattenToc(item.subitems || [])]);
                     setToc(flattenToc(epub.navigation?.toc || []));
+                    const origin = epubLocationRef.current;
+                    if (origin && !cancelled) {
+                        const current = captureEpubFrames(epubRef.current);
+                        if (current.length) {
+                            epubCurrentFramesRef.current = current;
+                            setEpubSheetFrames(current);
+                        }
+                        await refreshNeighbors(origin, 'both', true);
+                    }
                     // Location generation reads every spine item.  Do it after the reader is
                     // interactive and with fewer breakpoints, rather than competing with turns.
                     window.setTimeout(() => {
@@ -319,6 +509,7 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
         };
         open(); return () => {
             cancelled = true;
+            neighborGenRef.current += 1;
             renditionRef.current?.destroy?.();
             epubBookRef.current?.destroy?.();
             void pdfDocumentRef.current?.destroy?.();
@@ -352,43 +543,130 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
         if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
         progressTimerRef.current = setTimeout(savePendingProgress, 500);
     };
-    const hasPage = (direction: 'prev' | 'next') => book.format === 'epub' || (direction === 'prev'
-        ? currentPage > 1
-        : book.format === 'pdf' ? pdfPage + 1 < pdfPageCount : currentPage < totalPages);
-    const turnEpubPage = async (direction: 'prev' | 'next', progress = .01) => {
-        const rendition = renditionRef.current;
-        if (!rendition) return;
-        turnAnimationRef.current = true;
-        setEpubTurn({direction, progress: Math.max(.01, progress), settling: true});
-        window.requestAnimationFrame(() => setEpubTurn(current => current ? {...current, progress: 1, settling: true} : current));
-        await new Promise(resolve => window.setTimeout(resolve, 260));
-        setEpubLoading(true);
-        try {
-            await rendition[direction]?.();
-        } catch {
-            // epub.js keeps the current page visible if its target cannot be loaded.
-        } finally {
-            await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
-            setEpubLoading(false);
-            setEpubTurn(null);
-            turnAnimationRef.current = false;
+    const hasPage = (direction: 'prev' | 'next') => {
+        if (book.format === 'epub') {
+            if (direction === 'prev') return !epubAtStart;
+            return !epubAtEnd;
         }
+        if (direction === 'prev') return currentPage > 1;
+        return book.format === 'pdf' ? pdfPage + 1 < pdfPageCount : currentPage < totalPages;
+    };
+    const applyEpubSheetFrames = (frames: EpubFrameSnapshot[]) => {
+        if (frames.length) epubCurrentFramesRef.current = frames;
+        setEpubSheetFrames(frames.length ? frames : epubCurrentFramesRef.current);
+    };
+    const clearEpubSheetLock = () => {
+        epubSheetLockRef.current = [];
+    };
+    const resetEpubSnapshots = () => {
+        epubSheetLockRef.current = [];
+        epubCurrentFramesRef.current = [];
+        setEpubSheetFrames([]);
+        setEpubPrevFrames([]);
+        setEpubNextFrames([]);
+        epubNextCfiRef.current = '';
+        epubPrevCfiRef.current = '';
+    };
+    const freezeEpubSheet = () => {
+        if (epubSheetLockRef.current.length) return epubSheetLockRef.current;
+        // Reuse the already-painted current snapshot. Recapturing mid-gesture
+        // reloads srcDoc iframes and makes the lifted sheet flicker or change.
+        if (epubCurrentFramesRef.current.length) {
+            epubSheetLockRef.current = epubCurrentFramesRef.current;
+            return epubSheetLockRef.current;
+        }
+        const captured = captureEpubFrames(epubRef.current);
+        epubSheetLockRef.current = captured;
+        if (captured.length) applyEpubSheetFrames(captured);
+        return captured;
+    };
+    const settleFlatTurn = async (direction: 'prev' | 'next', shouldTurn: boolean, source: SlideTurn['source']) => {
+        turnAnimationRef.current = true;
+        if (book.format === 'epub') {
+            neighborGenRef.current += 1;
+            skipPersistRef.current = false;
+            freezeEpubSheet();
+        }
+        if (book.format === 'pdf') setPdfUnderPage(pdfPageRef.current + (direction === 'next' ? 2 : -2));
+        if (shouldTurn && source === 'program') {
+            setPageDrag({direction, progress: .02, settling: false, source});
+            await new Promise<void>(resolve => {
+                if (book.format === 'epub') window.setTimeout(() => resolve(), 80);
+                else window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+            });
+        }
+        setPageDrag({direction, progress: shouldTurn ? 1 : 0, settling: true, source});
+        const wait = shouldTurn ? SLIDE_SETTLE_MS : 240;
+        if (shouldTurn && book.format === 'epub') {
+            const sheet = epubSheetLockRef.current;
+            const rendition = renditionRef.current;
+            const beforeCfi = cfiOf(rendition) || epubLocationRef.current;
+            const targetCfi = direction === 'next' ? epubNextCfiRef.current : epubPrevCfiRef.current;
+            const viewLeft = () => epubRef.current?.querySelector('.epub-view')?.getBoundingClientRect().left ?? 0;
+            const beforeLeft = viewLeft();
+            await new Promise(resolve => window.setTimeout(resolve, wait));
+            const relocated = rendition ? waitEpubRelocated(rendition) : Promise.resolve(false);
+            try {
+                if (!nudgeEpub(rendition, direction)) {
+                    if (targetCfi) await rendition?.display?.(targetCfi);
+                    else await rendition?.[direction]?.();
+                }
+            } catch { /* Keep the current spread if the target cannot be loaded. */ }
+            await relocated;
+            await new Promise(resolve => window.setTimeout(resolve, 60));
+            const settledCfi = cfiOf(rendition) || targetCfi || beforeCfi;
+            const didMove = Math.abs(viewLeft() - beforeLeft) >= 24 || (Boolean(settledCfi) && settledCfi !== beforeCfi);
+            if (!didMove) {
+                setPageDrag({direction, progress: 0, settling: true, source});
+                await new Promise(resolve => window.setTimeout(resolve, 240));
+                setPageDrag(null);
+                clearEpubSheetLock();
+                setPdfUnderPage(null);
+                turnAnimationRef.current = false;
+                return;
+            }
+            epubLocationRef.current = settledCfi;
+            if (direction === 'next') {
+                setEpubPrevFrames(sheet);
+                epubPrevCfiRef.current = beforeCfi;
+                setEpubNextFrames([]);
+                epubNextCfiRef.current = '';
+            } else {
+                setEpubNextFrames(sheet);
+                epubNextCfiRef.current = beforeCfi;
+                setEpubPrevFrames([]);
+                epubPrevCfiRef.current = '';
+            }
+            applyEpubSheetFrames(captureEpubFrames(epubRef.current));
+            clearEpubSheetLock();
+            setPageDrag(null);
+            setPdfUnderPage(null);
+            try {
+                await refreshNeighborsRef.current(settledCfi, direction, false);
+            } finally {
+                turnAnimationRef.current = false;
+            }
+            return;
+        }
+        await new Promise(resolve => window.setTimeout(resolve, wait));
+        if (shouldTurn && book.format === 'pdf') {
+            commitPdfPage(pdfPageRef.current + (direction === 'next' ? 2 : -2));
+            await new Promise(resolve => window.setTimeout(resolve, 160));
+        }
+        setPageDrag(null);
+        clearEpubSheetLock();
+        setPdfUnderPage(null);
+        turnAnimationRef.current = false;
     };
     const turnPage = (direction: 'prev' | 'next') => {
-        if (Date.now() - lastTurnAt.current < 350) return;
-        lastTurnAt.current = Date.now();
-        if (book.format === 'epub') {
-            void turnEpubPage(direction);
-        }
-        if (book.format === 'pdf') commitPdfPage(pdfPage + (direction === 'next' ? 2 : -2));
         if (book.format === 'txt') commitTxtPage(currentPage + (direction === 'next' ? 1 : -1));
     };
     const animatePageTurn = (direction: 'prev' | 'next') => {
-        if (turnAnimationRef.current || !hasPage(direction)) return;
-        // epub.js paginates inside an iframe. Reusing its native page change avoids
-        // cloning and reflowing that iframe during every trackpad gesture.
-        if (book.format === 'epub') {
-            turnPage(direction);
+        if (loading || loadError || neighborProbeRef.current || turnAnimationRef.current || !hasPage(direction)) return;
+        if (Date.now() - lastTurnAt.current < 350) return;
+        lastTurnAt.current = Date.now();
+        if (book.format === 'epub' || book.format === 'pdf') {
+            void settleFlatTurn(direction, true, 'program');
             return;
         }
         turnAnimationRef.current = true;
@@ -402,17 +680,20 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
             turnAnimationRef.current = false;
         }, 360);
     };
+    animatePageTurnRef.current = animatePageTurn;
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'ArrowLeft') animatePageTurn('prev');
-            if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); animatePageTurn('next'); }
+            if (event.key === 'ArrowLeft') animatePageTurnRef.current('prev');
+            if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); animatePageTurnRef.current('next'); }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [book.format, pdfPageCount, currentPage, totalPages]);
+    }, []);
+
     const onPagePointerDown = (event: React.PointerEvent<HTMLElement>) => {
-        if (event.button !== 0 || loading || txtPaginating || loadError || turnAnimationRef.current || (event.target instanceof Element && event.target.closest('button, input, aside'))) return;
+        if (event.button !== 0 || loading || txtPaginating || loadError || neighborProbeRef.current || turnAnimationRef.current || (event.target instanceof Element && event.target.closest('button, input, aside'))) return;
         dragStartRef.current = {x: event.clientX, y: event.clientY, time: Date.now()}; dragProgressRef.current = 0; dragDirectionRef.current = null;
+        if (book.format === 'epub') freezeEpubSheet();
         event.currentTarget.setPointerCapture?.(event.pointerId);
     };
     const onPagePointerMove = (event: React.PointerEvent<HTMLElement>) => {
@@ -420,31 +701,24 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
         if (!start) return;
         const distance = event.clientX - start.x;
         const verticalDistance = event.clientY - start.y;
-        if (!dragDirectionRef.current && Math.abs(verticalDistance) > Math.abs(distance) + 12) { dragStartRef.current = null; return; }
+        if (!dragDirectionRef.current && Math.abs(verticalDistance) > Math.abs(distance) + 12) {
+            dragStartRef.current = null;
+            clearEpubSheetLock();
+            return;
+        }
         if (Math.abs(distance) < 8) return;
         const direction = distance < 0 ? 'next' : 'prev';
         const progress = Math.min(.92, Math.abs(distance) / Math.max(1, event.currentTarget.clientWidth));
         dragDirectionRef.current = direction; dragProgressRef.current = progress;
-        if (book.format === 'epub') {
-            setEpubTurn({direction, progress, settling: false});
-        } else {
-            setPageDrag({direction, progress, settling: false, source: 'pointer'});
-        }
+        if (book.format === 'pdf') setPdfUnderPage(pdfPageRef.current + (direction === 'next' ? 2 : -2));
+        if (book.format === 'epub') freezeEpubSheet();
+        setPageDrag({direction, progress: hasPage(direction) ? progress : progress * .16, settling: false, source: 'pointer'});
         event.preventDefault();
     };
     const settlePageDrag = (direction: 'prev' | 'next', progress: number, velocity: number, source: 'pointer' | 'trackpad') => {
-        const hasPageInDirection = direction === 'prev'
-            ? currentPage > 1
-            : book.format === 'pdf' ? pdfPage + 1 < pdfPageCount : currentPage < totalPages;
-        const shouldTurn = hasPageInDirection && (progress >= .3 || (progress >= .13 && velocity > .65));
-        if (book.format === 'epub') {
-            setPageDrag(null);
-            if (shouldTurn) {
-                void turnEpubPage(direction, progress);
-            } else if (epubTurn) {
-                setEpubTurn({...epubTurn, progress: 0, settling: true});
-                window.setTimeout(() => setEpubTurn(null), 220);
-            }
+        const shouldTurn = hasPage(direction) && (progress >= .3 || (progress >= .13 && velocity > .65));
+        if (book.format === 'epub' || book.format === 'pdf') {
+            void settleFlatTurn(direction, shouldTurn, source);
             return;
         }
         turnAnimationRef.current = true;
@@ -460,12 +734,12 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
         const direction = dragDirectionRef.current;
         const progress = dragProgressRef.current;
         dragStartRef.current = null; dragDirectionRef.current = null; dragProgressRef.current = 0;
-        if (!start || !direction) { setPageDrag(null); return; }
+        if (!start || !direction) { setPageDrag(null); clearEpubSheetLock(); return; }
         const velocity = Math.abs(event.clientX - start.x) / Math.max(1, Date.now() - start.time);
         settlePageDrag(direction, progress, velocity, 'pointer');
     };
     const handleTrackpadWheel = (deltaX: number, deltaY: number, viewportWidth: number, preventDefault: () => void, ctrlKey = false) => {
-        if (ctrlKey || turnAnimationRef.current || Math.abs(deltaX) < 2 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return;
+        if (ctrlKey || loading || loadError || neighborProbeRef.current || turnAnimationRef.current || Math.abs(deltaX) < 2 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return;
         preventDefault();
         const now = Date.now();
         const current = wheelGestureRef.current;
@@ -475,11 +749,9 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
         const startedAt = current?.startedAt || now;
         const progress = Math.min(.96, distance / Math.max(180, viewportWidth * .46));
         wheelGestureRef.current = {offset, startedAt};
-        if (book.format === 'epub') {
-            setEpubTurn({direction, progress, settling: false});
-        } else {
-            setPageDrag({direction, progress: hasPage(direction) ? progress : progress * .16, settling: false, source: 'trackpad'});
-        }
+        if (book.format === 'pdf') setPdfUnderPage(pdfPageRef.current + (direction === 'next' ? 2 : -2));
+        if (book.format === 'epub') freezeEpubSheet();
+        setPageDrag({direction, progress: hasPage(direction) ? progress : progress * .16, settling: false, source: 'trackpad'});
         if (wheelResetTimerRef.current) clearTimeout(wheelResetTimerRef.current);
         wheelResetTimerRef.current = setTimeout(() => {
             const gesture = wheelGestureRef.current;
@@ -498,25 +770,21 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
         handleTrackpadWheel(event.deltaX, event.deltaY, event.currentTarget.clientWidth, () => event.preventDefault(), event.ctrlKey);
     };
     epubWheelHandlerRef.current = (event: WheelEvent) => handleTrackpadWheel(event.deltaX, event.deltaY, epubRef.current?.clientWidth || window.innerWidth, () => event.preventDefault(), event.ctrlKey);
+    const jumpEpubTo = async (target: string) => {
+        neighborGenRef.current += 1;
+        neighborProbeRef.current = false;
+        resetEpubSnapshots();
+        try { await renditionRef.current?.display?.(target); }
+        catch { /* Keep the current spread if the target location cannot be opened. */ }
+        const cfi = epubLocationRef.current;
+        if (cfi) void refreshNeighborsRef.current(cfi, 'both', false);
+    };
     const jumpToPage = async (page: number) => {
         const target = Math.max(1, Math.min(totalPages || 1, page));
         if (book.format === 'pdf') commitPdfPage(target);
         if (book.format === 'epub') {
             const location = epubBookRef.current?.locations?.cfiFromLocation?.(target - 1);
-            if (location) {
-                const direction: 'prev' | 'next' = target < currentPage ? 'prev' : 'next';
-                if (target !== currentPage) {
-                    setEpubTurn({direction, progress: .01, settling: true});
-                    window.requestAnimationFrame(() => setEpubTurn(current => current ? {...current, progress: 1} : current));
-                    await new Promise(resolve => window.setTimeout(resolve, 260));
-                }
-                setEpubLoading(true);
-                try { await renditionRef.current?.display?.(location); }
-                finally {
-                    await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
-                    setEpubLoading(false);
-                }
-            }
+            if (location) await jumpEpubTo(location);
         }
         if (book.format === 'txt') commitTxtPage(target);
     };
@@ -606,16 +874,31 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
     return <div className="fixed inset-x-0 bottom-0 top-16 z-[70] flex max-w-[100vw] flex-col overflow-hidden bg-white text-slate-800">
         <header className="relative z-20 flex h-12 shrink-0 items-center justify-between border-b border-slate-200 bg-white/95 px-3 shadow-sm backdrop-blur sm:px-5"><div className="flex items-center gap-1"><button onClick={onClose} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"><ArrowLeft className="h-4 w-4"/>返回书架</button><button onClick={() => setPanel(panel === 'toc' ? null : 'toc')} className={`rounded-md p-2 transition ${panel === 'toc' ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title="目录"><List className="h-4 w-4"/></button><button onClick={() => setPanel(panel === 'bookmarks' ? null : 'bookmarks')} className={`rounded-md p-2 transition ${panel === 'bookmarks' ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title="书签列表"><Bookmark className="h-4 w-4"/></button></div><span className="absolute left-1/2 max-w-[42vw] -translate-x-1/2 truncate text-sm font-semibold tracking-wide text-slate-700">{book.title}</span><div className="flex items-center gap-1">{book.format === 'pdf' && <button onClick={() => setPdfCropWhitespace(value => !value)} className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition ${pdfCropWhitespace ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title={pdfCropWhitespace ? '当前已智能去除页边留白' : '当前显示 PDF 完整页面'}><BookOpen className="h-4 w-4"/><span className="hidden sm:inline">{pdfCropWhitespace ? '正文适配' : '完整页面'}</span></button>}<button onClick={toggleBookmark} className={`rounded-md p-2 transition ${hasBookmark ? 'bg-orange-50 text-orange-600' : 'text-slate-500 hover:bg-slate-100'}`} title="添加书签">{hasBookmark ? <BookmarkCheck className="h-4 w-4"/> : <Bookmark className="h-4 w-4"/>}</button><button onClick={downloadBook} className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-orange-600" title="下载"><Download className="h-4 w-4"/></button></div></header>
         <main onWheelCapture={onWheel} onPointerDown={onPagePointerDown} onPointerMove={onPagePointerMove} onPointerUp={finishPageDrag} onPointerCancel={finishPageDrag} className="reader-desk relative min-h-0 flex-1 overflow-hidden p-3 touch-pan-y select-none sm:p-6">
-            {panel && <aside className="absolute left-3 top-3 z-30 flex max-h-[calc(100%-1.5rem)] w-80 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur sm:left-6 sm:top-6"><div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><p className="text-sm font-bold text-slate-800">{panel === 'toc' ? '目录' : '书签'}</p><button onClick={() => setPanel(null)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4"/></button></div><div className="min-h-0 overflow-y-auto p-2">{panel === 'toc' ? (toc.length ? toc.map((item, index) => <button key={`${item.href}-${index}`} onClick={() => { void renditionRef.current?.display?.(item.href); setPanel(null); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-orange-50 hover:text-orange-700"><span className="w-6 text-right font-mono text-[10px] text-slate-400">{index + 1}</span><span className="line-clamp-2">{item.label}</span></button>) : <p className="px-3 py-8 text-center text-xs leading-5 text-slate-400">此文件没有可读取的目录。</p>) : (bookmarks.length ? bookmarks.sort((a, b) => a.page - b.page).map(item => <button key={item.page} onClick={() => { if (book.format === 'epub' && item.location) void renditionRef.current?.display?.(item.location); else jumpToPage(item.page); setPanel(null); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-orange-50 hover:text-orange-700"><span>{item.label}</span><span className="font-mono text-xs text-slate-400">{item.page}</span></button>) : <p className="px-4 py-10 text-center text-xs leading-5 text-slate-400">还没有书签。<br/>可点击右上角书签图标添加。</p>)}</div></aside>}
+            {panel && <aside className="absolute left-3 top-3 z-30 flex max-h-[calc(100%-1.5rem)] w-80 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur sm:left-6 sm:top-6"><div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><p className="text-sm font-bold text-slate-800">{panel === 'toc' ? '目录' : '书签'}</p><button onClick={() => setPanel(null)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4"/></button></div><div className="min-h-0 overflow-y-auto p-2">{panel === 'toc' ? (toc.length ? toc.map((item, index) => <button key={`${item.href}-${index}`} onClick={() => { void jumpEpubTo(item.href); setPanel(null); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-orange-50 hover:text-orange-700"><span className="w-6 text-right font-mono text-[10px] text-slate-400">{index + 1}</span><span className="line-clamp-2">{item.label}</span></button>) : <p className="px-3 py-8 text-center text-xs leading-5 text-slate-400">此文件没有可读取的目录。</p>) : (bookmarks.length ? bookmarks.sort((a, b) => a.page - b.page).map(item => <button key={item.page} onClick={() => { if (book.format === 'epub' && item.location) void jumpEpubTo(item.location); else jumpToPage(item.page); setPanel(null); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-orange-50 hover:text-orange-700"><span>{item.label}</span><span className="font-mono text-xs text-slate-400">{item.page}</span></button>) : <p className="px-4 py-10 text-center text-xs leading-5 text-slate-400">还没有书签。<br/>可点击右上角书签图标添加。</p>)}</div></aside>}
             {readerBusy && <div className="reader-loading-book absolute inset-y-3 left-1/2 z-10 flex w-[calc(100%-1.5rem)] max-w-7xl -translate-x-1/2 sm:inset-y-6 sm:w-[calc(100%-3rem)]" aria-label="正在打开图书"><div/><div/><span className="absolute left-1/2 top-1/2 z-10 grid h-5 w-5 -translate-x-1/2 -translate-y-1/2 place-items-center"><Loader2 className="h-5 w-5 animate-spin text-orange-500"/></span></div>}
             {loadError && <div className="absolute inset-0 z-20 flex items-center justify-center p-6"><div className="max-w-sm rounded-xl border border-slate-200 bg-white p-5 text-center shadow-lg"><p className="font-semibold text-slate-700">图书未能打开</p><p className="mt-2 text-sm leading-6 text-slate-500">{loadError}</p><button onClick={onClose} className="mt-4 rounded-md bg-orange-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-orange-600">返回书架</button></div></div>}
-            {!loading && book.format === 'pdf' && pdfDocument && <div className="reader-book-spread mx-auto flex h-full max-w-7xl items-center justify-center overflow-hidden"><div className="reader-book-page reader-book-page-left flex h-full min-w-0 flex-1 items-center justify-center"><PdfCanvas document={pdfDocument} pageNumber={pdfPage} cropWhitespace={pdfCropWhitespace}/></div>{pdfPage + 1 <= pdfPageCount && <div className="reader-book-page reader-book-page-right hidden h-full min-w-0 flex-1 items-center justify-center md:flex"><PdfCanvas document={pdfDocument} pageNumber={pdfPage + 1} cropWhitespace={pdfCropWhitespace}/></div>}</div>}
+            {!loading && book.format === 'pdf' && pdfDocument && <div className={`reader-book-spread reader-slide-book mx-auto h-full max-w-7xl overflow-hidden ${pageDrag ? 'reader-slide-active' : ''}`}><div className="reader-paper-stack"><div className="reader-paper-under">{pageDrag?.direction === 'next' && <div className="reader-paper-layer"><PdfSpread document={pdfDocument} startPage={pdfUnderPage ?? pdfPage + 2} pageCount={pdfPageCount} cropWhitespace={pdfCropWhitespace}/></div>}{pageDrag?.direction === 'prev' && <div className="reader-paper-layer"><PdfSpread document={pdfDocument} startPage={pdfUnderPage ?? pdfPage - 2} pageCount={pdfPageCount} cropWhitespace={pdfCropWhitespace}/></div>}</div><div className={`reader-paper-over ${pageDrag ? `is-turning turn-${pageDrag.direction}` : ''} ${pageDrag?.settling ? 'is-settling' : ''}`} style={{transform: `translate3d(${sheetOffset(pageDrag)}, 0, 0)`}}><PdfSpread document={pdfDocument} startPage={pdfPage} pageCount={pdfPageCount} cropWhitespace={pdfCropWhitespace}/></div></div></div>}
             {!loading && book.format === 'txt' && <div ref={textRef} className={`reader-book-spread mx-auto flex h-full max-w-7xl overflow-hidden transition-opacity duration-150 ${txtPaginating ? 'opacity-0' : 'opacity-100'}`}><section className="reader-txt-page reader-book-page-left"><article className="reader-txt-page-content">{txtLeftPage}</article><span>{(currentPage - 1) * txtPagesPerSpread + 1}</span></section>{txtPagesPerSpread > 1 && <section className="reader-txt-page reader-book-page-right"><article className="reader-txt-page-content">{txtRightPage}</article><span>{Math.min(txtPages.length, (currentPage - 1) * txtPagesPerSpread + 2)}</span></section>}</div>}
             {book.format === 'epub' && (
-                <div ref={epubRef} className={`reader-book-spread reader-epub-spread mx-auto h-full w-full max-w-7xl overflow-hidden transition-opacity duration-150 ${loading ? 'opacity-0' : 'opacity-100'} ${epubTurn ? 'reader-epub-moving' : ''}`}/>
+                <div className={`reader-book-spread reader-epub-spread reader-slide-book mx-auto h-full w-full max-w-7xl overflow-hidden transition-opacity duration-150 ${loading ? 'opacity-0' : 'opacity-100'} ${pageDrag ? 'reader-slide-active' : ''}`}>
+                    <div className="reader-paper-stack">
+                        <div ref={epubRef} className="reader-paper-live" style={{visibility: epubFreezeFrames ? 'hidden' : 'visible'}}/>
+                        <div className="reader-paper-under" style={{visibility: pageDrag ? 'visible' : 'hidden'}}>
+                            <div className="reader-paper-layer" style={{opacity: pageDrag?.direction === 'prev' ? 0 : 1}}>
+                                <EpubSnapshot frames={epubNextFrames}/>
+                            </div>
+                            <div className="reader-paper-layer" style={{opacity: pageDrag?.direction === 'prev' ? 1 : 0}}>
+                                <EpubSnapshot frames={epubPrevFrames}/>
+                            </div>
+                        </div>
+                        <div className={`reader-paper-over ${pageDrag ? `is-turning turn-${pageDrag.direction}` : ''} ${pageDrag?.settling ? 'is-settling' : ''}`} style={{transform: `translate3d(${sheetOffset(pageDrag)}, 0, 0)`, visibility: pageDrag ? 'visible' : 'hidden'}}>
+                            <EpubSnapshot frames={epubSheetFrames}/>
+                        </div>
+                        {epubFreezeFrames && <div className="reader-paper-over" style={{zIndex: 3}}><EpubSnapshot frames={epubFreezeFrames}/></div>}
+                    </div>
+                </div>
             )}
-            {epubLoading && <div className="reader-epub-loading" aria-live="polite" aria-label="正在加载下一页"><Loader2 className="h-7 w-7 animate-spin text-slate-400"/></div>}
-            {pageDrag && book.format !== 'epub' && <div aria-hidden="true" className={`reader-turn-layer pointer-events-none absolute inset-y-3 left-1/2 z-10 w-[calc(100%-1.5rem)] max-w-7xl -translate-x-1/2 overflow-hidden rounded-[9px] sm:inset-y-6 sm:w-[calc(100%-3rem)] ${pageDrag.direction === 'next' ? 'reader-turn-next' : 'reader-turn-prev'} ${pageDrag.settling ? 'reader-turn-settling' : ''}`} style={{'--reader-turn-angle': `${dragRotation}deg`, '--reader-turn-progress': pageDrag.progress} as React.CSSProperties}>
+            {pageDrag && book.format === 'txt' && <div aria-hidden="true" className={`reader-turn-layer pointer-events-none absolute inset-y-3 left-1/2 z-10 w-[calc(100%-1.5rem)] max-w-7xl -translate-x-1/2 overflow-hidden rounded-[9px] sm:inset-y-6 sm:w-[calc(100%-3rem)] ${pageDrag.direction === 'next' ? 'reader-turn-next' : 'reader-turn-prev'} ${pageDrag.settling ? 'reader-turn-settling' : ''}`} style={{'--reader-turn-angle': `${dragRotation}deg`, '--reader-turn-progress': pageDrag.progress} as React.CSSProperties}>
                 <div className="reader-reveal-page">
                     {turningRevealText && <article className="reader-txt-page-content reader-turn-txt-content">{turningRevealText}</article>}
                     <i>{turningRevealNumber}</i>
