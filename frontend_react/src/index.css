@@ -260,7 +260,7 @@ code, pre {
 }
 
 .reader-paper-over.is-turning.turn-prev {
-  box-shadow: -18px 0 32px rgba(15, 23, 42, .18);
+  box-shadow: 18px 0 32px rgba(15, 23, 42, .18);
 }
 
 .reader-paper-over.is-settling {
