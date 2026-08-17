@@ -1,16 +1,11 @@
 # 本地运行环境
-本项目使用 `nvm` 管理 Node 版本，前端默认运行环境为 Node.js 22。
-
-在 `frontend_react` 目录执行命令前，先加载 nvm 并切换至 Node 22 版本：
-```sh
-source ~/.nvm/nvm.sh
-nvm use 22
-```
-
-切换好对应 Node 版本后，建议在 `frontend_react` 目录下执行所有前端相关命令。
+本项目使用 `nvm` 管理 Node 版本，前端默认运行环境为 Node.js 22。后端采用`uv`管理依赖，python版本为3.11。
 
 # 项目结构指引
 修改前端代码前，请先查阅 `docs/项目结构文档.md` 熟悉现有模块整体布局；如需定位具体代码实现，可使用 `rg` 检索工具查找。
+
+# 后端注意事项
+- 数据同步逻辑参考：`docs/数据同步逻辑文档.md`
 
 前端核心模块对应文件路径：
 - AI 对话窗口：`frontend_react/src/components/AIChatWindow.tsx`

@@ -60,7 +60,20 @@ export const useSettings = () => {
 
     // WebDav 配置暂时略过，逻辑类似
     const [webDavConfig, setWebDavConfig] = useState<WebDavConfig>({
-        enabled: false, url: '', remotePath: '', username: '', password: '', interval: 30
+        enabled: false,
+        protocol: 'webdav',
+        url: '',
+        host: '',
+        port: null,
+        remotePath: '',
+        username: '',
+        password: '',
+        interval: 30,
+        useTls: false,
+        passive: true,
+        privateKey: '',
+        passphrase: '',
+        hostKey: '',
     });
     const [webDavStatus, setWebDavStatus] = useState<WebDavSyncStatus>({
         status: 'idle',
@@ -128,7 +141,23 @@ export const useSettings = () => {
                 getWebDavStatus()
             ]);
             if (configRes) {
-                setWebDavConfig(configRes as unknown as WebDavConfig);
+                const config = configRes as unknown as WebDavConfig;
+                setWebDavConfig({
+                    enabled: Boolean(config.enabled),
+                    protocol: config.protocol || 'webdav',
+                    url: config.url || '',
+                    host: config.host || '',
+                    port: config.port ?? null,
+                    remotePath: config.remotePath || (config as {remote_path?: string}).remote_path || '',
+                    username: config.username || '',
+                    password: config.password || '',
+                    interval: config.interval || 30,
+                    useTls: config.useTls ?? (config as {use_tls?: boolean}).use_tls ?? false,
+                    passive: config.passive !== false,
+                    privateKey: config.privateKey || (config as {private_key?: string}).private_key || '',
+                    passphrase: config.passphrase || '',
+                    hostKey: config.hostKey || (config as {host_key?: string}).host_key || '',
+                });
             }
             if (statusRes) {
                 setWebDavStatus(statusRes as unknown as WebDavSyncStatus);

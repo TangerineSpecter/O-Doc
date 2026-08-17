@@ -30,10 +30,10 @@ class ErrorCode(Enum):
     NETWORK_ERROR = (5002, '网络错误')
     AI_SERVICE_ERROR = (5003, 'AI服务错误')
 
-    WEBDEV_ERROR = (600, 'WebDev异常')
-    WEBDEV_NOT_CONFIG = (6001, 'WebDAV 未配置或未开启')
-    WEBDEV_DOWNLOAD_FAIL = (6002, 'WebDev下载失败')
-    WEBDEV_UPLOAD_FAIL = (6003, 'WebDev上传失败')
+    WEBDEV_ERROR = (600, '备份同步异常')
+    WEBDEV_NOT_CONFIG = (6001, '备份服务未配置或未开启')
+    WEBDEV_DOWNLOAD_FAIL = (6002, '云端下载失败')
+    WEBDEV_UPLOAD_FAIL = (6003, '云端上传失败')
     WEBDEV_LOGIN_FAIL = (6004, '连接失败: 请检查服务器地址和密码')
 
     def __init__(self, code: int, message: str):

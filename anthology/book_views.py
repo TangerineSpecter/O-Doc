@@ -304,7 +304,7 @@ class BookReleaseView(APIView):
         try: book = _book_for_owner(request, book_id)
         except Book.DoesNotExist: return error_result(ErrorCode.RESOURCE_NOT_FOUND)
         if not book.remote_available or book.remote_hash != book.asset.file_hash:
-            return error_result(ErrorCode.WEBDEV_ERROR, message='该书尚未完成安全同步，不能释放本地副本')
+            return error_result(ErrorCode.WEBDEV_ERROR, message='该书尚未备份到同步与备份的远端，不能释放本地副本')
         try: os.remove(_asset_path(book.asset))
         except FileNotFoundError: pass
         book.local_state = 'cloud_only'; book.save(update_fields=['local_state', 'updated_at'])
@@ -320,12 +320,14 @@ class BookRestoreView(APIView):
         if not book.remote_available:
             return error_result(ErrorCode.WEBDEV_NOT_CONFIG, message='云端副本不可用')
         from system_settings.models import SystemSetting
-        from utils.webdav import WebDavClient
+        from utils.remote_storage import create_sync_manager
         config = (SystemSetting.objects.filter(key='system_webdav_config').first() or type('X', (), {'value': {}})()).value or {}
         if not config.get('enabled'): return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
-        from utils.sync_manager import SyncManager
-        client = WebDavClient(config['url'], config['username'], config['password'])
-        manager = SyncManager(client, config.get('remote_path') or config.get('remotePath') or '/o-doc-sync/')
+        try:
+            manager = create_sync_manager(config)
+        except Exception:
+            return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
+        client = manager.client
         path = _asset_path(book.asset)
         target_dir = os.path.dirname(path)
         os.makedirs(target_dir, exist_ok=True)

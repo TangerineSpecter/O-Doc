@@ -237,13 +237,23 @@ export interface ArticleRagScheduleConfig {
     runTime: string;
 }
 
+export type SyncProtocol = 'webdav' | 'ftp' | 'sftp';
+
 export interface WebDavConfig {
     enabled: boolean;
+    protocol?: SyncProtocol;
     url: string;
+    host?: string;
+    port?: number | null;
     remotePath: string;
     username: string;
     password: string;
     interval: number;
+    useTls?: boolean;
+    passive?: boolean;
+    privateKey?: string;
+    passphrase?: string;
+    hostKey?: string;
 }
 
 export interface WebDavSyncStatus {

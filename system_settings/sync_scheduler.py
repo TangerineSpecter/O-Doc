@@ -11,14 +11,15 @@ from pathlib import Path
 from django.db import OperationalError, ProgrammingError, close_old_connections
 from django.utils import timezone
 
+from utils.remote_storage import create_sync_manager
 from utils.sync_manager import SyncError, SyncManager
-from utils.webdav import WebDavClient
 from .models import SystemSetting
 
 logger = logging.getLogger(__name__)
 
 SYNC_RUNTIME_KEY = 'system_webdav_sync_runtime'
 RUNNING_STALE_MINUTES = 180
+STARTUP_SYNC_DELAY_MINUTES = 5
 
 
 def _env_flag(name, default='true'):
@@ -74,7 +75,7 @@ def update_runtime_state(**patch):
             key=SYNC_RUNTIME_KEY,
             defaults={
                 'value': current,
-                'description': 'WebDAV 自动同步运行时状态',
+                'description': '自动同步运行时状态',
             }
         )
     except (OperationalError, ProgrammingError):
@@ -86,6 +87,9 @@ def update_runtime_state(**patch):
 def _parse_runtime_datetime(value):
     if not value:
         return None
+
+    if isinstance(value, str) and value.endswith('Z'):
+        value = value[:-1] + '+00:00'
 
     try:
         parsed = datetime.fromisoformat(value)
@@ -103,6 +107,39 @@ def _parse_runtime_datetime(value):
         return timezone.make_naive(parsed, timezone.get_current_timezone())
 
     return parsed
+
+
+def should_pull_remote_before_push(runtime_state, remote_meta):
+    """
+    上传前只有在「确认远端被其他端更新过」时才先拉取。
+    本机尚未对齐过该目的地，或远端快照比本机上次成功更旧时，直接以本地为准上传。
+    """
+    if not remote_meta:
+        return False
+
+    remote_snapshot_id = remote_meta.get('snapshot_id') or ''
+    if not remote_snapshot_id:
+        return False
+
+    last_synced_snapshot_id = runtime_state.get('last_synced_snapshot_id') or ''
+    if not last_synced_snapshot_id:
+        return False
+
+    if remote_snapshot_id == last_synced_snapshot_id:
+        return False
+
+    if SyncManager.is_remote_version_older(remote_meta.get('app_version')):
+        return False
+
+    remote_generated_at = _parse_runtime_datetime(remote_meta.get('generated_at'))
+    local_anchor = (
+        _parse_runtime_datetime(runtime_state.get('last_push_at'))
+        or _parse_runtime_datetime(runtime_state.get('last_success_at'))
+    )
+    if remote_generated_at and local_anchor and remote_generated_at <= local_anchor:
+        return False
+
+    return True
 
 
 def is_sync_running(runtime_state=None):
@@ -130,12 +167,36 @@ def mark_sync_started(*, trigger, runner_id, initial_message):
         last_started_at=started_at,
         last_error='',
         last_summary=[initial_message],
+        cancel_requested=False,
     )
     return True, state
 
 
-def append_sync_message(message, max_items=50):
+def runner_owns_sync(runner_id):
+    if not runner_id:
+        return False
+    return get_runtime_state().get('runner_id') == runner_id
+
+
+def cancel_running_sync(reason='同步已取消'):
+    runtime_state = get_runtime_state()
+    if runtime_state.get('status') != 'running':
+        return False, runtime_state
+
+    state = update_runtime_state(
+        status='error',
+        last_error=reason,
+        cancel_requested=True,
+        runner_id='',
+        last_summary=(list(runtime_state.get('last_summary') or []) + [reason])[-50:],
+    )
+    return True, state
+
+
+def append_sync_message(message, max_items=50, runner_id=''):
     if not message:
+        return
+    if runner_id and not runner_owns_sync(runner_id):
         return
 
     runtime_state = get_runtime_state()
@@ -151,6 +212,7 @@ class WebDavAutoSyncScheduler:
         self._start_lock = threading.Lock()
         self._stop_event = threading.Event()
         self._run_lock = threading.Lock()
+        self._boot_at = None
         self.runner_id = f"{socket.gethostname()}:{os.getpid()}"
 
     @property
@@ -167,6 +229,7 @@ class WebDavAutoSyncScheduler:
                 return
 
             self._started = True
+            self._boot_at = timezone.now()
             self._thread = threading.Thread(
                 target=self._run_loop,
                 name='webdav-auto-sync',
@@ -203,6 +266,10 @@ class WebDavAutoSyncScheduler:
         if not config.get('enabled'):
             return
 
+        from utils.remote_storage import get_remote_path
+        if not get_remote_path(config):
+            return
+
         interval_minutes = self._parse_interval_minutes(config.get('interval', 30))
         runtime_state = self._get_runtime_state()
         if not self._is_due(runtime_state, interval_minutes):
@@ -231,12 +298,17 @@ class WebDavAutoSyncScheduler:
         if is_sync_running(runtime_state):
             return False
 
+        if self._boot_at is not None:
+            # 服务刚启动时先保留一段配置窗口，避免旧的内网备份地址立刻触发连接。
+            if timezone.now() - self._boot_at < timedelta(minutes=STARTUP_SYNC_DELAY_MINUTES):
+                return False
+
         last_success_at = self._parse_datetime(runtime_state.get('last_success_at'))
         last_started_at = self._parse_datetime(runtime_state.get('last_started_at'))
         anchor = last_success_at or last_started_at
 
         if anchor is None:
-            return True
+            return self._boot_at is not None
 
         return timezone.now() - anchor >= timedelta(minutes=interval_minutes)
 
@@ -247,12 +319,9 @@ class WebDavAutoSyncScheduler:
         update_runtime_state(**patch)
 
     def _build_sync_manager(self, config):
-        client = WebDavClient(config['url'], config['username'], config['password'])
-        remote_path = config.get('remote_path') or config.get('remotePath') or '/o-doc-sync/'
-        return SyncManager(client, remote_path)
+        return create_sync_manager(config)
 
-    @staticmethod
-    def _consume_stream(stream):
+    def _consume_stream(self, stream):
         messages = []
         for chunk in stream:
             if not chunk:
@@ -263,22 +332,27 @@ class WebDavAutoSyncScheduler:
                 continue
             if payload.get('msg'):
                 messages.append(payload['msg'])
-                append_sync_message(payload['msg'])
+                append_sync_message(payload['msg'], runner_id=self.runner_id)
             if payload.get('step') == 'error':
                 raise SyncError(payload.get('msg') or '自动同步失败')
         return messages
 
     def _sync_from_remote_snapshot(self, manager, remote_meta):
         messages = []
-        data_count = manager.sync_data_download()
+        data_count = manager.sync_data_download(
+            remote_meta=remote_meta,
+            should_abort=lambda: not runner_owns_sync(self.runner_id),
+        )
         messages.append(f"数据快照已恢复，共对齐 {data_count} 条记录")
-        append_sync_message(messages[-1])
+        append_sync_message(messages[-1], runner_id=self.runner_id)
 
-        file_count = manager.sync_assets_download()
+        file_count = manager.sync_assets_download(
+            should_abort=lambda: not runner_owns_sync(self.runner_id),
+        )
         messages.append(f"媒体资源已对齐，共下载/覆盖 {file_count} 个文件")
-        append_sync_message(messages[-1])
+        append_sync_message(messages[-1], runner_id=self.runner_id)
 
-        if remote_meta and remote_meta.get('snapshot_id'):
+        if remote_meta and remote_meta.get('snapshot_id') and runner_owns_sync(self.runner_id):
             snapshot_id = remote_meta['snapshot_id']
             now = timezone.now().isoformat()
             self._save_runtime_state(
@@ -300,6 +374,9 @@ class WebDavAutoSyncScheduler:
             return
 
         try:
+            if not runner_owns_sync(self.runner_id):
+                return
+
             manager = self._build_sync_manager(config)
             issues = manager.validate_upload_state()
             if issues:
@@ -307,21 +384,31 @@ class WebDavAutoSyncScheduler:
 
             remote_meta = manager.get_remote_snapshot_meta()
             manager.validate_remote_snapshot_version(remote_meta)
-            remote_snapshot_id = (remote_meta or {}).get('snapshot_id')
-            last_synced_snapshot_id = runtime_state.get('last_synced_snapshot_id')
+            if not runner_owns_sync(self.runner_id):
+                return
 
             messages = []
-            if remote_snapshot_id and remote_snapshot_id != last_synced_snapshot_id:
+            if should_pull_remote_before_push(runtime_state, remote_meta):
                 messages.append('检测到远端快照已更新，自动同步先执行拉取对齐。')
                 append_sync_message(messages[-1])
                 messages.extend(self._sync_from_remote_snapshot(manager, remote_meta))
 
-            messages.extend(self._consume_stream(manager.sync_assets_upload_stream()))
-            messages.extend(self._consume_stream(manager.sync_data_upload_stream()))
+            if not runner_owns_sync(self.runner_id):
+                return
+
+            messages.extend(self._consume_stream(manager.sync_assets_upload_stream(
+                should_abort=lambda: not runner_owns_sync(self.runner_id),
+            )))
+            messages.extend(self._consume_stream(manager.sync_data_upload_stream(
+                should_abort=lambda: not runner_owns_sync(self.runner_id),
+            )))
             snapshot_meta = manager.write_snapshot_meta(
                 source='scheduler',
                 runner_id=self.runner_id,
             )
+
+            if not runner_owns_sync(self.runner_id):
+                return
 
             self._save_runtime_state(
                 status='success',
@@ -336,6 +423,8 @@ class WebDavAutoSyncScheduler:
             )
             logger.info('WebDAV auto sync finished successfully')
         except Exception as exc:
+            if not runner_owns_sync(self.runner_id):
+                return
             self._save_runtime_state(
                 status='error',
                 trigger='scheduler',

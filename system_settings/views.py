@@ -1,6 +1,7 @@
 import json
 import os
 import secrets
+import tempfile
 import threading
 import tomllib
 from pathlib import Path
@@ -8,11 +9,12 @@ from types import SimpleNamespace
 
 import requests
 from django.db import transaction
-from django.http import StreamingHttpResponse
+from django.http import FileResponse, StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -20,13 +22,24 @@ from system_settings.sync_scheduler import (
     append_sync_message,
     generate_runner_id,
     get_runtime_state,
+    is_sync_running,
     mark_sync_started,
+    runner_owns_sync,
+    should_pull_remote_before_push,
     update_runtime_state,
 )
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result, valid_result
+from utils.remote_storage import (
+    create_sync_manager,
+    create_storage_client,
+    default_sync_config,
+    destination_signature,
+    normalize_sync_config,
+    public_sync_config,
+    validate_sync_config,
+)
 from utils.sync_manager import SyncError, SyncManager
-from utils.webdav import WebDavClient
 from .feishu_im import (
     FeishuIMError,
     handle_feishu_message_event,
@@ -1104,6 +1117,8 @@ class SystemConfigViewSet(viewsets.ViewSet):
             'get_system_mcp_config',
             'save_system_mcp_config',
             'regenerate_system_mcp_key',
+            'export_local_backup',
+            'import_local_backup',
         }:
             return [IsAuthenticated()]
         return super().get_permissions()
@@ -1164,20 +1179,27 @@ class SystemConfigViewSet(viewsets.ViewSet):
 
         yield SystemConfigViewSet._sync_event("init", "开始从云端拉取快照...")
 
-        data_count = manager.sync_data_download()
+        if not runner_owns_sync(runner_id):
+            raise SyncError('同步已取消')
+        data_count = manager.sync_data_download(
+            remote_meta=remote_meta,
+            should_abort=lambda: not runner_owns_sync(runner_id),
+        )
         yield SystemConfigViewSet._sync_event(
             "processing",
             f"数据快照已恢复，共对齐 {data_count} 条记录"
         )
 
-        file_count = manager.sync_assets_download()
+        file_count = manager.sync_assets_download(
+            should_abort=lambda: not runner_owns_sync(runner_id),
+        )
         yield SystemConfigViewSet._sync_event(
             "processing",
             f"媒体资源已对齐，共下载/覆盖 {file_count} 个文件"
         )
 
         snapshot_id = (remote_meta or {}).get('snapshot_id')
-        if snapshot_id:
+        if snapshot_id and runner_owns_sync(runner_id):
             now = timezone.now().isoformat()
             patch = {
                 'trigger': trigger,
@@ -1415,27 +1437,18 @@ class SystemConfigViewSet(viewsets.ViewSet):
             if not config.get('enabled'):
                 return None
 
-            client = WebDavClient(config['url'], config['username'], config['password'])
-            remote_path = config.get('remote_path') or config.get('remotePath') or '/o-doc-sync/'
-            return SyncManager(client, remote_path)
-        except SystemSetting.DoesNotExist:
+            return create_sync_manager(config)
+        except (SystemSetting.DoesNotExist, ValueError):
             return None
 
     @action(detail=False, methods=['get'])
     def get_webdav_config(self, request):
-        """获取 WebDAV 配置"""
+        """获取同步与备份配置"""
         config, _ = SystemSetting.objects.get_or_create(
             key='system_webdav_config',
-            defaults={'value': {
-                'enabled': False,
-                'url': '',
-                'username': '',
-                'password': '',
-                'remote_path': '/o-doc-backup/',
-                'interval': 30
-            }}
+            defaults={'value': default_sync_config()}
         )
-        return success_result(config.value)
+        return success_result(public_sync_config(config.value))
 
     @action(detail=False, methods=['get'])
     def get_webdav_status(self, request):
@@ -1443,33 +1456,139 @@ class SystemConfigViewSet(viewsets.ViewSet):
         return success_result(self._status_payload(runtime_state))
 
     @action(detail=False, methods=['post'])
-    def save_webdav_config(self, request):
-        """保存 WebDAV 配置"""
-        data = request.data
+    def export_local_backup(self, request):
+        if is_sync_running():
+            return error_result(ErrorCode.WEBDEV_ERROR, data='已有同步任务正在运行，请稍后再导出')
 
-        # 1. 简单校验
-        url = WebDavClient.normalize_base_url(data.get('url'))
-        username = data.get('username')
-        password = data.get('password')
-        if not all([url, username, password]):
-            return error_result()
-        data['url'] = url
+        runner_id = generate_runner_id('local-export')
+        zip_file = tempfile.NamedTemporaryFile(prefix='odoc-backup-', suffix='.zip', delete=False)
+        zip_path = zip_file.name
+        zip_file.close()
+        try:
+            manager = SyncManager()
+            manager.write_local_backup_zip(zip_path, source='local-export', runner_id=runner_id)
+        except Exception as exc:
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+            print(f'导出本地备份失败: {exc}')
+            return valid_result(msg=str(exc))
+
+        filename = f"o-doc-backup-{timezone.now().strftime('%Y%m%d-%H%M%S')}.zip"
+        response = FileResponse(open(zip_path, 'rb'), as_attachment=True, filename=filename)
+        response['Content-Type'] = 'application/zip'
+
+        def _cleanup():
+            try:
+                os.remove(zip_path)
+            except OSError:
+                pass
+
+        if hasattr(response, 'closed'):
+            original_close = response.close
+
+            def close():
+                original_close()
+                _cleanup()
+
+            response.close = close
+        return response
+
+    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
+    def import_local_backup(self, request):
+        upload = request.FILES.get('file')
+        if not upload:
+            return valid_result(msg='请选择要导入的备份压缩包')
+
+        runner_id = generate_runner_id('local-import')
+        acquired, _runtime = mark_sync_started(
+            trigger='local-import',
+            runner_id=runner_id,
+            initial_message='开始导入本地备份压缩包',
+        )
+        if not acquired:
+            return error_result(ErrorCode.WEBDEV_ERROR, data='已有同步任务正在运行，请稍后再导入')
+
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(prefix='odoc-import-', suffix='.zip', delete=False) as tmp:
+                tmp_path = tmp.name
+                for chunk in upload.chunks():
+                    tmp.write(chunk)
+
+            manager = SyncManager()
+            count, meta = manager.import_local_backup_zip(
+                tmp_path,
+                should_abort=lambda: not runner_owns_sync(runner_id),
+            )
+            if runner_owns_sync(runner_id):
+                update_runtime_state(
+                    status='success',
+                    trigger='local-import',
+                    runner_id=runner_id,
+                    last_success_at=timezone.now().isoformat(),
+                    last_error='',
+                )
+            return success_result({
+                'count': count,
+                'appVersion': (meta or {}).get('app_version', ''),
+            }, msg='本地备份已导入，当前数据已按压缩包全量覆盖')
+        except SyncError as exc:
+            if runner_owns_sync(runner_id):
+                update_runtime_state(status='error', trigger='local-import', runner_id=runner_id, last_error=str(exc))
+            return valid_result(msg=str(exc))
+        except Exception as exc:
+            if runner_owns_sync(runner_id):
+                update_runtime_state(status='error', trigger='local-import', runner_id=runner_id, last_error=str(exc))
+            print(f'导入本地备份失败: {exc}')
+            return error_result(ErrorCode.WEBDEV_DOWNLOAD_FAIL, data=str(exc))
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    @action(detail=False, methods=['post'])
+    def save_webdav_config(self, request):
+        """保存同步与备份配置，并测试远端连接。"""
+        try:
+            data = normalize_sync_config(request.data)
+            previous = SystemSetting.objects.filter(key='system_webdav_config').first()
+            previous_value = (previous.value if previous else {}) or {}
+            dest_changed = destination_signature(previous_value) != destination_signature(data)
+            if dest_changed:
+                data['host_key'] = ''
+            elif not data.get('host_key'):
+                data['host_key'] = previous_value.get('host_key') or ''
+            validate_sync_config(data)
+        except ValueError as exc:
+            return valid_result(msg=str(exc))
 
         try:
-            # 2. 实例化并测试连接
-            client = WebDavClient(url, username, password)
+            client = create_storage_client(data)
             if not client.check_connection():
-                raise Exception("验证失败，无法连接到 WebDAV 服务器")
+                raise Exception("验证失败，无法连接到备份服务器")
 
-            # 3. 保存
+            if dest_changed:
+                update_runtime_state(
+                    last_synced_snapshot_id='',
+                    last_uploaded_snapshot_id='',
+                    last_pulled_snapshot_id='',
+                )
+                from anthology.models import Book
+                Book.objects.filter(is_valid=True, remote_available=True).update(
+                    remote_available=False,
+                    remote_hash='',
+                )
+
+            captured_host_key = getattr(client, 'last_host_key', '') or ''
+            if isinstance(captured_host_key, str) and captured_host_key:
+                data['host_key'] = captured_host_key
+
             SystemSetting.objects.update_or_create(
                 key='system_webdav_config',
                 defaults={'value': data}
             )
             return success_result(msg="连接测试通过并保存成功")
         except Exception as e:
-            # 5. 捕获连接错误（如 401 Unauthorized, 404 Not Found, Connection Error）
-            print(f"WebDAV连接测试失败: {e}")
+            print(f"同步连接测试失败: {e}")
             return error_result(ErrorCode.WEBDEV_LOGIN_FAIL)
 
     @action(detail=False, methods=['post'])
@@ -1505,9 +1624,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
 
                 remote_meta = manager.get_remote_snapshot_meta()
                 manager.validate_remote_snapshot_version(remote_meta)
-                remote_snapshot_id = (remote_meta or {}).get('snapshot_id')
-                last_synced_snapshot_id = runtime_state.get('last_synced_snapshot_id')
-                if remote_snapshot_id and remote_snapshot_id != last_synced_snapshot_id:
+                if should_pull_remote_before_push(runtime_state, remote_meta):
                     yield from self._sync_from_remote(
                         manager=manager,
                         runtime_state=runtime_state,
@@ -1515,29 +1632,42 @@ class SystemConfigViewSet(viewsets.ViewSet):
                         runner_id=runner_id,
                         trigger='manual-preflight',
                     )
+                elif remote_meta and remote_meta.get('snapshot_id'):
+                    yield self._sync_event(
+                        "init",
+                        "远端快照不是更新的版本，本次上传以本地数据为准，不会先拉取远端。"
+                    )
 
                 yield self._sync_event(
                     "init",
                     "开始上传同步，当前会先同步资源文件，再写入数据快照，避免云端出现半同步状态。"
                 )
 
-                for chunk in manager.sync_assets_upload_stream():
+                for chunk in manager.sync_assets_upload_stream(
+                    should_abort=lambda: not runner_owns_sync(runner_id),
+                ):
                     try:
                         payload = json.loads(chunk.strip())
                         if payload.get('msg'):
-                            append_sync_message(payload['msg'])
+                            append_sync_message(payload['msg'], runner_id=runner_id)
                     except json.JSONDecodeError:
                         pass
                     yield chunk
 
-                for chunk in manager.sync_data_upload_stream():
+                for chunk in manager.sync_data_upload_stream(
+                    should_abort=lambda: not runner_owns_sync(runner_id),
+                ):
                     try:
                         payload = json.loads(chunk.strip())
                         if payload.get('msg'):
-                            append_sync_message(payload['msg'])
+                            append_sync_message(payload['msg'], runner_id=runner_id)
                     except json.JSONDecodeError:
                         pass
                     yield chunk
+
+                if not runner_owns_sync(runner_id):
+                    yield self._sync_event("error", "同步已取消")
+                    return
 
                 snapshot_meta = manager.write_snapshot_meta(
                     source='manual',
@@ -1555,11 +1685,11 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 )
                 yield self._sync_event("done", "✅ 所有同步已完成！")
             except SyncError as e:
-                if acquired:
+                if acquired and runner_owns_sync(runner_id):
                     update_runtime_state(status='error', trigger='manual', runner_id=runner_id, last_error=str(e))
                 yield self._sync_event("error", str(e))
             except Exception as e:
-                if acquired:
+                if acquired and runner_owns_sync(runner_id):
                     update_runtime_state(status='error', trigger='manual', runner_id=runner_id, last_error=str(e))
                 yield self._sync_event("error", f"同步失败：{str(e)}")
 
@@ -1569,8 +1699,8 @@ class SystemConfigViewSet(viewsets.ViewSet):
     def sync_from_webdav(self, request):
         """
         [下载/拉取]
-        1. 数据库：拉取云端数据合并到本地。
-        2. 资源：下载本地缺失的文件。
+        1. 数据库：用云端快照对齐本地（含删除快照中不存在的记录）。
+        2. 资源：下载本地缺失的文件，并清理快照外的本地文件。
         """
         manager = self._get_sync_manager()
         if not manager:
@@ -1598,6 +1728,9 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     runner_id=runner_id,
                     trigger='manual-pull',
                 )
+                if not runner_owns_sync(runner_id):
+                    yield self._sync_event("error", "同步已取消")
+                    return
                 update_runtime_state(
                     status='success',
                     trigger='manual-pull',
@@ -1607,11 +1740,11 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 )
                 yield self._sync_event("done", "✅ 云端同步完成，本地数据与资源已刷新")
             except SyncError as e:
-                if acquired:
+                if acquired and runner_owns_sync(runner_id):
                     update_runtime_state(status='error', trigger='manual-pull', runner_id=runner_id, last_error=str(e))
                 yield self._sync_event("error", str(e))
             except Exception as e:
-                if acquired:
+                if acquired and runner_owns_sync(runner_id):
                     update_runtime_state(status='error', trigger='manual-pull', runner_id=runner_id, last_error=str(e))
                 yield self._sync_event("error", ErrorCode.WEBDEV_DOWNLOAD_FAIL.message)
 

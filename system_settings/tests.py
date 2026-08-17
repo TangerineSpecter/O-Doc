@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import tempfile
+import zipfile
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -11,6 +12,9 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory
 
+from anthology.models import Anthology, Book
+from article.models import Image
+from assets.models import Asset
 from memos.models import Memo
 from system_settings.agent_memory import (
     get_or_create_im_session,
@@ -29,10 +33,24 @@ from system_settings.feishu_im import (
     _trim_to_estimated_tokens,
 )
 from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentLongTermMemory, AgentShortTermMemory, MCPServer, Skill, SystemSetting
-from system_settings.sync_scheduler import should_start_webdav_scheduler
+from system_settings.sync_scheduler import (
+    WebDavAutoSyncScheduler,
+    cancel_running_sync,
+    should_pull_remote_before_push,
+    should_start_webdav_scheduler,
+)
 from system_settings.views import AgentViewSet, SystemConfigViewSet
 from utils.ai_service import AIService
 from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
+from utils.ftp_client import FtpClient
+from utils.remote_storage import (
+    create_storage_client,
+    create_sync_manager,
+    destination_signature,
+    normalize_sync_config,
+    validate_sync_config,
+)
+from utils.sftp_client import SftpClient
 from utils.sync_manager import SyncError, SyncManager
 from utils.webdav import WebDavClient
 from user.models import UserProfile
@@ -200,6 +218,76 @@ class SyncManagerTests(TestCase):
         self.assertEqual(UserProfile.objects.get(userid='alice').user_id, alice.id)
         self.assertEqual(UserProfile.objects.get(userid='admin').user_id, local_admin.id)
 
+    def _create_book_asset(self, asset_id, rel_path, media_root, content=b'book-bytes'):
+        os.makedirs(os.path.join(media_root, os.path.dirname(rel_path)), exist_ok=True)
+        abs_path = os.path.join(media_root, rel_path)
+        with open(abs_path, 'wb') as file_obj:
+            file_obj.write(content)
+        return Asset.objects.create(
+            id=asset_id,
+            name=os.path.basename(rel_path),
+            original_name=os.path.basename(rel_path),
+            file_type='document',
+            file_size=len(content),
+            file_path=rel_path,
+            file_extension=os.path.splitext(rel_path)[1],
+            mime_type='application/pdf',
+            file_hash=asset_id,
+            source_type='other',
+        )
+
+    def test_sync_assets_upload_skips_already_backed_up_book(self):
+        anthology = Anthology.objects.create(coll_id='coll_books', title='书架', type='book')
+        client = FakeWebDavClient()
+        manager = SyncManager(client, '/o-doc-sync/')
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.settings(MEDIA_ROOT=media_root):
+                backed = self._create_book_asset('asset_backed', 'books/backed.pdf', media_root)
+                fresh = self._create_book_asset('asset_fresh', 'books/fresh.pdf', media_root)
+                Book.objects.create(
+                    book_id='book_backed', anthology=anthology, asset=backed,
+                    title='已备份', book_format='pdf',
+                    remote_available=True, remote_hash='asset_backed',
+                )
+                Book.objects.create(
+                    book_id='book_fresh', anthology=anthology, asset=fresh,
+                    title='新书', book_format='pdf',
+                )
+                list(manager.sync_assets_upload_stream())
+
+        uploaded_remotes = [remote for _local, remote in client.uploaded]
+        self.assertTrue(any(path.endswith('books/fresh.pdf') for path in uploaded_remotes))
+        self.assertFalse(any(path.endswith('books/backed.pdf') for path in uploaded_remotes))
+
+    def test_sync_assets_download_does_not_restore_released_book_body(self):
+        anthology = Anthology.objects.create(coll_id='coll_books', title='书架', type='book')
+        asset = Asset.objects.create(
+            id='asset_released',
+            name='released.pdf',
+            original_name='released.pdf',
+            file_type='document',
+            file_size=4,
+            file_path='books/released.pdf',
+            file_extension='.pdf',
+            mime_type='application/pdf',
+            file_hash='asset_released',
+            source_type='other',
+        )
+        Book.objects.create(
+            book_id='book_released', anthology=anthology, asset=asset,
+            title='已释放', book_format='pdf',
+            local_state='local', remote_available=True, remote_hash='asset_released',
+        )
+        client = FakeWebDavClient()
+        manager = SyncManager(client, '/o-doc-sync/')
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.settings(MEDIA_ROOT=media_root):
+                downloaded = manager.sync_assets_download()
+
+        self.assertEqual(downloaded, 0)
+        self.assertEqual(client.downloaded, [])
+        self.assertEqual(Book.objects.get(book_id='book_released').local_state, 'cloud_only')
+
     def test_sync_assets_download_includes_user_avatar(self):
         user = User.objects.create_user(username='admin', password='password')
         UserProfile.objects.create(user=user, userid='admin', avatar='/media/avatars/admin.png')
@@ -240,14 +328,14 @@ class SyncManagerTests(TestCase):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
 
         with patch.object(SyncManager, 'get_current_app_version', return_value='0.8.1'):
-            with self.assertRaisesMessage(SyncError, '请先将两端系统升级到同一版本'):
+            with self.assertRaisesMessage(SyncError, '请先升级本机后再同步'):
                 manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '0.9.0'})
 
     def test_validate_remote_snapshot_version_rejects_newer_patch_snapshot(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
 
         with patch.object(SyncManager, 'get_current_app_version', return_value='0.8.1'):
-            with self.assertRaisesMessage(SyncError, '请先将两端系统升级到同一版本'):
+            with self.assertRaisesMessage(SyncError, '请先升级本机后再同步'):
                 manager.validate_remote_snapshot_version({'snapshot_id': 'remote', 'app_version': '0.8.2'})
 
     def test_validate_remote_snapshot_version_rejects_missing_version(self):
@@ -255,6 +343,223 @@ class SyncManagerTests(TestCase):
 
         with self.assertRaisesMessage(SyncError, '远端快照缺少版本信息'):
             manager.validate_remote_snapshot_version({'snapshot_id': 'remote'})
+
+    def test_stale_cleanup_deletes_book_before_protected_asset(self):
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+        cleanup_models = manager._models_for_stale_cleanup()
+
+        self.assertLess(cleanup_models.index(Book), cleanup_models.index(Asset))
+
+    def test_sync_data_download_removes_stale_book_and_asset(self):
+        anthology = Anthology.objects.create(coll_id='coll_keep', title='书架', type='book')
+        stale_asset = Asset.objects.create(
+            id='asset_stale_book',
+            name='old.pdf',
+            original_name='old.pdf',
+            file_type='document',
+            file_size=1,
+            file_path='books/old.pdf',
+            file_extension='.pdf',
+            mime_type='application/pdf',
+            file_hash='hash-old',
+            source_type='other',
+        )
+        Book.objects.create(
+            book_id='book_stale',
+            anthology=anthology,
+            asset=stale_asset,
+            title='旧书',
+            book_format='pdf',
+            is_valid=False,
+        )
+        manager = SyncManager(
+            FakeWebDavClient(content=serializers.serialize('json', [anthology])),
+            '/o-doc-sync/',
+        )
+
+        manager.sync_data_download()
+
+        self.assertFalse(Book.objects.filter(book_id='book_stale').exists())
+        self.assertFalse(Asset.objects.filter(id='asset_stale_book').exists())
+        self.assertTrue(Anthology.objects.filter(coll_id='coll_keep').exists())
+
+    def test_sync_data_download_keeps_local_fields_missing_from_old_snapshot(self):
+        anthology = Anthology.objects.create(coll_id='coll_photos', title='相册', type='image')
+        image = Image.objects.create(
+            image_id='img_grouped',
+            title='组图',
+            image_url='/api/resource/view/asset_1',
+            coll_id=anthology.coll_id,
+            photo_group_id='group_keep',
+            group_index=2,
+        )
+        snapshot_item = json.loads(serializers.serialize('json', [image]))[0]
+        snapshot_item['fields'].pop('photo_group_id', None)
+        snapshot_item['fields'].pop('group_index', None)
+        snapshot_item['fields']['title'] = '远端旧标题'
+        manager = SyncManager(
+            FakeWebDavClient(content=json.dumps([snapshot_item])),
+            '/o-doc-sync/',
+        )
+
+        manager.sync_data_download()
+
+        image.refresh_from_db()
+        self.assertEqual(image.title, '远端旧标题')
+        self.assertEqual(image.photo_group_id, 'group_keep')
+        self.assertEqual(image.group_index, 2)
+
+    def test_older_snapshot_does_not_delete_new_local_book(self):
+        anthology = Anthology.objects.create(coll_id='coll_keep', title='书架', type='book')
+        new_anthology = Anthology.objects.create(coll_id='coll_new_books', title='新书架', type='book')
+        asset = Asset.objects.create(
+            id='asset_new_book',
+            name='new.pdf',
+            original_name='new.pdf',
+            file_type='document',
+            file_size=1,
+            file_path='books/new.pdf',
+            file_extension='.pdf',
+            mime_type='application/pdf',
+            file_hash='hash-new',
+            source_type='other',
+        )
+        Book.objects.create(
+            book_id='book_new',
+            anthology=new_anthology,
+            asset=asset,
+            title='新书',
+            book_format='pdf',
+        )
+        manager = SyncManager(
+            FakeWebDavClient(content=serializers.serialize('json', [anthology])),
+            '/o-doc-sync/',
+        )
+
+        with patch.object(SyncManager, 'get_current_app_version', return_value='0.9.2'):
+            manager.sync_data_download(remote_meta={'app_version': '0.8.1'})
+
+        self.assertTrue(Book.objects.filter(book_id='book_new').exists())
+        self.assertTrue(Anthology.objects.filter(coll_id='coll_new_books').exists())
+
+    def test_local_backup_zip_excludes_book_bodies(self):
+        anthology = Anthology.objects.create(coll_id='coll_books', title='书架', type='book')
+        manager = SyncManager()
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.settings(MEDIA_ROOT=media_root):
+                asset = self._create_book_asset('asset_zip_book', 'books/huge.pdf', media_root, content=b'x' * 1024)
+                Book.objects.create(
+                    book_id='book_zip', anthology=anthology, asset=asset,
+                    title='大书', book_format='pdf',
+                )
+                zip_path = os.path.join(media_root, 'backup.zip')
+                manager.write_local_backup_zip(zip_path)
+                with zipfile.ZipFile(zip_path) as archive:
+                    names = archive.namelist()
+        self.assertIn('data_index.json', names)
+        self.assertFalse(any(name.endswith('books/huge.pdf') for name in names))
+
+    def test_local_backup_zip_round_trip_overwrites_and_rejects_newer(self):
+        anthology = Anthology.objects.create(coll_id='coll_keep', title='旧文集', type='article')
+        Image.objects.create(
+            image_id='img_backup',
+            title='旧图',
+            image_url='/api/resource/view/a',
+            coll_id=anthology.coll_id,
+            photo_group_id='group_local',
+            group_index=3,
+        )
+        manager = SyncManager()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            zip_path = os.path.join(temp_dir, 'backup.zip')
+            with patch.object(SyncManager, 'get_current_app_version', return_value='0.8.0'):
+                manager.write_local_backup_zip(zip_path)
+            with zipfile.ZipFile(zip_path) as archive:
+                names = set(archive.namelist())
+                data_list = json.loads(archive.read('data_index.json'))
+                meta = json.loads(archive.read('snapshot_meta.json'))
+            self.assertIn('data_index.json', names)
+            self.assertIn('snapshot_meta.json', names)
+            for item in data_list:
+                if item.get('model') == 'article.image':
+                    item['fields'].pop('photo_group_id', None)
+                    item['fields'].pop('group_index', None)
+            with zipfile.ZipFile(zip_path, 'w') as archive:
+                archive.writestr('data_index.json', json.dumps(data_list))
+                archive.writestr('snapshot_meta.json', json.dumps(meta))
+
+            extra = Anthology.objects.create(coll_id='coll_new', title='新文集', type='book')
+            image = Image.objects.get(image_id='img_backup')
+            image.photo_group_id = 'group_after'
+            image.save(update_fields=['photo_group_id'])
+
+            with patch.object(SyncManager, 'get_current_app_version', return_value='0.9.2'):
+                manager.import_local_backup_zip(zip_path)
+
+            self.assertFalse(Anthology.objects.filter(coll_id='coll_new').exists())
+            restored = Image.objects.get(image_id='img_backup')
+            self.assertEqual(restored.title, '旧图')
+            self.assertEqual(restored.photo_group_id, '')
+
+            newer = os.path.join(temp_dir, 'newer.zip')
+            with zipfile.ZipFile(newer, 'w') as archive:
+                archive.writestr('data_index.json', '[]')
+                archive.writestr('snapshot_meta.json', json.dumps({
+                    'snapshot_id': 'n',
+                    'app_version': '1.0.0',
+                }))
+            with patch.object(SyncManager, 'get_current_app_version', return_value='0.9.2'):
+                with self.assertRaisesMessage(SyncError, '请先升级本机后再导入'):
+                    manager.import_local_backup_zip(newer)
+
+    def test_sync_skips_backup_settings(self):
+        from system_settings.models import SystemSetting
+
+        SystemSetting.objects.create(
+            key='system_webdav_config',
+            value={'protocol': 'sftp', 'host': 'sftp.example.com'},
+        )
+        SystemSetting.objects.create(
+            key='system_memos_push_config',
+            value={'enabled': True},
+        )
+        class CapturingClient(FakeWebDavClient):
+            def __init__(self):
+                super().__init__()
+                self.exported = []
+
+            def upload_file(self, local_path, remote_path):
+                if remote_path.endswith('data_index.json'):
+                    with open(local_path, 'r', encoding='utf-8') as file_obj:
+                        self.exported.append(json.load(file_obj))
+                return super().upload_file(local_path, remote_path)
+
+        client = CapturingClient()
+        manager = SyncManager(client, '/o-doc-sync/')
+        list(manager.sync_data_upload_stream())
+        exported = client.exported[-1]
+        exported_keys = {
+            item['pk'] for item in exported
+            if item['model'] == 'system_settings.systemsetting'
+        }
+        self.assertNotIn('system_webdav_config', exported_keys)
+        self.assertNotIn('system_webdav_sync_runtime', exported_keys)
+        self.assertIn('system_memos_push_config', exported_keys)
+
+        snapshot = [{
+            'model': 'system_settings.systemsetting',
+            'pk': 'system_webdav_config',
+            'fields': {
+                'value': {'protocol': 'webdav', 'url': 'https://old.example.com'},
+                'description': 'old',
+            },
+        }]
+        restore_manager = SyncManager(FakeWebDavClient(content=json.dumps(snapshot)), '/o-doc-sync/')
+        restore_manager.sync_data_download()
+
+        saved = SystemSetting.objects.get(key='system_webdav_config').value
+        self.assertEqual(saved.get('protocol'), 'sftp')
+        self.assertEqual(saved.get('host'), 'sftp.example.com')
 
 
 class WebDavClientTests(TestCase):
@@ -269,6 +574,201 @@ class WebDavClientTests(TestCase):
             WebDavClient.normalize_base_url('https://dav.example.com/dav/'),
             'https://dav.example.com/dav'
         )
+
+
+class RemoteStorageFactoryTests(TestCase):
+    def test_defaults_to_webdav(self):
+        with patch('utils.webdav.WebDavClient') as mock_cls:
+            mock_cls.normalize_base_url.side_effect = WebDavClient.normalize_base_url
+            create_storage_client({
+                'url': 'https://dav.example.com',
+                'username': 'demo',
+                'password': 'secret',
+            })
+        mock_cls.assert_called_once_with('https://dav.example.com', 'demo', 'secret')
+
+    def test_creates_ftp_client_with_default_port(self):
+        with patch('utils.ftp_client.FtpClient') as mock_cls:
+            create_storage_client({
+                'protocol': 'ftp',
+                'host': '192.168.1.8',
+                'username': 'demo',
+                'password': 'secret',
+            })
+        kwargs = mock_cls.call_args.kwargs
+        self.assertEqual(kwargs['host'], '192.168.1.8')
+        self.assertEqual(kwargs['port'], 21)
+        self.assertFalse(kwargs['use_tls'])
+
+    def test_parses_ftp_host_and_port_from_url(self):
+        with patch('utils.ftp_client.FtpClient') as mock_cls:
+            create_storage_client({
+                'protocol': 'ftp',
+                'url': 'ftp://nas.local:2121',
+                'username': 'demo',
+                'password': 'secret',
+            })
+        kwargs = mock_cls.call_args.kwargs
+        self.assertEqual(kwargs['host'], 'nas.local')
+        self.assertEqual(kwargs['port'], 2121)
+
+    def test_creates_sftp_client(self):
+        with patch('utils.sftp_client.SftpClient') as mock_cls:
+            create_storage_client({
+                'protocol': 'sftp',
+                'host': 'sftp.example.com',
+                'username': 'demo',
+                'private_key': '-----BEGIN OPENSSH PRIVATE KEY-----',
+            })
+        kwargs = mock_cls.call_args.kwargs
+        self.assertEqual(kwargs['host'], 'sftp.example.com')
+        self.assertEqual(kwargs['port'], 22)
+        self.assertIn('BEGIN OPENSSH PRIVATE KEY', kwargs['private_key'])
+
+    def test_sftp_requires_password_or_private_key(self):
+        with self.assertRaises(ValueError):
+            validate_sync_config(normalize_sync_config({
+                'protocol': 'sftp',
+                'host': 'sftp.example.com',
+                'username': 'demo',
+                'remote_path': '/backup/',
+            }))
+
+    def test_empty_remote_path_is_rejected(self):
+        with self.assertRaisesMessage(ValueError, '请填写远程路径'):
+            validate_sync_config(normalize_sync_config({
+                'url': 'https://dav.example.com',
+                'username': 'demo',
+                'password': 'secret',
+                'remote_path': '',
+            }))
+        with self.assertRaisesMessage(ValueError, '请填写远程路径'):
+            create_sync_manager({
+                'protocol': 'ftp',
+                'host': '192.168.1.8',
+                'username': 'demo',
+                'password': 'secret',
+                'remote_path': '',
+            })
+
+    def test_public_sync_config_exposes_camel_case_aliases(self):
+        from utils.remote_storage import public_sync_config
+        payload = public_sync_config({
+            'remote_path': '/custom/',
+            'use_tls': True,
+            'private_key': 'KEY',
+            'host_key': 'ssh-ed25519 AAAA',
+        })
+        self.assertEqual(payload['remotePath'], '/custom/')
+        self.assertTrue(payload['useTls'])
+        self.assertEqual(payload['privateKey'], 'KEY')
+        self.assertEqual(payload['hostKey'], 'ssh-ed25519 AAAA')
+
+    def test_destination_signature_ignores_password_changes(self):
+        old = {
+            'protocol': 'ftp',
+            'host': '192.168.1.8',
+            'port': 21,
+            'username': 'demo',
+            'password': 'old',
+            'remote_path': '/o-doc-backup/',
+        }
+        new = {**old, 'password': 'new'}
+        self.assertEqual(destination_signature(old), destination_signature(new))
+
+    def test_create_sync_manager_uses_remote_path(self):
+        with patch('utils.ftp_client.FtpClient'):
+            manager = create_sync_manager({
+                'protocol': 'ftp',
+                'host': '192.168.1.8',
+                'username': 'demo',
+                'password': 'secret',
+                'remotePath': '/custom-path/',
+            })
+        self.assertEqual(manager.base_path, '/custom-path')
+
+
+class FtpClientTests(TestCase):
+    @patch('utils.ftp_client.ftplib.FTP')
+    def test_check_connection_logs_in_and_sends_noop(self, mock_ftp_cls):
+        ftp = mock_ftp_cls.return_value
+        client = FtpClient('ftp.example.com', 21, 'demo', 'secret')
+        self.assertTrue(client.check_connection())
+        ftp.connect.assert_called_once_with('ftp.example.com', 21, timeout=300)
+        ftp.login.assert_called_once_with('demo', 'secret')
+        ftp.set_pasv.assert_called_once_with(True)
+        ftp.voidcmd.assert_called()
+
+    @patch('utils.ftp_client.ftplib.FTP_TLS')
+    def test_uses_tls_when_enabled(self, mock_ftp_tls_cls):
+        ftp = mock_ftp_tls_cls.return_value
+        client = FtpClient('ftp.example.com', 21, 'demo', 'secret', use_tls=True)
+        self.assertTrue(client.check_connection())
+        ftp.prot_p.assert_called_once()
+
+    @patch('utils.ftp_client.ftplib.FTP')
+    def test_list_directory_returns_child_names(self, mock_ftp_cls):
+        ftp = mock_ftp_cls.return_value
+        ftp.mlsd.return_value = [('.', {}), ('..', {}), ('data_index.json', {})]
+        client = FtpClient('ftp.example.com', 21, 'demo', 'secret')
+        self.assertEqual(client.list_directory('/o-doc-backup'), ['data_index.json'])
+
+    @patch('utils.ftp_client.ftplib.FTP')
+    def test_upload_and_download_use_binary_transfer(self, mock_ftp_cls):
+        ftp = mock_ftp_cls.return_value
+        client = FtpClient('ftp.example.com', 21, 'demo', 'secret')
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp.write(b'hello')
+            tmp_path = tmp.name
+        try:
+            self.assertTrue(client.upload_file(tmp_path, '/o-doc-backup/data_index.json'))
+            self.assertTrue(client.download_file('/o-doc-backup/data_index.json', tmp_path))
+        finally:
+            os.remove(tmp_path)
+        ftp.storbinary.assert_called_once()
+        ftp.retrbinary.assert_called_once()
+
+
+class SftpClientTests(TestCase):
+    @patch('utils.sftp_client.paramiko.SSHClient')
+    def test_check_connection_opens_sftp(self, mock_ssh_cls):
+        ssh = mock_ssh_cls.return_value
+        sftp = ssh.open_sftp.return_value
+        sftp.listdir.return_value = []
+        client = SftpClient('sftp.example.com', 22, 'demo', password='secret')
+        self.assertTrue(client.check_connection())
+        ssh.set_missing_host_key_policy.assert_called()
+        connect_kwargs = ssh.connect.call_args.kwargs
+        self.assertEqual(connect_kwargs['hostname'], 'sftp.example.com')
+        self.assertEqual(connect_kwargs['port'], 22)
+        self.assertEqual(connect_kwargs['username'], 'demo')
+        self.assertEqual(connect_kwargs['password'], 'secret')
+        sftp.listdir.assert_called()
+
+    @patch('utils.sftp_client.paramiko.SSHClient')
+    def test_list_directory_skips_dot_entries(self, mock_ssh_cls):
+        ssh = mock_ssh_cls.return_value
+        sftp = ssh.open_sftp.return_value
+        sftp.listdir.return_value = ['.', '..', 'media']
+        client = SftpClient('sftp.example.com', 22, 'demo', password='secret')
+        self.assertEqual(client.list_directory('/o-doc-backup'), ['media'])
+
+
+class SftpHostKeyTests(TestCase):
+    @patch('utils.sftp_client.paramiko.SSHClient')
+    def test_rejects_unknown_host_when_key_is_pinned(self, mock_ssh_cls):
+        ssh = mock_ssh_cls.return_value
+        ssh.connect.side_effect = Exception('Unknown host key')
+        client = SftpClient(
+            'sftp.example.com',
+            22,
+            'demo',
+            password='secret',
+            known_host_key='ssh-ed25519 AAAAPINNED',
+        )
+        with patch.object(client, '_load_known_host_key', return_value=type('K', (), {'get_name': lambda self: 'ssh-ed25519'})()):
+            self.assertFalse(client.check_connection())
+        ssh.set_missing_host_key_policy.assert_called()
 
 
 class AIServiceTests(TestCase):
@@ -875,11 +1375,143 @@ class SystemConfigViewSetTests(TestCase):
         )
 
         viewset = SystemConfigViewSet()
-        with patch('system_settings.views.WebDavClient'):
+        with patch('utils.webdav.WebDavClient'):
             manager = viewset._get_sync_manager()
 
         self.assertIsNotNone(manager)
         self.assertEqual(manager.base_path, '/custom-path')
+
+    def test_get_sync_manager_uses_ftp_protocol(self):
+        SystemSetting.objects.create(
+            key='system_webdav_config',
+            value={
+                'enabled': True,
+                'protocol': 'ftp',
+                'host': '192.168.1.8',
+                'username': 'demo',
+                'password': 'secret',
+                'remotePath': '/custom-path/',
+            }
+        )
+
+        viewset = SystemConfigViewSet()
+        with patch('utils.ftp_client.FtpClient'):
+            manager = viewset._get_sync_manager()
+
+        self.assertIsNotNone(manager)
+        self.assertEqual(manager.base_path, '/custom-path')
+
+    def test_save_webdav_config_resets_snapshot_when_destination_changes(self):
+        SystemSetting.objects.create(
+            key='system_webdav_config',
+            value={
+                'enabled': True,
+                'protocol': 'webdav',
+                'url': 'https://old.example.com',
+                'username': 'demo',
+                'password': 'secret',
+                'remote_path': '/o-doc-backup/',
+            }
+        )
+        SystemSetting.objects.create(
+            key='system_webdav_sync_runtime',
+            value={'last_synced_snapshot_id': 'keep-me'}
+        )
+
+        request = self.factory.post('/api/settings/config/save_webdav_config/', {
+            'enabled': True,
+            'protocol': 'ftp',
+            'host': '192.168.1.8',
+            'username': 'demo',
+            'password': 'secret',
+            'remote_path': '/o-doc-backup/',
+        }, format='json')
+        view = SystemConfigViewSet.as_view({'post': 'save_webdav_config'})
+        with patch('system_settings.views.create_storage_client') as mock_factory:
+            mock_factory.return_value.check_connection.return_value = True
+            response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
+        self.assertEqual(runtime.get('last_synced_snapshot_id'), '')
+        saved = SystemSetting.objects.get(key='system_webdav_config').value
+        self.assertEqual(saved.get('protocol'), 'ftp')
+        self.assertEqual(saved.get('host'), '192.168.1.8')
+
+    def test_save_webdav_config_clears_book_remote_flags_on_destination_change(self):
+        anthology = Anthology.objects.create(coll_id='coll_books', title='书架', type='book')
+        asset = Asset.objects.create(
+            id='asset_switch',
+            name='book.pdf',
+            original_name='book.pdf',
+            file_type='document',
+            file_size=1,
+            file_path='books/book.pdf',
+            file_extension='.pdf',
+            mime_type='application/pdf',
+            file_hash='hash-switch',
+            source_type='other',
+        )
+        Book.objects.create(
+            book_id='book_switch',
+            anthology=anthology,
+            asset=asset,
+            title='已备份书',
+            book_format='pdf',
+            remote_available=True,
+            remote_hash='hash-switch',
+        )
+        SystemSetting.objects.create(
+            key='system_webdav_config',
+            value={
+                'enabled': True,
+                'protocol': 'webdav',
+                'url': 'https://old.example.com',
+                'username': 'demo',
+                'password': 'secret',
+                'remote_path': '/old-path/',
+            }
+        )
+        request = self.factory.post('/api/settings/config/save_webdav_config/', {
+            'enabled': True,
+            'protocol': 'sftp',
+            'host': 'sftp.example.com',
+            'username': 'demo',
+            'password': 'secret',
+            'remote_path': '/new-path/',
+        }, format='json')
+        view = SystemConfigViewSet.as_view({'post': 'save_webdav_config'})
+        with patch('system_settings.views.create_storage_client') as mock_factory:
+            mock_factory.return_value.check_connection.return_value = True
+            mock_factory.return_value.last_host_key = 'ssh-ed25519 AAAANEW'
+            response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        book = Book.objects.get(book_id='book_switch')
+        self.assertFalse(book.remote_available)
+        self.assertEqual(book.remote_hash, '')
+        saved = SystemSetting.objects.get(key='system_webdav_config').value
+        self.assertEqual(saved.get('host_key'), 'ssh-ed25519 AAAANEW')
+
+    def test_cancel_webdav_sync_unlocks_running_state(self):
+        SystemSetting.objects.create(
+            key='system_webdav_sync_runtime',
+            value={
+                'status': 'running',
+                'runner_id': 'scheduler:host:1',
+                'trigger': 'scheduler',
+                'last_started_at': timezone.now().isoformat(),
+            }
+        )
+        request = self.factory.post('/api/settings/config/cancel_webdav_sync/')
+        view = SystemConfigViewSet.as_view({'post': 'cancel_webdav_sync'})
+        response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['data']['status'], 'error')
+        runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
+        self.assertEqual(runtime.get('status'), 'error')
+        self.assertEqual(runtime.get('runner_id'), '')
 
     def test_get_webdav_status_returns_runtime_state(self):
         SystemSetting.objects.create(
@@ -907,8 +1539,8 @@ class SystemConfigViewSetTests(TestCase):
         fake_manager = type('FakeManager', (), {
             'get_remote_snapshot_meta': lambda self: {'snapshot_id': 'snapshot-remote', 'app_version': '0.7.0'},
             'validate_remote_snapshot_version': lambda self, remote_meta: None,
-            'sync_data_download': lambda self: 3,
-            'sync_assets_download': lambda self: 2,
+            'sync_data_download': lambda self, remote_meta=None, should_abort=None: 3,
+            'sync_assets_download': lambda self, should_abort=None: 2,
         })()
 
         with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=fake_manager):
@@ -937,24 +1569,28 @@ class SystemConfigViewSetTests(TestCase):
                 return []
 
             def get_remote_snapshot_meta(self):
-                return {'snapshot_id': 'snapshot-new', 'app_version': '0.7.0'}
+                return {
+                    'snapshot_id': 'snapshot-new',
+                    'app_version': SyncManager.get_current_app_version(),
+                    'generated_at': (timezone.now() + timedelta(hours=1)).isoformat(),
+                }
 
             def validate_remote_snapshot_version(self, remote_meta):
                 return None
 
-            def sync_data_download(self):
+            def sync_data_download(self, remote_meta=None, should_abort=None):
                 call_order.append('pull-data')
                 return 3
 
-            def sync_assets_download(self):
+            def sync_assets_download(self, should_abort=None):
                 call_order.append('pull-assets')
                 return 2
 
-            def sync_assets_upload_stream(self):
+            def sync_assets_upload_stream(self, should_abort=None):
                 call_order.append('push-assets')
                 yield json.dumps({"step": "summary", "msg": "资源文件同步完成"})
 
-            def sync_data_upload_stream(self):
+            def sync_data_upload_stream(self, should_abort=None):
                 call_order.append('push-data')
                 yield json.dumps({"step": "data_done", "msg": "数据库备份完成"})
 
@@ -976,6 +1612,111 @@ class SystemConfigViewSetTests(TestCase):
         self.assertTrue(any('先拉取远端数据再继续同步' in event['msg'] for event in events))
         runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
         self.assertEqual(runtime['last_synced_snapshot_id'], 'snapshot-after-push')
+
+    def test_sync_to_webdav_rejects_newer_remote_version_without_pushing(self):
+        request = self.factory.post('/api/settings/config/sync_to_webdav/')
+        view = SystemConfigViewSet.as_view({'post': 'sync_to_webdav'})
+        call_order = []
+
+        class FakeManager:
+            def validate_upload_state(self):
+                return []
+
+            def get_remote_snapshot_meta(self):
+                return {
+                    'snapshot_id': 'snapshot-new-version',
+                    'app_version': '0.9.3',
+                    'generated_at': '2026-08-17T12:00:00Z',
+                }
+
+            def validate_remote_snapshot_version(self, remote_meta):
+                SyncManager(FakeWebDavClient(), '/o-doc-sync/').validate_remote_snapshot_version(remote_meta)
+
+            def sync_data_download(self, remote_meta=None, should_abort=None):
+                call_order.append('pull-data')
+                return 3
+
+            def sync_assets_download(self, should_abort=None):
+                call_order.append('pull-assets')
+                return 2
+
+            def sync_assets_upload_stream(self, should_abort=None):
+                call_order.append('push-assets')
+                yield json.dumps({"step": "summary", "msg": "资源文件同步完成"})
+
+            def sync_data_upload_stream(self, should_abort=None):
+                call_order.append('push-data')
+                yield json.dumps({"step": "data_done", "msg": "数据库备份完成"})
+
+        with patch.object(SyncManager, 'get_current_app_version', return_value='0.8.1'):
+            with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=FakeManager()):
+                response = view(request)
+                events = [
+                    json.loads(chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk)
+                    for chunk in response.streaming_content
+                ]
+
+        self.assertEqual(call_order, [])
+        self.assertEqual(events[0]['step'], 'error')
+        self.assertIn('请先升级本机后再同步', events[0]['msg'])
+
+    def test_sync_to_webdav_skips_stale_remote_preflight_pull(self):
+        request = self.factory.post('/api/settings/config/sync_to_webdav/')
+        view = SystemConfigViewSet.as_view({'post': 'sync_to_webdav'})
+
+        SystemSetting.objects.create(
+            key='system_webdav_sync_runtime',
+            value={
+                'last_synced_snapshot_id': '',
+                'last_push_at': '2026-08-17T15:00:00+00:00',
+            }
+        )
+
+        call_order = []
+
+        class FakeManager:
+            def validate_upload_state(self):
+                return []
+
+            def get_remote_snapshot_meta(self):
+                return {
+                    'snapshot_id': 'snapshot-old-remote',
+                    'app_version': '0.7.0',
+                    'generated_at': '2026-07-01T00:00:00Z',
+                }
+
+            def validate_remote_snapshot_version(self, remote_meta):
+                return None
+
+            def sync_data_download(self, remote_meta=None, should_abort=None):
+                call_order.append('pull-data')
+                return 3
+
+            def sync_assets_download(self, should_abort=None):
+                call_order.append('pull-assets')
+                return 2
+
+            def sync_assets_upload_stream(self, should_abort=None):
+                call_order.append('push-assets')
+                yield json.dumps({"step": "summary", "msg": "资源文件同步完成"})
+
+            def sync_data_upload_stream(self, should_abort=None):
+                call_order.append('push-data')
+                yield json.dumps({"step": "data_done", "msg": "数据库备份完成"})
+
+            def write_snapshot_meta(self, source='manual', runner_id=''):
+                call_order.append('write-meta')
+                return {'snapshot_id': 'snapshot-after-push'}
+
+        with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=FakeManager()):
+            response = view(request)
+
+        events = [
+            json.loads(chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk)
+            for chunk in response.streaming_content
+        ]
+        self.assertEqual(call_order, ['push-assets', 'push-data', 'write-meta'])
+        self.assertTrue(any('以本地数据为准' in event['msg'] for event in events))
 
     def test_sync_to_webdav_rejects_when_another_sync_is_running(self):
         request = self.factory.post('/api/settings/config/sync_to_webdav/')
@@ -1005,6 +1746,46 @@ class SystemConfigViewSetTests(TestCase):
         self.assertIn('已有同步任务正在运行', events[0]['msg'])
 
 
+class PullBeforePushDecisionTests(TestCase):
+    def test_skips_when_this_destination_has_not_been_synced(self):
+        self.assertFalse(should_pull_remote_before_push(
+            {'last_synced_snapshot_id': ''},
+            {'snapshot_id': 'remote-old', 'generated_at': '2026-07-01T00:00:00Z'},
+        ))
+
+    def test_skips_when_remote_snapshot_is_older_than_last_push(self):
+        self.assertFalse(should_pull_remote_before_push(
+            {
+                'last_synced_snapshot_id': 'local-snapshot',
+                'last_push_at': '2026-08-17T15:00:00+00:00',
+            },
+            {'snapshot_id': 'remote-old', 'generated_at': '2026-07-01T00:00:00Z'},
+        ))
+
+    def test_pulls_when_another_instance_updated_remote(self):
+        self.assertTrue(should_pull_remote_before_push(
+            {
+                'last_synced_snapshot_id': 'local-snapshot',
+                'last_push_at': '2026-08-01T00:00:00+00:00',
+            },
+            {'snapshot_id': 'remote-new', 'generated_at': '2026-08-17T12:00:00Z'},
+        ))
+
+    def test_skips_when_remote_app_version_is_older(self):
+        with patch.object(SyncManager, 'get_current_app_version', return_value='0.9.2'):
+            self.assertFalse(should_pull_remote_before_push(
+                {
+                    'last_synced_snapshot_id': 'local-snapshot',
+                    'last_push_at': '2026-08-01T00:00:00+00:00',
+                },
+                {
+                    'snapshot_id': 'remote-new',
+                    'generated_at': '2026-08-17T12:00:00Z',
+                    'app_version': '0.8.1',
+                },
+            ))
+
+
 class WebDavSchedulerTests(TestCase):
     def test_scheduler_does_not_start_for_tests_by_default(self):
         with patch.object(sys, 'argv', ['manage.py', 'test']):
@@ -1020,3 +1801,42 @@ class WebDavSchedulerTests(TestCase):
         with patch.object(sys, 'argv', ['/usr/local/bin/gunicorn']):
             with patch.dict(os.environ, {}, clear=False):
                 self.assertTrue(should_start_webdav_scheduler())
+
+    def test_auto_sync_skips_when_remote_path_missing(self):
+        SystemSetting.objects.create(
+            key='system_webdav_config',
+            value={'enabled': True, 'protocol': 'webdav', 'url': 'https://dav.example.com', 'remote_path': ''},
+        )
+        scheduler = WebDavAutoSyncScheduler()
+        scheduler._boot_at = timezone.now() - timedelta(hours=1)
+        with patch.object(scheduler, '_run_sync') as run_sync:
+            scheduler._maybe_run_sync()
+        run_sync.assert_not_called()
+
+    def test_auto_sync_is_not_due_immediately_after_boot(self):
+        scheduler = WebDavAutoSyncScheduler()
+        scheduler._boot_at = timezone.now()
+        self.assertFalse(scheduler._is_due({}, 30))
+        self.assertFalse(scheduler._is_due({
+            'last_success_at': (timezone.now() - timedelta(hours=2)).isoformat(),
+        }, 30))
+
+    def test_auto_sync_becomes_due_after_boot_grace(self):
+        scheduler = WebDavAutoSyncScheduler()
+        scheduler._boot_at = timezone.now() - timedelta(minutes=6)
+        self.assertTrue(scheduler._is_due({}, 30))
+
+    def test_cancel_running_sync_releases_lock(self):
+        SystemSetting.objects.create(
+            key='system_webdav_sync_runtime',
+            value={
+                'status': 'running',
+                'runner_id': 'scheduler:host:1',
+                'last_started_at': timezone.now().isoformat(),
+            }
+        )
+        cancelled, runtime = cancel_running_sync()
+        self.assertTrue(cancelled)
+        self.assertEqual(runtime.get('status'), 'error')
+        self.assertEqual(runtime.get('runner_id'), '')
+        self.assertIn('同步已取消', runtime.get('last_error'))

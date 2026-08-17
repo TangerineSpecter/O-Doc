@@ -163,6 +163,10 @@ DATABASES = {
     'default': build_database_config()
 }
 
+# 本地备份压缩包不含图书正文，但仍可能含大量图片；实际上传走临时文件。
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('ODOC_MAX_BACKUP_UPLOAD_BYTES', str(8 * 1024 * 1024 * 1024)))
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 

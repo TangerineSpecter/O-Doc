@@ -1,4 +1,5 @@
 import request from '../utils/request';
+import {getAuthToken} from '../utils/authStorage';
 import type {
     ModelType,
     AgentLongTermMemoryConfig,
@@ -20,6 +21,7 @@ import type {
     MemosPushConfig,
     SystemAIConfig,
     ImageUploadConfig,
+    SyncProtocol,
     WebDavConfig,
     WebDavSyncStatus,
     RuntimeInfo,
@@ -57,6 +59,7 @@ export type {
     MemosPushConfig,
     SystemAIConfig,
     ImageUploadConfig,
+    SyncProtocol,
     WebDavConfig,
     WebDavSyncStatus,
     RuntimeInfo,
@@ -261,13 +264,35 @@ export const getWebDavConfig = () => request.get<WebDavConfig>('/settings/config
 export const getWebDavStatus = () => request.get<WebDavSyncStatus>('/settings/config/get_webdav_status/');
 
 // 2. 测试连接并保存配置
-export const saveWebDavConfig = (data: WebDavConfig) => request.post('/settings/config/save_webdav_config/', data);
+export const saveWebDavConfig = (data: WebDavConfig) => request.post('/settings/config/save_webdav_config/', data, {timeout: 30000});
 
 // 3. 触发上传 (备份到 WebDAV)
 export const syncToWebDav = () => request.post<any, { msg: string }>('/settings/config/sync_to_webdav/');
 
 // 4. 触发下载 (从 WebDAV 恢复)
 export const syncFromWebDav = () => request.post<any, { msg: string }>('/settings/config/sync_from_webdav/');
+
+export const downloadLocalBackupFile = async () => {
+    const token = getAuthToken();
+    const response = await fetch('/api/settings/config/export_local_backup/', {
+        method: 'POST',
+        headers: token ? {Authorization: `Token ${token}`} : {},
+    });
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok || contentType.includes('application/json')) {
+        const payload = contentType.includes('application/json') ? await response.json() : {};
+        throw new Error(payload.msg || payload.data || '导出失败');
+    }
+    const blob = await response.blob();
+    const match = /filename="?([^"]+)"?/i.exec(response.headers.get('content-disposition') || '');
+    return {blob, filename: match?.[1] || 'o-doc-backup.zip'};
+};
+
+export const importLocalBackup = (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request.post<any, {count: number, appVersion: string}>('/settings/config/import_local_backup/', form, {timeout: 0});
+};
 
 export const getGeoLocations = () => request.get<any, GeoLocation[]>('/settings/locations/');
 
