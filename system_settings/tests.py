@@ -67,6 +67,12 @@ class FakeWebDavClient:
     def ensure_directory(self, remote_dir):
         self.directories.add(remote_dir)
 
+    def try_create_directory(self, remote_dir):
+        if remote_dir in self.directories:
+            return False
+        self.directories.add(remote_dir)
+        return True
+
     def upload_file(self, local_path, remote_path):
         self.uploaded.append((local_path, remote_path))
         return True
@@ -86,6 +92,60 @@ class FakeWebDavClient:
 
     def delete_path(self, remote_path):
         self.deleted.append(remote_path)
+        return True
+
+
+class MemoryStorageClient:
+    """用于验证 v2 不可变快照的最小远端文件系统实现。"""
+    def __init__(self):
+        self.files = {}
+        self.directories = set()
+
+    def ensure_directory(self, remote_dir):
+        self.directories.add(remote_dir.rstrip('/'))
+
+    def try_create_directory(self, remote_dir):
+        remote_dir = remote_dir.rstrip('/')
+        if remote_dir in self.directories:
+            return False
+        self.directories.add(remote_dir)
+        return True
+
+    def upload_file(self, local_path, remote_path):
+        with open(local_path, 'rb') as file_obj:
+            self.files[remote_path] = file_obj.read()
+        return True
+
+    def get_file_content(self, remote_path):
+        content = self.files.get(remote_path)
+        return content.decode('utf-8') if content is not None else None
+
+    def download_file(self, remote_path, local_path):
+        content = self.files.get(remote_path)
+        if content is None:
+            return False
+        with open(local_path, 'wb') as file_obj:
+            file_obj.write(content)
+        return True
+
+    def exists(self, remote_path):
+        return remote_path in self.files or remote_path.rstrip('/') in self.directories
+
+    def list_directory(self, remote_dir):
+        prefix = remote_dir.rstrip('/') + '/'
+        entries = set()
+        for path in [*self.files, *self.directories]:
+            if not path.startswith(prefix):
+                continue
+            remainder = path[len(prefix):]
+            if remainder:
+                entries.add(remainder.split('/', 1)[0])
+        return sorted(entries) if entries else ([] if remote_dir.rstrip('/') in self.directories else None)
+
+    def delete_path(self, remote_path):
+        remote_path = remote_path.rstrip('/')
+        self.files.pop(remote_path, None)
+        self.directories.discard(remote_path)
         return True
 
 
@@ -111,6 +171,94 @@ class FakeMemoryCollection:
 
 
 class SyncManagerTests(TestCase):
+    def test_v2_three_way_merge_keeps_each_device_new_record(self):
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+        base_item = {'model': 'anthology.anthology', 'pk': 'A', 'fields': {'title': 'A'}}
+        local_item = {'model': 'anthology.anthology', 'pk': 'B', 'fields': {'title': 'B'}}
+        remote_item = {'model': 'anthology.anthology', 'pk': 'C', 'fields': {'title': 'C'}}
+        base = {'data': [base_item], 'revisions': {
+            'anthology.anthology:A': {'hash': 'a', 'revision_at': '2026-01-01T00:00:00+00:00', 'origin_device': 'base', 'deleted': False},
+        }}
+        local_revisions = {
+            'anthology.anthology:A': base['revisions']['anthology.anthology:A'],
+            'anthology.anthology:B': {'hash': 'b', 'revision_at': '2026-01-02T00:00:00+00:00', 'origin_device': 'local', 'deleted': False},
+        }
+        remote = {'data': [base_item, remote_item], 'revisions': {
+            **base['revisions'],
+            'anthology.anthology:C': {'hash': 'c', 'revision_at': '2026-01-03T00:00:00+00:00', 'origin_device': 'remote', 'deleted': False},
+        }}
+        merged, _revisions, summary = manager.merge_v2_data(base, [base_item, local_item], local_revisions, remote)
+        self.assertEqual({item['pk'] for item in merged}, {'A', 'B', 'C'})
+        self.assertEqual(summary['conflicts'], 0)
+
+    def test_v2_delete_edit_conflict_keeps_edit(self):
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+        item = {'model': 'anthology.anthology', 'pk': 'B', 'fields': {'title': 'old'}}
+        edited = {'model': 'anthology.anthology', 'pk': 'B', 'fields': {'title': 'edited'}}
+        base_revision = {'hash': 'old', 'revision_at': '2026-01-01T00:00:00+00:00', 'origin_device': 'base', 'deleted': False}
+        local_revision = {'hash': 'edited', 'revision_at': '2026-01-02T00:00:00+00:00', 'origin_device': 'local', 'deleted': False}
+        remote_revision = {'hash': 'old', 'revision_at': '2026-01-03T00:00:00+00:00', 'origin_device': 'remote', 'deleted': True}
+        merged, revisions, _summary = manager.merge_v2_data(
+            {'data': [item], 'revisions': {'anthology.anthology:B': base_revision}},
+            [edited], {'anthology.anthology:B': local_revision},
+            {'data': [], 'revisions': {'anthology.anthology:B': remote_revision}},
+        )
+        self.assertEqual(merged, [edited])
+        self.assertFalse(revisions['anthology.anthology:B']['deleted'])
+
+    def test_v2_delete_unchanged_writes_tombstone(self):
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+        item = {'model': 'anthology.anthology', 'pk': 'B', 'fields': {'title': 'old'}}
+        base_revision = {'hash': 'old', 'revision_at': '2026-01-01T00:00:00+00:00', 'origin_device': 'base', 'deleted': False}
+        tombstone = {'hash': 'old', 'revision_at': '2026-01-02T00:00:00+00:00', 'origin_device': 'remote', 'deleted': True}
+        merged, revisions, summary = manager.merge_v2_data(
+            {'data': [item], 'revisions': {'anthology.anthology:B': base_revision}},
+            [item], {'anthology.anthology:B': base_revision},
+            {'data': [], 'revisions': {'anthology.anthology:B': tombstone}},
+        )
+        self.assertEqual(merged, [])
+        self.assertTrue(revisions['anthology.anthology:B']['deleted'])
+        self.assertEqual(summary['deleted'], 1)
+
+    def test_v2_same_timestamp_uses_device_id_as_stable_tiebreaker(self):
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+        local = {'hash': 'local', 'revision_at': '2026-01-02T00:00:00+00:00', 'origin_device': 'device-a', 'deleted': False}
+        remote = {'hash': 'remote', 'revision_at': '2026-01-02T00:00:00+00:00', 'origin_device': 'device-z', 'deleted': False}
+        self.assertEqual(manager._revision_winner(local, remote), remote)
+
+    def test_v2_uses_username_as_cross_device_user_identity(self):
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+        local = {'model': 'auth.user', 'pk': 1, 'fields': {'username': 'alice'}}
+        remote = {'model': 'auth.user', 'pk': 9, 'fields': {'username': 'alice'}}
+        base_revision = {'hash': 'old', 'revision_at': '2026-01-01T00:00:00+00:00', 'origin_device': 'base', 'deleted': False}
+        local_revision = {'hash': 'local', 'revision_at': '2026-01-02T00:00:00+00:00', 'origin_device': 'local', 'deleted': False}
+        remote_revision = {'hash': 'remote', 'revision_at': '2026-01-03T00:00:00+00:00', 'origin_device': 'remote', 'deleted': False}
+        key = 'auth.user:username:alice'
+        merged, _revisions, summary = manager.merge_v2_data(
+            {'data': [local], 'revisions': {key: base_revision}}, [local], {key: local_revision},
+            {'data': [remote], 'revisions': {key: remote_revision}},
+        )
+        self.assertEqual(merged, [remote])
+        self.assertEqual(summary['conflicts'], 1)
+
+    def test_v2_remote_lock_excludes_another_device(self):
+        client = MemoryStorageClient()
+        first = SyncManager(client, '/o-doc-sync/')
+        second = SyncManager(client, '/o-doc-sync/')
+        with first._remote_sync_lock('first'):
+            with self.assertRaises(SyncError):
+                with second._remote_sync_lock('second'):
+                    pass
+
+    def test_v2_history_retains_only_ten_complete_snapshots(self):
+        client = MemoryStorageClient()
+        manager = SyncManager(client, '/o-doc-sync/')
+        for _ in range(11):
+            manager.publish_v2_snapshot(source='test', data_list=[], revisions={})
+        history = manager.list_v2_history()
+        self.assertEqual(len(history), 10)
+        pointer = json.loads(client.get_file_content(manager.v2_current_file))
+        self.assertIn(pointer['snapshot_id'], {item['snapshot_id'] for item in history})
     def test_validate_upload_state_reports_missing_asset_file(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
         with patch.object(

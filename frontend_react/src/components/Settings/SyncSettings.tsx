@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {AlertCircle, Archive, CheckCircle2, Clock3, DownloadCloud, HardDrive, Loader2, Play, Save, Terminal, UploadCloud} from 'lucide-react';
-import {downloadLocalBackupFile, importLocalBackup, saveWebDavConfig, SyncProtocol, WebDavConfig, WebDavSyncStatus} from '@/api/setting.ts';
+import {downloadLocalBackupFile, getSyncHistory, importLocalBackup, restoreSyncHistory, saveWebDavConfig, SyncHistoryEntry, SyncProtocol, WebDavConfig, WebDavSyncStatus} from '@/api/setting.ts';
 import {getAuthToken} from '@/utils/authStorage';
 import {Select} from '../common/Select';
 import {useToast} from '../common/ToastProvider';
@@ -53,6 +53,8 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
     const [isImporting, setIsImporting] = useState(false);
     const [logs, setLogs] = useState<string[]>([]);    // 存储控制台日志
     const [progress, setProgress] = useState(0);       // 存储进度百分比
+    const [history, setHistory] = useState<SyncHistoryEntry[]>([]);
+    const [isRestoringHistory, setIsRestoringHistory] = useState('');
     const importInputRef = useRef<HTMLInputElement>(null);
 
     // 自动滚动到底部的 Ref
@@ -75,6 +77,18 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
 
     const isServerSyncing = status.status === 'running';
     const isTransferBusy = isSyncing || isServerSyncing;
+
+    const refreshHistory = async () => {
+        try {
+            setHistory((await getSyncHistory()) as unknown as SyncHistoryEntry[]);
+        } catch {
+            setHistory([]);
+        }
+    };
+
+    useEffect(() => {
+        if (config.enabled) refreshHistory();
+    }, [config.enabled]);
 
     useEffect(() => {
         if (!isServerSyncing || isSyncing || !status.lastSummary?.length) {
@@ -217,6 +231,20 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
             error(err.response?.data?.msg || err.message || '导入备份失败');
         } finally {
             setIsImporting(false);
+        }
+    };
+
+    const handleRestoreHistory = async (snapshot: SyncHistoryEntry) => {
+        if (!window.confirm(`恢复 ${formatDateTime(snapshot.generatedAt)} 的历史快照会用该版本替换当前数据；系统会先创建完整本机安全快照。确定继续？`)) return;
+        setIsRestoringHistory(snapshot.snapshotId);
+        try {
+            await restoreSyncHistory(snapshot.snapshotId);
+            success('历史快照已恢复，即将刷新页面');
+            setTimeout(() => window.location.reload(), 1200);
+        } catch (err: any) {
+            error(err.response?.data?.msg || err.message || '历史快照恢复失败');
+        } finally {
+            setIsRestoringHistory('');
         }
     };
 
@@ -436,6 +464,29 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                     <div className="break-all">{status.lastError}</div>
                 </div>
             )}
+
+            <div className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                        <p className="text-sm font-semibold text-slate-800">远端历史快照</p>
+                        <p className="mt-0.5 text-xs text-slate-500">保留最近 10 份完整版本；恢复前会自动保存当前本机数据。</p>
+                    </div>
+                    <button onClick={refreshHistory} disabled={isTransferBusy} className="text-xs text-indigo-600 hover:text-indigo-700 disabled:opacity-50">刷新</button>
+                </div>
+                {history.length === 0 ? <p className="text-xs text-slate-400">暂无 v2 历史快照，完成一次上传同步后将开始保留。</p> : (
+                    <div className="space-y-2">
+                        {history.map(item => <div key={item.snapshotId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+                            <div className="min-w-0 text-xs text-slate-600">
+                                <p className="font-medium text-slate-700">{formatDateTime(item.generatedAt)} · {item.source || '同步'}</p>
+                                <p className="mt-0.5 truncate">{item.recordCount || 0} 条数据 · {item.mediaCount || 0} 个媒体文件 · 设备 {item.deviceId?.slice(0, 8) || '未知'}</p>
+                            </div>
+                            <button onClick={() => handleRestoreHistory(item)} disabled={Boolean(isRestoringHistory) || isTransferBusy} className="rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-xs text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">
+                                {isRestoringHistory === item.snapshotId ? '恢复中…' : '恢复此版本'}
+                            </button>
+                        </div>)}
+                    </div>
+                )}
+            </div>
 
             {status.lastSummary?.length > 0 && logs.length === 0 && (
                 <div className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3">

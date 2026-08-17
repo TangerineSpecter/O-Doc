@@ -267,9 +267,23 @@ export interface WebDavSyncStatus {
     lastError: string;
     lastSummary: string[];
     lastSyncedSnapshotId: string;
+    lastBaseSnapshotId?: string;
     lastUploadedSnapshotId: string;
     lastPulledSnapshotId: string;
     updatedAt: string;
+    lastSafetyBackup?: string;
+    lastMergeSummary?: {created?: number; updated?: number; deleted?: number; conflicts?: number};
+}
+
+export interface SyncHistoryEntry {
+    snapshotId: string;
+    generatedAt: string;
+    source: string;
+    deviceId: string;
+    appVersion: string;
+    recordCount: number;
+    mediaCount: number;
+    mediaBytes: number;
 }
 
 export interface RuntimeInfo {

@@ -378,34 +378,16 @@ class WebDavAutoSyncScheduler:
                 return
 
             manager = self._build_sync_manager(config)
-            issues = manager.validate_upload_state()
-            if issues:
-                raise SyncError('；'.join(issues))
-
-            remote_meta = manager.get_remote_snapshot_meta()
-            manager.validate_remote_snapshot_version(remote_meta)
-            if not runner_owns_sync(self.runner_id):
-                return
-
-            messages = []
-            if should_pull_remote_before_push(runtime_state, remote_meta):
-                messages.append('检测到远端快照已更新，自动同步先执行拉取对齐。')
-                append_sync_message(messages[-1])
-                messages.extend(self._sync_from_remote_snapshot(manager, remote_meta))
-
-            if not runner_owns_sync(self.runner_id):
-                return
-
-            messages.extend(self._consume_stream(manager.sync_assets_upload_stream(
-                should_abort=lambda: not runner_owns_sync(self.runner_id),
-            )))
-            messages.extend(self._consume_stream(manager.sync_data_upload_stream(
-                should_abort=lambda: not runner_owns_sync(self.runner_id),
-            )))
-            snapshot_meta = manager.write_snapshot_meta(
-                source='scheduler',
-                runner_id=self.runner_id,
+            append_sync_message('自动同步正在创建本机安全快照并执行 v2 三方合并。', runner_id=self.runner_id)
+            snapshot, summary, safety_backup = manager.sync_v2(
+                source='scheduler', runner_id=self.runner_id,
+                base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
             )
+            snapshot_meta = snapshot['meta']
+            messages = [
+                f"v2 合并：新增 {summary['created']}、更新 {summary['updated']}、删除 {summary['deleted']}、冲突 {summary['conflicts']}",
+                f'本机安全快照：{safety_backup}',
+            ]
 
             if not runner_owns_sync(self.runner_id):
                 return
@@ -418,8 +400,11 @@ class WebDavAutoSyncScheduler:
                 last_error='',
                 last_uploaded_snapshot_id=snapshot_meta['snapshot_id'],
                 last_synced_snapshot_id=snapshot_meta['snapshot_id'],
+                last_base_snapshot_id=snapshot_meta.get('base_snapshot_id', ''),
                 last_push_at=timezone.now().isoformat(),
                 last_summary=messages[-20:],
+                last_safety_backup=safety_backup,
+                last_merge_summary=summary,
             )
             logger.info('WebDAV auto sync finished successfully')
         except Exception as exc:

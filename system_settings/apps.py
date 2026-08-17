@@ -6,6 +6,7 @@ class SystemSettingsConfig(AppConfig):
     name = 'system_settings'
 
     def ready(self):
+        from . import sync_signals  # noqa: F401
         from .builtin_skills import start_builtin_skill_sync
         from .agent_task_scheduler import start_agent_task_scheduler
         from .agent_memory_scheduler import start_agent_memory_scheduler

@@ -1119,6 +1119,13 @@ class SystemConfigViewSet(viewsets.ViewSet):
             'regenerate_system_mcp_key',
             'export_local_backup',
             'import_local_backup',
+            'get_webdav_config',
+            'get_webdav_status',
+            'save_webdav_config',
+            'sync_to_webdav',
+            'sync_from_webdav',
+            'get_sync_history',
+            'restore_sync_history',
         }:
             return [IsAuthenticated()]
         return super().get_permissions()
@@ -1147,8 +1154,11 @@ class SystemConfigViewSet(viewsets.ViewSet):
             'last_error': runtime_state.get('last_error', ''),
             'last_summary': runtime_state.get('last_summary', []),
             'last_synced_snapshot_id': runtime_state.get('last_synced_snapshot_id', ''),
+            'last_base_snapshot_id': runtime_state.get('last_base_snapshot_id', ''),
             'last_uploaded_snapshot_id': runtime_state.get('last_uploaded_snapshot_id', ''),
             'last_pulled_snapshot_id': runtime_state.get('last_pulled_snapshot_id', ''),
+            'last_safety_backup': runtime_state.get('last_safety_backup', ''),
+            'last_merge_summary': runtime_state.get('last_merge_summary', {}),
             'updated_at': runtime_state.get('updated_at', ''),
         }
         payload.update({
@@ -1160,8 +1170,11 @@ class SystemConfigViewSet(viewsets.ViewSet):
             'lastError': payload['last_error'],
             'lastSummary': payload['last_summary'],
             'lastSyncedSnapshotId': payload['last_synced_snapshot_id'],
+            'lastBaseSnapshotId': payload['last_base_snapshot_id'],
             'lastUploadedSnapshotId': payload['last_uploaded_snapshot_id'],
             'lastPulledSnapshotId': payload['last_pulled_snapshot_id'],
+            'lastSafetyBackup': payload['last_safety_backup'],
+            'lastMergeSummary': payload['last_merge_summary'],
             'updatedAt': payload['updated_at'],
         })
         return payload
@@ -1455,6 +1468,58 @@ class SystemConfigViewSet(viewsets.ViewSet):
         runtime_state = get_runtime_state()
         return success_result(self._status_payload(runtime_state))
 
+    @action(detail=False, methods=['get'])
+    def get_sync_history(self, request):
+        manager = self._get_sync_manager()
+        if not manager:
+            return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
+        try:
+            return success_result([{
+                'snapshotId': item.get('snapshot_id', ''),
+                'generatedAt': item.get('generated_at', ''),
+                'source': item.get('source', ''),
+                'deviceId': item.get('device_id', ''),
+                'appVersion': item.get('app_version', ''),
+                'recordCount': item.get('record_count', 0),
+                'mediaCount': item.get('media_count', 0),
+                'mediaBytes': item.get('media_bytes', 0),
+            } for item in manager.list_v2_history()])
+        except SyncError as exc:
+            return valid_result(msg=str(exc))
+
+    @action(detail=False, methods=['post'])
+    def restore_sync_history(self, request):
+        snapshot_id = str(request.data.get('snapshotId') or request.data.get('snapshot_id') or '').strip()
+        if not snapshot_id:
+            return valid_result(msg='请选择要恢复的历史快照')
+        manager = self._get_sync_manager()
+        if not manager:
+            return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
+        runner_id = generate_runner_id('history-restore')
+        acquired, _ = mark_sync_started(
+            trigger='history-restore', runner_id=runner_id,
+            initial_message='正在从历史快照恢复，已先创建本机安全快照',
+        )
+        if not acquired:
+            return error_result(ErrorCode.WEBDEV_ERROR, data='已有同步任务正在运行，请稍后再恢复')
+        try:
+            snapshot, safety_backup = manager.restore_v2_snapshot(snapshot_id, runner_id=runner_id)
+            update_runtime_state(
+                status='success', trigger='history-restore', runner_id=runner_id,
+                last_success_at=timezone.now().isoformat(), last_error='',
+                last_synced_snapshot_id=snapshot['meta']['snapshot_id'],
+                last_base_snapshot_id=snapshot['meta'].get('base_snapshot_id', ''),
+                last_safety_backup=safety_backup,
+            )
+            return success_result({
+                'snapshotId': snapshot['meta']['snapshot_id'],
+                'safetyBackup': safety_backup,
+            }, msg='历史快照已恢复，并已创建恢复前本机安全快照')
+        except Exception as exc:
+            if runner_owns_sync(runner_id):
+                update_runtime_state(status='error', trigger='history-restore', runner_id=runner_id, last_error=str(exc))
+            return valid_result(msg=str(exc))
+
     @action(detail=False, methods=['post'])
     def export_local_backup(self, request):
         if is_sync_running():
@@ -1573,7 +1638,10 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     last_pulled_snapshot_id='',
                 )
                 from anthology.models import Book
-                Book.objects.filter(is_valid=True, remote_available=True).update(
+                book_queryset = Book.objects.filter(is_valid=True, remote_available=True)
+                from system_settings.sync_state import record_bulk_change
+                record_bulk_change(book_queryset)
+                book_queryset.update(
                     remote_available=False,
                     remote_hash='',
                 )
@@ -1610,68 +1678,15 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     yield self._sync_event("error", "已有同步任务正在运行，请等待当前任务完成后再操作。", record=False)
                     return
 
-                issues = manager.validate_upload_state()
-                if issues:
-                    update_runtime_state(
-                        status='error',
-                        trigger='manual',
-                        runner_id=runner_id,
-                        last_error='；'.join(issues),
-                    )
-                    for issue in issues:
-                        yield self._sync_event("error", issue)
-                    return
-
-                remote_meta = manager.get_remote_snapshot_meta()
-                manager.validate_remote_snapshot_version(remote_meta)
-                if should_pull_remote_before_push(runtime_state, remote_meta):
-                    yield from self._sync_from_remote(
-                        manager=manager,
-                        runtime_state=runtime_state,
-                        remote_meta=remote_meta,
-                        runner_id=runner_id,
-                        trigger='manual-preflight',
-                    )
-                elif remote_meta and remote_meta.get('snapshot_id'):
-                    yield self._sync_event(
-                        "init",
-                        "远端快照不是更新的版本，本次上传以本地数据为准，不会先拉取远端。"
-                    )
-
-                yield self._sync_event(
-                    "init",
-                    "开始上传同步，当前会先同步资源文件，再写入数据快照，避免云端出现半同步状态。"
+                yield self._sync_event('init', '正在创建本机完整安全快照，并执行三方合并…')
+                snapshot, summary, safety_backup = manager.sync_v2(
+                    source='manual', runner_id=runner_id,
+                    base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
                 )
-
-                for chunk in manager.sync_assets_upload_stream(
-                    should_abort=lambda: not runner_owns_sync(runner_id),
-                ):
-                    try:
-                        payload = json.loads(chunk.strip())
-                        if payload.get('msg'):
-                            append_sync_message(payload['msg'], runner_id=runner_id)
-                    except json.JSONDecodeError:
-                        pass
-                    yield chunk
-
-                for chunk in manager.sync_data_upload_stream(
-                    should_abort=lambda: not runner_owns_sync(runner_id),
-                ):
-                    try:
-                        payload = json.loads(chunk.strip())
-                        if payload.get('msg'):
-                            append_sync_message(payload['msg'], runner_id=runner_id)
-                    except json.JSONDecodeError:
-                        pass
-                    yield chunk
-
-                if not runner_owns_sync(runner_id):
-                    yield self._sync_event("error", "同步已取消")
-                    return
-
-                snapshot_meta = manager.write_snapshot_meta(
-                    source='manual',
-                    runner_id=runner_id,
+                snapshot_meta = snapshot['meta']
+                yield self._sync_event(
+                    'summary',
+                    f"v2 合并完成：新增 {summary['created']}、更新 {summary['updated']}、删除 {summary['deleted']}、冲突自动处理 {summary['conflicts']}；本机安全快照：{os.path.basename(safety_backup)}"
                 )
                 update_runtime_state(
                     status='success',
@@ -1680,8 +1695,11 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     last_success_at=timezone.now().isoformat(),
                     last_uploaded_snapshot_id=snapshot_meta['snapshot_id'],
                     last_synced_snapshot_id=snapshot_meta['snapshot_id'],
+                    last_base_snapshot_id=snapshot_meta.get('base_snapshot_id', ''),
                     last_push_at=timezone.now().isoformat(),
                     last_error='',
+                    last_safety_backup=safety_backup,
+                    last_merge_summary=summary,
                 )
                 yield self._sync_event("done", "✅ 所有同步已完成！")
             except SyncError as e:
@@ -1698,9 +1716,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def sync_from_webdav(self, request):
         """
-        [下载/拉取]
-        1. 数据库：用云端快照对齐本地（含删除快照中不存在的记录）。
-        2. 资源：下载本地缺失的文件，并清理快照外的本地文件。
+        [下载/拉取] 使用本机、共同 Base、远端快照三方合并；不会把远端整库直接覆盖本机。
         """
         manager = self._get_sync_manager()
         if not manager:
@@ -1719,24 +1735,30 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     yield self._sync_event("error", "已有同步任务正在运行，请等待当前任务完成后再操作。", record=False)
                     return
 
-                remote_meta = manager.get_remote_snapshot_meta()
-                manager.validate_remote_snapshot_version(remote_meta)
-                yield from self._sync_from_remote(
-                    manager=manager,
-                    runtime_state=runtime_state,
-                    remote_meta=remote_meta,
-                    runner_id=runner_id,
-                    trigger='manual-pull',
+                remote = manager.get_v2_current()
+                if not remote:
+                    raise SyncError('远端尚未升级为安全同步 v2；请先在拥有最新数据的设备执行一次上传同步。')
+                yield self._sync_event('init', '正在创建本机完整安全快照，并合并远端 v2 快照…')
+                snapshot, summary, safety_backup = manager.sync_v2(
+                    source='manual-pull', runner_id=runner_id,
+                    base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
                 )
-                if not runner_owns_sync(runner_id):
-                    yield self._sync_event("error", "同步已取消")
-                    return
+                yield self._sync_event(
+                    'summary',
+                    f"v2 合并完成：新增 {summary['created']}、更新 {summary['updated']}、删除 {summary['deleted']}、冲突自动处理 {summary['conflicts']}；本机安全快照：{os.path.basename(safety_backup)}"
+                )
                 update_runtime_state(
                     status='success',
                     trigger='manual-pull',
                     runner_id=runner_id,
                     last_success_at=timezone.now().isoformat(),
                     last_error='',
+                    last_synced_snapshot_id=snapshot['meta']['snapshot_id'],
+                    last_base_snapshot_id=snapshot['meta'].get('base_snapshot_id', ''),
+                    last_pulled_snapshot_id=remote['meta']['snapshot_id'],
+                    last_pull_at=timezone.now().isoformat(),
+                    last_safety_backup=safety_backup,
+                    last_merge_summary=summary,
                 )
                 yield self._sync_event("done", "✅ 云端同步完成，本地数据与资源已刷新")
             except SyncError as e:

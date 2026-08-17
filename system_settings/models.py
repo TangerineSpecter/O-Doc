@@ -142,6 +142,24 @@ class SystemSetting(models.Model):
         db_table_comment = '系统设置表'
 
 
+class SyncEntityState(models.Model):
+    """仅本机保存的同步修订与删除墓碑；其内容由 v2 快照清单携带。"""
+    model_label = models.CharField(max_length=120)
+    object_pk = models.CharField(max_length=120)
+    content_hash = models.CharField(max_length=64, blank=True, default='')
+    revision_at = models.DateTimeField(default=timezone.now)
+    origin_device = models.CharField(max_length=80, blank=True, default='')
+    is_deleted = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'sys_sync_entity_state'
+        constraints = [
+            models.UniqueConstraint(fields=['model_label', 'object_pk'], name='sync_entity_state_unique'),
+        ]
+        indexes = [models.Index(fields=['model_label', 'is_deleted'], name='sys_sync_en_model_l_0e6021_idx')]
+
+
 class Agent(models.Model):
     """可配置的 AI Agent"""
 

@@ -24,6 +24,7 @@ import type {
     SyncProtocol,
     WebDavConfig,
     WebDavSyncStatus,
+    SyncHistoryEntry,
     RuntimeInfo,
     GeoLocation,
     SaveGeoLocationParams,
@@ -62,6 +63,7 @@ export type {
     SyncProtocol,
     WebDavConfig,
     WebDavSyncStatus,
+    SyncHistoryEntry,
     RuntimeInfo,
     GeoLocation,
     SaveGeoLocationParams,
@@ -271,6 +273,9 @@ export const syncToWebDav = () => request.post<any, { msg: string }>('/settings/
 
 // 4. 触发下载 (从 WebDAV 恢复)
 export const syncFromWebDav = () => request.post<any, { msg: string }>('/settings/config/sync_from_webdav/');
+
+export const getSyncHistory = () => request.get<SyncHistoryEntry[]>('/settings/config/get_sync_history/');
+export const restoreSyncHistory = (snapshotId: string) => request.post<any, {snapshotId: string; safetyBackup: string}>('/settings/config/restore_sync_history/', {snapshotId}, {timeout: 0});
 
 export const downloadLocalBackupFile = async () => {
     const token = getAuthToken();
