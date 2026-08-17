@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import dayjs from 'dayjs';
 import { Aperture, Calendar, ChevronDown, ChevronLeft, ChevronRight, GripVertical, ImagePlus, Loader2, Plus, Sparkles, Tag, Trash2, X } from 'lucide-react';
@@ -8,10 +8,23 @@ import { uploadResource } from '../../api/resources';
 import { GeoLocation, getGeoLocations } from '../../api/setting';
 import { getImageUploadConfig, ImageUploadConfig } from '../../api/setting';
 import { SettingsSelect } from '../Settings/SettingsSelect';
-import { getImageDimensions, readPhotoExifMetadata } from './ImageUploadModal';
+import { getImageDimensions, PhotoExifMetadata, readPhotoExifMetadata } from './ImageUploadModal';
+import ImageResizeModal from './ImageResizeModal';
 import { useToast } from '../common/ToastProvider';
+import {
+  classifyImageUploads,
+  collectDroppedFiles,
+  emptyResizeQueue,
+  enqueueResizeItems,
+  isImageUploadFile,
+  resolvePhotoDropAction,
+  resizeQueueProgress,
+  ResizeQueueState,
+  takeCurrentResizeItem,
+} from '../../utils/imageUpload';
 
 interface DraftPhoto { id: string; imageId?: string; imageUrl: string; file?: File; focalLength: string; }
+interface PendingResize { id: string; file: File; metadata: PhotoExifMetadata; }
 interface Props { isOpen: boolean; collId: string; initialImages?: Image[] | null; existingTags?: string[]; onClose: () => void; onSuccess: () => void; }
 
 const newId = () => `draft-${Math.random().toString(36).slice(2)}`;
@@ -42,6 +55,9 @@ export default function ImageGroupModal({ isOpen, collId, initialImages, existin
   const [generating, setGenerating] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<DraftPhoto | null>(null);
+  const [resizeQueue, setResizeQueue] = useState<ResizeQueueState<PendingResize>>(() => emptyResizeQueue());
+  const resizeQueueRef = useRef(resizeQueue);
+  resizeQueueRef.current = resizeQueue;
   const editing = Boolean(initialImages?.[0]?.photoGroupId);
   const selectedTags = useMemo(() => Array.from(new Set(tags.split(/[,，、;；\n]/).map(tag => tag.trim()).filter(Boolean))), [tags]);
   const availableTags = useMemo(() => Array.from(new Set(existingTags.map(tag => tag.trim()).filter(Boolean)))
@@ -62,6 +78,7 @@ export default function ImageGroupModal({ isOpen, collId, initialImages, existin
     const date = first?.shootingTime?.slice(0, 10) || '';
     setShootingTime(date); setPickerMonth(date ? dayjs(date) : dayjs()); setCountry(first?.country || '');
     setCity(first?.city || ''); setPlaceName(first?.placeName || ''); setLocationId(first?.locationId || first?.location || first?.locationDetail?.id || ''); setTags(first?.tagsList?.join(', ') || first?.tags || ''); setTagInput(''); setIsTagMenuOpen(false);
+    setResizeQueue(emptyResizeQueue());
   }, [isOpen, initialImages]);
 
   useEffect(() => {
@@ -88,28 +105,80 @@ export default function ImageGroupModal({ isOpen, collId, initialImages, existin
     return () => { window.removeEventListener('resize', updatePosition); window.removeEventListener('scroll', updatePosition, true); };
   }, [isDatePickerOpen]);
 
+  const fileBaseName = (file: File) => file.name.replace(/\.[^/.]+$/, '');
+  const appendPhotos = (additions: DraftPhoto[], fallbackTitle?: string) => {
+    if (!additions.length) return;
+    setPhotos(current => [...current, ...additions]);
+    setTitle(current => current.trim() ? current : (fallbackTitle || (additions[0].file ? fileBaseName(additions[0].file) : '')));
+  };
   const addFiles = async (files: FileList | File[]) => {
-    const additions = [] as DraftPhoto[];
+    const inspected = [] as Array<{ file: File; metadata: PhotoExifMetadata; width: number; height: number; fileSize: number }>;
     for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) continue;
+      if (!isImageUploadFile(file)) continue;
       try {
         const { width, height } = await getImageDimensions(file);
-        const exceedsLongEdge = Math.max(width, height) > imageUploadConfig.maxLongEdge;
-        const exceedsSize = file.size > imageUploadConfig.maxFileSizeMb * 1024 * 1024;
-        if (exceedsLongEdge || exceedsSize) {
-          toast.error(`「${file.name}」超过上传限制，请先压缩至 ${imageUploadConfig.maxLongEdge}px / ${imageUploadConfig.maxFileSizeMb}MB 以内`);
-          continue;
-        }
-        const metadata = await readPhotoExifMetadata(file);
-        additions.push({ id: newId(), imageUrl: URL.createObjectURL(file), file, focalLength: metadata.focalLength || '' });
+        inspected.push({
+          file,
+          metadata: await readPhotoExifMetadata(file),
+          width,
+          height,
+          fileSize: file.size,
+        });
       } catch {
         toast.error(`无法读取「${file.name}」`);
       }
     }
-    if (!additions.length) return;
-    setPhotos(current => [...current, ...additions]);
-    if (!title.trim()) setTitle(additions[0].file!.name.replace(/\.[^/.]+$/, ''));
+    const { ready, needsResize } = classifyImageUploads(inspected, imageUploadConfig);
+    appendPhotos(ready.map(item => ({
+      id: newId(),
+      imageUrl: URL.createObjectURL(item.file),
+      file: item.file,
+      focalLength: item.metadata.focalLength || '',
+    })));
+    if (needsResize.length) {
+      setResizeQueue(current => enqueueResizeItems(current, needsResize.map(({ file, metadata }) => ({
+        id: newId(),
+        file,
+        metadata,
+      }))));
+    }
   };
+  const handleResizeComplete = (processedFile: File) => {
+    const current = resizeQueueRef.current.items[0];
+    if (!current) return;
+    appendPhotos([{
+      id: newId(),
+      imageUrl: URL.createObjectURL(processedFile),
+      file: processedFile,
+      focalLength: current.metadata.focalLength || '',
+    }], fileBaseName(current.file));
+    setResizeQueue(queue => takeCurrentResizeItem(queue, current.id).next);
+  };
+  const handleResizeSkip = () => {
+    const current = resizeQueueRef.current.items[0];
+    if (!current) return;
+    setResizeQueue(queue => takeCurrentResizeItem(queue, current.id).next);
+  };
+  const handleResizeAbort = () => setResizeQueue(emptyResizeQueue());
+  const handlePhotoDrop = (event: DragEvent) => {
+    event.preventDefault();
+    const dropped = collectDroppedFiles(event.dataTransfer);
+    if (dropped.length) {
+      event.stopPropagation();
+      void addFiles(dropped);
+    }
+  };
+  const handleCardDrop = (event: DragEvent, index: number) => {
+    event.preventDefault();
+    const action = resolvePhotoDropAction(draggedIndex, collectDroppedFiles(event.dataTransfer));
+    if (action.type === 'reorder' && draggedIndex !== null) reorder(draggedIndex, index);
+    if (action.type === 'add') {
+      event.stopPropagation();
+      void addFiles(action.files);
+    }
+    setDraggedIndex(null);
+  };
+  const resizeProgress = resizeQueueProgress(resizeQueue);
   const addTag = (value: string) => {
     const tag = value.trim();
     if (!tag || selectedTags.some(item => item.toLowerCase() === tag.toLowerCase())) return;
@@ -166,8 +235,8 @@ export default function ImageGroupModal({ isOpen, collId, initialImages, existin
     <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-[1600px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
       <header className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-6 py-4"><div><h3 className="text-lg font-bold text-slate-800">{editing ? '编辑拍摄组' : '添加一组照片'}</h3><p className="mt-0.5 text-xs text-slate-500">拖拽调整展示顺序，第一张会作为封面和 AI 识别依据。</p></div><button onClick={onClose} className="rounded-full p-1 text-slate-400 hover:bg-slate-200"><X className="h-5 w-5" /></button></header>
       <main className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
-        <section className="rounded-xl border border-orange-100 bg-orange-50/40 p-3"><div className="mb-3 flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">照片顺序 <span className="text-orange-600">{photos.length} 张</span></span><button type="button" onClick={() => inputRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-orange-700 ring-1 ring-orange-200 hover:bg-orange-50"><ImagePlus className="h-3.5 w-3.5" />添加照片</button><input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} /></div>
-          {photos.length ? <div className={photos.length === 1 ? 'flex justify-center' : 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4'}>{photos.map((photo, index) => <div key={photo.id} draggable onDragStart={() => setDraggedIndex(index)} onDragOver={e => e.preventDefault()} onDrop={() => { if (draggedIndex !== null) reorder(draggedIndex, index); setDraggedIndex(null); }} className={`group relative overflow-hidden rounded-lg border bg-white ${photos.length === 1 ? 'w-[calc((100%-12px)/2)] sm:w-[calc((100%-24px)/3)] lg:w-[calc((100%-36px)/4)]' : ''} ${index === 0 ? 'border-orange-400 ring-2 ring-orange-100' : 'border-slate-200'}`}><button type="button" onClick={() => setPreviewPhoto(photo)} className="block w-full cursor-zoom-in"><img src={photo.imageUrl} alt={`照片 ${index + 1}`} className="h-28 w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]" /></button><div className="flex items-center gap-1.5 p-2"><GripVertical className="h-3.5 w-3.5 text-slate-400" /><Aperture className="h-3.5 w-3.5 text-sky-500" /><input value={photo.focalLength} inputMode="numeric" placeholder="焦段" onChange={e => setPhotos(current => current.map((item, i) => i === index ? {...item, focalLength: e.target.value.replace(/\D/g, '')} : item))} className="min-w-0 flex-1 text-xs outline-none" /><span className="text-xs text-slate-400">mm</span></div>{index === 0 && <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2 py-1 text-[10px] font-bold text-white">封面 / AI</span>}<button type="button" onClick={() => setPhotos(current => current.filter((_, i) => i !== index))} className="absolute right-2 top-2 rounded-md bg-white/90 p-1.5 text-slate-500 opacity-0 shadow-sm transition-opacity hover:text-red-600 group-hover:opacity-100"><Trash2 className="h-3.5 w-3.5" /></button></div>)}</div> : <button type="button" onClick={() => inputRef.current?.click()} className="flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 py-10 text-sm text-slate-500 hover:border-orange-400 hover:bg-white"><Plus className="mb-2 h-6 w-6 text-orange-500" />选择或拖入照片</button>}</section>
+        <section className="rounded-xl border border-orange-100 bg-orange-50/40 p-3" onDragOver={e => e.preventDefault()} onDrop={handlePhotoDrop}><div className="mb-3 flex items-center justify-between"><span className="text-sm font-semibold text-slate-700">照片顺序 <span className="text-orange-600">{photos.length} 张</span></span><button type="button" onClick={() => inputRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-orange-700 ring-1 ring-orange-200 hover:bg-orange-50"><ImagePlus className="h-3.5 w-3.5" />添加照片</button><input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) addFiles(Array.from(e.target.files)); e.target.value = ''; }} /></div>
+          {photos.length ? <div className={photos.length === 1 ? 'flex justify-center' : 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4'}>{photos.map((photo, index) => <div key={photo.id} draggable onDragStart={() => setDraggedIndex(index)} onDragEnd={() => setDraggedIndex(null)} onDragOver={e => e.preventDefault()} onDrop={e => handleCardDrop(e, index)} className={`group relative overflow-hidden rounded-lg border bg-white ${photos.length === 1 ? 'w-[calc((100%-12px)/2)] sm:w-[calc((100%-24px)/3)] lg:w-[calc((100%-36px)/4)]' : ''} ${index === 0 ? 'border-orange-400 ring-2 ring-orange-100' : 'border-slate-200'}`}><button type="button" onClick={() => setPreviewPhoto(photo)} className="block w-full cursor-zoom-in"><img src={photo.imageUrl} alt={`照片 ${index + 1}`} draggable={false} className="h-28 w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]" /></button><div className="flex items-center gap-1.5 p-2"><GripVertical className="h-3.5 w-3.5 text-slate-400" /><Aperture className="h-3.5 w-3.5 text-sky-500" /><input value={photo.focalLength} inputMode="numeric" placeholder="焦段" onChange={e => setPhotos(current => current.map((item, i) => i === index ? {...item, focalLength: e.target.value.replace(/\D/g, '')} : item))} className="min-w-0 flex-1 text-xs outline-none" /><span className="text-xs text-slate-400">mm</span></div>{index === 0 && <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2 py-1 text-[10px] font-bold text-white">封面 / AI</span>}<button type="button" onClick={() => setPhotos(current => current.filter((_, i) => i !== index))} className="absolute right-2 top-2 rounded-md bg-white/90 p-1.5 text-slate-500 opacity-0 shadow-sm transition-opacity hover:text-red-600 group-hover:opacity-100"><Trash2 className="h-3.5 w-3.5" /></button></div>)}</div> : <button type="button" onClick={() => inputRef.current?.click()} className="flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 py-10 text-sm text-slate-500 hover:border-orange-400 hover:bg-white"><Plus className="mb-2 h-6 w-6 text-orange-500" />选择或拖入照片</button>}</section>
         <label className="block space-y-1.5 text-sm font-semibold text-slate-700">图片标题 <span className="text-red-500">*</span><input value={title} onChange={e => setTitle(e.target.value)} placeholder="请输入图片标题" className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal outline-none transition-all focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20" /></label>
         <div className="space-y-1.5"><div className="flex items-center justify-between gap-3"><label className="text-sm font-semibold text-slate-700">描述说明</label><button type="button" disabled={!photos.length || generating} onClick={generateDescription} className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60">{generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}AI 生成</button></div><textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="请输入图片描述（可选）" className="block w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20" /></div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -180,5 +249,15 @@ export default function ImageGroupModal({ isOpen, collId, initialImages, existin
       <footer className="flex justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4"><button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-200">取消</button><button onClick={save} disabled={saving || !photos.length || !title.trim()} className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-60">{saving && <Loader2 className="h-4 w-4 animate-spin" />}{editing ? '保存拍摄组' : '添加照片'}</button></footer>
     </div>
     {previewPhoto && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-6 backdrop-blur-sm" onClick={() => setPreviewPhoto(null)}><button type="button" onClick={() => setPreviewPhoto(null)} className="absolute right-6 top-6 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="关闭预览"><X className="h-6 w-6" /></button><img src={previewPhoto.imageUrl} alt="照片预览" onClick={event => event.stopPropagation()} className="max-h-full max-w-full rounded-lg object-contain shadow-2xl" /></div>}
+    <ImageResizeModal
+      key={resizeQueue.items[0]?.id}
+      file={resizeQueue.items[0]?.file || null}
+      maxLongEdge={imageUploadConfig.maxLongEdge}
+      queueIndex={resizeProgress?.index}
+      queueTotal={resizeProgress?.total}
+      onCancel={handleResizeAbort}
+      onSkip={handleResizeSkip}
+      onComplete={handleResizeComplete}
+    />
   </div>;
 }

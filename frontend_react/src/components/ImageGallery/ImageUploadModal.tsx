@@ -11,6 +11,7 @@ import { getImageUploadConfig, ImageUploadConfig } from '../../api/setting';
 import { useToast } from '../common/ToastProvider';
 import { SettingsSelect } from '../Settings/SettingsSelect';
 import ImageResizeModal from './ImageResizeModal';
+import { imageExceedsUploadLimit } from '../../utils/imageUpload';
 
 interface ImageUploadModalProps {
   isOpen: boolean;
@@ -518,9 +519,7 @@ export default function ImageUploadModal({
 
     try {
       const { width, height } = await getImageDimensions(selectedFile);
-      const exceedsLongEdge = Math.max(width, height) > imageUploadConfig.maxLongEdge;
-      const exceedsSize = selectedFile.size > imageUploadConfig.maxFileSizeMb * 1024 * 1024;
-      if (exceedsLongEdge || exceedsSize) {
+      if (imageExceedsUploadLimit({ width, height, fileSize: selectedFile.size }, imageUploadConfig)) {
         setPendingResizeFile(selectedFile);
         return;
       }

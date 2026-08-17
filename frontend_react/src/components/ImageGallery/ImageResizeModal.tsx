@@ -1,21 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Crop, Loader2, Maximize2, RotateCw, X } from 'lucide-react';
+import { getProcessedImageOutput, getResizeDrawSource } from '../../utils/imageUpload';
+import type { CropRect, ResizeMode } from '../../utils/imageUpload';
+import { useToast } from '../common/ToastProvider';
 
-type ResizeMode = 'long-edge' | '3:2' | '16:9';
 type CropHandle = 'move' | 'nw' | 'ne' | 'sw' | 'se';
 type CropOrientation = 'landscape' | 'portrait';
-
-interface CropRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
 
 interface ImageResizeModalProps {
   file: File | null;
   maxLongEdge: number;
+  queueIndex?: number;
+  queueTotal?: number;
   onCancel: () => void;
+  onSkip?: () => void;
   onComplete: (file: File) => void;
 }
 
@@ -45,7 +43,8 @@ const createInitialCrop = (width: number, height: number, targetRatio: number): 
   return { x: (100 - cropWidth) / 2, y: (100 - cropHeight) / 2, width: cropWidth, height: cropHeight };
 };
 
-export default function ImageResizeModal({ file, maxLongEdge, onCancel, onComplete }: ImageResizeModalProps) {
+export default function ImageResizeModal({ file, maxLongEdge, queueIndex, queueTotal, onCancel, onSkip, onComplete }: ImageResizeModalProps) {
+  const toast = useToast();
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [previewUrl, setPreviewUrl] = useState('');
   const [mode, setMode] = useState<ResizeMode>('long-edge');
@@ -56,10 +55,13 @@ export default function ImageResizeModal({ file, maxLongEdge, onCancel, onComple
   const [isProcessing, setIsProcessing] = useState(false);
   const dragStart = useRef<{ handle: CropHandle; clientX: number; clientY: number; crop: CropRect } | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+  const processLock = useRef(false);
 
   useEffect(() => {
     if (!file) return;
     const url = dataUrlFor(file);
+    processLock.current = false;
+    setIsProcessing(false);
     setPreviewUrl(url);
     setLongEdge(maxLongEdge);
     setMode('long-edge');
@@ -90,7 +92,8 @@ export default function ImageResizeModal({ file, maxLongEdge, onCancel, onComple
   }, [cropRect, dimensions, longEdge, maxLongEdge, mode]);
 
   const handleProcess = async () => {
-    if (!file || !dimensions.width) return;
+    if (!file || !dimensions.width || processLock.current) return;
+    processLock.current = true;
     try {
       setIsProcessing(true);
       const image = await loadImage(file);
@@ -102,26 +105,26 @@ export default function ImageResizeModal({ file, maxLongEdge, onCancel, onComple
       context.imageSmoothingEnabled = true;
       context.imageSmoothingQuality = 'high';
 
-      const sx = image.naturalWidth * cropRect.x / 100;
-      const sy = image.naturalHeight * cropRect.y / 100;
-      const sw = image.naturalWidth * cropRect.width / 100;
-      const sh = image.naturalHeight * cropRect.height / 100;
+      const { sx, sy, sw, sh } = getResizeDrawSource(mode, cropRect, image.naturalWidth, image.naturalHeight);
       context.drawImage(image, sx, sy, sw, sh, 0, 0, output.width, output.height);
 
-      const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, outputType, quality / 100));
+      const outputFile = getProcessedImageOutput(file);
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, outputFile.type, quality / 100));
       if (!blob) throw new Error('图片生成失败');
-      const extension = outputType === 'image/png' ? 'png' : 'jpg';
-      const name = file.name.replace(/\.[^.]+$/, '') + `_${output.width}x${output.height}.${extension}`;
-      onComplete(new File([blob], name, { type: outputType, lastModified: Date.now() }));
+      const name = file.name.replace(/\.[^.]+$/, '') + `_${output.width}x${output.height}.${outputFile.extension}`;
+      onComplete(new File([blob], name, { type: outputFile.type, lastModified: Date.now() }));
     } catch (error) {
       console.error('图片缩放失败:', error);
+      processLock.current = false;
+      toast.error(error instanceof Error ? error.message : '图片处理失败，请重试或跳过');
     } finally {
       setIsProcessing(false);
     }
   };
 
   if (!file) return null;
+  const processedOutput = getProcessedImageOutput(file);
+  const queued = Boolean(queueTotal && queueTotal > 1 && onSkip);
   const baseCropRatio = mode === '3:2' ? 3 / 2 : 16 / 9;
   const cropRatio = cropOrientation === 'portrait' ? 1 / baseCropRatio : baseCropRatio;
   const beginDrag = (event: React.PointerEvent<HTMLDivElement>, handle: CropHandle) => {
@@ -180,7 +183,7 @@ export default function ImageResizeModal({ file, maxLongEdge, onCancel, onComple
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !isProcessing && onCancel()} />
       <div className="relative flex w-full max-w-7xl max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-2 duration-200">
         <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/50 px-6 py-4">
-          <div><h3 className="text-lg font-bold text-slate-800">调整上传图片</h3><p className="mt-0.5 text-xs text-slate-500">原图 {dimensions.width} × {dimensions.height} · {(file.size / 1024 / 1024).toFixed(1)} MB</p></div>
+          <div><h3 className="text-lg font-bold text-slate-800">{queueTotal && queueTotal > 1 ? `调整上传图片（${queueIndex}/${queueTotal}）` : '调整上传图片'}</h3><p className="mt-0.5 text-xs text-slate-500">{queueTotal && queueTotal > 1 ? `当前「${file.name}」，处理完会自动打开下一张超标图片。` : file.name} · 原图 {dimensions.width} × {dimensions.height} · {(file.size / 1024 / 1024).toFixed(1)} MB</p></div>
           <button onClick={onCancel} disabled={isProcessing} className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600"><X className="h-5 w-5" /></button>
         </div>
         <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto p-6 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -221,7 +224,7 @@ export default function ImageResizeModal({ file, maxLongEdge, onCancel, onComple
                 <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-slate-950/70 px-3 py-1.5 text-xs font-medium text-white shadow-sm backdrop-blur-sm">拖动框选区域；拖动四角可在保持比例下缩放</div>
               </div>
             ) : (
-              <img src={previewUrl} alt="缩放预览" className="max-h-[64vh] max-w-full rounded-lg object-contain" />
+              <img src={previewUrl} alt="缩放预览" draggable={false} className="max-h-[64vh] max-w-full rounded-lg object-contain" />
             )}
           </div>
           <div className="space-y-5 lg:pt-1">
@@ -230,11 +233,11 @@ export default function ImageResizeModal({ file, maxLongEdge, onCancel, onComple
             </div></div>
             {mode === 'long-edge' && <label className="block text-sm font-semibold text-slate-700">最长边（px）<input type="number" min="256" max="16384" value={longEdge} onChange={event => setLongEdge(Number(event.target.value))} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20" /></label>}
             {output.crop && <><div><p className="mb-2 text-sm font-semibold text-slate-700">裁切方向</p><div className="grid grid-cols-2 gap-2"><button type="button" onClick={() => setCropOrientation('landscape')} className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${cropOrientation === 'landscape' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-slate-200 text-slate-600 hover:border-orange-200'}`}><RotateCw className="h-3.5 w-3.5" />横向 {mode === '3:2' ? '3:2' : '16:9'}</button><button type="button" onClick={() => setCropOrientation('portrait')} className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${cropOrientation === 'portrait' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-slate-200 text-slate-600 hover:border-orange-200'}`}><RotateCw className="h-3.5 w-3.5 rotate-90" />纵向 {mode === '3:2' ? '2:3' : '9:16'}</button></div></div><div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600"><span className="font-semibold text-slate-700">裁切方式：</span>拖动白色框移动取景；拖动四个橙色控制点缩放裁切框。比例保持为 {cropOrientation === 'landscape' ? (mode === '3:2' ? '3:2' : '16:9') : (mode === '3:2' ? '2:3' : '9:16')}。</div></>}
-            {file.type !== 'image/png' && <label className="block text-sm font-semibold text-slate-700">JPEG 质量 <span className="font-normal text-slate-400">{quality}%</span><input type="range" min="82" max="100" value={quality} onChange={event => setQuality(Number(event.target.value))} className="mt-3 w-full accent-orange-500" /></label>}
+            {processedOutput.type !== 'image/png' && <label className="block text-sm font-semibold text-slate-700">JPEG 质量 <span className="font-normal text-slate-400">{quality}%</span><input type="range" min="82" max="100" value={quality} onChange={event => setQuality(Number(event.target.value))} className="mt-3 w-full accent-orange-500" /></label>}
             <div className="rounded-lg border border-orange-100 bg-orange-50 p-3 text-xs leading-5 text-orange-800"><div className="mb-1 flex items-center gap-1.5 font-semibold"><Maximize2 className="h-3.5 w-3.5" />输出 {output.width} × {output.height}</div>{output.crop ? '输出分辨率将随框选区域变化，且最长边不超过设定值，不会对裁切后的区域放大。' : '保持原始比例且不会放大图片。'} 点击处理后只会上传此处理结果，不会保存原始大图。</div>
           </div>
         </div>
-        <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4"><button onClick={onCancel} disabled={isProcessing} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200">取消</button><button onClick={handleProcess} disabled={isProcessing || !dimensions.width} className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-orange-600 disabled:opacity-60">{isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crop className="h-4 w-4" />}{isProcessing ? '处理中…' : '处理并使用'}</button></div>
+        <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">{queued && <button type="button" onClick={onSkip} disabled={isProcessing} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200">跳过</button>}<button type="button" onClick={onCancel} disabled={isProcessing} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200">{queued ? '取消剩余' : '取消'}</button><button type="button" onClick={handleProcess} disabled={isProcessing || !dimensions.width} className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-orange-600 disabled:opacity-60">{isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crop className="h-4 w-4" />}{isProcessing ? '处理中…' : '处理并使用'}</button></div>
       </div>
     </div>
   );
