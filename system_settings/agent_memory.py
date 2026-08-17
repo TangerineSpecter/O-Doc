@@ -57,13 +57,16 @@ def get_or_create_im_session(agent, record):
 
 def assign_record_conversation(agent, record):
     session = get_or_create_im_session(agent, record)
-    AgentIMMessage.objects.filter(
+    message_queryset = AgentIMMessage.objects.filter(
         agent=agent,
         platform=AgentIMMessage.PLATFORM_FEISHU,
         chat_id=record.chat_id or '',
         sender_id=record.sender_id or '',
         conversation_id='',
-    ).exclude(id=record.id).update(conversation_id=session.conversation_id)
+    ).exclude(id=record.id)
+    from system_settings.sync_state import record_bulk_change
+    record_bulk_change(message_queryset)
+    message_queryset.update(conversation_id=session.conversation_id)
     if record.conversation_id != session.conversation_id:
         record.conversation_id = session.conversation_id
         record.save(update_fields=['conversation_id', 'updated_at'])
@@ -129,7 +132,10 @@ def get_long_term_memories_for_record(agent, record, limit=DEFAULT_LONG_TERM_LIM
 
     memories = list(queryset.order_by('-confidence', '-updated_at')[:limit])
     if memories:
-        AgentLongTermMemory.objects.filter(id__in=[memory.id for memory in memories]).update(last_recalled_at=timezone.now())
+        memory_queryset = AgentLongTermMemory.objects.filter(id__in=[memory.id for memory in memories])
+        from system_settings.sync_state import record_bulk_change
+        record_bulk_change(memory_queryset)
+        memory_queryset.update(last_recalled_at=timezone.now())
     return memories
 
 

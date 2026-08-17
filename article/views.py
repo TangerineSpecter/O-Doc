@@ -889,7 +889,10 @@ class ArticleSaveWebView(APIView):
 
                 # 更新文集计数
                 from anthology.models import Anthology
-                Anthology.objects.filter(coll_id=coll_id).update(count=models.F('count') + 1)
+                anthology_queryset = Anthology.objects.filter(coll_id=coll_id)
+                from system_settings.sync_state import record_bulk_change
+                record_bulk_change(anthology_queryset)
+                anthology_queryset.update(count=models.F('count') + 1)
 
             # 3. 如果需要润色，启动异步线程
             if need_polishing:
@@ -959,7 +962,10 @@ class ImageCreateView(APIView):
                 image = serializer.save(author=get_current_user_identifier(request))
 
                 # 更新文集计数
-                Anthology.objects.filter(coll_id=image.coll_id).update(count=models.F('count') + 1)
+                anthology_queryset = Anthology.objects.filter(coll_id=image.coll_id)
+                from system_settings.sync_state import record_bulk_change
+                record_bulk_change(anthology_queryset)
+                anthology_queryset.update(count=models.F('count') + 1)
 
                 return success_result(data=ImageSerializer(image).data)
             else:
@@ -1032,7 +1038,10 @@ class ImageGroupCreateView(APIView):
                         serializer = ImageSerializer(data=data)
                         serializer.is_valid(raise_exception=True)
                         created.append(serializer.save(author=get_current_user_identifier(request)))
-                Anthology.objects.filter(coll_id=coll_id).update(count=models.F('count') + len(photos) - len(existing_ids))
+                anthology_queryset = Anthology.objects.filter(coll_id=coll_id)
+                from system_settings.sync_state import record_bulk_change
+                record_bulk_change(anthology_queryset)
+                anthology_queryset.update(count=models.F('count') + len(photos) - len(existing_ids))
             return success_result(data=ImageSerializer(created, many=True).data)
         except Exception as e:
             logger.error('Image group create error: %s', e, exc_info=True)
@@ -1107,8 +1116,13 @@ class ImageGroupUpdateView(APIView):
                     serializer.save(author=owner)
                 current = Image.objects.filter(photo_group_id=group_id, is_valid=True)
                 if current.count() == 1:
+                    from system_settings.sync_state import record_bulk_change
+                    record_bulk_change(current)
                     current.update(photo_group_id='', group_index=0)
-                Anthology.objects.filter(coll_id=images[0].coll_id).update(count=models.F('count') - len(removed) + sum(1 for photo in photos if not (photo.get('image_id') or photo.get('imageId'))))
+                anthology_queryset = Anthology.objects.filter(coll_id=images[0].coll_id)
+                from system_settings.sync_state import record_bulk_change
+                record_bulk_change(anthology_queryset)
+                anthology_queryset.update(count=models.F('count') - len(removed) + sum(1 for photo in photos if not (photo.get('image_id') or photo.get('imageId'))))
             cleanup_group_image_assets(removed)
             refreshed = Image.objects.filter(photo_group_id=group_id, is_valid=True).order_by('group_index')
             if not refreshed.exists():
@@ -1134,7 +1148,10 @@ class ImageGroupDeleteView(APIView):
                 for image in images:
                     image.is_valid = False
                     image.save(update_fields=['is_valid', 'updated_at'])
-                Anthology.objects.filter(coll_id=images[0].coll_id).update(count=models.F('count') - len(images))
+                anthology_queryset = Anthology.objects.filter(coll_id=images[0].coll_id)
+                from system_settings.sync_state import record_bulk_change
+                record_bulk_change(anthology_queryset)
+                anthology_queryset.update(count=models.F('count') - len(images))
             cleanup_group_image_assets(images)
             return success_result(msg='删除成功')
         except Exception as e:
@@ -1236,6 +1253,8 @@ class ImageDeleteView(APIView):
                     is_valid=True,
                 )
                 if remaining.count() == 1:
+                    from system_settings.sync_state import record_bulk_change
+                    record_bulk_change(remaining)
                     remaining.update(photo_group_id='', group_index=0)
 
             if resource_id and not is_asset_used_by_image(resource_id, exclude_image_id=image.image_id):
@@ -1246,7 +1265,10 @@ class ImageDeleteView(APIView):
                     delete_asset_record_and_file(asset)
 
             # 更新文集计数
-            Anthology.objects.filter(coll_id=image.coll_id).update(count=models.F('count') - 1)
+            anthology_queryset = Anthology.objects.filter(coll_id=image.coll_id)
+            from system_settings.sync_state import record_bulk_change
+            record_bulk_change(anthology_queryset)
+            anthology_queryset.update(count=models.F('count') - 1)
 
             return success_result(msg="删除成功")
 

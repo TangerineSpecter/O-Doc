@@ -166,6 +166,13 @@ class SftpClient:
                 except IOError as e:
                     print(f"SFTP mkdir error at {current_path}: {e}")
 
+    def try_create_directory(self, remote_dir):
+        try:
+            self._connect().mkdir(self._normalize_remote_path(remote_dir))
+            return True
+        except (IOError, OSError):
+            return False
+
     def upload_file(self, local_path, remote_path):
         try:
             self._connect().put(local_path, self._normalize_remote_path(remote_path))

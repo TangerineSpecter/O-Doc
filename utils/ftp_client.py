@@ -96,6 +96,13 @@ class FtpClient:
             except Exception as e:
                 print(f"FTP mkdir error at {current_path}: {e}")
 
+    def try_create_directory(self, remote_dir):
+        try:
+            self._connect().mkd(self._normalize_remote_path(remote_dir))
+            return True
+        except ftplib.error_perm:
+            return False
+
     def upload_file(self, local_path, remote_path):
         try:
             ftp = self._connect()

@@ -86,6 +86,16 @@ class WebDavClient:
                 # 捕获其他未知异常，防止中断
                 print(f"Mkdir error at {current_path}: {e}")
 
+    def try_create_directory(self, remote_dir):
+        """仅在目录不存在时创建，用作跨设备同步锁。"""
+        try:
+            self.client.mkdir(self._normalize_remote_path(remote_dir))
+            return True
+        except ResponseErrorCode as exc:
+            if exc.code == 405:
+                return False
+            raise
+
     def upload_file(self, local_path, remote_path):
         try:
             # 参数顺序：(remote_path, local_path)

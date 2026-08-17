@@ -187,11 +187,14 @@ class CategoryDeleteView(APIView):
             ).first()
             
             # 将该分类下的所有文章转移到未分类
-            Article.objects.filter(
+            article_queryset = Article.objects.filter(
                 category=category,
                 author=current_user_id,
                 is_valid=True
-            ).update(category=uncategorized)
+            )
+            from system_settings.sync_state import record_bulk_change
+            record_bulk_change(article_queryset)
+            article_queryset.update(category=uncategorized)
 
             # 执行逻辑删除
             category.is_valid = False
