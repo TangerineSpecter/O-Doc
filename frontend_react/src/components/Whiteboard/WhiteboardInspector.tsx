@@ -14,6 +14,7 @@ interface WhiteboardInspectorProps {
     onEdgeLabel: (label: string) => void;
     onDuplicate: () => void;
     onDelete: () => void;
+    offsetClass?: string;
 }
 
 export const WhiteboardInspector: React.FC<WhiteboardInspectorProps> = ({
@@ -25,7 +26,8 @@ export const WhiteboardInspector: React.FC<WhiteboardInspectorProps> = ({
     onEdgeStyle,
     onEdgeLabel,
     onDuplicate,
-    onDelete
+    onDelete,
+    offsetClass = 'right-4',
 }) => {
     if (selectedNodes.length === 0 && !selectedEdge) return null;
 
@@ -35,7 +37,7 @@ export const WhiteboardInspector: React.FC<WhiteboardInspectorProps> = ({
     const canLabel = single && (single.type === 'text' || single.type === 'shape');
 
     return (
-        <div className="absolute bottom-20 right-4 z-[100] w-64 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-xl p-3 pointer-events-auto">
+        <div className={`absolute bottom-20 z-[100] w-64 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-xl p-3 pointer-events-auto ${offsetClass}`}>
             <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-slate-700">
                     {selectedEdge && selectedNodes.length === 0

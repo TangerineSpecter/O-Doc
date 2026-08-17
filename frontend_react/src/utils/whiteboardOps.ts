@@ -9,6 +9,7 @@ import type {
     WhiteboardNode,
     WhiteboardViewport,
 } from '../types/whiteboard';
+import {normalizeStoredInsights} from './whiteboardInsight';
 import {getClosestHandle} from './whiteboardUtils';
 
 export const NODE_DEFAULTS = {
@@ -112,6 +113,7 @@ export const normalizeDocument = (raw: Partial<WhiteboardDocument> & {id: string
         scale: Number.isFinite(raw.scale) ? Number(raw.scale) : 1,
         createdAt: Number.isFinite(raw.createdAt) ? Number(raw.createdAt) : now,
         updatedAt: Number.isFinite(raw.updatedAt) ? Number(raw.updatedAt) : now,
+        insights: normalizeStoredInsights(raw.insights),
     };
 };
 

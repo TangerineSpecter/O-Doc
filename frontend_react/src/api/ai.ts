@@ -198,6 +198,142 @@ const stripThinkingBlocks = (content: string): string => {
     return content.replace(THINK_BLOCK_PATTERN, '').trim();
 };
 
+export interface WhiteboardInsightDigest {
+    findings: Array<{
+        type: 'theme' | 'tension' | 'gap' | 'clue';
+        title: string;
+        detail: string;
+        nodeIds: string[];
+    }>;
+    questions: Array<{
+        text: string;
+        why: string;
+        nodeIds: string[];
+    }>;
+}
+
+const parseAIErrorResponse = async (response: Response) => {
+    if (response.status === 400 || response.status === 502) {
+        try {
+            const errorData = await response.json();
+            const errorMsg = errorData.error || errorData.msg || '';
+            if (errorMsg.includes('No default model configured') || errorMsg.includes('default model')) {
+                throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
+            }
+            if (errorMsg) throw new AIConfigError(errorMsg);
+        } catch (error) {
+            if (error instanceof AIConfigError) throw error;
+        }
+        throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
+    }
+    throw new Error('AI 请求失败');
+};
+
+export const generateWhiteboardDigest = async (boardBrief: string): Promise<WhiteboardInsightDigest> => {
+    const token = getAuthToken();
+    const response = await fetch('/api/ai/whiteboard/insight/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? {'Authorization': `Token ${token}`} : {})
+        },
+        body: JSON.stringify({
+            mode: 'digest',
+            boardBrief,
+        }),
+    });
+
+    if (!response.ok) {
+        await parseAIErrorResponse(response);
+    }
+
+    const data = await response.json();
+    return {
+        findings: Array.isArray(data.findings) ? data.findings : [],
+        questions: Array.isArray(data.questions) ? data.questions : [],
+    };
+};
+
+export const streamWhiteboardAnswer = async (
+    boardBrief: string,
+    question: string,
+    history: Array<{role: 'user' | 'assistant'; content: string}>,
+    onDelta: (chunk: string) => void,
+    signal?: AbortSignal,
+): Promise<string> => {
+    const token = getAuthToken();
+    const response = await fetch('/api/ai/whiteboard/insight/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? {'Authorization': `Token ${token}`} : {})
+        },
+        body: JSON.stringify({
+            mode: 'answer',
+            boardBrief,
+            question,
+            history,
+        }),
+        signal,
+    });
+
+    if (!response.ok) {
+        await parseAIErrorResponse(response);
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let resultText = '';
+    let buffer = '';
+
+    const appendLine = (line: string) => {
+        if (!line.trim()) return;
+        try {
+            const event = JSON.parse(line);
+            if (event.type === 'error') {
+                const message = event.content || 'AI 服务异常，请检查配置';
+                if (String(message).includes('No default model configured') || String(message).includes('default model')) {
+                    throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
+                }
+                throw new AIConfigError(message);
+            }
+            if (event.type === 'answer' && event.content) {
+                resultText += event.content;
+                onDelta(event.content);
+            }
+        } catch (error) {
+            if (error instanceof AIConfigError) throw error;
+            if (error instanceof SyntaxError) {
+                resultText += line;
+                onDelta(line);
+                return;
+            }
+            throw error;
+        }
+    };
+
+    if (reader) {
+        while (true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, {stream: true});
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) appendLine(line);
+        }
+    }
+    if (buffer.trim()) appendLine(buffer);
+
+    const cleaned = stripThinkingBlocks(resultText.replace(/data:\s*/g, ''));
+    if (SYSTEM_ERROR_PATTERN.test(cleaned)) {
+        if (cleaned.includes('No default model configured')) {
+            throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
+        }
+        throw new AIConfigError('AI 服务异常，请检查配置');
+    }
+    return cleaned;
+};
+
 export class AIConfigError extends Error {
     constructor(message: string) {
         super(message);

@@ -11,6 +11,8 @@ LEGACY_DEV_ENV_FILE="deploy/.env.deploy"
 USE_POSTGRES="${ODOC_DEV_USE_POSTGRES:-true}"
 COMPOSE_PROJECT_NAME="${ODOC_COMPOSE_PROJECT:-deploy}"
 PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
+BACKEND_PORT="${ODOC_DEV_BACKEND_PORT:-11800}"
+FRONTEND_PORT="${ODOC_DEV_FRONTEND_PORT:-5173}"
 
 generate_secret() {
     LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 50
@@ -132,11 +134,52 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 PY
 }
 
+stop_listener_on_port() {
+    local port="$1"
+    local label="$2"
+    local pids
+
+    if ! command -v lsof >/dev/null 2>&1; then
+        echo "⚠️  未找到 lsof，无法自动清理 ${label} 端口 ${port}。"
+        return
+    fi
+
+    pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+    if [ -z "$pids" ]; then
+        return
+    fi
+
+    echo "♻️  停止占用 ${label} 端口 ${port} 的旧进程: ${pids//$'\n'/ }"
+    kill $pids 2>/dev/null || true
+
+    for _ in {1..20}; do
+        if ! lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+            return
+        fi
+        sleep 0.2
+    done
+
+    pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+    if [ -n "$pids" ]; then
+        echo "⚠️  ${label} 端口 ${port} 未及时释放，强制停止: ${pids//$'\n'/ }"
+        kill -9 $pids 2>/dev/null || true
+    fi
+}
+
+stop_existing_dev_servers() {
+    # Django 的自动重载会额外创建子进程；仅结束监听者时，父进程有时会留下来。
+    pkill -TERM -f "[m]anage.py runserver ${BACKEND_PORT}" 2>/dev/null || true
+    stop_listener_on_port "$BACKEND_PORT" "后端"
+    stop_listener_on_port "$FRONTEND_PORT" "前端"
+}
+
 # 检查依赖
 if ! command -v python &> /dev/null; then
     echo "❌ Python 未安装"
     exit 1
 fi
+
+stop_existing_dev_servers
 
 if ! command -v npm &> /dev/null; then
     echo "❌ npm 未安装"
@@ -183,28 +226,28 @@ python init_admin.py
 python init_categories.py
 
 # 后台启动后端
-echo "🚀 启动后端服务 (http://localhost:11800)..."
-python manage.py runserver 11800 &
+echo "🚀 启动后端服务 (http://localhost:${BACKEND_PORT})..."
+python manage.py runserver "$BACKEND_PORT" &
 BACKEND_PID=$!
 
 # 等待后端启动（动态检测端口是否就绪）
-echo "⏳ 正在等待后端服务 (11800 端口) 就绪..."
+echo "⏳ 正在等待后端服务 (${BACKEND_PORT} 端口) 就绪..."
 for i in {1..20}; do
-    if is_tcp_port_open "127.0.0.1" 11800; then
+    if is_tcp_port_open "127.0.0.1" "$BACKEND_PORT"; then
         break
     fi
     sleep 0.5
 done
 
 # 启动前端
-echo "⚡ 启动前端开发服务器 (http://localhost:5173)..."
-cd frontend_react && npm run dev &
+echo "⚡ 启动前端开发服务器 (http://localhost:${FRONTEND_PORT})..."
+cd frontend_react && npm run dev -- --port "$FRONTEND_PORT" &
 FRONTEND_PID=$!
 
 echo ""
 echo "✅ O-Doc 开发环境已启动!"
-echo "   后端: http://localhost:11800"
-echo "   前端: http://localhost:5173"
+echo "   后端: http://localhost:${BACKEND_PORT}"
+echo "   前端: http://localhost:${FRONTEND_PORT}"
 if [ "$USE_POSTGRES" != "false" ] && [ "$USE_POSTGRES" != "0" ]; then
     echo "   PostgreSQL: ${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB} (user: ${POSTGRES_USER})"
     echo "   数据库密码: ${DEV_ENV_FILE} 中的 POSTGRES_PASSWORD"
@@ -214,5 +257,11 @@ echo "按 Ctrl+C 停止所有服务"
 echo ""
 
 # 等待子进程
-trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; echo '已停止所有服务'" INT TERM
+cleanup() {
+    kill "$BACKEND_PID" "$FRONTEND_PID" 2>/dev/null || true
+    stop_existing_dev_servers
+    echo "已停止所有服务"
+}
+
+trap cleanup INT TERM
 wait

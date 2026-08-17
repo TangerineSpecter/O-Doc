@@ -1,5 +1,5 @@
 import {useCallback, useMemo, useState} from 'react';
-import {WhiteboardDocument, WhiteboardEdge, WhiteboardNode} from '../types/whiteboard';
+import {WhiteboardDocument, WhiteboardEdge, WhiteboardInsights, WhiteboardNode} from '../types/whiteboard';
 import {normalizeDocument} from '../utils/whiteboardOps';
 
 const STORAGE_KEY = 'odoc-whiteboards';
@@ -38,6 +38,7 @@ export interface SaveWhiteboardInput {
     edges?: WhiteboardEdge[];
     viewOffset?: { x: number; y: number };
     scale?: number;
+    insights?: WhiteboardInsights | null;
 }
 
 export function createWhiteboardDocument(input: CreateWhiteboardInput = {}): WhiteboardDocument {
@@ -97,6 +98,11 @@ export function useWhiteboardDocuments() {
                 edges: patch.edges ? clone(patch.edges) : document.edges,
                 viewOffset: patch.viewOffset ? {...patch.viewOffset} : document.viewOffset,
                 scale: patch.scale ?? document.scale,
+                insights: patch.insights === undefined
+                    ? document.insights
+                    : patch.insights
+                        ? clone(patch.insights)
+                        : undefined,
                 updatedAt
             };
             return saved;

@@ -49,6 +49,37 @@ export interface WhiteboardEdge {
     label?: string;
 }
 
+export type InsightFindingType = 'theme' | 'tension' | 'gap' | 'clue';
+
+export interface InsightFinding {
+    type: InsightFindingType;
+    title: string;
+    detail: string;
+    nodeIds: string[];
+}
+
+export interface InsightQuestion {
+    text: string;
+    why: string;
+    nodeIds: string[];
+}
+
+export interface InsightMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+export interface WhiteboardInsights {
+    generatedAt: number;
+    scope: 'board' | 'selection';
+    scopeNodeIds?: string[];
+    snapshotHash: string;
+    citeMap: Record<string, string>;
+    findings: InsightFinding[];
+    questions: InsightQuestion[];
+    messages: InsightMessage[];
+}
+
 export interface WhiteboardDocument {
     id: string;
     title: string;
@@ -59,6 +90,7 @@ export interface WhiteboardDocument {
     scale: number;
     createdAt: number;
     updatedAt: number;
+    insights?: WhiteboardInsights;
 }
 
 export interface WhiteboardViewport {

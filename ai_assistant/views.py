@@ -15,8 +15,12 @@ from ai_assistant.prompts import (
     CHAT_SYSTEM_PROMPT,
     RAG_CONTEXT_TEMPLATE,
     RAG_EMPTY_MESSAGE,
-    RAG_ERROR_MESSAGE
+    RAG_ERROR_MESSAGE,
+    WHITEBOARD_BRIEF_TEMPLATE,
+    WHITEBOARD_INSIGHT_ANSWER_PROMPT,
+    WHITEBOARD_INSIGHT_DIGEST_PROMPT,
 )
+from ai_assistant.whiteboard_insight import extract_json_object, normalize_insight_payload
 from system_settings.models import Agent, MCPServer, Skill
 from utils.ai_service import AIService
 from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
@@ -379,3 +383,64 @@ class ChatView(APIView):
             if event is done_marker:
                 break
             yield json.dumps(event, ensure_ascii=False) + "\n"
+
+
+class WhiteboardInsightView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        try:
+            data = request.data or {}
+            mode = str(data.get('mode') or 'digest').strip().lower()
+            board_brief = (data.get('board_brief') or data.get('boardBrief') or '').strip()
+            if not board_brief:
+                return Response({'error': '白板内容为空，无法分析'}, status=400)
+
+            brief_block = WHITEBOARD_BRIEF_TEMPLATE.replace('{board_brief}', board_brief)
+            time_context = _build_time_context()
+
+            if mode == 'answer':
+                question = (data.get('question') or data.get('message') or '').strip()
+                if not question:
+                    return Response({'error': '请先选择或输入一个问题'}, status=400)
+                history = data.get('history') or []
+                if not isinstance(history, list):
+                    history = []
+                system_prompt = (
+                    WHITEBOARD_INSIGHT_ANSWER_PROMPT
+                    + "\n\n" + time_context
+                    + "\n\n" + brief_block
+                )
+                messages = [{'role': 'system', 'content': system_prompt}] + history + [
+                    {'role': 'user', 'content': question}
+                ]
+                return StreamingHttpResponse(
+                    ChatView._stream_response_generator(messages, '', False, False, None),
+                    content_type='text/event-stream'
+                )
+
+            if mode != 'digest':
+                return Response({'error': '不支持的启发模式'}, status=400)
+
+            system_prompt = WHITEBOARD_INSIGHT_DIGEST_PROMPT + "\n\n" + time_context
+            messages = [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': '请阅读以下白板简报，只输出 JSON。\n\n' + brief_block},
+            ]
+            raw = AIService.chat_completion_messages(messages)
+            payload = normalize_insight_payload(extract_json_object(raw))
+            return Response(payload)
+
+        except ValueError as e:
+            message = str(e)
+            if 'No default model configured' in message or 'default model' in message:
+                return Response({'error': message}, status=400)
+            if 'insight payload' in message or 'empty insight' in message:
+                return Response({'error': '启发结果解析失败，请重试'}, status=502)
+            return Response({'error': message}, status=400)
+        except json.JSONDecodeError:
+            logger.warning("WhiteboardInsightView received unparsable model output")
+            return Response({'error': '启发结果解析失败，请重试'}, status=502)
+        except Exception as e:
+            logger.error(f"WhiteboardInsightView System Error: {e}", exc_info=True)
+            return Response({'error': "Internal Server Error"}, status=500)

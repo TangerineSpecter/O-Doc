@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
-import {ArrowLeft, CheckCircle2, Maximize2, Save, X} from 'lucide-react';
+import {ArrowLeft, CheckCircle2, Maximize2, Save, Sparkles, X} from 'lucide-react';
 import {Article, getArticles} from '../api/article';
 import {CodeBlock, CUSTOM_STYLES, MermaidChart, SimpleChart} from '../components/Article/MarkdownElements';
 import 'katex/dist/katex.min.css';
@@ -9,7 +9,8 @@ import {useWhiteboardState} from '../hooks/useWhiteboardState';
 import {WhiteboardToolbar} from '../components/Whiteboard/WhiteboardToolbar';
 import {WhiteboardSidebar} from '../components/Whiteboard/WhiteboardSidebar';
 import {WhiteboardInspector} from '../components/Whiteboard/WhiteboardInspector';
-import {WhiteboardOutline} from '../components/Whiteboard/WhiteboardOutline';
+import {WhiteboardRightDock, type WhiteboardRightTab} from '../components/Whiteboard/WhiteboardRightDock';
+import {useWhiteboardInsights} from '../hooks/useWhiteboardInsights';
 import {ArticleNode} from '../components/Whiteboard/ArticleNode';
 import {NoteNode} from '../components/Whiteboard/NoteNode';
 import {TextNode} from '../components/Whiteboard/TextNode';
@@ -88,6 +89,9 @@ export default function WhiteboardPage() {
     const wheelFlushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const toast = useToast();
     const {getDocument, updateDocument} = useWhiteboardDocuments();
+    const [rightTab, setRightTab] = useState<WhiteboardRightTab>('outline');
+    const [insightExpanded, setInsightExpanded] = useState(false);
+    const [rightDockCollapsed, setRightDockCollapsed] = useState(false);
 
     const {
         nodes, edges, setNodes, updateNodes, updateEdges, updateWhiteboardState, resetWhiteboardState,
@@ -212,14 +216,31 @@ export default function WhiteboardPage() {
         }));
     }, [boardId]);
 
+    const insight = useWhiteboardInsights({
+        boardId,
+        title,
+        nodes,
+        edges,
+        selectedNodeIds,
+        getDocument,
+        updateDocument,
+    });
+
     const selectedNodes = useMemo(
         () => nodes.filter(node => selectedNodeIds.includes(node.id)),
         [nodes, selectedNodeIds]
     );
+
     const selectedEdge = useMemo(
         () => edges.find(edge => edge.id === selectedEdgeId) || null,
         [edges, selectedEdgeId]
     );
+
+    const openInsightPanel = useCallback(() => {
+        setRightTab('insight');
+        setRightDockCollapsed(false);
+        insight.openWithPreferredScope(selectedNodeIds.length);
+    }, [insight, selectedNodeIds.length]);
 
     const handleSave = useCallback(() => {
         if (!boardId) return;
@@ -860,14 +881,23 @@ export default function WhiteboardPage() {
                     </div>
                 </div>
 
-                <button
-                    onClick={handleSave}
-                    disabled={!isDirty || isSaving}
-                    className="pointer-events-auto flex items-center gap-1.5 px-3 py-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95"
-                >
-                    <Save className="w-4 h-4"/>
-                    {isSaving ? '保存中' : '保存'}
-                </button>
+                <div className="flex items-center gap-2 pointer-events-auto">
+                    <button
+                        onClick={openInsightPanel}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-orange-50 text-orange-600 border border-orange-200 rounded-lg text-xs font-medium transition-all shadow-sm"
+                    >
+                        <Sparkles className="w-4 h-4"/>
+                        启发
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        disabled={!isDirty || isSaving}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20 active:scale-95"
+                    >
+                        <Save className="w-4 h-4"/>
+                        {isSaving ? '保存中' : '保存'}
+                    </button>
+                </div>
             </div>
 
             <WhiteboardToolbar
@@ -891,15 +921,35 @@ export default function WhiteboardPage() {
                 toggleArticlePicker={() => setIsArticlePickerOpen(!isArticlePickerOpen)}
             />
 
-            <WhiteboardOutline
+            <WhiteboardRightDock
+                tab={rightTab}
+                onTabChange={next => {
+                    setRightTab(next);
+                    if (next === 'outline') setInsightExpanded(false);
+                }}
                 nodes={nodes}
                 selectedNodeIds={selectedNodeIds}
                 onJump={jumpToNode}
+                brief={insight.brief}
+                insights={insight.insights}
+                isStale={insight.isStale}
+                isDigesting={insight.isDigesting}
+                isAnswering={insight.isAnswering}
+                error={insight.error}
+                scope={insight.scope}
+                onScopeChange={insight.setScope}
+                onAnalyze={() => { void insight.runDigest(); }}
+                onAsk={question => { void insight.askQuestion(question); }}
+                expanded={insightExpanded}
+                onExpandedChange={setInsightExpanded}
+                collapsed={rightDockCollapsed}
+                onCollapsedChange={setRightDockCollapsed}
             />
 
             <WhiteboardInspector
                 selectedNodes={selectedNodes}
                 selectedEdge={selectedEdge}
+                offsetClass={rightTab === 'insight' && !insightExpanded && !rightDockCollapsed ? 'right-[25.5rem]' : 'right-4'}
                 onNoteColor={(color) => updateNodes(setNoteColor(nodes, selectedNodeIds, color), true)}
                 onNodeLabel={(nodeId, label) => setNodes(setNodeLabel(nodes, nodeId, label))}
                 onCommit={() => saveHistory(nodes, edges)}

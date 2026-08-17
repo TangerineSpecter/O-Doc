@@ -7,6 +7,7 @@ interface WhiteboardOutlineProps {
     nodes: WhiteboardNode[];
     selectedNodeIds: string[];
     onJump: (nodeId: string) => void;
+    embedded?: boolean;
 }
 
 const iconFor = (node: WhiteboardNode) => {
@@ -19,18 +20,13 @@ const iconFor = (node: WhiteboardNode) => {
 export const WhiteboardOutline: React.FC<WhiteboardOutlineProps> = ({
     nodes,
     selectedNodeIds,
-    onJump
+    onJump,
+    embedded = false,
 }) => {
     const ordered = [...nodes].sort((a, b) => a.y - b.y || a.x - b.x);
 
-    return (
-        <div className="absolute top-20 right-4 z-[90] w-56 max-h-[calc(100%-11rem)] flex flex-col bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
-            <div className="px-3 py-2.5 border-b border-slate-100 flex items-center gap-2">
-                <ListTree className="w-4 h-4 text-slate-500"/>
-                <h3 className="text-xs font-bold text-slate-700">大纲</h3>
-                <span className="ml-auto text-[10px] text-slate-400">{nodes.length}</span>
-            </div>
-            <div className="overflow-y-auto p-1.5 space-y-0.5">
+    const list = (
+            <div className={`${embedded ? 'flex-1 min-h-0' : ''} overflow-y-auto p-1.5 space-y-0.5`}>
                 {ordered.length === 0 ? (
                     <p className="px-2 py-6 text-center text-[11px] text-slate-400">画布还是空的</p>
                 ) : ordered.map(node => {
@@ -50,6 +46,18 @@ export const WhiteboardOutline: React.FC<WhiteboardOutlineProps> = ({
                     );
                 })}
             </div>
+    );
+
+    if (embedded) return list;
+
+    return (
+        <div className="absolute top-20 right-4 z-[90] w-56 max-h-[calc(100%-11rem)] flex flex-col bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+            <div className="px-3 py-2.5 border-b border-slate-100 flex items-center gap-2">
+                <ListTree className="w-4 h-4 text-slate-500"/>
+                <h3 className="text-xs font-bold text-slate-700">大纲</h3>
+                <span className="ml-auto text-[10px] text-slate-400">{nodes.length}</span>
+            </div>
+            {list}
         </div>
     );
 };
