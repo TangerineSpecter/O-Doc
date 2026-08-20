@@ -1009,6 +1009,10 @@ class SyncManager:
             if tmp_path and os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
+    @staticmethod
+    def _json_payload_size(payload):
+        return len(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode('utf-8'))
+
     def _read_remote_json(self, remote_path, required=False):
         content = self.client.get_file_content(remote_path)
         if not content:
@@ -1244,6 +1248,13 @@ class SyncManager:
             'media_count': len(media),
             'media_bytes': sum(item.get('size', 0) for item in media.values()),
         }
+        # Logical size of a complete restore point. Media blobs are shared across
+        # snapshots, so this is not the extra physical space consumed remotely.
+        payload_bytes = sum(self._json_payload_size(payload) for payload in (data_list, revisions, media))
+        snapshot_bytes = meta['media_bytes'] + payload_bytes
+        while meta.get('snapshot_bytes') != snapshot_bytes:
+            meta['snapshot_bytes'] = snapshot_bytes
+            snapshot_bytes = meta['media_bytes'] + payload_bytes + self._json_payload_size(meta)
         self._write_remote_json(data_list, self._snapshot_path(snapshot_id, 'data_index.json'))
         self._write_remote_json(revisions, self._snapshot_path(snapshot_id, 'revisions.json'))
         self._write_remote_json(media, self._snapshot_path(snapshot_id, 'media_manifest.json'))

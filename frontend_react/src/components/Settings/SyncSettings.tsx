@@ -14,12 +14,13 @@ const PROTOCOL_OPTIONS = [
 const defaultPortForProtocol = (protocol: SyncProtocol) => protocol === 'sftp' ? 22 : protocol === 'ftp' ? 21 : null;
 
 const TRIGGER_LABELS: Record<string, string> = {
-    scheduler: '定时',
+    scheduler: '定时同步',
     manual: '手动上传',
     'manual-pull': '手动下载',
     'manual-preflight': '手动上传',
     'local-export': '导出备份',
     'local-import': '导入备份',
+    'history-restore': '历史恢复',
 };
 
 const hostFromUrl = (url: string) => {
@@ -113,6 +114,19 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return value;
         return date.toLocaleString();
+    };
+
+    const formatBytes = (bytes?: number | null) => {
+        if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return '大小未知';
+        if (bytes < 1024) return `${bytes} B`;
+        const units = ['KB', 'MB', 'GB', 'TB'];
+        let value = bytes / 1024;
+        let unitIndex = 0;
+        while (value >= 1024 && unitIndex < units.length - 1) {
+            value /= 1024;
+            unitIndex += 1;
+        }
+        return `${value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2)} ${units[unitIndex]}`;
     };
 
     const statusMeta = {
@@ -470,6 +484,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                     <div>
                         <p className="text-sm font-semibold text-slate-800">远端历史快照</p>
                         <p className="mt-0.5 text-xs text-slate-500">保留最近 10 份完整版本；恢复前会自动保存当前本机数据。</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">远端的图片、附件、ZIP 和头像会以去重后的哈希 Blob 保存于 <code className="rounded bg-slate-100 px-1 font-mono text-[11px] text-slate-600">sync-v2/blobs</code>，原始路径与文件名请在该快照的 <code className="rounded bg-slate-100 px-1 font-mono text-[11px] text-slate-600">media_manifest.json</code> 中查看。</p>
                     </div>
                     <button onClick={refreshHistory} disabled={isTransferBusy} className="text-xs text-indigo-600 hover:text-indigo-700 disabled:opacity-50">刷新</button>
                 </div>
@@ -477,8 +492,8 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                     <div className="space-y-2">
                         {history.map(item => <div key={item.snapshotId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
                             <div className="min-w-0 text-xs text-slate-600">
-                                <p className="font-medium text-slate-700">{formatDateTime(item.generatedAt)} · {item.source || '同步'}</p>
-                                <p className="mt-0.5 truncate">{item.recordCount || 0} 条数据 · {item.mediaCount || 0} 个媒体文件 · 设备 {item.deviceId?.slice(0, 8) || '未知'}</p>
+                                <p className="font-medium text-slate-700">{formatDateTime(item.generatedAt)} · {TRIGGER_LABELS[item.source] || '同步'}</p>
+                                <p className="mt-0.5 truncate">{item.recordCount || 0} 条数据 · {item.mediaCount || 0} 个媒体文件 · 快照内容 {formatBytes(item.snapshotBytes)} · 设备 {item.deviceId?.slice(0, 8) || '未知'}</p>
                             </div>
                             <button onClick={() => handleRestoreHistory(item)} disabled={Boolean(isRestoringHistory) || isTransferBusy} className="rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-xs text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">
                                 {isRestoringHistory === item.snapshotId ? '恢复中…' : '恢复此版本'}

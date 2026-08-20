@@ -4,7 +4,7 @@ import sys
 import tempfile
 import zipfile
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.core import serializers
 from django.contrib.auth.models import Group, User
@@ -259,6 +259,46 @@ class SyncManagerTests(TestCase):
         self.assertEqual(len(history), 10)
         pointer = json.loads(client.get_file_content(manager.v2_current_file))
         self.assertIn(pointer['snapshot_id'], {item['snapshot_id'] for item in history})
+
+    def test_v2_snapshot_uploads_images_attachments_archives_and_avatars_as_blobs(self):
+        client = MemoryStorageClient()
+        manager = SyncManager(client, '/o-doc-sync/')
+        files = {
+            'image/photo.png': b'photo-bytes',
+            'document/attachment.pdf': b'attachment-bytes',
+            'archive/export.zip': b'archive-bytes',
+            'avatars/admin.png': b'avatar-bytes',
+        }
+
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.settings(MEDIA_ROOT=media_root):
+                for rel_path, content in files.items():
+                    abs_path = os.path.join(media_root, rel_path)
+                    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+                    with open(abs_path, 'wb') as file_obj:
+                        file_obj.write(content)
+
+                for index, rel_path in enumerate(list(files)[:3]):
+                    Asset.objects.create(
+                        id=f'asset_v2_{index}', name=os.path.basename(rel_path),
+                        original_name=os.path.basename(rel_path), file_type='other',
+                        file_size=len(files[rel_path]), file_path=rel_path,
+                        file_extension=os.path.splitext(rel_path)[1],
+                        mime_type='application/octet-stream', file_hash=f'asset-v2-{index}',
+                        source_type=('image' if rel_path.startswith('image/') else 'attachment'),
+                    )
+                user = User.objects.create_user(username='v2-avatar-user', password='password')
+                UserProfile.objects.create(user=user, userid='v2-avatar-user', avatar='/media/avatars/admin.png')
+
+                snapshot = manager.publish_v2_snapshot(source='test', data_list=[], revisions={})
+
+        self.assertEqual(snapshot['meta']['media_count'], len(files))
+        self.assertGreater(snapshot['meta']['snapshot_bytes'], snapshot['meta']['media_bytes'])
+        self.assertEqual(set(snapshot['media']), set(files))
+        for rel_path, content in files.items():
+            digest = snapshot['media'][rel_path]['hash']
+            self.assertEqual(client.files[f'{manager.v2_blobs_dir}/{digest}'], content)
+
     def test_validate_upload_state_reports_missing_asset_file(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
         with patch.object(
@@ -722,6 +762,23 @@ class WebDavClientTests(TestCase):
             WebDavClient.normalize_base_url('https://dav.example.com/dav/'),
             'https://dav.example.com/dav'
         )
+
+    def test_exists_uses_real_info_lookup_when_library_check_is_disabled(self):
+        client = WebDavClient('https://dav.example.com', 'user', 'password')
+        client.client = Mock()
+        client.client.check.return_value = True
+        client.client.info.side_effect = RuntimeError('404 not found')
+
+        self.assertFalse(client.exists('/backup/sync-v2/blobs/missing'))
+        client.client.info.assert_called_once_with('/backup/sync-v2/blobs/missing')
+        client.client.check.assert_not_called()
+
+    def test_exists_returns_true_when_remote_info_is_available(self):
+        client = WebDavClient('https://dav.example.com', 'user', 'password')
+        client.client = Mock()
+        client.client.info.return_value = {'name': 'blob'}
+
+        self.assertTrue(client.exists('/backup/sync-v2/blobs/existing'))
 
 
 class RemoteStorageFactoryTests(TestCase):

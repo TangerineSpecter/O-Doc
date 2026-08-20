@@ -38,7 +38,16 @@ class WebDavClient:
             return False
 
     def exists(self, remote_path):
-        return self.client.check(remote_path)
+        # webdavclient3 returns True unconditionally from check() when
+        # disable_check=True. We keep that option because several WebDAV
+        # servers are unreliable during the library's implicit preflight
+        # checks, but v2 blob deduplication needs a real existence lookup.
+        # PROPFIND via info() still performs an actual remote request.
+        try:
+            self.client.info(self._normalize_remote_path(remote_path))
+            return True
+        except Exception:
+            return False
 
     @staticmethod
     def _normalize_remote_path(remote_path):

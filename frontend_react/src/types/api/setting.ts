@@ -284,6 +284,7 @@ export interface SyncHistoryEntry {
     recordCount: number;
     mediaCount: number;
     mediaBytes: number;
+    snapshotBytes?: number | null;
 }
 
 export interface RuntimeInfo {

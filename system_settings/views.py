@@ -1483,6 +1483,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 'recordCount': item.get('record_count', 0),
                 'mediaCount': item.get('media_count', 0),
                 'mediaBytes': item.get('media_bytes', 0),
+                'snapshotBytes': item.get('snapshot_bytes'),
             } for item in manager.list_v2_history()])
         except SyncError as exc:
             return valid_result(msg=str(exc))
