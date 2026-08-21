@@ -203,26 +203,6 @@ export const AIChatWindow = ({
         return items.filter(item => `${item.name} ${item.summary.content}`.toLowerCase().includes(keyword));
     }, [activeConversationKey, contactAgents, contactQuery, messages, messagesConversationKey]);
 
-    // 点击 MCP 面板外部关闭
-    const mcpPanelRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        if (!mcpPanelOpen) return;
-        const closeOnOutside = (event: MouseEvent) => {
-            if (!mcpPanelRef.current?.contains(event.target as Node)) {
-                setMcpPanelOpen(false);
-            }
-        };
-        const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setMcpPanelOpen(false);
-        };
-        document.addEventListener('mousedown', closeOnOutside);
-        document.addEventListener('keydown', closeOnEscape);
-        return () => {
-            document.removeEventListener('mousedown', closeOnOutside);
-            document.removeEventListener('keydown', closeOnEscape);
-        };
-    }, [mcpPanelOpen, setMcpPanelOpen]);
-
     // 自动滚动控制
     const chatBodyRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -409,7 +389,6 @@ export const AIChatWindow = ({
                     <div className="p-5 bg-white border-t border-slate-100">
                         {!activeAgent && (
                             <ChatSettingsToolbar
-                                mcpPanelRef={mcpPanelRef}
                                 assistantMode={assistantMode}
                                 selectedMcpIds={selectedMcpIds}
                                 mcpOptions={mcpOptions}

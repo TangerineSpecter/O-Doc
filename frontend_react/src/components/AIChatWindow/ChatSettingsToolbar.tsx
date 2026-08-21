@@ -1,6 +1,6 @@
 // frontend_react/src/components/AIChatWindow/ChatSettingsToolbar.tsx
 
-import { type RefObject } from 'react';
+import { useEffect, useRef } from 'react';
 import { Plug, ChevronDown, Check, BookOpen, WandSparkles, BrainCircuit } from 'lucide-react';
 import { Select } from '../common/Select';
 import { type SkillConfig } from '../../api/setting';
@@ -8,7 +8,6 @@ import { type AssistantMode } from './types';
 import { type SelectOption } from '../common/Select';
 
 interface ChatSettingsToolbarProps {
-    mcpPanelRef: RefObject<HTMLDivElement | null>;
     assistantMode: AssistantMode;
     selectedMcpIds: string[];
     mcpOptions: { id: string; name: string; description: string; source: string }[];
@@ -31,7 +30,6 @@ interface ChatSettingsToolbarProps {
 }
 
 export const ChatSettingsToolbar = ({
-    mcpPanelRef,
     assistantMode,
     selectedMcpIds,
     mcpOptions,
@@ -52,6 +50,46 @@ export const ChatSettingsToolbar = ({
     useThinking,
     setUseThinking,
 }: ChatSettingsToolbarProps) => {
+    const mcpPanelRef = useRef<HTMLDivElement>(null);
+    const skillPanelRef = useRef<HTMLDivElement>(null);
+
+    // 点击 MCP 面板外部关闭
+    useEffect(() => {
+        if (!mcpPanelOpen) return;
+        const closeOnOutside = (event: MouseEvent) => {
+            if (!mcpPanelRef.current?.contains(event.target as Node)) {
+                setMcpPanelOpen(false);
+            }
+        };
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setMcpPanelOpen(false);
+        };
+        document.addEventListener('mousedown', closeOnOutside);
+        document.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.removeEventListener('mousedown', closeOnOutside);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [mcpPanelOpen, setMcpPanelOpen]);
+
+    // 点击技能面板外部关闭
+    useEffect(() => {
+        if (!skillPanelOpen) return;
+        const closeOnOutside = (event: MouseEvent) => {
+            if (!skillPanelRef.current?.contains(event.target as Node)) {
+                setSkillPanelOpen(false);
+            }
+        };
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setSkillPanelOpen(false);
+        };
+        document.addEventListener('mousedown', closeOnOutside);
+        document.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.removeEventListener('mousedown', closeOnOutside);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [skillPanelOpen, setSkillPanelOpen]);
     return (
         <div className="flex items-center justify-between mb-3 px-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -155,35 +193,8 @@ export const ChatSettingsToolbar = ({
                     )}
                 </div>
 
-                {/* 知识库模式 */}
-                <button
-                    type="button"
-                    onClick={() => setUseKb(prev => !prev)}
-                    className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all ${
-                        useKb
-                            ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-sm ring-1 ring-blue-100'
-                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
-                    }`}
-                >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    {useKb ? '知识库模式：已开启' : '知识库模式：未开启'}
-                </button>
-                {useKb && (
-                    <Select
-                        value={selectedCollId}
-                        options={anthologyOptions}
-                        onChange={setSelectedCollId}
-                        placeholder="全部文集"
-                        emptyMessage="暂无文章文集"
-                        accentClassName="bg-blue-50 text-blue-700"
-                        showSelectedDescription={false}
-                        buttonClassName="!h-10 !min-h-10 w-[156px] rounded-xl border-blue-200 px-3 !py-0 text-xs font-semibold shadow-none hover:border-blue-300 focus:border-blue-400 focus:ring-blue-100"
-                        menuClassName="bottom-full right-0 !mt-0 mb-2 w-64 max-h-[min(320px,45vh)] overflow-y-auto z-[120]"
-                    />
-                )}
-
                 {/* 技能装载 */}
-                <div className="relative">
+                <div ref={skillPanelRef} className="relative">
                     <button
                         type="button"
                         onClick={() => setSkillPanelOpen(prev => !prev)}
@@ -248,6 +259,33 @@ export const ChatSettingsToolbar = ({
                     <BrainCircuit className="w-3.5 h-3.5" />
                     {useThinking ? '思考模式：已开启' : '思考模式：未开启'}
                 </button>
+
+                {/* 知识库模式 */}
+                <button
+                    type="button"
+                    onClick={() => setUseKb(prev => !prev)}
+                    className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all ${
+                        useKb
+                            ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-sm ring-1 ring-blue-100'
+                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                    }`}
+                >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    {useKb ? '知识库模式：已开启' : '知识库模式：未开启'}
+                </button>
+                {useKb && (
+                    <Select
+                        value={selectedCollId}
+                        options={anthologyOptions}
+                        onChange={setSelectedCollId}
+                        placeholder="全部文集"
+                        emptyMessage="暂无文章文集"
+                        accentClassName="bg-blue-50 text-blue-700"
+                        showSelectedDescription={false}
+                        buttonClassName="!h-10 !min-h-10 w-[156px] rounded-xl border-blue-200 px-3 !py-0 text-xs font-semibold shadow-none hover:border-blue-300 focus:border-blue-400 focus:ring-blue-100"
+                        menuClassName="bottom-full right-0 !mt-0 mb-2 w-64 max-h-[min(320px,45vh)] overflow-y-auto z-[120]"
+                    />
+                )}
             </div>
             <span className="text-[11px] text-slate-300 font-mono flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
