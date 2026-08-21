@@ -37,6 +37,7 @@ from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentL
 from system_settings.sync_scheduler import (
     WebDavAutoSyncScheduler,
     cancel_running_sync,
+    is_sync_running,
     should_pull_remote_before_push,
     should_start_webdav_scheduler,
 )
@@ -177,6 +178,39 @@ class FakeMemoryCollection:
 
 
 class SyncManagerTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        self._test_media_root = tempfile.TemporaryDirectory(prefix='odoc-sync-tests-')
+        self.addCleanup(self._test_media_root.cleanup)
+        self._media_settings = self.settings(MEDIA_ROOT=self._test_media_root.name)
+        self._media_settings.enable()
+        self.addCleanup(self._media_settings.disable)
+
+    @patch('system_settings.sync_scheduler.os.kill', side_effect=ProcessLookupError)
+    @patch('system_settings.sync_scheduler.socket.gethostname', return_value='local-host')
+    def test_dead_local_scheduler_does_not_keep_sync_running(self, _hostname, _kill):
+        runtime_state = {
+            'status': 'running',
+            'trigger': 'scheduler',
+            'runner_id': 'local-host:12345',
+            'last_started_at': timezone.now().isoformat(),
+        }
+
+        self.assertFalse(is_sync_running(runtime_state))
+
+    @patch('system_settings.sync_scheduler.os.kill')
+    @patch('system_settings.sync_scheduler.socket.gethostname', return_value='local-host')
+    def test_foreign_scheduler_keeps_timestamp_based_running_state(self, _hostname, kill):
+        runtime_state = {
+            'status': 'running',
+            'trigger': 'scheduler',
+            'runner_id': 'remote-host:12345',
+            'last_started_at': timezone.now().isoformat(),
+        }
+
+        self.assertTrue(is_sync_running(runtime_state))
+        kill.assert_not_called()
+
     def test_v2_three_way_merge_keeps_each_device_new_record(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
         base_item = {'model': 'anthology.anthology', 'pk': 'A', 'fields': {'title': 'A'}}
@@ -994,7 +1028,7 @@ class FtpClientTests(TestCase):
         ftp = mock_ftp_cls.return_value
         client = FtpClient('ftp.example.com', 21, 'demo', 'secret')
         self.assertTrue(client.check_connection())
-        ftp.connect.assert_called_once_with('ftp.example.com', 21, timeout=300)
+        ftp.connect.assert_called_once_with('ftp.example.com', 21, timeout=30)
         ftp.login.assert_called_once_with('demo', 'secret')
         ftp.set_pasv.assert_called_once_with(True)
         ftp.voidcmd.assert_called()
@@ -1679,6 +1713,7 @@ class AgentMemoryTests(TestCase):
 class SystemConfigViewSetTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
+        self.user = User.objects.create_user('system-config-test', 'system-config@example.com', 'password')
 
     def test_get_sync_manager_accepts_camel_case_remote_path(self):
         SystemSetting.objects.create(
@@ -1744,6 +1779,7 @@ class SystemConfigViewSetTests(TestCase):
             'password': 'secret',
             'remote_path': '/o-doc-backup/',
         }, format='json')
+        force_authenticate(request, user=self.user)
         view = SystemConfigViewSet.as_view({'post': 'save_webdav_config'})
         with patch('system_settings.views.create_storage_client') as mock_factory:
             mock_factory.return_value.check_connection.return_value = True
@@ -1798,6 +1834,7 @@ class SystemConfigViewSetTests(TestCase):
             'password': 'secret',
             'remote_path': '/new-path/',
         }, format='json')
+        force_authenticate(request, user=self.user)
         view = SystemConfigViewSet.as_view({'post': 'save_webdav_config'})
         with patch('system_settings.views.create_storage_client') as mock_factory:
             mock_factory.return_value.check_connection.return_value = True
@@ -1846,6 +1883,7 @@ class SystemConfigViewSetTests(TestCase):
         )
 
         request = self.factory.get('/api/settings/config/get_webdav_status/')
+        force_authenticate(request, user=self.user)
         view = SystemConfigViewSet.as_view({'get': 'get_webdav_status'})
         response = view(request)
 
@@ -1855,13 +1893,16 @@ class SystemConfigViewSetTests(TestCase):
 
     def test_sync_from_webdav_uses_streaming_protocol_with_done_event(self):
         request = self.factory.post('/api/settings/config/sync_from_webdav/')
+        force_authenticate(request, user=self.user)
         view = SystemConfigViewSet.as_view({'post': 'sync_from_webdav'})
 
         fake_manager = type('FakeManager', (), {
-            'get_remote_snapshot_meta': lambda self: {'snapshot_id': 'snapshot-remote', 'app_version': '0.7.0'},
-            'validate_remote_snapshot_version': lambda self, remote_meta: None,
-            'sync_data_download': lambda self, remote_meta=None, should_abort=None: 3,
-            'sync_assets_download': lambda self, should_abort=None: 2,
+            'get_v2_current': lambda self: {'meta': {'snapshot_id': 'snapshot-remote'}},
+            'sync_v2': lambda self, **kwargs: (
+                {'meta': {'snapshot_id': 'snapshot-merged', 'base_snapshot_id': 'snapshot-old'}},
+                {'created': 3, 'updated': 2, 'deleted': 0, 'conflicts': 0},
+                '/tmp/safety-backup.zip',
+            ),
         })()
 
         with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=fake_manager):
@@ -1874,8 +1915,9 @@ class SystemConfigViewSetTests(TestCase):
         self.assertEqual(events[-1]['step'], 'done')
         self.assertFalse(any('staticfiles' in event['msg'] for event in events))
 
-    def test_sync_to_webdav_pulls_remote_first_when_snapshot_changed(self):
+    def test_sync_to_webdav_passes_existing_base_to_v2_merge(self):
         request = self.factory.post('/api/settings/config/sync_to_webdav/')
+        force_authenticate(request, user=self.user)
         view = SystemConfigViewSet.as_view({'post': 'sync_to_webdav'})
 
         SystemSetting.objects.create(
@@ -1886,38 +1928,13 @@ class SystemConfigViewSetTests(TestCase):
         call_order = []
 
         class FakeManager:
-            def validate_upload_state(self):
-                return []
-
-            def get_remote_snapshot_meta(self):
-                return {
-                    'snapshot_id': 'snapshot-new',
-                    'app_version': SyncManager.get_current_app_version(),
-                    'generated_at': (timezone.now() + timedelta(hours=1)).isoformat(),
-                }
-
-            def validate_remote_snapshot_version(self, remote_meta):
-                return None
-
-            def sync_data_download(self, remote_meta=None, should_abort=None):
-                call_order.append('pull-data')
-                return 3
-
-            def sync_assets_download(self, should_abort=None):
-                call_order.append('pull-assets')
-                return 2
-
-            def sync_assets_upload_stream(self, should_abort=None):
-                call_order.append('push-assets')
-                yield json.dumps({"step": "summary", "msg": "资源文件同步完成"})
-
-            def sync_data_upload_stream(self, should_abort=None):
-                call_order.append('push-data')
-                yield json.dumps({"step": "data_done", "msg": "数据库备份完成"})
-
-            def write_snapshot_meta(self, source='manual', runner_id=''):
-                call_order.append('write-meta')
-                return {'snapshot_id': 'snapshot-after-push'}
+            def sync_v2(self, **kwargs):
+                call_order.append(('sync-v2', kwargs['base_snapshot_id']))
+                return (
+                    {'meta': {'snapshot_id': 'snapshot-merged', 'base_snapshot_id': 'snapshot-old'}},
+                    {'created': 3, 'updated': 2, 'deleted': 0, 'conflicts': 0},
+                    '/tmp/safety-backup.zip',
+                )
 
         with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=FakeManager()):
             response = view(request)
@@ -1926,63 +1943,36 @@ class SystemConfigViewSetTests(TestCase):
             json.loads(chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk)
             for chunk in response.streaming_content
         ]
-        self.assertEqual(
-            call_order,
-            ['pull-data', 'pull-assets', 'push-assets', 'push-data', 'write-meta']
-        )
-        self.assertTrue(any('先拉取远端数据再继续同步' in event['msg'] for event in events))
+        self.assertEqual(call_order, [('sync-v2', 'snapshot-old')])
+        self.assertTrue(any('v2 合并完成' in event['msg'] for event in events))
         runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
-        self.assertEqual(runtime['last_synced_snapshot_id'], 'snapshot-after-push')
+        self.assertEqual(runtime['last_synced_snapshot_id'], 'snapshot-merged')
 
-    def test_sync_to_webdav_rejects_newer_remote_version_without_pushing(self):
+    def test_sync_to_webdav_returns_v2_version_error(self):
         request = self.factory.post('/api/settings/config/sync_to_webdav/')
+        force_authenticate(request, user=self.user)
         view = SystemConfigViewSet.as_view({'post': 'sync_to_webdav'})
         call_order = []
 
         class FakeManager:
-            def validate_upload_state(self):
-                return []
+            def sync_v2(self, **kwargs):
+                call_order.append('sync-v2')
+                raise SyncError('远端快照由更高版本创建，请先升级本机后再同步')
 
-            def get_remote_snapshot_meta(self):
-                return {
-                    'snapshot_id': 'snapshot-new-version',
-                    'app_version': '0.9.4',
-                    'generated_at': '2026-08-17T12:00:00Z',
-                }
+        with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=FakeManager()):
+            response = view(request)
+            events = [
+                json.loads(chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk)
+                for chunk in response.streaming_content
+            ]
 
-            def validate_remote_snapshot_version(self, remote_meta):
-                SyncManager(FakeWebDavClient(), '/o-doc-sync/').validate_remote_snapshot_version(remote_meta)
+        self.assertEqual(call_order, ['sync-v2'])
+        self.assertEqual(events[-1]['step'], 'error')
+        self.assertIn('请先升级本机后再同步', events[-1]['msg'])
 
-            def sync_data_download(self, remote_meta=None, should_abort=None):
-                call_order.append('pull-data')
-                return 3
-
-            def sync_assets_download(self, should_abort=None):
-                call_order.append('pull-assets')
-                return 2
-
-            def sync_assets_upload_stream(self, should_abort=None):
-                call_order.append('push-assets')
-                yield json.dumps({"step": "summary", "msg": "资源文件同步完成"})
-
-            def sync_data_upload_stream(self, should_abort=None):
-                call_order.append('push-data')
-                yield json.dumps({"step": "data_done", "msg": "数据库备份完成"})
-
-        with patch.object(SyncManager, 'get_current_app_version', return_value='0.8.1'):
-            with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=FakeManager()):
-                response = view(request)
-                events = [
-                    json.loads(chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk)
-                    for chunk in response.streaming_content
-                ]
-
-        self.assertEqual(call_order, [])
-        self.assertEqual(events[0]['step'], 'error')
-        self.assertIn('请先升级本机后再同步', events[0]['msg'])
-
-    def test_sync_to_webdav_skips_stale_remote_preflight_pull(self):
+    def test_sync_to_webdav_passes_empty_base_to_v2_merge(self):
         request = self.factory.post('/api/settings/config/sync_to_webdav/')
+        force_authenticate(request, user=self.user)
         view = SystemConfigViewSet.as_view({'post': 'sync_to_webdav'})
 
         SystemSetting.objects.create(
@@ -1996,38 +1986,13 @@ class SystemConfigViewSetTests(TestCase):
         call_order = []
 
         class FakeManager:
-            def validate_upload_state(self):
-                return []
-
-            def get_remote_snapshot_meta(self):
-                return {
-                    'snapshot_id': 'snapshot-old-remote',
-                    'app_version': '0.7.0',
-                    'generated_at': '2026-07-01T00:00:00Z',
-                }
-
-            def validate_remote_snapshot_version(self, remote_meta):
-                return None
-
-            def sync_data_download(self, remote_meta=None, should_abort=None):
-                call_order.append('pull-data')
-                return 3
-
-            def sync_assets_download(self, should_abort=None):
-                call_order.append('pull-assets')
-                return 2
-
-            def sync_assets_upload_stream(self, should_abort=None):
-                call_order.append('push-assets')
-                yield json.dumps({"step": "summary", "msg": "资源文件同步完成"})
-
-            def sync_data_upload_stream(self, should_abort=None):
-                call_order.append('push-data')
-                yield json.dumps({"step": "data_done", "msg": "数据库备份完成"})
-
-            def write_snapshot_meta(self, source='manual', runner_id=''):
-                call_order.append('write-meta')
-                return {'snapshot_id': 'snapshot-after-push'}
+            def sync_v2(self, **kwargs):
+                call_order.append(('sync-v2', kwargs['base_snapshot_id']))
+                return (
+                    {'meta': {'snapshot_id': 'snapshot-merged', 'base_snapshot_id': ''}},
+                    {'created': 0, 'updated': 0, 'deleted': 0, 'conflicts': 0},
+                    '/tmp/safety-backup.zip',
+                )
 
         with patch.object(SystemConfigViewSet, '_get_sync_manager', return_value=FakeManager()):
             response = view(request)
@@ -2036,11 +2001,12 @@ class SystemConfigViewSetTests(TestCase):
             json.loads(chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk)
             for chunk in response.streaming_content
         ]
-        self.assertEqual(call_order, ['push-assets', 'push-data', 'write-meta'])
-        self.assertTrue(any('以本地数据为准' in event['msg'] for event in events))
+        self.assertEqual(call_order, [('sync-v2', '')])
+        self.assertTrue(any('v2 合并完成' in event['msg'] for event in events))
 
     def test_sync_to_webdav_rejects_when_another_sync_is_running(self):
         request = self.factory.post('/api/settings/config/sync_to_webdav/')
+        force_authenticate(request, user=self.user)
         view = SystemConfigViewSet.as_view({'post': 'sync_to_webdav'})
 
         SystemSetting.objects.create(
@@ -2158,6 +2124,7 @@ class WebDavSchedulerTests(TestCase):
         )
         cancelled, runtime = cancel_running_sync()
         self.assertTrue(cancelled)
-        self.assertEqual(runtime.get('status'), 'error')
-        self.assertEqual(runtime.get('runner_id'), '')
+        self.assertEqual(runtime.get('status'), 'running')
+        self.assertEqual(runtime.get('runner_id'), 'scheduler:host:1')
+        self.assertTrue(runtime.get('cancel_requested'))
         self.assertIn('同步已取消', runtime.get('last_error'))

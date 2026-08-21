@@ -21,6 +21,7 @@ import {
     remarkQuoteVariants,
     SimpleChart,
 } from '../Article/MarkdownElements';
+import {isImageAvatarValue} from '../../utils/avatar';
 
 interface ChatMessageListProps {
     messages: Message[];
@@ -204,10 +205,10 @@ export const ChatMessageList = ({
             {messages.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-6 -mt-10">
                     <div className="w-20 h-20 bg-white rounded-3xl shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
-                        {activeAgent?.avatar ? (
-                            <img src={activeAgent.avatar} alt={activeAgent.name} className="h-full w-full object-cover" />
+                        {isImageAvatarValue(activeAgent?.avatar) ? (
+                            <img src={activeAgent?.avatar} alt={activeAgent?.name || 'Agent'} className="h-full w-full object-cover" />
                         ) : (
-                            <Bot className="w-10 h-10 text-orange-500" />
+                            activeAgent?.avatar?.trim() || <Bot className="w-10 h-10 text-orange-500" />
                         )}
                     </div>
                     <div className="text-center space-y-2">
@@ -257,10 +258,10 @@ export const ChatMessageList = ({
                                     ) : (
                                         <User className="w-5 h-5" />
                                     )
-                                ) : activeAgent?.avatar ? (
-                                    <img src={activeAgent.avatar} alt={activeAgent.name} className="h-full w-full object-cover" />
+                                ) : isImageAvatarValue(activeAgent?.avatar) ? (
+                                    <img src={activeAgent?.avatar} alt={activeAgent?.name || 'Agent'} className="h-full w-full object-cover" />
                                 ) : (
-                                    <Bot className="w-5 h-5" />
+                                    activeAgent?.avatar?.trim() || <Bot className="w-5 h-5" />
                                 )}
                             </div>
                         ) : (

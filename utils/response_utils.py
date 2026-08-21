@@ -1,6 +1,11 @@
+import logging
+
 from rest_framework.response import Response
 
 from .error_codes import ErrorCode
+
+
+internal_error_logger = logging.getLogger('o_doc.internal_errors')
 
 
 def success_result(data=None, msg=ErrorCode.SUCCESS.message, ):
@@ -38,6 +43,13 @@ def error_result(error: ErrorCode = ErrorCode.PARAM_ERROR, data=None):
     :param data: 错误附加数据
     :return: JsonResponse
     """
+    if error == ErrorCode.SYSTEM_ERROR and data is not None:
+        # Most callers reach this branch from an active ``except`` block. Log the
+        # traceback server-side, but never expose database, path, or provider
+        # details through the public response contract.
+        internal_error_logger.exception('Internal error response generated (code=%s)', error.code)
+        data = None
+
     return Response({
         'code': error.code,
         'msg': error.message,

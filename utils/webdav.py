@@ -1,8 +1,12 @@
+import logging
 from io import BytesIO
 from urllib.parse import urlparse
 
 from webdav3.client import Client
 from webdav3.exceptions import ResponseErrorCode
+
+
+logger = logging.getLogger(__name__)
 
 
 class WebDavClient:
@@ -34,7 +38,7 @@ class WebDavClient:
             self.client.info('/')
             return True
         except Exception as e:
-            print(f"WebDAV connection check failed: {e}")
+            logger.warning('WebDAV connection check failed: host=%s, reason=%s', self.options.get('webdav_hostname'), e)
             return False
 
     def exists(self, remote_path):
@@ -90,10 +94,10 @@ class WebDavClient:
                 else:
                     # 如果是 409 Conflict，说明上一级目录没创建成功（不应该发生，因为我们是循环下来的）
                     # 打印日志方便调试，但不抛出异常中断整个流程，万一服务器抽风呢
-                    print(f"Mkdir warning at {current_path}: {e}")
+                    logger.warning('WebDAV directory creation warning: path=%s, reason=%s', current_path, e)
             except Exception as e:
                 # 捕获其他未知异常，防止中断
-                print(f"Mkdir error at {current_path}: {e}")
+                logger.exception('WebDAV directory creation failed: path=%s', current_path)
 
     def try_create_directory(self, remote_dir):
         """仅在目录不存在时创建，用作跨设备同步锁。"""
@@ -111,7 +115,7 @@ class WebDavClient:
             self.client.upload_sync(remote_path=remote_path, local_path=local_path)
             return True
         except Exception as e:
-            print(f"WebDAV upload failed: {remote_path}. Error: {e}")
+            logger.exception('WebDAV upload failed: path=%s', remote_path)
             return False
 
     def download_file(self, remote_path, local_path):
@@ -119,7 +123,7 @@ class WebDavClient:
             self.client.download_sync(remote_path=remote_path, local_path=local_path)
             return True
         except Exception as e:
-            print(f"WebDAV download failed: {e}")
+            logger.exception('WebDAV download failed: path=%s', remote_path)
             return False
 
     def get_file_content(self, remote_path):
@@ -128,7 +132,7 @@ class WebDavClient:
             self.client.download_from(buffer, remote_path)
             return buffer.getvalue().decode('utf-8')
         except Exception as e:
-            print(f"WebDAV read content failed: {e}")
+            logger.exception('WebDAV content read failed: path=%s', remote_path)
             return None
 
     def list_directory(self, remote_dir):
@@ -136,7 +140,7 @@ class WebDavClient:
             remote_dir = self._normalize_remote_path(remote_dir)
             return self.client.list(remote_dir)
         except Exception as e:
-            print(f"WebDAV list failed: {remote_dir}. Error: {e}")
+            logger.exception('WebDAV directory listing failed: path=%s', remote_dir)
             return None
 
     def is_directory(self, remote_path):
@@ -144,7 +148,7 @@ class WebDavClient:
             remote_path = self._normalize_remote_path(remote_path)
             return self.client.is_dir(remote_path)
         except Exception as e:
-            print(f"WebDAV stat failed: {remote_path}. Error: {e}")
+            logger.exception('WebDAV stat failed: path=%s', remote_path)
             return False
 
     def delete_path(self, remote_path):
@@ -153,5 +157,5 @@ class WebDavClient:
             self.client.clean(remote_path)
             return True
         except Exception as e:
-            print(f"WebDAV delete failed: {remote_path}. Error: {e}")
+            logger.exception('WebDAV delete failed: path=%s', remote_path)
             return False

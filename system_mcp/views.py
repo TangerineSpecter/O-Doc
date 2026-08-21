@@ -1,4 +1,5 @@
 import json
+import logging
 from hmac import compare_digest
 
 from django.db import IntegrityError, transaction
@@ -25,6 +26,8 @@ from system_settings.models import Agent, SystemSetting
 
 PROTOCOL_VERSION = '2025-06-18'
 SYSTEM_MCP_CONFIG_KEY = 'system_mcp_config'
+
+logger = logging.getLogger(__name__)
 
 
 def _text_result(payload):
@@ -548,8 +551,11 @@ class ODocSystemMCPView(APIView):
                     raise ValueError(f'当前 MCP 不提供 Tool：{name}')
                 result = self._call_tool(name, arguments)
                 return self._result(request_id, _text_result(result))
-            except Exception as exc:
+            except ValueError as exc:
                 return self._error(request_id, -32000, str(exc))
+            except Exception:
+                logger.exception('System MCP tool call failed: tool=%s', name)
+                return self._error(request_id, -32000, '工具调用失败，请查看服务端日志')
 
         return self._error(request_id, -32601, f'未知 MCP 方法：{method}')
 

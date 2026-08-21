@@ -5,7 +5,9 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
 import type {WhiteboardNode} from '../../types/whiteboard';
+import {getSafeIframeUrl, getSafeVideoUrl, markdownSanitizeSchema} from '../../utils/markdownSecurity';
 
 interface ArticleNodeProps {
     node: WhiteboardNode;
@@ -22,6 +24,18 @@ export const ArticleNode: React.FC<ArticleNodeProps> = ({
     onDelete,
     onDragStart
 }) => {
+    const safeMarkdownComponents = {
+        ...markdownComponents,
+        iframe: (props: React.IframeHTMLAttributes<HTMLIFrameElement>) => {
+            const src = getSafeIframeUrl(String(props.src || ''));
+            return src ? <iframe {...props} src={src}/> : null;
+        },
+        video: (props: React.VideoHTMLAttributes<HTMLVideoElement>) => {
+            const src = getSafeVideoUrl(String(props.src || ''));
+            return src ? <video {...props} src={src} controls/> : null;
+        },
+    };
+
     return (
         <div
             className={`
@@ -52,8 +66,12 @@ export const ArticleNode: React.FC<ArticleNodeProps> = ({
             >
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm, remarkMath]}
-                    rehypePlugins={[rehypeRaw, rehypeKatex]}
-                    components={markdownComponents as never}
+                    rehypePlugins={[
+                        rehypeRaw,
+                        [rehypeSanitize, markdownSanitizeSchema],
+                        rehypeKatex,
+                    ]}
+                    components={safeMarkdownComponents as never}
                 >
                     {node.content || ''}
                 </ReactMarkdown>

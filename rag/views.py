@@ -1,3 +1,5 @@
+import logging
+
 from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -6,6 +8,9 @@ from anthology.models import Anthology
 from article.models import Article  # 假设你的文章模型在这里
 from utils.rag_client import RagClient, RagSyncError
 from utils.response_utils import success_result, error_result, valid_result
+
+
+logger = logging.getLogger(__name__)
 
 
 class SyncArticleView(APIView):
@@ -86,7 +91,7 @@ class SyncCollectionView(APIView):
                     article.save(update_fields=['is_rag_synced', 'last_rag_synced_at'])
                 except Exception as e:
                     message = str(e) or '同步失败'
-                    print(f"Article {article.article_id} sync failed: {message}")
+                    logger.warning('Article vector synchronization failed: article_id=%s, reason=%s', article.article_id, message)
                     failures.append({
                         'article_id': article.article_id,
                         'title': article.title,
@@ -112,5 +117,6 @@ class SyncCollectionView(APIView):
                 'total_chunks': total_chunks
             })
 
-        except Exception as e:
-            return error_result(data=str(e))
+        except Exception:
+            logger.exception('RAG article synchronization failed')
+            return error_result(ErrorCode.SYSTEM_ERROR)

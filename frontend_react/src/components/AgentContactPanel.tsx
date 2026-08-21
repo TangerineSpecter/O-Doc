@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import {getAgents, type AgentConfig} from '../api/setting';
 import { formatSummaryDate } from '../utils/format';
+import {isImageAvatarValue} from '../utils/avatar';
 
 interface AgentContactPanelProps {
     isOpen: boolean;
@@ -71,7 +72,7 @@ const AgentAvatar = ({agent, size = 'md'}: { agent?: Pick<AgentConfig, 'name' | 
     const sizeClass = size === 'lg' ? 'h-12 w-12 rounded-2xl' : size === 'sm' ? 'h-9 w-9 rounded-xl' : 'h-12 w-12 rounded-2xl';
     const avatar = agent?.avatar?.trim();
 
-    if (avatar) {
+    if (isImageAvatarValue(avatar)) {
         return (
             <div className={`${sizeClass} shrink-0 overflow-hidden border border-white bg-orange-50 shadow-sm`}>
                 <img src={avatar} alt={agent?.name || '智能体'} className="h-full w-full object-cover"/>
@@ -81,7 +82,7 @@ const AgentAvatar = ({agent, size = 'md'}: { agent?: Pick<AgentConfig, 'name' | 
 
     return (
         <div className={`${sizeClass} shrink-0 border border-orange-100 bg-orange-50 text-orange-600 shadow-sm flex items-center justify-center`}>
-            {agent ? <span className="text-sm font-bold">{getInitial(agent.name)}</span> : <Bot className="h-5 w-5"/>}
+            {agent ? <span className="text-sm font-bold">{avatar || getInitial(agent.name)}</span> : <Bot className="h-5 w-5"/>}
         </div>
     );
 };

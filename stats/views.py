@@ -1,3 +1,5 @@
+import logging
+
 from django.db import transaction, models
 from django.db.models import Sum, Count, Q
 from django.db.models.functions import ExtractHour, ExtractWeekDay, TruncDate
@@ -13,6 +15,9 @@ from tags.models import Tag
 from utils.drf_utils import get_current_user_identifier
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
+
+
+logger = logging.getLogger(__name__)
 
 
 class ReportReadDurationView(APIView):
@@ -73,7 +78,7 @@ class ReportReadDurationView(APIView):
 
         except Exception as e:
             # 统计接口报错不应影响主业务，打印日志即可
-            print(f"Stats Error: {str(e)}")
+            logger.exception('Failed to report article read duration: article_id=%s', request.data.get('article_id'))
             return error_result(ErrorCode.SYSTEM_ERROR, str(e))
 
 

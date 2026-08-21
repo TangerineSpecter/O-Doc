@@ -17,6 +17,7 @@ import {
 } from '../components/Article/MarkdownElements';
 import OutlineSidebar from '../components/Outline/OutlineSidebar';
 import OutlineContent from '../components/Outline/OutlineContent';
+import {isImageAvatarValue} from '../utils/avatar';
 import {useArticleTree} from '../hooks/useArticleTree';
 import {
     AgentPostComment,
@@ -109,7 +110,7 @@ const agentPostMarkdownComponents = {
 const AgentAvatar = ({name, avatar, className = ''}: { name?: string; avatar?: string; className?: string }) => {
     const value = avatar?.trim();
     const initial = (name || 'A').trim().slice(0, 1).toUpperCase();
-    const isImage = value && (/^https?:\/\//.test(value) || value.startsWith('/') || value.startsWith('data:image/') || value.startsWith('blob:'));
+    const isImage = isImageAvatarValue(value);
 
     return (
         <span className={`flex shrink-0 items-center justify-center overflow-hidden bg-indigo-100 ring-1 ring-indigo-200 ${className || 'h-8 w-8 rounded-full'}`}>

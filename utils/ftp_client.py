@@ -1,6 +1,10 @@
 import ftplib
+import logging
 import posixpath
 from io import BytesIO
+
+
+logger = logging.getLogger(__name__)
 
 
 class FtpClient:
@@ -60,7 +64,7 @@ class FtpClient:
             self._connect().voidcmd('NOOP')
             return True
         except Exception as e:
-            print(f"FTP connection check failed: {e}")
+            logger.warning('FTP connection check failed: host=%s, port=%s, reason=%s', self.host, self.port, e)
             self._close()
             return False
 
@@ -75,7 +79,7 @@ class FtpClient:
             entries = self.list_directory(parent)
             return bool(entries is not None and name in entries) or self.is_directory(remote_path)
         except Exception as e:
-            print(f"FTP exists failed: {remote_path}. Error: {e}")
+            logger.warning('FTP existence check failed: path=%s, reason=%s', remote_path, e)
             return False
 
     def ensure_directory(self, remote_dir):
@@ -94,7 +98,7 @@ class FtpClient:
             except ftplib.error_perm:
                 pass
             except Exception as e:
-                print(f"FTP mkdir error at {current_path}: {e}")
+                logger.warning('FTP directory creation failed: path=%s, reason=%s', current_path, e)
 
     def try_create_directory(self, remote_dir):
         try:
@@ -111,7 +115,7 @@ class FtpClient:
                 ftp.storbinary(f'STOR {remote_path}', file_obj)
             return True
         except Exception as e:
-            print(f"FTP upload failed: {remote_path}. Error: {e}")
+            logger.exception('FTP upload failed: path=%s', remote_path)
             self._close()
             return False
 
@@ -123,7 +127,7 @@ class FtpClient:
                 ftp.retrbinary(f'RETR {remote_path}', file_obj.write)
             return True
         except Exception as e:
-            print(f"FTP download failed: {e}")
+            logger.exception('FTP download failed: path=%s', remote_path)
             self._close()
             return False
 
@@ -135,7 +139,7 @@ class FtpClient:
             ftp.retrbinary(f'RETR {remote_path}', buffer.write)
             return buffer.getvalue().decode('utf-8')
         except Exception as e:
-            print(f"FTP read content failed: {e}")
+            logger.exception('FTP content read failed: path=%s', remote_path)
             return None
 
     def list_directory(self, remote_dir):
@@ -156,7 +160,7 @@ class FtpClient:
                     names.append(name)
             return names
         except Exception as e:
-            print(f"FTP list failed: {remote_dir}. Error: {e}")
+            logger.exception('FTP directory listing failed: path=%s', remote_dir)
             return None
 
     def is_directory(self, remote_path):
@@ -175,7 +179,7 @@ class FtpClient:
                 except Exception:
                     pass
         except Exception as e:
-            print(f"FTP stat failed: {remote_path}. Error: {e}")
+            logger.exception('FTP stat failed: path=%s', remote_path)
             return False
 
     def delete_path(self, remote_path):
@@ -189,7 +193,7 @@ class FtpClient:
                 ftp.rmd(remote_path)
                 return True
         except Exception as e:
-            print(f"FTP delete failed: {remote_path}. Error: {e}")
+            logger.exception('FTP delete failed: path=%s', remote_path)
             return False
 
     def __del__(self):

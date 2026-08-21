@@ -405,7 +405,8 @@ export default function WhiteboardPage() {
             }
 
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-                e.shiftKey ? redo() : undo();
+                if (e.shiftKey) redo();
+                else undo();
                 e.preventDefault();
                 return;
             }

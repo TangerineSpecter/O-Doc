@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {
     Activity,
     BellRing,
@@ -24,10 +24,8 @@ import {
     X,
     XCircle,
 } from 'lucide-react';
-import {archiveAgentMemory, getAgentMemories, saveAgentMemory} from '@/api/setting';
 import type {
     AgentConfig,
-    AgentLongTermMemoryConfig,
     AgentMemoryStatus,
     AgentMemoryType,
     AgentRunRecordConfig,
@@ -40,9 +38,11 @@ import type {
     ModelType,
     SkillConfig,
 } from '@/api/setting';
-import {uploadResource} from '@/api/resources';
 import {useToast} from '../common/ToastProvider';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
+import {useAgentMemories} from './agent/useAgentMemories';
+import {useAgentAvatarUpload} from './agent/useAgentAvatarUpload';
+import {isImageAvatarValue} from '@/utils/avatar';
 
 interface AgentSettingsProps {
     agents: AgentConfig[];
@@ -75,15 +75,6 @@ type AgentForm = {
 
 type AgentView = 'list' | 'tasks' | 'records';
 
-type AgentMemoryForm = {
-    id?: string;
-    memoryType: AgentMemoryType;
-    title: string;
-    content: string;
-    status: AgentMemoryStatus;
-    confidence: string;
-};
-
 type AgentTaskForm = {
     id?: string;
     name: string;
@@ -111,8 +102,6 @@ const getAgentAvatar = (agent: Pick<AgentConfig, 'avatar' | 'name'>) => {
     return agent.name?.trim().slice(0, 1).toUpperCase() || 'A';
 };
 
-const isImageAvatar = (avatar: string) => /^https?:\/\//.test(avatar) || avatar.startsWith('/') || avatar.startsWith('blob:') || avatar.startsWith('data:image/');
-
 const AgentAvatar = ({agent, size = 'md'}: { agent: Pick<AgentConfig, 'avatar' | 'name'>, size?: 'sm' | 'md' | 'lg' | 'xl' }) => {
     const avatar = getAgentAvatar(agent);
     const sizeClass = {
@@ -122,7 +111,7 @@ const AgentAvatar = ({agent, size = 'md'}: { agent: Pick<AgentConfig, 'avatar' |
         xl: 'w-24 h-24 text-3xl rounded-[1.35rem]',
     }[size];
 
-    if (isImageAvatar(avatar)) {
+    if (isImageAvatarValue(avatar)) {
         return (
             <img
                 src={avatar}
@@ -160,16 +149,6 @@ export const AgentSettings = ({
     const [, setElapsedTick] = useState(0);
     const [saving, setSaving] = useState(false);
     const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
-    const [avatarUploading, setAvatarUploading] = useState(false);
-    const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('');
-    const [memoryModalAgent, setMemoryModalAgent] = useState<AgentConfig | null>(null);
-    const [memories, setMemories] = useState<AgentLongTermMemoryConfig[]>([]);
-    const [memoryLoading, setMemoryLoading] = useState(false);
-    const [memorySaving, setMemorySaving] = useState(false);
-    const [memoryError, setMemoryError] = useState('');
-    const [memoryStatusFilter, setMemoryStatusFilter] = useState<'all' | AgentMemoryStatus>('active');
-    const avatarInputRef = useRef<HTMLInputElement>(null);
-    const avatarPreviewObjectUrlRef = useRef<string | null>(null);
     const toast = useToast();
     const [form, setForm] = useState<AgentForm>({
         name: '',
@@ -183,6 +162,15 @@ export const AgentSettings = ({
         feishuAppSecret: '',
         feishuVerificationToken: '',
         feishuEncryptKey: '',
+    });
+    const {
+        avatarInputRef,
+        avatarPreviewUrl,
+        avatarUploading,
+        clearAvatarPreview,
+        handleAvatarUpload,
+    } = useAgentAvatarUpload(avatar => {
+        setForm(prev => ({...prev, avatar}));
     });
     const getDefaultAgentId = () => agents[0]?.id || '';
     const [taskForm, setTaskForm] = useState<AgentTaskForm>({
@@ -202,13 +190,24 @@ export const AgentSettings = ({
         notifyPlatform: 'feishu',
         notifyWebhookUrl: '',
     });
-    const [memoryForm, setMemoryForm] = useState<AgentMemoryForm>({
-        memoryType: 'preference',
-        title: '',
-        content: '',
-        status: 'active',
-        confidence: '0.8',
-    });
+    const {
+        memoryModalAgent,
+        memories,
+        memoryLoading,
+        memorySaving,
+        memoryError,
+        memoryStatusFilter,
+        memoryForm,
+        setMemoryStatusFilter,
+        setMemoryForm,
+        resetMemoryForm,
+        loadAgentMemories,
+        openMemoryModal,
+        closeMemoryModal,
+        editMemory,
+        handleMemorySubmit,
+        archiveMemory,
+    } = useAgentMemories();
 
     const modelOptions = useMemo<SettingsSelectOption<string>[]>(() => {
         return getModelsByType('chat').map(model => ({
@@ -261,28 +260,6 @@ export const AgentSettings = ({
         const value = String(index + 1);
         return {value, label: `${value} 日`};
     });
-    const clearAvatarPreview = () => {
-        if (avatarPreviewObjectUrlRef.current) {
-            URL.revokeObjectURL(avatarPreviewObjectUrlRef.current);
-            avatarPreviewObjectUrlRef.current = null;
-        }
-        setAvatarPreviewUrl('');
-    };
-
-    const setLocalAvatarPreview = (url: string) => {
-        clearAvatarPreview();
-        avatarPreviewObjectUrlRef.current = url;
-        setAvatarPreviewUrl(url);
-    };
-
-    useEffect(() => {
-        return () => {
-            if (avatarPreviewObjectUrlRef.current) {
-                URL.revokeObjectURL(avatarPreviewObjectUrlRef.current);
-            }
-        };
-    }, []);
-
     const buildTaskSchedule = (task: Pick<AgentTaskForm, 'scheduleType' | 'scheduleTime' | 'scheduleWeekday' | 'scheduleMonthDay' | 'intervalMinutes'>) => {
         if (task.scheduleType === 'daily') {
             return `每天 ${task.scheduleTime}`;
@@ -379,97 +356,6 @@ export const AgentSettings = ({
             feishuEncryptKey: agent.feishuEncryptKey || '',
         });
         setModalOpen(true);
-    };
-
-    const resetMemoryForm = () => {
-        setMemoryForm({
-            memoryType: 'preference',
-            title: '',
-            content: '',
-            status: 'active',
-            confidence: '0.8',
-        });
-    };
-
-    const loadAgentMemories = async (agent: AgentConfig) => {
-        setMemoryLoading(true);
-        setMemoryError('');
-        try {
-            const data = await getAgentMemories(agent.id);
-            setMemories(data || []);
-        } catch (error) {
-            console.error('加载 Agent 记忆失败:', error);
-            setMemoryError('加载失败，请重试');
-            toast.error('加载 Agent 记忆失败');
-        } finally {
-            setMemoryLoading(false);
-        }
-    };
-
-    const openMemoryModal = async (agent: AgentConfig) => {
-        setMemoryModalAgent(agent);
-        setMemoryStatusFilter('active');
-        resetMemoryForm();
-        await loadAgentMemories(agent);
-    };
-
-    const editMemory = (memory: AgentLongTermMemoryConfig) => {
-        setMemoryForm({
-            id: memory.id,
-            memoryType: memory.memoryType || 'other',
-            title: memory.title || '',
-            content: memory.content || '',
-            status: memory.status || 'active',
-            confidence: String(memory.confidence ?? 0.8),
-        });
-    };
-
-    const handleMemorySubmit = async () => {
-        if (!memoryModalAgent) return;
-        if (!memoryForm.content.trim()) {
-            toast.warning('请填写记忆内容');
-            return;
-        }
-
-        setMemorySaving(true);
-        try {
-            const parsedConfidence = parseFloat(memoryForm.confidence);
-            const confidence = Number.isFinite(parsedConfidence)
-                ? Math.min(1, Math.max(0, parsedConfidence))
-                : 0.8;
-            await saveAgentMemory(memoryModalAgent.id, {
-                id: memoryForm.id,
-                memoryType: memoryForm.memoryType,
-                title: memoryForm.title.trim(),
-                content: memoryForm.content.trim(),
-                status: memoryForm.status,
-                confidence,
-            });
-            toast.success(memoryForm.id ? '记忆已更新' : '记忆已添加');
-            resetMemoryForm();
-            await loadAgentMemories(memoryModalAgent);
-        } catch (error) {
-            console.error('保存 Agent 记忆失败:', error);
-            toast.error('保存 Agent 记忆失败');
-        } finally {
-            setMemorySaving(false);
-        }
-    };
-
-    const archiveMemory = async (memory: AgentLongTermMemoryConfig) => {
-        if (!memoryModalAgent) return;
-        setMemorySaving(true);
-        try {
-            await archiveAgentMemory(memoryModalAgent.id, memory.id);
-            toast.success('记忆已归档');
-            if (memoryForm.id === memory.id) resetMemoryForm();
-            await loadAgentMemories(memoryModalAgent);
-        } catch (error) {
-            console.error('归档 Agent 记忆失败:', error);
-            toast.error('归档 Agent 记忆失败');
-        } finally {
-            setMemorySaving(false);
-        }
     };
 
     useEffect(() => {
@@ -720,32 +606,6 @@ export const AgentSettings = ({
         if (memoryStatusFilter === 'all') return true;
         return memory.status === memoryStatusFilter;
     });
-
-    const handleAvatarUpload = async (file?: File) => {
-        if (!file) return;
-
-        if (!file.type.startsWith('image/')) {
-            toast.warning('请选择图片文件作为头像');
-            return;
-        }
-
-        setAvatarUploading(true);
-        const localPreviewUrl = URL.createObjectURL(file);
-        try {
-            const response = await uploadResource(file, 'image');
-            setForm(prev => ({...prev, avatar: `/api/resource/view/${response.id}`}));
-            setLocalAvatarPreview(localPreviewUrl);
-            toast.success('头像已上传');
-        } catch (error) {
-            URL.revokeObjectURL(localPreviewUrl);
-            toast.error('头像上传失败');
-        } finally {
-            setAvatarUploading(false);
-            if (avatarInputRef.current) {
-                avatarInputRef.current.value = '';
-            }
-        }
-    };
 
     return (
         <div className="space-y-6">
@@ -1456,7 +1316,7 @@ export const AgentSettings = ({
                                 <p className="mt-1 text-xs text-slate-500">长期记忆会在相关对话中被召回，也可以手动维护。</p>
                             </div>
                             <button
-                                onClick={() => setMemoryModalAgent(null)}
+                                onClick={closeMemoryModal}
                                 className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
                             >
                                 <X className="h-5 w-5"/>

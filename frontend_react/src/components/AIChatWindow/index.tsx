@@ -12,6 +12,7 @@ import { AgentSidebar } from './AgentSidebar';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatSettingsToolbar } from './ChatSettingsToolbar';
 import { ChatInput } from './ChatInput';
+import {isImageAvatarValue} from '../../utils/avatar';
 
 const getAgentId = (agent?: AgentConfig | null) => {
     if (!agent) return '';
@@ -322,10 +323,10 @@ export const AIChatWindow = ({
                     <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur-sm">
                         <div className="min-w-0 flex items-center gap-3 text-slate-800">
                             <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-orange-100 bg-orange-100 text-orange-600 shadow-sm">
-                                {activeAgent?.avatar ? (
-                                    <img src={activeAgent.avatar} alt={activeAgent.name} className="h-full w-full object-cover" />
+                                {isImageAvatarValue(activeAgent?.avatar) ? (
+                                    <img src={activeAgent?.avatar} alt={activeAgent?.name || 'Agent'} className="h-full w-full object-cover" />
                                 ) : (
-                                    <Bot className="w-5 h-5" />
+                                    activeAgent?.avatar?.trim() || <Bot className="w-5 h-5" />
                                 )}
                             </div>
                             <div className="min-w-0">

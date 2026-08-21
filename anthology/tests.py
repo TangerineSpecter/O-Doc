@@ -30,7 +30,7 @@ class AnthologyVisibilityTests(APITestCase):
         self.other_private_coll = Anthology.objects.create(
             coll_id='coll_other_private',
             title='他人私密文集',
-            user_id=str(self.other_user.id),
+            user_id=f'user_{self.other_user.id}',
             permission='private',
             type='article',
         )

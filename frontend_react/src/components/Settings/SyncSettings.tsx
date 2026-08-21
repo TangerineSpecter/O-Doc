@@ -37,126 +37,23 @@ import {
     XCircle
 } from 'lucide-react';
 import {
-    cancelWebDavSync,
-    downloadLocalBackupFile,
-    getSyncHistory,
-    getWebDavStatus,
-    importLocalBackup,
-    restoreSyncHistory,
-    saveWebDavConfig,
     SyncHistoryEntry,
     SyncProtocol,
     WebDavConfig,
     WebDavSyncStatus
 } from '@/api/setting.ts';
-import {getAuthToken} from '@/utils/authStorage';
-import {useToast} from '../common/ToastProvider';
-import ConfirmationModal from '../common/ConfirmationModal';
-
-interface ProtocolOption {
-    value: SyncProtocol;
-    label: string;
-    description: string;
-    badge: string;
-}
-
-const PROTOCOL_OPTIONS: ProtocolOption[] = [
-    {value: 'webdav', label: 'WebDAV', description: '支持坚果云、群晖、Nextcloud 等主流网盘', badge: '推荐'},
-    {value: 'ftp', label: 'FTP / FTPS', description: '传统文件传输协议，支持开启 TLS 加密', badge: '经典'},
-    {value: 'sftp', label: 'SFTP', description: '基于 SSH 的高安全性文件传输通道', badge: '安全'},
-];
-
-const defaultPortForProtocol = (protocol: SyncProtocol) => protocol === 'sftp' ? 22 : protocol === 'ftp' ? 21 : null;
-
-const TRIGGER_CONFIG: Record<string, { label: string; tone: string }> = {
-    scheduler: { label: '定时同步', tone: 'bg-lime-50 text-lime-700 border-lime-200' },
-    manual: { label: '手动上传', tone: 'bg-orange-50 text-orange-700 border-orange-200' },
-    'manual-pull': { label: '手动下载', tone: 'bg-blue-50 text-blue-700 border-blue-200' },
-    'manual-preflight': { label: '手动上传', tone: 'bg-orange-50 text-orange-700 border-orange-200' },
-    'local-export': { label: '导出备份', tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    'local-import': { label: '导入备份', tone: 'bg-purple-50 text-purple-700 border-purple-200' },
-    'history-restore': { label: '历史恢复', tone: 'bg-amber-50 text-amber-700 border-amber-200' },
-};
-
-const hostFromUrl = (url: string) => {
-    const raw = (url || '').trim();
-    if (!raw) return {host: '', port: null as number | null};
-    try {
-        const parsed = new URL(raw.includes('://') ? raw : `http://${raw}`);
-        return {
-            host: parsed.hostname || '',
-            port: parsed.port ? Number(parsed.port) : null,
-        };
-    } catch {
-        return {host: raw.split('/')[0].split(':')[0], port: null as number | null};
-    }
-};
-
-const INTERVAL_PRESETS = [
-    { label: '15分钟', value: 15 },
-    { label: '30分钟', value: 30 },
-    { label: '1小时', value: 60 },
-    { label: '6小时', value: 360 },
-    { label: '1天', value: 1440 },
-];
-
-/**
- * 终端日志语法高亮解析器
- * 将数字、单位（MB/KB/B）、版本标识（v2）、关键字（blob）高亮为琥珀黄/青色
- */
-const formatTerminalLogContent = (log: string): React.ReactNode => {
-    if (log.includes('❌') || log.includes('错误') || log.startsWith('Error:')) {
-        return <span className="text-red-400 font-medium">{log}</span>;
-    }
-
-    const tokenRegex = /(^>\s*)|(\bv\d+(?:\.\d+)?\b)|(\b\d+(?:\.\d+)?(?:\s*(?:B|KB|MB|GB|TB|%|ms|s))?\b)|(\b(?:blob|blobs|json|manifest)\b)/gi;
-    const parts: React.ReactNode[] = [];
-    let lastIdx = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = tokenRegex.exec(log)) !== null) {
-        if (match.index > lastIdx) {
-            parts.push(log.substring(lastIdx, match.index));
-        }
-
-        const [full, prefix, version, numSize, keyword] = match;
-        const key = `${match.index}-${full}`;
-
-        if (prefix) {
-            parts.push(
-                <span key={key} className="text-cyan-400 font-bold select-none mr-1.5">
-                    &gt;
-                </span>
-            );
-        } else if (version) {
-            parts.push(
-                <span key={key} className="text-amber-300 font-semibold px-0.5">
-                    {full}
-                </span>
-            );
-        } else if (numSize) {
-            parts.push(
-                <span key={key} className="text-amber-300 font-semibold">
-                    {full}
-                </span>
-            );
-        } else if (keyword) {
-            parts.push(
-                <span key={key} className="text-cyan-300 font-mono">
-                    {full}
-                </span>
-            );
-        }
-
-        lastIdx = tokenRegex.lastIndex;
-    }
-
-    if (lastIdx < log.length) {
-        parts.push(log.substring(lastIdx));
-    }
-
-    return parts.length > 0 ? parts : log;
-};
+import {useSyncOperations} from './sync/useSyncOperations';
+import {SyncConfirmationModals} from './sync/SyncConfirmationModals';
+import {
+    defaultPortForProtocol,
+    formatBytes,
+    formatDateTime,
+    formatTerminalLogContent,
+    hostFromUrl,
+    INTERVAL_PRESETS,
+    PROTOCOL_OPTIONS,
+    TRIGGER_CONFIG,
+} from './sync/syncUtils';
 
 interface SyncSettingsProps {
     config: WebDavConfig;
@@ -166,19 +63,22 @@ interface SyncSettingsProps {
 }
 
 export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSettingsProps) => {
-    const {success, error, warning} = useToast();
-
-    // 状态管理
-    const [isSaving, setIsSaving] = useState(false);
-    const [isSyncing, setIsSyncing] = useState(false);
-    const [isExporting, setIsExporting] = useState(false);
-    const [isImporting, setIsImporting] = useState(false);
-    const [logs, setLogs] = useState<string[]>([]);
-    const [progress, setProgress] = useState(0);
-    const [history, setHistory] = useState<SyncHistoryEntry[]>([]);
-    const [isRefreshingHistory, setIsRefreshingHistory] = useState(false);
-    const [isRestoringHistory, setIsRestoringHistory] = useState('');
-    const [isCancelling, setIsCancelling] = useState(false);
+    const {operationState, actions} = useSyncOperations({config, status, onChange, onRefreshStatus});
+    const {
+        isSaving,
+        isSyncing,
+        isExporting,
+        isImporting,
+        logs,
+        progress,
+        history,
+        isRefreshingHistory,
+        isRestoringHistory,
+        isCancelling,
+        isServerSyncing,
+        isCancelRequested,
+        isTransferBusy,
+    } = operationState;
 
     // 弹窗状态管理（全部接入系统统一 ConfirmationModal）
     const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
@@ -194,7 +94,6 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
 
     const importInputRef = useRef<HTMLInputElement>(null);
     const logContainerRef = useRef<HTMLDivElement>(null);
-    const statusSummaryKeyRef = useRef('');
 
     useEffect(() => {
         if (logContainerRef.current) {
@@ -202,86 +101,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
         }
     }, [logs]);
 
-    useEffect(() => {
-        onRefreshStatus();
-        const timer = window.setInterval(() => {
-            onRefreshStatus();
-        }, status.status === 'running' ? 5000 : 15000);
-
-        return () => window.clearInterval(timer);
-    }, [onRefreshStatus, status.status]);
-
-    const isServerSyncing = status.status === 'running';
-    const isCancelRequested = Boolean(status.cancelRequested);
-    const isTransferBusy = isSyncing || isServerSyncing;
-
-    const refreshHistory = async () => {
-        setIsRefreshingHistory(true);
-        try {
-            const data = (await getSyncHistory()) as unknown as SyncHistoryEntry[];
-            setHistory(data || []);
-        } catch {
-            setHistory([]);
-        } finally {
-            setIsRefreshingHistory(false);
-        }
-    };
-
-    useEffect(() => {
-        if (config.enabled) refreshHistory();
-    }, [config.enabled]);
-
-    useEffect(() => {
-        if (!isServerSyncing || isSyncing || !status.lastSummary?.length) {
-            return;
-        }
-
-        const summaryKey = status.lastSummary.join('\n');
-        if (summaryKey === statusSummaryKeyRef.current) {
-            return;
-        }
-
-        statusSummaryKeyRef.current = summaryKey;
-        setLogs([
-            '⏱ 检测到定时同步正在运行，正在显示后端同步细节...',
-            ...status.lastSummary.map(item => `> ${item}`)
-        ]);
-        setProgress(Math.max(0, Math.min(100, status.syncProgress ?? 30)));
-    }, [isServerSyncing, isSyncing, status.lastSummary]);
-
-    useEffect(() => {
-        if (!isSyncing && status.status === 'success') {
-            setProgress(100);
-        }
-    }, [isSyncing, status.status]);
-
-    const formatDateTime = (value?: string) => {
-        if (!value) return '暂无';
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return value;
-        return date.toLocaleString('zh-CN', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-        });
-    };
-
-    const formatBytes = (bytes?: number | null) => {
-        if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return '大小未知';
-        if (bytes < 1024) return `${bytes} B`;
-        const units = ['KB', 'MB', 'GB', 'TB'];
-        let value = bytes / 1024;
-        let unitIndex = 0;
-        while (value >= 1024 && unitIndex < units.length - 1) {
-            value /= 1024;
-            unitIndex += 1;
-        }
-        return `${value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2)} ${units[unitIndex]}`;
-    };
+    const refreshHistory = actions.refreshHistory;
 
     const statusMeta = {
         idle: {
@@ -337,247 +157,36 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
         });
     };
 
-    const handleSave = async () => {
-        const host = config.host || config.url;
-        if (!config.remotePath?.trim()) {
-            warning('请填写远程路径，不要留空');
-            return;
-        }
-        if (protocol === 'webdav' && (!config.url || !config.username || !config.password)) {
-            warning('请填写完整的 WebDAV 地址、用户名和密码');
-            return;
-        }
-        if (protocol === 'ftp' && (!host || !config.username || !config.password)) {
-            warning('请填写完整的 FTP 主机、用户名和密码');
-            return;
-        }
-        if (protocol === 'sftp' && (!host || !config.username || (!config.password && !config.privateKey))) {
-            warning('请填写完整的 SFTP 主机、用户名，以及密码或私钥');
-            return;
-        }
-        setIsSaving(true);
-        try {
-            await saveWebDavConfig(config);
-            success('连接成功，配置已保存');
-            await onRefreshStatus();
-        } catch (err: any) {
-            console.error(err);
-            error(err.response?.data?.msg || '连接失败，请检查配置');
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const handleExportBackup = async () => {
-        if (isServerSyncing || isImporting || isExporting) {
-            warning('请等待当前任务完成后再导出');
-            return;
-        }
-        setIsExporting(true);
-        try {
-            const {blob, filename} = await downloadLocalBackupFile();
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            URL.revokeObjectURL(url);
-            success('备份压缩包已开始下载');
-        } catch (err: any) {
-            error(err.message || '导出备份失败');
-        } finally {
-            setIsExporting(false);
-        }
-    };
+    const handleSave = actions.saveConfig;
+    const handleExportBackup = actions.exportBackup;
 
     const handleSelectImportFile = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         event.target.value = '';
-        if (!file) return;
-        setImportConfirmFile(file);
+        if (file) setImportConfirmFile(file);
     };
 
     const executeImportBackup = async () => {
         if (!importConfirmFile) return;
-        setIsImporting(true);
-        try {
-            await importLocalBackup(importConfirmFile);
-            success('备份已导入，即将刷新页面');
+        if (await actions.importBackup(importConfirmFile)) {
             setImportConfirmFile(null);
-            setTimeout(() => window.location.reload(), 1200);
-        } catch (err: any) {
-            error(err.response?.data?.msg || err.message || '导入备份失败');
-        } finally {
-            setIsImporting(false);
         }
     };
 
     const executeRestoreHistory = async () => {
         if (!restoreConfirmSnapshot) return;
-        const snapshotId = restoreConfirmSnapshot.snapshotId;
-        setIsRestoringHistory(snapshotId);
-        try {
-            await restoreSyncHistory(snapshotId);
-            success('历史快照已恢复，即将刷新页面');
+        if (await actions.restoreHistory(restoreConfirmSnapshot.snapshotId)) {
             setRestoreConfirmSnapshot(null);
-            setTimeout(() => window.location.reload(), 1200);
-        } catch (err: any) {
-            error(err.response?.data?.msg || err.message || '历史快照恢复失败');
-        } finally {
-            setIsRestoringHistory('');
         }
     };
 
     const handleCancelSync = async () => {
-        setIsCancelling(true);
-        try {
-            await cancelWebDavSync();
-            setLogs(prev => [...prev, '⚠️ 已请求终止同步，正在等待当前网络请求结束并释放远端锁。']);
-            success('已请求终止，正在结束同步');
+        if (await actions.cancelSync()) {
             setIsCancelConfirmOpen(false);
-            await onRefreshStatus();
-        } catch (err: any) {
-            error(err.response?.data?.msg || '终止同步失败');
-        } finally {
-            setIsCancelling(false);
         }
     };
 
-    const startSyncStream = async (direction: 'upload' | 'download') => {
-        if (!config.enabled) {
-            warning('请先开启同步开关并保存配置');
-            return;
-        }
-        if (isServerSyncing) {
-            warning('当前已有同步任务正在运行，请等待完成后再操作');
-            return;
-        }
-
-        try {
-            await saveWebDavConfig(config);
-            await onRefreshStatus();
-        } catch (err: any) {
-            error(err.response?.data?.msg || '请先保存并测试通过当前备份配置，再开始同步');
-            return;
-        }
-
-        setIsSyncing(true);
-        statusSummaryKeyRef.current = '';
-        setLogs([`🚀 开始${direction === 'upload' ? '上传' : '下载'}同步任务...`]);
-        setProgress(0);
-
-        try {
-            const url = `/api/settings/config/sync_${direction === 'upload' ? 'to' : 'from'}_webdav/`;
-            const token = getAuthToken();
-
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? {'Authorization': `Token ${token}`} : {})
-                },
-            });
-
-            if (!response.ok) {
-                const errText = await response.text();
-                throw new Error(`请求失败: ${response.status} ${errText}`);
-            }
-
-            if (!response.body) throw new Error("浏览器不支持 ReadableStream");
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            let receivedTerminalEvent = false;
-
-            const handleLine = (line: string) => {
-                if (!line.trim()) return;
-
-                const data = JSON.parse(line);
-
-                if (typeof data.code === 'number' && data.code !== 200) {
-                    throw new Error(data.msg || '同步失败');
-                }
-
-                if (data.msg) {
-                    let prefix = '> ';
-                    if (data.step === 'error') prefix = '❌ ';
-                    if (data.step === 'summary' || data.step === 'done') prefix = '✨ ';
-
-                    setLogs(prev => [...prev, `${prefix}${data.msg}`]);
-                }
-
-                if (data.progress !== undefined) {
-                    setProgress(data.progress);
-                }
-
-                if (data.step === 'error') {
-                    throw new Error(data.msg || '同步失败');
-                }
-
-                if (data.step === 'done') {
-                    receivedTerminalEvent = true;
-                    success(`${direction === 'upload' ? '上传' : '下载'}完成`);
-                    onRefreshStatus();
-                    setProgress(100);
-                    if (direction === 'download') {
-                        setTimeout(() => window.location.reload(), 1500);
-                    }
-                }
-            };
-
-            while (true) {
-                const {done, value} = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, {stream: true});
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    try {
-                        handleLine(line);
-                    } catch (e) {
-                        if (e instanceof SyntaxError) {
-                            console.warn("解析日志失败:", line);
-                            continue;
-                        }
-                        throw e;
-                    }
-                }
-            }
-
-            const finalChunk = buffer.trim();
-            if (finalChunk) {
-                handleLine(finalChunk);
-            }
-
-            if (!receivedTerminalEvent) {
-                const latestStatus = await getWebDavStatus() as unknown as WebDavSyncStatus;
-                if (latestStatus.status === 'running') {
-                    setLogs(prev => [...prev, '⏳ 同步日志连接已结束，后端任务仍在继续；正在显示后端状态。']);
-                    setProgress(30);
-                } else if (latestStatus.status === 'success') {
-                    setLogs(prev => [...prev, '✨ 后端已完成同步。']);
-                    success(`${direction === 'upload' ? '上传' : '下载'}完成`);
-                    setProgress(100);
-                } else {
-                    throw new Error(latestStatus.lastError || '同步任务未返回完成结果');
-                }
-                await onRefreshStatus();
-            }
-        } catch (err: any) {
-            setLogs(prev => [...prev, `❌ 错误: ${err.message || err}`]);
-            setProgress(0);
-            error('同步过程中发生错误');
-        } finally {
-            setIsSyncing(false);
-            await onRefreshStatus();
-        }
-    };
-
+    const startSyncStream = actions.startSyncStream;
     return (
         <div className="space-y-6">
             {/* 1. 顶部概览与状态看板卡片 */}
@@ -1298,7 +907,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                     {logs.length > 0 && (
                         <button
                             type="button"
-                            onClick={() => setLogs([])}
+                            onClick={actions.clearLogs}
                             className="absolute top-2.5 right-2.5 text-[11px] text-slate-400 hover:text-slate-200 bg-slate-800/80 hover:bg-slate-800 px-2 py-1 rounded-md flex items-center gap-1 transition-colors border border-slate-700/50 shadow-sm"
                         >
                             <Trash2 className="w-3 h-3" />
@@ -1361,87 +970,26 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                 </div>
             </div>
 
-            {/* 1. 终止同步确认弹窗 */}
-            <ConfirmationModal
-                isOpen={isCancelConfirmOpen}
-                onClose={() => setIsCancelConfirmOpen(false)}
-                onConfirm={handleCancelSync}
-                title="终止当前同步任务？"
-                description={<>将停止本次同步并释放远端存储锁占用。若正在等待网络请求，会在当前网络请求结束后停止，最长约 30 秒。</>}
-                confirmText="终止同步"
-                type="danger"
-                isLoading={isCancelling}
-            />
-
-            {/* 2. 从云端下载数据确认弹窗 (美化弹窗，取消时完全不触发任何同步操作) */}
-            <ConfirmationModal
-                isOpen={isDownloadConfirmOpen}
-                onClose={() => setIsDownloadConfirmOpen(false)}
-                onConfirm={async () => {
+            <SyncConfirmationModals
+                cancelOpen={isCancelConfirmOpen}
+                downloadOpen={isDownloadConfirmOpen}
+                restoreSnapshot={restoreConfirmSnapshot}
+                importFile={importConfirmFile}
+                isCancelling={isCancelling}
+                isImporting={isImporting}
+                isRestoring={Boolean(isRestoringHistory)}
+                onCloseCancel={() => setIsCancelConfirmOpen(false)}
+                onCloseDownload={() => setIsDownloadConfirmOpen(false)}
+                onCloseRestore={() => setRestoreConfirmSnapshot(null)}
+                onCloseImport={() => setImportConfirmFile(null)}
+                onCancel={handleCancelSync}
+                onDownload={async () => {
                     setIsDownloadConfirmOpen(false);
                     await startSyncStream('download');
                 }}
-                title="确认从云端同步下载？"
-                description={
-                    <div className="space-y-2 text-xs leading-relaxed text-slate-600">
-                        <p>该操作将以云端快照为准全量覆盖并对齐本机数据：</p>
-                        <ul className="list-disc pl-4 text-rose-600 font-medium space-y-0.5">
-                            <li>快照中不存在的文集、图书与图片等会被删除</li>
-                            <li>本地未上传至云端的修改将会丢失且无法直接找回</li>
-                        </ul>
-                        <p className="text-slate-500">建议在下载前先点击「导出本地备份」保存当前数据。确定继续？</p>
-                    </div>
-                }
-                confirmText="确认覆盖下载"
-                cancelText="取消"
-                type="danger"
-            />
-
-            {/* 3. 历史快照恢复确认弹窗 */}
-            <ConfirmationModal
-                isOpen={Boolean(restoreConfirmSnapshot)}
-                onClose={() => setRestoreConfirmSnapshot(null)}
-                onConfirm={executeRestoreHistory}
-                title="确认恢复此历史快照？"
-                description={
-                    <div className="space-y-2 text-xs leading-relaxed text-slate-600">
-                        <p>
-                            将恢复至 <span className="font-semibold text-slate-800 font-mono">{restoreConfirmSnapshot ? formatDateTime(restoreConfirmSnapshot.generatedAt) : ''}</span> 的历史版本。
-                        </p>
-                        <p className="text-slate-500">
-                            恢复前系统会自动为当前本机数据生成一份安全备份；恢复完成后将自动刷新页面。确定继续？
-                        </p>
-                    </div>
-                }
-                confirmText="确认恢复"
-                cancelText="取消"
-                type="warning"
-                isLoading={Boolean(isRestoringHistory)}
-            />
-
-            {/* 4. 本地备份导入覆盖确认弹窗 */}
-            <ConfirmationModal
-                isOpen={Boolean(importConfirmFile)}
-                onClose={() => setImportConfirmFile(null)}
-                onConfirm={executeImportBackup}
-                title="确认导入本地备份文件？"
-                description={
-                    <div className="space-y-2 text-xs leading-relaxed text-slate-600">
-                        <p>
-                            选中文件：<span className="font-mono font-medium text-slate-800">{importConfirmFile?.name}</span>
-                        </p>
-                        <p className="text-rose-600 font-medium">
-                            导入会使用该压缩包全量覆盖当前数据库与文集数据。未包含在压缩包内的内容将不会被恢复。
-                        </p>
-                        <p className="text-slate-500">确定导入并覆盖当前数据？</p>
-                    </div>
-                }
-                confirmText="确认导入并覆盖"
-                cancelText="取消"
-                type="danger"
-                isLoading={isImporting}
+                onRestore={executeRestoreHistory}
+                onImport={executeImportBackup}
             />
         </div>
     );
 };
-

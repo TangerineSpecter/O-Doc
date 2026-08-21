@@ -1,10 +1,5 @@
 import React, {ReactNode, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
 import {Bot, BrainCircuit, ChevronLeft, ChevronRight, Download, FileDown, Loader2, MessageCircle, Paperclip, Send, Trash2, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
@@ -15,7 +10,6 @@ import {
     CodeBlock,
     CUSTOM_STYLES,
     MermaidChart,
-    remarkQuoteVariants,
     SimpleChart,
     VariantBlockquote,
 } from '../components/Article/MarkdownElements';
@@ -37,6 +31,10 @@ import {
 } from '../api/articleAnnotation';
 import {rehypeArticleAnnotations} from '../utils/articleAnnotationPlugin';
 import {useAuth} from '../contexts/AuthContext';
+import {getSafeIframeUrl, getSafeVideoUrl} from '../utils/markdownSecurity';
+import {useArticlePrintExport} from '../hooks/useArticlePrintExport';
+import {ArticleMarkdown} from '../components/Article/ArticleMarkdown';
+import {isImageAvatarValue} from '../utils/avatar';
 
 export interface AttachmentItem {
     id: string;
@@ -124,36 +122,6 @@ const PRINT_STYLES = `
     }
   }
 `;
-
-const remarkSoftLineBreaks = () => {
-    const visit = (node: any) => {
-        if (Array.isArray(node.children)) {
-            const nextChildren: any[] = [];
-
-            node.children.forEach((child: any) => {
-                if (child.type === 'text' && child.value.includes('\n')) {
-                    const lines = child.value.split('\n');
-                    lines.forEach((line: string, index: number) => {
-                        if (line) {
-                            nextChildren.push({...child, value: line});
-                        }
-                        if (index < lines.length - 1) {
-                            nextChildren.push({type: 'break'});
-                        }
-                    });
-                    return;
-                }
-
-                visit(child);
-                nextChildren.push(child);
-            });
-
-            node.children = nextChildren;
-        }
-    };
-
-    return (tree: any) => visit(tree);
-};
 
 const normalizeSelectionText = (value: string) => value.replace(/\s+/g, ' ').trim();
 
@@ -277,7 +245,6 @@ export default function Article({
     const [localIsSynced, setLocalIsSynced] = useState<boolean>(!!isRagSynced);
     const articlePrintRef = useRef<HTMLDivElement>(null);
     const articleContentRef = useRef<HTMLElement>(null);
-    const printCloneRef = useRef<HTMLDivElement | null>(null);
 
     // 监听 props 变化，同步更新本地状态 (响应父组件的数据刷新)
     useEffect(() => {
@@ -287,7 +254,7 @@ export default function Article({
 
     const toast = useToast();
     const [isSyncing, setIsSyncing] = React.useState(false);
-    const [isExportingPdf, setIsExportingPdf] = useState(false);
+    const {isExportingPdf, handleExportPdf} = useArticlePrintExport(articlePrintRef, toast.error);
     const [isMindMapOpen, setIsMindMapOpen] = useState(false);
     const [isGeneratingMindMap, setIsGeneratingMindMap] = useState(false);
     const [localMindMap, setLocalMindMap] = useState<MindMapNode | undefined>(mindMap);
@@ -408,50 +375,6 @@ export default function Article({
         }
     };
 
-    useEffect(() => {
-        const handleAfterPrint = () => {
-            document.body.classList.remove('article-printing');
-            printCloneRef.current?.remove();
-            printCloneRef.current = null;
-            setIsExportingPdf(false);
-        };
-        window.addEventListener('afterprint', handleAfterPrint);
-
-        return () => {
-            window.removeEventListener('afterprint', handleAfterPrint);
-            document.body.classList.remove('article-printing');
-            printCloneRef.current?.remove();
-            printCloneRef.current = null;
-        };
-    }, []);
-
-    const handleExportPdf = async () => {
-        if (isExportingPdf || !articlePrintRef.current) return;
-
-        setIsExportingPdf(true);
-        try {
-            await document.fonts?.ready;
-            printCloneRef.current?.remove();
-
-            const clone = articlePrintRef.current.cloneNode(true) as HTMLDivElement;
-            clone.classList.add('article-print-clone');
-            clone.classList.remove('article-print-page');
-            document.body.appendChild(clone);
-            document.body.classList.add('article-printing');
-            printCloneRef.current = clone;
-
-            await new Promise(requestAnimationFrame);
-            window.print();
-        } catch (error) {
-            console.error('Failed to open print dialog:', error);
-            toast.error('打开导出窗口失败，请稍后重试');
-            document.body.classList.remove('article-printing');
-            printCloneRef.current?.remove();
-            printCloneRef.current = null;
-            setIsExportingPdf(false);
-        }
-    };
-
     const annotationPlugin = useMemo(() => rehypeArticleAnnotations(annotations), [annotations]);
 
     const activeAnnotation = useMemo(
@@ -544,21 +467,31 @@ export default function Article({
             className="bg-gray-50 px-4 py-3 font-semibold text-gray-700 border-b border-gray-200">{children}</th>,
         td: ({children}: { children: ReactNode }) => <td
             className="px-4 py-3 border-b border-gray-100 text-gray-600">{children}</td>,
-        iframe: (props: any) => (
-            <iframe
-                {...props}
-                className="my-8 aspect-video w-full rounded-xl border border-slate-200 bg-slate-950 shadow-lg"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-            />
-        ),
-        video: (props: any) => (
-            <video
-                {...props}
-                className="my-8 w-full rounded-xl border border-slate-200 bg-slate-950 shadow-lg"
-                controls
-            />
-        )
+        iframe: (props: any) => {
+            const src = getSafeIframeUrl(String(props.src || ''));
+            if (!src) return null;
+            return (
+                <iframe
+                    {...props}
+                    src={src}
+                    className="my-8 aspect-video w-full rounded-xl border border-slate-200 bg-slate-950 shadow-lg"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                />
+            );
+        },
+        video: (props: any) => {
+            const src = getSafeVideoUrl(String(props.src || ''));
+            if (!src) return null;
+            return (
+                <video
+                    {...props}
+                    src={src}
+                    className="my-8 w-full rounded-xl border border-slate-200 bg-slate-950 shadow-lg"
+                    controls
+                />
+            );
+        }
     }), []);
 
     const getSelectionOffsets = () => {
@@ -879,13 +812,11 @@ export default function Article({
                             prose-img:rounded-xl prose-img:shadow-lg prose-img:my-8
                             prose-p:text-left sm:prose-p:text-justify prose-p:my-4 sm:prose-p:my-6
                         ">
-                            <ReactMarkdown
-                                remarkPlugins={[remarkQuoteVariants, remarkSoftLineBreaks, remarkGfm, remarkMath]}
-                                rehypePlugins={[rehypeKatex, rehypeRaw, annotationPlugin]}
-                                components={components as any}
-                            >
-                                {contentWithSyntax}
-                            </ReactMarkdown>
+                            <ArticleMarkdown
+                                content={contentWithSyntax}
+                                components={components}
+                                annotationPlugin={annotationPlugin}
+                            />
                         </article>
 
                         {selectionAnchor && (
@@ -1041,12 +972,12 @@ export default function Article({
                             {activeAnnotation.comments.map(comment => (
                                 <div key={comment.commentId} className="mb-4 last:mb-0">
                                     <div className="flex items-start gap-3">
-                                        {comment.creatorAvatar ? (
+                                        {isImageAvatarValue(comment.creatorAvatar) ? (
                                             <img src={comment.creatorAvatar} alt={comment.creatorName}
                                                  className="h-8 w-8 rounded-full object-cover"/>
                                         ) : (
                                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
-                                                {comment.creatorType === 'agent' ? <Bot className="h-4 w-4"/> : getCreatorInitial(comment.creatorName)}
+                                                {comment.creatorAvatar?.trim() || (comment.creatorType === 'agent' ? <Bot className="h-4 w-4"/> : getCreatorInitial(comment.creatorName))}
                                             </div>
                                         )}
                                         <div className="min-w-0 flex-1">
@@ -1148,12 +1079,12 @@ export default function Article({
                                         <div className="space-y-3">
                                             {annotation.comments.map(comment => (
                                                 <div key={comment.commentId} className="flex items-start gap-2">
-                                                    {comment.creatorAvatar ? (
+                                                    {isImageAvatarValue(comment.creatorAvatar) ? (
                                                         <img src={comment.creatorAvatar} alt={comment.creatorName}
                                                              className="h-7 w-7 rounded-full object-cover"/>
                                                     ) : (
                                                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600">
-                                                            {comment.creatorType === 'agent' ? <Bot className="h-3.5 w-3.5"/> : getCreatorInitial(comment.creatorName)}
+                                                            {comment.creatorAvatar?.trim() || (comment.creatorType === 'agent' ? <Bot className="h-3.5 w-3.5"/> : getCreatorInitial(comment.creatorName))}
                                                         </div>
                                                     )}
                                                     <div className="min-w-0 flex-1">

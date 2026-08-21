@@ -1,3 +1,5 @@
+import logging
+
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
@@ -10,11 +12,14 @@ from .models import Memo
 from .serializers import MemoSerializer
 
 
+logger = logging.getLogger(__name__)
+
+
 def sync_memo_vector_safely(memo):
     try:
         RagClient.add_memo(memo)
-    except Exception as e:
-        print(f"同步 Memo 向量失败: {memo.memo_id} - {e}")
+    except Exception:
+        logger.exception('Failed to synchronize memo vector: memo_id=%s', memo.memo_id)
 
 
 def get_current_user_memo_queryset(request):

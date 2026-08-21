@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 package-lock.json
+!frontend_react/package-lock.json
 db.sqlite3
 chroma_data/*
 

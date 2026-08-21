@@ -1,3 +1,4 @@
+import logging
 import stat
 from base64 import decodebytes
 from io import StringIO
@@ -6,6 +7,7 @@ import paramiko
 
 
 DEFAULT_NETWORK_TIMEOUT_SECONDS = 30
+logger = logging.getLogger(__name__)
 
 
 class SftpClient:
@@ -134,7 +136,7 @@ class SftpClient:
             self._connect().listdir('.')
             return True
         except Exception as e:
-            print(f"SFTP connection check failed: {e}")
+            logger.warning('SFTP connection check failed: host=%s, port=%s, reason=%s', self.host, self.port, e)
             self._close()
             return False
 
@@ -147,7 +149,7 @@ class SftpClient:
         except IOError:
             return False
         except Exception as e:
-            print(f"SFTP exists failed: {remote_path}. Error: {e}")
+            logger.warning('SFTP existence check failed: path=%s, reason=%s', remote_path, e)
             return False
 
     def ensure_directory(self, remote_dir):
@@ -170,7 +172,7 @@ class SftpClient:
                 try:
                     sftp.mkdir(current_path)
                 except IOError as e:
-                    print(f"SFTP mkdir error at {current_path}: {e}")
+                    logger.warning('SFTP directory creation failed: path=%s, reason=%s', current_path, e)
 
     def try_create_directory(self, remote_dir):
         try:
@@ -184,7 +186,7 @@ class SftpClient:
             self._connect().put(local_path, self._normalize_remote_path(remote_path))
             return True
         except Exception as e:
-            print(f"SFTP upload failed: {remote_path}. Error: {e}")
+            logger.exception('SFTP upload failed: path=%s', remote_path)
             self._close()
             return False
 
@@ -193,7 +195,7 @@ class SftpClient:
             self._connect().get(self._normalize_remote_path(remote_path), local_path)
             return True
         except Exception as e:
-            print(f"SFTP download failed: {e}")
+            logger.exception('SFTP download failed: path=%s', remote_path)
             self._close()
             return False
 
@@ -203,7 +205,7 @@ class SftpClient:
             with sftp.open(self._normalize_remote_path(remote_path), 'rb') as remote_file:
                 return remote_file.read().decode('utf-8')
         except Exception as e:
-            print(f"SFTP read content failed: {e}")
+            logger.exception('SFTP content read failed: path=%s', remote_path)
             return None
 
     def list_directory(self, remote_dir):
@@ -211,7 +213,7 @@ class SftpClient:
             entries = self._connect().listdir(self._normalize_remote_path(remote_dir))
             return [name for name in entries if name not in ('.', '..')]
         except Exception as e:
-            print(f"SFTP list failed: {remote_dir}. Error: {e}")
+            logger.exception('SFTP directory listing failed: path=%s', remote_dir)
             return None
 
     def is_directory(self, remote_path):
@@ -219,7 +221,7 @@ class SftpClient:
             attr = self._connect().stat(self._normalize_remote_path(remote_path))
             return stat.S_ISDIR(attr.st_mode)
         except Exception as e:
-            print(f"SFTP stat failed: {remote_path}. Error: {e}")
+            logger.exception('SFTP stat failed: path=%s', remote_path)
             return False
 
     def delete_path(self, remote_path):
@@ -232,7 +234,7 @@ class SftpClient:
                 sftp.remove(remote_path)
             return True
         except Exception as e:
-            print(f"SFTP delete failed: {remote_path}. Error: {e}")
+            logger.exception('SFTP delete failed: path=%s', remote_path)
             return False
 
     def __del__(self):

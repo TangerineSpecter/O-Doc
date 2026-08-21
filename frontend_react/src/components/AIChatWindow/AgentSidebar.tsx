@@ -3,6 +3,7 @@
 import { Bot, ChevronDown, Search } from 'lucide-react';
 import { type AgentConfig } from '../../api/setting';
 import { formatSummaryDate } from '../../utils/format';
+import {isImageAvatarValue} from '../../utils/avatar';
 
 interface ConversationItem {
     id: string;
@@ -76,10 +77,10 @@ export const AgentSidebar = ({
                             }`}
                         >
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white bg-orange-50 text-orange-600 shadow-sm">
-                                {item.avatar ? (
+                                {isImageAvatarValue(item.avatar) ? (
                                     <img src={item.avatar} alt={item.name} className="h-full w-full object-cover" />
                                 ) : (
-                                    <Bot className="h-5 w-5" />
+                                    item.avatar?.trim() || <Bot className="h-5 w-5" />
                                 )}
                             </div>
                             <div className="min-w-0 flex-1">

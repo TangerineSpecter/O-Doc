@@ -142,9 +142,38 @@ def should_pull_remote_before_push(runtime_state, remote_meta):
     return True
 
 
+def _local_scheduler_process_is_alive(runtime_state):
+    """Return the local scheduler owner's liveness, or ``None`` when unknown."""
+    if runtime_state.get('trigger') != 'scheduler':
+        return None
+
+    runner_id = str(runtime_state.get('runner_id') or '')
+    host, separator, raw_pid = runner_id.rpartition(':')
+    if not separator or host != socket.gethostname():
+        return None
+
+    try:
+        pid = int(raw_pid)
+    except (TypeError, ValueError):
+        return None
+    if pid <= 0:
+        return None
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 def is_sync_running(runtime_state=None):
     runtime_state = runtime_state if runtime_state is not None else get_runtime_state()
     if runtime_state.get('status') != 'running':
+        return False
+
+    if _local_scheduler_process_is_alive(runtime_state) is False:
         return False
 
     last_started_at = _parse_runtime_datetime(runtime_state.get('last_started_at'))

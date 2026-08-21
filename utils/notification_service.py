@@ -1,10 +1,13 @@
 # utils/notification_service.py
+import logging
+
 from django.contrib.auth import get_user_model
 
 from message.models import Notification
 from user.models import UserProfile
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class NotificationService:
@@ -39,4 +42,4 @@ class NotificationService:
             )
         except Exception as e:
             # 这里使用 logging 防止通知系统崩溃影响主业务，暂用 print 示意，实际应记录日志
-            print(f"Failed to send notification: {e}")
+            logger.exception('Failed to send notification: recipient=%s, level=%s', user, level)

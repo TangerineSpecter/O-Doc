@@ -1,3 +1,4 @@
+import logging
 import os
 import math
 import chromadb
@@ -7,6 +8,7 @@ from system_settings.models import SystemSetting, AIModel
 import requests
 
 CHROMA_DB_PATH = str(settings.CHROMA_DB_PATH)
+logger = logging.getLogger(__name__)
 
 
 class RagSyncError(Exception):
@@ -49,11 +51,14 @@ class RagClient:
             model_id = config.get('default_embedding_model_id') or config.get('defaultEmbeddingModelId')
             if not model_id:
                 # 如果没配置，可以在这里返回 None 或抛出异常
-                print("Warning: 未配置默认 Embedding 模型")
+                logger.warning('Default embedding model is not configured')
                 return None
             return AIModel.objects.get(id=model_id)
-        except Exception as e:
-            print(f"获取 Embedding 模型失败: {e}")
+        except SystemSetting.DoesNotExist:
+            logger.warning('AI system configuration is not available while resolving the embedding model')
+            return None
+        except Exception:
+            logger.exception('Failed to resolve default embedding model')
             return None
 
     @classmethod
@@ -94,19 +99,19 @@ class RagClient:
                         embeddings.append(data['data'][0]['embedding'])
                     else:
                         message = f"Embedding API 返回格式异常: {data}"
-                        print(message)
+                        logger.warning('Embedding API returned an invalid payload: chunk_index=%s', index)
                         if strict:
                             raise RagSyncError(message)
                 else:
                     message = f"Embedding API Error: {response.status_code} - {response.text}"
-                    print(message)
+                    logger.warning('Embedding API request failed: chunk_index=%s, status=%s', index, response.status_code)
                     if strict:
                         raise RagSyncError(f"第 {index + 1} 个分块向量生成失败：{response.status_code}")
         except Exception as e:
             if isinstance(e, RagSyncError):
                 raise
             message = f"生成 Embedding 异常: {e}"
-            print(message)
+            logger.exception('Embedding generation failed')
             if strict:
                 raise RagSyncError(message) from e
 
@@ -142,8 +147,8 @@ class RagClient:
         collection = cls.get_collection()
         try:
             collection.delete(where={"article_id": str(article_id)})
-        except Exception as e:
-            print(f"删除旧向量失败(可能是首次同步): {e}")
+        except Exception:
+            logger.exception('Failed to remove existing article vectors: article_id=%s', article_id)
 
         collection.add(
             documents=chunks,
@@ -158,8 +163,8 @@ class RagClient:
         """从向量库删除一篇文章的所有分块"""
         try:
             cls.get_collection().delete(where={"article_id": str(article_id)})
-        except Exception as e:
-            print(f"删除文章向量失败: {e}")
+        except Exception:
+            logger.exception('Failed to delete article vectors: article_id=%s', article_id)
 
     @classmethod
     def add_memo(cls, memo):
@@ -170,7 +175,7 @@ class RagClient:
 
         embeddings = cls.create_embeddings([content])
         if not embeddings:
-            print(f"Memo {memo.memo_id} 向量生成失败，跳过入库")
+            logger.warning('Memo vector generation returned no embeddings: memo_id=%s', memo.memo_id)
             return 0
 
         collection = cls.get_memo_collection()
@@ -194,8 +199,8 @@ class RagClient:
         """从向量库删除一条闪念"""
         try:
             cls.get_memo_collection().delete(ids=[str(memo_id)])
-        except Exception as e:
-            print(f"删除 Memo 向量失败: {e}")
+        except Exception:
+            logger.exception('Failed to delete memo vector: memo_id=%s', memo_id)
 
     @classmethod
     def sync_memos(cls, memos):
@@ -225,8 +230,8 @@ class RagClient:
                 continue
             try:
                 synced_count += cls.add_memo(memo)
-            except Exception as e:
-                print(f"同步 Memo 向量失败: {memo_id} - {e}")
+            except Exception:
+                logger.exception('Failed to synchronize memo vector: memo_id=%s', memo_id)
 
         return synced_count
 
@@ -249,8 +254,8 @@ class RagClient:
         collection = cls.get_memo_collection()
         try:
             results = collection.get(ids=memo_ids, include=['embeddings'])
-        except Exception as e:
-            print(f"读取 Memo 向量失败: {e}")
+        except Exception:
+            logger.exception('Failed to read memo vectors: memo_count=%s', len(memo_ids))
             return []
 
         embeddings_by_id = {

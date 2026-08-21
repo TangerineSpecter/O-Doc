@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 
@@ -7,6 +9,9 @@ from tags.models import Tag
 from tags.serializers import TagSerializer
 from utils.drf_utils import CurrentUserOrAdminDefault, get_current_user_identifier
 from utils.resource_assets import sync_article_content_assets
+
+
+logger = logging.getLogger(__name__)
 
 
 class ArticleSerializer(serializers.ModelSerializer):
@@ -138,7 +143,7 @@ class ArticleSerializer(serializers.ModelSerializer):
                         tag = tag_ser.save()
                 except Exception as e:
                     # 忽略创建失败的标签，避免打断文章保存
-                    print(f"Error creating tag {name}: {e}")
+                    logger.exception('Failed to create article tag: name=%s', name)
                     continue
 
             if tag:

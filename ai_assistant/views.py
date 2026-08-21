@@ -180,8 +180,8 @@ class ChatView(APIView):
         except ValueError as e:
             # 捕获配置错误 (如未配置模型)
             return Response({'error': str(e)}, status=400)
-        except Exception as e:
-            logger.error(f"ChatView System Error: {e}", exc_info=True)
+        except Exception:
+            logger.exception('AI chat request failed')
             return Response({'error': "Internal Server Error"}, status=500)
 
     @staticmethod
@@ -329,8 +329,8 @@ class ChatView(APIView):
                 yield json.dumps({'type': 'answer', 'content': sources_markdown}, ensure_ascii=False) + "\n"
 
         except Exception as e:
-            logger.error(f"Stream Generation Error: {e}")
-            yield json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False) + "\n"
+            logger.exception('Stream generation failed')
+            yield json.dumps({'type': 'error', 'content': '系统异常，请稍后重试'}, ensure_ascii=False) + "\n"
 
     @classmethod
     def _stream_tool_response_generator(cls, messages, tool_context, include_thinking=False, use_simple_model=False, loaded_skills=None):
@@ -371,8 +371,8 @@ class ChatView(APIView):
                 )
                 event_queue.put({'type': 'answer', 'content': content})
             except Exception as e:
-                logger.error(f"Tool Stream Generation Error: {e}")
-                event_queue.put({'type': 'error', 'content': str(e)})
+                logger.exception('Tool stream generation failed')
+                event_queue.put({'type': 'error', 'content': '系统异常，请稍后重试'})
             finally:
                 event_queue.put(done_marker)
 
@@ -441,6 +441,6 @@ class WhiteboardInsightView(APIView):
         except json.JSONDecodeError:
             logger.warning("WhiteboardInsightView received unparsable model output")
             return Response({'error': '启发结果解析失败，请重试'}, status=502)
-        except Exception as e:
-            logger.error(f"WhiteboardInsightView System Error: {e}", exc_info=True)
+        except Exception:
+            logger.exception('Whiteboard insight generation failed')
             return Response({'error': "Internal Server Error"}, status=500)

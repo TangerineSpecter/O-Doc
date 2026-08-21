@@ -112,6 +112,19 @@ export const useSyncOperations = ({
       setIsSaving(false);
     }
   };
+  const saveConfigBeforeSync = async () => {
+    try {
+      await saveWebDavConfig(config);
+      await onRefreshStatus();
+      return true;
+    } catch (err: any) {
+      error(
+        err.response?.data?.msg ||
+          "请先保存并测试通过当前备份配置，再开始同步",
+      );
+      return false;
+    }
+  };
   const exportBackup = async () => {
     if (isServerSyncing || isImporting || isExporting) {
       warning("请等待当前任务完成后再导出");
@@ -190,7 +203,7 @@ export const useSyncOperations = ({
       warning("当前已有同步任务正在运行，请等待完成后再操作");
       return;
     }
-    if (!(await saveConfig())) return;
+    if (!(await saveConfigBeforeSync())) return;
     setIsSyncing(true);
     statusSummaryKeyRef.current = "";
     setLogs([`🚀 开始${direction === "upload" ? "上传" : "下载"}同步任务...`]);

@@ -493,7 +493,7 @@ export default function ImageUploadModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, isDatePickerOpen, isUploading]);
 
-  const useSelectedFile = (selectedFile: File, readMetadata = true) => {
+  const applySelectedFile = (selectedFile: File, readMetadata = true) => {
     setFile(selectedFile);
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -529,7 +529,7 @@ export default function ImageUploadModal({
       return;
     }
 
-    useSelectedFile(selectedFile, false);
+    applySelectedFile(selectedFile, false);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1029,7 +1029,7 @@ export default function ImageUploadModal({
         onCancel={() => setPendingResizeFile(null)}
         onComplete={(processedFile) => {
           setPendingResizeFile(null);
-          useSelectedFile(processedFile, false);
+          applySelectedFile(processedFile, false);
         }}
       />
     </div>

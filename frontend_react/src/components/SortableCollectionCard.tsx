@@ -17,6 +17,7 @@ import {
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Anthology } from '../api/anthology';
+import {isImageAvatarValue} from '../utils/avatar';
 
 // 扩展 Anthology 类型以包含前端渲染所需的 icon 组件
 export interface Collection extends Anthology {
@@ -71,7 +72,7 @@ export const SortableCollectionCard = ({
     const renderAgentAvatar = (avatar?: string, name?: string) => {
         const value = avatar?.trim();
         const initial = (name || 'A').trim().slice(0, 1).toUpperCase();
-        if (value && (/^https?:\/\//.test(value) || value.startsWith('/') || value.startsWith('data:image/') || value.startsWith('blob:'))) {
+        if (isImageAvatarValue(value)) {
             return <img src={value} alt={name || 'Agent'} className="h-full w-full object-cover" />;
         }
         return <span className="text-[10px] font-bold text-indigo-700">{value || initial}</span>;

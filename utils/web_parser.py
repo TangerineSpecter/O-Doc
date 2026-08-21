@@ -1,4 +1,6 @@
 # utils/web_parser.py
+import logging
+
 import requests
 from bs4 import BeautifulSoup
 from markdownify import MarkdownConverter
@@ -6,6 +8,7 @@ from readability import Document
 
 
 REQUEST_TIMEOUT = 15
+logger = logging.getLogger(__name__)
 
 
 class WebParserError(Exception):
@@ -105,5 +108,5 @@ def parse_web_content(url):
         return title, markdown_content
 
     except Exception as e:
-        print(f"Error parsing URL {url}: {e}")
+        logger.exception('Failed to parse web page: url=%s', url)
         raise e

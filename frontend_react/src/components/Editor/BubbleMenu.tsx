@@ -50,7 +50,7 @@ export const BubbleMenu = ({ isOpen, position, onFormat }: BubbleMenuProps) => {
                         key={item.id}
                         onClick={(e) => {
                             e.stopPropagation();
-                            item.action && item.action();
+                            item.action?.();
                         }}
                         className="p-1.5 hover:bg-white/20 rounded-md transition-colors relative group"
                         title={item.label}

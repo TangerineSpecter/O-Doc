@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from urllib.parse import unquote, urlparse
@@ -8,6 +9,7 @@ from django.conf import settings
 RESOURCE_VIEW_PREFIX = '/api/resource/view/'
 RESOURCE_DOWNLOAD_PREFIX = '/api/resource/download/'
 RESOURCE_URL_RE = re.compile(r'/api/resource/(?:view|download)/([^)\]\s"\'<>?#]+)')
+logger = logging.getLogger(__name__)
 
 
 def get_resource_view_url(resource_id):
@@ -168,8 +170,8 @@ def delete_asset_physical_file(asset):
     try:
         if os.path.exists(file_abs_path):
             os.remove(file_abs_path)
-    except Exception as exc:
-        print(f"删除文件失败: {exc}")
+    except Exception:
+        logger.exception('Failed to delete resource file: path=%s', asset.file_path)
 
 
 def delete_asset_record_and_file(asset):

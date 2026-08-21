@@ -1,4 +1,5 @@
 import json
+import logging
 import mimetypes
 import os
 
@@ -25,6 +26,9 @@ from utils.resource_assets import (
 from utils.response_utils import success_result, error_result
 from .models import Asset
 from .serializers import AssetSerializer
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_visible_anthology_ids(request):
@@ -171,7 +175,8 @@ class ResourceListView(APIView):
                 'typeSizes': formatted_type_sizes  # 按类型统计的空间大小
             })
 
-        except Exception as e:
+        except Exception:
+            logger.exception('Failed to list resources: page=%s', request.query_params.get('page'))
             return error_result(ErrorCode.SYSTEM_ERROR)
 
 
@@ -203,7 +208,8 @@ class ResourceCreateView(APIView):
                 'sourceType': asset.source_type
             })
 
-        except Exception as e:
+        except Exception:
+            logger.exception('Failed to create resource metadata')
             return error_result(ErrorCode.SYSTEM_ERROR)
 
 
@@ -256,7 +262,8 @@ class ResourceUpdateView(APIView):
                 'sourceType': updated_asset.source_type
             })
 
-        except Exception as e:
+        except Exception:
+            logger.exception('Failed to update resource: resource_id=%s', resource_id)
             return error_result(ErrorCode.SYSTEM_ERROR)
 
 
@@ -290,7 +297,8 @@ class ResourceDeleteView(APIView):
 
             return success_result()
 
-        except Exception as e:
+        except Exception:
+            logger.exception('Failed to delete resource: resource_id=%s', resource_id)
             return error_result(ErrorCode.SYSTEM_ERROR)
 
 
@@ -329,7 +337,8 @@ class ResourceDownloadView(APIView):
 
             return response
 
-        except Exception as e:
+        except Exception:
+            logger.exception('Failed to download resource: resource_id=%s', resource_id)
             return error_result(ErrorCode.SYSTEM_ERROR)
 
 
@@ -392,9 +401,9 @@ class ResourceUploadView(APIView):
                         'sourceArticle': source_article,
                         'duplicate': True  # 标记为重复文件
                     })
-                except Exception as e:
+                except Exception:
                     # 记录异常并返回新上传的文件
-                    print(f"处理重复文件时发生异常: {str(e)}")
+                    logger.exception('Failed to process duplicate asset: asset_id=%s', existing_asset.id)
                     # 继续执行上传逻辑，不使用重复文件
 
             # 确定文件类型
@@ -477,5 +486,6 @@ class ResourceUploadView(APIView):
                 'duplicate': False
             })
 
-        except Exception as e:
+        except Exception:
+            logger.exception('Failed to upload resource: filename=%s', request.FILES.get('file').name if request.FILES.get('file') else '')
             return error_result(ErrorCode.SYSTEM_ERROR)
