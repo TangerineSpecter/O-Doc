@@ -24,6 +24,7 @@ export interface BookItem {
 export const getBooks = (collId: string) => request.get<any, BookItem[]>(`/anthology/${collId}/books`);
 export const uploadBook = (collId: string, form: FormData) => request.post<any, {bookId: string}>(`/anthology/${collId}/books/upload`, form, {timeout: 0});
 export const restoreBook = (bookId: string) => request.post<any, {localState: string}>(`/anthology/book/${bookId}/restore`);
+export const repairBookUpload = (bookId: string, form: FormData) => request.post<any, {localState: string; remoteAvailable: boolean}>(`/anthology/book/${bookId}/repair-upload`, form, {timeout: 0});
 export const releaseBook = (bookId: string) => request.post<any, {localState: string}>(`/anthology/book/${bookId}/release`);
 export const deleteBook = (bookId: string) => request.delete<any, void>(`/anthology/book/${bookId}/delete`);
 export const getBookProgress = (bookId: string) => request.get<any, {location: string; progress: number}>(`/anthology/book/${bookId}/progress`);

@@ -1,7 +1,6 @@
 import hashlib
 import mimetypes
 import os
-import tempfile
 import uuid
 import posixpath
 import zipfile
@@ -15,6 +14,7 @@ from assets.models import Asset
 from utils.drf_utils import get_current_user_identifier
 from utils.response_utils import success_result, error_result
 from utils.error_codes import ErrorCode
+from utils.sync_manager import SyncError
 from .models import Anthology, Book, BookReadingProgress
 from .views import get_visible_anthology_queryset, get_owned_anthology_queryset
 
@@ -37,6 +37,23 @@ def _book_for_owner(request, book_id):
 
 def _asset_path(asset):
     return os.path.join(settings.MEDIA_ROOT, asset.file_path)
+
+
+def _soft_delete_orphaned_book_asset(asset):
+    """仅回收未被有效图书使用、且明确由书架创建的 Asset。"""
+    if not asset:
+        return
+    metadata = asset.metadata if isinstance(asset.metadata, dict) else {}
+    if not (metadata.get('book') or metadata.get('book_cover')):
+        return
+    if asset.linked_article_id:
+        return
+    if Book.objects.filter(asset=asset, is_valid=True).exists():
+        return
+    if Book.objects.filter(cover_asset=asset, is_valid=True).exists():
+        return
+    asset.is_valid = False
+    asset.save(update_fields=['is_valid'])
 
 
 def _read_epub_member(archive, path, max_size):
@@ -327,36 +344,74 @@ class BookRestoreView(APIView):
             manager = create_sync_manager(config)
         except Exception:
             return error_result(ErrorCode.WEBDEV_NOT_CONFIG)
-        client = manager.client
-        path = _asset_path(book.asset)
-        target_dir = os.path.dirname(path)
-        os.makedirs(target_dir, exist_ok=True)
-        temp_path = None
         try:
-            with tempfile.NamedTemporaryFile(prefix='.book-restore-', dir=target_dir, delete=False) as temp_file:
-                temp_path = temp_file.name
-            if not client.download_file(f'{manager.media_dir}/{book.asset.file_path}', temp_path):
-                return error_result(ErrorCode.WEBDEV_DOWNLOAD_FAIL)
-
-            digest = hashlib.md5()
-            with open(temp_path, 'rb') as source:
-                for chunk in iter(lambda: source.read(1024 * 1024), b''):
-                    digest.update(chunk)
-            if digest.hexdigest() != book.asset.file_hash:
-                return error_result(ErrorCode.WEBDEV_DOWNLOAD_FAIL, message='云端文件校验失败')
-
-            os.replace(temp_path, path)
-            temp_path = None
+            manager.restore_v2_media_file(book.asset.file_path, expected_hash=book.asset.file_hash)
             book.local_state = 'local'; book.save(update_fields=['local_state', 'updated_at'])
             return success_result({'localState': 'local'})
+        except SyncError as exc:
+            return error_result(ErrorCode.WEBDEV_DOWNLOAD_FAIL, message=str(exc))
+
+
+class BookRepairUploadView(APIView):
+    """用用户选择的本地文件修复书架正文，等待下一次同步补传至云端。"""
+    def post(self, request, book_id):
+        try: book = _book_for_owner(request, book_id)
+        except Book.DoesNotExist: return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+        upload = request.FILES.get('file')
+        if not upload:
+            return error_result(ErrorCode.UPLOAD_RESOURCE_NOT_FOUND, message='请选择要补传的图书文件')
+        extension = os.path.splitext(upload.name)[1].lower()
+        if ALLOWED_EXTENSIONS.get(extension) != book.book_format or upload.size > MAX_BOOK_SIZE:
+            return error_result(ErrorCode.UPLOAD_RESOURCE_MORE_THAN_MAX_SIZE,
+                                message=f'请选择与本书一致的 {book.book_format.upper()} 文件，且不超过 500 MB')
+
+        asset_id = uuid.uuid4().hex[:16]
+        rel_path = os.path.join('books', asset_id + extension)
+        target_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+        temp_path = target_path + '.uploading'
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        digest = hashlib.md5()
+        try:
+            with open(temp_path, 'wb') as output:
+                for chunk in upload.chunks():
+                    digest.update(chunk)
+                    output.write(chunk)
+            os.replace(temp_path, target_path)
+            asset = Asset.objects.create(
+                id=asset_id, name=upload.name[:255], original_name=upload.name[:255],
+                file_type='document', file_size=upload.size, file_path=rel_path,
+                file_extension=extension, mime_type=mimetypes.guess_type(upload.name)[0] or 'application/octet-stream',
+                uploader=get_current_user_identifier(request), file_hash=digest.hexdigest(),
+                source_type='other', metadata={'book': True},
+            )
         finally:
-            if temp_path and os.path.exists(temp_path):
+            if os.path.exists(temp_path):
                 os.remove(temp_path)
+
+        previous_asset = book.asset
+        book.asset = asset
+        book.local_state = 'local'
+        # 重新选择的本地文件必须进入下一份同步快照，不能沿用失效的远端标记。
+        book.remote_available = False
+        book.remote_hash = ''
+        book.save(update_fields=['asset', 'local_state', 'remote_available', 'remote_hash', 'updated_at'])
+        # 旧正文已确认丢失时不再作为有效资源参与后续媒体校验；若另一本书
+        # 仍复用它则保留，避免影响共享资源。
+        _soft_delete_orphaned_book_asset(previous_asset)
+        if book.book_format == 'epub':
+            _extract_epub_details(book)
+        elif book.book_format == 'pdf':
+            _extract_pdf_details(book)
+        return success_result({'localState': 'local', 'remoteAvailable': False})
 
 
 class BookDeleteView(APIView):
     def delete(self, request, book_id):
         try: book = _book_for_owner(request, book_id)
         except Book.DoesNotExist: return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+        body_asset = book.asset
+        cover_asset = book.cover_asset
         book.is_valid = False; book.save(update_fields=['is_valid', 'updated_at']); book.anthology.update_stats()
+        _soft_delete_orphaned_book_asset(body_asset)
+        _soft_delete_orphaned_book_asset(cover_asset)
         return success_result()

@@ -3,28 +3,31 @@ import os
 import socket
 import threading
 import json
+import hashlib
 import urllib.error
 import urllib.request
 from datetime import timedelta
 import re
 
-from django.db import OperationalError, ProgrammingError, close_old_connections
+from django.contrib.auth import get_user_model
+from django.db import OperationalError, ProgrammingError, close_old_connections, transaction
 from django.utils import timezone
 
 from ai_assistant.prompts import CHAT_SYSTEM_PROMPT
-from utils.ai_service import AIService
+from utils.ai_service import AIAuthenticationError, AIService
 from utils.mcp_client import (
     call_mcp_tool,
     fetch_mcp_tools,
     hide_agent_identity_parameters,
 )
 from .builtin_skills import AGENT_POST_MARKDOWN_SKILL_KEY, read_agent_post_markdown_guide
-from .models import Agent, AgentRunRecord, AgentTask, MCPServer, Skill
+from .models import Agent, AgentRunRecord, AgentTask, MCPServer, Skill, SystemSetting
 from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial_delay_seconds
 
 logger = logging.getLogger(__name__)
 
 INTERRUPTED_RUN_STALE_MINUTES = 180
+AI_PROVIDER_AUTH_NOTICE_KEY = 'ai_provider_auth_failure_notices'
 
 
 def _scheduler_log(message):
@@ -363,6 +366,25 @@ class AgentTaskScheduler:
                 'duration': duration,
                 'content': content or '',
             }
+        except AIAuthenticationError as exc:
+            summary = str(exc)
+            duration = self._format_duration(max(0, int((timezone.now() - agent_started).total_seconds())))
+            self._append_agent_run_step(record, agent.id, 'failed', 'API Key 已失效', summary)
+            self._finish_agent_run(record, agent.id, 'failed', summary, duration, '')
+            notified = self._notify_provider_auth_failure_once(exc)
+            _scheduler_log(
+                f"agent blocked by invalid API key: agent={agent.id}, task={task.id}, "
+                f"provider={exc.provider_id or exc.provider_name}, notified={notified}"
+            )
+            return {
+                'agent': agent.id,
+                'agentName': agent.name,
+                'agentAvatar': agent.avatar,
+                'status': 'failed',
+                'summary': summary,
+                'duration': duration,
+                'content': '',
+            }
         except Exception as exc:
             summary = str(exc)[:255]
             duration = self._format_duration(max(0, int((timezone.now() - agent_started).total_seconds())))
@@ -378,6 +400,50 @@ class AgentTaskScheduler:
                 'duration': duration,
                 'content': '',
             }
+
+    @staticmethod
+    def _notify_provider_auth_failure_once(error):
+        """Notify administrators once for each provider/key fingerprint pair."""
+        if not error.provider_id or not error.api_key:
+            return False
+
+        fingerprint = hashlib.sha256(error.api_key.encode('utf-8')).hexdigest()
+        with transaction.atomic():
+            setting, _ = SystemSetting.objects.select_for_update().get_or_create(
+                key=AI_PROVIDER_AUTH_NOTICE_KEY,
+                defaults={
+                    'value': {},
+                    'description': 'AI Provider API Key 失效通知去重标记（仅保存密钥哈希）',
+                },
+            )
+            notices = setting.value if isinstance(setting.value, dict) else {}
+            if notices.get(error.provider_id) == fingerprint:
+                return False
+            notices = {**notices, error.provider_id: fingerprint}
+            setting.value = notices
+            setting.save(update_fields=['value'])
+
+        from message.models import Notification
+
+        admins = get_user_model().objects.filter(is_active=True).filter(
+            is_superuser=True
+        )
+        if not admins.exists():
+            admins = get_user_model().objects.filter(is_active=True, is_staff=True)
+
+        Notification.objects.bulk_create([
+            Notification(
+                user=admin,
+                title='AI Provider API Key 已失效',
+                content=(
+                    f'AI 提供商「{error.provider_name}」的 API Key 已失效或无权访问。'
+                    '请前往“系统设置 > AI 模型配置”更新密钥后重试。'
+                ),
+                type='warning',
+            )
+            for admin in admins
+        ])
+        return True
 
     def _append_run_step(self, record, status, title, detail=''):
         step = {

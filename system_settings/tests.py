@@ -13,6 +13,7 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory
 
 from anthology.models import Anthology, Book
+from anthology.book_views import _soft_delete_orphaned_book_asset
 from article.models import Image
 from assets.models import Asset
 from memos.models import Memo
@@ -39,8 +40,9 @@ from system_settings.sync_scheduler import (
     should_pull_remote_before_push,
     should_start_webdav_scheduler,
 )
+from system_settings.agent_task_scheduler import AgentTaskScheduler
 from system_settings.views import AgentViewSet, SystemConfigViewSet
-from utils.ai_service import AIService
+from utils.ai_service import AIAuthenticationError, AIService
 from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
 from utils.ftp_client import FtpClient
 from utils.remote_storage import (
@@ -475,6 +477,51 @@ class SyncManagerTests(TestCase):
         self.assertEqual(downloaded, 0)
         self.assertEqual(client.downloaded, [])
         self.assertEqual(Book.objects.get(book_id='book_released').local_state, 'cloud_only')
+
+    def test_reconcile_missing_book_media_keeps_book_and_drops_missing_cover(self):
+        anthology = Anthology.objects.create(coll_id='coll_missing_book', title='书架', type='book')
+        body = Asset.objects.create(
+            id='asset_missing_body', name='missing.pdf', original_name='missing.pdf',
+            file_type='document', file_size=4, file_path='books/missing.pdf', file_extension='.pdf',
+            mime_type='application/pdf', file_hash='missing-body', source_type='other')
+        cover = Asset.objects.create(
+            id='asset_missing_cover', name='cover.png', original_name='cover.png',
+            file_type='image', file_size=4, file_path='book_covers/missing.png', file_extension='.png',
+            mime_type='image/png', file_hash='missing-cover', source_type='other', metadata={'book_cover': True})
+        book = Book.objects.create(
+            book_id='book_missing_media', anthology=anthology, asset=body, cover_asset=cover,
+            title='缺失资源', book_format='pdf')
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.settings(MEDIA_ROOT=media_root):
+                result = manager.reconcile_missing_book_media()
+
+        book.refresh_from_db()
+        cover.refresh_from_db()
+        self.assertEqual(result, {'bodies': 1, 'covers': 1})
+        self.assertEqual(book.local_state, 'cloud_only')
+        self.assertIsNone(book.cover_asset)
+        self.assertFalse(cover.is_valid)
+
+    def test_v2_snapshot_book_paths_are_excluded_from_bulk_download(self):
+        paths = SyncManager._book_body_paths_from_snapshot([
+            {'model': 'assets.asset', 'pk': 'body', 'fields': {'file_path': 'books/a.pdf'}},
+            {'model': 'assets.asset', 'pk': 'cover', 'fields': {'file_path': 'book_covers/a.png'}},
+            {'model': 'anthology.book', 'pk': 'book_a', 'fields': {'asset': 'body', 'is_valid': True}},
+        ])
+        self.assertEqual(paths, {'books/a.pdf'})
+
+    def test_orphan_cleanup_does_not_invalidate_non_bookshelf_asset(self):
+        asset = Asset.objects.create(
+            id='shared_document_asset', name='shared.pdf', original_name='shared.pdf',
+            file_type='document', file_size=4, file_path='uploads/shared.pdf', file_extension='.pdf',
+            mime_type='application/pdf', file_hash='shared-document', source_type='attachment')
+
+        _soft_delete_orphaned_book_asset(asset)
+
+        asset.refresh_from_db()
+        self.assertTrue(asset.is_valid)
 
     def test_sync_assets_download_includes_user_avatar(self):
         user = User.objects.create_user(username='admin', password='password')
@@ -1000,6 +1047,24 @@ class AIServiceTests(TestCase):
             AIService._normalize_base_url('https://ark.cn-beijing.volces.com/api/v3/chat/completions'),
             'https://ark.cn-beijing.volces.com/api/v3'
         )
+
+
+class AIProviderAuthenticationNotificationTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser('ai-admin', 'ai-admin@example.com', 'secret')
+
+    def test_notifies_only_once_per_provider_key_and_notifies_again_after_key_changes(self):
+        first_error = AIAuthenticationError('prov-test', '测试提供商', 'invalid-key-1')
+
+        self.assertTrue(AgentTaskScheduler._notify_provider_auth_failure_once(first_error))
+        self.assertFalse(AgentTaskScheduler._notify_provider_auth_failure_once(first_error))
+
+        from message.models import Notification
+        self.assertEqual(Notification.objects.filter(user=self.admin).count(), 1)
+
+        changed_key_error = AIAuthenticationError('prov-test', '测试提供商', 'invalid-key-2')
+        self.assertTrue(AgentTaskScheduler._notify_provider_auth_failure_once(changed_key_error))
+        self.assertEqual(Notification.objects.filter(user=self.admin).count(), 2)
 
 
 class FeishuIMContextTests(TestCase):

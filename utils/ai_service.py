@@ -3,7 +3,7 @@ import logging
 import re
 import json
 
-from openai import OpenAI
+from openai import AuthenticationError, OpenAI
 
 from system_settings.models import SystemSetting, AIModel
 
@@ -11,6 +11,20 @@ logger = logging.getLogger(__name__)
 
 THINK_BLOCK_RE = re.compile(r'<think(?:ing)?>.*?</think(?:ing)?>', re.IGNORECASE | re.DOTALL)
 OPENAI_COMPATIBLE_VERSION_RE = re.compile(r'/(?:v\d+(?:beta)?)(?:/openai)?$', re.IGNORECASE)
+
+
+class AIAuthenticationError(RuntimeError):
+    """An AI provider rejected the configured API key.
+
+    The original provider response can contain key fragments, so callers should
+    use this safe exception for logs, task records, and user notifications.
+    """
+
+    def __init__(self, provider_id='', provider_name='', api_key=''):
+        self.provider_id = provider_id
+        self.provider_name = provider_name or '未知提供商'
+        self.api_key = api_key or ''
+        super().__init__(f'AI 提供商「{self.provider_name}」的 API Key 已失效或无权访问')
 
 
 class AIService:
@@ -71,7 +85,9 @@ class AIService:
                 "api_key": provider.api_key,
                 "base_url": AIService._normalize_base_url(provider.base_url),
                 "model_name": ai_model.name,
-                "provider_type": provider.type
+                "provider_type": provider.type,
+                "provider_id": provider.id,
+                "provider_name": provider.name,
             }
         except Exception as e:
             logger.error(f"Failed to load AI config: {e}")
@@ -91,7 +107,9 @@ class AIService:
                 "api_key": provider.api_key,
                 "base_url": AIService._normalize_base_url(provider.base_url),
                 "model_name": ai_model.name,
-                "provider_type": provider.type
+                "provider_type": provider.type,
+                "provider_id": provider.id,
+                "provider_name": provider.name,
             }
         except Exception as e:
             logger.error(f"Failed to load AI model config: {e}")
@@ -115,7 +133,9 @@ class AIService:
                 "api_key": provider.api_key,
                 "base_url": AIService._normalize_base_url(provider.base_url),
                 "model_name": ai_model.name,
-                "provider_type": provider.type
+                "provider_type": provider.type,
+                "provider_id": provider.id,
+                "provider_name": provider.name,
             }
         except Exception as e:
             logger.error(f"Failed to load image AI config: {e}")
@@ -146,6 +166,8 @@ class AIService:
             ) # type: ignore
 
             return cls.strip_thinking(response.choices[0].message.content)
+        except AuthenticationError as exc:
+            cls._raise_authentication_error(exc, config)
         except Exception as e:
             logger.error(f"AI API Call Error: {e}")
             raise e
@@ -174,6 +196,8 @@ class AIService:
             ) # type: ignore
 
             return cls.strip_thinking(response.choices[0].message.content)
+        except AuthenticationError as exc:
+            cls._raise_authentication_error(exc, config)
         except Exception as e:
             logger.error(f"AI Messages API Call Error: {e}")
             raise e
@@ -269,6 +293,8 @@ class AIService:
                     })
 
             raise RuntimeError("AI Tool 调用轮次过多，已停止执行")
+        except AuthenticationError as exc:
+            cls._raise_authentication_error(exc, config)
         except Exception as e:
             logger.error(f"AI Tool Call Error: {e}")
             raise e
@@ -317,9 +343,22 @@ class AIService:
             )
 
             return cls.strip_thinking(response.choices[0].message.content)
+        except AuthenticationError as exc:
+            cls._raise_authentication_error(exc, config)
         except Exception as e:
             logger.error(f"AI Image Description Error: {e}")
             raise e
+
+    @staticmethod
+    def _raise_authentication_error(exc, config):
+        """Convert provider authentication responses to a safe application error."""
+        provider_name = config.get('provider_name') or '未知提供商'
+        logger.warning('AI provider authentication failed: provider=%s', provider_name)
+        raise AIAuthenticationError(
+            provider_id=config.get('provider_id', ''),
+            provider_name=provider_name,
+            api_key=config.get('api_key', ''),
+        ) from exc
 
     @staticmethod
     def strip_thinking(content):
@@ -394,6 +433,8 @@ class AIService:
 
             yield from cls._flush_split_thinking_stream_state(strip_state, include_thinking=True)
 
+        except AuthenticationError as exc:
+            cls._raise_authentication_error(exc, config)
         except Exception as e:
             logger.error(f"AI Stream Error: {e}")
             raise e

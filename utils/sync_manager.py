@@ -374,6 +374,44 @@ class SyncManager:
         avatar_paths, avatar_missing = self._collect_user_avatar_relative_paths()
         return sorted(set(asset_paths) | set(avatar_paths)), asset_missing + avatar_missing
 
+    def reconcile_missing_book_media(self):
+        """将可降级的书架媒体从同步阻断项变为可修复状态。
+
+        图书正文是按需下载的大文件；正文不在本机时，保留书架记录并标记为
+        ``cloud_only``。封面丢失不影响阅读，移除封面引用后由前端使用默认封面。
+        其他资源仍维持严格校验，避免静默丢失附件或图片。
+        """
+        from anthology.models import Book
+        from assets.models import Asset
+
+        missing_body_ids = []
+        missing_cover_ids = []
+        for book in self._iter_valid_books():
+            body_path = self._book_body_rel_path(book)
+            if body_path and not os.path.isfile(os.path.join(settings.MEDIA_ROOT, body_path)):
+                if book.local_state != 'cloud_only':
+                    missing_body_ids.append(book.book_id)
+            if book.cover_asset_id:
+                cover_path = self._normalize_rel_path(book.cover_asset.file_path)
+                if cover_path and not os.path.isfile(os.path.join(settings.MEDIA_ROOT, cover_path)):
+                    missing_cover_ids.append(book.cover_asset_id)
+                    book.cover_asset = None
+                    book.save(update_fields=['cover_asset', 'updated_at'])
+
+        if missing_body_ids:
+            Book.objects.filter(book_id__in=missing_body_ids).update(local_state='cloud_only')
+
+        # 封面 Asset 只服务书架时可以安全失效，避免其残留资源记录继续阻断同步。
+        if missing_cover_ids:
+            body_asset_ids = set(Book.objects.filter(is_valid=True).values_list('asset_id', flat=True))
+            for asset in Asset.objects.filter(id__in=set(missing_cover_ids) - body_asset_ids):
+                metadata = asset.metadata if isinstance(asset.metadata, dict) else {}
+                if metadata.get('book_cover') and not asset.linked_article_id:
+                    asset.is_valid = False
+                    asset.save(update_fields=['is_valid'])
+
+        return {'bodies': len(missing_body_ids), 'covers': len(set(missing_cover_ids))}
+
     def validate_upload_state(self):
         _, missing_files = self._collect_media_relative_paths()
         if not missing_files:
@@ -1209,9 +1247,11 @@ class SyncManager:
                 continue
             digest = self._hash_file(local_path)
             media[rel_path] = {'hash': digest, 'size': os.path.getsize(local_path)}
-        # cloud_only 图书正文保留上一个 v2 快照的 blob 引用。
+        # 只有明确释放的 cloud_only 图书正文保留上一个 v2 快照的 blob 引用；
+        # 其他资源缺失时不能静默延续旧引用。
+        released_book_paths = set(self._released_book_rel_paths())
         for rel_path, entry in previous_media.items():
-            if rel_path not in media and entry.get('hash'):
+            if rel_path in released_book_paths and rel_path not in media and entry.get('hash'):
                 media[rel_path] = entry
         return media
 
@@ -1350,8 +1390,11 @@ class SyncManager:
             if digest not in referenced:
                 self.client.delete_path(f'{self.v2_blobs_dir}/{digest}')
 
-    def _restore_v2_media(self, media_manifest):
+    def _restore_v2_media(self, media_manifest, *, skip_paths=None):
+        skip_paths = set(skip_paths or ())
         for rel_path, entry in (media_manifest or {}).items():
+            if rel_path in skip_paths:
+                continue
             digest = entry.get('hash')
             local_path = os.path.join(settings.MEDIA_ROOT, rel_path)
             if digest and os.path.isfile(local_path) and self._hash_file(local_path) == digest:
@@ -1365,6 +1408,47 @@ class SyncManager:
                 os.remove(tmp_path)
                 raise SyncError(f'下载的媒体校验失败：{rel_path}')
             os.replace(tmp_path, local_path)
+
+    @staticmethod
+    def _book_body_paths_from_snapshot(data_list):
+        """从快照数据中取出图书正文路径，供同步下载时跳过。"""
+        assets_by_id = {}
+        book_asset_ids = set()
+        for item in data_list or []:
+            fields = item.get('fields') or {}
+            if item.get('model') == 'assets.asset':
+                assets_by_id[str(item.get('pk'))] = fields.get('file_path') or ''
+            elif item.get('model') == 'anthology.book' and not fields.get('is_valid') is False:
+                if fields.get('asset'):
+                    book_asset_ids.add(str(fields['asset']))
+        return {
+            path for asset_id, path in assets_by_id.items()
+            if asset_id in book_asset_ids and path
+        }
+
+    def restore_v2_media_file(self, rel_path, *, expected_hash=''):
+        """按当前 v2 快照恢复一个媒体文件，供图书按需下载使用。"""
+        remote = self.get_v2_current() or self._get_legacy_snapshot()
+        entry = (remote or {}).get('media', {}).get(self._normalize_rel_path(rel_path))
+        if not entry or not entry.get('hash'):
+            raise SyncError('云端没有这本图书的可用副本，请选择本地文件补传')
+        digest = entry['hash']
+        if expected_hash and digest != expected_hash:
+            raise SyncError('云端图书副本与当前书架记录不一致，请选择本地文件补传')
+
+        local_path = os.path.join(settings.MEDIA_ROOT, self._normalize_rel_path(rel_path))
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        tmp_path = local_path + '.book-restore-partial'
+        remote_path = self._join_remote_path(self.media_dir, rel_path) if entry.get('legacy_path') else f'{self.v2_blobs_dir}/{digest}'
+        try:
+            if not self.client.download_file(remote_path, tmp_path):
+                raise SyncError('云端图书副本不存在或下载失败，请选择本地文件补传')
+            if self._hash_file(tmp_path) != digest:
+                raise SyncError('云端图书副本校验失败，请选择本地文件补传')
+            os.replace(tmp_path, local_path)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     def _apply_v2_revisions(self, revisions):
         from system_settings.models import SyncEntityState
@@ -1400,6 +1484,7 @@ class SyncManager:
     def sync_v2(self, *, source='manual', runner_id='', base_snapshot_id=''):
         """Merge the current v2 head into local state, then publish one immutable merged snapshot."""
         safety_backup = self.create_local_safety_backup('before-sync')
+        self.reconcile_missing_book_media()
         with self._remote_sync_lock(runner_id):
             remote = self.get_v2_current() or self._get_legacy_snapshot()
             local_data = self.build_snapshot_data()
@@ -1412,11 +1497,19 @@ class SyncManager:
                     base = None
             if remote:
                 merged_data, merged_revisions, summary = self.merge_v2_data(base, local_data, local_revisions, remote)
-                self._restore_v2_media(remote.get('media'))
+                self._restore_v2_media(
+                    remote.get('media'),
+                    skip_paths=self._book_body_paths_from_snapshot(remote.get('data')),
+                )
                 with transaction.atomic():
                     with suspend_tracking():
                         self.apply_snapshot_data(merged_data, full_overwrite=True)
                     self._apply_v2_revisions(merged_revisions)
+                # 远端新图书的正文被刻意跳过下载；写入数据库后立即将其转为
+                # 仅云端状态，确保本次同步完成后书架就能触发按需恢复。
+                self.reconcile_missing_book_media()
+                merged_data = self.build_snapshot_data()
+                merged_revisions = self._build_revision_manifest(merged_data)
                 previous_media = remote.get('media') if not remote.get('legacy') else None
             else:
                 merged_data, merged_revisions, summary = local_data, local_revisions, {'created': len(local_data), 'updated': 0, 'deleted': 0, 'conflicts': 0}
