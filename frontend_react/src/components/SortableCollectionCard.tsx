@@ -66,9 +66,11 @@ export const SortableCollectionCard = ({
     const shouldMaskCover = hideCoverContent && item.count > 0;
     const isAgentCollection = item.type === 'agent';
     const isBookCollection = item.type === 'book';
-    const navigateTarget = isAgentCollection ? 'article' : item.type === 'image' ? 'image' : isBookCollection ? 'book' : 'article';
-    const countTitle = isAgentCollection ? `${item.count} 条帖子` : item.type === 'image' ? `${item.count} 张图片` : isBookCollection ? `${item.count} 本图书` : `${item.count} 篇文档`;
-    const bookPreviews = isBookCollection ? item.articles.slice(0, 12) : [];
+    const isImageCollection = item.type === 'image';
+    const navigateTarget = isAgentCollection ? 'article' : isImageCollection ? 'image' : isBookCollection ? 'book' : 'article';
+    const countTitle = isAgentCollection ? `${item.count} 条帖子` : isImageCollection ? `${item.count} 张图片` : isBookCollection ? `${item.count} 本图书` : `${item.count} 篇文档`;
+    const bookPreviews = isBookCollection ? (item.articles || []).slice(0, 12) : [];
+    const imagePreviews = isImageCollection ? (item.articles || []).slice(0, 12) : [];
     const renderAgentAvatar = (avatar?: string, name?: string) => {
         const value = avatar?.trim();
         const initial = (name || 'A').trim().slice(0, 1).toUpperCase();
@@ -186,12 +188,12 @@ export const SortableCollectionCard = ({
             </div>
 
             {/* 列表/图片预览区域 */}
-            <div className="flex-1 bg-slate-50/30 border-t border-slate-100 p-1">
+            <div className="h-[108px] bg-slate-50/30 border-t border-slate-100 p-1 overflow-hidden">
                 {shouldMaskCover ? (
                     <button
                         type="button"
                         onClick={() => onNavigate(navigateTarget, { collId: item.collId, title: item.title })}
-                        className="w-full h-full min-h-[5.75rem] flex flex-col items-center justify-center text-slate-400 py-4 gap-2 rounded-lg hover:bg-white hover:shadow-sm transition-all"
+                        className="w-full h-full flex flex-col items-center justify-center text-slate-400 py-2 gap-1.5 rounded-lg hover:bg-white hover:shadow-sm transition-all"
                         title="查看文集"
                     >
                         <div className="bg-white p-2 rounded-full border border-dashed border-slate-300">
@@ -217,22 +219,22 @@ export const SortableCollectionCard = ({
                             ))}
                         </div>
                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-400 py-4 gap-2">
+                        <div className="h-full w-full flex flex-col items-center justify-center text-slate-400 py-2 gap-1.5">
                             <div className="bg-white p-2 rounded-full border border-dashed border-indigo-300"><Bot className="w-4 h-4 text-indigo-500" /></div>
                             <span className="text-[10px]">暂无 Agent 帖子</span>
                         </div>
                     )
                 ) : isBookCollection ? (
-                    item.count > 0 ? (
+                    item.count > 0 && bookPreviews.length > 0 ? (
                         <button
                             onClick={() => onNavigate('book', {collId: item.collId, title: item.title})}
-                            className="group/bookshelf flex w-full [container-type:inline-size] items-start gap-2 overflow-hidden p-1 text-left"
+                            className="group/bookshelf flex h-full w-full items-center gap-2 overflow-hidden px-1 text-left"
                             title="打开书架"
                         >
                             {bookPreviews.map((book, index) => {
                                 const coverUrl = book.coverUrl || book.cover_url;
                                 return (
-                                    <div key={book.bookId || book.book_id || book.title || index} className="relative h-[calc((100cqw-1rem)/3)] aspect-[3/4] shrink-0 overflow-hidden rounded-[3px] border border-white/90 bg-gradient-to-br from-orange-500 via-orange-400 to-amber-300 shadow-[1px_2px_5px_rgba(120,78,38,.2)] transition-transform duration-300 group-hover/bookshelf:-translate-y-0.5">
+                                    <div key={book.bookId || book.book_id || book.title || index} className="relative h-full aspect-[3/4] shrink-0 overflow-hidden rounded-[3px] border border-white/90 bg-gradient-to-br from-orange-500 via-orange-400 to-amber-300 shadow-[1px_2px_5px_rgba(120,78,38,.2)] transition-transform duration-300 group-hover/bookshelf:-translate-y-0.5">
                                         <div className="flex h-full items-center justify-center p-1.5 text-center text-[9px] font-semibold leading-tight text-white/95">{book.title}</div>
                                         {coverUrl ? <img src={coverUrl} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = 'none'; }} className="absolute inset-0 h-full w-full object-cover" /> : null}
                                     </div>
@@ -240,43 +242,55 @@ export const SortableCollectionCard = ({
                             })}
                         </button>
                     ) : (
-                        <button onClick={() => onNavigate('book', {collId: item.collId, title: item.title})} className="h-full w-full min-h-[5.75rem] flex flex-col items-center justify-center text-slate-400 py-4 gap-2 hover:bg-orange-50/50 transition-colors"><div className="bg-white p-2 rounded-full border border-dashed border-slate-300"><Plus className="w-4 h-4 text-slate-300" /></div><span className="text-[10px]">暂无图书，点击导入</span></button>
+                        <button onClick={() => onNavigate('book', {collId: item.collId, title: item.title})} className="h-full w-full flex flex-col items-center justify-center text-slate-400 py-2 gap-1.5 hover:bg-orange-50/50 transition-colors"><div className="bg-white p-2 rounded-full border border-dashed border-slate-300"><Plus className="w-4 h-4 text-slate-300" /></div><span className="text-[10px]">暂无图书，点击导入</span></button>
                     )
-                ) : item.type === 'image' ? (
-                    // 图片文集展示：九宫格缩略图
-                    item.articles && item.articles.length > 0 ? (
-                        <div className="grid grid-cols-3 gap-1 p-1">
-                            {item.articles.slice(0, 3).map((image, idx) => (
-                                <div key={idx}
-                                    className="aspect-square bg-slate-100 rounded-md overflow-hidden relative group/img cursor-pointer hover:ring-2 hover:ring-orange-200"
-                                    onClick={() => onNavigate('image', { collId: item.collId, title: item.title })}
-                                >
-                                    {image.imageUrl ? (
-                                        <img
-                                            src={image.imageUrl}
-                                            alt={image.title}
-                                            loading="lazy"
-                                            className="h-full w-full object-cover transition-transform duration-300 group-hover/img:scale-105"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-slate-200/50 text-slate-300">
-                                            <ImageIcon className="w-4 h-4" />
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
+                ) : isImageCollection ? (
+                    // 图片文集展示：横向并排缩略图
+                    item.count > 0 && imagePreviews.length > 0 ? (
+                        <button
+                            onClick={() => onNavigate('image', { collId: item.collId, title: item.title })}
+                            className="group/gallery flex h-full w-full items-center gap-2 overflow-hidden px-1 text-left"
+                            title="查看图片文集"
+                        >
+                            {imagePreviews.map((image, idx) => {
+                                const imageUrl = image.imageUrl || image.image_url;
+                                return (
+                                    <div
+                                        key={image.imageId || image.image_id || image.title || idx}
+                                        className="relative h-full aspect-square shrink-0 overflow-hidden rounded-md border border-slate-200/80 bg-slate-100 shadow-sm transition-transform duration-300 group-hover/gallery:-translate-y-0.5"
+                                    >
+                                        {imageUrl ? (
+                                            <img
+                                                src={imageUrl}
+                                                alt={image.title || ''}
+                                                loading="lazy"
+                                                className="h-full w-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="flex h-full w-full items-center justify-center bg-slate-200/50 text-slate-300">
+                                                <ImageIcon className="w-4 h-4" />
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </button>
                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-400 py-4 gap-2">
-                            <div className="bg-white p-2 rounded-full border border-dashed border-slate-300"><ImageIcon className="w-4 h-4 text-slate-300" /></div>
+                        <button
+                            onClick={() => onNavigate('image', { collId: item.collId, title: item.title })}
+                            className="h-full w-full flex flex-col items-center justify-center text-slate-400 py-2 gap-1.5 hover:bg-orange-50/50 transition-colors"
+                        >
+                            <div className="bg-white p-2 rounded-full border border-dashed border-slate-300">
+                                <ImageIcon className="w-4 h-4 text-slate-300" />
+                            </div>
                             <span className="text-[10px]">暂无图片</span>
-                        </div>
+                        </button>
                     )
                 ) : (
                     // 文章文集展示：列表
                     item.articles && item.articles.length > 0 ? (
                         <ul className="space-y-0.5">
-                            {item.articles.map((article, idx) => (
+                            {item.articles.slice(0, 3).map((article, idx) => (
                                 <li key={idx}
                                     onClick={() => onNavigate('article', {
                                         collId: item.collId,
@@ -298,7 +312,7 @@ export const SortableCollectionCard = ({
                             ))}
                         </ul>
                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-400 py-4 gap-2">
+                        <div className="h-full w-full flex flex-col items-center justify-center text-slate-400 py-2 gap-1.5">
                             <div className="bg-white p-2 rounded-full border border-dashed border-slate-300"><Plus
                                 className="w-4 h-4 text-slate-300" /></div>
                             <span className="text-[10px]">暂无文档，点击创建</span>

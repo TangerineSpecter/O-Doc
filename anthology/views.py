@@ -90,12 +90,14 @@ class AnthologyListView(APIView):
                     image_qs = Image.objects.filter(coll_id=anthology.coll_id, is_valid=True)
                     item_count = image_qs.count()
                     if not anthology.hide_cover_content:
-                        images = image_qs.order_by('-created_at')[:3]
+                        images = image_qs.order_by('-created_at')[:12]
                         for image in images:
                             item_summaries.append({
                                 'image_id': image.image_id,
+                                'imageId': image.image_id,
                                 'title': image.title,
                                 'image_url': image.image_url,
+                                'imageUrl': image.image_url,
                                 'date': image.created_at.strftime('%m-%d')
                             })
                 elif anthology.type == 'book':
@@ -104,8 +106,14 @@ class AnthologyListView(APIView):
                     if not anthology.hide_cover_content:
                         # 书架卡片会根据可用宽度横向展示封面；提供适量预览，窄卡片自动裁切更多图书。
                         for book in book_qs.order_by('-updated_at')[:12]:
-                            item_summaries.append({'book_id': book.book_id, 'title': book.title,
-                                'cover_url': f'/api/anthology/book/{book.book_id}/cover', 'date': book.updated_at.strftime('%m-%d')})
+                            item_summaries.append({
+                                'book_id': book.book_id,
+                                'bookId': book.book_id,
+                                'title': book.title,
+                                'cover_url': f'/api/anthology/book/{book.book_id}/cover',
+                                'coverUrl': f'/api/anthology/book/{book.book_id}/cover',
+                                'date': book.updated_at.strftime('%m-%d')
+                            })
                 elif not anthology.hide_cover_content:
                     order_by = ('-created_at',) if anthology.type == 'agent' else ('sort', '-updated_at')
                     articles = Article.objects.filter(coll_id=anthology.coll_id, is_valid=True).order_by(*order_by)[:3]
