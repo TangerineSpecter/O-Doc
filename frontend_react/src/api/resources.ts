@@ -1,6 +1,7 @@
 import request from '../utils/request';
 import type { 
     ArticleSource, 
+    BookSource,
     ResourceItem, 
     GetResourcesParams, 
     ResourceUploadResponse, 
@@ -11,6 +12,7 @@ import type {
 // 重新导出类型以便其他组件使用
 export type { 
     ArticleSource, 
+    BookSource,
     ResourceItem, 
     GetResourcesParams, 
     ResourceUploadResponse, 

@@ -226,14 +226,14 @@ export const SortableCollectionCard = ({
                     item.count > 0 ? (
                         <button
                             onClick={() => onNavigate('book', {collId: item.collId, title: item.title})}
-                            className="group/bookshelf flex h-full min-h-[5.75rem] w-full items-center gap-2 overflow-hidden px-3 py-2 text-left"
+                            className="group/bookshelf flex w-full [container-type:inline-size] items-start gap-2 overflow-hidden p-1 text-left"
                             title="打开书架"
                         >
                             {bookPreviews.map((book, index) => {
                                 const coverUrl = book.coverUrl || book.cover_url;
                                 return (
-                                    <div key={book.bookId || book.book_id || book.title || index} className="relative aspect-[3/4] h-[4.5rem] shrink-0 overflow-hidden rounded-[3px] border border-white/90 bg-gradient-to-br from-orange-500 via-orange-400 to-amber-300 shadow-[1px_2px_5px_rgba(120,78,38,.2)] transition-transform duration-300 group-hover/bookshelf:-translate-y-0.5">
-                                        <div className="flex h-full items-center justify-center p-1.5 text-center text-[9px] font-bold leading-tight text-white/95">{book.title}</div>
+                                    <div key={book.bookId || book.book_id || book.title || index} className="relative h-[calc((100cqw-1rem)/3)] aspect-[3/4] shrink-0 overflow-hidden rounded-[3px] border border-white/90 bg-gradient-to-br from-orange-500 via-orange-400 to-amber-300 shadow-[1px_2px_5px_rgba(120,78,38,.2)] transition-transform duration-300 group-hover/bookshelf:-translate-y-0.5">
+                                        <div className="flex h-full items-center justify-center p-1.5 text-center text-[9px] font-semibold leading-tight text-white/95">{book.title}</div>
                                         {coverUrl ? <img src={coverUrl} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = 'none'; }} className="absolute inset-0 h-full w-full object-cover" /> : null}
                                     </div>
                                 );
@@ -284,16 +284,16 @@ export const SortableCollectionCard = ({
                                         title: item.title,
                                         articleTitle: article.title
                                     })}
-                                    className="group/item flex items-center justify-between py-1.5 px-2 rounded hover:bg-white hover:shadow-sm transition-all cursor-pointer"
+                                    className="group/item flex h-8 w-full items-center justify-between rounded px-2 transition-all hover:bg-white hover:shadow-sm cursor-pointer"
                                 >
                                     <div className="flex items-center gap-2 overflow-hidden">
                                         <FileText
-                                            className="w-3 h-3 text-slate-300 group-hover/item:text-orange-500 flex-shrink-0" />
+                                            className="h-4 w-4 shrink-0 text-slate-300 group-hover/item:text-orange-500" />
                                         <span
-                                            className="text-xs text-slate-600 truncate group-hover/item:text-slate-900 transition-colors">{article.title}</span>
+                                            className="min-w-0 flex-1 truncate text-xs font-medium text-slate-600 transition-colors group-hover/item:text-slate-900">{article.title}</span>
                                     </div>
                                     <span
-                                        className="text-xs text-slate-300 font-mono whitespace-nowrap pl-2">{article.date}</span>
+                                        className="max-w-12 shrink-0 truncate pl-2 text-[10px] text-slate-400">{article.date}</span>
                                 </li>
                             ))}
                         </ul>

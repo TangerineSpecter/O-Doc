@@ -10,7 +10,7 @@ from django.http import HttpResponse
 from rest_framework.views import APIView
 
 from article.models import Article
-from anthology.models import Anthology
+from anthology.models import Anthology, Book
 from utils.error_codes import ErrorCode
 from utils.drf_utils import get_current_user_identifier
 from utils.resource_assets import (
@@ -70,6 +70,13 @@ def can_read_asset(request, asset):
     if is_asset_used_by_agent(asset.id):
         return True
 
+    if Book.objects.filter(
+        Q(asset=asset) | Q(cover_asset=asset),
+        is_valid=True,
+        anthology__in=get_visible_anthology_ids(request),
+    ).exists():
+        return True
+
     return False
 
 
@@ -83,6 +90,7 @@ class ResourceListView(APIView):
             file_type = request.GET.get('type')
             search_query = request.GET.get('search_query')
             linked = request.GET.get('linked')
+            missing = request.GET.get('missing')
             source_type = request.GET.get('source_type')
             page = int(request.GET.get('page', 1))
             page_size = int(request.GET.get('page_size', 20))
@@ -95,7 +103,15 @@ class ResourceListView(APIView):
             image_linked_resource_ids = set(image_usage.keys())
             agent_usage = get_agent_resource_usage()
             agent_linked_resource_ids = set(agent_usage.keys())
-            content_linked_resource_ids = article_linked_resource_ids | image_linked_resource_ids | agent_linked_resource_ids
+            book_linked_resource_ids = set()
+            for asset_id, cover_asset_id in Book.objects.filter(is_valid=True).values_list('asset_id', 'cover_asset_id'):
+                book_linked_resource_ids.add(asset_id)
+                if cover_asset_id:
+                    book_linked_resource_ids.add(cover_asset_id)
+            referenced_resource_ids = (
+                article_linked_resource_ids | image_linked_resource_ids |
+                agent_linked_resource_ids | book_linked_resource_ids
+            )
 
             # 筛选条件
             if file_type:
@@ -110,12 +126,19 @@ class ResourceListView(APIView):
             if linked:
                 is_linked = linked.lower() == 'true'
                 if is_linked:
-                    queryset = queryset.filter(Q(is_linked=True) | Q(id__in=content_linked_resource_ids))
+                    queryset = queryset.filter(Q(is_linked=True) | Q(id__in=referenced_resource_ids))
                 else:
-                    queryset = queryset.filter(is_linked=False).exclude(id__in=content_linked_resource_ids)
+                    queryset = queryset.filter(is_linked=False).exclude(id__in=referenced_resource_ids)
 
             if source_type:
                 queryset = queryset.filter(source_type=source_type)
+
+            if missing and missing.lower() == 'true':
+                missing_resource_ids = [
+                    asset.id for asset in queryset.only('id', 'file_path')
+                    if not os.path.isfile(os.path.join(settings.MEDIA_ROOT, asset.file_path))
+                ]
+                queryset = queryset.filter(id__in=missing_resource_ids)
 
             # 分页
             paginator = Paginator(queryset, page_size)
@@ -124,24 +147,42 @@ class ResourceListView(APIView):
             # 序列化数据
             serializer = AssetSerializer(page_obj, many=True)
             page_resource_ids = {asset['id'] for asset in serializer.data}
+            page_file_paths = {asset.id: asset.file_path for asset in page_obj.object_list}
             page_article_usage = get_article_resource_usage(page_resource_ids)
             page_image_usage = get_image_resource_usage(page_resource_ids)
             page_agent_usage = get_agent_resource_usage(page_resource_ids)
+            page_book_usage = {}
+            for book in Book.objects.filter(
+                Q(asset_id__in=page_resource_ids) | Q(cover_asset_id__in=page_resource_ids),
+                is_valid=True,
+            ):
+                source_book = {
+                    'id': book.book_id,
+                    'title': book.title,
+                    'collId': book.anthology_id,
+                }
+                if book.asset_id in page_resource_ids:
+                    page_book_usage[book.asset_id] = {**source_book, 'role': 'file'}
+                if book.cover_asset_id in page_resource_ids:
+                    page_book_usage[book.cover_asset_id] = {**source_book, 'role': 'cover'}
             resources = []
             for asset in serializer.data:
                 source_article = asset['sourceArticle'] or page_article_usage.get(asset['id'])
                 source_image = page_image_usage.get(asset['id'])
                 source_agent = page_agent_usage.get(asset['id'])
+                source_book = page_book_usage.get(asset['id'])
                 resource_data = {
                     'id': asset['id'],
                     'name': asset['name'],
                     'type': asset['file_type'],
                     'size': asset['file_size'],
                     'date': asset['upload_time'],
-                    'linked': asset['is_linked'] or bool(source_article) or bool(source_image) or bool(source_agent),
+                    'linked': asset['is_linked'] or bool(source_article) or bool(source_image) or bool(source_agent) or bool(source_book),
+                    'fileExists': os.path.isfile(os.path.join(settings.MEDIA_ROOT, page_file_paths[asset['id']])),
                     'sourceArticle': source_article,
                     'sourceImage': source_image,
                     'sourceAgent': source_agent,
+                    'sourceBook': source_book,
                     'sourceType': asset['source_type']
                 }
                 resources.append(resource_data)
@@ -292,6 +333,9 @@ class ResourceDeleteView(APIView):
             if is_asset_used_by_agent(asset.id):
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
 
+            if Book.objects.filter(Q(asset=asset) | Q(cover_asset=asset), is_valid=True).exists():
+                return error_result(ErrorCode.RESOURCE_IS_LINKED)
+
             # 执行删除 (硬删除)
             delete_asset_record_and_file(asset)
 
@@ -311,15 +355,15 @@ class ResourceDownloadView(APIView):
             try:
                 asset = Asset.objects.get(id=resource_id, is_valid=True)
             except Asset.DoesNotExist:
-                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
 
             if not can_read_asset(request, asset):
-                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
 
             # 检查文件是否存在并读取文件
             abs_file_path = os.path.join(settings.MEDIA_ROOT, asset.file_path)
             if not os.path.exists(abs_file_path):
-                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
 
             with open(abs_file_path, 'rb') as f:
                 file_content = f.read()

@@ -17,6 +17,13 @@ export interface AgentSource {
     title: string;
 }
 
+export interface BookSource {
+    id: string;
+    title: string;
+    collId: string;
+    role: 'file' | 'cover';
+}
+
 export interface ResourceItem {
     id: string;
     name: string;
@@ -24,9 +31,11 @@ export interface ResourceItem {
     size: number;
     date: string;
     linked: boolean;
+    fileExists: boolean;
     sourceArticle: ArticleSource | null;
     sourceImage?: ImageSource | null;
     sourceAgent?: AgentSource | null;
+    sourceBook?: BookSource | null;
     duplicate?: boolean; // 标记是否为重复文件
     sourceType?: string; // 资源来源类型：attachment(附件)、content(内容)、image(图片文集)
 }
@@ -35,6 +44,7 @@ export interface GetResourcesParams {
     type?: string;
     searchQuery?: string;
     linked?: boolean;
+    missing?: boolean;
     page?: number;
     pageSize?: number;
 }

@@ -53,6 +53,7 @@ export default function ResourcesPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(''); // 防抖后的搜索词
     const [showUnlinkedOnly, setShowUnlinkedOnly] = useState(false);
+    const [showMissingOnly, setShowMissingOnly] = useState(false);
 
     const [visibleData, setVisibleData] = useState<ResourceItem[]>([]);
     const [page, setPage] = useState(1);
@@ -95,7 +96,7 @@ export default function ResourcesPage() {
         setSelectedIds(new Set());
         setVisibleData([]);
         fetchResources(1);
-    }, [activeTab, debouncedSearchQuery, showUnlinkedOnly]);
+    }, [activeTab, debouncedSearchQuery, showUnlinkedOnly, showMissingOnly]);
 
     // 获取资源列表数据
     const fetchResources = async (pageNum: number) => {
@@ -106,6 +107,7 @@ export default function ResourcesPage() {
                 pageSize: PAGE_SIZE,
                 type: activeTab === 'all' ? undefined : activeTab,
                 linked: showUnlinkedOnly ? false : undefined,
+                missing: showMissingOnly || undefined,
                 searchQuery: debouncedSearchQuery || undefined
             };
 
@@ -140,7 +142,15 @@ export default function ResourcesPage() {
         isLoadingRef.current = true;
         setIsLoading(true);
         fetchResources(page + 1);
-    }, [page, hasMore, activeTab, debouncedSearchQuery, showUnlinkedOnly]);
+    }, [page, hasMore, activeTab, debouncedSearchQuery, showUnlinkedOnly, showMissingOnly]);
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setSelectedIds(new Set());
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -268,6 +278,7 @@ export default function ResourcesPage() {
                     pageSize: PAGE_SIZE,
                     type: activeTab === 'all' ? undefined : activeTab,
                     linked: showUnlinkedOnly ? false : undefined,
+                    missing: showMissingOnly || undefined,
                     searchQuery: debouncedSearchQuery || undefined
                 });
                 const {list, total, hasMore: backendHasMore} = response;
@@ -315,6 +326,10 @@ export default function ResourcesPage() {
 
     const handleSingleDownload = async (e: React.MouseEvent, file: ResourceItem) => {
         e.stopPropagation();
+        if (!file.fileExists) {
+            toast.error(`文件 ${file.name} 已不在本地，无法下载`);
+            return;
+        }
         toast.info(`开始下载文件: ${file.name}`);
         await handleDownloadFile(file.id, file.name);
     };
@@ -327,6 +342,10 @@ export default function ResourcesPage() {
         for (const id of ids) {
             const file = visibleData.find(f => f.id === id);
             if (file) {
+                if (!file.fileExists) {
+                    toast.error(`已跳过缺失文件：${file.name}`);
+                    continue;
+                }
                 await handleDownloadFile(file.id, file.name);
                 // 简单的延时，给浏览器喘息时间
                 await new Promise(resolve => setTimeout(resolve, 500));
@@ -493,6 +512,11 @@ export default function ResourcesPage() {
                         ))}
                     </div>
                     <div className="flex items-center gap-3 w-full lg:w-auto">
+                        <button onClick={() => setShowMissingOnly(!showMissingOnly)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all whitespace-nowrap ${showMissingOnly ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                            <AlertTriangle className="w-3.5 h-3.5"/>
+                            {showMissingOnly ? '只看已缺失' : '筛选已缺失'}
+                        </button>
                         <button onClick={() => setShowUnlinkedOnly(!showUnlinkedOnly)}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all whitespace-nowrap ${showUnlinkedOnly ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
                             {showUnlinkedOnly ? <Link2Off className="w-3.5 h-3.5"/> : <Filter className="w-3.5 h-3.5"/>}
@@ -537,13 +561,16 @@ export default function ResourcesPage() {
                                             <div
                                                 className="group-hover:hidden px-1.5 py-0.5 bg-red-100/90 text-red-600 text-[10px] font-bold rounded backdrop-blur-sm">未关联</div>
                                         )}
+                                        {!file.fileExists && !isSelected && (
+                                            <div className="px-1.5 py-0.5 bg-amber-100/90 text-amber-700 text-[10px] font-bold rounded backdrop-blur-sm">文件缺失</div>
+                                        )}
 
                                         {/* 操作按钮：选中时显示，或hover时显示 */}
                                         <div className={`flex gap-1 ${isSelected ? 'flex' : 'hidden group-hover:flex'}`}>
                                             {/* Download Button */}
-                                            <button onClick={(e) => handleSingleDownload(e, file)}
-                                                    className="p-1 rounded-md bg-white/90 text-slate-400 hover:text-blue-600 hover:bg-blue-50 shadow-sm border border-slate-200 transition-all"
-                                                    title="下载文件">
+                                            <button onClick={(e) => handleSingleDownload(e, file)} disabled={!file.fileExists}
+                                                    className="p-1 rounded-md bg-white/90 text-slate-400 hover:text-blue-600 hover:bg-blue-50 shadow-sm border border-slate-200 transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                                                    title={file.fileExists ? '下载文件' : '文件已不在本地'}>
                                                 <Download className="w-3.5 h-3.5"/>
                                             </button>
                                             {/* Delete Button */}
@@ -604,6 +631,11 @@ export default function ResourcesPage() {
                                                     className="truncate group-hover/source:text-orange-600 group-hover/source:underline cursor-pointer transition-colors"
                                                     title={file.sourceImage.title}>{file.sourceImage.title}</span>
                                             </div>
+                                        ) : file.sourceBook ? (
+                                            <div className="mt-2 pt-2 border-t border-slate-50 flex items-center gap-1.5 text-[10px] text-slate-400">
+                                                <BookOpen className="w-3 h-3 text-slate-300"/>
+                                                <span className="truncate" title={file.sourceBook.title}>书架{file.sourceBook.role === 'cover' ? '封面' : ''} · {file.sourceBook.title}</span>
+                                            </div>
                                         ) : (
                                            <div className="mt-2 pt-2 border-t border-slate-50 h-6 flex items-center">
                                                 <span className="text-[10px] text-slate-300">未关联</span>
@@ -623,6 +655,7 @@ export default function ResourcesPage() {
                             setActiveTab('all');
                             setSearchQuery('');
                             setShowUnlinkedOnly(false);
+                            setShowMissingOnly(false);
                         }} className="mt-2 text-xs text-orange-500 hover:underline">重置所有筛选
                         </button>
                     </div>

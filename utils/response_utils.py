@@ -36,11 +36,12 @@ def valid_result(msg=ErrorCode.PARAM_ERROR.message, data=None):
     })
 
 
-def error_result(error: ErrorCode = ErrorCode.PARAM_ERROR, data=None):
+def error_result(error: ErrorCode = ErrorCode.PARAM_ERROR, data=None, status=None):
     """
     统一的错误响应格式化函数
     :param error: ErrorCode 枚举项，如 ErrorCode.TITLE_DUPLICATE
     :param data: 错误附加数据
+    :param status: 可选 HTTP 状态码；未指定时保持既有响应行为
     :return: JsonResponse
     """
     if error == ErrorCode.SYSTEM_ERROR and data is not None:
@@ -54,7 +55,7 @@ def error_result(error: ErrorCode = ErrorCode.PARAM_ERROR, data=None):
         'code': error.code,
         'msg': error.message,
         'data': data
-    })
+    }, status=status)
 
 
 def list_result(data=None, total=0, page=1, page_size=20):
