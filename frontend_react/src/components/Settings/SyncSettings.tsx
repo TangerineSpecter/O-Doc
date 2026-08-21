@@ -1,9 +1,10 @@
 import {useEffect, useRef, useState} from 'react';
-import {AlertCircle, Archive, CheckCircle2, Clock3, DownloadCloud, HardDrive, Loader2, Play, Save, Terminal, UploadCloud} from 'lucide-react';
-import {downloadLocalBackupFile, getSyncHistory, importLocalBackup, restoreSyncHistory, saveWebDavConfig, SyncHistoryEntry, SyncProtocol, WebDavConfig, WebDavSyncStatus} from '@/api/setting.ts';
+import {AlertCircle, Archive, CheckCircle2, Clock3, DownloadCloud, HardDrive, Loader2, Play, Save, Terminal, UploadCloud, XCircle} from 'lucide-react';
+import {cancelWebDavSync, downloadLocalBackupFile, getSyncHistory, getWebDavStatus, importLocalBackup, restoreSyncHistory, saveWebDavConfig, SyncHistoryEntry, SyncProtocol, WebDavConfig, WebDavSyncStatus} from '@/api/setting.ts';
 import {getAuthToken} from '@/utils/authStorage';
 import {Select} from '../common/Select';
 import {useToast} from '../common/ToastProvider';
+import ConfirmationModal from '../common/ConfirmationModal';
 
 const PROTOCOL_OPTIONS = [
     {value: 'webdav' as const, label: 'WebDAV', description: '坚果云、群晖、Nextcloud 等'},
@@ -56,6 +57,8 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
     const [progress, setProgress] = useState(0);       // 存储进度百分比
     const [history, setHistory] = useState<SyncHistoryEntry[]>([]);
     const [isRestoringHistory, setIsRestoringHistory] = useState('');
+    const [isCancelling, setIsCancelling] = useState(false);
+    const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
     const importInputRef = useRef<HTMLInputElement>(null);
 
     // 自动滚动到底部的 Ref
@@ -77,6 +80,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
     }, [onRefreshStatus, status.status]);
 
     const isServerSyncing = status.status === 'running';
+    const isCancelRequested = Boolean(status.cancelRequested);
     const isTransferBusy = isSyncing || isServerSyncing;
 
     const refreshHistory = async () => {
@@ -106,8 +110,14 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
             '⏱ 检测到定时同步正在运行，正在显示后端同步细节...',
             ...status.lastSummary.map(item => `> ${item}`)
         ]);
-        setProgress(30);
+        setProgress(Math.max(0, Math.min(100, status.syncProgress ?? 30)));
     }, [isServerSyncing, isSyncing, status.lastSummary]);
+
+    useEffect(() => {
+        if (!isSyncing && status.status === 'success') {
+            setProgress(100);
+        }
+    }, [isSyncing, status.status]);
 
     const formatDateTime = (value?: string) => {
         if (!value) return '暂无';
@@ -262,6 +272,21 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
         }
     };
 
+    const handleCancelSync = async () => {
+        setIsCancelling(true);
+        try {
+            await cancelWebDavSync();
+            setLogs(prev => [...prev, '⚠️ 已请求终止同步，正在等待当前网络请求结束并释放远端锁。']);
+            success('已请求终止，正在结束同步');
+            setIsCancelConfirmOpen(false);
+            await onRefreshStatus();
+        } catch (err: any) {
+            error(err.response?.data?.msg || '终止同步失败');
+        } finally {
+            setIsCancelling(false);
+        }
+    };
+
     // --- 核心：流式同步处理函数 ---
     // 这里不再调用 api/setting.ts，而是直接用 fetch 以绕过 axios 拦截器
     const startSyncStream = async (direction: 'upload' | 'download') => {
@@ -320,6 +345,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
+            let receivedTerminalEvent = false;
 
             const handleLine = (line: string) => {
                 if (!line.trim()) return;
@@ -347,6 +373,7 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                 }
 
                 if (data.step === 'done') {
+                    receivedTerminalEvent = true;
                     success(`${direction === 'upload' ? '上传' : '下载'}完成`);
                     onRefreshStatus();
                     setProgress(100);
@@ -382,11 +409,30 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
             if (finalChunk) {
                 handleLine(finalChunk);
             }
+
+            // 流被代理或浏览器提前关闭时，不能悄悄把按钮恢复为可点击状态。
+            // 回查后端任务终态，明确告诉用户它仍在运行、已成功或确实失败。
+            if (!receivedTerminalEvent) {
+                const latestStatus = await getWebDavStatus() as unknown as WebDavSyncStatus;
+                if (latestStatus.status === 'running') {
+                    setLogs(prev => [...prev, '⏳ 同步日志连接已结束，后端任务仍在继续；正在显示后端状态。']);
+                    setProgress(30);
+                } else if (latestStatus.status === 'success') {
+                    setLogs(prev => [...prev, '✨ 后端已完成同步。']);
+                    success(`${direction === 'upload' ? '上传' : '下载'}完成`);
+                    setProgress(100);
+                } else {
+                    throw new Error(latestStatus.lastError || '同步任务未返回完成结果');
+                }
+                await onRefreshStatus();
+            }
         } catch (err: any) {
             setLogs(prev => [...prev, `❌ 错误: ${err.message || err}`]);
+            setProgress(0);
             error('同步过程中发生错误');
         } finally {
             setIsSyncing(false);
+            await onRefreshStatus();
         }
     };
 
@@ -722,6 +768,17 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
 
                         <div className="flex-1"></div>
 
+                        {isServerSyncing && (
+                            <button
+                                onClick={() => setIsCancelConfirmOpen(true)}
+                                disabled={isCancelling || isCancelRequested}
+                                className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs rounded-lg flex items-center gap-2 transition-colors border border-rose-200 disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                                {isCancelling || isCancelRequested ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <XCircle className="w-3.5 h-3.5"/>}
+                                {isCancelRequested ? '正在终止…' : '终止同步'}
+                            </button>
+                        )}
+
                         {/* 2. 上传按钮 (调用流式方法) */}
                         <button
                             onClick={() => startSyncStream('upload')}
@@ -747,6 +804,16 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                     </div>
                 </div>
             </div>
+            <ConfirmationModal
+                isOpen={isCancelConfirmOpen}
+                onClose={() => setIsCancelConfirmOpen(false)}
+                onConfirm={handleCancelSync}
+                title="终止当前同步？"
+                description={<>将停止本次同步并释放任务占用。若正在等待远端响应，会在当前网络请求结束后停止，最长约 30 秒。</>}
+                confirmText="终止同步"
+                type="danger"
+                isLoading={isCancelling}
+            />
         </div>
     );
 };

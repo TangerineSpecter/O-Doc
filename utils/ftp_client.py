@@ -4,7 +4,7 @@ from io import BytesIO
 
 
 class FtpClient:
-    def __init__(self, host, port, username, password, use_tls=False, passive=True, timeout=300):
+    def __init__(self, host, port, username, password, use_tls=False, passive=True, timeout=30):
         self.host = host
         self.port = int(port or 21)
         self.username = username

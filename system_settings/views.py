@@ -20,11 +20,13 @@ from rest_framework.response import Response
 
 from system_settings.sync_scheduler import (
     append_sync_message,
+    cancel_running_sync,
     generate_runner_id,
     get_runtime_state,
     is_sync_running,
     mark_sync_started,
     runner_owns_sync,
+    should_abort_sync,
     should_pull_remote_before_push,
     update_runtime_state,
 )
@@ -1121,6 +1123,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
             'import_local_backup',
             'get_webdav_config',
             'get_webdav_status',
+            'cancel_webdav_sync',
             'save_webdav_config',
             'sync_to_webdav',
             'sync_from_webdav',
@@ -1159,6 +1162,8 @@ class SystemConfigViewSet(viewsets.ViewSet):
             'last_pulled_snapshot_id': runtime_state.get('last_pulled_snapshot_id', ''),
             'last_safety_backup': runtime_state.get('last_safety_backup', ''),
             'last_merge_summary': runtime_state.get('last_merge_summary', {}),
+            'sync_progress': runtime_state.get('sync_progress', 0),
+            'cancel_requested': bool(runtime_state.get('cancel_requested')),
             'updated_at': runtime_state.get('updated_at', ''),
         }
         payload.update({
@@ -1175,6 +1180,8 @@ class SystemConfigViewSet(viewsets.ViewSet):
             'lastPulledSnapshotId': payload['last_pulled_snapshot_id'],
             'lastSafetyBackup': payload['last_safety_backup'],
             'lastMergeSummary': payload['last_merge_summary'],
+            'syncProgress': payload['sync_progress'],
+            'cancelRequested': payload['cancel_requested'],
             'updatedAt': payload['updated_at'],
         })
         return payload
@@ -1468,6 +1475,17 @@ class SystemConfigViewSet(viewsets.ViewSet):
         runtime_state = get_runtime_state()
         return success_result(self._status_payload(runtime_state))
 
+    @action(detail=False, methods=['post'])
+    def cancel_webdav_sync(self, request):
+        """请求同步在安全检查点退出，并等待其释放远端同步锁。"""
+        cancelled, runtime_state = cancel_running_sync('用户终止同步：正在释放同步锁')
+        if not cancelled:
+            return valid_result(data=self._status_payload(runtime_state), msg='当前没有正在运行的同步任务')
+        return success_result(
+            self._status_payload(runtime_state),
+            msg='已请求终止同步；正在等待当前网络请求结束并释放远端同步锁。',
+        )
+
     @action(detail=False, methods=['get'])
     def get_sync_history(self, request):
         manager = self._get_sync_manager()
@@ -1670,6 +1688,16 @@ class SystemConfigViewSet(viewsets.ViewSet):
             runner_id = generate_runner_id('manual')
             acquired = False
             try:
+                previous_runtime_state = get_runtime_state()
+                recover_owned_remote_lock = (
+                    not is_sync_running(previous_runtime_state)
+                    and (
+                        bool(previous_runtime_state.get('cancel_requested'))
+                        # 旧版终止逻辑会在首次重试时清掉 cancel_requested，只留下
+                        # 这条远端锁冲突错误；仍会在 SyncManager 中核对同一 device_id。
+                        or '另一台设备正在同步' in str(previous_runtime_state.get('last_error') or '')
+                    )
+                )
                 acquired, runtime_state = mark_sync_started(
                     trigger='manual',
                     runner_id=runner_id,
@@ -1683,6 +1711,10 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 snapshot, summary, safety_backup = manager.sync_v2(
                     source='manual', runner_id=runner_id,
                     base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
+                    on_progress=lambda message, progress=None: append_sync_message(
+                        message, runner_id=runner_id, progress=progress),
+                    should_abort=lambda: should_abort_sync(runner_id),
+                    recover_owned_remote_lock=recover_owned_remote_lock,
                 )
                 snapshot_meta = snapshot['meta']
                 yield self._sync_event(
@@ -1701,7 +1733,9 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     last_error='',
                     last_safety_backup=safety_backup,
                     last_merge_summary=summary,
+                    sync_progress=100,
                 )
+                append_sync_message('同步快照已发布，远端 current 指针已更新。', runner_id=runner_id, progress=100)
                 yield self._sync_event("done", "✅ 所有同步已完成！")
             except SyncError as e:
                 if acquired and runner_owns_sync(runner_id):
@@ -1727,6 +1761,14 @@ class SystemConfigViewSet(viewsets.ViewSet):
             runner_id = generate_runner_id('manual')
             acquired = False
             try:
+                previous_runtime_state = get_runtime_state()
+                recover_owned_remote_lock = (
+                    not is_sync_running(previous_runtime_state)
+                    and (
+                        bool(previous_runtime_state.get('cancel_requested'))
+                        or '另一台设备正在同步' in str(previous_runtime_state.get('last_error') or '')
+                    )
+                )
                 acquired, runtime_state = mark_sync_started(
                     trigger='manual-pull',
                     runner_id=runner_id,
@@ -1743,6 +1785,10 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 snapshot, summary, safety_backup = manager.sync_v2(
                     source='manual-pull', runner_id=runner_id,
                     base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
+                    on_progress=lambda message, progress=None: append_sync_message(
+                        message, runner_id=runner_id, progress=progress),
+                    should_abort=lambda: should_abort_sync(runner_id),
+                    recover_owned_remote_lock=recover_owned_remote_lock,
                 )
                 yield self._sync_event(
                     'summary',
@@ -1760,7 +1806,9 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     last_pull_at=timezone.now().isoformat(),
                     last_safety_backup=safety_backup,
                     last_merge_summary=summary,
+                    sync_progress=100,
                 )
+                append_sync_message('云端同步快照已发布，本地与远端已完成对齐。', runner_id=runner_id, progress=100)
                 yield self._sync_event("done", "✅ 云端同步完成，本地数据与资源已刷新")
             except SyncError as e:
                 if acquired and runner_owns_sync(runner_id):

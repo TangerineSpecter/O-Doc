@@ -5,6 +5,9 @@ from io import StringIO
 import paramiko
 
 
+DEFAULT_NETWORK_TIMEOUT_SECONDS = 30
+
+
 class SftpClient:
     def __init__(
         self,
@@ -15,7 +18,7 @@ class SftpClient:
         private_key='',
         passphrase='',
         known_host_key='',
-        timeout=300,
+        timeout=DEFAULT_NETWORK_TIMEOUT_SECONDS,
     ):
         self.host = host
         self.port = int(port or 22)
@@ -102,6 +105,9 @@ class SftpClient:
         if transport is not None and transport.get_remote_server_key() is not None:
             self.last_host_key = self.format_host_key(transport.get_remote_server_key())
         self._sftp = ssh.open_sftp()
+        channel = self._sftp.get_channel()
+        if channel is not None:
+            channel.settimeout(self.timeout)
         return self._sftp
 
     def _close(self):

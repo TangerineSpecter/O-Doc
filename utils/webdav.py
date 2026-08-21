@@ -14,7 +14,7 @@ class WebDavClient:
             'webdav_login': username,
             'webdav_password': password,
             'disable_check': True,
-            'timeout': 300
+            'timeout': 30
         }
         self.client = Client(self.options)
 

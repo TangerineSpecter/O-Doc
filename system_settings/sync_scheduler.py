@@ -167,6 +167,7 @@ def mark_sync_started(*, trigger, runner_id, initial_message):
         last_started_at=started_at,
         last_error='',
         last_summary=[initial_message],
+        sync_progress=0,
         cancel_requested=False,
     )
     return True, state
@@ -178,22 +179,33 @@ def runner_owns_sync(runner_id):
     return get_runtime_state().get('runner_id') == runner_id
 
 
+def should_abort_sync(runner_id):
+    """任务被接管或已收到终止请求时，让同步在下一个安全检查点退出。"""
+    runtime_state = get_runtime_state()
+    return (
+        not runner_id
+        or runtime_state.get('runner_id') != runner_id
+        or bool(runtime_state.get('cancel_requested'))
+    )
+
+
 def cancel_running_sync(reason='同步已取消'):
     runtime_state = get_runtime_state()
     if runtime_state.get('status') != 'running':
         return False, runtime_state
 
     state = update_runtime_state(
-        status='error',
+        # 保持运行占用到实际同步线程退出并释放远端锁；否则用户可以立即启动
+        # 第二个任务，造成“另一台设备正在同步”的假冲突，甚至并发写远端快照。
+        status='running',
         last_error=reason,
         cancel_requested=True,
-        runner_id='',
         last_summary=(list(runtime_state.get('last_summary') or []) + [reason])[-50:],
     )
     return True, state
 
 
-def append_sync_message(message, max_items=50, runner_id=''):
+def append_sync_message(message, max_items=50, runner_id='', progress=None):
     if not message:
         return
     if runner_id and not runner_owns_sync(runner_id):
@@ -202,7 +214,10 @@ def append_sync_message(message, max_items=50, runner_id=''):
     runtime_state = get_runtime_state()
     summary = list(runtime_state.get('last_summary') or [])
     summary.append(message)
-    update_runtime_state(last_summary=summary[-max_items:])
+    patch = {'last_summary': summary[-max_items:]}
+    if progress is not None:
+        patch['sync_progress'] = max(0, min(100, int(progress)))
+    update_runtime_state(**patch)
 
 
 class WebDavAutoSyncScheduler:
@@ -382,6 +397,9 @@ class WebDavAutoSyncScheduler:
             snapshot, summary, safety_backup = manager.sync_v2(
                 source='scheduler', runner_id=self.runner_id,
                 base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
+                on_progress=lambda message, progress=None: append_sync_message(
+                    message, runner_id=self.runner_id, progress=progress),
+                should_abort=lambda: should_abort_sync(self.runner_id),
             )
             snapshot_meta = snapshot['meta']
             messages = [
@@ -405,7 +423,9 @@ class WebDavAutoSyncScheduler:
                 last_summary=messages[-20:],
                 last_safety_backup=safety_backup,
                 last_merge_summary=summary,
+                sync_progress=100,
             )
+            append_sync_message('自动同步快照已发布，远端 current 指针已更新。', runner_id=self.runner_id, progress=100)
             logger.info('WebDAV auto sync finished successfully')
         except Exception as exc:
             if not runner_owns_sync(self.runner_id):

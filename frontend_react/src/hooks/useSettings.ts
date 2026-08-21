@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useToast} from '../components/common/ToastProvider';
 import {
     AgentConfig,
@@ -90,6 +90,7 @@ export const useSettings = () => {
         lastPulledSnapshotId: '',
         updatedAt: ''
     });
+    const webDavStatusRequestRef = useRef(0);
 
     const normalizeSystemAIConfig = (config: Partial<SystemAIConfig> = {}): SystemAIConfig => ({
         defaultChatModelId: config.defaultChatModelId || '',
@@ -169,9 +170,10 @@ export const useSettings = () => {
     }, []);
 
     const fetchWebDavStatus = useCallback(async () => {
+        const requestId = ++webDavStatusRequestRef.current;
         try {
             const statusRes = await getWebDavStatus();
-            if (statusRes) {
+            if (statusRes && requestId === webDavStatusRequestRef.current) {
                 setWebDavStatus(statusRes as unknown as WebDavSyncStatus);
             }
         } catch (error) {

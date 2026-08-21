@@ -273,6 +273,8 @@ export interface WebDavSyncStatus {
     updatedAt: string;
     lastSafetyBackup?: string;
     lastMergeSummary?: {created?: number; updated?: number; deleted?: number; conflicts?: number};
+    cancelRequested?: boolean;
+    syncProgress?: number;
 }
 
 export interface SyncHistoryEntry {

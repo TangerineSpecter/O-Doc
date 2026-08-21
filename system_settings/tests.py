@@ -10,7 +10,7 @@ from django.core import serializers
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.utils import timezone
-from rest_framework.test import APIRequestFactory
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from anthology.models import Anthology, Book
 from anthology.book_views import _soft_delete_orphaned_book_asset
@@ -40,6 +40,7 @@ from system_settings.sync_scheduler import (
     should_pull_remote_before_push,
     should_start_webdav_scheduler,
 )
+from system_settings.sync_state import get_device_id
 from system_settings.agent_task_scheduler import AgentTaskScheduler
 from system_settings.views import AgentViewSet, SystemConfigViewSet
 from utils.ai_service import AIAuthenticationError, AIService
@@ -143,6 +144,9 @@ class MemoryStorageClient:
             if remainder:
                 entries.add(remainder.split('/', 1)[0])
         return sorted(entries) if entries else ([] if remote_dir.rstrip('/') in self.directories else None)
+
+    def is_directory(self, remote_path):
+        return remote_path.rstrip('/') in self.directories
 
     def delete_path(self, remote_path):
         remote_path = remote_path.rstrip('/')
@@ -251,6 +255,20 @@ class SyncManagerTests(TestCase):
             with self.assertRaises(SyncError):
                 with second._remote_sync_lock('second'):
                     pass
+
+    def test_v2_recovers_explicitly_abandoned_lock_owned_by_this_device(self):
+        client = MemoryStorageClient()
+        manager = SyncManager(client, '/o-doc-sync/')
+        lock_dir = f'{manager.v2_dir}/.sync-lock'
+        client.ensure_directory(lock_dir)
+        manager._write_remote_json({
+            'runner_id': 'manual:abandoned',
+            'device_id': get_device_id(),
+            'started_at': timezone.now().isoformat(),
+        }, f'{lock_dir}/lock.json')
+
+        with manager._remote_sync_lock('manual:recovered', recover_owned_lock=True):
+            self.assertIn(lock_dir, client.directories)
 
     def test_v2_history_retains_only_ten_complete_snapshots(self):
         client = MemoryStorageClient()
@@ -499,10 +517,40 @@ class SyncManagerTests(TestCase):
 
         book.refresh_from_db()
         cover.refresh_from_db()
-        self.assertEqual(result, {'bodies': 1, 'covers': 1})
+        self.assertEqual(result, {'bodies': 1, 'covers': 1, 'assets': 0, 'avatars': 0})
         self.assertEqual(book.local_state, 'cloud_only')
         self.assertIsNone(book.cover_asset)
         self.assertFalse(cover.is_valid)
+
+    def test_reconcile_missing_media_soft_deletes_non_book_asset(self):
+        asset = Asset.objects.create(
+            id='asset_missing_image', name='missing.png', original_name='missing.png',
+            file_type='image', file_size=4, file_path='image/missing.png', file_extension='.png',
+            mime_type='image/png', file_hash='missing-image', source_type='image')
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.settings(MEDIA_ROOT=media_root):
+                result = manager.reconcile_missing_book_media()
+
+        asset.refresh_from_db()
+        self.assertEqual(result['assets'], 1)
+        self.assertFalse(asset.is_valid)
+
+    def test_reconcile_missing_media_keeps_asset_until_remote_recovery_is_attempted(self):
+        asset = Asset.objects.create(
+            id='asset_pending_restore', name='pending.png', original_name='pending.png',
+            file_type='image', file_size=4, file_path='image/pending.png', file_extension='.png',
+            mime_type='image/png', file_hash='pending-image', source_type='image')
+        manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
+
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.settings(MEDIA_ROOT=media_root):
+                result = manager.reconcile_missing_book_media(drop_missing_assets=False)
+
+        asset.refresh_from_db()
+        self.assertEqual(result['assets'], 0)
+        self.assertTrue(asset.is_valid)
 
     def test_v2_snapshot_book_paths_are_excluded_from_bulk_download(self):
         paths = SyncManager._book_body_paths_from_snapshot([
@@ -1774,14 +1822,17 @@ class SystemConfigViewSetTests(TestCase):
             }
         )
         request = self.factory.post('/api/settings/config/cancel_webdav_sync/')
+        force_authenticate(request, user=User.objects.create_user('sync-admin', 'sync-admin@example.com', 'password'))
         view = SystemConfigViewSet.as_view({'post': 'cancel_webdav_sync'})
         response = view(request)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['data']['status'], 'error')
+        self.assertEqual(response.data['data']['status'], 'running')
+        self.assertTrue(response.data['data']['cancelRequested'])
         runtime = SystemSetting.objects.get(key='system_webdav_sync_runtime').value
-        self.assertEqual(runtime.get('status'), 'error')
-        self.assertEqual(runtime.get('runner_id'), '')
+        self.assertEqual(runtime.get('status'), 'running')
+        self.assertEqual(runtime.get('runner_id'), 'scheduler:host:1')
+        self.assertTrue(runtime.get('cancel_requested'))
 
     def test_get_webdav_status_returns_runtime_state(self):
         SystemSetting.objects.create(
@@ -1895,7 +1946,7 @@ class SystemConfigViewSetTests(TestCase):
             def get_remote_snapshot_meta(self):
                 return {
                     'snapshot_id': 'snapshot-new-version',
-                    'app_version': '0.9.3',
+                    'app_version': '0.9.4',
                     'generated_at': '2026-08-17T12:00:00Z',
                 }
 

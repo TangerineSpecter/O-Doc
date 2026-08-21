@@ -374,12 +374,14 @@ class SyncManager:
         avatar_paths, avatar_missing = self._collect_user_avatar_relative_paths()
         return sorted(set(asset_paths) | set(avatar_paths)), asset_missing + avatar_missing
 
-    def reconcile_missing_book_media(self):
-        """将可降级的书架媒体从同步阻断项变为可修复状态。
+    def reconcile_missing_book_media(self, *, drop_missing_assets=True):
+        """将本地已缺失的媒体降级，避免资源记录阻断整个数据同步。
 
         图书正文是按需下载的大文件；正文不在本机时，保留书架记录并标记为
         ``cloud_only``。封面丢失不影响阅读，移除封面引用后由前端使用默认封面。
-        其他资源仍维持严格校验，避免静默丢失附件或图片。
+        ``drop_missing_assets`` 为真时，其他 Asset 若文件已不存在，则将资源记录软删除；
+        用户头像则清空头像引用。
+        这样缺失文件不会继续出现在下一份快照中，也不会阻断其他数据同步。
         """
         from anthology.models import Book
         from assets.models import Asset
@@ -410,7 +412,36 @@ class SyncManager:
                     asset.is_valid = False
                     asset.save(update_fields=['is_valid'])
 
-        return {'bodies': len(missing_body_ids), 'covers': len(set(missing_cover_ids))}
+        if not drop_missing_assets:
+            return {'bodies': len(missing_body_ids), 'covers': len(set(missing_cover_ids)), 'assets': 0, 'avatars': 0}
+
+        # 图书正文已有 cloud_only 语义，绝不能将其 Asset 软删除；其余缺失 Asset
+        # 代表本机已不存在的附件/图片，保留有效记录只会让每次快照再次失败。
+        book_body_asset_ids = self._book_body_asset_ids()
+        missing_asset_ids = []
+        for asset in Asset.objects.filter(is_valid=True).exclude(id__in=book_body_asset_ids):
+            rel_path = self._normalize_rel_path(asset.file_path)
+            if rel_path and not os.path.isfile(os.path.join(settings.MEDIA_ROOT, rel_path)):
+                missing_asset_ids.append(asset.id)
+        if missing_asset_ids:
+            Asset.objects.filter(id__in=missing_asset_ids).update(is_valid=False)
+
+        # 头像没有独立 Asset，文件丢失时直接回退为默认头像。
+        from user.models import UserProfile
+        missing_avatar_urls = []
+        for avatar_url in UserProfile.objects.exclude(avatar='').values_list('avatar', flat=True):
+            rel_path = self._get_media_relative_path(avatar_url)
+            if rel_path and not os.path.isfile(os.path.join(settings.MEDIA_ROOT, rel_path)):
+                missing_avatar_urls.append(avatar_url)
+        if missing_avatar_urls:
+            UserProfile.objects.filter(avatar__in=missing_avatar_urls).update(avatar='')
+
+        return {
+            'bodies': len(missing_body_ids),
+            'covers': len(set(missing_cover_ids)),
+            'assets': len(set(missing_asset_ids)),
+            'avatars': len(set(missing_avatar_urls)),
+        }
 
     def validate_upload_state(self):
         _, missing_files = self._collect_media_relative_paths()
@@ -1255,8 +1286,19 @@ class SyncManager:
                 media[rel_path] = entry
         return media
 
-    def _upload_v2_blobs(self, media_manifest):
-        for rel_path, entry in media_manifest.items():
+    @staticmethod
+    def _format_size(size):
+        size = int(size or 0)
+        for unit in ('B', 'KB', 'MB', 'GB'):
+            if size < 1024 or unit == 'GB':
+                return f'{size:.1f} {unit}' if unit != 'B' else f'{size} B'
+            size /= 1024
+
+    def _upload_v2_blobs(self, media_manifest, report=None):
+        uploaded = 0
+        uploaded_bytes = 0
+        total = len(media_manifest)
+        for index, (rel_path, entry) in enumerate(media_manifest.items(), start=1):
             digest = entry.get('hash')
             local_path = os.path.join(settings.MEDIA_ROOT, rel_path)
             if not digest or not os.path.isfile(local_path):
@@ -1267,15 +1309,28 @@ class SyncManager:
             self.client.ensure_directory(self.v2_blobs_dir)
             if not self.client.upload_file(local_path, blob_path):
                 raise SyncError(f'上传媒体 blob 失败：{rel_path}')
+            uploaded += 1
+            uploaded_bytes += int(entry.get('size', 0) or 0)
+            if callable(report):
+                progress = 80 + int(index / max(total, 1) * 12)
+                report(f'媒体上传 {index}/{total}：{rel_path}（{self._format_size(entry.get("size", 0))}）', progress)
+        return uploaded, uploaded_bytes
 
-    def publish_v2_snapshot(self, *, source, runner_id='', base_snapshot_id='', previous_media=None, data_list=None, revisions=None):
+    def publish_v2_snapshot(self, *, source, runner_id='', base_snapshot_id='', previous_media=None, data_list=None, revisions=None, report=None):
         if self.client is None:
             raise SyncError('v2 远端快照需要已配置备份服务')
         snapshot_id = uuid.uuid4().hex
         data_list = data_list if data_list is not None else self.build_snapshot_data()
         revisions = revisions if revisions is not None else self._build_revision_manifest(data_list)
         media = self._build_v2_media_manifest(previous_media)
-        self._upload_v2_blobs(media)
+        if callable(report):
+            report(
+                f'快照统计：{len(data_list)} 条数据、{len(revisions)} 条修订、{len(media)} 个媒体文件（{self._format_size(sum(item.get("size", 0) for item in media.values()))}）',
+                78,
+            )
+        uploaded, uploaded_bytes = self._upload_v2_blobs(media, report=report)
+        if callable(report):
+            report(f'媒体上传完成：新增 {uploaded} 个（{self._format_size(uploaded_bytes)}），其余复用远端 blob。', 92)
         snapshot_dir = f'{self.v2_snapshots_dir}/{snapshot_id}'
         self.client.ensure_directory(snapshot_dir)
         meta = {
@@ -1295,6 +1350,8 @@ class SyncManager:
         while meta.get('snapshot_bytes') != snapshot_bytes:
             meta['snapshot_bytes'] = snapshot_bytes
             snapshot_bytes = meta['media_bytes'] + payload_bytes + self._json_payload_size(meta)
+        if callable(report):
+            report('正在写入数据、修订、媒体清单与快照元数据。', 94)
         self._write_remote_json(data_list, self._snapshot_path(snapshot_id, 'data_index.json'))
         self._write_remote_json(revisions, self._snapshot_path(snapshot_id, 'revisions.json'))
         self._write_remote_json(media, self._snapshot_path(snapshot_id, 'media_manifest.json'))
@@ -1312,6 +1369,8 @@ class SyncManager:
             'app_version': meta['app_version'],
         }, self.meta_file)
         self._trim_v2_history()
+        if callable(report):
+            report(f'快照发布完成：{snapshot_id[:12]}（逻辑大小 {self._format_size(snapshot_bytes)}）', 98)
         return {'meta': meta, 'data': data_list, 'revisions': revisions, 'media': media}
 
     def _trim_v2_history(self):
@@ -1333,14 +1392,15 @@ class SyncManager:
 
     def _delete_remote_tree(self, remote_path):
         """协议客户端没有统一的递归删除能力时，安全地限定在指定快照目录内递归。"""
-        entries = self.client.list_directory(remote_path)
-        if entries is not None:
-            for name in entries:
-                self._delete_remote_tree(f"{remote_path.rstrip('/')}/{name}")
+        if self.client.is_directory(remote_path):
+            entries = self.client.list_directory(remote_path)
+            if entries is not None:
+                for name in entries:
+                    self._delete_remote_tree(f"{remote_path.rstrip('/')}/{name}")
         return self.client.delete_path(remote_path)
 
     @contextmanager
-    def _remote_sync_lock(self, runner_id=''):
+    def _remote_sync_lock(self, runner_id='', recover_owned_lock=False):
         """用原子目录创建串行化多个设备对 current.json 的发布。"""
         if self.client is None:
             yield
@@ -1353,6 +1413,11 @@ class SyncManager:
         acquired = create(lock_dir)
         if not acquired:
             lock_meta = self._read_remote_json(f'{lock_dir}/lock.json') or {}
+            # 仅处理“本机明确终止、随后重启后遗留”的锁：调用方必须显式授权恢复，
+            # 且远端 lock.json 的设备标识必须与本机一致，绝不清理其他设备的锁。
+            if recover_owned_lock and lock_meta.get('device_id') == get_device_id():
+                self._delete_remote_tree(lock_dir)
+                acquired = create(lock_dir)
             started_at = parse_datetime(str(lock_meta.get('started_at') or ''))
             if started_at and timezone.is_naive(started_at):
                 started_at = timezone.make_aware(started_at, timezone.get_current_timezone())
@@ -1481,12 +1546,29 @@ class SyncManager:
             os.remove(os.path.join(root, rel_path))
         return path
 
-    def sync_v2(self, *, source='manual', runner_id='', base_snapshot_id=''):
+    def sync_v2(
+        self, *, source='manual', runner_id='', base_snapshot_id='', on_progress=None,
+        should_abort=None, recover_owned_remote_lock=False,
+    ):
         """Merge the current v2 head into local state, then publish one immutable merged snapshot."""
+        def report(message, progress=None):
+            if callable(on_progress):
+                on_progress(message, progress)
+
+        self._ensure_not_aborted(should_abort)
+        report('正在创建本机完整安全快照。', 5)
         safety_backup = self.create_local_safety_backup('before-sync')
-        self.reconcile_missing_book_media()
-        with self._remote_sync_lock(runner_id):
+        report('本机安全快照已完成，正在连接远端并获取同步锁。', 18)
+        self._ensure_not_aborted(should_abort)
+        # 首次扫描不能直接作废普通媒体：远端快照可能仍有可恢复副本。
+        # 在媒体恢复完成（或确认远端不存在）后再执行实际清理。
+        self.reconcile_missing_book_media(drop_missing_assets=False)
+        with self._remote_sync_lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
+            report('已获取远端同步锁，正在读取当前快照。', 28)
+            self._ensure_not_aborted(should_abort)
             remote = self.get_v2_current() or self._get_legacy_snapshot()
+            report('远端快照读取完成，正在合并本机与云端数据。', 40)
+            self._ensure_not_aborted(should_abort)
             local_data = self.build_snapshot_data()
             local_revisions = self._build_revision_manifest(local_data)
             base = None
@@ -1497,6 +1579,10 @@ class SyncManager:
                     base = None
             if remote:
                 merged_data, merged_revisions, summary = self.merge_v2_data(base, local_data, local_revisions, remote)
+                report('正在校验并恢复非图书媒体资源。', 58)
+                # 此后会先覆盖媒体，再提交数据库并发布新指针；这些步骤必须作为一个
+                # 不可中断的提交段完成，避免取消后留下媒体与数据库不一致的本地状态。
+                self._ensure_not_aborted(should_abort)
                 self._restore_v2_media(
                     remote.get('media'),
                     skip_paths=self._book_body_paths_from_snapshot(remote.get('data')),
@@ -1514,9 +1600,16 @@ class SyncManager:
             else:
                 merged_data, merged_revisions, summary = local_data, local_revisions, {'created': len(local_data), 'updated': 0, 'deleted': 0, 'conflicts': 0}
                 previous_media = None
+                self.reconcile_missing_book_media(drop_missing_assets=True)
+                merged_data = self.build_snapshot_data()
+                merged_revisions = self._build_revision_manifest(merged_data)
+            report('正在发布新的 v2 合并快照。', 75)
+            if not remote:
+                self._ensure_not_aborted(should_abort)
             snapshot = self.publish_v2_snapshot(
                 source=source, runner_id=runner_id, base_snapshot_id=(remote or {}).get('meta', {}).get('snapshot_id', ''),
                 previous_media=previous_media, data_list=merged_data, revisions=merged_revisions,
+                report=report,
             )
         return snapshot, summary, safety_backup
 
