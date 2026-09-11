@@ -28,6 +28,7 @@ export interface DailyReviewItem {
         comment?: string;
         commenterName?: string;
         commenterType?: 'user' | 'agent';
+        commenterAvatar?: string;
         commentedAt?: string;
         articleId?: string;
         annotationId?: string;

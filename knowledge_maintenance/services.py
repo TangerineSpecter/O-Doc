@@ -298,6 +298,23 @@ def _serialize_review_source(item):
         if not source:
             return None
         article = source.annotation.article
+        avatar = source.creator_avatar
+        if not avatar and source.creator_type == 'agent':
+            from system_settings.models import Agent
+            clean_id = (source.creator_id or '').removeprefix('agent:').strip()
+            agent_obj = None
+            if clean_id:
+                agent_obj = Agent.objects.filter(id=clean_id).first()
+            if not agent_obj and source.creator_name:
+                agent_obj = Agent.objects.filter(name=source.creator_name).first()
+            if agent_obj:
+                avatar = agent_obj.avatar
+        elif not avatar and source.creator_type == 'user' and source.creator_id:
+            from user.models import UserProfile
+            profile = UserProfile.objects.filter(userid=source.creator_id).first()
+            if profile:
+                avatar = profile.avatar
+
         return {
             **base,
             'title': article.title,
@@ -307,6 +324,7 @@ def _serialize_review_source(item):
                 'comment': source.content,
                 'commenter_name': source.creator_name or ('Agent' if source.creator_type == 'agent' else '用户'),
                 'commenter_type': source.creator_type,
+                'commenter_avatar': avatar or '',
                 'commented_at': source.created_at,
                 'article_id': article.article_id,
                 'annotation_id': source.annotation_id,

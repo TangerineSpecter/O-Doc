@@ -1,8 +1,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {
-    Activity, AlertTriangle, ArrowLeft, BookMarked, CheckCircle2, ChevronLeft, ChevronRight,
-    CircleAlert, HeartPulse, History, Loader2, RefreshCw, ShieldCheck, Sparkles,
+    Activity, AlertTriangle, ArrowLeft, BookMarked, Check, CheckCircle2, ChevronLeft, ChevronRight,
+    CircleAlert, HeartPulse, Loader2, RefreshCw, ShieldCheck, Sparkles,
 } from 'lucide-react';
 import {
     getDailyReview, getHealthCheck, ignoreHealthIssue, refreshDailyReview,
@@ -11,6 +11,8 @@ import {
 import {syncArticleToRag} from '../api/rag';
 import ReviewCard from '../components/Maintenance/ReviewCard';
 import ReviewReaderModal from '../components/Maintenance/ReviewReaderModal';
+import MaintenanceHealthDashboard from '../components/Maintenance/MaintenanceHealthDashboard';
+import {Select} from '../components/common/Select';
 import {useToast} from '../components/common/ToastProvider';
 import type {
     DailyReviewItem, DailyReviewPayload, HealthIssue, HealthPayload, HealthSeverity,
@@ -60,6 +62,10 @@ export default function MaintenancePage() {
         date.setDate(date.getDate() - index);
         return dateKey(date);
     }), []);
+    const dateOptions = useMemo(() => historyDates.map((date, index) => ({
+        value: date,
+        label: index === 0 ? '今天' : index === 1 ? '昨天' : date,
+    })), [historyDates]);
 
     const loadReview = useCallback(async (selectedDate: string) => {
         const requestId = ++reviewRequestRef.current;
@@ -111,7 +117,9 @@ export default function MaintenancePage() {
     const handleStatusChange = async (item: DailyReviewItem, status: ReviewStatus) => {
         setReviewBusyId(item.id);
         try {
-            setReview(await updateDailyReviewItem(item.id, status));
+            const updated = await updateDailyReviewItem(item.id, status);
+            setReview(updated);
+            setReaderItem(current => current && current.id === item.id ? {...current, status} : current);
         } catch {
             toast.error('回顾状态更新失败');
         } finally {
@@ -204,26 +212,73 @@ export default function MaintenancePage() {
                                 <div><p className="font-bold text-slate-900">{isToday ? '今天的回顾进度' : `${reviewDate} 的回顾`}</p><p className="mt-1 text-sm text-slate-500">已处理 {review?.handled || 0} / {review?.total || 0} 张卡片</p></div>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
-                                <div className="flex items-center gap-1 rounded-lg bg-slate-50 p-1"><History className="ml-2 h-3.5 w-3.5 text-slate-400"/><select value={reviewDate} onChange={event => setReviewDate(event.target.value)} className="bg-transparent py-1.5 pl-1 pr-2 text-xs font-semibold text-slate-600 outline-none">{historyDates.map((date, index) => <option key={date} value={date}>{index === 0 ? '今天' : index === 1 ? '昨天' : date}</option>)}</select></div>
-                                {isToday && <button type="button" disabled={refreshing || !review?.pending} onClick={handleRefresh} className="inline-flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-bold text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-40"><RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`}/>换一批</button>}
+                                <div className="w-32">
+                                    <Select
+                                        value={reviewDate}
+                                        options={dateOptions}
+                                        onChange={setReviewDate}
+                                        buttonClassName="!min-h-[34px] !h-[34px] px-2.5 !py-1 text-xs font-semibold rounded-lg bg-slate-50 border-slate-200 hover:border-slate-300"
+                                        menuClassName="w-36 right-0 z-40"
+                                        showSelectedDescription={false}
+                                    />
+                                </div>
+                                {isToday && <button type="button" disabled={refreshing || !review?.pending} onClick={handleRefresh} className="inline-flex h-[34px] items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 text-xs font-bold text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-40"><RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`}/>换一批</button>}
                             </div>
                         </div>
                         {reviewLoading ? <div className="flex h-56 items-center justify-center text-orange-500"><Loader2 className="h-6 w-6 animate-spin"/></div> : review?.items.length ? (
-                            <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4">{review.items.map(item => <ReviewCard key={item.id} item={item} readonly={!isToday} busy={reviewBusyId === item.id} onOpen={handleReviewOpen} onStatusChange={handleStatusChange}/>)}</div>
+                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                {review.items.map(item => (
+                                    <ReviewCard
+                                        key={item.id}
+                                        item={item}
+                                        readonly={!isToday}
+                                        busy={reviewBusyId === item.id}
+                                        onOpen={handleReviewOpen}
+                                        onStatusChange={handleStatusChange}
+                                    />
+                                ))}
+                            </div>
                         ) : (
                             <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 py-20 text-center"><ShieldCheck className="mx-auto h-9 w-9 text-emerald-500"/><p className="mt-3 font-bold text-slate-700">这一天没有回顾卡片</p><p className="mt-1 text-sm text-slate-400">继续积累内容，之后再来看看。</p></div>
                         )}
                     </section>
                 ) : (
                     <section className="mt-6">
-                        <div className="grid gap-4 md:grid-cols-4">
-                            <div className="rounded-2xl border border-orange-100 bg-white p-5 shadow-sm"><p className="text-xs font-bold text-slate-400">知识健康</p><div className="mt-2 flex items-end justify-between"><p className="text-4xl font-black text-slate-900">{health?.score ?? '--'}</p><span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700">{health?.status || '检查中'}</span></div></div>
-                            {(['critical', 'warning', 'info'] as HealthSeverity[]).map(level => { const config = severityConfig[level]; const Icon = config.icon; return <button type="button" key={level} onClick={() => {setSeverity(current => current === level ? '' : level); setHealthPage(1);}} className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 ${severity === level ? 'border-orange-300 ring-2 ring-orange-100' : 'border-slate-200'}`}><div className="flex items-center justify-between"><span className={`rounded-lg p-2 ring-1 ${config.color}`}><Icon className="h-4 w-4"/></span><span className="text-2xl font-black text-slate-900">{health?.severityCounts[level] || 0}</span></div><p className="mt-3 text-xs font-bold text-slate-500">{config.label}</p></button>; })}
-                        </div>
+                        <MaintenanceHealthDashboard
+                            health={health}
+                            loading={healthLoading}
+                            selectedSeverity={severity}
+                            onSelectSeverity={level => {
+                                setSeverity(level);
+                                setHealthPage(1);
+                            }}
+                        />
 
                         <div className="mt-5 flex flex-col justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
                             <div className="flex flex-wrap gap-2"><button type="button" onClick={() => {setRuleCode(''); setHealthPage(1);}} className={`rounded-full px-3 py-1.5 text-xs font-bold ${!ruleCode ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>全部规则</button>{Object.entries(ruleLabels).map(([code, label]) => <button type="button" key={code} onClick={() => {setRuleCode(code); setHealthPage(1);}} className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${ruleCode === code ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-orange-50 hover:text-orange-700'}`}>{label}</button>)}</div>
-                            <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500"><input type="checkbox" checked={includeIgnored} onChange={event => {setIncludeIgnored(event.target.checked); setHealthPage(1);}} className="h-4 w-4 rounded border-slate-300 accent-orange-500"/>显示已忽略</label>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIncludeIgnored(current => !current);
+                                    setHealthPage(1);
+                                }}
+                                className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                                    includeIgnored
+                                        ? 'border border-orange-200 bg-orange-50/70 text-orange-700'
+                                        : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                                }`}
+                            >
+                                <span
+                                    className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                                        includeIgnored
+                                            ? 'border-orange-500 bg-orange-500 text-white'
+                                            : 'border-slate-300 bg-white'
+                                    }`}
+                                >
+                                    {includeIgnored && <Check className="h-3 w-3 stroke-[3]" />}
+                                </span>
+                                <span>显示已忽略</span>
+                            </button>
                         </div>
 
                         <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -239,7 +294,17 @@ export default function MaintenancePage() {
                     </section>
                 )}
             </div>
-            {readerItem && <ReviewReaderModal key={readerItem.id} item={readerItem} onClose={closeReader}/>}
+            {readerItem && (
+                <ReviewReaderModal
+                    key={readerItem.id}
+                    item={readerItem}
+                    onClose={closeReader}
+                    onStatusChange={handleStatusChange}
+                    onNavigate={openTarget}
+                    readonly={!isToday}
+                    busy={reviewBusyId === readerItem.id}
+                />
+            )}
         </main>
     );
 }
