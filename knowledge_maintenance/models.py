@@ -8,9 +8,9 @@ class DailyReviewItem(models.Model):
         ('old_article', '旧文章'),
         ('old_memo', '旧闪念'),
         ('recent_content', '近期内容'),
-        ('reading_book', '在读图书'),
+        ('comment_review', '评论回顾'),
     ]
-    SOURCE_TYPES = [('article', '文章'), ('memo', '闪念'), ('book', '图书')]
+    SOURCE_TYPES = [('article', '文章'), ('memo', '闪念'), ('comment', '评论')]
     STATUS_TYPES = [
         ('pending', '待处理'),
         ('completed', '已完成'),
@@ -67,4 +67,3 @@ class HealthIssueIgnore(models.Model):
                 name='uniq_health_issue_ignore',
             )
         ]
-

@@ -9,7 +9,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 from anthology.models import Anthology, Book, BookReadingProgress
-from article.models import Article
+from article.models import Article, ArticleAnnotation, ArticleAnnotationComment
 from assets.models import Asset
 from memos.models import Memo
 
@@ -67,10 +67,25 @@ class KnowledgeMaintenanceApiTests(APITestCase):
         return book
 
     def test_daily_review_is_stable_and_supports_status_and_refresh(self):
-        self.create_old_article()
+        article = self.create_old_article()
         memo = Memo.objects.create(content='一条沉淀已久的闪念', user_id='admin')
         Memo.objects.filter(pk=memo.pk).update(updated_at=timezone.now() - timedelta(days=20))
-        self.create_book()
+        annotation = ArticleAnnotation.objects.create(
+            article=article,
+            selected_text='值得重新阅读',
+            start_offset=0,
+            end_offset=6,
+            creator_type='user',
+            creator_id='admin',
+            creator_name='admin',
+        )
+        ArticleAnnotationComment.objects.create(
+            annotation=annotation,
+            content='这段话值得过一阵子再验证。',
+            creator_type='agent',
+            creator_id='agent-reviewer',
+            creator_name='阅读助手',
+        )
 
         first = self.client.get('/api/maintenance/reviews')
         second = self.client.get('/api/maintenance/reviews')
@@ -79,6 +94,11 @@ class KnowledgeMaintenanceApiTests(APITestCase):
         first_ids = [item['id'] for item in first.data['data']['items']]
         self.assertEqual(first_ids, [item['id'] for item in second.data['data']['items']])
         self.assertGreaterEqual(len(first_ids), 3)
+        comment_item = next(item for item in first.data['data']['items'] if item['source_type'] == 'comment')
+        self.assertEqual(comment_item['slot_type'], 'comment_review')
+        self.assertEqual(comment_item['meta']['selected_text'], '值得重新阅读')
+        self.assertEqual(comment_item['meta']['comment'], '这段话值得过一阵子再验证。')
+        self.assertEqual(comment_item['meta']['commenter_type'], 'agent')
 
         update = self.client.put(
             f'/api/maintenance/reviews/items/{first_ids[0]}',
@@ -93,13 +113,56 @@ class KnowledgeMaintenanceApiTests(APITestCase):
         self.assertEqual(set(refreshed_ids), set(first_ids))
         self.assertEqual(DailyReviewItem.objects.get(id=first_ids[0]).status, 'completed')
 
-    def test_completed_book_is_not_used_as_fallback(self):
-        completed_book = self.create_book()
-        BookReadingProgress.objects.filter(book=completed_book, user_id='admin').update(progress=100)
+    def test_books_and_legacy_book_reviews_are_not_returned(self):
+        book = self.create_book()
+        legacy = DailyReviewItem.objects.create(
+            user_id='admin',
+            review_date=timezone.now().date(),
+            slot_type='reading_book',
+            source_type='book',
+            source_id=book.book_id,
+            sort_order=3,
+            reason_code='continue_reading',
+        )
 
         response = self.client.get('/api/maintenance/reviews')
 
         self.assertEqual(response.data['data']['total'], 0)
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.status, 'replaced')
+
+    def test_comment_review_accepts_user_and_agent_comments(self):
+        article = self.create_old_article()
+        annotation = ArticleAnnotation.objects.create(
+            article=article,
+            selected_text='同一段划线',
+            start_offset=0,
+            end_offset=5,
+            creator_type='agent',
+            creator_id='agent-writer',
+            creator_name='写作助手',
+        )
+        user_comment = ArticleAnnotationComment.objects.create(
+            annotation=annotation,
+            content='人的评论',
+            creator_type='user',
+            creator_id='admin',
+            creator_name='admin',
+        )
+        agent_comment = ArticleAnnotationComment.objects.create(
+            annotation=annotation,
+            content='Agent 的评论',
+            creator_type='agent',
+            creator_id='agent-reviewer',
+            creator_name='阅读助手',
+        )
+
+        response = self.client.get('/api/maintenance/reviews')
+        comments = [item for item in response.data['data']['items'] if item['source_type'] == 'comment']
+
+        self.assertEqual(len(comments), 1)
+        self.assertIn(comments[0]['source_id'], {user_comment.comment_id, agent_comment.comment_id})
+        self.assertIn(comments[0]['meta']['commenter_type'], {'user', 'agent'})
 
     def test_invalid_review_date_uses_http_bad_request(self):
         response = self.client.get('/api/maintenance/reviews?date=2000-01-01')

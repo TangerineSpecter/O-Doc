@@ -1,6 +1,6 @@
-export type ReviewSourceType = 'article' | 'memo' | 'book';
+export type ReviewSourceType = 'article' | 'memo' | 'comment';
 export type ReviewStatus = 'pending' | 'completed' | 'skipped';
-export type ReviewSlotType = 'old_article' | 'old_memo' | 'recent_content' | 'reading_book';
+export type ReviewSlotType = 'old_article' | 'old_memo' | 'recent_content' | 'comment_review';
 export type HealthSeverity = 'critical' | 'warning' | 'info';
 
 export interface MaintenanceTarget {
@@ -24,8 +24,13 @@ export interface DailyReviewItem {
         updatedAt?: string;
         wordCount?: number;
         tag?: string;
-        progress?: number;
-        lastReadAt?: string | null;
+        selectedText?: string;
+        comment?: string;
+        commenterName?: string;
+        commenterType?: 'user' | 'agent';
+        commentedAt?: string;
+        articleId?: string;
+        annotationId?: string;
     };
     target: MaintenanceTarget;
 }
@@ -102,4 +107,3 @@ export interface HealthIssueIdentity {
     sourceId: string;
     fingerprint?: string;
 }
-

@@ -14,6 +14,10 @@ export const getMemoList = (params?: MemoListParams) => {
     return request.get<any, MemoItem[]>('/memo/list', {params});
 };
 
+export const getMemoDetail = (memoId: string) => {
+    return request.get<any, MemoItem>(`/memo/detail/${memoId}`);
+};
+
 export const getMemoKnowledgeGraph = (params?: MemoKnowledgeGraphParams) => {
     return request.get<any, MemoKnowledgeGraph>('/memo/knowledge_graph', {params});
 };

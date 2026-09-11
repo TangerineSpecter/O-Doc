@@ -10,6 +10,7 @@ import {
 } from '../api/maintenance';
 import {syncArticleToRag} from '../api/rag';
 import ReviewCard from '../components/Maintenance/ReviewCard';
+import ReviewReaderModal from '../components/Maintenance/ReviewReaderModal';
 import {useToast} from '../components/common/ToastProvider';
 import type {
     DailyReviewItem, DailyReviewPayload, HealthIssue, HealthPayload, HealthSeverity,
@@ -48,6 +49,7 @@ export default function MaintenancePage() {
     const [includeIgnored, setIncludeIgnored] = useState(false);
     const [healthPage, setHealthPage] = useState(1);
     const [healthBusyKey, setHealthBusyKey] = useState<string | null>(null);
+    const [readerItem, setReaderItem] = useState<DailyReviewItem | null>(null);
     const reviewRequestRef = useRef(0);
     const healthRequestRef = useRef(0);
 
@@ -103,7 +105,8 @@ export default function MaintenancePage() {
         else if (target.view === 'resources') navigate(`/resources?${new URLSearchParams(params).toString()}`);
     };
 
-    const handleReviewOpen = (item: DailyReviewItem) => openTarget(item.target);
+    const handleReviewOpen = (item: DailyReviewItem) => setReaderItem(item);
+    const closeReader = useCallback(() => setReaderItem(null), []);
 
     const handleStatusChange = async (item: DailyReviewItem, status: ReviewStatus) => {
         setReviewBusyId(item.id);
@@ -206,7 +209,7 @@ export default function MaintenancePage() {
                             </div>
                         </div>
                         {reviewLoading ? <div className="flex h-56 items-center justify-center text-orange-500"><Loader2 className="h-6 w-6 animate-spin"/></div> : review?.items.length ? (
-                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{review.items.map(item => <ReviewCard key={item.id} item={item} readonly={!isToday} busy={reviewBusyId === item.id} onOpen={handleReviewOpen} onStatusChange={handleStatusChange}/>)}</div>
+                            <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4">{review.items.map(item => <ReviewCard key={item.id} item={item} readonly={!isToday} busy={reviewBusyId === item.id} onOpen={handleReviewOpen} onStatusChange={handleStatusChange}/>)}</div>
                         ) : (
                             <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 py-20 text-center"><ShieldCheck className="mx-auto h-9 w-9 text-emerald-500"/><p className="mt-3 font-bold text-slate-700">这一天没有回顾卡片</p><p className="mt-1 text-sm text-slate-400">继续积累内容，之后再来看看。</p></div>
                         )}
@@ -236,6 +239,7 @@ export default function MaintenancePage() {
                     </section>
                 )}
             </div>
+            {readerItem && <ReviewReaderModal key={readerItem.id} item={readerItem} onClose={closeReader}/>}
         </main>
     );
 }

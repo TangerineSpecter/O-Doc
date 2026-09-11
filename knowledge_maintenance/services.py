@@ -10,8 +10,8 @@ from django.db import transaction
 from django.db.models import Max, Q
 from django.utils import timezone
 
-from anthology.models import Anthology, Book, BookReadingProgress
-from article.models import Article
+from anthology.models import Anthology, Book
+from article.models import Article, ArticleAnnotationComment
 from assets.models import Asset
 from memos.models import Memo
 from system_settings.article_rag_scheduler import CONFIG_KEY as RAG_CONFIG_KEY
@@ -25,13 +25,12 @@ from utils.resource_assets import (
 from .models import DailyReviewItem, HealthIssueIgnore
 
 
-REVIEW_SLOTS = ('old_article', 'old_memo', 'recent_content', 'reading_book')
+REVIEW_SLOTS = ('old_article', 'old_memo', 'recent_content', 'comment_review')
 REASON_TEXTS = {
     'article_not_read_30d': '有一阵子没读过了，重新看看也许会有新发现',
     'memo_not_touched_14d': '这条闪念沉淀了一段时间，适合重新审视',
     'recent_content': '这是近期留下的内容，可以继续看看或补充',
-    'continue_reading': '从上次停下的位置继续阅读',
-    'unopened_book': '从书架里挑一本还没开始的书',
+    'comment_revisit': '重读当时的划线与评论，看看观点有没有变化',
     'fallback_content': '从知识库里重新遇见一条内容',
 }
 HEALTH_RULE_TITLES = {
@@ -87,14 +86,15 @@ def _candidate_pools(user_id, review_date):
         .annotate(last_user_read=Max('read_stats__created_at', filter=Q(read_stats__user_identifier=user_id)))
     )
     memos = list(Memo.objects.filter(user_id=user_id, is_valid=True))
-    books = list(
-        Book.objects.filter(anthology__user_id=user_id, anthology__type='book', anthology__is_valid=True, is_valid=True)
-        .select_related('anthology')
+    comments = list(
+        ArticleAnnotationComment.objects.filter(
+            annotation__article__author=user_id,
+            annotation__article__coll_id__in=article_ids,
+            annotation__article__is_valid=True,
+            annotation__is_valid=True,
+            is_valid=True,
+        ).select_related('annotation', 'annotation__article')
     )
-    progress_by_book = {
-        item.book_id: item
-        for item in BookReadingProgress.objects.filter(user_id=user_id, book__in=books)
-    }
 
     old_article_cutoff = now - timedelta(days=30)
     old_memo_cutoff = now - timedelta(days=14)
@@ -121,16 +121,10 @@ def _candidate_pools(user_id, review_date):
         if recent_start <= memo.updated_at <= recent_end:
             recent_content.append(ReviewCandidate('memo', memo.memo_id, 'recent_content', memo.updated_at))
 
-    reading_books = []
-    unopened_books = []
-    for book in books:
-        progress = progress_by_book.get(book.book_id)
-        if progress and 0 < progress.progress < 100 and progress.last_read_at.date() != review_date:
-            reading_books.append(ReviewCandidate('book', book.book_id, 'continue_reading', progress.last_read_at))
-        elif not progress or progress.progress <= 0:
-            candidate = ReviewCandidate('book', book.book_id, 'unopened_book', book.created_at)
-            unopened_books.append(candidate)
-            fallback.append(candidate)
+    comment_reviews = [
+        ReviewCandidate('comment', comment.comment_id, 'comment_revisit', comment.updated_at)
+        for comment in comments
+    ]
 
     def oldest_first(values):
         return sorted(values, key=lambda item: (item.rank_time, _stable_hash(user_id, review_date, item)))
@@ -142,7 +136,7 @@ def _candidate_pools(user_id, review_date):
         'old_article': oldest_first(old_articles),
         'old_memo': oldest_first(old_memos),
         'recent_content': newest_first(recent_content),
-        'reading_book': newest_first(reading_books) + oldest_first(unopened_books),
+        'comment_review': newest_first(comment_reviews),
         'fallback': oldest_first(fallback),
     }
 
@@ -185,11 +179,13 @@ def _source_exists(source_type, source_id, user_id):
         ).exists()
     if source_type == 'memo':
         return Memo.objects.filter(memo_id=source_id, user_id=user_id, is_valid=True).exists()
-    if source_type == 'book':
-        return Book.objects.filter(
-            book_id=source_id,
-            anthology__user_id=user_id,
-            anthology__is_valid=True,
+    if source_type == 'comment':
+        return ArticleAnnotationComment.objects.filter(
+            comment_id=source_id,
+            annotation__article__author=user_id,
+            annotation__article__coll_id__in=_owned_collection_ids(user_id, 'article'),
+            annotation__article__is_valid=True,
+            annotation__is_valid=True,
             is_valid=True,
         ).exists()
     return False
@@ -234,10 +230,11 @@ def ensure_daily_review(user_id, review_date=None):
     ).exclude(status='replaced'))
     missing_slots = []
     for item in active:
-        if not _source_exists(item.source_type, item.source_id, user_id):
+        if item.slot_type not in REVIEW_SLOTS or not _source_exists(item.source_type, item.source_id, user_id):
             item.status = 'replaced'
             item.save(update_fields=['status', 'updated_at'])
-            missing_slots.append(item.slot_type)
+            if item.slot_type in REVIEW_SLOTS:
+                missing_slots.append(item.slot_type)
     active = [item for item in active if item.status != 'replaced']
     occupied_slots = {item.slot_type for item in active}
     missing_slots.extend(slot for slot in REVIEW_SLOTS if slot not in occupied_slots)
@@ -254,6 +251,7 @@ def refresh_daily_review(user_id):
         user_id=user_id,
         review_date=review_date,
         status='pending',
+        slot_type__in=REVIEW_SLOTS,
     ))
     slots = [item.slot_type for item in pending]
     if pending:
@@ -290,19 +288,42 @@ def _serialize_review_source(item):
         if not source:
             return None
         return {**base, 'title': _plain_excerpt(source.content, 42) or '闪念备忘', 'excerpt': _plain_excerpt(source.content), 'meta': {'updated_at': source.updated_at, 'tag': source.tag}, 'target': {'view': 'memos', 'params': {'memo_id': source.memo_id}}}
-    if item.source_type == 'book':
-        source = Book.objects.filter(book_id=item.source_id, is_valid=True).select_related('anthology').first()
+    if item.source_type == 'comment':
+        source = ArticleAnnotationComment.objects.filter(
+            comment_id=item.source_id,
+            is_valid=True,
+            annotation__is_valid=True,
+            annotation__article__is_valid=True,
+        ).select_related('annotation', 'annotation__article').first()
         if not source:
             return None
-        progress = BookReadingProgress.objects.filter(book=source, user_id=item.user_id).first()
-        return {**base, 'title': source.title, 'excerpt': source.author or '未知作者', 'meta': {'progress': progress.progress if progress else 0, 'last_read_at': progress.last_read_at if progress else None}, 'target': {'view': 'book', 'params': {'coll_id': source.anthology_id, 'book_id': source.book_id}}}
+        article = source.annotation.article
+        return {
+            **base,
+            'title': article.title,
+            'excerpt': _plain_excerpt(source.content),
+            'meta': {
+                'selected_text': _plain_excerpt(source.annotation.selected_text, 240),
+                'comment': source.content,
+                'commenter_name': source.creator_name or ('Agent' if source.creator_type == 'agent' else '用户'),
+                'commenter_type': source.creator_type,
+                'commented_at': source.created_at,
+                'article_id': article.article_id,
+                'annotation_id': source.annotation_id,
+            },
+            'target': {'view': 'article', 'params': {'coll_id': article.coll_id, 'article_id': article.article_id}},
+        }
     return None
 
 
 def review_payload(user_id, review_date=None, generate=True):
     review_date = review_date or timezone.now().date()
     items = ensure_daily_review(user_id, review_date) if generate else list(
-        DailyReviewItem.objects.filter(user_id=user_id, review_date=review_date).exclude(status='replaced')
+        DailyReviewItem.objects.filter(
+            user_id=user_id,
+            review_date=review_date,
+            slot_type__in=REVIEW_SLOTS,
+        ).exclude(status='replaced')
     )
     serialized = [value for value in (_serialize_review_source(item) for item in items) if value]
     serialized.sort(key=lambda item: item['sort_order'])
