@@ -26,6 +26,8 @@ import type {
     WebDavSyncStatus,
     SyncHistoryEntry,
     RuntimeInfo,
+    StartSystemUpdateParams,
+    SystemUpdateStatus,
     GeoLocation,
     SaveGeoLocationParams,
     SaveAgentConfigParams,
@@ -246,6 +248,12 @@ export const saveSkill = (data: SaveSkillConfigParams) => {
 export const deleteSkill = (id: string) => request.delete(`/settings/skills/${id}/`);
 
 export const getRuntimeInfo = () => request.get<any, RuntimeInfo>('/settings/config/get_runtime_info/');
+
+export const getSystemUpdateStatus = () => request.get<any, SystemUpdateStatus>('/settings/config/get_update_status/');
+
+export const startSystemUpdate = (data: StartSystemUpdateParams) => (
+    request.post<any, SystemUpdateStatus>('/settings/config/start_update/', data)
+);
 
 export const getMemosPushConfig = () => request.get<MemosPushConfig>('/settings/config/get_memos_push_config/') as unknown as Promise<MemosPushConfig>;
 

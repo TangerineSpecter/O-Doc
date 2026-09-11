@@ -9,6 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  UPDATER_IMAGE: ghcr.io/tangerinespecter/o-doc-updater:v1
 
 jobs:
   docker-ghcr:
@@ -46,6 +47,17 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            ODOC_BUILD_VERSION=${{ github.ref_name }}
+            ODOC_BUILD_COMMIT=${{ github.sha }}
+
+      - name: Build and push updater image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.updater
+          push: true
+          tags: ${{ env.UPDATER_IMAGE }}
 
   docker-tcr:
     name: Publish Tencent Cloud TCR
@@ -63,12 +75,13 @@ jobs:
           TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
           TCR_REGISTRY: ccr.ccs.tencentyun.com
           TCR_IMAGE: ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest
+          TCR_UPDATER_IMAGE: ccr.ccs.tencentyun.com/tangerine_specter/o-doc-updater:v1
           TCR_PLATFORM: linux/amd64
+          TCR_BUILD_VERSION: ${{ github.ref_name }}
+          TCR_BUILD_COMMIT: ${{ github.sha }}
         run: |
-          # 默认仅推送 latest 到腾讯云 TCR。
-          # 如需恢复 Git tag 版本号镜像推送，取消下面三行注释即可。
-          # if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-          #   export TCR_EXTRA_TAGS="ccr.ccs.tencentyun.com/tangerine_specter/o-doc:${GITHUB_REF_NAME}"
-          # fi
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            export TCR_EXTRA_TAGS="ccr.ccs.tencentyun.com/tangerine_specter/o-doc:${GITHUB_REF_NAME}"
+          fi
 
           ./scripts/push-tcr.sh

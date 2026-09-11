@@ -11,9 +11,17 @@ RUN npm run build
 
 FROM m.daocloud.io/docker.io/python:3.11-slim
 
+ARG ODOC_BUILD_VERSION=unknown
+ARG ODOC_BUILD_COMMIT=unknown
+
 ENV PYTHONUNBUFFERED=1
 ENV PORT=11800
 ENV DJANGO_DEBUG=false
+ENV ODOC_BUILD_VERSION=${ODOC_BUILD_VERSION}
+ENV ODOC_BUILD_COMMIT=${ODOC_BUILD_COMMIT}
+
+LABEL org.opencontainers.image.version=${ODOC_BUILD_VERSION}
+LABEL org.opencontainers.image.revision=${ODOC_BUILD_COMMIT}
 
 WORKDIR /app
 

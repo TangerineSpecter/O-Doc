@@ -6,8 +6,11 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCAL_ENV_FILE="$PROJECT_ROOT/.env.tcr.local"
 TCR_REGISTRY="${TCR_REGISTRY:-ccr.ccs.tencentyun.com}"
 TCR_IMAGE="${TCR_IMAGE:-ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest}"
+TCR_UPDATER_IMAGE="${TCR_UPDATER_IMAGE:-ccr.ccs.tencentyun.com/tangerine_specter/o-doc-updater:v1}"
 TCR_PLATFORM="${TCR_PLATFORM:-linux/amd64}"
 TCR_EXTRA_TAGS="${TCR_EXTRA_TAGS:-}"
+TCR_BUILD_VERSION="${TCR_BUILD_VERSION:-unknown}"
+TCR_BUILD_COMMIT="${TCR_BUILD_COMMIT:-unknown}"
 
 if [ -f "$LOCAL_ENV_FILE" ]; then
     set -a
@@ -57,6 +60,7 @@ if [ -z "${CI:-}" ] && [ ! -f "$LOCAL_ENV_FILE" ]; then
             cat >"$LOCAL_ENV_FILE" <<EOF
 TCR_REGISTRY=$TCR_REGISTRY
 TCR_IMAGE=$TCR_IMAGE
+TCR_UPDATER_IMAGE=$TCR_UPDATER_IMAGE
 TCR_PLATFORM=$TCR_PLATFORM
 TCR_USERNAME=$TCR_USERNAME
 TCR_PASSWORD=$TCR_PASSWORD
@@ -83,6 +87,18 @@ echo "构建并推送镜像：$TCR_IMAGE ($TCR_PLATFORM)"
 if [ -n "$TCR_EXTRA_TAGS" ]; then
     echo "附加镜像标签：$TCR_EXTRA_TAGS"
 fi
-docker buildx build --platform "$TCR_PLATFORM" "${build_tags[@]}" --push "$PROJECT_ROOT"
+docker buildx build \
+    --platform "$TCR_PLATFORM" \
+    --build-arg "ODOC_BUILD_VERSION=$TCR_BUILD_VERSION" \
+    --build-arg "ODOC_BUILD_COMMIT=$TCR_BUILD_COMMIT" \
+    "${build_tags[@]}" \
+    --push "$PROJECT_ROOT"
+
+echo "构建并推送更新服务镜像：$TCR_UPDATER_IMAGE ($TCR_PLATFORM)"
+docker buildx build \
+    --platform "$TCR_PLATFORM" \
+    --file "$PROJECT_ROOT/Dockerfile.updater" \
+    --tag "$TCR_UPDATER_IMAGE" \
+    --push "$PROJECT_ROOT"
 
 echo "腾讯云 TCR 镜像推送完成：$TCR_IMAGE"

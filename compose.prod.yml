@@ -41,6 +41,31 @@ services:
       DJANGO_MEDIA_ROOT: /app/runtime/media
       DJANGO_STATIC_ROOT: /app/staticfiles
       ODOC_CHROMA_PATH: /app/runtime/chroma_data
+      ODOC_AUTO_UPDATE: "true"
+      ODOC_UPDATE_DIR: /app/runtime/update
     volumes:
       - ./deploy/runtime/media:/app/runtime/media
       - ./deploy/runtime/chroma_data:/app/runtime/chroma_data
+      - ./deploy/runtime/update:/app/runtime/update
+
+  updater:
+    image: ${UPDATER_IMAGE:-ghcr.io/tangerinespecter/o-doc-updater:v1}
+    container_name: ${UPDATER_CONTAINER_NAME:-o-doc-updater}
+    restart: unless-stopped
+    environment:
+      ODOC_DEPLOY_DIR: "${PWD}"
+      ODOC_UPDATE_DIR: /var/lib/odoc-update
+      ODOC_UPDATE_HEALTH_URL: http://app:11800/api/health/
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - "${PWD}:${PWD}:ro"
+      - "${HOME}/.docker:/root/.docker:ro"
+      - ./deploy/runtime/update:/var/lib/odoc-update
+    working_dir: "${PWD}"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

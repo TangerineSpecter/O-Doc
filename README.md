@@ -176,6 +176,7 @@ irm https://raw.githubusercontent.com/TangerineSpecter/O-Doc/master/manager.ps1 
 
 脚本会自动完成部署目录准备、配置生成和镜像拉取。
 默认从 GitHub Container Registry 官方镜像拉取。需要使用腾讯云 TCR 公开镜像 `ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest` 时，可在脚本菜单中选择“切换镜像源”，或执行 `./manager.sh source tcr`。
+Linux Docker Compose 部署完成后，超级管理员可在“系统设置 → 关于”中检查并一键更新。现有服务器需先手动执行一次最新版 `manager.sh update`，以安装隔离的 Updater Sidecar；Windows 和源码部署继续使用手动更新。
 运行后按提示选择对应操作即可：
 
 - `安装`
@@ -281,7 +282,8 @@ irm https://raw.githubusercontent.com/TangerineSpecter/O-Doc/master/manager.ps1 
 
 ### Docker 配置
 - **Dockerfile**：通过多阶段构建自动编译前端并打包后端
-- **Compose 文件**：`compose.prod.yml` 负责生产环境容器和数据目录映射
+- **Updater 镜像**：`Dockerfile.updater` 提供隔离的一键更新 Sidecar
+- **Compose 文件**：`compose.prod.yml` 负责应用、数据库、更新器和数据目录映射
 - **部署脚本**：`scripts/deploy.sh` 提供安装、更新、卸载的交互入口
 
 ## 📦 部署方式
@@ -323,11 +325,14 @@ vim deploy/.env
 如果是直接运行 `manager.sh` 的独立部署目录，`.env` 放在 `compose.prod.yml` 同级即可。
 
 ### 更新项目
+
+完成一次 Updater 初始化后，日常业务版本推荐直接在“系统设置 → 关于”中更新。需要刷新部署配置或 Updater 自身时，再执行：
+
 ```bash
 # 拉取最新部署脚本和配置文件（仅当仓库内部署文件有变动时需要）
 git pull
 
-# 更新到最新镜像
+# 刷新应用和 Updater
 ./scripts/deploy.sh update
 ```
 

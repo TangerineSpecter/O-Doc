@@ -20,8 +20,11 @@ from django.urls import path, include, re_path
 from django.views.static import serve
 from django.views.generic import TemplateView
 
+from .health import health_check
+
 urlpatterns = [
     path('', TemplateView.as_view(template_name='index.html')),
+    path('api/health/', health_check),
     path('api/', include('user.urls')),
     path('api/anthology/', include('anthology.urls')),  # 文集接口
     path('api/article/', include('article.urls')),  # 文章接口

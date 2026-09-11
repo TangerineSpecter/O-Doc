@@ -15,7 +15,8 @@
     "test:whiteboard": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/whiteboardOps.test.ts src/utils/whiteboardInsight.test.ts",
     "test:markdown-security": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/markdownSecurity.test.ts",
     "test:avatar": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/avatar.test.ts",
-    "test:image-upload": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/imageUpload.test.ts"
+    "test:image-upload": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/imageUpload.test.ts",
+    "test:system-update": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/systemUpdate.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

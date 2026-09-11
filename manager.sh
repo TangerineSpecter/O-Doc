@@ -3,6 +3,10 @@
 set -e
 
 DEPLOY_DIR="${ODOC_DEPLOY_DIR:-$HOME/o-doc}"
+case "$DEPLOY_DIR" in
+    /*) ;;
+    *) DEPLOY_DIR="$PWD/$DEPLOY_DIR" ;;
+esac
 COMPOSE_FILE="$DEPLOY_DIR/compose.prod.yml"
 ENV_FILE="${ODOC_ENV_FILE:-$DEPLOY_DIR/.env}"
 LEGACY_ENV_FILE="$DEPLOY_DIR/.env.deploy"
@@ -10,8 +14,12 @@ RUNTIME_DIR="$DEPLOY_DIR/runtime"
 
 OFFICIAL_IMAGE="ghcr.io/tangerinespecter/o-doc:latest"
 TCR_IMAGE="ccr.ccs.tencentyun.com/tangerine_specter/o-doc:latest"
+OFFICIAL_UPDATER_IMAGE="ghcr.io/tangerinespecter/o-doc-updater:v1"
+TCR_UPDATER_IMAGE="ccr.ccs.tencentyun.com/tangerine_specter/o-doc-updater:v1"
 DEFAULT_IMAGE="${ODOC_IMAGE_NAME:-$OFFICIAL_IMAGE}"
+DEFAULT_UPDATER_IMAGE="${ODOC_UPDATER_IMAGE:-$OFFICIAL_UPDATER_IMAGE}"
 DEFAULT_CONTAINER_NAME="o-doc"
+DEFAULT_UPDATER_CONTAINER_NAME="o-doc-updater"
 DEFAULT_HOST_PORT="11800"
 DEFAULT_ADMIN_EMAIL="admin@example.com"
 DEFAULT_ALLOWED_HOSTS="*"
@@ -21,6 +29,11 @@ DEFAULT_POSTGRES_DB="odoc"
 DEFAULT_POSTGRES_USER="odoc"
 DEFAULT_POSTGRES_BIND_ADDRESS="0.0.0.0"
 DEFAULT_POSTGRES_HOST_PORT="15432"
+HOST_DOCKER_CONFIG_DIR="${ODOC_DOCKER_CONFIG_DIR:-${DOCKER_CONFIG:-$HOME/.docker}}"
+case "$HOST_DOCKER_CONFIG_DIR" in
+    /*) ;;
+    *) HOST_DOCKER_CONFIG_DIR="$PWD/$HOST_DOCKER_CONFIG_DIR" ;;
+esac
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -93,7 +106,7 @@ ensure_prerequisites() {
 }
 
 generate_secret() {
-    tr -dc 'A-Za-z0-9' </dev/urandom | head -c 50
+    LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 50
 }
 
 read_env_value() {
@@ -143,7 +156,13 @@ ensure_directories() {
         "$DEPLOY_DIR" \
         "$RUNTIME_DIR/postgres" \
         "$RUNTIME_DIR/media" \
-        "$RUNTIME_DIR/chroma_data"
+        "$RUNTIME_DIR/chroma_data" \
+        "$RUNTIME_DIR/update/backups"
+
+    if [ ! -d "$HOST_DOCKER_CONFIG_DIR" ]; then
+        HOST_DOCKER_CONFIG_DIR="$RUNTIME_DIR/docker-config"
+        mkdir -p "$HOST_DOCKER_CONFIG_DIR"
+    fi
 }
 
 ensure_env_file_location() {
@@ -205,9 +224,34 @@ services:
       DJANGO_MEDIA_ROOT: /app/runtime/media
       DJANGO_STATIC_ROOT: /app/staticfiles
       ODOC_CHROMA_PATH: /app/runtime/chroma_data
+      ODOC_AUTO_UPDATE: "true"
+      ODOC_UPDATE_DIR: /app/runtime/update
     volumes:
       - ./runtime/media:/app/runtime/media
       - ./runtime/chroma_data:/app/runtime/chroma_data
+      - ./runtime/update:/app/runtime/update
+
+  updater:
+    image: \${UPDATER_IMAGE:-$DEFAULT_UPDATER_IMAGE}
+    container_name: \${UPDATER_CONTAINER_NAME:-$DEFAULT_UPDATER_CONTAINER_NAME}
+    restart: unless-stopped
+    environment:
+      ODOC_DEPLOY_DIR: "$DEPLOY_DIR"
+      ODOC_UPDATE_DIR: /var/lib/odoc-update
+      ODOC_UPDATE_HEALTH_URL: http://app:11800/api/health/
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - "$DEPLOY_DIR:$DEPLOY_DIR:ro"
+      - "$HOST_DOCKER_CONFIG_DIR:/root/.docker:ro"
+      - ./runtime/update:/var/lib/odoc-update
+    working_dir: "$DEPLOY_DIR"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 EOF
 }
 
@@ -230,7 +274,9 @@ create_env_file() {
 
     cat >"$ENV_FILE" <<EOF
 IMAGE_NAME=$DEFAULT_IMAGE
+UPDATER_IMAGE=$DEFAULT_UPDATER_IMAGE
 CONTAINER_NAME=$DEFAULT_CONTAINER_NAME
+UPDATER_CONTAINER_NAME=$DEFAULT_UPDATER_CONTAINER_NAME
 HOST_PORT=$DEFAULT_HOST_PORT
 DJANGO_DEBUG=false
 DJANGO_SECRET_KEY=$secret_value
@@ -259,7 +305,9 @@ ensure_env_defaults() {
     if [ -z "$current_image" ]; then
         write_env_value IMAGE_NAME "$DEFAULT_IMAGE"
     fi
+    [ -n "$(read_env_value UPDATER_IMAGE)" ] || write_env_value UPDATER_IMAGE "$DEFAULT_UPDATER_IMAGE"
     [ -n "$(read_env_value CONTAINER_NAME)" ] || write_env_value CONTAINER_NAME "$DEFAULT_CONTAINER_NAME"
+    [ -n "$(read_env_value UPDATER_CONTAINER_NAME)" ] || write_env_value UPDATER_CONTAINER_NAME "$DEFAULT_UPDATER_CONTAINER_NAME"
     [ -n "$(read_env_value HOST_PORT)" ] || write_env_value HOST_PORT "$DEFAULT_HOST_PORT"
     [ -n "$(read_env_value DJANGO_DEBUG)" ] || write_env_value DJANGO_DEBUG "false"
     [ -n "$(read_env_value DJANGO_ALLOWED_HOSTS)" ] || write_env_value DJANGO_ALLOWED_HOSTS "$DEFAULT_ALLOWED_HOSTS"
@@ -436,6 +484,7 @@ show_status() {
 switch_image_source() {
     local source="${1:-}"
     local image=""
+    local updater_image=""
 
     ensure_directories
     ensure_env_file_location
@@ -457,17 +506,23 @@ EOF
     case "$source" in
         1|github|ghcr)
             image="$OFFICIAL_IMAGE"
+            updater_image="$OFFICIAL_UPDATER_IMAGE"
             ;;
         2|tcr|tencent)
             image="$TCR_IMAGE"
+            updater_image="$TCR_UPDATER_IMAGE"
             ;;
         3|custom)
             printf "请输入完整镜像地址: "
             read -r image
+            printf "请输入更新服务镜像地址（直接回车使用 GHCR 默认镜像）: "
+            read -r updater_image
+            [ -n "$updater_image" ] || updater_image="$OFFICIAL_UPDATER_IMAGE"
             ;;
         *)
             if printf "%s" "$source" | grep -q '/'; then
                 image="$source"
+                updater_image="$OFFICIAL_UPDATER_IMAGE"
             else
                 error "无效镜像源选项。"
                 exit 1
@@ -481,6 +536,7 @@ EOF
     fi
 
     write_env_value IMAGE_NAME "$image"
+    write_env_value UPDATER_IMAGE "$updater_image"
     success "镜像源已切换为：$image"
 }
 

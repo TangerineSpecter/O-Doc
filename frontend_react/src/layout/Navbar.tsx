@@ -3,8 +3,9 @@ import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, ArrowUpCircle
 import packageJson from '../../package.json';
 import NotificationPopover from '../components/NotificationPopover';
 import { getNotifications, pushRandomMemoNotification } from '../api/message';
-import { getMemosPushConfig } from '../api/setting';
+import { getMemosPushConfig, getSystemUpdateStatus } from '../api/setting';
 import type { UserInfo } from '../types/api/user';
+import { getLatestReleaseTag, isReleaseUpdateAvailable } from '../utils/systemUpdate';
 
 interface NavbarProps {
     onNavigate?: (viewName: string, params?: any) => void;
@@ -93,24 +94,36 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
         return () => clearInterval(timer);
     }, [userInfo]);
 
-    // 检查版本 (简化原逻辑)
     useEffect(() => {
+        let cancelled = false;
         const checkUpdate = async () => {
             try {
-                const response = await fetch('https://api.github.com/repos/TangerineSpecter/O-Doc/tags');
-                if (response.ok) {
-                    const tags = await response.json();
-                    if (tags.length > 0) {
-                        const remoteVer = tags[0].name.replace(/^v/, '');
-                        if (remoteVer !== packageJson.version) setHasNewVersion(true); // 简化比较
-                    }
+                const release = await getLatestReleaseTag();
+                let currentVersion = packageJson.version;
+                let currentCommit = '';
+                if (userInfo) {
+                    const status = await getSystemUpdateStatus();
+                    currentVersion = status.currentVersion || currentVersion;
+                    currentCommit = status.currentCommit || '';
                 }
-            } catch (e) { }
+                if (!cancelled) {
+                    setHasNewVersion(isReleaseUpdateAvailable(currentVersion, currentCommit, release));
+                }
+            } catch {
+                if (!cancelled) setHasNewVersion(false);
+            }
         };
-        checkUpdate();
-    }, []);
+        void checkUpdate();
+        return () => { cancelled = true; };
+    }, [userInfo]);
 
-    const handleVersionClick = () => window.open('https://github.com/TangerineSpecter/O-Doc', '_blank');
+    const handleVersionClick = () => {
+        if (hasNewVersion && onNavigate) {
+            onNavigate('settings', {tab: 'about'});
+            return;
+        }
+        window.open('https://github.com/TangerineSpecter/O-Doc', '_blank');
+    };
 
     return (
         <nav className="sticky top-0 z-[90] bg-white/80 backdrop-blur-md border-b border-slate-200">

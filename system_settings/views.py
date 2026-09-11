@@ -12,11 +12,11 @@ import requests
 from django.db import transaction
 from django.http import FileResponse, StreamingHttpResponse
 from django.utils import timezone
-from rest_framework import viewsets
+from rest_framework import status as http_status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 
 from system_settings.sync_scheduler import (
@@ -51,6 +51,13 @@ from .feishu_im import (
 )
 from .models import Agent, AgentLongTermMemory, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
 from .runtime_tracker import get_runtime_info
+from .update_service import (
+    UpdateBusyError,
+    UpdateRequestError,
+    UpdateUnsupportedError,
+    create_update_request,
+    get_public_update_status,
+)
 from .serializers import (
     AgentLongTermMemorySerializer,
     AgentRunRecordSerializer,
@@ -66,6 +73,13 @@ from .agent_views import AgentRunRecordViewSet, AgentTaskViewSet, AgentViewSet
 
 
 logger = logging.getLogger(__name__)
+
+
+class IsSuperUser(BasePermission):
+    message = '只有超级管理员可以执行系统更新'
+
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.is_superuser)
 
 
 from .mcp_skill_views import (
@@ -84,6 +98,8 @@ from .ai_views import AIModelViewSet, AIProviderViewSet, GeoLocationViewSet
 
 class SystemConfigViewSet(viewsets.ViewSet):
     def get_permissions(self):
+        if self.action == 'start_update':
+            return [IsSuperUser()]
         if self.action in {
             'get_system_mcp_config',
             'save_system_mcp_config',
@@ -98,6 +114,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
             'sync_from_webdav',
             'get_sync_history',
             'restore_sync_history',
+            'get_update_status',
         }:
             return [IsAuthenticated()]
         return super().get_permissions()
@@ -259,6 +276,28 @@ class SystemConfigViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def get_runtime_info(self, request):
         return success_result(get_runtime_info())
+
+    @action(detail=False, methods=['get'])
+    def get_update_status(self, request):
+        return success_result(get_public_update_status())
+
+    @action(detail=False, methods=['post'])
+    def start_update(self, request):
+        try:
+            result = create_update_request(
+                request.data.get('targetVersion') or request.data.get('target_version'),
+                request.data.get('targetCommit') or request.data.get('target_commit'),
+            )
+        except UpdateBusyError as exc:
+            return valid_result(msg=str(exc), status=http_status.HTTP_409_CONFLICT)
+        except UpdateUnsupportedError as exc:
+            return valid_result(msg=str(exc), status=http_status.HTTP_503_SERVICE_UNAVAILABLE)
+        except UpdateRequestError as exc:
+            return valid_result(msg=str(exc), status=http_status.HTTP_400_BAD_REQUEST)
+
+        response = success_result(result, msg='系统更新任务已提交')
+        response.status_code = http_status.HTTP_202_ACCEPTED
+        return response
 
     @action(detail=False, methods=['post'])
     def save_ai_config(self, request):

@@ -295,6 +295,39 @@ export interface RuntimeInfo {
     uptimeSeconds: number;
 }
 
+export type SystemUpdateState =
+    | 'idle'
+    | 'queued'
+    | 'pulling'
+    | 'verifyingImage'
+    | 'backingUp'
+    | 'restarting'
+    | 'healthCheck'
+    | 'succeeded'
+    | 'rolledBack'
+    | 'failed';
+
+export interface SystemUpdateStatus {
+    currentVersion: string;
+    currentCommit: string;
+    autoUpdateSupported: boolean;
+    state: SystemUpdateState;
+    targetVersion: string;
+    targetCommit: string;
+    progress: number;
+    message: string;
+    requestedAt: string;
+    startedAt: string;
+    finishedAt: string;
+    backupName: string;
+    rollbackSucceeded: boolean | null;
+}
+
+export interface StartSystemUpdateParams {
+    targetVersion: string;
+    targetCommit: string;
+}
+
 export interface GeoLocation {
     id: string;
     country: string;
