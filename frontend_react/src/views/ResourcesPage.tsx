@@ -52,8 +52,8 @@ export default function ResourcesPage() {
     const [activeTab, setActiveTab] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(''); // 防抖后的搜索词
-    const [showUnlinkedOnly, setShowUnlinkedOnly] = useState(false);
-    const [showMissingOnly, setShowMissingOnly] = useState(false);
+    const [showUnlinkedOnly, setShowUnlinkedOnly] = useState(() => new URLSearchParams(window.location.search).get('linked') === 'false');
+    const [showMissingOnly, setShowMissingOnly] = useState(() => new URLSearchParams(window.location.search).get('missing') === 'true');
 
     const [visibleData, setVisibleData] = useState<ResourceItem[]>([]);
     const [page, setPage] = useState(1);

@@ -168,6 +168,15 @@ export default function MemosPage() {
         try {
             const data = await getMemoList({keyword});
             setMemos(data);
+            const targetMemoId = new URLSearchParams(window.location.search).get('memoId');
+            const targetMemo = data.find(item => item.memoId === targetMemoId);
+            if (targetMemo) {
+                setEditingMemo(targetMemo);
+                setEditContent(targetMemo.content);
+                setEditTag(targetMemo.tag);
+                setEditPinned(targetMemo.isPinned);
+                setShowDiscardConfirm(false);
+            }
         } catch (error) {
             console.error('Failed to fetch memos', error);
             showToast('闪念加载失败', 'error');

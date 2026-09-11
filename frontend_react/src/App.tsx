@@ -16,6 +16,7 @@ import SettingsPage from './views/SettingsPage';
 import MemosPage from './views/MemosPage';
 import WhiteboardPage from './views/WhiteboardPage'
 import WhiteboardManagePage from './views/WhiteboardManagePage';
+import MaintenancePage from './views/MaintenancePage';
 import {getAuthToken} from './utils/authStorage';
 
 function hasAuthToken() {
@@ -60,6 +61,8 @@ function HomeRoute() {
             navigate(tab ? `/settings?tab=${encodeURIComponent(tab)}` : '/settings');
         } else if (viewName === 'whiteboard') { // 新增这一行
             navigate('/whiteboard');
+        } else if (viewName === 'maintenance') {
+            navigate('/maintenance');
         }
     };
 
@@ -170,6 +173,8 @@ function AppWithRouter() {
             navigate('/memos');
         } else if (viewName === 'resources') {
             navigate('/resources');
+        } else if (viewName === 'maintenance') {
+            navigate('/maintenance');
         }
     };
 
@@ -246,6 +251,13 @@ function AppWithRouter() {
                 <RequireAuth>
                     <Layout onNavigate={handleNavigate}>
                         <MemosPage/>
+                    </Layout>
+                </RequireAuth>
+            }/>
+            <Route path="/maintenance" element={
+                <RequireAuth>
+                    <Layout onNavigate={handleNavigate}>
+                        <MaintenancePage/>
                     </Layout>
                 </RequireAuth>
             }/>

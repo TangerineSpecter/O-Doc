@@ -301,8 +301,10 @@ class ArticleDetailView(APIView):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
             # 更新阅读次数
-            article.read_count += 1
-            article.save()
+            Article.objects.filter(article_id=article.article_id).update(
+                read_count=models.F('read_count') + 1
+            )
+            article.refresh_from_db(fields=['read_count'])
 
             # 序列化响应数据
             response_data = ArticleSerializer(article).data

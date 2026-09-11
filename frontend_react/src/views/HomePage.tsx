@@ -7,6 +7,7 @@ import { useCollections } from '../hooks/useCollections'; // 引入新 Hook
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useAuth } from '../contexts/AuthContext';
+import MaintenanceSummary from '../components/Maintenance/MaintenanceSummary';
 
 interface HomePageProps {
     onNavigate: (viewName: string, params?: any) => void;
@@ -140,6 +141,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             )}
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                {isAuthenticated && <MaintenanceSummary onOpen={() => onNavigate('maintenance')}/>}
                 {/* 过滤和排序 */}
                 <div
                     className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-white p-3 rounded-xl shadow-sm border border-slate-100">

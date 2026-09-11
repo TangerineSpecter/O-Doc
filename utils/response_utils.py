@@ -22,18 +22,19 @@ def success_result(data=None, msg=ErrorCode.SUCCESS.message, ):
     })
 
 
-def valid_result(msg=ErrorCode.PARAM_ERROR.message, data=None):
+def valid_result(msg=ErrorCode.PARAM_ERROR.message, data=None, status=None):
     """
     统一的错误响应格式化函数
     :param msg: 错误信息
     :param data: 错误附加数据
+    :param status: 可选 HTTP 状态码
     :return: JsonResponse
     """
     return Response({
         'code': ErrorCode.PARAM_ERROR.code,
         'msg': msg,
         'data': data
-    })
+    }, status=status)
 
 
 def error_result(error: ErrorCode = ErrorCode.PARAM_ERROR, data=None, status=None):

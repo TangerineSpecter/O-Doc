@@ -253,10 +253,10 @@ export const SortableCollectionCard = ({
                             title="查看图片文集"
                         >
                             {imagePreviews.map((image, idx) => {
-                                const imageUrl = image.imageUrl || image.image_url;
+                                const imageUrl = image.imageUrl;
                                 return (
                                     <div
-                                        key={image.imageId || image.image_id || image.title || idx}
+                                        key={image.imageId || image.title || idx}
                                         className="relative h-full aspect-square shrink-0 overflow-hidden rounded-md border border-slate-200/80 bg-slate-100 shadow-sm transition-transform duration-300 group-hover/gallery:-translate-y-0.5"
                                     >
                                         {imageUrl ? (

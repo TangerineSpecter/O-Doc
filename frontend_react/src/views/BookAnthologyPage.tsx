@@ -961,7 +961,21 @@ function Reader({book, onClose, onProgressSaved}: {book: BookItem; onClose: () =
 export default function BookAnthologyPage({collId, onNavigate}: Props) {
     const toast = useToast(); const inputRef = useRef<HTMLInputElement>(null); const repairInputRef = useRef<HTMLInputElement>(null);
     const [books, setBooks] = useState<BookItem[]>([]); const [loading, setLoading] = useState(true); const [selected, setSelected] = useState<BookItem | null>(null); const [reading, setReading] = useState<BookItem | null>(null); const [releaseCandidate, setReleaseCandidate] = useState<BookItem | null>(null); const [deleteCandidate, setDeleteCandidate] = useState<BookItem | null>(null); const [repairCandidate, setRepairCandidate] = useState<BookItem | null>(null); const [isActionLoading, setIsActionLoading] = useState(false); const [isDraggingBooks, setIsDraggingBooks] = useState(false); const [isImporting, setIsImporting] = useState(false);
-    const reload = async () => { if (!collId) return; setLoading(true); try { setBooks(await getBooks(collId)); } catch { toast.error('获取书架失败'); } finally { setLoading(false); } };
+    const reload = async () => {
+        if (!collId) return;
+        setLoading(true);
+        try {
+            const loadedBooks = await getBooks(collId);
+            setBooks(loadedBooks);
+            const targetBookId = new URLSearchParams(window.location.search).get('bookId');
+            const targetBook = loadedBooks.find(book => book.bookId === targetBookId);
+            if (targetBook) setSelected(targetBook);
+        } catch {
+            toast.error('获取书架失败');
+        } finally {
+            setLoading(false);
+        }
+    };
     useEffect(() => { reload(); }, [collId]);
     useEffect(() => {
         if (!selected || releaseCandidate || deleteCandidate || repairCandidate) return;

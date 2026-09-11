@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useRef} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Tag, FolderOpen, PenTool, BarChart2, Library, Leaf, StickyNote} from 'lucide-react';
+import {Tag, FolderOpen, PenTool, BarChart2, Library, Leaf, StickyNote, HeartPulse} from 'lucide-react';
 
 // --- 右下角 导航菜单组件 ---
 
@@ -45,6 +45,13 @@ export default function FloatingActionMenu() {
     const RADIUS_NEAR = 85;  // 内圈
 
     const menuItems: MenuItem[] = [
+        {
+            id: 'maintenance',
+            label: '知识维护',
+            icon: <HeartPulse className="w-5 h-5"/>,
+            color: 'bg-lime-500',
+            shadow: 'shadow-lime-500/40'
+        },
         {
             id: 'stats',
             label: '数据统计',
@@ -98,6 +105,7 @@ export default function FloatingActionMenu() {
         else if (item.id === 'categories') navigate('/categories');
         else if (item.id === 'memos') navigate('/memos');
         else if (item.id === 'whiteboard') navigate('/whiteboard');
+        else if (item.id === 'maintenance') navigate('/maintenance');
         setIsOpen(false);
     };
 
