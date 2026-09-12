@@ -95,6 +95,7 @@ export type SaveAgentLongTermMemoryParams = Pick<AgentLongTermMemoryConfig, 'mem
 export type AgentTaskScheduleType = 'daily' | 'weekly' | 'monthly' | 'interval';
 export type AgentTaskNotifyPlatform = 'feishu';
 export type AgentTaskExecutionMode = 'parallel' | 'serial';
+export type AgentTaskFollowupAction = 'review' | 'continue_research';
 export type AgentRunStatus = 'success' | 'failed' | 'running';
 export type AgentRunStepStatus = AgentRunStatus | 'info';
 
@@ -118,6 +119,10 @@ export interface AgentTaskConfig {
     notifyEnabled: boolean;
     notifyPlatform: AgentTaskNotifyPlatform;
     notifyWebhookUrl: string;
+    followupEnabled: boolean;
+    followupAgent: string | null;
+    followupAction: AgentTaskFollowupAction;
+    followupPrompt: string;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -140,8 +145,59 @@ export interface AgentRunRecordConfig {
     summary: string;
     output?: string;
     steps?: AgentRunStepConfig[];
+    parentRecord?: string | null;
+    sourceAgent?: string | null;
+    followupDepth?: number;
     createdAt?: string;
     updatedAt?: string;
+}
+
+export type AgentActivityType = 'work' | 'publication' | 'interaction';
+
+export interface AgentActivityArtifact {
+    kind: 'agentPost' | 'articleComment' | 'articleAnnotation';
+    id: string;
+    articleId: string;
+    collId: string;
+    title: string;
+}
+
+export interface AgentActivity {
+    id: string;
+    type: AgentActivityType;
+    status: AgentRunStatus;
+    agent: Pick<AgentConfig, 'id' | 'name' | 'avatar'>;
+    title: string;
+    summary: string;
+    currentAction?: string;
+    occurredAt: string;
+    runRecordId?: string | null;
+    outputPreview?: string;
+    artifact?: AgentActivityArtifact | null;
+}
+
+export interface AgentWorldAgentStatus {
+    id: string;
+    name: string;
+    avatar: string;
+    status: 'running' | 'idle';
+    currentAction: string;
+    latestTitle: string;
+    todayCount: number;
+}
+
+export interface AgentActivityListResult {
+    items: AgentActivity[];
+    nextCursor?: string | null;
+    hasMore: boolean;
+}
+
+export interface AgentWorldSummary {
+    todayActivityCount: number;
+    todayWorkCount: number;
+    activeAgentCount: number;
+    latest: AgentActivity[];
+    agents: AgentWorldAgentStatus[];
 }
 
 export interface AgentRunStepConfig {

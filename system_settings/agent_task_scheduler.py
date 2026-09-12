@@ -10,10 +10,11 @@ from datetime import timedelta
 import re
 
 from django.contrib.auth import get_user_model
-from django.db import OperationalError, ProgrammingError, close_old_connections, transaction
+from django.db import IntegrityError, OperationalError, ProgrammingError, close_old_connections, transaction
 from django.utils import timezone
 
 from ai_assistant.prompts import CHAT_SYSTEM_PROMPT
+from article.models import Article
 from utils.ai_service import AIAuthenticationError, AIService
 from utils.mcp_client import (
     call_mcp_tool,
@@ -21,7 +22,8 @@ from utils.mcp_client import (
     hide_agent_identity_parameters,
 )
 from .builtin_skills import AGENT_POST_MARKDOWN_SKILL_KEY, read_agent_post_markdown_guide
-from .models import Agent, AgentRunRecord, AgentTask, MCPServer, Skill, SystemSetting
+from .agent_activity import create_work_activity, friendly_tool_action, record_tool_activity, update_work_activity
+from .models import Agent, AgentActivity, AgentRunRecord, AgentTask, MCPServer, Skill, SystemSetting
 from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial_delay_seconds
 
 logger = logging.getLogger(__name__)
@@ -152,7 +154,7 @@ class AgentTaskScheduler:
             close_old_connections()
 
     def _is_due(self, task, now):
-        last_record = AgentRunRecord.objects.filter(task=task).order_by('-started_at').first()
+        last_record = AgentRunRecord.objects.filter(task=task, followup_depth=0).order_by('-started_at').first()
         last_started_at = _to_local(last_record.started_at) if last_record else None
 
         if task.schedule_type == 'interval':
@@ -202,10 +204,21 @@ class AgentTaskScheduler:
 
         return None
 
-    def _run_task(self, task, trigger='scheduler'):
+    def _run_task(
+            self,
+            task,
+            trigger='scheduler',
+            agents_override=None,
+            parent_record=None,
+            source_agent=None,
+            followup_depth=0,
+            prompt_override='',
+            task_name_override='',
+    ):
         started = timezone.now()
-        agents = self._get_task_agents(task)
+        agents = agents_override if agents_override is not None else self._get_task_agents(task)
         primary_agent = agents[0] if agents else None
+        task_name = task_name_override or task.name
         agent_runs = [
             {
                 'agent': agent.id,
@@ -220,13 +233,16 @@ class AgentTaskScheduler:
         ]
         record = AgentRunRecord.objects.create(
             task=task,
-            task_name=task.name,
+            task_name=task_name,
             agent=primary_agent,
             agent_name=self._format_agent_names(agents),
             agent_runs=agent_runs,
             trigger=trigger,
             status='running',
             summary='任务开始执行',
+            parent_record=parent_record,
+            source_agent=source_agent,
+            followup_depth=followup_depth,
             started_at=started,
             steps=[],
         )
@@ -244,10 +260,12 @@ class AgentTaskScheduler:
             )
 
             run_results = []
-            if mode == 'serial':
+            if mode == 'serial' or len(agents) == 1:
                 previous_content = ''
                 for index, agent in enumerate(agents):
-                    result = self._run_task_for_agent(record, task, agent, previous_content=previous_content)
+                    result = self._run_task_for_agent(
+                        record, task, agent, previous_content=previous_content, prompt_override=prompt_override,
+                    )
                     run_results.append(result)
                     if result['status'] != 'success':
                         for skipped_agent in agents[index + 1:]:
@@ -271,7 +289,7 @@ class AgentTaskScheduler:
                 def runner(agent):
                     try:
                         close_old_connections()
-                        result = self._run_task_for_agent(record, task, agent)
+                        result = self._run_task_for_agent(record, task, agent, prompt_override=prompt_override)
                     except Exception as exc:
                         result = {
                             'agent': agent.id,
@@ -316,6 +334,8 @@ class AgentTaskScheduler:
             )
             _scheduler_log(f"task {record.status}: id={task.id}, name={task.name}")
             logger.info('Agent task finished: %s', task.id)
+            if followup_depth == 0:
+                self._run_configured_followups(task, record, run_results)
         except Exception as exc:
             duration_seconds = max(0, int((timezone.now() - started).total_seconds()))
             record.status = 'failed'
@@ -325,19 +345,39 @@ class AgentTaskScheduler:
             self._append_run_step(record, 'failed', '执行失败', str(exc)[:500])
             _scheduler_log(f"task failed: id={task.id}, name={task.name}, error={exc}")
             logger.exception('Agent task failed: %s', task.id)
+        return record
 
-    def _run_task_for_agent(self, record, task, agent, previous_content=''):
+    def _run_task_for_agent(self, record, task, agent, previous_content='', prompt_override=''):
         agent_started = timezone.now()
+        create_work_activity(record, agent)
         self._append_agent_run_step(record, agent.id, 'running', '开始执行', f"Agent：{agent.name}")
         try:
             self._append_agent_run_step(record, agent.id, 'info', '装载 Agent', f"Agent：{agent.name}")
             tool_context = self._append_agent_context_steps(record, task, agent=agent)
             self._append_agent_run_step(record, agent.id, 'running', '调用 AI 生成内容', '正在根据任务提示词生成最终内容')
+            update_work_activity(record, agent, current_action='正在整理任务和已有资料')
             if tool_context['tools']:
+                tool_sequence = {'value': 0}
+
+                def execute_tool(tool_name, arguments):
+                    entry = tool_context['tool_map'].get(tool_name) or {}
+                    original_name = entry.get('tool_name') or tool_name
+                    update_work_activity(record, agent, current_action=friendly_tool_action(original_name))
+                    result = self._execute_mcp_tool(tool_context, tool_name, arguments)
+                    tool_sequence['value'] += 1
+                    record_tool_activity(record, agent, original_name, result, tool_sequence['value'])
+                    return result
+
                 content = AIService.chat_completion_with_tools(
-                    self._build_prompt(task, has_mcp_tools=True, agent=agent, previous_content=previous_content),
+                    self._build_prompt(
+                        task,
+                        has_mcp_tools=True,
+                        agent=agent,
+                        previous_content=previous_content,
+                        prompt_override=prompt_override,
+                    ),
                     tool_context['tools'],
-                    lambda tool_name, arguments: self._execute_mcp_tool(tool_context, tool_name, arguments),
+                    execute_tool,
                     on_tool_call=lambda tool_name, arguments: self._append_agent_run_step(
                         record,
                         agent.id,
@@ -349,13 +389,18 @@ class AgentTaskScheduler:
                 )
             else:
                 content = AIService.chat_completion_messages(
-                    [{"role": "user", "content": self._build_prompt(task, agent=agent, previous_content=previous_content)}],
+                    [{"role": "user", "content": self._build_prompt(
+                        task, agent=agent, previous_content=previous_content, prompt_override=prompt_override,
+                    )}],
                     model_id=agent.model_id,
                 )
             self._append_agent_run_step(record, agent.id, 'success', 'AI 内容生成完成', f"生成内容长度：{len(content or '')} 字符")
             summary = self._build_completion_summary(content)
             duration = self._format_duration(max(0, int((timezone.now() - agent_started).total_seconds())))
             self._finish_agent_run(record, agent.id, 'success', summary, duration, content or '')
+            update_work_activity(
+                record, agent, status='success', summary=summary, current_action='任务执行完成', output=content or '',
+            )
             self._append_agent_run_step(record, agent.id, 'success', '执行结束', f"耗时：{duration}")
             return {
                 'agent': agent.id,
@@ -371,6 +416,7 @@ class AgentTaskScheduler:
             duration = self._format_duration(max(0, int((timezone.now() - agent_started).total_seconds())))
             self._append_agent_run_step(record, agent.id, 'failed', 'API Key 已失效', summary)
             self._finish_agent_run(record, agent.id, 'failed', summary, duration, '')
+            update_work_activity(record, agent, status='failed', summary=summary, current_action='模型认证失败')
             notified = self._notify_provider_auth_failure_once(exc)
             _scheduler_log(
                 f"agent blocked by invalid API key: agent={agent.id}, task={task.id}, "
@@ -390,6 +436,13 @@ class AgentTaskScheduler:
             duration = self._format_duration(max(0, int((timezone.now() - agent_started).total_seconds())))
             self._append_agent_run_step(record, agent.id, 'failed', '执行失败', str(exc)[:500])
             self._finish_agent_run(record, agent.id, 'failed', summary, duration, '')
+            update_work_activity(
+                record,
+                agent,
+                status='failed',
+                summary='任务执行失败，请到执行记录查看详情',
+                current_action='执行遇到问题',
+            )
             logger.exception('Agent task failed for agent %s: %s', agent.id, task.id)
             return {
                 'agent': agent.id,
@@ -400,6 +453,88 @@ class AgentTaskScheduler:
                 'duration': duration,
                 'content': '',
             }
+
+    def _run_configured_followups(self, task, record, results):
+        if not task.followup_enabled or not task.followup_agent_id:
+            return
+        target_agent = Agent.objects.filter(id=task.followup_agent_id).first()
+        if not target_agent:
+            return
+
+        for result in results:
+            if result.get('status') != 'success':
+                continue
+            source_agent = Agent.objects.filter(id=result.get('agent')).first()
+            if not source_agent or source_agent.id == target_agent.id:
+                continue
+            if AgentRunRecord.objects.filter(
+                parent_record=record,
+                source_agent=source_agent,
+                agent=target_agent,
+                followup_depth=1,
+            ).exists():
+                continue
+
+            prompt, task_name = self._build_followup_prompt(task, record, source_agent, result)
+            if not prompt:
+                continue
+            try:
+                self._run_task(
+                    task,
+                    trigger='后续任务',
+                    agents_override=[target_agent],
+                    parent_record=record,
+                    source_agent=source_agent,
+                    followup_depth=1,
+                    prompt_override=prompt,
+                    task_name_override=task_name,
+                )
+            except IntegrityError:
+                logger.info(
+                    'Skipped duplicate follow-up: record=%s, source=%s, target=%s',
+                    record.id,
+                    source_agent.id,
+                    target_agent.id,
+                )
+
+    @staticmethod
+    def _build_followup_prompt(task, record, source_agent, result):
+        extra = str(task.followup_prompt or '').strip()
+        if task.followup_action == 'review':
+            publication = AgentActivity.objects.filter(
+                run_record=record,
+                agent=source_agent,
+                activity_type='publication',
+            ).order_by('-occurred_at').first()
+            if not publication or not publication.artifact_article_id:
+                return '', ''
+            article = Article.objects.filter(
+                article_id=publication.artifact_article_id,
+                is_valid=True,
+            ).first()
+            if not article:
+                return '', ''
+            prompt = (
+                f'请评价 {source_agent.name} 刚发布的作品《{article.title}》。\n'
+                f'文章 ID：{article.article_id}\n文集 ID：{article.coll_id}\n\n'
+                f'正文：\n{article.content[:12000]}\n\n'
+                '请给出有角色立场、有具体依据的评价；如果已装载评论工具，请把评价发布到这篇作品下。'
+            )
+            if extra:
+                prompt += f'\n\n补充要求：{extra}'
+            return prompt, f'评价《{article.title}》'
+
+        content = str(result.get('content') or '').strip()
+        if not content:
+            return '', ''
+        prompt = (
+            f'请基于 {source_agent.name} 的调查结果继续深入，不要简单复述。'
+            '优先寻找遗漏、矛盾、新证据或可继续验证的问题；有值得发布的成果时可使用已有工具发布。\n\n'
+            f'前序结果：\n{content[:12000]}'
+        )
+        if extra:
+            prompt += f'\n\n补充要求：{extra}'
+        return prompt, f'继续调查「{record.task_name}」'
 
     @staticmethod
     def _notify_provider_auth_failure_once(error):
@@ -522,6 +657,12 @@ class AgentTaskScheduler:
             record.duration = self._format_duration(duration_seconds)
             record.summary = '服务重启或进程中断，执行状态已自动收敛'
             record.save(update_fields=['status', 'duration', 'summary', 'updated_at'])
+            AgentActivity.objects.filter(run_record=record, activity_type='work', status='running').update(
+                status='failed',
+                summary='任务因服务重启或进程中断而停止，请到执行记录查看详情',
+                current_action='执行已中断',
+                updated_at=timezone.now(),
+            )
             self._append_run_step(
                 record,
                 'failed',
@@ -689,7 +830,7 @@ class AgentTaskScheduler:
             outputs.append(f"## {agent_name}\n\n{content}")
         return "\n\n---\n\n".join(outputs)
 
-    def _build_prompt(self, task, has_mcp_tools=False, agent=None, previous_content=''):
+    def _build_prompt(self, task, has_mcp_tools=False, agent=None, previous_content='', prompt_override=''):
         agent = agent or task.agent
         now = _local_now()
         today = now.strftime('%Y-%m-%d')
@@ -722,7 +863,7 @@ class AgentTaskScheduler:
             + "如果任务里出现“今天”“今日”“最新”等相对时间，必须按上述当前日期理解，不要使用其他年份。\n"
             + ("当前 Agent 绑定了 MCP Tools。凡是任务需要外部实时信息、搜索、读取链接或操作外部系统时，必须先调用合适的 Tool；如果 Tool 调用失败，不要编造结果。\n" if has_mcp_tools else "")
             + f"任务名称：{task.name}\n"
-            + f"任务提示词：{task.prompt or '请根据 Agent 职责完成本次任务。'}"
+            + f"任务提示词：{prompt_override or task.prompt or '请根据 Agent 职责完成本次任务。'}"
         )
         return "\n\n".join(parts)
 

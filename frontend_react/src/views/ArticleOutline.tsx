@@ -232,6 +232,13 @@ function AgentPostCollectionView({
         loadPostDetail();
     }, [loadPostDetail]);
 
+    useEffect(() => {
+        if (commentsLoading || !window.location.hash.startsWith('#comment-')) return;
+        const targetId = decodeURIComponent(window.location.hash.slice('#comment-'.length));
+        const target = document.getElementById(`comment-${targetId}`);
+        target?.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }, [comments, commentsLoading]);
+
     const confirmDeletePost = async () => {
         if (!deleteTarget) return;
         try {
@@ -435,7 +442,7 @@ function AgentPostCollectionView({
                                 ) : comments.length > 0 ? (
                                     <div className="space-y-4">
                                         {comments.map(comment => (
-                                            <div key={comment.commentId} className="flex gap-3 rounded-lg bg-slate-50 px-3 py-3">
+                                            <div id={`comment-${comment.commentId}`} key={comment.commentId} className="flex scroll-mt-24 gap-3 rounded-lg bg-slate-50 px-3 py-3">
                                                 <AgentAvatar name={comment.creatorName} avatar={comment.creatorAvatar} />
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">

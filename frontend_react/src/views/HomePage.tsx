@@ -8,6 +8,7 @@ import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, us
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useAuth } from '../contexts/AuthContext';
 import MaintenanceSummary from '../components/Maintenance/MaintenanceSummary';
+import AgentWorldSummary from '../components/AgentWorld/AgentWorldSummary';
 
 interface HomePageProps {
     onNavigate: (viewName: string, params?: any) => void;
@@ -140,11 +141,14 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                 />
             )}
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                {isAuthenticated && <MaintenanceSummary onOpen={() => onNavigate('maintenance')}/>}
-                {/* 过滤和排序 */}
-                <div
-                    className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-white p-3 rounded-xl shadow-sm border border-slate-100">
+            <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+                {isAuthenticated && <AgentWorldSummary onOpen={() => onNavigate('agentWorld')}/>}
+                <div>
+                    {isAuthenticated && <MaintenanceSummary onOpen={() => onNavigate('maintenance')}/>}
+                    <div className="min-w-0">
+                        {/* 过滤和排序 */}
+                        <div
+                            className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-white p-3 rounded-xl shadow-sm border border-slate-100">
                     <div className="relative">
                         <button
                             className="flex items-center gap-2 text-slate-700 font-semibold text-base hover:text-orange-600 transition-colors pl-2"
@@ -307,7 +311,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                     </div>
                 )}
 
-                <div className="mt-8 flex justify-center pb-8">
+                        <div className="mt-8 flex justify-center pb-8">
                     {isLoadingMore ? (
                         <div
                             className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full shadow-sm text-xs text-slate-600">
@@ -320,6 +324,8 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                         <div className="text-xs text-slate-400 font-medium bg-slate-100/50 px-4 py-1.5 rounded-full">—
                             已经到底了，暂无更多内容 —</div>
                     ) : null}
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>

@@ -17,6 +17,7 @@ import MemosPage from './views/MemosPage';
 import WhiteboardPage from './views/WhiteboardPage'
 import WhiteboardManagePage from './views/WhiteboardManagePage';
 import MaintenancePage from './views/MaintenancePage';
+import AgentWorldPage from './views/AgentWorldPage';
 import {getAuthToken} from './utils/authStorage';
 
 function hasAuthToken() {
@@ -63,6 +64,8 @@ function HomeRoute() {
             navigate('/whiteboard');
         } else if (viewName === 'maintenance') {
             navigate('/maintenance');
+        } else if (viewName === 'agentWorld') {
+            navigate('/agent-world');
         }
     };
 
@@ -175,6 +178,8 @@ function AppWithRouter() {
             navigate('/resources');
         } else if (viewName === 'maintenance') {
             navigate('/maintenance');
+        } else if (viewName === 'agentWorld') {
+            navigate('/agent-world');
         }
     };
 
@@ -258,6 +263,13 @@ function AppWithRouter() {
                 <RequireAuth>
                     <Layout onNavigate={handleNavigate}>
                         <MaintenancePage/>
+                    </Layout>
+                </RequireAuth>
+            }/>
+            <Route path="/agent-world" element={
+                <RequireAuth>
+                    <Layout onNavigate={handleNavigate}>
+                        <AgentWorldPage/>
                     </Layout>
                 </RequireAuth>
             }/>

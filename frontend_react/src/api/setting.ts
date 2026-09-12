@@ -8,8 +8,12 @@ import type {
     SaveAgentLongTermMemoryParams,
     AgentConfig,
     AgentRunRecordConfig,
+    AgentActivityListResult,
+    AgentActivityType,
+    AgentWorldSummary,
     AgentTaskConfig,
     AgentTaskExecutionMode,
+    AgentTaskFollowupAction,
     AgentTaskNotifyPlatform,
     AgentTaskScheduleType,
     MCPServerConfig,
@@ -51,6 +55,7 @@ export type {
     AgentRunRecordConfig,
     AgentTaskConfig,
     AgentTaskExecutionMode,
+    AgentTaskFollowupAction,
     AgentTaskNotifyPlatform,
     AgentTaskScheduleType,
     MCPServerConfig,
@@ -214,6 +219,17 @@ export const deleteAgentTask = (id: string) => request.delete(`/settings/agent-t
 export const runAgentTaskNow = (id: string) => request.post(`/settings/agent-tasks/${id}/run_now/`);
 
 export const getAgentRunRecords = () => request.get<AgentRunRecordConfig[]>('/settings/agent-run-records/');
+
+export const getAgentRunRecord = (id: string) => request.get<unknown, AgentRunRecordConfig>(`/settings/agent-run-records/${id}/`);
+
+export const getAgentActivities = (params: {
+    cursor?: string;
+    limit?: number;
+    agent?: string;
+    type?: AgentActivityType;
+} = {}, signal?: AbortSignal) => request.get<unknown, AgentActivityListResult>('/settings/agent-activities/', {params, signal});
+
+export const getAgentWorldSummary = (signal?: AbortSignal) => request.get<unknown, AgentWorldSummary>('/settings/agent-activities/today-summary/', {signal});
 
 export const getMCPServers = () => request.get<MCPServerConfig[]>('/settings/mcp-servers/');
 

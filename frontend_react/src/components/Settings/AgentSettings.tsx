@@ -30,6 +30,7 @@ import type {
     AgentMemoryType,
     AgentRunRecordConfig,
     AgentTaskExecutionMode,
+    AgentTaskFollowupAction,
     AgentTaskConfig,
     AgentTaskNotifyPlatform,
     AgentTaskScheduleType,
@@ -92,6 +93,10 @@ type AgentTaskForm = {
     notifyEnabled: boolean;
     notifyPlatform: AgentTaskNotifyPlatform;
     notifyWebhookUrl: string;
+    followupEnabled: boolean;
+    followupAgent: string;
+    followupAction: AgentTaskFollowupAction;
+    followupPrompt: string;
 };
 
 const DEFAULT_PROMPT = '你是一个专注、可靠的文档协作 Agent。请根据用户目标主动拆解任务，保持回答清晰，并在需要时说明你的假设。';
@@ -189,6 +194,10 @@ export const AgentSettings = ({
         notifyEnabled: false,
         notifyPlatform: 'feishu',
         notifyWebhookUrl: '',
+        followupEnabled: false,
+        followupAgent: '',
+        followupAction: 'review',
+        followupPrompt: '',
     });
     const {
         memoryModalAgent,
@@ -233,6 +242,10 @@ export const AgentSettings = ({
     ];
     const notifyPlatformOptions: SettingsSelectOption<AgentTaskNotifyPlatform>[] = [
         {value: 'feishu', label: '飞书机器人', description: '通过飞书自定义机器人 Webhook 发送文本消息'},
+    ];
+    const followupActionOptions: SettingsSelectOption<AgentTaskFollowupAction>[] = [
+        {value: 'review', label: '评价最新作品', description: '仅当来源 Agent 本次成功发布作品时触发'},
+        {value: 'continue_research', label: '继续调查', description: '基于来源 Agent 的输出寻找新证据和遗漏'},
     ];
     const memoryTypeOptions: SettingsSelectOption<AgentMemoryType>[] = [
         {value: 'preference', label: '偏好'},
@@ -312,6 +325,10 @@ export const AgentSettings = ({
             notifyEnabled: false,
             notifyPlatform: 'feishu',
             notifyWebhookUrl: '',
+            followupEnabled: false,
+            followupAgent: '',
+            followupAction: 'review',
+            followupPrompt: '',
         });
         setTaskModalOpen(true);
     };
@@ -335,6 +352,10 @@ export const AgentSettings = ({
             notifyEnabled: task.notifyEnabled ?? false,
             notifyPlatform: task.notifyPlatform || 'feishu',
             notifyWebhookUrl: task.notifyWebhookUrl || '',
+            followupEnabled: task.followupEnabled ?? false,
+            followupAgent: task.followupAgent || '',
+            followupAction: task.followupAction || 'review',
+            followupPrompt: task.followupPrompt || '',
         });
         setTaskModalOpen(true);
     };
@@ -410,6 +431,14 @@ export const AgentSettings = ({
             toast.warning('请填写通知 Webhook 地址');
             return;
         }
+        if (taskForm.followupEnabled && !taskForm.followupAgent) {
+            toast.warning('请选择完成后接手的 Agent');
+            return;
+        }
+        if (taskForm.followupEnabled && taskForm.agents.includes(taskForm.followupAgent)) {
+            toast.warning('后续 Agent 不能与主执行 Agent 重复');
+            return;
+        }
 
         const success = await onSaveTask({
             id: taskForm.id,
@@ -429,6 +458,10 @@ export const AgentSettings = ({
             notifyEnabled: taskForm.notifyEnabled,
             notifyPlatform: taskForm.notifyPlatform,
             notifyWebhookUrl: taskForm.notifyEnabled ? taskForm.notifyWebhookUrl.trim() : '',
+            followupEnabled: taskForm.followupEnabled,
+            followupAgent: taskForm.followupEnabled ? taskForm.followupAgent : null,
+            followupAction: taskForm.followupAction,
+            followupPrompt: taskForm.followupEnabled ? taskForm.followupPrompt.trim() : '',
         });
         if (success) setTaskModalOpen(false);
     };
@@ -690,6 +723,12 @@ export const AgentSettings = ({
                                             <span className="inline-flex items-center gap-1 rounded-lg border border-violet-100 bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">
                                                 <BellRing className="h-3 w-3"/>
                                                 飞书通知
+                                            </span>
+                                        )}
+                                        {task.followupEnabled && (
+                                            <span className="inline-flex items-center gap-1 rounded-lg border border-orange-100 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700">
+                                                <Repeat2 className="h-3 w-3"/>
+                                                {task.followupAction === 'continue_research' ? '自动续查' : '自动互评'}
                                             </span>
                                         )}
 	                                    </div>
@@ -1253,6 +1292,65 @@ export const AgentSettings = ({
                                                 onChange={event => setTaskForm({...taskForm, notifyWebhookUrl: event.target.value})}
                                                 placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
                                                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+
+                            <div className="rounded-xl border border-orange-100 bg-orange-50/50 px-4 py-3">
+                                <label className="flex cursor-pointer items-center justify-between gap-4">
+                                    <div className="flex items-start gap-3">
+                                        <div className="mt-0.5 rounded-lg bg-white p-2 text-orange-600 shadow-sm ring-1 ring-orange-100">
+                                            <Repeat2 className="h-4 w-4"/>
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-semibold text-slate-700">完成后交给另一位 Agent</div>
+                                            <div className="mt-0.5 text-xs text-slate-500">自动互评或续查一次，不会继续触发第二层后续任务</div>
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={taskForm.followupEnabled}
+                                        onChange={event => setTaskForm({...taskForm, followupEnabled: event.target.checked})}
+                                        className="peer sr-only"
+                                    />
+                                    <span className="relative h-6 w-11 shrink-0 rounded-full bg-slate-200 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-orange-500 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/20"></span>
+                                </label>
+
+                                {taskForm.followupEnabled && (
+                                    <div className="mt-4 space-y-4 border-t border-orange-100 pt-4">
+                                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-slate-700">后续 Agent</label>
+                                                <SettingsSelect
+                                                    value={taskForm.followupAgent}
+                                                    options={taskAgentOptions.filter(option => !taskForm.agents.includes(option.value))}
+                                                    onChange={followupAgent => setTaskForm({...taskForm, followupAgent})}
+                                                    placeholder="选择一位不同的 Agent"
+                                                    buttonClassName="bg-white"
+                                                    showSelectedDescription={false}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-slate-700">后续动作</label>
+                                                <SettingsSelect
+                                                    value={taskForm.followupAction}
+                                                    options={followupActionOptions}
+                                                    onChange={followupAction => setTaskForm({...taskForm, followupAction})}
+                                                    buttonClassName="bg-white"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-slate-700">补充要求 <span className="font-normal text-slate-400">可选</span></label>
+                                            <textarea
+                                                value={taskForm.followupPrompt}
+                                                onChange={event => setTaskForm({...taskForm, followupPrompt: event.target.value})}
+                                                rows={3}
+                                                placeholder="例如：重点从用户体验和长期价值角度提出不同意见"
+                                                className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                                             />
                                         </div>
                                     </div>

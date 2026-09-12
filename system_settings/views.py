@@ -69,7 +69,7 @@ from .serializers import (
     SkillSerializer,
     GeoLocationSerializer,
 )
-from .agent_views import AgentRunRecordViewSet, AgentTaskViewSet, AgentViewSet
+from .agent_views import AgentActivityViewSet, AgentRunRecordViewSet, AgentTaskViewSet, AgentViewSet
 
 
 logger = logging.getLogger(__name__)

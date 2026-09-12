@@ -300,6 +300,17 @@ export default function Article({
     }, [loadAnnotations]);
 
     useEffect(() => {
+        if (annotationLoading || !window.location.hash.startsWith('#annotation-')) return;
+        const targetId = decodeURIComponent(window.location.hash.slice('#annotation-'.length));
+        if (!annotations.some(annotation => annotation.annotationId === targetId)) return;
+        setIsAnnotationDrawerOpen(true);
+        const timer = window.setTimeout(() => {
+            document.getElementById(`annotation-${targetId}`)?.scrollIntoView({behavior: 'smooth', block: 'center'});
+        }, 50);
+        return () => window.clearTimeout(timer);
+    }, [annotations, annotationLoading]);
+
+    useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key !== 'Escape') return;
             if (activeAnnotationId) {
@@ -1066,7 +1077,7 @@ export default function Article({
                                         暂无划线评论
                                     </div>
                                 ) : annotations.map(annotation => (
-                                    <div key={annotation.annotationId} className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm last:mb-0">
+                                    <div id={`annotation-${annotation.annotationId}`} key={annotation.annotationId} className="mb-4 scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm last:mb-0">
                                         <div className="mb-3 flex items-start justify-between gap-3">
                                             <div className="min-w-0">
                                                 <div className="line-clamp-3 text-sm font-semibold leading-6 text-slate-800">{annotation.selectedText}</div>

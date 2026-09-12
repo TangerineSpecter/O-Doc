@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     AgentRunRecordViewSet,
+    AgentActivityViewSet,
     AgentTaskViewSet,
     AgentViewSet,
     AIProviderViewSet,
@@ -19,6 +20,7 @@ router.register(r'models', AIModelViewSet)
 router.register(r'agents', AgentViewSet)
 router.register(r'agent-tasks', AgentTaskViewSet)
 router.register(r'agent-run-records', AgentRunRecordViewSet)
+router.register(r'agent-activities', AgentActivityViewSet)
 router.register(r'mcp-servers', MCPServerViewSet)
 router.register(r'skills', SkillViewSet)
 router.register(r'locations', GeoLocationViewSet)

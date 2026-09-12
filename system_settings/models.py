@@ -13,6 +13,7 @@ from utils.id_generator import (
     generate_agent_short_term_memory_id,
     generate_agent_task_id,
     generate_agent_run_id,
+    generate_agent_activity_id,
     generate_mcp_server_id,
     generate_skill_id,
     generate_location_id,
@@ -585,6 +586,11 @@ class AgentTask(models.Model):
         ('serial', '串行执行'),
     ]
 
+    FOLLOWUP_ACTIONS = [
+        ('review', '评价作品'),
+        ('continue_research', '继续调查'),
+    ]
+
     id = models.CharField(
         max_length=40,
         primary_key=True,
@@ -614,6 +620,24 @@ class AgentTask(models.Model):
     notify_enabled = models.BooleanField(default=False, verbose_name='是否通知', db_comment='任务完成后是否发送 Webhook 通知')
     notify_platform = models.CharField(max_length=20, choices=NOTIFY_PLATFORMS, default='feishu', verbose_name='通知平台', db_comment='Webhook 通知平台')
     notify_webhook_url = models.CharField(max_length=500, blank=True, default='', verbose_name='通知 Webhook', db_comment='Webhook 地址')
+    followup_enabled = models.BooleanField(default=False, verbose_name='启用后续任务', db_comment='主任务完成后是否触发后续 Agent')
+    followup_agent = models.ForeignKey(
+        Agent,
+        related_name='followup_tasks',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name='后续 Agent',
+        db_comment='后续执行 Agent ID',
+    )
+    followup_action = models.CharField(
+        max_length=30,
+        choices=FOLLOWUP_ACTIONS,
+        default='review',
+        verbose_name='后续动作',
+        db_comment='后续动作类型',
+    )
+    followup_prompt = models.TextField(blank=True, default='', verbose_name='后续要求', db_comment='后续 Agent 补充提示词')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
 
@@ -671,6 +695,25 @@ class AgentRunRecord(models.Model):
     summary = models.CharField(max_length=255, blank=True, default='', verbose_name='摘要', db_comment='执行摘要')
     output = models.TextField(blank=True, default='', verbose_name='输出内容', db_comment='Agent 生成的完整输出内容')
     steps = models.JSONField(default=list, blank=True, verbose_name='执行步骤', db_comment='执行步骤')
+    parent_record = models.ForeignKey(
+        'self',
+        related_name='followup_records',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name='来源执行记录',
+        db_comment='触发本次后续执行的记录 ID',
+    )
+    source_agent = models.ForeignKey(
+        Agent,
+        related_name='triggered_followup_records',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name='来源 Agent',
+        db_comment='触发后续执行的来源 Agent ID',
+    )
+    followup_depth = models.PositiveSmallIntegerField(default=0, verbose_name='后续深度', db_comment='普通任务为 0，首层后续任务为 1')
     started_at = models.DateTimeField(default=timezone.now, verbose_name='开始时间', db_comment='开始时间')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
@@ -681,9 +724,60 @@ class AgentRunRecord(models.Model):
         verbose_name = 'Agent 执行记录'
         verbose_name_plural = verbose_name
         ordering = ['-started_at', '-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['parent_record', 'source_agent', 'agent', 'followup_depth'],
+                condition=models.Q(
+                    followup_depth=1,
+                    parent_record__isnull=False,
+                    source_agent__isnull=False,
+                    agent__isnull=False,
+                ),
+                name='uniq_agent_followup_run_src',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.task_name} - {self.status}"
+
+
+class AgentActivity(models.Model):
+    """面向用户的 Agent 精选动态。"""
+
+    TYPE_CHOICES = [
+        ('work', '工作'),
+        ('publication', '作品'),
+        ('interaction', '互动'),
+    ]
+    STATUS_CHOICES = AgentRunRecord.STATUS_TYPES
+
+    id = models.CharField(max_length=40, primary_key=True, default=generate_agent_activity_id)
+    event_key = models.CharField(max_length=180, unique=True, verbose_name='事件唯一键', db_comment='用于幂等写入动态')
+    activity_type = models.CharField(max_length=20, choices=TYPE_CHOICES, verbose_name='动态类型', db_comment='动态类型')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='success', verbose_name='状态', db_comment='动态状态')
+    agent = models.ForeignKey(Agent, related_name='activities', on_delete=models.SET_NULL, blank=True, null=True)
+    run_record = models.ForeignKey(AgentRunRecord, related_name='activities', on_delete=models.SET_NULL, blank=True, null=True)
+    title = models.CharField(max_length=180, verbose_name='标题', db_comment='用户可读标题')
+    summary = models.TextField(blank=True, default='', verbose_name='摘要', db_comment='用户可读摘要')
+    current_action = models.CharField(max_length=180, blank=True, default='', verbose_name='当前动作', db_comment='精选执行动作')
+    artifact_kind = models.CharField(max_length=30, blank=True, default='', verbose_name='作品类型', db_comment='关联作品类型')
+    artifact_id = models.CharField(max_length=80, blank=True, default='', verbose_name='作品 ID', db_comment='文章、评论或批注 ID')
+    artifact_article_id = models.CharField(max_length=80, blank=True, default='', verbose_name='文章 ID', db_comment='关联文章 ID')
+    artifact_coll_id = models.CharField(max_length=80, blank=True, default='', verbose_name='文集 ID', db_comment='关联文集 ID')
+    artifact_title = models.CharField(max_length=255, blank=True, default='', verbose_name='作品标题', db_comment='关联文章标题快照')
+    metadata = models.JSONField(default=dict, blank=True, verbose_name='展示元数据', db_comment='脱敏后的展示扩展信息')
+    occurred_at = models.DateTimeField(default=timezone.now, verbose_name='发生时间', db_comment='动态发生时间')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'sys_agent_activity'
+        db_table_comment = 'Agent 精选动态表'
+        ordering = ['-occurred_at', '-created_at']
+        indexes = [
+            models.Index(fields=['activity_type', '-occurred_at'], name='idx_agent_act_type_time'),
+            models.Index(fields=['agent', '-occurred_at'], name='idx_agent_act_agent_time'),
+        ]
 
 
 class GeoLocation(models.Model):

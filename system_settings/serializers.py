@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Agent, AgentLongTermMemory, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
+from .models import Agent, AgentActivity, AgentLongTermMemory, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
 
 class AIModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -311,6 +311,10 @@ class AgentTaskSerializer(serializers.ModelSerializer):
             'notify_enabled',
             'notify_platform',
             'notify_webhook_url',
+            'followup_enabled',
+            'followup_agent',
+            'followup_action',
+            'followup_prompt',
             'created_at',
             'updated_at',
         ]
@@ -363,6 +367,14 @@ class AgentTaskSerializer(serializers.ModelSerializer):
         notify_webhook_url = attrs.get('notify_webhook_url', getattr(self.instance, 'notify_webhook_url', ''))
         if notify_enabled and not notify_webhook_url:
             raise serializers.ValidationError({"notify_webhook_url": "请填写 Webhook 地址"})
+
+        followup_enabled = attrs.get('followup_enabled', getattr(self.instance, 'followup_enabled', False))
+        followup_agent = attrs.get('followup_agent', getattr(self.instance, 'followup_agent', None))
+        selected_ids = attrs.get('agent_ids', getattr(self.instance, 'agent_ids', [])) or []
+        if followup_enabled and not followup_agent:
+            raise serializers.ValidationError({'followup_agent': '请选择后续 Agent'})
+        if followup_enabled and followup_agent and followup_agent.id in selected_ids:
+            raise serializers.ValidationError({'followup_agent': '后续 Agent 不能与主执行 Agent 重复'})
         return attrs
 
 
@@ -383,10 +395,57 @@ class AgentRunRecordSerializer(serializers.ModelSerializer):
             'summary',
             'output',
             'steps',
+            'parent_record',
+            'source_agent',
+            'followup_depth',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'parent_record', 'source_agent', 'followup_depth', 'created_at', 'updated_at']
+
+
+class AgentActivitySerializer(serializers.ModelSerializer):
+    type = serializers.CharField(source='activity_type', read_only=True)
+    agent = serializers.SerializerMethodField()
+    run_record_id = serializers.CharField(source='run_record.id', read_only=True, allow_null=True)
+    output_preview = serializers.SerializerMethodField()
+    artifact = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AgentActivity
+        fields = [
+            'id', 'type', 'status', 'agent', 'title', 'summary', 'current_action',
+            'occurred_at', 'run_record_id', 'output_preview', 'artifact',
+        ]
+
+    def get_agent(self, obj):
+        if not obj.agent:
+            return {'id': '', 'name': '已删除的 Agent', 'avatar': ''}
+        return {'id': obj.agent.id, 'name': obj.agent.name, 'avatar': obj.agent.avatar}
+
+    def get_output_preview(self, obj):
+        metadata = obj.metadata if isinstance(obj.metadata, dict) else {}
+        preview = str(metadata.get('outputPreview') or '').strip()
+        if preview:
+            return preview
+        if not obj.run_record or not obj.agent_id:
+            return ''
+        runs = obj.run_record.agent_runs if isinstance(obj.run_record.agent_runs, list) else []
+        for run in runs:
+            if isinstance(run, dict) and run.get('agent') == obj.agent_id:
+                return str(run.get('content') or '').strip()[:300]
+        return ''
+
+    def get_artifact(self, obj):
+        if not obj.artifact_kind or not obj.artifact_article_id:
+            return None
+        return {
+            'kind': obj.artifact_kind,
+            'id': obj.artifact_id,
+            'articleId': obj.artifact_article_id,
+            'collId': obj.artifact_coll_id,
+            'title': obj.artifact_title,
+        }
 
 
 class GeoLocationSerializer(serializers.ModelSerializer):

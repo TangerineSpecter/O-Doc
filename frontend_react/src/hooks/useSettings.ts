@@ -364,7 +364,11 @@ export const useSettings = () => {
                 prompt: taskData.prompt || '',
                 notifyEnabled: taskData.notifyEnabled ?? false,
                 notifyPlatform: taskData.notifyPlatform || 'feishu',
-                notifyWebhookUrl: taskData.notifyWebhookUrl || ''
+                notifyWebhookUrl: taskData.notifyWebhookUrl || '',
+                followupEnabled: taskData.followupEnabled ?? false,
+                followupAgent: taskData.followupAgent || null,
+                followupAction: taskData.followupAction || 'review',
+                followupPrompt: taskData.followupPrompt || '',
             };
             const res = await saveAgentTask(payload);
             const data = res as unknown as AgentTaskConfig;

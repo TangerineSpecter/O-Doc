@@ -2,19 +2,24 @@ import logging
 import threading
 
 from django.db import transaction
+from django.db.models import Count, Q
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from article.access import get_visible_anthology_queryset
 from system_settings.feishu_im import (
     FeishuIMError,
     handle_feishu_message_event,
     normalize_feishu_event_payload,
     verify_feishu_token,
 )
-from system_settings.models import Agent, AgentLongTermMemory, AgentRunRecord, AgentTask
+from system_settings.models import Agent, AgentActivity, AgentLongTermMemory, AgentRunRecord, AgentTask
 from system_settings.serializers import (
+    AgentActivitySerializer,
     AgentLongTermMemorySerializer,
     AgentRunRecordSerializer,
     AgentSerializer,
@@ -24,6 +29,11 @@ from utils.response_utils import success_result, valid_result
 
 
 logger = logging.getLogger(__name__)
+
+
+def _local_now():
+    now = timezone.now()
+    return now if timezone.is_naive(now) else timezone.localtime(now)
 
 
 class AgentViewSet(viewsets.ModelViewSet):
@@ -119,7 +129,7 @@ class AgentViewSet(viewsets.ModelViewSet):
 
 
 class AgentTaskViewSet(viewsets.ModelViewSet):
-    queryset = AgentTask.objects.select_related('agent').all()
+    queryset = AgentTask.objects.select_related('agent', 'followup_agent').all()
     serializer_class = AgentTaskSerializer
 
     def list(self, request, *args, **kwargs):
@@ -174,3 +184,92 @@ class AgentRunRecordViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         return success_result(self.get_serializer(self.get_object()).data)
+
+
+class AgentActivityViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = AgentActivity.objects.select_related('agent', 'run_record').all()
+    serializer_class = AgentActivitySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        visible_coll_ids = get_visible_anthology_queryset(self.request).values_list('coll_id', flat=True)
+        return super().get_queryset().filter(
+            Q(activity_type='work') | Q(artifact_coll_id__in=visible_coll_ids)
+        )
+
+    def list(self, request, *args, **kwargs):
+        # The cursor uses the id as the stable tie-breaker, so keep the database
+        # ordering aligned with the cursor predicate for equal timestamps.
+        queryset = self.get_queryset().order_by('-occurred_at', '-id')
+        agent_id = str(request.query_params.get('agent') or '').strip()
+        activity_type = str(request.query_params.get('type') or '').strip()
+        cursor = str(request.query_params.get('cursor') or '').strip()
+        try:
+            limit = min(max(int(request.query_params.get('limit') or 20), 1), 50)
+        except (TypeError, ValueError):
+            limit = 20
+
+        if agent_id:
+            queryset = queryset.filter(agent_id=agent_id)
+        if activity_type in {'work', 'publication', 'interaction'}:
+            queryset = queryset.filter(activity_type=activity_type)
+        if cursor:
+            cursor_time, separator, cursor_id = cursor.rpartition('|')
+            before = parse_datetime(cursor_time if separator else cursor)
+            if before:
+                if separator and cursor_id:
+                    queryset = queryset.filter(Q(occurred_at__lt=before) | Q(occurred_at=before, id__lt=cursor_id))
+                else:
+                    queryset = queryset.filter(occurred_at__lt=before)
+
+        items = list(queryset[:limit + 1])
+        has_more = len(items) > limit
+        items = items[:limit]
+        next_cursor = f'{items[-1].occurred_at.isoformat()}|{items[-1].id}' if has_more and items else None
+        return success_result({
+            'items': self.get_serializer(items, many=True).data,
+            'nextCursor': next_cursor,
+            'hasMore': has_more,
+        })
+
+    @action(detail=False, methods=['get'], url_path='today-summary')
+    def today_summary(self, request):
+        today = _local_now().date()
+        today_activities = self.get_queryset().filter(occurred_at__date=today)
+        ordered_activities = self.get_queryset().order_by('-occurred_at', '-id')
+        latest = list(ordered_activities[:3])
+        counts = {
+            item['agent_id']: item['count']
+            for item in today_activities.exclude(agent_id=None).values('agent_id').annotate(count=Count('id'))
+        }
+        agents_queryset = list(Agent.objects.all())
+        agent_count = len(agents_queryset)
+        latest_by_agent = {}
+        for activity in ordered_activities.exclude(agent_id=None):
+            if activity.agent_id not in latest_by_agent:
+                latest_by_agent[activity.agent_id] = activity
+            if len(latest_by_agent) >= agent_count:
+                break
+        running_by_agent = {}
+        for activity in ordered_activities.filter(status='running').exclude(agent_id=None):
+            running_by_agent.setdefault(activity.agent_id, activity)
+        agents = []
+        for agent in agents_queryset:
+            activity = latest_by_agent.get(agent.id)
+            running_activity = running_by_agent.get(agent.id)
+            agents.append({
+                'id': agent.id,
+                'name': agent.name,
+                'avatar': agent.avatar,
+                'status': 'running' if running_activity else 'idle',
+                'currentAction': running_activity.current_action if running_activity else '',
+                'latestTitle': activity.title if activity else '',
+                'todayCount': counts.get(agent.id, 0),
+            })
+        return success_result({
+            'todayActivityCount': today_activities.count(),
+            'todayWorkCount': today_activities.filter(activity_type='publication').count(),
+            'activeAgentCount': ordered_activities.filter(status='running').exclude(agent_id=None).values('agent_id').distinct().count(),
+            'latest': self.get_serializer(latest, many=True).data,
+            'agents': agents,
+        })

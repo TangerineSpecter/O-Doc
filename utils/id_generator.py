@@ -98,6 +98,11 @@ def generate_agent_run_id() -> str:
     return generate_unique_id("run")
 
 
+def generate_agent_activity_id() -> str:
+    """生成带 act 前缀的 Agent 动态 ID。"""
+    return generate_unique_id("act")
+
+
 def generate_agent_im_message_id() -> str:
     """
     生成带 aim 前缀的 Agent IM 消息记录 ID
