@@ -160,9 +160,29 @@ export interface UpdateArticleParams {
 //保存网页接口参数
 export interface SaveWebpageParams {
     url: string;
+    useAiExtraction: boolean;
     needPolishing: boolean;
     collId: string;
 }
+
+export interface ImportArticleFileParams {
+    file: File;
+    useAiExtraction: boolean;
+    needPolishing: boolean;
+    collId: string;
+}
+
+export interface WebImportReport {
+    extractionMode: 'standard' | 'ai' | 'standardFallback';
+    confidence: 'high' | 'medium' | 'low';
+    localizedImageCount: number;
+    externalImageCount: number;
+    warnings: string[];
+}
+
+export type SaveWebpageResult = Article & {
+    importReport: WebImportReport;
+};
 
 // 定义文章列表查询参数
 export interface GetArticlesParams {

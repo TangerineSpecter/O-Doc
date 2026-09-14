@@ -101,6 +101,7 @@ function Save-EnvMap {
         'CONTAINER_NAME',
         'HOST_PORT',
         'DJANGO_DEBUG',
+        'WEB_IMPORT_ALLOW_PROXY_FAKE_IPS',
         'DJANGO_SECRET_KEY',
         'DJANGO_ALLOWED_HOSTS',
         'ADMIN_EMAIL',
@@ -177,6 +178,7 @@ services:
       PORT: 11800
       ADMIN_EMAIL: `${ADMIN_EMAIL:-$DefaultAdminEmail}
       DJANGO_DEBUG: `${DJANGO_DEBUG:-false}
+      WEB_IMPORT_ALLOW_PROXY_FAKE_IPS: `${WEB_IMPORT_ALLOW_PROXY_FAKE_IPS:-false}
       DJANGO_SECRET_KEY: `${DJANGO_SECRET_KEY}
       DJANGO_ALLOWED_HOSTS: "`${DJANGO_ALLOWED_HOSTS:-$DefaultAllowedHosts}"
       DJANGO_DB_ENGINE: postgresql
@@ -211,6 +213,7 @@ function Initialize-EnvFile {
         CONTAINER_NAME = $DefaultContainerName
         HOST_PORT = $DefaultHostPort
         DJANGO_DEBUG = 'false'
+        WEB_IMPORT_ALLOW_PROXY_FAKE_IPS = 'false'
         DJANGO_SECRET_KEY = $secret
         DJANGO_ALLOWED_HOSTS = $DefaultAllowedHosts
         ADMIN_EMAIL = $DefaultAdminEmail
@@ -239,6 +242,7 @@ function Ensure-EnvDefaults {
     if (-not $map.CONTAINER_NAME) { $map.CONTAINER_NAME = $DefaultContainerName }
     if (-not $map.HOST_PORT) { $map.HOST_PORT = $DefaultHostPort }
     if (-not $map.DJANGO_DEBUG) { $map.DJANGO_DEBUG = 'false' }
+    if (-not $map.WEB_IMPORT_ALLOW_PROXY_FAKE_IPS) { $map.WEB_IMPORT_ALLOW_PROXY_FAKE_IPS = 'false' }
     if (-not $map.DJANGO_ALLOWED_HOSTS) { $map.DJANGO_ALLOWED_HOSTS = $DefaultAllowedHosts }
     if (-not $map.ADMIN_EMAIL) { $map.ADMIN_EMAIL = $DefaultAdminEmail }
     if (-not $map.POSTGRES_CONTAINER_NAME) { $map.POSTGRES_CONTAINER_NAME = $DefaultPostgresContainerName }

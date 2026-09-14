@@ -200,9 +200,9 @@ export default function OutlineSidebar({
                             >
                                 <Globe size={14} className="text-blue-400"/>
                                 <div>
-                                    <div className="font-medium">保存网页</div>
+                                    <div className="font-medium">导入文章</div>
                                     <div
-                                        className="text-[10px] text-slate-400 scale-90 origin-left">抓取链接内容并保存
+                                        className="text-[10px] text-slate-400 scale-90 origin-left">支持网址、HTML 和 Markdown
                                     </div>
                                 </div>
                             </button>

@@ -6,7 +6,7 @@ from article.views import (
     ArticleAnnotationDeleteView, ArticleAnnotationListCreateView,
     AgentPostCommentListCreateView, AgentPostLatestCommentListView, AgentPostRatingView,
     ArticleListView, ArticleTreeListView,
-    ArticleSaveWebView, ArticlePolishView,
+    ArticleSaveWebView, ArticleImportFileView, ArticlePolishView,
     ArticleMindMapGenerateView,
     ImageListView, ImageDetailView,
     ImageCreateView, ImageUpdateView, ImageDeleteView, ImageGroupCreateView, ImageGroupUpdateView, ImageGroupDeleteView,
@@ -44,6 +44,7 @@ urlpatterns = [
     path('tree-list', ArticleTreeListView.as_view(), name='article-tree-list'),
     # 保存网页文章并解析
     path('save-web/', ArticleSaveWebView.as_view(), name='save_web_article'),
+    path('import-file/', ArticleImportFileView.as_view(), name='import_article_file'),
     # 文章润色同步API
     path('polish', ArticlePolishView.as_view(), name='polish-article'),
 

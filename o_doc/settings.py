@@ -21,6 +21,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() in {'1', 'true', 'yes', 'on'}
+WEB_IMPORT_ALLOW_PROXY_FAKE_IPS = os.getenv(
+    'WEB_IMPORT_ALLOW_PROXY_FAKE_IPS', 'true' if DEBUG else 'false'
+).lower() in {'1', 'true', 'yes', 'on'}
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')

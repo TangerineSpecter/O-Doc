@@ -59,6 +59,7 @@ ensure_env_defaults() {
     [ -n "$(read_env_value CONTAINER_NAME)" ] || write_env_value CONTAINER_NAME "o-doc"
     [ -n "$(read_env_value HOST_PORT)" ] || write_env_value HOST_PORT "11800"
     [ -n "$(read_env_value DJANGO_DEBUG)" ] || write_env_value DJANGO_DEBUG "true"
+    [ -n "$(read_env_value WEB_IMPORT_ALLOW_PROXY_FAKE_IPS)" ] || write_env_value WEB_IMPORT_ALLOW_PROXY_FAKE_IPS "true"
     [ -n "$(read_env_value DJANGO_SECRET_KEY)" ] || write_env_value DJANGO_SECRET_KEY "$(generate_secret)"
     [ -n "$(read_env_value DJANGO_ALLOWED_HOSTS)" ] || write_env_value DJANGO_ALLOWED_HOSTS "127.0.0.1,localhost,*"
     [ -n "$(read_env_value ADMIN_EMAIL)" ] || write_env_value ADMIN_EMAIL "admin@example.com"
@@ -81,6 +82,7 @@ export_postgres_env() {
     export POSTGRES_HOST="${ODOC_DEV_POSTGRES_HOST:-127.0.0.1}"
     export POSTGRES_PORT="$(read_env_value POSTGRES_HOST_PORT)"
     export DJANGO_DEBUG=true
+    export WEB_IMPORT_ALLOW_PROXY_FAKE_IPS="$(read_env_value WEB_IMPORT_ALLOW_PROXY_FAKE_IPS)"
     export DJANGO_SECRET_KEY="$(read_env_value DJANGO_SECRET_KEY)"
     export DJANGO_ALLOWED_HOSTS="$(read_env_value DJANGO_ALLOWED_HOSTS)"
     export ADMIN_EMAIL="$(read_env_value ADMIN_EMAIL)"

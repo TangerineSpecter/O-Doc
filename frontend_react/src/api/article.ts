@@ -1,8 +1,8 @@
 import request from '../utils/request';
-import type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams, MindMapNode } from '../types/api/article';
+import type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, ImportArticleFileParams, SaveWebpageResult, GetArticlesParams, MindMapNode } from '../types/api/article';
 
 // 重新导出类型以便其他组件使用
-export type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, GetArticlesParams };
+export type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, ImportArticleFileParams, SaveWebpageResult, GetArticlesParams };
 
 export interface ArticleMindMapResult {
     mindMap: MindMapNode;
@@ -67,8 +67,20 @@ export const getArticleTreeByAnthology = async (collId: string): Promise<Article
  * 新增：将网页保存为文章
  * @param params 保存文章参数
  */
-export const saveWebpageAsArticle = async (params?: SaveWebpageParams): Promise<Article> => {    // 假设后端接口路径为 /article/save-web/，请根据实际情况修改
-    return request.post('/article/save-web/', params, {timeout: 60000});
+export const saveWebpageAsArticle = async (params: SaveWebpageParams): Promise<SaveWebpageResult> => {
+    return request.post('/article/save-web/', params, {timeout: 180000});
+};
+
+/**
+ * 导入本地 HTML 或 Markdown 文件
+ */
+export const importArticleFile = async (params: ImportArticleFileParams): Promise<SaveWebpageResult> => {
+    const formData = new FormData();
+    formData.append('file', params.file);
+    formData.append('collId', params.collId);
+    formData.append('useAiExtraction', String(params.useAiExtraction));
+    formData.append('needPolishing', String(params.needPolishing));
+    return request.post('/article/import-file/', formData, {timeout: 180000});
 };
 
 /**

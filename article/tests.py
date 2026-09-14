@@ -4,17 +4,155 @@ import tempfile
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from django.test import TestCase, override_settings
-from rest_framework.test import APIRequestFactory
+from rest_framework.test import APIRequestFactory, APITestCase
 
 from anthology.models import Anthology
 from article.models import Article, Image
 from article.serializers import ArticleSerializer
+from article.web_import_service import WebImportReport, WebImportResult
 from article.views import ArticleDeleteView, ImageDeleteView, ImageListView
 from assets.models import Asset
 from assets.views import ResourceDeleteView, ResourceListView
 from utils.error_codes import ErrorCode
+from utils.web_parser import WebParserError
+
+
+class SaveWebpageViewTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='web-importer', password='password')
+        self.anthology = Anthology.objects.create(
+            coll_id='coll_web_import_test',
+            title='网页导入测试',
+            type='article',
+            user_id=f'user_{self.user.id}',
+        )
+        self.client.force_authenticate(user=self.user)
+
+    @patch('article.views.import_webpage_as_article')
+    def test_save_webpage_accepts_camel_case_request_fields(self, mock_import):
+        article = Article.objects.create(
+            title='导入标题',
+            content='# 导入正文',
+            coll_id=self.anthology.coll_id,
+            source_url='https://example.com/article',
+            author=f'user_{self.user.id}',
+        )
+        mock_import.return_value = WebImportResult(
+            article=article,
+            report=WebImportReport(
+                extraction_mode='ai',
+                confidence='high',
+                localized_image_count=1,
+                external_image_count=0,
+                warnings=(),
+            ),
+        )
+        response = self.client.post(
+            '/api/article/save-web/',
+            {
+                'url': 'https://example.com/article',
+                'collId': self.anthology.coll_id,
+                'useAiExtraction': True,
+                'needPolishing': False,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], ErrorCode.SUCCESS.code)
+        article = Article.objects.get(coll_id=self.anthology.coll_id)
+        self.assertEqual(article.title, '导入标题')
+        self.assertEqual(article.content, '# 导入正文')
+        self.assertEqual(article.source_url, 'https://example.com/article')
+        self.assertEqual(response.data['data']['import_report']['extraction_mode'], 'ai')
+        self.assertEqual(response.data['data']['import_report']['localized_image_count'], 1)
+        rendered_data = response.json()['data']
+        self.assertEqual(rendered_data['importReport']['extractionMode'], 'ai')
+        mock_import.assert_called_once_with(
+            url='https://example.com/article',
+            coll_id=self.anthology.coll_id,
+            author=f'user_{self.user.id}',
+            use_ai_extraction=True,
+            need_polishing=False,
+        )
+
+    @patch(
+        'article.views.import_webpage_as_article',
+        side_effect=WebParserError('页面需要登录后才能读取正文'),
+    )
+    def test_save_webpage_returns_actionable_parser_error(self, _mock_import):
+        response = self.client.post(
+            '/api/article/save-web/',
+            {'url': 'https://example.com/article', 'collId': self.anthology.coll_id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], ErrorCode.PARAM_INVALID.code)
+        self.assertEqual(response.data['data'], '页面需要登录后才能读取正文')
+        self.assertFalse(Article.objects.filter(coll_id=self.anthology.coll_id).exists())
+
+    @patch('article.views.import_content_file_as_article')
+    def test_import_file_accepts_html_and_ai_options(self, mock_import):
+        article = Article.objects.create(
+            title='离线 HTML',
+            content='# 导入正文',
+            coll_id=self.anthology.coll_id,
+            author=f'user_{self.user.id}',
+        )
+        mock_import.return_value = WebImportResult(
+            article=article,
+            report=WebImportReport(
+                extraction_mode='ai',
+                confidence='high',
+                localized_image_count=2,
+                external_image_count=0,
+                warnings=(),
+            ),
+        )
+        uploaded = SimpleUploadedFile(
+            'saved-page.html',
+            b'<html><article>body</article></html>',
+            content_type='text/html',
+        )
+
+        response = self.client.post(
+            '/api/article/import-file/',
+            {
+                'file': uploaded,
+                'collId': self.anthology.coll_id,
+                'useAiExtraction': 'true',
+                'needPolishing': 'false',
+            },
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], ErrorCode.SUCCESS.code)
+        self.assertEqual(response.json()['data']['importReport']['extractionMode'], 'ai')
+        called_file = mock_import.call_args.kwargs['uploaded_file']
+        self.assertEqual(called_file.name, 'saved-page.html')
+        self.assertEqual(mock_import.call_args.kwargs['coll_id'], self.anthology.coll_id)
+        self.assertTrue(mock_import.call_args.kwargs['use_ai_extraction'])
+        self.assertFalse(mock_import.call_args.kwargs['need_polishing'])
+
+    def test_import_file_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.post(
+            '/api/article/import-file/',
+            {
+                'file': SimpleUploadedFile('article.md', b'# body'),
+                'collId': self.anthology.coll_id,
+            },
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, 401)
 
 
 TEST_MEDIA_ROOT = tempfile.mkdtemp()

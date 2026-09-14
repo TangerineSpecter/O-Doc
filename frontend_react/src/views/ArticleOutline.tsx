@@ -5,7 +5,7 @@ import {ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, Send, Star, Trash2
 import {useNavigate} from 'react-router-dom';
 import Article from './Article';
 import ConfirmationModal from '../components/common/ConfirmationModal';
-import SaveWebpageModal from '../components/common/SaveWebpageModal';
+import SaveWebpageModal, {type WebpageImportOptions} from '../components/common/SaveWebpageModal';
 import {
     CodeBlock,
     CUSTOM_STYLES,
@@ -29,6 +29,7 @@ import {
     getAgentPostComments,
     getArticleDetail,
     getArticles,
+    importArticleFile,
     rateAgentPost,
     saveWebpageAsArticle
 } from '../api/article';
@@ -800,19 +801,33 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
         setIsWebpageModalOpen(true);
     };
 
-    // 执行保存网页逻辑
-    const handleSaveWebpage = async (url: string, needPolishing: boolean) => {
+    // 执行网址或本地文件导入
+    const handleSaveWebpage = async (options: WebpageImportOptions) => {
         if (!isAuthenticated || !collId) return;
 
         try {
-            // 1. 调用接口
-            const newArticle = await saveWebpageAsArticle({
-                url,
-                needPolishing,
-                collId
-            });
+            const {useAiExtraction, needPolishing} = options;
+            const newArticle = options.sourceType === 'url'
+                ? await saveWebpageAsArticle({
+                    url: options.url,
+                    useAiExtraction,
+                    needPolishing,
+                    collId,
+                })
+                : await importArticleFile({
+                    file: options.file,
+                    useAiExtraction,
+                    needPolishing,
+                    collId,
+                });
 
-            toast.success(needPolishing ? '网页已保存，AI 正在后台润色...' : '网页保存成功！');
+            const warnings = newArticle.importReport?.warnings || [];
+            if (warnings.length) {
+                const polishingHint = needPolishing ? '，AI 正在后台润色' : '';
+                toast.warning(`文章已导入${polishingHint}：${warnings.join('；')}`);
+            } else {
+                toast.success(needPolishing ? '文章已导入，AI 正在后台润色...' : '文章导入成功！');
+            }
             setIsWebpageModalOpen(false);
 
             // 2. [关键] 刷新左侧目录树，让新文章显示出来（包含 is_polishing 状态）
@@ -825,7 +840,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
         } catch (error: any) {
             console.error(error);
-            toast.error(error?.message || '网页解析失败，请稍后重试');
+            toast.error(error?.message || '文章解析失败，请稍后重试');
             throw error; // 抛出错误让 Modal 停止 loading
         }
     };

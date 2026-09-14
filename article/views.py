@@ -15,6 +15,7 @@ from django.db.models import Avg, Q
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from PIL import Image as PILImage
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from article.annotation_service import (
@@ -55,6 +56,11 @@ from article.serializers import (
     ArticleTreeSerializer,
     ImageSerializer,
 )
+from article.web_import_service import (
+    import_content_file_as_article,
+    import_webpage_as_article,
+    polish_markdown_content,
+)
 from utils.ai_service import AIService
 from utils.error_codes import ErrorCode
 from utils.drf_utils import get_current_user_identifier
@@ -66,7 +72,7 @@ from utils.resource_assets import (
     is_asset_used_by_image,
 )
 from utils.response_utils import success_result, error_result
-from utils.web_parser import parse_web_content
+from utils.web_parser import WebParserError
 from anthology.models import Anthology
 from assets.models import Asset
 
@@ -179,14 +185,8 @@ class ArticlePolisher:
             article.save()
             self.source_url = article.source_url
 
-            # 2. 准备 Prompt
-            # 截取前8000字符防止超长
-            content_snippet = article.content[:8000]
-            prompt = POLISH_ARTICLE_PROMPT_TEMPLATE.format(content=content_snippet)
-
-            # 3. 调用 AI 服务
-            polished_content = AIService.chat_completion(prompt)
-            polished_content = AIService.strip_thinking(polished_content)
+            # 2. 分块润色整篇文章；图片和代码块使用占位符原样保护。
+            polished_content = polish_markdown_content(article.content)
 
             # 4. 更新文章
             if polished_content:
@@ -518,37 +518,42 @@ class ArticleSaveWebView(APIView):
     """
 
     def post(self, request):
+        # The global camel-case parser normally converts these fields, but the
+        # fallback keeps this endpoint compatible with direct API callers and
+        # older clients that send either spelling.
         url = request.data.get('url')
-        coll_id = request.data.get('coll_id')
-        need_polishing = request.data.get('need_polishing', False)
+        coll_id = request.data.get('coll_id') or request.data.get('collId')
+        need_polishing = request.data.get(
+            'need_polishing', request.data.get('needPolishing', False))
+        use_ai_extraction = request.data.get(
+            'use_ai_extraction', request.data.get('useAiExtraction', False))
+        if isinstance(need_polishing, str):
+            need_polishing = need_polishing.strip().lower() in {'1', 'true', 'yes', 'on'}
+        else:
+            need_polishing = bool(need_polishing)
+        if isinstance(use_ai_extraction, str):
+            use_ai_extraction = use_ai_extraction.strip().lower() in {'1', 'true', 'yes', 'on'}
+        else:
+            use_ai_extraction = bool(use_ai_extraction)
+
+        if isinstance(url, str):
+            url = url.strip()
 
         if not url or not coll_id:
-            return error_result()
+            return error_result(ErrorCode.PARAM_REQUIRED, '缺少网页地址或文集ID')
 
         try:
             if not can_manage_anthology(request, coll_id, 'article'):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
-            # 1. 解析网页
-            title, content = parse_web_content(url)
-
-            # 2. 保存文章 (事务内)
-            with transaction.atomic():
-                article = Article.objects.create(
-                    title=title,
-                    content=content,
-                    coll_id=coll_id,
-                    source_url=url,
-                    is_polishing=need_polishing,  # 如果需要润色，先标记为 True
-                    author=get_current_user_identifier(request)
-                )
-
-                # 更新文集计数
-                from anthology.models import Anthology
-                anthology_queryset = Anthology.objects.filter(coll_id=coll_id)
-                from system_settings.sync_state import record_bulk_change
-                record_bulk_change(anthology_queryset)
-                anthology_queryset.update(count=models.F('count') + 1)
+            import_result = import_webpage_as_article(
+                url=url,
+                coll_id=coll_id,
+                author=get_current_user_identifier(request),
+                use_ai_extraction=use_ai_extraction,
+                need_polishing=need_polishing,
+            )
+            article = import_result.article
 
             # 3. 如果需要润色，启动异步线程
             if need_polishing:
@@ -556,10 +561,61 @@ class ArticleSaveWebView(APIView):
                 thread.daemon = True  # 设置为守护线程
                 thread.start()
 
-            return success_result(data=ArticleSerializer(article).data)
+            response_data = dict(ArticleSerializer(article).data)
+            response_data['import_report'] = import_result.report.as_dict()
+            return success_result(data=response_data)
 
-        except Exception as e:
-            return error_result(ErrorCode.SYSTEM_ERROR, str(e))
+        except WebParserError as exc:
+            # Parsing/network failures are expected user-facing errors, not
+            # server faults. Keep the actionable parser message in response data.
+            return error_result(ErrorCode.PARAM_INVALID, str(exc))
+        except Exception:
+            logger.exception('Failed to save webpage as article: coll_id=%s', coll_id)
+            return error_result(error=ErrorCode.SYSTEM_ERROR)
+
+
+class ArticleImportFileView(APIView):
+    """Import a saved HTML or Markdown file as an article."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        uploaded_file = request.FILES.get('file')
+        coll_id = request.data.get('coll_id') or request.data.get('collId')
+        need_polishing = request.data.get(
+            'need_polishing', request.data.get('needPolishing', False))
+        use_ai_extraction = request.data.get(
+            'use_ai_extraction', request.data.get('useAiExtraction', False))
+        need_polishing = str(need_polishing).strip().lower() in {'1', 'true', 'yes', 'on'}
+        use_ai_extraction = str(use_ai_extraction).strip().lower() in {'1', 'true', 'yes', 'on'}
+
+        if not uploaded_file or not coll_id:
+            return error_result(ErrorCode.PARAM_REQUIRED, '缺少导入文件或文集ID')
+
+        try:
+            if not can_manage_anthology(request, coll_id, 'article'):
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+            import_result = import_content_file_as_article(
+                uploaded_file=uploaded_file,
+                coll_id=coll_id,
+                author=get_current_user_identifier(request),
+                use_ai_extraction=use_ai_extraction,
+                need_polishing=need_polishing,
+            )
+            article = import_result.article
+            if need_polishing:
+                thread = threading.Thread(target=run_polish_task, args=(article.article_id,))
+                thread.daemon = True
+                thread.start()
+
+            response_data = dict(ArticleSerializer(article).data)
+            response_data['import_report'] = import_result.report.as_dict()
+            return success_result(data=response_data)
+        except WebParserError as exc:
+            return error_result(ErrorCode.PARAM_INVALID, str(exc))
+        except Exception:
+            logger.exception('Failed to import article file: coll_id=%s', coll_id)
+            return error_result(error=ErrorCode.SYSTEM_ERROR)
 
 
 from article.image_views import (
