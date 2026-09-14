@@ -11,13 +11,22 @@ interface CommonImportOptions {
 
 export type WebpageImportOptions = CommonImportOptions & (
     {sourceType: 'url'; url: string}
-    | {sourceType: 'file'; file: File}
+    | {sourceType: 'file'; files: File[]}
 );
+
+export interface WebpageImportProgress {
+    completed: number;
+    total: number;
+    currentFile?: string;
+}
 
 interface SaveWebpageModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (options: WebpageImportOptions) => Promise<void>;
+    onConfirm: (
+        options: WebpageImportOptions,
+        onProgress: (progress: WebpageImportProgress) => void,
+    ) => Promise<void>;
 }
 
 interface ImportOptionProps {
@@ -31,6 +40,7 @@ interface ImportOptionProps {
 
 const ACCEPTED_FILE_PATTERN = /\.(?:html?|md|markdown)$/i;
 const MAX_IMPORT_FILE_BYTES = 30 * 1024 * 1024;
+const MAX_IMPORT_FILE_COUNT = 50;
 
 const ImportOption = ({checked, disabled, title, description, icon: Icon, onChange}: ImportOptionProps) => (
     <label className={`group flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 transition-all ${checked ? 'border-orange-300 bg-orange-50/80 shadow-sm shadow-orange-100' : 'border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30'} ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}>
@@ -52,21 +62,23 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [sourceType, setSourceType] = useState<'url' | 'file'>('url');
     const [url, setUrl] = useState('');
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [useAiExtraction, setUseAiExtraction] = useState(false);
     const [needPolishing, setNeedPolishing] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [importProgress, setImportProgress] = useState<WebpageImportProgress | null>(null);
     const [error, setError] = useState('');
 
     const resetForm = () => {
         setSourceType('url');
         setUrl('');
-        setFile(null);
+        setFiles([]);
         setIsDragging(false);
         setUseAiExtraction(false);
         setNeedPolishing(false);
         setIsLoading(false);
+        setImportProgress(null);
         setError('');
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
@@ -77,19 +89,34 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
         onClose();
     };
 
-    const selectFile = (nextFile?: File) => {
-        if (!nextFile) return;
-        if (!ACCEPTED_FILE_PATTERN.test(nextFile.name)) {
-            setFile(null);
-            setError('仅支持 HTML、HTM、MD 和 Markdown 文件');
+    const selectFiles = (nextFiles: File[]) => {
+        if (!nextFiles.length) return;
+        if (nextFiles.length > MAX_IMPORT_FILE_COUNT) {
+            setFiles([]);
+            setError(`一次最多导入 ${MAX_IMPORT_FILE_COUNT} 个文件`);
+            if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
-        if (nextFile.size > MAX_IMPORT_FILE_BYTES) {
-            setFile(null);
-            setError('导入文件不能超过 30 MB');
+        const unsupportedFiles = nextFiles.filter(file => !ACCEPTED_FILE_PATTERN.test(file.name));
+        if (unsupportedFiles.length) {
+            setFiles([]);
+            setError(`有 ${unsupportedFiles.length} 个文件格式不支持，仅支持 HTML、HTM、MD 和 Markdown`);
+            if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
-        setFile(nextFile);
+        const oversizedFiles = nextFiles.filter(file => file.size > MAX_IMPORT_FILE_BYTES);
+        if (oversizedFiles.length) {
+            setFiles([]);
+            setError(`有 ${oversizedFiles.length} 个文件超过 30 MB`);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+        const uniqueFiles = nextFiles.filter((file, index) => nextFiles.findIndex(candidate => (
+            candidate.name === file.name
+            && candidate.size === file.size
+            && candidate.lastModified === file.lastModified
+        )) === index);
+        setFiles(uniqueFiles);
         setError('');
     };
 
@@ -103,27 +130,37 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
             setError('网址必须以 http:// 或 https:// 开头');
             return;
         }
-        if (sourceType === 'file' && !file) {
+        if (sourceType === 'file' && !files.length) {
             setError('请选择需要导入的 HTML 或 Markdown 文件');
             return;
         }
 
         try {
             setIsLoading(true);
+            setImportProgress(null);
             setError('');
             if (sourceType === 'url') {
-                await onConfirm({sourceType, url: normalizedUrl, useAiExtraction, needPolishing});
-            } else if (file) {
-                await onConfirm({sourceType, file, useAiExtraction, needPolishing});
+                await onConfirm(
+                    {sourceType, url: normalizedUrl, useAiExtraction, needPolishing},
+                    setImportProgress,
+                );
+            } else if (files.length) {
+                await onConfirm(
+                    {sourceType, files, useAiExtraction, needPolishing},
+                    setImportProgress,
+                );
             }
             resetForm();
         } catch {
             setIsLoading(false);
+            setImportProgress(null);
         }
     };
 
     if (!isOpen) return null;
-    const loadingLabel = useAiExtraction ? 'AI 识别与保存中...' : '解析并保存中...';
+    const loadingLabel = importProgress && importProgress.total > 1
+        ? `正在导入 ${Math.min(importProgress.completed + 1, importProgress.total)}/${importProgress.total}`
+        : useAiExtraction ? 'AI 识别与保存中...' : '解析并保存中...';
 
     return (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -160,14 +197,22 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
                     ) : (
                         <div className="space-y-2">
                             <span className="block text-sm font-semibold text-slate-700">文章文件 <span className="text-red-500">*</span></span>
-                            <input ref={fileInputRef} type="file" accept=".html,.htm,.md,.markdown,text/html,text/markdown" disabled={isLoading} onChange={event => selectFile(event.target.files?.[0])} className="sr-only"/>
-                            <button type="button" disabled={isLoading} onClick={() => fileInputRef.current?.click()} onDragOver={event => { event.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={event => { event.preventDefault(); setIsDragging(false); selectFile(event.dataTransfer.files?.[0]); }} className={`flex w-full items-center gap-4 rounded-xl border border-dashed px-4 py-5 text-left transition-all ${isDragging ? 'border-orange-500 bg-orange-50' : file ? 'border-orange-300 bg-orange-50/50' : 'border-slate-300 bg-slate-50/60 hover:border-orange-300 hover:bg-orange-50/40'}`}>
-                                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${file ? 'bg-orange-500 text-white' : 'bg-white text-orange-500 shadow-sm'}`}>{file ? <FileText size={20}/> : <UploadCloud size={21}/>}</span>
+                            <input ref={fileInputRef} type="file" multiple accept=".html,.htm,.md,.markdown,text/html,text/markdown" disabled={isLoading} onChange={event => selectFiles(Array.from(event.target.files || []))} className="sr-only"/>
+                            <button type="button" disabled={isLoading} onClick={() => fileInputRef.current?.click()} onDragOver={event => { event.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={event => { event.preventDefault(); setIsDragging(false); selectFiles(Array.from(event.dataTransfer.files)); }} className={`flex w-full items-center gap-4 rounded-xl border border-dashed px-4 py-5 text-left transition-all ${isDragging ? 'border-orange-500 bg-orange-50' : files.length ? 'border-orange-300 bg-orange-50/50' : 'border-slate-300 bg-slate-50/60 hover:border-orange-300 hover:bg-orange-50/40'}`}>
+                                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${files.length ? 'bg-orange-500 text-white' : 'bg-white text-orange-500 shadow-sm'}`}>{files.length ? <FileText size={20}/> : <UploadCloud size={21}/>}</span>
                                 <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-sm font-semibold text-slate-700">{file?.name || '点击选择或拖入文章文件'}</span>
-                                    <span className="mt-1 block text-xs text-slate-500">HTML / HTM / MD / Markdown，最大 30 MB</span>
+                                    <span className="block truncate text-sm font-semibold text-slate-700">{files.length ? `已选择 ${files.length} 个文件` : '点击选择或拖入一个或多个文章文件'}</span>
+                                    <span className="mt-1 block text-xs text-slate-500">HTML / HTM / MD / Markdown，单文件最大 30 MB，最多 50 个</span>
                                 </span>
                             </button>
+                            {files.length > 0 && (
+                                <div className="max-h-24 space-y-1 overflow-y-auto rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                                    {files.map(file => <div key={`${file.name}-${file.size}-${file.lastModified}`} className="truncate">{file.name}</div>)}
+                                </div>
+                            )}
+                            {isLoading && importProgress?.currentFile && (
+                                <p className="truncate text-xs text-orange-600">正在处理：{importProgress.currentFile}</p>
+                            )}
                         </div>
                     )}
 
@@ -180,14 +225,14 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
 
                     <div className="flex items-start gap-2.5 rounded-lg bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-500">
                         <ImageDown size={15} className="mt-0.5 shrink-0 text-orange-500"/>
-                        <span>{sourceType === 'file' ? 'HTML 存档中的内嵌正文图片会优先直接保存；页面脚本不会执行。' : '正文图片会优先按原图保存到本地资源库；无法下载时保留外链。'}</span>
+                        <span>{sourceType === 'file' ? '支持批量导入；HTML 存档中的内嵌正文图片会优先直接保存，单个文件失败不会影响其他文件。' : '正文图片会优先按原图保存到本地资源库；无法下载时保留外链。'}</span>
                     </div>
                 </div>
 
                 <div className="flex justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
                     <button type="button" onClick={handleClose} disabled={isLoading} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">取消</button>
                     <button type="button" onClick={() => void handleSubmit()} disabled={isLoading} className="flex min-w-28 items-center justify-center gap-2 rounded-lg bg-orange-500 px-5 py-2 text-sm font-medium text-white shadow-sm shadow-orange-500/20 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-70">
-                        {isLoading && <Loader2 size={16} className="animate-spin"/>}{isLoading ? loadingLabel : '开始导入'}
+                        {isLoading && <Loader2 size={16} className="animate-spin"/>}{isLoading ? loadingLabel : sourceType === 'file' && files.length > 1 ? `批量导入 (${files.length})` : '开始导入'}
                     </button>
                 </div>
             </div>

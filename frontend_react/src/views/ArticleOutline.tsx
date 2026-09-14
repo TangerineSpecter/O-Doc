@@ -5,7 +5,7 @@ import {ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, Send, Star, Trash2
 import {useNavigate} from 'react-router-dom';
 import Article from './Article';
 import ConfirmationModal from '../components/common/ConfirmationModal';
-import SaveWebpageModal, {type WebpageImportOptions} from '../components/common/SaveWebpageModal';
+import SaveWebpageModal, {type WebpageImportOptions, type WebpageImportProgress} from '../components/common/SaveWebpageModal';
 import {
     CodeBlock,
     CUSTOM_STYLES,
@@ -29,7 +29,7 @@ import {
     getAgentPostComments,
     getArticleDetail,
     getArticles,
-    importArticleFile,
+    importArticleFiles,
     rateAgentPost,
     saveWebpageAsArticle
 } from '../api/article';
@@ -42,6 +42,12 @@ import {useAuth} from '../contexts/AuthContext';
 
 // 定义最小 Loading 时间 (毫秒)，防止闪烁
 const MIN_LOADING_TIME = 500;
+
+const formatImportFailures = (failures: Array<{fileName: string; message: string}>) => {
+    const displayed = failures.slice(0, 3).map(item => `${item.fileName}：${item.message}`);
+    if (failures.length > displayed.length) displayed.push(`另有 ${failures.length - displayed.length} 个文件失败`);
+    return displayed.join('；');
+};
 
 const formatPostTime = (value?: string) => {
     if (!value) return '';
@@ -802,45 +808,68 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
     };
 
     // 执行网址或本地文件导入
-    const handleSaveWebpage = async (options: WebpageImportOptions) => {
+    const handleSaveWebpage = async (
+        options: WebpageImportOptions,
+        onProgress: (progress: WebpageImportProgress) => void,
+    ) => {
         if (!isAuthenticated || !collId) return;
 
         try {
             const {useAiExtraction, needPolishing} = options;
-            const newArticle = options.sourceType === 'url'
-                ? await saveWebpageAsArticle({
+            if (options.sourceType === 'url') {
+                const newArticle = await saveWebpageAsArticle({
                     url: options.url,
                     useAiExtraction,
                     needPolishing,
                     collId,
-                })
-                : await importArticleFile({
-                    file: options.file,
+                });
+                const warnings = newArticle.importReport?.warnings || [];
+                if (warnings.length) {
+                    const polishingHint = needPolishing ? '，AI 正在后台润色' : '';
+                    toast.warning(`文章已导入${polishingHint}：${warnings.join('；')}`);
+                } else {
+                    toast.success(needPolishing ? '文章已导入，AI 正在后台润色...' : '文章导入成功！');
+                }
+                setIsWebpageModalOpen(false);
+                await refreshTree();
+                if (newArticle.articleId) handleSelectDoc(newArticle.articleId);
+                return;
+            }
+
+            const batchResult = await importArticleFiles({
+                    files: options.files,
                     useAiExtraction,
                     needPolishing,
                     collId,
+                    onProgress,
                 });
+            const total = options.files.length;
+            const successCount = batchResult.successful.length;
+            if (!successCount) {
+                throw new Error(`批量导入失败：${formatImportFailures(batchResult.failures)}`);
+            }
 
-            const warnings = newArticle.importReport?.warnings || [];
-            if (warnings.length) {
-                const polishingHint = needPolishing ? '，AI 正在后台润色' : '';
-                toast.warning(`文章已导入${polishingHint}：${warnings.join('；')}`);
+            const warningCount = batchResult.successful.reduce(
+                (count, article) => count + (article.importReport?.warnings.length || 0),
+                0,
+            );
+            const polishingHint = needPolishing ? '，AI 正在后台润色' : '';
+            if (batchResult.failures.length) {
+                toast.warning(
+                    `已导入 ${successCount}/${total} 篇${polishingHint}；失败：${formatImportFailures(batchResult.failures)}`,
+                );
+            } else if (warningCount) {
+                toast.warning(`已导入 ${successCount} 篇${polishingHint}，其中 ${warningCount} 项需要核对`);
             } else {
-                toast.success(needPolishing ? '文章已导入，AI 正在后台润色...' : '文章导入成功！');
+                toast.success(`成功导入 ${successCount} 篇文章${polishingHint}`);
             }
             setIsWebpageModalOpen(false);
-
-            // 2. [关键] 刷新左侧目录树，让新文章显示出来（包含 is_polishing 状态）
             await refreshTree();
-
-            // 3. 自动选中新文章
-            if (newArticle?.articleId) {
-                handleSelectDoc(newArticle.articleId);
-            }
-
-        } catch (error: any) {
+            const lastArticle = batchResult.successful[batchResult.successful.length - 1];
+            if (lastArticle?.articleId) handleSelectDoc(lastArticle.articleId);
+        } catch (error: unknown) {
             console.error(error);
-            toast.error(error?.message || '文章解析失败，请稍后重试');
+            toast.error(error instanceof Error ? error.message : '文章解析失败，请稍后重试');
             throw error; // 抛出错误让 Modal 停止 loading
         }
     };

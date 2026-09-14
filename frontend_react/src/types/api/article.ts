@@ -172,6 +172,22 @@ export interface ImportArticleFileParams {
     collId: string;
 }
 
+export interface ArticleFileImportProgress {
+    completed: number;
+    total: number;
+    currentFile?: string;
+}
+
+export interface ArticleFileImportFailure {
+    fileName: string;
+    message: string;
+}
+
+export interface ImportArticleFilesResult {
+    successful: SaveWebpageResult[];
+    failures: ArticleFileImportFailure[];
+}
+
 export interface WebImportReport {
     extractionMode: 'standard' | 'ai' | 'standardFallback';
     confidence: 'high' | 'medium' | 'low';

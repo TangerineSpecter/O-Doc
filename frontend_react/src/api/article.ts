@@ -1,8 +1,8 @@
 import request from '../utils/request';
-import type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, ImportArticleFileParams, SaveWebpageResult, GetArticlesParams, MindMapNode } from '../types/api/article';
+import type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleFileImportProgress, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, ImportArticleFileParams, ImportArticleFilesResult, SaveWebpageResult, GetArticlesParams, MindMapNode } from '../types/api/article';
 
 // 重新导出类型以便其他组件使用
-export type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, ImportArticleFileParams, SaveWebpageResult, GetArticlesParams };
+export type { AgentPostComment, AgentPostCommentListResult, AgentPostLatestCommentListResult, AgentPostRatingResult, Article, ArticleItem, ArticleNode, CreateArticleParams, UpdateArticleParams, SaveWebpageParams, ImportArticleFileParams, ImportArticleFilesResult, SaveWebpageResult, GetArticlesParams };
 
 export interface ArticleMindMapResult {
     mindMap: MindMapNode;
@@ -81,6 +81,35 @@ export const importArticleFile = async (params: ImportArticleFileParams): Promis
     formData.append('useAiExtraction', String(params.useAiExtraction));
     formData.append('needPolishing', String(params.needPolishing));
     return request.post('/article/import-file/', formData, {timeout: 180000});
+};
+
+interface ImportArticleFilesParams extends Omit<ImportArticleFileParams, 'file'> {
+    files: File[];
+    onProgress?: (progress: ArticleFileImportProgress) => void;
+}
+
+/**
+ * 顺序导入多个文章文件。每个文件使用独立请求，失败不会回滚已成功的文章。
+ */
+export const importArticleFiles = async (
+    params: ImportArticleFilesParams,
+): Promise<ImportArticleFilesResult> => {
+    const successful: SaveWebpageResult[] = [];
+    const failures: ImportArticleFilesResult['failures'] = [];
+    const {files, onProgress, ...commonParams} = params;
+
+    for (const [index, file] of files.entries()) {
+        onProgress?.({completed: index, total: files.length, currentFile: file.name});
+        try {
+            successful.push(await importArticleFile({...commonParams, file}));
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : '导入失败';
+            failures.push({fileName: file.name, message});
+        }
+        onProgress?.({completed: index + 1, total: files.length, currentFile: file.name});
+    }
+
+    return {successful, failures};
 };
 
 /**
