@@ -36,7 +36,7 @@ class SyncManager:
     REMOTE_LOCK_TTL_SECONDS = 2 * 60 * 60
     TARGET_APPS = [
         'article', 'anthology', 'categories', 'tags',
-        'assets', 'stats', 'ai_assistant', 'system_settings', 'user'
+        'assets', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis'
     ]
     LOCAL_ONLY_SYSTEM_SETTING_KEYS = frozenset({
         'system_webdav_config',

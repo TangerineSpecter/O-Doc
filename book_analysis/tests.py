@@ -1,0 +1,734 @@
+import hashlib
+import tempfile
+import zipfile
+from datetime import timedelta
+from pathlib import Path
+from unittest.mock import patch
+
+import pymupdf as fitz
+from django.contrib.auth.models import User
+from django.db import transaction
+from django.test import override_settings
+from django.utils import timezone
+from rest_framework.test import APITestCase
+
+from anthology.models import Anthology, Book
+from assets.models import Asset
+from utils.sync_manager import SyncManager
+from utils.ai_service import AIAuthenticationError
+from .access import published
+from .ask_views import answer_stream
+from .errors import AnalysisError
+from .extraction import extract_segment, summarize_all, validate_payload, verified_date
+from .graph import add_segment, correct_edge, correct_node, node_detail, read_graph
+from .inspection import edit_boundary, inspect_book, rebuild_source_cache
+from .jobs import cancel_run, check_run, claim_run, create_run, execute_claim, retry_run
+from .models import BookAnalysis, Chapter, ChapterResult, Correction, ExecutionEvent, GraphEdge, GraphNode, Revision, SourceCache, WorkerLease
+from .parsers import ParsedChapter, iter_segments, source_path, stable_id
+
+
+class BookAnalysisTests(APITestCase):
+    def test_model_timeout_releases_lease_and_keeps_completed_chapter(self):
+        import json
+        from .test_bounded_completion import CONFIG, FakeStream, fake_factory
+        self.inspected()
+        run = create_run(self.book, 'story')
+        streams = []
+        def responder(parameters):
+            prompt = parameters['messages'][0]['content']
+            if '<book_text>' in prompt:
+                body = prompt.split('<book_text>\n', 1)[1].split('\n</book_text>', 1)[0]
+                stream = FakeStream(hang=True) if '核对证词' in body else FakeStream(json.dumps(self.raw_payload(body), ensure_ascii=False))
+            else:
+                stream = FakeStream('章节摘要')
+            streams.append(stream)
+            return stream
+        clients = []
+        with patch('utils.ai_service.AIService.get_default_client_config', return_value=CONFIG), patch('utils.bounded_completion.AsyncOpenAI', side_effect=fake_factory(responder, [], clients)), patch('utils.bounded_completion.DEADLINE_SECONDS', .15), patch('book_analysis.retrieval.index_revision') as index, patch('book_analysis.jobs.logger.exception'):
+            execute_claim(claim_run())
+        run.refresh_from_db()
+        self.assertEqual(run.state, 'failed')
+        self.assertIn('超时', run.error)
+        self.assertEqual(len(run.completed_ids), 1)
+        self.assertEqual(ChapterResult.objects.filter(revision=run.revision).count(), 1)
+        self.assertTrue(GraphNode.objects.filter(revision=run.revision).exists())
+        self.assertFalse(WorkerLease.objects.get(pk='book-analysis').owner)
+        self.assertTrue(all(client.closed for client in clients))
+        self.assertTrue(all(stream.closed for stream in streams))
+        index.assert_not_called()
+        self.assertEqual(run.events.last().kind, 'run_failed')
+
+    def test_stop_during_silent_stream_becomes_cancelled_without_resetting_flag(self):
+        from .jobs import check_model_run
+        from .test_bounded_completion import CONFIG, FakeStream, fake_factory
+        self.inspected()
+        run = create_run(self.book, 'story')
+        stream, requests, clients = FakeStream(hang=True), [], []
+        def control(claimed, token):
+            if requests:
+                cancel_run(claimed)
+            check_model_run(claimed, token)
+        with patch('utils.ai_service.AIService.get_default_client_config', return_value=CONFIG), patch('utils.bounded_completion.AsyncOpenAI', side_effect=fake_factory(lambda _: stream, requests, clients)), patch('book_analysis.jobs.check_model_run', side_effect=control):
+            execute_claim(claim_run())
+        run.refresh_from_db()
+        self.assertEqual(run.state, 'cancelled')
+        self.assertTrue(run.cancel_requested)
+        self.assertFalse(ChapterResult.objects.filter(revision=run.revision).exists())
+        self.assertFalse(WorkerLease.objects.get(pk='book-analysis').owner)
+        self.assertTrue(stream.closed and clients[0].closed)
+        self.assertEqual(run.events.last().kind, 'run_cancelled')
+
+    def test_execution_records_repair_and_model_metadata_without_secrets(self):
+        import json
+        from .test_bounded_completion import FakeStream, fake_factory
+        self.inspected()
+        run = create_run(self.book, 'story')
+        calls = []
+        def complete(kwargs):
+            prompt = kwargs['messages'][0]['content']
+            calls.append(prompt)
+            extract = '<book_text>' in prompt
+            if len(calls) == 1:
+                content, finish = 'not JSON', 'stop'
+            elif extract:
+                content = json.dumps(self.raw_payload(prompt.split('<book_text>\n', 1)[1].split('\n</book_text>', 1)[0]), ensure_ascii=False)
+                finish = 'stop'
+            else:
+                content, finish = '章节导读概要', 'stop'
+            return FakeStream(content, finish)
+        def config(use_simple_model=False):
+            return {'api_key': 'never-persist-key', 'base_url': 'https://example.invalid/v1', 'model_name': 'simple-chat' if use_simple_model else 'main-chat', 'model_role': 'simple' if use_simple_model else 'default', 'provider_name': '测试提供商'}
+        with patch('utils.ai_service.AIService.get_default_client_config', side_effect=config), patch('utils.bounded_completion.AsyncOpenAI', side_effect=fake_factory(complete, [], [])), patch('book_analysis.retrieval.index_revision'):
+            execute_claim(claim_run())
+        run.refresh_from_db()
+        self.assertEqual(run.state, 'completed', run.error)
+        events = list(run.events.order_by('id'))
+        kinds = [event.kind for event in events]
+        for kind in ('queued', 'worker_claimed', 'model_request_started', 'model_first_output', 'model_response', 'validation_failed', 'repair_retry', 'validation_passed', 'segment_saved', 'chapter_summary_started', 'chapter_completed', 'book_summary_started', 'run_completed'):
+            self.assertIn(kind, kinds)
+        requests = [event for event in events if event.kind == 'model_request_started']
+        self.assertEqual(requests[0].details['model_role'], 'simple')
+        self.assertEqual(requests[1].details['attempt'], 2)
+        self.assertTrue(any(e.details.get('model_role') == 'default' and e.details.get('phase') == 'chapter_summary' for e in requests))
+        response = self.client.get(self.url)
+        serialized = response.json()['data']['run']
+        self.assertIn('createdAt', serialized['events'][0])
+        self.assertNotIn('never-persist-key', str(serialized))
+        self.assertNotIn('<book_text>', str(serialized))
+
+    def test_execution_history_pagination_and_book_permissions(self):
+        self.inspected()
+        run = create_run(self.book, 'story')
+        ExecutionEvent.objects.bulk_create([ExecutionEvent(run=run, kind='test', title='安全执行记录') for _ in range(100)])
+        path = self.url + f'/runs/{run.pk}/events'
+        first = self.client.get(path).json()['data']
+        self.assertEqual(len(first['items']), 80)
+        self.assertTrue(first['hasMore'])
+        second = self.client.get(path, {'before': first['items'][0]['id']}).json()['data']
+        self.assertEqual(len(second['items']), 21)
+        self.assertFalse(second['hasMore'])
+        self.assertEqual(self.client.get(path, {'before': '-1'}).status_code, 400)
+        another = self.make_book(b'Another book with enough text content.')
+        self.assertEqual(self.client.get(f'/api/book-analysis/books/{another.pk}/runs/{run.pk}/events').status_code, 404)
+        self.client.force_authenticate(self.reader)
+        self.assertEqual(self.client.get(path).status_code, 404)
+
+    def test_execution_details_are_allowlisted_and_expired_lease_is_visible(self):
+        from .execution import execution_data, record_event
+        self.inspected()
+        run = create_run(self.book, 'story')
+        claimed, token = claim_run()
+        record_event(run, 'test', '安全元数据', details={'api_key': 'secret', 'prompt': 'private prompt', 'reason': '安全原因', 'chars': 10}, token=token)
+        self.assertEqual(run.events.last().details, {'reason': '安全原因', 'chars': 10})
+        run.refresh_from_db()
+        self.assertFalse(execution_data(run)['recovering'])
+        WorkerLease.objects.filter(pk='book-analysis').update(expires_at=timezone.now() - timedelta(seconds=1))
+        self.assertTrue(execution_data(run)['recovering'])
+        with self.assertRaises(AnalysisError):
+            record_event(claimed, 'test', '过期线程不能写事件', token=token)
+    def test_task_authentication_error_identifies_actual_model_without_key(self):
+        self.inspected()
+        for role, expected in [('simple', '简易模型'), ('default', '主对话模型'), ('', '对话模型')]:
+            with self.subTest(role=role):
+                run = create_run(self.book, 'story')
+                error = AIAuthenticationError('test-provider', '测试提供商', 'secret-test-key', model_name='test-chat', model_role=role)
+                with patch('book_analysis.jobs.extract_segment', side_effect=error):
+                    execute_claim(claim_run())
+                run.refresh_from_db()
+                self.assertEqual(run.state, 'failed')
+                self.assertIn(expected + '「测试提供商 / test-chat」认证失败', run.error)
+                self.assertIn('断点续跑', run.error)
+                self.assertNotIn('secret-test-key', run.error)
+                self.assertFalse(GraphEdge.objects.exists())
+    def test_parser_upgrade_rebuilds_legacy_auto_chapters_once(self):
+        from .inspection import save_chapters
+        from .chapter_detection import PARSER_VERSION
+        body = '人物在旧宅寻找线索。\n' * 15
+        text = '第一章\n' + body + '第一部影片结束了，众人离开。\n' + body + '第二章\n' + body
+        book = self.make_book(text.encode())
+        cut = text.index('第一部影片')
+        end = text.index('第二章')
+        save_chapters(book, book.asset.file_hash, [ParsedChapter(title, text[start:stop], {'format': 'txt', 'offset': start}) for title, start, stop in [('第一章', 0, cut), ('第一部影片结束了，众人离开。', cut, end), ('第二章', end, len(text))]])
+        analysis = BookAnalysis.objects.create(book=book, source_hash=book.asset.file_hash, mode='story', inspection={'supported': True}, settings_version=1)
+        inspection = inspect_book(book)
+        self.assertEqual(inspection.inspection['parser_version'], PARSER_VERSION)
+        self.assertEqual(inspection.inspection['chapter_count'], 2)
+        self.assertEqual(inspection.mode, 'story')
+        self.assertEqual(inspection.settings_version, analysis.settings_version + 1)
+        self.assertEqual(inspect_book(book).settings_version, inspection.settings_version)
+
+    def test_parser_upgrade_preserves_manual_boundaries_and_legacy_rename(self):
+        from .chapter_detection import PARSER_VERSION
+        first = self.inspected()[0]
+        first.title = '自定义标题'
+        first.save()
+        analysis = BookAnalysis.objects.get(book=self.book)
+        analysis.inspection.pop('parser_version', None)
+        analysis.save()
+        version = analysis.settings_version
+        inspected = inspect_book(self.book)
+        first.refresh_from_db()
+        self.assertEqual(first.title, '自定义标题')
+        self.assertEqual(inspected.settings_version, version)
+        self.assertTrue(inspected.inspection['custom_boundaries'])
+        self.assertEqual(inspected.inspection['parser_version'], PARSER_VERSION)
+
+    def test_parser_upgrade_keeps_custom_split_when_cache_is_missing(self):
+        first = self.inspected()[0]
+        with transaction.atomic():
+            edit_boundary(self.book, first, 'split', offset=120, title='手动拆分')
+        chapters = list(Chapter.objects.filter(book=self.book, is_valid=True))
+        original_ids = [c.id for c in chapters]
+        analysis = BookAnalysis.objects.get(book=self.book)
+        analysis.inspection.pop('parser_version', None)
+        analysis.inspection.pop('custom_boundaries', None)
+        analysis.save()
+        SourceCache.objects.filter(chapter__book=self.book).delete()
+        inspected = inspect_book(self.book)
+        self.assertTrue(inspected.inspection['custom_boundaries'])
+        self.assertEqual(inspected.settings_version, analysis.settings_version)
+        self.assertEqual([c.id for c in Chapter.objects.filter(book=self.book, is_valid=True)], original_ids)
+        self.assertEqual(''.join(SourceCache.objects.get(chapter=c).text for c in chapters), self.text)
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='odoc-book-media-')
+        self.addCleanup(self.temp.cleanup)
+        settings = override_settings(MEDIA_ROOT=Path(self.temp.name))
+        settings.enable()
+        self.addCleanup(settings.disable)
+        self.owner = User.objects.create_user(username='book-owner')
+        self.reader = User.objects.create_user(username='book-reader')
+        self.coll = Anthology.objects.create(title='测试书架', user_id=f'user_{self.owner.pk}', type='book', permission='private')
+        self.text = '第一章 匿名信\n' + '林雨收到匿名信，随后去了旧宅，在门边发现一枚手表。\n' * 12 + '第二章 证词\n' + '林雨与陈青核对证词，陈青说昨晚在旧宅见过那枚手表。\n' * 12
+        self.book = self.make_book(self.text.encode())
+        self.client.force_authenticate(self.owner)
+        self.url = f'/api/book-analysis/books/{self.book.pk}'
+
+    def make_book(self, data, fmt='txt'):
+        identity = hashlib.md5(data).hexdigest()
+        path = Path(self.temp.name) / (identity + '.' + fmt)
+        path.write_bytes(data)
+        asset, _ = Asset.objects.get_or_create(id=identity, defaults={'name': path.name, 'original_name': path.name, 'file_path': path.name, 'file_extension': fmt, 'file_hash': identity, 'file_size': len(data), 'file_type': 'document', 'mime_type': 'application/octet-stream'})
+        return Book.objects.create(anthology=self.coll, asset=asset, title='匿名信推理小说', book_format=fmt)
+
+    def inspected(self):
+        inspect_book(self.book)
+        return list(Chapter.objects.filter(book=self.book, is_valid=True))
+
+    def raw_payload(self, text, event_name='收到匿名信'):
+        quote = text.splitlines()[1] if len(text.splitlines()) > 1 else text
+        return {'nodes': [{'id': 'e', 'kind': 'event', 'name': event_name, 'quote': quote, 'description': '事件发生', 'time_label': '某天夜里'}, {'id': 'p', 'kind': 'person', 'name': '林雨', 'identity': '林雨', 'quote': quote, 'description': '参与调查'}], 'edges': [{'source': 'p', 'target': 'e', 'kind': 'participates', 'quote': quote, 'label': '参与'}], 'summary': event_name, 'points': [{'text': event_name, 'node_ids': ['e']}], 'qa': [{'question': '谁参与？', 'answer': '林雨', 'node_ids': ['p']}], 'inspiration': []}
+
+    def fake_extract(self, text, chapter, offset, mode, registry):
+        return validate_payload(self.raw_payload(text, f'事件 {chapter.ordinal}'), text, chapter, offset, registry)
+
+    def run_all(self, **kwargs):
+        run = create_run(self.book, 'story', **kwargs)
+        with patch('book_analysis.jobs.extract_segment', side_effect=self.fake_extract), patch('book_analysis.jobs.summarize_all', side_effect=lambda parts, *_: '\n'.join(parts)), patch('book_analysis.retrieval.index_revision'):
+            execute_claim(claim_run())
+        run.refresh_from_db()
+        self.assertEqual(run.state, 'completed', run.error)
+        return run
+
+    def test_text_detection_chapters_and_sources(self):
+        chapters = self.inspected()
+        self.assertEqual(len(chapters), 2)
+        self.assertEqual(''.join(SourceCache.objects.get(chapter=c).text for c in chapters), self.text)
+        self.assertEqual(BookAnalysis.objects.get(book=self.book).mode, 'story')
+        response = self.client.get(self.url + '/chapters')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('charCount', response.json()['data']['items'][0])
+
+    def test_segments_preserve_tail(self):
+        text = ('很长的正文\n' * 4000) + '最后的唯一线索'
+        segments = list(iter_segments(text))
+        self.assertEqual(''.join(s for _, s in segments), text)
+        self.assertTrue(all(len(s) <= 4500 for _, s in segments))
+
+    def test_evidence_and_reference_validation(self):
+        chapter = self.inspected()[0]
+        text = SourceCache.objects.get(chapter=chapter).text
+        raw = self.raw_payload(text)
+        result = validate_payload(raw, text, chapter, 0, [])
+        self.assertEqual(result['nodes'][0]['time_order'], '')
+        self.assertGreater(result['nodes'][0]['ordinal'], 1000000000)
+        raw['edges'][0]['quote'] = '原文并不存在的线索'
+        with self.assertRaises(AnalysisError):
+            validate_payload(raw, text, chapter, 0, [])
+        raw = self.raw_payload(text)
+        raw['edges'][0]['target'] = 'missing'
+        with self.assertRaises(AnalysisError):
+            validate_payload(raw, text, chapter, 0, [])
+        with self.assertRaises(AnalysisError):
+            verified_date('2025-01-01', '某天夜里')
+        self.assertEqual(verified_date('2025-01-01', '2025年1月1日收到信'), '2025-01-01')
+
+    def test_invalid_ai_output_retries_once_without_publishing(self):
+        chapter = self.inspected()[0]
+        with patch('book_analysis.extraction.AIService.chat_completion', return_value='not JSON') as ai:
+            with self.assertRaises(AnalysisError):
+                extract_segment(self.text, chapter, 0, 'story', [])
+        self.assertEqual(ai.call_count, 2)
+        self.assertFalse(GraphEdge.objects.exists())
+
+    def test_explicit_recurring_event_and_ambiguous_event_stays_separate(self):
+        one, two = self.inspected()
+        quote = '林雨回顾发现手表的经过。'
+        raw = self.raw_payload(quote)
+        a = validate_payload(raw, quote, one, 0, [])
+        b = validate_payload(raw, quote, two, 0, [])
+        self.assertNotEqual(a['nodes'][0]['canonical_id'], b['nodes'][0]['canonical_id'])
+        raw['nodes'][0]['existing_id'] = a['nodes'][0]['canonical_id']
+        registry = [{'canonical_id': a['nodes'][0]['canonical_id'], 'kind': 'event'}]
+        b = validate_payload(raw, quote, two, 0, registry)
+        self.assertEqual(a['nodes'][0]['canonical_id'], b['nodes'][0]['canonical_id'])
+
+    def test_pdf_scan_header_only_and_encryption_rejected(self):
+        text_doc = fitz.open()
+        for i in range(3):
+            page = text_doc.new_page()
+            page.insert_text((50, 60), 'Chapter ' + str(i + 1))
+            page.insert_textbox(fitz.Rect(50, 100, 540, 700), ('A clue was discovered in the old house. Another witness confirmed the evidence.\n' * 10))
+        text_doc.set_toc([[1, 'Chapter ' + str(i + 1), i + 1] for i in range(3)])
+        normal = self.make_book(text_doc.tobytes(), 'pdf')
+        self.assertTrue(inspect_book(normal).inspection['supported'])
+        encrypted = self.make_book(text_doc.tobytes(encryption=fitz.PDF_ENCRYPT_AES_256, owner_pw='owner', user_pw='secret'), 'pdf')
+        self.assertFalse(inspect_book(encrypted).inspection['supported'])
+        image = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 300, 400), False)
+        image.clear_with(255)
+        scan = fitz.open()
+        for _ in range(3):
+            page = scan.new_page()
+            page.insert_image(page.rect, stream=image.tobytes('png'))
+            page.insert_text((30, 30), 'Repeated book heading')
+        scanned = self.make_book(scan.tobytes(), 'pdf')
+        self.assertFalse(inspect_book(scanned).inspection['supported'])
+        self.assertTrue(Book.objects.get(pk=scanned.pk).is_valid)
+        text_doc.close()
+        scan.close()
+
+    def test_pdf_partial_scan_and_custom_merged_page_source(self):
+        doc = fitz.open()
+        for i in range(3):
+            page = doc.new_page()
+            page.insert_text((50, 50), f'Chapter {i + 1}')
+            page.insert_textbox(fitz.Rect(50, 90, 550, 750), (f'On page {i + 1} the witness explained an important new clue about the mystery.\n' * 10))
+        doc.set_toc([[1, f'Chapter {i + 1}', i + 1] for i in range(3)])
+        book = self.make_book(doc.tobytes(), 'pdf')
+        self.assertTrue(inspect_book(book).inspection['supported'])
+        chapters = list(Chapter.objects.filter(book=book, is_valid=True))
+        original = ''.join(SourceCache.objects.get(chapter=c).text for c in chapters)
+        with transaction.atomic():
+            edit_boundary(book, chapters[0], 'merge')
+        SourceCache.objects.filter(chapter__book=book).delete()
+        rebuild_source_cache(book)
+        merged = Chapter.objects.filter(book=book, is_valid=True).first()
+        merged_text = SourceCache.objects.get(chapter=merged).text
+        from .extraction import evidence_for
+        quote = 'On page 2 the witness explained an important new clue about the mystery.'
+        self.assertEqual(evidence_for(quote, merged_text, merged, 0)['locator']['page'], 2)
+        self.assertEqual(''.join(SourceCache.objects.get(chapter=c).text for c in Chapter.objects.filter(book=book, is_valid=True)), original)
+        image = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 300, 400), False)
+        image.clear_with(255)
+        for _ in range(2):
+            page = doc.new_page()
+            page.insert_image(page.rect, stream=image.tobytes('png'))
+        mixed = self.make_book(doc.tobytes(), 'pdf')
+        self.assertFalse(inspect_book(mixed).inspection['supported'])
+        doc.close()
+
+    def test_epub_directory_and_custom_boundary_restore(self):
+        path = Path(self.temp.name) / 'fixture.epub'
+        with zipfile.ZipFile(path, 'w') as archive:
+            archive.writestr('META-INF/container.xml', '<container><rootfiles><rootfile full-path="OPS/book.opf"/></rootfiles></container>')
+            archive.writestr('OPS/book.opf', '<package><manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/><item id="nav" href="nav.xhtml" properties="nav"/></manifest><spine><itemref idref="one"/><itemref idref="two"/></spine></package>')
+            archive.writestr('OPS/nav.xhtml', '<nav><a href="one.xhtml">匿名信</a><a href="two.xhtml">证词</a></nav>')
+            for filename, text in [('one', '林雨收到信然后去了旧宅。' * 20), ('two', '陈青核对证词并回顾线索。' * 20)]:
+                archive.writestr('OPS/' + filename + '.xhtml', '<html><body><p>' + text + '</p><img src="clue.png"/></body></html>')
+        epub = self.make_book(path.read_bytes(), 'epub')
+        report = inspect_book(epub).inspection
+        self.assertEqual(report['chapter_count'], 2)
+        original = ''.join(c.text for c in SourceCache.objects.filter(chapter__book=epub).order_by('chapter__ordinal'))
+        chapter = Chapter.objects.filter(book=epub, is_valid=True).first()
+        with transaction.atomic():
+            edit_boundary(epub, chapter, 'split', offset=60, title='续章')
+        SourceCache.objects.filter(chapter__book=epub).delete()
+        rebuild_source_cache(epub)
+        current = Chapter.objects.filter(book=epub, is_valid=True)
+        self.assertEqual(current.count(), 3)
+        self.assertEqual(''.join(SourceCache.objects.get(chapter=c).text for c in current), original)
+        with transaction.atomic():
+            edit_boundary(epub, current.first(), 'merge')
+        SourceCache.objects.filter(chapter__book=epub).delete()
+        rebuild_source_cache(epub)
+        self.assertEqual(''.join(SourceCache.objects.get(chapter=c).text for c in Chapter.objects.filter(book=epub, is_valid=True)), original)
+        self.assertEqual(inspect_book(epub).inspection['chapter_count'], 2)
+
+    def test_txt_split_merge_can_restore_without_changing_text(self):
+        chapter = self.inspected()[0]
+        with transaction.atomic():
+            edit_boundary(self.book, chapter, 'split', offset=120)
+        SourceCache.objects.filter(chapter__book=self.book).delete()
+        rebuild_source_cache(self.book)
+        chapters = Chapter.objects.filter(book=self.book, is_valid=True)
+        self.assertEqual(''.join(SourceCache.objects.get(chapter=c).text for c in chapters), self.text)
+        with transaction.atomic():
+            edit_boundary(self.book, chapters.first(), 'merge')
+        self.assertEqual(inspect_book(self.book).inspection['chapter_count'], 2)
+
+    def test_path_escape_and_mobi_are_not_analyzed(self):
+        self.book.asset.file_path = '../private-book.txt'
+        with self.assertRaises(AnalysisError):
+            source_path(self.book)
+        mobi = self.make_book(b'not an supported ebook', 'mobi')
+        self.assertIn('转换', inspect_book(mobi).inspection['reason'])
+
+    def test_task_idempotency_lease_and_complete_coverage(self):
+        self.inspected()
+        run = create_run(self.book, 'story')
+        self.assertEqual(create_run(self.book, 'story').pk, run.pk)
+        claim = claim_run()
+        self.assertIsNone(claim_run())
+        with patch('book_analysis.jobs.extract_segment', side_effect=self.fake_extract), patch('book_analysis.jobs.summarize_all', side_effect=lambda parts, *_: '\n'.join(parts)), patch('book_analysis.retrieval.index_revision', side_effect=RuntimeError('offline')):
+            execute_claim(claim)
+        run.refresh_from_db()
+        self.assertEqual(run.state, 'completed', run.error)
+        self.assertEqual(run.index_state, 'failed')
+        self.assertTrue(published(self.book).overview['complete'])
+        graph = read_graph(published(self.book), view='flow')
+        self.assertEqual(len(graph['nodes']), 2)
+        self.assertTrue(any(e['origin'] == 'derived' and e['kind'] == 'next' for e in graph['edges']))
+
+    def test_cancel_retry_does_not_repeat_completed_chapter(self):
+        self.inspected()
+        run = create_run(self.book, 'story')
+        def stop_second(text, chapter, *args):
+            if chapter.ordinal == 2:
+                cancel_run(run)
+            return self.fake_extract(text, chapter, *args)
+        with patch('book_analysis.jobs.extract_segment', side_effect=stop_second), patch('book_analysis.jobs.summarize_all', return_value='概要'):
+            execute_claim(claim_run())
+        run.refresh_from_db()
+        self.assertEqual(run.state, 'cancelled', run.error)
+        self.assertEqual(len(run.completed_ids), 1)
+        retry_run(run)
+        with patch('book_analysis.jobs.extract_segment', side_effect=self.fake_extract) as ai, patch('book_analysis.jobs.summarize_all', return_value='概要'), patch('book_analysis.retrieval.index_revision'):
+            execute_claim(claim_run())
+        self.assertEqual(ai.call_count, 1)
+        run.refresh_from_db()
+        self.assertEqual(run.state, 'completed')
+
+    def test_expired_claim_and_old_settings_cannot_publish(self):
+        self.inspected()
+        run = create_run(self.book, 'story')
+        first = claim_run()
+        WorkerLease.objects.update(expires_at=timezone.now() - timedelta(seconds=1))
+        second = claim_run()
+        self.assertEqual(second[0].pk, run.pk)
+        self.assertNotEqual(first[1], second[1])
+        with self.assertRaises(AnalysisError):
+            check_run(first[0], first[1])
+        BookAnalysis.objects.filter(book=self.book).update(settings_version=99)
+        with self.assertRaises(AnalysisError):
+            check_run(*second)
+        self.assertEqual(BookAnalysis.objects.get(book=self.book).published_revision, '')
+
+    def test_long_book_defaults_to_twenty_and_ranges_are_bounded(self):
+        analysis = inspect_book(self.book)
+        Chapter.objects.filter(book=self.book).delete()
+        Chapter.objects.bulk_create([Chapter(id=f'long-{i}', book=self.book, source_hash=analysis.source_hash, ordinal=i, title=str(i), char_count=20, locator={'format': 'txt', 'offset': 0}) for i in range(1, 1002)])
+        run = create_run(self.book, 'story')
+        self.assertEqual(len(run.chapter_ids), 20)
+        cancel_run(run)
+        run = create_run(self.book, 'story', start=980, end=1001)
+        self.assertEqual(len(run.chapter_ids), 22)
+
+    def test_force_selected_range_preserves_other_chapters_and_corrections(self):
+        self.inspected()
+        first = self.run_all()
+        person = GraphNode.objects.get(revision=first.revision, kind='person')
+        correct_node(first.revision, person.canonical_id, {'name': '林雨（修正）', 'description': '人工补充'})
+        second = self.run_all(start=1, end=1, force=True)
+        self.assertEqual(ChapterResult.objects.filter(revision=second.revision).count(), 2)
+        self.assertTrue(published(self.book).overview['complete'])
+        node = node_detail(second.revision, person.canonical_id)['node']
+        self.assertEqual(node['name'], '林雨（修正）')
+        self.assertEqual(sum(f['status'] == 'user' for f in node['facts']), 1)
+        self.assertEqual({f['evidence']['ordinal'] for f in node['facts'] if f['evidence']}, {1, 2})
+
+    def test_atomic_merge_updates_relations_and_keeps_sources(self):
+        self.inspected()
+        run = self.run_all()
+        person = GraphNode.objects.get(revision=run.revision, kind='person')
+        duplicate = GraphNode.objects.create(id=stable_id('dup', run.revision.pk), revision=run.revision, canonical_id=stable_id('dup'), kind='person', name='林先生', facts=person.facts, ordinal=1)
+        event = GraphNode.objects.filter(revision=run.revision, kind='event').first()
+        key = correct_edge(run.revision, 'manual', {'source': duplicate.canonical_id, 'target': event.canonical_id, 'kind': 'participates', 'label': '补充参与'}, new=True)
+        correct_node(run.revision, duplicate.canonical_id, {'merge_into': person.canonical_id})
+        graph = read_graph(run.revision)
+        self.assertNotIn(duplicate.canonical_id, [n['id'] for n in graph['nodes']])
+        self.assertEqual(graph['total'], 3)
+        self.assertTrue(any(e['id'] == key and e['source'] == person.canonical_id for e in graph['edges']))
+        with self.assertRaises(AnalysisError):
+            correct_node(run.revision, person.canonical_id, {'merge_into': event.canonical_id})
+
+    def test_private_and_public_readers_cannot_modify_or_access_foreign_sources(self):
+        self.inspected()
+        run = self.run_all()
+        self.client.force_authenticate(self.reader)
+        for path in ('', '/graph', '/chapters'):
+            self.assertEqual(self.client.get(self.url + path).status_code, 404)
+        self.assertEqual(self.client.post(self.url + '/ask', {'question': '谁收到信？'}).status_code, 404)
+        self.coll.permission = 'public'
+        self.coll.save()
+        self.assertEqual(self.client.get(self.url + '/graph').status_code, 200)
+        self.assertEqual(self.client.post(self.url + '/inspect').status_code, 404)
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.post(self.url + '/runs', {'mode': 'story'}).status_code, 401)
+        self.client.force_authenticate(self.owner)
+        self.assertEqual(self.client.get(self.url + '/graph', {'chapterId': 'foreign'}).status_code, 404)
+        self.assertEqual(self.client.get(self.url + '/graph', {'limit': 201}).status_code, 400)
+        self.assertEqual(self.client.get(self.url + '/nodes/foreign').status_code, 404)
+
+    def test_synced_results_exclude_local_runtime_and_can_restore(self):
+        self.inspected()
+        run = self.run_all()
+        person = GraphNode.objects.get(revision=run.revision, kind='person')
+        correct_node(run.revision, person.canonical_id, {'name': '用户修正姓名'})
+        snapshot = SyncManager().build_snapshot_data()
+        labels = {row['model'] for row in snapshot}
+        self.assertIn('book_analysis.correction', labels)
+        self.assertIn('book_analysis.graphnode', labels)
+        for label in ('sourcecache', 'segmentcache', 'analysisrun', 'workerlease', 'executionevent'):
+            self.assertNotIn('book_analysis.' + label, labels)
+        Correction.objects.all().delete()
+        SourceCache.objects.all().delete()
+        SyncManager().apply_snapshot_data(snapshot)
+        self.assertEqual(node_detail(published(self.book), person.canonical_id)['node']['name'], '用户修正姓名')
+        rebuild_source_cache(self.book)
+        self.assertEqual(SourceCache.objects.filter(chapter__book=self.book).count(), 2)
+
+    def test_hierarchical_summary_reads_every_tail(self):
+        seen = []
+        def reduce(prompt, **kwargs):
+            seen.append(prompt)
+            return '提炼后的概要'
+        with patch('book_analysis.extraction.AIService.chat_completion', side_effect=reduce):
+            result = summarize_all(['正文' * 7000 + '尾部独有事实', '第二章最后的重点'], '长书', 'knowledge')
+        self.assertEqual(result, '提炼后的概要')
+        self.assertTrue(any('尾部独有事实' in prompt for prompt in seen))
+        self.assertTrue(any('第二章最后的重点' in prompt for prompt in seen))
+        self.assertTrue(all(len(prompt) < 12000 for prompt in seen))
+
+    def test_question_stream_sources_answer_and_no_evidence_fallback(self):
+        revision = Revision(book=self.book, overview={'covered_chapters': [1]})
+        def tokens(*args):
+            yield {'type': 'answer', 'content': '林雨收到信 [S1]'}
+        with patch('book_analysis.ask_views.retrieve', return_value=([{'id': 'S1', 'quote': '林雨收到信', 'chapter_id': 'chapter'}], 'keyword')), patch('book_analysis.ask_views.reading_context', return_value={'chapters': [], 'overview': ''}), patch('book_analysis.ask_views.AIService.stream_chat_completion', side_effect=tokens):
+            output = ''.join(answer_stream(revision, '谁收到信？', '', ''))
+        self.assertIn('event: sources', output)
+        self.assertIn('林雨收到信 [S1]', output)
+        self.assertIn('event: done', output)
+        with patch('book_analysis.ask_views.retrieve', return_value=([], 'keyword')), patch('book_analysis.ask_views.AIService.stream_chat_completion') as ai:
+            output = ''.join(answer_stream(revision, '谁？', '', ''))
+        ai.assert_not_called()
+        self.assertIn('没有找到可靠原文证据', output)
+
+    def test_knowledge_nodes_cross_chapter_and_inspiration_are_separate(self):
+        one, two = self.inspected()
+        revision = Revision.objects.create(book=self.book, source_hash=self.book.asset.file_hash, mode='knowledge', settings_version=BookAnalysis.objects.get(book=self.book).settings_version)
+        text = '事务的原子性要求所有修改一起成功，转账就是典型案例。'
+        raw = {'nodes': [{'id': 'concept', 'kind': 'concept', 'name': '原子性', 'quote': text, 'description': '修改一起成功'}, {'id': 'case', 'kind': 'example', 'name': '转账', 'quote': text, 'description': '典型案例'}], 'edges': [{'source': 'case', 'target': 'concept', 'kind': 'illustrates', 'quote': text}], 'summary': '原子性与转账', 'points': [{'text': '原子性', 'node_ids': ['concept']}], 'inspiration': [{'question': '失败会怎样？', 'application': '支付', 'exercise': '设计回滚练习'}]}
+        for chapter in (one, two):
+            payload = validate_payload(raw, text, chapter, 0, [])
+            add_segment(revision, chapter, payload)
+        self.assertEqual(GraphNode.objects.filter(revision=revision).count(), 2)
+        node = GraphNode.objects.get(revision=revision, kind='concept')
+        self.assertEqual(len(node.facts), 2)
+        self.assertEqual(len(payload['inspiration']), 1)
+        self.assertFalse(any(f['status'] == 'user' for f in node.facts))
+        self.assertEqual(read_graph(revision, chapter_id=two.pk)['total'], 2)
+
+    def test_history_can_be_read_but_foreign_or_unpublished_revision_cannot(self):
+        self.inspected()
+        first = self.run_all()
+        second = self.run_all(force=True)
+        response = self.client.get(self.url, {'revisionId': first.revision_id})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['data']['history'])
+        self.assertFalse(response.json()['data']['canManage'])
+        self.assertEqual(self.client.get(self.url + '/graph', {'revisionId': first.revision_id}).status_code, 200)
+        building = Revision.objects.create(book=self.book, source_hash=self.book.asset.file_hash, mode='story', settings_version=2)
+        self.assertEqual(self.client.get(self.url + '/graph', {'revisionId': building.pk}).status_code, 404)
+        self.assertEqual(self.client.get(self.url + '/graph', {'revisionId': 'foreign'}).status_code, 404)
+        self.assertNotEqual(first.revision_id, second.revision_id)
+
+    def test_graph_facts_and_event_pages_are_bounded(self):
+        self.inspected()
+        run = self.run_all()
+        event = GraphNode.objects.filter(revision=run.revision, kind='event').first()
+        event.facts = [{'description': str(i), 'status': 'explicit', 'evidence': event.facts[0]['evidence']} for i in range(70)]
+        event.thread = '调查线'
+        event.save()
+        graph = read_graph(run.revision, thread='调查线')
+        self.assertEqual(graph['total'], 1)
+        self.assertEqual(len(graph['nodes'][0]['facts']), 3)
+        detail = node_detail(run.revision, event.canonical_id, page=2)
+        self.assertEqual(len(detail['node']['facts']), 20)
+        self.assertEqual(detail['node']['fact_total'], 70)
+        self.assertEqual(read_graph(run.revision, view='flow')['limit'], 50)
+
+    def test_correction_description_is_independent_of_fact_pagination(self):
+        self.inspected()
+        run = self.run_all()
+        person = GraphNode.objects.get(revision=run.revision, kind='person')
+        person.facts = [{**person.facts[0], 'description': f'明确记录 {i}'} for i in range(60)]
+        person.save()
+        correct_node(run.revision, person.canonical_id, {'description': '需要保留的人工说明'})
+        endpoint = self.url + f'/nodes/{person.canonical_id}'
+        for page in (1, 2):
+            response = self.client.get(endpoint, {'page': page})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()['data']['node']['correctionDescription'], '需要保留的人工说明')
+        first = node_detail(run.revision, person.canonical_id)['node']
+        self.assertFalse(any(f['status'] == 'user' for f in first['facts']))
+        response = self.client.patch(endpoint + '/correction', {'name': '修正后的姓名'}, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(node_detail(run.revision, person.canonical_id)['node']['correction_description'], '需要保留的人工说明')
+        response = self.client.patch(endpoint + '/correction', {'description': ''}, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(node_detail(run.revision, person.canonical_id)['node']['correction_description'], '')
+
+    def test_node_question_keeps_vector_and_keyword_hits_after_graph_anchors(self):
+        import json
+        from unittest.mock import MagicMock
+        from .retrieval import retrieve
+        chapters = self.inspected()
+        run = self.run_all()
+        person = GraphNode.objects.get(revision=run.revision, kind='person')
+        person.facts = [{**person.facts[0], 'evidence': {**person.facts[0]['evidence'], 'quote': f'人物关联记录 {i}'}} for i in range(12)]
+        person.save()
+        collection = MagicMock()
+        documents = [f'与当前问题相关的检索证据 {i}' for i in range(6)]
+        metadata = {'chapter_id': chapters[1].pk, 'chapter_title': chapters[1].title, 'ordinal': 2, 'locator': json.dumps(chapters[1].locator)}
+        collection.query.return_value = {'documents': [documents], 'metadatas': [[metadata] * 6]}
+        with patch('book_analysis.retrieval.RagClient.get_embedding_model', return_value=object()), patch('book_analysis.retrieval.book_collection', return_value=collection), patch('book_analysis.retrieval.embed_texts', return_value=[[.1, .2]]):
+            sources, method = retrieve(run.revision, '核对证词', node_id=person.canonical_id)
+        self.assertEqual(method, 'vector')
+        self.assertEqual(len(sources), 8)
+        self.assertEqual([s['quote'] for s in sources[2:]], documents)
+        self.assertEqual([s['source_id'] for s in sources], [f'S{i + 1}' for i in range(8)])
+        with patch('book_analysis.retrieval.book_collection', side_effect=RuntimeError('offline')):
+            sources, method = retrieve(run.revision, '核对证词', node_id=person.canonical_id)
+        self.assertEqual(method, 'keyword')
+        self.assertTrue(any('核对证词' in source['quote'] for source in sources))
+        self.assertLessEqual(len(sources), 8)
+
+    def test_source_budget_deduplicates_and_fills_unused_retrieval_slots(self):
+        from .retrieval import combine_sources
+        anchors = [{'chapter_id': 'chapter', 'quote': f'关联证据 {i}'} for i in range(12)]
+        hit = {'chapter_id': 'chapter', 'quote': '问题相关证据'}
+        sources = combine_sources([anchors[0], *anchors], [anchors[0], hit])
+        self.assertEqual(len(sources), 8)
+        self.assertEqual([s['quote'] for s in sources[:3]], [anchors[0]['quote'], anchors[1]['quote'], hit['quote']])
+        self.assertEqual(len({s['quote'] for s in sources}), 8)
+
+    def test_index_saves_each_segment_and_reuses_saved_vectors_after_failure(self):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+        from .retrieval import index_revision
+        self.inspected()
+        run = self.run_all()
+        model = SimpleNamespace(pk='embedding-model', name='embedding')
+        stored = set()
+        collection = MagicMock()
+        collection.get.side_effect = lambda ids, **kwargs: {'ids': [identity for identity in ids if identity in stored]}
+        collection.upsert.side_effect = lambda **kwargs: stored.update(kwargs['ids'])
+        with patch('book_analysis.retrieval.RagClient.get_embedding_model', return_value=model), patch('book_analysis.retrieval.book_collection', return_value=collection):
+            with patch('book_analysis.retrieval.embed_texts', side_effect=[[[.1, .2]], TimeoutError('offline')]) as embed:
+                with self.assertRaises(TimeoutError):
+                    index_revision(run.revision)
+                self.assertEqual(len(stored), 1)
+                self.assertTrue(all(len(call.args[0]) == 1 and len(call.args[0][0]) <= 1500 for call in embed.call_args_list))
+            with patch('book_analysis.retrieval.embed_texts', return_value=[[.1, .2]]) as embed:
+                index_revision(run.revision)
+                self.assertEqual(embed.call_count, 1)
+                self.assertIs(embed.call_args.kwargs['model'], model)
+            with patch('book_analysis.retrieval.embed_texts') as embed:
+                index_revision(run.revision)
+                embed.assert_not_called()
+        self.assertEqual(len(stored), 2)
+
+    def test_vector_fallback_is_book_scoped_and_supports_synced_evidence(self):
+        from .retrieval import book_collection, retrieve
+        self.inspected()
+        run = self.run_all()
+        with patch('book_analysis.retrieval.book_collection', side_effect=RuntimeError('offline')):
+            sources, method = retrieve(run.revision, '林雨')
+            self.assertTrue(sources)
+            self.assertEqual(method, 'keyword')
+            SourceCache.objects.all().delete()
+            sources, _ = retrieve(run.revision, '林雨')
+            self.assertTrue(sources)
+        from types import SimpleNamespace
+        with patch('book_analysis.retrieval.RagClient.get_embedding_model', return_value=SimpleNamespace(pk='model', name='embedding')), patch('book_analysis.retrieval.RagClient.get_collection') as collection:
+            book_collection(self.book.pk)
+            first = collection.call_args.args[0]
+            book_collection('another-book')
+            self.assertNotEqual(first, collection.call_args.args[0])
+
+    def test_model_stream_closes_on_consumer_cancellation(self):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+        from utils.ai_service import AIService
+        class ProviderStream:
+            closed = False
+            def __iter__(self):
+                yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content='文本'))])
+                yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content='更多'))])
+            def close(self):
+                self.closed = True
+        provider_stream = ProviderStream()
+        client = MagicMock()
+        client.chat.completions.create.return_value = provider_stream
+        with patch('utils.ai_service.AIService.get_default_client_config', return_value={'api_key': 'test', 'base_url': 'https://example.test/v1', 'model_name': 'test'}), patch('utils.ai_service.OpenAI', return_value=client):
+            output = AIService.stream_chat_completion([{'role': 'user', 'content': '问题'}])
+            self.assertEqual(next(output)['type'], 'answer')
+            output.close()
+        self.assertTrue(provider_stream.closed)
+        client.close.assert_called_once()
+
+    def test_manual_name_aliases_are_searchable_and_invalid_patch_is_rejected(self):
+        self.inspected()
+        run = self.run_all()
+        person = GraphNode.objects.get(revision=run.revision, kind='person')
+        correct_node(run.revision, person.canonical_id, {'name': '调查员', 'aliases': ['林警官']})
+        for name in ('调查员', '林警官'):
+            self.assertEqual(read_graph(run.revision, query=name)['total'], 1)
+        response = self.client.patch(self.url + f'/nodes/{person.canonical_id}/correction', {'mergeInto': []}, format='json')
+        self.assertEqual(response.status_code, 400)
+        chapter = Chapter.objects.filter(book=self.book, is_valid=True).first()
+        text = SourceCache.objects.get(chapter=chapter).text
+        invalid = self.raw_payload(text)
+        invalid['nodes'][0]['kind'] = {}
+        with self.assertRaises(AnalysisError):
+            validate_payload(invalid, text, chapter, 0, [])

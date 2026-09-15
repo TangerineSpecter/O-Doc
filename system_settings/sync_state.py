@@ -8,7 +8,11 @@ from contextlib import contextmanager
 from django.utils import timezone
 
 DEVICE_SETTING_KEY = 'system_sync_v2_device'
-LOCAL_ONLY_MODEL_LABELS = frozenset({'system_settings.syncentitystate'})
+LOCAL_ONLY_MODEL_LABELS = frozenset({
+    'system_settings.syncentitystate', 'book_analysis.sourcecache',
+    'book_analysis.segmentcache', 'book_analysis.analysisrun', 'book_analysis.workerlease',
+    'book_analysis.executionevent',
+})
 _local = threading.local()
 
 
@@ -64,7 +68,7 @@ def should_track(sender):
     return (
         sender._meta.app_label in {
             'article', 'anthology', 'categories', 'tags', 'assets', 'stats',
-            'ai_assistant', 'system_settings', 'user', 'auth',
+            'ai_assistant', 'system_settings', 'user', 'auth', 'book_analysis',
         }
         and sender._meta.label_lower not in LOCAL_ONLY_MODEL_LABELS
         and not sender._meta.auto_created

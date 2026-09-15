@@ -242,7 +242,7 @@ export const AISettings = ({
                                     buttonClassName="bg-slate-50 focus:ring-orange-500/20 focus:border-orange-500"
                                 />
                             </div>
-                            <p className="text-[10px] text-slate-400">用于标题、文章标签、图片标签推荐，并固定关闭思考模式</p>
+                            <p className="text-[10px] text-slate-400">用于标题、文章标签、图片标签推荐和图书分段抽取；未配置时使用主对话模型。思考模式控制因提供商而异。</p>
                         </div>
 
                         {/* Image Model Selector */}

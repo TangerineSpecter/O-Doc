@@ -67,7 +67,8 @@ INSTALLED_APPS = [
     'rag.apps.RagConfig',
     'message.apps.MessageConfig',
     'memos.apps.MemosConfig',
-    'knowledge_maintenance.apps.KnowledgeMaintenanceConfig'
+    'knowledge_maintenance.apps.KnowledgeMaintenanceConfig',
+    'book_analysis.apps.BookAnalysisConfig',
 ]
 
 # DRF全局配置

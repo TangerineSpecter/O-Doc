@@ -1,0 +1,22 @@
+export type ReadingMode = 'story' | 'knowledge';
+export type NodeKind = 'event' | 'person' | 'place' | 'time' | 'clue' | 'concept' | 'claim' | 'method' | 'example';
+export type GraphView = 'graph' | 'flow' | 'timeline' | 'mindmap';
+export interface ReadingLocator {format: string; page?: number; offset?: number; href?: string}
+export interface SourceEvidence {chapterId: string; chapterTitle: string; ordinal: number; quote: string; locator: ReadingLocator; sourceId?: string}
+export interface ReadingFact {description: string; status: 'explicit' | 'inferred' | 'user'; evidence: SourceEvidence | null}
+export interface ReadingNode {id: string; kind: NodeKind; name: string; aliases: string[]; facts: ReadingFact[]; ordinal: number; timeLabel: string; timeOrder: string; factTotal?: number; factPage?: number; thread?: string; correctionDescription?: string}
+export interface ReadingEdge {id: string; source: string; target: string; kind: string; label: string; evidence: SourceEvidence[]; context: {chapterTitle?: string; timeLabel?: string; state?: string}; origin: 'ai' | 'user' | 'derived'}
+export interface ReadingGraph {nodes: ReadingNode[]; edges: ReadingEdge[]; total: number; page: number; limit: number; threads?: string[]}
+export interface ChapterSummary {id: string; ordinal: number; title: string; charCount: number; locator: ReadingLocator; analyzed: boolean}
+export interface PagedChapters {items: ChapterSummary[]; total: number; page: number; limit: number}
+export interface LinkedPoint {text: string; nodeIds: string[]}
+export interface ChapterDigest {summary: string; points: LinkedPoint[]; qa: {question: string; answer: string; nodeIds: string[]}[]; inspiration: {question: string; application: string; exercise: string}[]; nodeIds: string[]}
+export interface ChapterGuide {id: string; title: string; ordinal: number; charCount: number; locator: ReadingLocator; digest: ChapterDigest | null; sourcePreview: string; sourceAvailable: boolean}
+export interface ExecutionDetails {phase?: string; chapterTitle?: string; chapterOrdinal?: number; segment?: number; segments?: number; attempt?: number; providerName?: string; modelName?: string; modelRole?: string; requestId?: string; chars?: number; durationMs?: number; finishReason?: string; errorType?: string; reason?: string; summary?: string; nodes?: number; edges?: number; vectors?: number; timeoutSeconds?: number; sdkRetries?: number; streaming?: number; deadlineSeconds?: number; maxTokens?: number; requestAttempt?: number; jsonMode?: string; thinkingMode?: string; promptTokens?: number; completionTokens?: number; splitDepth?: number}
+export interface ReadingExecutionEvent {id: number; kind: string; title: string; level: 'info' | 'success' | 'warning' | 'error'; details: ExecutionDetails; createdAt: string}
+export interface ExecutionPage {items: ReadingExecutionEvent[]; hasMore: boolean}
+export interface ReadingRun {id: string; state: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'; stage: string; error: string; total: number; completed: number; cancelRequested: boolean; indexState: string; kind: string; events?: ReadingExecutionEvent[]; eventsTruncated?: boolean; updatedAt?: string; serverTime?: string; heartbeatAt?: string | null; leaseExpiresAt?: string | null; recovering?: boolean}
+export interface BookInspection {supported?: boolean; reason?: string; warnings?: string[]; chapterCount?: number; charCount?: number; recommendedMode?: ReadingMode; fallbackSections?: boolean; imagePages?: number; imageCount?: number; unreadablePages?: number}
+export interface BookOverview {summary?: string; complete?: boolean; coveredChapters?: number[]; totalChapters?: number}
+export interface BookAnalysisStatus {book: {bookId: string; title: string; author: string; format: 'pdf' | 'txt' | 'epub' | 'mobi'; collId: string; coverUrl: string; localState: string}; canManage: boolean; mode: ReadingMode; inspection: BookInspection; stale: boolean; history?: boolean; versions?: {id: string; mode: ReadingMode; createdAt: string; complete: boolean}[]; revisionId: string; overview: BookOverview; run: ReadingRun | null}
+export interface GraphFilters {view: GraphView; chapterId?: string; kind?: string; query?: string; center?: string; order: 'narrative' | 'time'; page: number; thread?: string; revisionId?: string}

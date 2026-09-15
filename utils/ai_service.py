@@ -2,10 +2,13 @@
 import logging
 import re
 import json
+import time
+import uuid
 
 from openai import AuthenticationError, OpenAI
 
 from system_settings.models import SystemSetting, AIModel
+from .ai_observer import emit_ai_event
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +23,12 @@ class AIAuthenticationError(RuntimeError):
     use this safe exception for logs, task records, and user notifications.
     """
 
-    def __init__(self, provider_id='', provider_name='', api_key=''):
+    def __init__(self, provider_id='', provider_name='', api_key='', *, model_name='', model_role=''):
         self.provider_id = provider_id
         self.provider_name = provider_name or '未知提供商'
         self.api_key = api_key or ''
+        self.model_name = model_name
+        self.model_role = model_role
         super().__init__(f'AI 提供商「{self.provider_name}」的 API Key 已失效或无权访问')
 
 
@@ -68,9 +73,12 @@ class AIService:
         try:
             config_obj = SystemSetting.objects.get(key='system_ai_config')
             config = config_obj.value
+            model_role = 'default'
             if use_simple_model:
                 model_id = AIService._get_config_value(config, 'simpleChatModelId', 'simple_chat_model_id')
-                if not model_id:
+                if model_id:
+                    model_role = 'simple'
+                else:
                     model_id = AIService._get_config_value(config, 'defaultChatModelId', 'default_chat_model_id')
             else:
                 model_id = AIService._get_config_value(config, 'defaultChatModelId', 'default_chat_model_id')
@@ -85,6 +93,7 @@ class AIService:
                 "api_key": provider.api_key,
                 "base_url": AIService._normalize_base_url(provider.base_url),
                 "model_name": ai_model.name,
+                "model_role": model_role,
                 "provider_type": provider.type,
                 "provider_id": provider.id,
                 "provider_name": provider.name,
@@ -142,10 +151,24 @@ class AIService:
             raise e
 
     @classmethod
-    def chat_completion(cls, prompt, use_simple_model=False):
+    def chat_completion(cls, prompt, use_simple_model=False, *, bounded=False, json_output=False, max_tokens=4096):
         """执行 AI 对话"""
+        if bounded:
+            from .bounded_completion import complete
+            from .completion_options import thinking_options
+            config = cls.get_default_client_config(use_simple_model=use_simple_model)
+            try:
+                content = complete(config, prompt, json_output=json_output, max_tokens=max_tokens, extra_body=thinking_options(config))
+                return cls.strip_thinking(content)
+            except AuthenticationError as exc:
+                cls._raise_authentication_error(exc, config)
+        started = time.monotonic()
+        request_id = uuid.uuid4().hex
+        metadata = {'request_id': request_id}
         try:
             config = cls.get_default_client_config(use_simple_model=use_simple_model)
+            metadata.update({key: config.get(key, '') for key in ('provider_name', 'model_name', 'model_role')})
+            emit_ai_event('model_request_started', '正在请求模型，等待返回', **metadata, timeout_seconds=120, sdk_retries=1)
 
             client = OpenAI(
                 api_key=config['api_key'],
@@ -165,10 +188,18 @@ class AIService:
                 ) or None,
             ) # type: ignore
 
-            return cls.strip_thinking(response.choices[0].message.content)
+            choice = response.choices[0]
+            content = cls.strip_thinking(choice.message.content)
+            finish = choice.finish_reason if isinstance(choice.finish_reason, str) else ''
+            emit_ai_event('model_response', '模型已返回，准备检查输出', **metadata, chars=len(content), finish_reason=finish, duration_ms=(time.monotonic() - started) * 1000)
+            if finish == 'length':
+                emit_ai_event('output_truncated', '模型输出达到长度限制，可能未完整返回', 'warning', **metadata, reason='输出可能被截断；本次结果仍需校验。')
+            return content
         except AuthenticationError as exc:
+            emit_ai_event('model_request_failed', '模型认证失败', 'error', **metadata, error_type='authentication', duration_ms=(time.monotonic() - started) * 1000)
             cls._raise_authentication_error(exc, config)
         except Exception as e:
+            emit_ai_event('model_request_failed', '模型请求失败', 'error', **metadata, error_type=type(e).__name__, duration_ms=(time.monotonic() - started) * 1000)
             logger.error(f"AI API Call Error: {e}")
             raise e
 
@@ -358,6 +389,8 @@ class AIService:
             provider_id=config.get('provider_id', ''),
             provider_name=provider_name,
             api_key=config.get('api_key', ''),
+            model_name=config.get('model_name', ''),
+            model_role=config.get('model_role', ''),
         ) from exc
 
     @staticmethod
@@ -371,9 +404,11 @@ class AIService:
     @classmethod
     def stream_chat_completion(cls, messages, include_thinking=False, use_simple_model=False):
         """流式对话 (用于前端 Chat 界面)"""
+        stream = None
+        client = None
         try:
             config = cls.get_default_client_config(use_simple_model=use_simple_model)
-            client = OpenAI(api_key=config['api_key'], base_url=config['base_url'])
+            client = OpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=120.0, max_retries=1)
 
             extra_body = cls._build_thinking_extra_body(
                 config.get('provider_type'),
@@ -438,6 +473,13 @@ class AIService:
         except Exception as e:
             logger.error(f"AI Stream Error: {e}")
             raise e
+        finally:
+            try:
+                if stream is not None:
+                    stream.close()
+            finally:
+                if client is not None:
+                    client.close()
 
     @staticmethod
     def _normalize_stream_delta(previous_text, next_text):

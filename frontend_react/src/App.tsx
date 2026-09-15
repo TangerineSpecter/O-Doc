@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import {lazy, Suspense, type ReactNode} from 'react';
 import {BrowserRouter, Navigate, Routes, Route, useLocation, useNavigate, useParams} from 'react-router-dom';
 import {ToastProvider} from './components/common/ToastProvider'; // 1. 引入 Provider
 import Layout from './layout/Layout';
@@ -6,6 +6,7 @@ import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';
 import ImageAnthologyPage from './views/ImageAnthologyPage';
 import BookAnthologyPage from './views/BookAnthologyPage';
+const BookAnalysisPage = lazy(() => import('./views/BookAnalysisPage'));
 import LoginPage from './views/LoginPage';
 import EditorPage from './views/EditorPage';
 import ResourcesPage from './views/ResourcesPage';
@@ -74,7 +75,10 @@ function HomeRoute() {
 
 function BookAnthologyRoute() {
     const params = useParams(); const navigate = useNavigate();
-    return <BookAnthologyPage collId={params.collId} onNavigate={(view) => view === 'home' && navigate('/')}/>;
+    return <BookAnthologyPage collId={params.collId} onNavigate={(view, values) => {
+        if (view === 'home') navigate('/');
+        if (view === 'bookGuide' && values?.bookId) navigate(`/books/${params.collId}/guide/${values.bookId}`);
+    }}/>;
 }
 
 // 文章页面组件，用于接收路由参数
@@ -205,6 +209,7 @@ function AppWithRouter() {
                 </Layout>
             }/>
             <Route path="/books/:collId" element={<RequireAuth><Layout onNavigate={handleNavigate}><BookAnthologyRoute/></Layout></RequireAuth>}/>
+            <Route path="/books/:collId/guide/:bookId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-sm text-slate-400">正在打开 AI 导读…</div>}><BookAnalysisPage/></Suspense></Layout></RequireAuth>}/>
             <Route path="/login" element={<LoginPage/>}/> {/* 新增路由：登录页不使用Layout */}
             {/* 新增编辑器路由 - 不使用 Layout，提供全屏体验 */}
             <Route path="/editor" element={

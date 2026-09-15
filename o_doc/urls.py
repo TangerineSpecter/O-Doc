@@ -28,6 +28,7 @@ urlpatterns = [
     path('api/health/', health_check),
     path('api/', include('user.urls')),
     path('api/anthology/', include('anthology.urls')),  # 文集接口
+    path('api/book-analysis/', include('book_analysis.urls')),
     path('api/article/', include('article.urls')),  # 文章接口
     path('api/category/', include('categories.urls')),  # 分类接口
     path('api/tag/', include('tags.urls')),  # 标签接口
