@@ -48,7 +48,13 @@ def extract_resource_ids_from_content(content):
 
 
 def is_asset_used_by_article(resource_id, exclude_article_id=None):
-    from article.models import Article
+    from article.models import Article, ArticleAsset
+
+    references = ArticleAsset.objects.filter(asset_id=resource_id, article__is_valid=True)
+    if exclude_article_id:
+        references = references.exclude(article_id=exclude_article_id)
+    if references.exists():
+        return True
 
     queryset = Article.objects.filter(
         is_valid=True,
@@ -61,7 +67,7 @@ def is_asset_used_by_article(resource_id, exclude_article_id=None):
 
 
 def get_article_resource_usage(resource_ids=None):
-    from article.models import Article
+    from article.models import Article, ArticleAsset
 
     usage = {}
     queryset = Article.objects.filter(
@@ -80,13 +86,24 @@ def get_article_resource_usage(resource_ids=None):
                 'collId': article.coll_id,
             })
 
+    references = ArticleAsset.objects.filter(article__is_valid=True).select_related('article')
+    if resource_id_filter is not None:
+        references = references.filter(asset_id__in=resource_id_filter)
+    for ref in references:
+        usage.setdefault(ref.asset_id, {'id': ref.article_id, 'title': ref.article.title, 'collId': ref.article.coll_id})
     return usage
 
 
 def sync_article_content_assets(article):
     from assets.models import Asset
+    from article.models import ArticleAsset
 
     resource_ids = extract_resource_ids_from_content(article.content)
+    if article.content_format == 'markdown':
+        ArticleAsset.objects.filter(article=article, role='material').exclude(asset_id__in=resource_ids).delete()
+        if article.enforce_note_privacy:
+            for asset_id in Asset.objects.filter(pk__in=resource_ids, is_valid=True).values_list('pk', flat=True):
+                ArticleAsset.objects.get_or_create(article=article, asset_id=asset_id, role='material')
     Asset.objects.filter(
         linked_article=article,
         source_type='content',

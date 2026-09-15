@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {BookOpen, ChevronDown, ChevronRight, FileText, Globe, Plus, RefreshCw, Search, X, Loader2} from 'lucide-react';
+import {BookOpen, ChevronDown, ChevronRight, FileText, FileCode2, Globe, Plus, RefreshCw, Search, X, Loader2} from 'lucide-react';
 import {ArticleNode} from '@/api/article.ts';
 
 interface OutlineSidebarProps {
@@ -73,8 +73,10 @@ export default function OutlineSidebar({
                         : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'}
                     `}
                     style={{paddingLeft}}
+                    title={item.contentFormat === 'html' ? `${item.title} · HTML 原样笔记 · 只读` : item.title}
                 >
                     <div className="flex items-center gap-2 truncate">
+                        {item.contentFormat === 'html' ? <FileCode2 size={12} className="shrink-0 text-slate-400"/> : <FileText size={12} className="shrink-0 text-slate-400"/>}
                         {/* [新增] 状态图标 */}
                         {item.is_polishing ? (
                             <div className="flex items-center gap-1 text-purple-500" title="AI 正在润色中...">

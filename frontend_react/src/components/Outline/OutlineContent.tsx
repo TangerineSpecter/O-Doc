@@ -1,5 +1,5 @@
 import React from 'react';
-import {BookOpen, Home} from 'lucide-react';
+import {BookOpen, Home, FileCode2, FileText} from 'lucide-react';
 import {ArticleNode} from '@/api/article.ts';
 
 interface OutlineContentProps {
@@ -41,13 +41,13 @@ export default function OutlineContent(
                     <div
                         style={{paddingLeft}}
                         className="relative truncate pr-2"
-                        title={item.title}
+                        title={item.contentFormat === 'html' ? `${item.title} · HTML 原样笔记 · 只读` : item.title}
                     >
             <span className={`
                 ${isTopLevel ? 'text-slate-700 font-medium' : 'text-slate-600'} 
                 group-hover:text-orange-600 transition-colors
             `}>
-                {item.title}
+                {item.contentFormat === 'html' ? <FileCode2 size={12} className="mr-2 inline text-slate-400"/> : <FileText size={12} className="mr-2 inline text-slate-400"/>}{item.title}
             </span>
                     </div>
 

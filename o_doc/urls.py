@@ -21,6 +21,7 @@ from django.views.static import serve
 from django.views.generic import TemplateView
 
 from .health import health_check
+from assets.media_views import serve_legacy_media
 
 urlpatterns = [
     path('', TemplateView.as_view(template_name='index.html')),
@@ -46,7 +47,7 @@ urlpatterns = [
 # 这里不能依赖 django.conf.urls.static.static；DEBUG=false 时它不会注册路由，
 # /media 请求会落到下面的 SPA fallback，浏览器拿到 index.html 后头像就会加载失败。
 urlpatterns += [
-    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+    re_path(r'^media/(?P<path>.*)$', serve_legacy_media),
 ]
 
 urlpatterns += [

@@ -690,6 +690,10 @@ export const useEditor = () => {
             try {
                 const articleDetail = await getArticleDetail(articleId);
                 if (requestId !== articleLoadRequestRef.current) return;
+                if (articleDetail.contentFormat === 'html') {
+                    navigate(`/article/${articleDetail.collId}/${articleDetail.articleId}`, {replace: true});
+                    return;
+                }
 
                 // 设置文章内容
                 setTitle(articleDetail.title);

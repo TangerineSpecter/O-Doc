@@ -5,6 +5,11 @@ export interface MindMapNode {
 }
 
 export interface Article {
+    contentFormat?: 'markdown' | 'html';
+    previewUrl?: string;
+    downloadUrl?: string;
+    canEditContent?: boolean;
+    canAnnotate?: boolean;
     id: number;
     articleId: string;
     title: string;
@@ -121,6 +126,7 @@ export interface ArticleItem {
 
 // 文章树形节点结构
 export interface ArticleNode {
+    contentFormat?: 'markdown' | 'html';
     id: string;
     articleId: string;
     title: string;
@@ -146,6 +152,7 @@ export interface CreateArticleParams {
 
 // 更新文章参数
 export interface UpdateArticleParams {
+    collId?: string;
     title?: string;
     content?: string;
     isValid?: boolean;
@@ -166,6 +173,7 @@ export interface SaveWebpageParams {
 }
 
 export interface ImportArticleFileParams {
+    importMode?: 'extract' | 'original';
     file: File;
     useAiExtraction: boolean;
     needPolishing: boolean;

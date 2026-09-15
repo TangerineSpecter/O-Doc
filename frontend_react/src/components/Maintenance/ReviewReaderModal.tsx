@@ -262,6 +262,10 @@ export default function ReviewReaderModal({
                             scrollContainerId="maintenance-review-reader-scroll"
                             articleId={article.articleId}
                             content={article.content}
+                            contentFormat={article.contentFormat}
+                            collId={article.collId}
+                            permission={article.permission}
+                            downloadUrl={article.downloadUrl}
                             title={article.title}
                             category={article.categoryDetail?.name || '未分类'}
                             categoryId={article.categoryDetail?.categoryId}

@@ -74,14 +74,17 @@ export const saveWebpageAsArticle = async (params: SaveWebpageParams): Promise<S
 /**
  * 导入本地 HTML 或 Markdown 文件
  */
-export const importArticleFile = async (params: ImportArticleFileParams): Promise<SaveWebpageResult> => {
+export function importArticleFile(params: ImportArticleFileParams & {importMode: 'original'}): Promise<{articles: SaveWebpageResult[]}>;
+export function importArticleFile(params: ImportArticleFileParams & {importMode?: 'extract'}): Promise<SaveWebpageResult>;
+export async function importArticleFile(params: ImportArticleFileParams): Promise<SaveWebpageResult | {articles: SaveWebpageResult[]}> {
     const formData = new FormData();
     formData.append('file', params.file);
     formData.append('collId', params.collId);
     formData.append('useAiExtraction', String(params.useAiExtraction));
     formData.append('needPolishing', String(params.needPolishing));
+    formData.append('importMode', params.importMode || 'extract');
     return request.post('/article/import-file/', formData, {timeout: 180000});
-};
+}
 
 interface ImportArticleFilesParams extends Omit<ImportArticleFileParams, 'file'> {
     files: File[];
@@ -101,7 +104,12 @@ export const importArticleFiles = async (
     for (const [index, file] of files.entries()) {
         onProgress?.({completed: index, total: files.length, currentFile: file.name});
         try {
-            successful.push(await importArticleFile({...commonParams, file}));
+            if (commonParams.importMode === 'original') {
+                const result = await importArticleFile({...commonParams, file, importMode: 'original'});
+                successful.push(...result.articles);
+            } else {
+                successful.push(await importArticleFile({...commonParams, file, importMode: 'extract'}));
+            }
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : '导入失败';
             failures.push({fileName: file.name, message});

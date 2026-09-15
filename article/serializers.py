@@ -1,4 +1,5 @@
 import logging
+from django.db import transaction
 
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
@@ -8,7 +9,8 @@ from categories.models import Category
 from tags.models import Tag
 from tags.serializers import TagSerializer
 from utils.drf_utils import CurrentUserOrAdminDefault, get_current_user_identifier
-from utils.resource_assets import sync_article_content_assets
+from utils.resource_assets import sync_article_content_assets, extract_resource_ids_from_content
+from article.html_note_locking import lock_html_owner
 
 
 logger = logging.getLogger(__name__)
@@ -18,6 +20,20 @@ class ArticleSerializer(serializers.ModelSerializer):
     """
     文章序列化器
     """
+    content_format = serializers.CharField(read_only=True)
+
+    def validate(self, attrs):
+        if self.instance and self.instance.content_format == 'html':
+            if 'content' in attrs and attrs['content'] != self.instance.content:
+                raise serializers.ValidationError('原样 HTML 正文只读，请转换为可编辑笔记。')
+            if 'assets' in attrs or attrs.get('is_valid') is False:
+                raise serializers.ValidationError('请使用 HTML 笔记专用删除操作。')
+            if attrs.get('coll_id', self.instance.coll_id) != self.instance.coll_id:
+                if self.instance.children.filter(is_valid=True).exists():
+                    raise serializers.ValidationError('包含子文章时不能跨文集移动。')
+                attrs['parent'] = None
+        return super().validate(attrs)
+
     # 标签字段，接收前端传递的标签名称数组（写入）
     tags = serializers.ListField(
         child=serializers.CharField(max_length=30),
@@ -72,7 +88,30 @@ class ArticleSerializer(serializers.ModelSerializer):
     agent_post_rating_count = serializers.SerializerMethodField(read_only=True)
     my_agent_post_rating = serializers.SerializerMethodField(read_only=True)
 
+    def _lock_html_resources(self, content, previous_content=''):
+        """Do not let a guessed private HTML resource URL grant public access."""
+        from assets.models import Asset
+        from article.access import get_visible_article_queryset
+        from article.models import ArticleAsset
+        request = self.context.get('request')
+        ids = extract_resource_ids_from_content(content)
+        from django.db.models import Q
+        html_asset_ids = ArticleAsset.objects.filter(article__content_format='html').values_list('asset_id', flat=True)
+        assets = Asset.objects.select_for_update().filter(pk__in=ids).filter(Q(metadata__html_import_owned=True) | Q(pk__in=html_asset_ids)).order_by('pk')
+        for asset in assets:
+            if not asset.is_valid:
+                raise serializers.ValidationError('引用的 HTML 素材已删除。')
+            if request and asset.uploader != get_current_user_identifier(request):
+                if not ArticleAsset.objects.filter(asset=asset, article__in=get_visible_article_queryset(request)).exists():
+                    raise serializers.ValidationError('没有权限引用此 HTML 素材。')
+        new_ids = ids - extract_resource_ids_from_content(previous_content)
+        if new_ids and Asset.objects.filter(pk__in=new_ids, is_valid=True).count() != len(new_ids):
+            raise serializers.ValidationError('引用的资源不存在或已删除。')
+
+    @transaction.atomic
     def create(self, validated_data):
+        lock_html_owner(validated_data.get('author', 'admin'))
+        self._lock_html_resources(validated_data.get('content', ''))
         # 1. 这里的 pop 操作非常关键！
         # 它将 tags 和 assets 从验证数据中取出，防止 DRF 的默认 create 方法尝试直接保存它导致报错
         tags_names = validated_data.pop('tags', [])
@@ -90,7 +129,13 @@ class ArticleSerializer(serializers.ModelSerializer):
 
         return article
 
+    @transaction.atomic
     def update(self, instance, validated_data):
+        lock_html_owner(instance.author)
+        instance = Article.objects.select_for_update().get(pk=instance.pk)
+        if not instance.is_valid:
+            raise serializers.ValidationError('文章已删除。')
+        self._lock_html_resources(validated_data.get('content', instance.content), instance.content)
         # 更新时同样需要接管 tags 和 assets
         tags_names = validated_data.pop('tags', None)
         assets_ids = validated_data.pop('assets', None)
@@ -195,7 +240,7 @@ class ArticleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Article
         fields = [
-            'article_id', 'title', 'content', 'coll_id',
+            'article_id', 'title', 'content', 'coll_id', 'content_format',
             'author', 'created_at', 'updated_at', 'permission', 'is_valid',
             'read_count', 'category_id', 'sort', 'parent_id', 'tags', 'assets',
             'tag_details', 'category_detail', 'parent_detail', 'attachments',
@@ -223,6 +268,13 @@ class ArticleSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         # 还原 author 字段在序列化输出中的展示
         ret['author'] = instance.author
+        ret['can_edit_content'] = instance.content_format == 'markdown'
+        ret['can_annotate'] = instance.content_format == 'markdown'
+        if instance.content_format == 'html':
+            ret['preview_url'] = f'/api/article/html-preview/{instance.pk}'
+            source = (instance.asset_references.filter(role='package', asset__is_valid=True).first()
+                      or instance.asset_references.filter(role='source', asset__is_valid=True).first())
+            ret['download_url'] = f'/api/resource/download/{source.asset_id}' if source else None
         
         # 增加 author_name (优先展示昵称)
         from user.models import UserProfile
@@ -371,7 +423,7 @@ class ArticleTreeSerializer(serializers.ModelSerializer):
             'article_id', 'title', 'content', 'coll_id',
             'author', 'created_at', 'updated_at', 'permission', 'is_valid',
             'read_count', 'category_id', 'sort', 'parent_id', 'children', 'date',
-            'word_count', 'read_time'
+            'word_count', 'read_time', 'content_format'
         ]
         # 只读字段
         read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'children', 'date', 'word_count',
@@ -388,8 +440,13 @@ class ArticleTreeSerializer(serializers.ModelSerializer):
         递归获取子文章
         """
         # 获取当前文章的所有有效子文章，并按sort和更新时间排序
-        children = Article.objects.filter(parent=obj, is_valid=True).order_by('sort', '-updated_at')
-        return ArticleTreeSerializer(children, many=True).data
+        request = self.context.get('request')
+        if request:
+            from article.access import get_visible_article_queryset
+            children = get_visible_article_queryset(request).filter(parent=obj)
+        else:
+            children = Article.objects.filter(parent=obj, is_valid=True)
+        return ArticleTreeSerializer(children.order_by('sort', '-updated_at'), many=True, context=self.context).data
 
 
 class ImageSerializer(serializers.ModelSerializer):

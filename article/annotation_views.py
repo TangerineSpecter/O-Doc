@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 
-from article.access import can_access_anthology
+from article.access import can_access_anthology, get_visible_article_queryset
 from article.annotation_service import (
     AnnotationError,
     add_comment,
@@ -25,7 +25,9 @@ class ArticleAnnotationListCreateView(APIView):
             article_id = request.GET.get('articleId') or request.GET.get('article_id')
             if not article_id:
                 return error_result(ErrorCode.PARAM_ERROR, 'articleId 不能为空')
-            article = get_object_or_404(Article, article_id=article_id, is_valid=True)
+            article = get_object_or_404(get_visible_article_queryset(request), article_id=article_id)
+            if article.content_format == 'html':
+                return success_result(data={'annotations': [], 'count': 0})
             if not can_access_anthology(request, article.coll_id):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
             annotations = ArticleAnnotation.objects.filter(article=article, is_valid=True).prefetch_related('comments')
@@ -41,6 +43,8 @@ class ArticleAnnotationListCreateView(APIView):
             article_id = request.data.get('article_id') or request.data.get('articleId')
             selected_text = request.data.get('selected_text') or request.data.get('selectedText')
             article = get_object_or_404(Article, article_id=article_id, is_valid=True)
+            if article.content_format == 'html':
+                return error_result(ErrorCode.PARAM_ERROR, '原样 HTML 笔记不支持划线评论', status=400)
             if not can_access_anthology(request, article.coll_id):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
             if 'start_offset' in request.data or 'startOffset' in request.data:

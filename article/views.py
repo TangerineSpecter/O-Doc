@@ -181,6 +181,8 @@ class ArticlePolisher:
 
             # 1. 获取文章
             article = Article.objects.get(article_id=self.article_id)
+            if article.content_format == 'html' or not article.is_valid:
+                return
             article.is_polishing = True
             article.save()
             self.source_url = article.source_url
@@ -296,7 +298,9 @@ class ArticleDetailView(APIView):
     def get(self, request, article_id):
         try:
             # 查找文章
-            article = get_object_or_404(Article, article_id=article_id, is_valid=True)
+            article = get_visible_article_queryset(request).filter(article_id=article_id).first()
+            if not article:
+                return error_result(ErrorCode.RESOURCE_NOT_FOUND, status=404)
             if not can_access_anthology(request, article.coll_id):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
@@ -368,6 +372,8 @@ class ArticleUpdateView(APIView):
             is_valid=True
         )
         old_coll_id = article.coll_id
+        if article.content_format == 'html' and not request.user.is_authenticated:
+            return error_result(ErrorCode.PERMISSION_DENIED, status=403)
 
         # 使用序列化器验证请求数据并更新文章
         serializer = ArticleSerializer(article, data=request.data, partial=True, context={'request': request})
@@ -404,6 +410,15 @@ class ArticleDeleteView(APIView):
 
     def delete(self, request, article_id):
         try:
+            html_article = Article.objects.filter(pk=article_id, author=get_current_user_identifier(request), content_format='html').first()
+            if html_article:
+                if not request.user.is_authenticated:
+                    return error_result(ErrorCode.PERMISSION_DENIED, status=403)
+                from article.html_note_resources import delete_html_note
+                if delete_html_note(html_article, get_current_user_identifier(request)):
+                    RagClient.delete_article(article_id)
+                    refresh_anthology_stats(html_article.coll_id)
+                return success_result(data=None)
             # 查找文章
             article = get_object_or_404(
                 Article,
@@ -497,14 +512,13 @@ class ArticleTreeListView(APIView):
                 return success_result(data=[])
 
             # 构建查询集：只获取文集下的主文章（parent为空），并按sort和更新时间排序
-            root_articles = Article.objects.filter(
-                is_valid=True,
+            root_articles = get_visible_article_queryset(request).filter(
                 coll_id=coll_id,
                 parent__isnull=True
             ).order_by('sort', '-updated_at')
 
             # 使用树形序列化器序列化响应数据
-            serializer = ArticleTreeSerializer(root_articles, many=True)
+            serializer = ArticleTreeSerializer(root_articles, many=True, context={'request': request})
 
             return success_result(data=serializer.data)
 
@@ -595,6 +609,18 @@ class ArticleImportFileView(APIView):
         try:
             if not can_manage_anthology(request, coll_id, 'article'):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+            import_mode = request.data.get('import_mode', request.data.get('importMode', 'extract'))
+            if import_mode not in {'original', 'extract'}:
+                return error_result(ErrorCode.PARAM_ERROR, '无效导入方式', status=400)
+            if import_mode == 'original':
+                from article.html_note_service import import_original
+                articles, warnings = import_original(uploaded_file, coll_id, get_current_user_identifier(request))
+                results = []
+                for item in articles:
+                    data = dict(ArticleSerializer(item).data)
+                    data['import_report'] = {'extraction_mode': 'standard', 'confidence': 'high', 'localized_image_count': item.asset_references.filter(asset__file_type='image').count(), 'external_image_count': 0, 'warnings': warnings}
+                    results.append(data)
+                return success_result({'articles': results})
             import_result = import_content_file_as_article(
                 uploaded_file=uploaded_file,
                 coll_id=coll_id,

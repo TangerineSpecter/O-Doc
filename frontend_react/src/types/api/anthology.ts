@@ -35,6 +35,7 @@ export interface CreateAnthologyParams {
 
 // 定义文集返回数据类型
 export interface Anthology {
+    userId?: string;
     collId: string;
     title: string;
     count: number;

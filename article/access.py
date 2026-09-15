@@ -33,4 +33,9 @@ def can_manage_anthology(request, coll_id, coll_type=None):
 
 def get_visible_article_queryset(request):
     visible_coll_ids = get_visible_anthology_queryset(request).values_list('coll_id', flat=True)
-    return Article.objects.filter(is_valid=True, coll_id__in=visible_coll_ids)
+    queryset = Article.objects.filter(is_valid=True, coll_id__in=visible_coll_ids)
+    # Legacy Markdown access remains unchanged; original HTML respects note privacy.
+    visibility = (~Q(content_format='html') & Q(enforce_note_privacy=False)) | Q(permission='public')
+    if request.user and request.user.is_authenticated:
+        visibility |= Q(author=get_current_user_identifier(request))
+    return queryset.filter(visibility)

@@ -10,6 +10,7 @@ from django.http import HttpResponse
 from rest_framework.views import APIView
 
 from article.models import Article
+from article.access import get_visible_article_queryset
 from anthology.models import Anthology, Book
 from utils.error_codes import ErrorCode
 from utils.drf_utils import get_current_user_identifier
@@ -46,13 +47,14 @@ def can_read_asset(request, asset):
         return True
 
     visible_coll_ids = get_visible_anthology_ids(request)
-    if asset.linked_article and asset.linked_article.is_valid and asset.linked_article.coll_id in visible_coll_ids:
+    visible_articles = get_visible_article_queryset(request)
+    if asset.article_references.filter(article__in=visible_articles).exists():
+        return True
+    if asset.linked_article_id and visible_articles.filter(pk=asset.linked_article_id).exists():
         return True
 
     asset_id = str(asset.id)
-    for article in Article.objects.filter(
-            is_valid=True,
-            coll_id__in=visible_coll_ids,
+    for article in visible_articles.filter(
             content__contains='/api/resource/',
     ).only('content'):
         if asset_id in extract_resource_ids_from_content(article.content):
@@ -378,6 +380,10 @@ class ResourceDownloadView(APIView):
             else:
                 response['Content-Disposition'] = f'attachment; filename="{asset.original_name}"'
             response['Content-Length'] = asset.file_size
+            response['X-Content-Type-Options'] = 'nosniff'
+            if asset.article_references.filter(role__in=['source', 'preview']).exists():
+                response['Content-Security-Policy'] = "default-src 'none'; sandbox;"
+                response['Cache-Control'] = 'no-store'
 
             return response
 

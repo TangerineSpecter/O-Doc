@@ -1,5 +1,6 @@
 import math
 import re
+import uuid
 
 from django.db import models
 from django.utils import timezone
@@ -32,6 +33,10 @@ class Article(models.Model):
     )
 
     # 标题
+    content_format = models.CharField(max_length=10, choices=[('markdown', 'Markdown'), ('html', 'HTML')], default='markdown')
+    # Converted notes retain note-level privacy without changing legacy Markdown access.
+    enforce_note_privacy = models.BooleanField(default=False, editable=False)
+
     title = models.CharField(
         max_length=255,
         help_text="文章标题",
@@ -275,6 +280,17 @@ class Article(models.Model):
             self.read_time = 0
 
         super().save(*args, **kwargs)
+
+
+class ArticleAsset(models.Model):
+    """Explicit source/preview/material references; assets may be shared by notes."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name='asset_references')
+    asset = models.ForeignKey('assets.Asset', on_delete=models.CASCADE, related_name='article_references')
+    role = models.CharField(max_length=20, choices=[('source', '原文件'), ('preview', '安全预览'), ('material', '正文素材'), ('package', '原始素材包')])
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['article', 'asset', 'role'], name='unique_article_asset_role')]
 
 
 class Image(models.Model):

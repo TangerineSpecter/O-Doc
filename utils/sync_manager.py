@@ -690,7 +690,22 @@ class SyncManager:
                         if str(pk) not in remote_pks
                     ]
                     if stale_pks:
-                        local_objects.filter(**{f"{model._meta.pk.attname}__in": stale_pks}).delete()
+                        stale = local_objects.filter(**{f"{model._meta.pk.attname}__in": stale_pks})
+                        if model._meta.label_lower == 'assets.asset':
+                            # Remote HTML deletion must also reclaim this device's files.
+                            # Keep invalid records until cleanup succeeds, preserving retries.
+                            owned = list(stale.filter(metadata__html_import_owned=True))
+                            for asset in owned:
+                                asset.is_valid = False
+                                asset.is_linked = False
+                                asset.linked_article = None
+                                asset.metadata = {**asset.metadata, 'html_cleanup_pending': True}
+                                asset.save()
+                            stale = stale.exclude(pk__in=[asset.pk for asset in owned])
+                        stale.delete()
+
+            from article.html_note_resources import retry_html_cleanup
+            transaction.on_commit(retry_html_cleanup)
 
         return len(data_list)
 

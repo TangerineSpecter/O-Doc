@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 
 interface CommonImportOptions {
+    importMode?: 'extract' | 'original';
     useAiExtraction: boolean;
     needPolishing: boolean;
 }
@@ -38,7 +39,7 @@ interface ImportOptionProps {
     onChange: (checked: boolean) => void;
 }
 
-const ACCEPTED_FILE_PATTERN = /\.(?:html?|md|markdown)$/i;
+const ACCEPTED_FILE_PATTERN = /\.(?:html?|md|markdown|zip)$/i;
 const MAX_IMPORT_FILE_BYTES = 30 * 1024 * 1024;
 const MAX_IMPORT_FILE_COUNT = 50;
 
@@ -66,6 +67,7 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
     const [isDragging, setIsDragging] = useState(false);
     const [useAiExtraction, setUseAiExtraction] = useState(false);
     const [needPolishing, setNeedPolishing] = useState(false);
+    const [importMode, setImportMode] = useState<'extract' | 'original'>('extract');
     const [isLoading, setIsLoading] = useState(false);
     const [importProgress, setImportProgress] = useState<WebpageImportProgress | null>(null);
     const [error, setError] = useState('');
@@ -77,6 +79,7 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
         setIsDragging(false);
         setUseAiExtraction(false);
         setNeedPolishing(false);
+        setImportMode('extract');
         setIsLoading(false);
         setImportProgress(null);
         setError('');
@@ -100,7 +103,7 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
         const unsupportedFiles = nextFiles.filter(file => !ACCEPTED_FILE_PATTERN.test(file.name));
         if (unsupportedFiles.length) {
             setFiles([]);
-            setError(`有 ${unsupportedFiles.length} 个文件格式不支持，仅支持 HTML、HTM、MD 和 Markdown`);
+            setError(`有 ${unsupportedFiles.length} 个文件格式不支持，仅支持 HTML、HTM、MD、Markdown 和 ZIP`);
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
@@ -131,7 +134,11 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
             return;
         }
         if (sourceType === 'file' && !files.length) {
-            setError('请选择需要导入的 HTML 或 Markdown 文件');
+            setError('请选择需要导入的笔记文件');
+            return;
+        }
+        if (sourceType === 'file' && files.some(file => !(importMode === 'original' ? /\.(html?|zip)$/i : /\.(html?|md|markdown)$/i).test(file.name))) {
+            setError(importMode === 'original' ? '原样导入请选择 HTML、HTM 或 ZIP' : '解析导入请选择 HTML 或 Markdown');
             return;
         }
 
@@ -146,7 +153,7 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
                 );
             } else if (files.length) {
                 await onConfirm(
-                    {sourceType, files, useAiExtraction, needPolishing},
+                    {sourceType, files, importMode, useAiExtraction: importMode === 'extract' && useAiExtraction, needPolishing: importMode === 'extract' && needPolishing},
                     setImportProgress,
                 );
             }
@@ -197,12 +204,17 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
                     ) : (
                         <div className="space-y-2">
                             <span className="block text-sm font-semibold text-slate-700">文章文件 <span className="text-red-500">*</span></span>
-                            <input ref={fileInputRef} type="file" multiple accept=".html,.htm,.md,.markdown,text/html,text/markdown" disabled={isLoading} onChange={event => selectFiles(Array.from(event.target.files || []))} className="sr-only"/>
+                            <div className="flex gap-3 text-sm text-slate-600">
+                                <label><input type="radio" checked={importMode === 'extract'} disabled={isLoading} onChange={() => setImportMode('extract')}/> 解析为可编辑笔记</label>
+                                <label><input type="radio" checked={importMode === 'original'} disabled={isLoading} onChange={() => setImportMode('original')}/> 保留原样 HTML</label>
+                            </div>
+                            {importMode === 'original' && <p className="text-xs leading-5 text-slate-500">保留静态页面样式，正文只读；支持 HTML 与素材目录打包为 ZIP，不执行脚本。</p>}
+                            <input ref={fileInputRef} type="file" multiple accept=".html,.htm,.md,.markdown,.zip,text/html,text/markdown" disabled={isLoading} onChange={event => selectFiles(Array.from(event.target.files || []))} className="sr-only"/>
                             <button type="button" disabled={isLoading} onClick={() => fileInputRef.current?.click()} onDragOver={event => { event.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={event => { event.preventDefault(); setIsDragging(false); selectFiles(Array.from(event.dataTransfer.files)); }} className={`flex w-full items-center gap-4 rounded-xl border border-dashed px-4 py-5 text-left transition-all ${isDragging ? 'border-orange-500 bg-orange-50' : files.length ? 'border-orange-300 bg-orange-50/50' : 'border-slate-300 bg-slate-50/60 hover:border-orange-300 hover:bg-orange-50/40'}`}>
                                 <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${files.length ? 'bg-orange-500 text-white' : 'bg-white text-orange-500 shadow-sm'}`}>{files.length ? <FileText size={20}/> : <UploadCloud size={21}/>}</span>
                                 <span className="min-w-0 flex-1">
                                     <span className="block truncate text-sm font-semibold text-slate-700">{files.length ? `已选择 ${files.length} 个文件` : '点击选择或拖入一个或多个文章文件'}</span>
-                                    <span className="mt-1 block text-xs text-slate-500">HTML / HTM / MD / Markdown，单文件最大 30 MB，最多 50 个</span>
+                                    <span className="mt-1 block text-xs text-slate-500">HTML / HTM / MD / Markdown / ZIP，单文件最大 30 MB，最多 50 个</span>
                                 </span>
                             </button>
                             {files.length > 0 && (
@@ -218,7 +230,7 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
 
                     {error && <p className="text-xs font-medium text-red-500">{error}</p>}
 
-                    <div className="space-y-3">
+                    <div className={`space-y-3 ${sourceType === 'file' && importMode === 'original' ? 'hidden' : ''}`}>
                         <ImportOption checked={useAiExtraction} disabled={isLoading} title="AI 正文提取" description="从 HTML 候选或 Markdown 中清除残余噪声；失败时自动使用普通结果。" icon={ScanText} onChange={setUseAiExtraction}/>
                         <ImportOption checked={needPolishing} disabled={isLoading} title="AI 智能润色" description="正文录入后在后台优化表达和 Markdown 排版，不改变文章原意。" icon={Sparkles} onChange={setNeedPolishing}/>
                     </div>

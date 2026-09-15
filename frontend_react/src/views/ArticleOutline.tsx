@@ -5,6 +5,7 @@ import {ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, Send, Star, Trash2
 import {useNavigate} from 'react-router-dom';
 import Article from './Article';
 import ConfirmationModal from '../components/common/ConfirmationModal';
+import {getHtmlDeletionSummary} from '../api/htmlNote';
 import SaveWebpageModal, {type WebpageImportOptions, type WebpageImportProgress} from '../components/common/SaveWebpageModal';
 import {
     CodeBlock,
@@ -838,12 +839,12 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
             const batchResult = await importArticleFiles({
                     files: options.files,
+                    importMode: options.importMode,
                     useAiExtraction,
                     needPolishing,
                     collId,
                     onProgress,
                 });
-            const total = options.files.length;
             const successCount = batchResult.successful.length;
             if (!successCount) {
                 throw new Error(`批量导入失败：${formatImportFailures(batchResult.failures)}`);
@@ -856,7 +857,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
             const polishingHint = needPolishing ? '，AI 正在后台润色' : '';
             if (batchResult.failures.length) {
                 toast.warning(
-                    `已导入 ${successCount}/${total} 篇${polishingHint}；失败：${formatImportFailures(batchResult.failures)}`,
+                    `已导入 ${successCount} 篇${polishingHint}；${batchResult.failures.length} 个文件失败：${formatImportFailures(batchResult.failures)}`,
                 );
             } else if (warningCount) {
                 toast.warning(`已导入 ${successCount} 篇${polishingHint}，其中 ${warningCount} 项需要核对`);
@@ -879,8 +880,15 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
         navigate(`/editor/${activeDocId}`);
     };
 
-    const handleDeleteArticle = () => {
+    const [deleteDescription, setDeleteDescription] = useState('确定要删除当前文档吗？此操作无法恢复。');
+    const handleDeleteArticle = async () => {
         if (!isAuthenticated || !activeDocId) return;
+        if (articleDetail?.contentFormat === 'html') {
+            try {
+                const summary = await getHtmlDeletionSummary(activeDocId);
+                setDeleteDescription(`此操作不可恢复，将清理 ${summary.exclusiveCount} 个专属资源，保留 ${summary.sharedCount} 个共享或已有资源。`);
+            } catch (reason) {toast.error(reason instanceof Error ? reason.message : '无法读取资源清理信息'); return;}
+        } else setDeleteDescription('确定要删除当前文档吗？此操作无法恢复。');
         setIsDeleteModalOpen(true);
     };
 
@@ -954,7 +962,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                     onClose={() => setIsDeleteModalOpen(false)}
                     onConfirm={confirmDelete}
                     title="删除文档"
-                    description="确定要删除当前文档吗？此操作无法恢复。"
+                    description={deleteDescription}
                     confirmText="删除"
                     type="danger"
                 />
@@ -1058,6 +1066,10 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                                 canManage={isAuthenticated}
                                 articleId={activeDocId}
                                 content={articleDetail?.content}
+                                contentFormat={articleDetail?.contentFormat}
+                                collId={articleDetail?.collId}
+                                permission={articleDetail?.permission}
+                                downloadUrl={articleDetail?.downloadUrl}
                                 title={articleDetail?.title}
                                 category={articleDetail?.categoryDetail?.name || '未分类'}
                                 categoryId={articleDetail?.categoryDetail?.categoryId}

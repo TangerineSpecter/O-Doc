@@ -35,6 +35,7 @@ import {getSafeIframeUrl, getSafeVideoUrl} from '../../utils/markdownSecurity';
 import {useArticlePrintExport} from '../../hooks/useArticlePrintExport';
 import {ArticleMarkdown} from './ArticleMarkdown';
 import {isImageAvatarValue} from '../../utils/avatar';
+import HtmlNoteReader from './HtmlNoteReader';
 
 export interface AttachmentItem {
     id: string;
@@ -153,7 +154,11 @@ const getSelectionPopoverLeft = (x: number, containerWidth: number) => {
     return Math.min(Math.max(168, x), Math.max(168, containerWidth - 168));
 };
 
-interface ArticleProps {
+export interface ArticleProps {
+    contentFormat?: 'markdown' | 'html';
+    collId?: string;
+    permission?: 'public' | 'private';
+    downloadUrl?: string;
     isEmbedded?: boolean;
     scrollContainerId?: string;
     onBack?: () => void;
@@ -183,7 +188,11 @@ interface ArticleProps {
     showCompactActions?: boolean;
 }
 
-export default function Article({
+export default function Article(props: ArticleProps) {
+    return props.contentFormat === 'html' ? <HtmlNoteReader key={props.articleId} {...props}/> : <MarkdownArticle {...props}/>;
+}
+
+function MarkdownArticle({
                                     isEmbedded,
                                     scrollContainerId,
                                     onBack,

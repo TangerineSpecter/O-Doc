@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 
 from anthology.models import Anthology
 from article.models import Article  # 假设你的文章模型在这里
+from article.access import get_visible_article_queryset
 from utils.rag_client import RagClient, RagSyncError
 from utils.response_utils import success_result, error_result, valid_result
 
@@ -25,7 +26,7 @@ class SyncArticleView(APIView):
             return Response({'error': 'Article ID is required'}, status=400)
 
         try:
-            article = Article.objects.get(article_id=article_id)
+            article = get_visible_article_queryset(request).get(article_id=article_id)
             # 调用 RagClient 进行处理
             chunk_count = RagClient.add_article(
                 article_id=article.article_id,
@@ -67,7 +68,7 @@ class SyncCollectionView(APIView):
 
         try:
             # 1. 获取文集下所有有效文章
-            articles = Article.objects.filter(coll_id=coll_id, is_valid=True)
+            articles = get_visible_article_queryset(request).filter(coll_id=coll_id)
             if not articles.exists():
                 return success_result({'message': '文集为空', 'synced_count': 0})
 

@@ -3,6 +3,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 
 from article.models import Article, Image
+from article.access import get_visible_article_queryset
 from utils.drf_utils import get_current_user_identifier
 from utils.error_codes import ErrorCode
 from utils.response_utils import success_result, error_result
@@ -116,7 +117,7 @@ class AnthologyListView(APIView):
                             })
                 elif not anthology.hide_cover_content:
                     order_by = ('-created_at',) if anthology.type == 'agent' else ('sort', '-updated_at')
-                    articles = Article.objects.filter(coll_id=anthology.coll_id, is_valid=True).order_by(*order_by)[:3]
+                    articles = get_visible_article_queryset(request).filter(coll_id=anthology.coll_id).order_by(*order_by)[:3]
 
                     # 构建文章摘要列表
                     for article in articles:
@@ -145,6 +146,7 @@ class AnthologyListView(APIView):
                 # 构建文集数据
                 anthology_data = {
                     'coll_id': anthology.coll_id,
+                    'user_id': anthology.user_id,
                     'title': anthology.title,
                     'count': item_count,
                     'rag_not_synced_count': anthology.rag_not_synced_count,

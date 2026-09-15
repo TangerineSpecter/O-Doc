@@ -1,4 +1,5 @@
 from django.urls import path
+from article.html_note_views import HtmlPreviewView, HtmlConversionView, HtmlDeletionSummaryView
 from article.views import (
     ArticleCreateView, ArticleDetailView,
     ArticleUpdateView, ArticleDeleteView,
@@ -14,6 +15,9 @@ from article.views import (
 )
 
 urlpatterns = [
+    path('html-preview/<str:article_id>', HtmlPreviewView.as_view()),
+    path('html-convert/<str:article_id>', HtmlConversionView.as_view()),
+    path('html-delete-summary/<str:article_id>', HtmlDeletionSummaryView.as_view()),
     # 创建文章
     path('create', ArticleCreateView.as_view(), name='create-article'),
 
