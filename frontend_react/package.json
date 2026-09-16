@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
-    "test:book-analysis": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/readingGraph.test.ts src/utils/readingExecution.test.ts src/utils/bookReaderLocation.test.ts",
+    "test:book-analysis": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/readingGraph.test.ts src/utils/readingExecution.test.ts src/utils/bookReaderLocation.test.ts src/utils/readingAnswer.test.ts",
     "test:whiteboard": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/whiteboardOps.test.ts src/utils/whiteboardInsight.test.ts",
     "test:markdown-security": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/markdownSecurity.test.ts",
     "test:avatar": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/avatar.test.ts",
