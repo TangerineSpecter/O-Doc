@@ -6,7 +6,7 @@ from django.db.models import Q
 
 from .errors import AnalysisError
 from .extraction import EDGE_KINDS
-from .models import BookAnalysis, Correction, GraphEdge, GraphNode, NodeSource
+from .models import BookAnalysis, ChapterResult, Correction, GraphEdge, GraphNode, NodeSource
 from .parsers import stable_id
 
 
@@ -22,6 +22,18 @@ def add_segment(revision, chapter, payload: dict):
         node.time_order = node.time_order or item['time_order']
         node.time_label = node.time_label or item['time_label']
         node.save()
+        if revision.mode == 'story':
+            from .facts import save_fact
+            save_fact(node, chapter, {'attribute': 'description', 'value': item['description'], 'evidence': item['evidence'], 'ordinal': item['ordinal'], 'status': item['status']})
+            for attr, names in [('name', [item['name']]), ('alias', item['aliases'])]:
+                for name in names:
+                    if name in item['evidence']['quote']:
+                        save_fact(node, chapter, {'attribute': attr, 'value': name, 'evidence': item['evidence'], 'ordinal': item['ordinal']})
+        NodeSource.objects.get_or_create(id=stable_id(node.pk, chapter.pk), defaults={'node': node, 'chapter': chapter})
+    for item in payload.get('attributes', []):
+        from .facts import save_fact
+        node = GraphNode.objects.get(revision=revision, canonical_id=item['canonical_id'])
+        save_fact(node, chapter, item)
         NodeSource.objects.get_or_create(id=stable_id(node.pk, chapter.pk), defaults={'node': node, 'chapter': chapter})
     for item in payload['edges']:
         source = GraphNode.objects.get(revision=revision, canonical_id=item['source'])
@@ -43,8 +55,11 @@ def edge_key(source: str, target: str, kind: str, context: dict, label: str) -> 
     return stable_id(source, target, kind, context.get('chapter_id', ''), label)
 
 
-def relevant_registry(revision, text: str) -> list[dict]:
-    rows = GraphNode.objects.filter(revision=revision).values('canonical_id', 'kind', 'name', 'aliases', 'facts').iterator(chunk_size=300)
+def relevant_registry(revision, text: str, through_chapter: int | None = None) -> list[dict]:
+    rows = GraphNode.objects.filter(revision=revision)
+    if through_chapter is not None:
+        rows = rows.filter(ordinal__lt=(through_chapter + 1) * 1000000000)
+    rows = rows.values('canonical_id', 'kind', 'name', 'aliases', 'facts').iterator(chunk_size=300)
     result = []
     for row in rows:
         names = [row['name'], *row['aliases']]
@@ -52,15 +67,39 @@ def relevant_registry(revision, text: str) -> list[dict]:
             result.append({k: row[k] for k in ('canonical_id', 'kind', 'name', 'aliases')})
         elif row['kind'] == 'event' and any(f['evidence']['quote'] in text for f in row['facts']):
             result.append({k: row[k] for k in ('canonical_id', 'kind', 'name', 'aliases')})
-        if len(result) >= 40:
-            break
+    result.sort(key=lambda item: min((text.find(name) for name in [item['name'], *item['aliases']] if name and text.find(name) >= 0), default=len(text)))
+    result = result[:80]
+    canonical_ids = [item['canonical_id'] for item in result]
+    nodes = {node.canonical_id: node for node in GraphNode.objects.filter(revision=revision, canonical_id__in=canonical_ids)}
+    from .models import ProfileChange
+    changes = ProfileChange.objects.filter(node_id__in=[node.pk for node in nodes.values()]).order_by('chapter__ordinal', 'id')
+    if through_chapter is not None:
+        changes = changes.filter(chapter__ordinal__lte=through_chapter)
+    summaries = {}
+    for change in changes:
+        if 'introduction' in change.patch:
+            summaries[change.node_id] = change.patch['introduction'][:2]
+    relations = {node.pk: [] for node in nodes.values()}
+    edges = GraphEdge.objects.filter(revision=revision).filter(Q(source_id__in=relations) | Q(target_id__in=relations)).select_related('source', 'target')
+    for edge in edges:
+        if through_chapter is not None and edge.context.get('ordinal', 0) > through_chapter:
+            continue
+        relation = {'source': edge.source.canonical_id, 'target': edge.target.canonical_id, 'label': edge.label}
+        for node_id in (edge.source_id, edge.target_id):
+            if node_id in relations and len(relations[node_id]) < 8:
+                relations[node_id].append(relation)
+    for item in result:
+        node = nodes[item['canonical_id']]
+        item['summary'] = summaries.get(node.pk, [])
+        item['relations'] = relations[node.pk]
     return result
 
 
 class Projection:
-    def __init__(self, revision):
+    def __init__(self, revision, through_chapter=None):
+        self.through_chapter = through_chapter
         self.revision = revision
-        self.corrections = list(Correction.objects.filter(book=revision.book))
+        self.corrections = list(Correction.objects.filter(book=revision.book).filter(Q(introduced_ordinal=0) | Q(introduced_ordinal__lte=through_chapter))) if through_chapter is not None else list(Correction.objects.filter(book=revision.book))
         self.nodes = {c.key: c.patch for c in self.corrections if c.kind == 'node'}
         self.edge_patches = {c.key: c.patch for c in self.corrections if c.kind == 'edge'}
 
@@ -80,9 +119,24 @@ class Projection:
         key = self.resolve(row.canonical_id)
         patch = self.nodes.get(key, {})
         facts = deepcopy(row.facts)
+        name, aliases = row.name, row.aliases
+        time_label, time_order = row.time_label, row.time_order
+        ordinal = row.ordinal
+        if self.through_chapter is not None:
+            facts = [f for f in facts if f.get('evidence') and f['evidence'].get('ordinal', 0) <= self.through_chapter]
+            from .models import EntityFact
+            attrs = list(EntityFact.objects.filter(node=row, evidence__chapter__ordinal__lte=self.through_chapter).order_by('evidence__ordinal'))
+            names = [f.value for f in attrs if f.attribute == 'name']
+            name = names[0] if names else (row.name if any(row.name in f['evidence']['quote'] for f in facts) else '未明确名称')
+            aliases = list(dict.fromkeys(f.value for f in attrs if f.attribute == 'alias'))
+            moments = [f for f in attrs if f.attribute == 'time']
+            time_label = moments[-1].value if moments else ''
+            time_order = ''
+            ordinal = min((f.get('ordinal', 0) for f in facts), default=row.ordinal)
+
         if patch.get('description'):
             facts.append({'description': patch['description'], 'status': 'user', 'evidence': None})
-        return {'id': key, 'kind': row.kind, 'name': patch.get('name', row.name), 'aliases': patch.get('aliases', row.aliases), 'facts': facts, 'ordinal': row.ordinal, 'time_label': patch.get('time_label', row.time_label), 'time_order': row.time_order, 'thread': row.thread}
+        return {'id': key, 'kind': row.kind, 'name': patch.get('name', name), 'aliases': patch.get('aliases', aliases), 'facts': facts, 'ordinal': ordinal, 'time_label': patch.get('time_label', time_label), 'time_order': time_order, 'thread': row.thread}
 
     def serialize_nodes(self, rows: list) -> list:
         groups = {}
@@ -100,20 +154,24 @@ class Projection:
         return list(groups.values())
 
     def edge(self, row) -> dict | None:
+        if self.through_chapter is not None and (row.context.get('ordinal', 0) > self.through_chapter or not any(e.get('ordinal', 0) <= self.through_chapter for e in row.evidence)):
+            return None
         source, target = row.source.canonical_id, row.target.canonical_id
         key = edge_key(source, target, row.kind, row.context, row.label)
         patch = self.edge_patches.get(key, {})
         if patch.get('hidden'):
             return None
-        return {'id': key, 'source': self.resolve(source), 'target': self.resolve(target), 'kind': patch.get('kind', row.kind), 'label': patch.get('label', row.label), 'evidence': row.evidence, 'context': row.context, 'origin': 'user' if patch else 'ai'}
+        return {'id': key, 'source': self.resolve(source), 'target': self.resolve(target), 'kind': patch.get('kind', row.kind), 'label': patch.get('label', row.label), 'evidence': [e for e in row.evidence if self.through_chapter is None or e.get('ordinal', 0) <= self.through_chapter], 'context': row.context, 'origin': 'user' if patch else 'ai'}
 
     def extra_edges(self) -> list:
         return [{'id': c.key, **c.patch, 'source': self.resolve(c.patch['source']), 'target': self.resolve(c.patch['target']), 'evidence': [], 'context': {}, 'origin': 'user'} for c in self.corrections if c.kind == 'relation' and not c.patch.get('hidden')]
 
 
-def read_graph(revision, *, chapter_id: str = '', kind: str = '', query: str = '', center: str = '', thread: str = '', view: str = 'graph', order: str = 'narrative', page: int = 1, limit: int = 200) -> dict:
-    projection = Projection(revision)
+def read_graph(revision, *, chapter_id: str = '', kind: str = '', query: str = '', center: str = '', thread: str = '', view: str = 'graph', order: str = 'narrative', page: int = 1, limit: int = 200, through_chapter: int | None = None, include_inferred: bool = False) -> dict:
+    projection = Projection(revision, through_chapter)
     rows = GraphNode.objects.filter(revision=revision)
+    if through_chapter is not None:
+        rows = rows.filter(ordinal__lt=(through_chapter + 1) * 1000000000)
     threads = list(rows.exclude(thread='').values_list('thread', flat=True).distinct().order_by('thread')[:100])
     if thread:
         rows = rows.filter(thread=thread)
@@ -122,7 +180,8 @@ def read_graph(revision, *, chapter_id: str = '', kind: str = '', query: str = '
         center_keys = projection.merged_keys({center})
         center_ids = GraphNode.objects.filter(revision=revision, canonical_id__in=center_keys).values_list('id', flat=True)
         edges = GraphEdge.objects.filter(revision=revision).filter(Q(source_id__in=center_ids) | Q(target_id__in=center_ids))
-        adjacent = set(edges.values_list('source_id', flat=True)) | set(edges.values_list('target_id', flat=True)) | set(center_ids)
+        visible_edges = [edge for edge in edges if through_chapter is None or any(ev.get('ordinal', 0) <= through_chapter for ev in edge.evidence)]
+        adjacent = {edge.source_id for edge in visible_edges} | {edge.target_id for edge in visible_edges} | set(center_ids)
         extras = {e[key] for e in projection.extra_edges() if e['source'] == center or e['target'] == center for key in ('source', 'target')}
         rows = rows.filter(Q(id__in=adjacent) | Q(canonical_id__in=projection.merged_keys(extras)))
     if chapter_id:
@@ -136,7 +195,12 @@ def read_graph(revision, *, chapter_id: str = '', kind: str = '', query: str = '
         rows = rows.filter(kind=kind)
     if query:
         patched = {key for key, patch in projection.nodes.items() if query.casefold() in str(patch.get('name', '')).casefold() or any(query.casefold() in alias.casefold() for alias in patch.get('aliases', []))}
-        rows = rows.filter(Q(name__icontains=query) | Q(aliases__icontains=query) | Q(canonical_id__in=projection.merged_keys(patched)))
+        if through_chapter is None:
+            rows = rows.filter(Q(name__icontains=query) | Q(aliases__icontains=query) | Q(canonical_id__in=projection.merged_keys(patched)))
+        else:
+            from .models import EntityFact
+            visible_matches = EntityFact.objects.filter(node__revision=revision, evidence__chapter__ordinal__lte=through_chapter, value__icontains=query).values('node_id')
+            rows = rows.filter(Q(id__in=visible_matches) | Q(canonical_id__in=projection.merged_keys(patched)))
     targets = set(GraphNode.objects.filter(revision=revision, canonical_id__in={projection.resolve(key) for key in projection.nodes}).values_list('canonical_id', flat=True))
     rows = rows.exclude(canonical_id__in=[key for key in projection.nodes if projection.resolve(key) != key and projection.resolve(key) in targets])
     hidden = [key for key in projection.nodes if projection.nodes.get(projection.resolve(key), {}).get('hidden')]
@@ -150,6 +214,8 @@ def read_graph(revision, *, chapter_id: str = '', kind: str = '', query: str = '
     resolved_keys = {projection.resolve(n.canonical_id) for n in selected}
     selected = list(GraphNode.objects.filter(revision=revision, canonical_id__in=projection.merged_keys(resolved_keys)))
     nodes = projection.serialize_nodes(selected)
+    if through_chapter is not None:
+        nodes = [n for n in nodes if n['facts']]
     for node in nodes:
         node['fact_total'] = len(node['facts'])
         node['facts'] = node['facts'][:3]
@@ -157,26 +223,36 @@ def read_graph(revision, *, chapter_id: str = '', kind: str = '', query: str = '
     node_ids = [n.id for n in selected]
     edges = [projection.edge(e) for e in GraphEdge.objects.filter(revision=revision, source_id__in=node_ids, target_id__in=node_ids).select_related('source', 'target')]
     edges = [e for e in [*edges, *projection.extra_edges()] if e and e['source'] in keys and e['target'] in keys and e['source'] != e['target']]
+    if include_inferred:
+        from .profiles import visible_hypotheses
+        edges += [{'id': h.key, 'source': h.source.canonical_id, 'target': h.target.canonical_id, 'kind': 'related_to', 'label': h.description, 'evidence': [], 'context': {'state': h.state}, 'origin': 'inferred'} for h in visible_hypotheses(revision, through_chapter) if h.target_id and h.source.canonical_id in keys and h.target.canonical_id in keys and h.state != 'refuted']
     if view == 'flow':
         ordered = sorted(nodes, key=lambda n: (n['time_order'] == '', n['time_order'], n['ordinal']) if order == 'time' else (n['ordinal'],))
         edges += [{'id': stable_id(a['id'], b['id'], 'next'), 'source': a['id'], 'target': b['id'], 'kind': 'next', 'label': '叙述顺序' if order == 'narrative' else '展示顺序（非因果）', 'evidence': [], 'context': {}, 'origin': 'derived'} for a, b in zip(ordered, ordered[1:]) if not any(e['source'] == a['id'] and e['target'] == b['id'] and e['kind'] == 'next' for e in edges)]
     return {'nodes': nodes, 'edges': edges, 'total': total, 'page': page, 'limit': limit, 'threads': threads}
 
 
-def node_detail(revision, key: str, page: int = 1) -> dict:
-    projection = Projection(revision)
+def node_detail(revision, key: str, page: int = 1, through_chapter: int | None = None) -> dict:
+    projection = Projection(revision, through_chapter)
     key = projection.resolve(key)
     rows = list(GraphNode.objects.filter(revision=revision, canonical_id__in=projection.merged_keys({key})))
     if not rows or projection.nodes.get(key, {}).get('hidden'):
         raise AnalysisError('节点不存在', 404)
     item = projection.serialize_nodes(rows)[0]
+    if through_chapter is not None and not item['facts']:
+        raise AnalysisError('对象尚未在此范围出现', 404)
+    if revision.mode == 'story':
+        from .profiles import profile_for_nodes, visible_hypotheses
+        ordered_rows = sorted(rows, key=lambda row: row.canonical_id != key)
+        item['profile'] = profile_for_nodes(ordered_rows, through_chapter)
+        item['hypotheses'] = [{'id': h.key, 'description': h.description, 'state': h.state, 'chapter_title': h.chapter.title, 'basis': h.basis} for h in visible_hypotheses(revision, through_chapter) if h.source_id in {r.pk for r in rows}]
     total = len(item['facts'])
     # Editing must not depend on which page contains the appended user fact.
     item['correction_description'] = projection.nodes.get(key, {}).get('description', '')
     item['facts'] = item['facts'][(page - 1) * 50:page * 50]
     item['fact_total'] = total
     item['fact_page'] = page
-    neighbors = read_graph(revision, center=key, limit=200)
+    neighbors = read_graph(revision, center=key, limit=200, through_chapter=through_chapter)
     return {'node': item, 'neighbors': neighbors}
 
 
@@ -206,7 +282,7 @@ def correct_node(revision, key: str, patch: dict) -> None:
         if target == key or target_node['kind'] != source_node['kind']:
             raise AnalysisError('只能合并不同的同类型节点')
         patch['merge_into'] = target
-    row, _ = Correction.objects.get_or_create(id=stable_id(revision.book_id, 'node', key), defaults={'book_id': revision.book_id, 'kind': 'node', 'key': key})
+    row, _ = Correction.objects.get_or_create(id=stable_id(revision.book_id, 'node', key), defaults={'book_id': revision.book_id, 'kind': 'node', 'key': key, 'introduced_ordinal': max(ChapterResult.objects.filter(revision=revision).values_list('chapter__ordinal', flat=True), default=0)})
     row.patch = {**row.patch, **patch}
     row.save()
 
@@ -237,7 +313,7 @@ def correct_edge(revision, key: str, patch: dict, new: bool = False):
         if not found:
             raise AnalysisError('关系不存在', 404)
     kind = 'relation' if new or existing else 'edge'
-    row, _ = Correction.objects.get_or_create(id=stable_id(revision.book_id, kind, key), defaults={'book_id': revision.book_id, 'kind': kind, 'key': key})
+    row, _ = Correction.objects.get_or_create(id=stable_id(revision.book_id, kind, key), defaults={'book_id': revision.book_id, 'kind': kind, 'key': key, 'introduced_ordinal': max(ChapterResult.objects.filter(revision=revision).values_list('chapter__ordinal', flat=True), default=0)})
     row.patch = {**row.patch, **patch}
     row.save()
     return key

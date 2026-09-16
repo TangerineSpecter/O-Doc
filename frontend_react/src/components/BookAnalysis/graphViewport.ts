@@ -63,7 +63,8 @@ export function installGraphViewport(chart: ECharts) {
     };
     const fit = () => {stop(); followLayout();};
     const onHover = (params: {dataType?: string}) => {if (params.dataType === 'node') stop();};
-    const onRoam = (params: {zoom?: number; originX?: number; originY?: number}) => {
+    const onRoam = (...args: unknown[]) => {
+        const params = (args[0] || {}) as {zoom?: number; originX?: number; originY?: number};
         if (params.zoom !== undefined && params.zoom !== 1 && params.originX !== undefined && params.originY !== undefined) {
             syncGraphNodeScale(chart, params.originX, params.originY);
         }

@@ -30,10 +30,10 @@ export function relationChartOption(graph: ReadingGraph, width = 1000, height = 
                 label: {show: true, position: 'bottom', distance: 9, width: 120, overflow: 'truncate', color: '#475569', fontSize: 11},
                 emphasis: {label: {show: true, overflow: 'truncate', width: 180, color: '#0f172a', opacity: 1, fontWeight: 'bold'}, itemStyle: {opacity: 1, borderColor: '#8b5cf6', borderWidth: 2}},
             })),
-            links: graph.edges.map(edge => ({id: edge.id, source: edge.source, target: edge.target, lineStyle: {color: edge.kind === 'causes' ? '#fb923c' : '#b8c4d1', type: edge.kind === 'next' ? 'dashed' : 'solid', opacity: .38}, emphasis: {lineStyle: {color: '#8b5cf6', opacity: 1, width: 1}}, blur: {lineStyle: {opacity: .04}}})),
+            links: graph.edges.map(edge => ({id: edge.id, source: edge.source, target: edge.target, lineStyle: {color: edge.origin === 'inferred' ? '#a855f7' : edge.kind === 'causes' ? '#fb923c' : '#b8c4d1', type: edge.origin === 'inferred' || edge.kind === 'next' ? 'dashed' : 'solid', opacity: .38}, emphasis: {lineStyle: {color: '#8b5cf6', opacity: 1, width: 1}}, blur: {lineStyle: {opacity: .04}}})),
             edgeSymbol: ['none', 'none'], emphasis: {focus: 'adjacency', blurScope: 'series', lineStyle: {color: '#8b5cf6', opacity: 1, width: 1}},
             blur: {itemStyle: {opacity: .12}, lineStyle: {opacity: .04}, label: {opacity: .12}},
             lineStyle: {curveness: .06, width: 1}, animationDuration: 0, stateAnimation: {duration: 0},
-        }],
+        } as GraphSeriesOption],
     };
 }

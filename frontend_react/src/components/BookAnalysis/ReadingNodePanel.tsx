@@ -6,8 +6,8 @@ import {nodeColors, nodeLabels} from '../../utils/readingGraph';
 import NodeCorrections from './NodeCorrections';
 import ReadingNodeDetails from './ReadingNodeDetails';
 
-interface Props {bookId: string; revisionId: string; nodeId: string; graph: ReadingGraph; canManage: boolean; refreshKey: string; onSelect: (id: string) => void; onClose: () => void; onRead: (source: SourceEvidence) => void; onSaved: () => void}
-export default function ReadingNodePanel({bookId, revisionId, nodeId, graph, canManage, refreshKey, onSelect, onClose, onRead, onSaved}: Props) {
+interface Props {throughChapter?: number; bookId: string; revisionId: string; nodeId: string; graph: ReadingGraph; canManage: boolean; refreshKey: string; onSelect: (id: string) => void; onClose: () => void; onRead: (source: SourceEvidence) => void; onSaved: () => void}
+export default function ReadingNodePanel({bookId, revisionId, nodeId, graph, canManage, refreshKey, throughChapter, onSelect, onClose, onRead, onSaved}: Props) {
     const [data, setData] = useState<{node: ReadingNode; neighbors: ReadingGraph} | null>(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -17,9 +17,9 @@ export default function ReadingNodePanel({bookId, revisionId, nodeId, graph, can
     useEffect(() => {
         const controller = new AbortController();
         setLoading(true); setError(''); setData(null);
-        getReadingNode(bookId, nodeId, page, controller.signal, revisionId).then(value => {if (!controller.signal.aborted) setData(value);}).catch(err => {if (!controller.signal.aborted) setError(readingError(err));}).finally(() => {if (!controller.signal.aborted) setLoading(false);});
+        getReadingNode(bookId, nodeId, page, controller.signal, revisionId, throughChapter).then(value => {if (!controller.signal.aborted) setData(value);}).catch(err => {if (!controller.signal.aborted) setError(readingError(err));}).finally(() => {if (!controller.signal.aborted) setLoading(false);});
         return () => controller.abort();
-    }, [bookId, revisionId, nodeId, page, refreshKey]);
+    }, [bookId, revisionId, nodeId, page, refreshKey, throughChapter]);
     const node = data?.node;
     return <aside aria-label="阅读对象详情" className="fixed inset-0 z-40 flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-white sm:sticky sm:inset-auto sm:top-20 sm:z-auto sm:h-[calc(100dvh-7rem)] sm:max-h-[780px] sm:w-[310px] sm:shrink-0 sm:rounded-xl sm:border sm:border-slate-200 xl:w-[340px]">
         <header className="relative shrink-0 border-b border-slate-100 px-4 py-4"><button aria-label="关闭节点详情" onClick={onClose} className="absolute right-3 top-3 rounded-lg p-1.5 text-slate-400 hover:bg-slate-50"><X className="h-4 w-4"/></button>{node ? <><span className="inline-flex items-center gap-1.5 text-[11px] text-slate-400"><i className="h-2 w-2 rounded-full" style={{background: nodeColors[node.kind]}}/>{nodeLabels[node.kind]}</span><h2 className="mr-6 mt-2 break-words font-serif text-xl font-bold text-slate-800">{node.name}</h2></> : <p className="mr-6 text-xs text-slate-500">对象详情</p>}</header>

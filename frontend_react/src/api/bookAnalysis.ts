@@ -8,10 +8,11 @@ export const inspectBook = (id: string) => request.post<never, BookInspection>(`
 export const getBookChapters = (id: string, page = 1, signal?: AbortSignal, revisionId = '') => request.get<never, PagedChapters>(`${base(id)}/chapters`, {params: {page, limit: 50, revisionId}, signal});
 export const getChapterGuide = (id: string, chapterId: string, signal?: AbortSignal, revisionId = '') => request.get<never, ChapterGuide>(`${base(id)}/chapters/${chapterId}`, {signal, params: {revisionId}});
 export const getReadingGraph = (id: string, filters: GraphFilters, signal?: AbortSignal) => request.get<never, ReadingGraph>(`${base(id)}/graph`, {params: filters, signal});
-export const getReadingNode = (id: string, nodeId: string, page = 1, signal?: AbortSignal, revisionId = '') => request.get<never, {node: ReadingNode; neighbors: ReadingGraph}>(`${base(id)}/nodes/${nodeId}`, {params: {page, revisionId}, signal});
+export const getReadingNode = (id: string, nodeId: string, page = 1, signal?: AbortSignal, revisionId = '', throughChapter?: number) => request.get<never, {node: ReadingNode; neighbors: ReadingGraph}>(`${base(id)}/nodes/${nodeId}`, {params: {page, revisionId, throughChapter}, signal});
 export const startBookRun = (id: string, mode: ReadingMode, start: number, end: number, force = false, kind = 'analyze') => request.post<never, ReadingRun>(`${base(id)}/runs`, {mode, start, end, force, kind});
 export const runBookAction = (id: string, runId: string, action: 'cancel' | 'retry') => request.post<never, ReadingRun>(`${base(id)}/runs/${runId}/${action}`);
 export const getExecutionEvents = (id: string, runId: string, before: number, signal?: AbortSignal) => request.get<never, ExecutionPage>(`${base(id)}/runs/${runId}/events`, {params: {before}, signal});
+export const correctReadingProfile = (id: string, nodeId: string, attribute: 'identity' | 'age' | 'occupation' | 'background' | 'behavior' | 'goal', value: string, timeLabel = '') => request.post(`${base(id)}/nodes/${nodeId}/profile`, {attribute, value, timeLabel});
 export const correctReadingNode = (id: string, nodeId: string, patch: {name?: string; description?: string; aliases?: string[]; mergeInto?: string}) => request.patch(`${base(id)}/nodes/${nodeId}/correction`, patch);
 export const addReadingRelation = (id: string, source: string, target: string, kind: string, label: string) => request.post(`${base(id)}/relations`, {source, target, kind, label});
 export const correctReadingRelation = (id: string, edgeId: string, kind: string, label: string) => request.patch(`${base(id)}/relations/${edgeId}`, {kind, label});
@@ -27,9 +28,9 @@ export function readingError(error: unknown): string {
 }
 
 export interface AskCallbacks {onAnswer: (text: string) => void; onSources: (sources: SourceEvidence[], method: string) => void}
-export async function askBook(id: string, question: string, chapterId: string, nodeId: string, signal: AbortSignal, callbacks: AskCallbacks): Promise<void> {
+export async function askBook(id: string, question: string, chapterId: string, nodeId: string, signal: AbortSignal, callbacks: AskCallbacks, revisionId = '', throughChapter?: number): Promise<void> {
     const token = getAuthToken();
-    const response = await fetch(`/api${base(id)}/ask`, {method: 'POST', headers: {'Content-Type': 'application/json', ...(token ? {Authorization: `Token ${token}`} : {})}, body: JSON.stringify({question, chapterId, nodeId}), signal});
+    const response = await fetch(`/api${base(id)}/ask`, {method: 'POST', headers: {'Content-Type': 'application/json', ...(token ? {Authorization: `Token ${token}`} : {})}, body: JSON.stringify({question, chapterId, nodeId, revisionId, throughChapter}), signal});
     if (!response.ok) {
         const result = await response.json().catch(() => ({})) as {msg?: string};
         throw new Error(result.msg || '问答请求失败');

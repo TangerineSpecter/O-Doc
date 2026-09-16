@@ -31,10 +31,12 @@ def source_item(chapter, text: str, offset: int) -> dict:
     return {'chapter_id': chapter.pk, 'chapter_title': chapter.title, 'ordinal': chapter.ordinal, 'quote': text, 'locator': locator}
 
 
-def index_revision(revision, check=lambda: None):
+def index_revision(revision, check=lambda: None, chapter_id: str = ''):
     model = RagClient.get_embedding_model()
     collection = book_collection(revision.book_id, model)
     result_ids = ChapterResult.objects.filter(revision=revision).values('chapter_id')
+    if chapter_id:
+        result_ids = result_ids.filter(chapter_id=chapter_id)
     batch = []
 
     def flush():
@@ -64,10 +66,10 @@ def index_revision(revision, check=lambda: None):
         flush()
 
 
-def retrieve(revision, question: str, chapter_id: str = '', node_id: str = '') -> tuple[list[dict], str]:
+def retrieve(revision, question: str, chapter_id: str = '', node_id: str = '', through_chapter: int | None = None) -> tuple[list[dict], str]:
     sources = []
     if node_id:
-        detail = node_detail(revision, node_id)
+        detail = node_detail(revision, node_id, through_chapter=through_chapter)
         sources = [fact['evidence'] for fact in detail['node']['facts'] if fact.get('evidence')]
         for node in detail['neighbors']['nodes']:
             sources += [f['evidence'] for f in node['facts'][:2] if f.get('evidence')]
@@ -77,11 +79,15 @@ def retrieve(revision, question: str, chapter_id: str = '', node_id: str = '') -
         model = RagClient.get_embedding_model()
         collection = book_collection(revision.book_id, model)
         where = {'$and': [{'book_id': str(revision.book_id)}, {'revision_id': str(revision.pk)}]}
+        if through_chapter is not None:
+            where['$and'].append({'ordinal': {'$lte': through_chapter}})
         if chapter_id:
             where['$and'].append({'chapter_id': chapter_id})
         result = collection.query(query_embeddings=embed_texts([question], purpose='query', model=model), where=where, n_results=6, include=['documents', 'metadatas'])
         retrieved = []
         for text, meta in zip(result.get('documents', [[]])[0], result.get('metadatas', [[]])[0]):
+            if through_chapter is not None and meta.get('ordinal', through_chapter + 1) > through_chapter:
+                continue
             if not ChapterResult.objects.filter(revision=revision, chapter_id=meta['chapter_id']).exists():
                 continue
             retrieved.append({'chapter_id': meta['chapter_id'], 'chapter_title': meta['chapter_title'], 'ordinal': meta['ordinal'], 'quote': text, 'locator': json.loads(meta['locator'])})
@@ -94,6 +100,8 @@ def retrieve(revision, question: str, chapter_id: str = '', node_id: str = '') -
     terms = {w for w in words if len(w) <= 15}
     terms.update(w[i:i + 2] for w in words for i in range(len(w) - 1) if '\u4e00' <= w[i] <= '\u9fff')
     ids = ChapterResult.objects.filter(revision=revision)
+    if through_chapter is not None:
+        ids = ids.filter(chapter__ordinal__lte=through_chapter)
     if chapter_id:
         ids = ids.filter(chapter_id=chapter_id)
     ranked = []
@@ -111,7 +119,7 @@ def retrieve(revision, question: str, chapter_id: str = '', node_id: str = '') -
     if not sources and not retrieved:
         # Synced evidence still supports Q&A without a local source file.
         from .graph import read_graph
-        graph = read_graph(revision, chapter_id=chapter_id, limit=100)
+        graph = read_graph(revision, chapter_id=chapter_id, limit=100, through_chapter=through_chapter)
         for node in graph['nodes']:
             for fact in node['facts']:
                 ev = fact.get('evidence')
@@ -120,14 +128,14 @@ def retrieve(revision, question: str, chapter_id: str = '', node_id: str = '') -
     return combine_sources(sources, retrieved), 'keyword'
 
 
-def reading_context(revision, sources):
+def reading_context(revision, sources, through_chapter=None):
     """Combine stored summaries with retrieved evidence, without slicing summaries."""
     chapter_ids = list(dict.fromkeys(item['chapter_id'] for item in sources))[:2]
     chapters = []
     for result in ChapterResult.objects.filter(revision=revision, chapter_id__in=chapter_ids).select_related('chapter'):
         summary = result.digest.get('summary', '')
         chapters.append({'chapter_title': result.chapter.title, 'summary': summary if len(summary) <= 6000 else '导读较长，请在章节页面查看完整导读；本次只使用原文证据。'})
-    overview = revision.overview.get('summary', '')
+    overview = revision.overview.get('summary', '') if through_chapter is None else ''
     return {'overview': overview if len(overview) <= 6000 else '概要较长，请在整书概要页面查看；本次只使用相关章节与原文证据。', 'chapters': chapters}
 
 

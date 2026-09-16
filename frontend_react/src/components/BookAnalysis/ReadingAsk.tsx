@@ -3,22 +3,22 @@ import {Send, Square} from 'lucide-react';
 import {askBook, readingError} from '../../api/bookAnalysis';
 import type {SourceEvidence} from '../../types/bookAnalysis';
 
-interface Props {bookId: string; revisionId: string; chapterId: string; nodeId: string; scopeLabel: string; onRead: (source: SourceEvidence) => void}
-export default function ReadingAsk({bookId, revisionId, chapterId, nodeId, scopeLabel, onRead}: Props) {
+interface Props {throughChapter?: number; bookId: string; revisionId: string; chapterId: string; nodeId: string; scopeLabel: string; onRead: (source: SourceEvidence) => void}
+export default function ReadingAsk({bookId, revisionId, chapterId, nodeId, scopeLabel, throughChapter, onRead}: Props) {
     const [question, setQuestion] = useState('');
     const [answer, setAnswer] = useState('');
     const [sources, setSources] = useState<SourceEvidence[]>([]);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const controller = useRef<AbortController | null>(null);
-    useEffect(() => {controller.current?.abort(); setBusy(false); setAnswer(''); setSources([]); setError(''); return () => controller.current?.abort();}, [bookId, revisionId, chapterId, nodeId]);
+    useEffect(() => {controller.current?.abort(); setBusy(false); setAnswer(''); setSources([]); setError(''); return () => controller.current?.abort();}, [bookId, revisionId, chapterId, nodeId, throughChapter]);
     const submit = async (event: React.FormEvent) => {
         event.preventDefault();
         if (!question.trim() || busy) return;
         const pending = new AbortController();
         controller.current?.abort(); controller.current = pending;
         setAnswer(''); setSources([]); setError(''); setBusy(true);
-        try {await askBook(bookId, question, chapterId, nodeId, pending.signal, {onAnswer: text => {if (!pending.signal.aborted) setAnswer(current => current + text);}, onSources: values => {if (!pending.signal.aborted) setSources(values);}});}
+        try {await askBook(bookId, question, chapterId, nodeId, pending.signal, {onAnswer: text => {if (!pending.signal.aborted) setAnswer(current => current + text);}, onSources: values => {if (!pending.signal.aborted) setSources(values);}}, revisionId, throughChapter);}
         catch (err) {if (!pending.signal.aborted) setError(readingError(err));}
         finally {if (controller.current === pending) setBusy(false);}
     };

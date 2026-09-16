@@ -27,6 +27,8 @@ export default function BookAnalysisPage() {
     const view = chosenView || (status?.mode === 'story' ? 'flow' : 'digest');
     const [chapterId, setChapterId] = useState('');
     const [chapterPage, setChapterPage] = useState(1);
+    const [throughChapter, setThroughChapter] = useState<number | undefined>();
+    const [includeInferred, setIncludeInferred] = useState(false);
     const [selectedNode, selectNode] = useState('');
     const [query, setQuery] = useState('');
     const [kind, setKind] = useState('');
@@ -37,14 +39,14 @@ export default function BookAnalysisPage() {
     const [correctionKey, setCorrectionKey] = useState(0);
     const refreshKey = `${status?.run?.completed || 0}:${status?.run?.state || ''}:${correctionKey}`;
     const {chapters, guide, guideError, contentLoading, reader, onRead, closeReader} = useBookGuideContent(bookId, status, chapterId, chapterPage, refreshKey, versionId);
-    const filters: GraphFilters = {view: view === 'digest' || view === 'overview' ? 'graph' : view, chapterId: view === 'overview' ? '' : chapterId, kind, query, center, thread, order, page: graphPage};
+    const filters: GraphFilters = {view: view === 'digest' || view === 'overview' ? 'graph' : view, chapterId: view === 'overview' ? '' : chapterId, kind, query, center, thread, order, page: graphPage, throughChapter, includeInferred};
     const reading = useReadingGraph(bookId, status?.revisionId || '', filters, refreshKey);
     const graph = reading.graph;
     const onSelect = useCallback((id: string) => selectNode(id), []);
     const onEdge = useCallback((id: string) => {const edge = graph.edges.find(e => e.id === id); if (edge) selectNode(edge.source);}, [graph.edges]);
     const onSaved = useCallback(() => {setCorrectionKey(k => k + 1); void reload();}, [reload]);
     useEffect(() => {setView(null); selectNode(''); setCenter(''); setKind(''); setGraphPage(1);}, [status?.mode]);
-    useEffect(() => {setGraphPage(1);}, [chapterId, query, kind, center, thread, view, order]);
+    useEffect(() => {setGraphPage(1);}, [chapterId, query, kind, center, thread, view, order, throughChapter, includeInferred]);
     if (reader) return <BookReader book={reader.book} initialLocation={reader.source} onClose={closeReader} onProgressSaved={() => undefined}/>;
     if (loading) return <div className="flex min-h-96 items-center justify-center text-orange-500"><Loader2 className="h-6 w-6 animate-spin"/></div>;
     if (!status) return <div className="p-8"><p role="alert" className="text-sm text-red-600">{error || '图书不可访问'}</p><button onClick={() => navigate(`/books/${collId}`)} className="mt-4 text-sm text-orange-600">返回书架</button></div>;
@@ -63,7 +65,7 @@ export default function BookAnalysisPage() {
         </header>
         <div className="mx-auto mt-4 flex max-w-[1680px] flex-col items-start gap-4 lg:flex-row">
             <aside className="w-full shrink-0 rounded-xl border border-slate-200 bg-white p-3 lg:sticky lg:top-20 lg:w-56">
-                <div className="mb-2 flex items-center justify-between px-2 text-xs font-bold text-slate-600"><span>章节与范围</span><span className="text-[10px] font-normal text-slate-400">{chapters.total} 章</span></div><button onClick={() => chooseChapter('')} className={`mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs ${!chapterId ? 'bg-orange-50 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}`}><Layers className="h-3.5 w-3.5"/>全部已分析内容</button>
+                <div className="mb-3 rounded-lg bg-slate-50 p-2"><label className="text-[10px] text-slate-500">认识范围<select aria-label="截至章节" value={throughChapter || ''} onChange={event => setThroughChapter(event.target.value ? Number(event.target.value) : undefined)} className="mt-1 h-8 w-full rounded border border-slate-200 bg-white px-2 text-xs"><option value="">全部已分析内容</option>{Array.from({length: status.inspection.chapterCount || 0}, (_, index) => <option key={index + 1} value={index + 1}>截至第 {index + 1} 章</option>)}</select></label><label className="mt-2 flex items-center gap-1 text-[10px] text-slate-500"><input type="checkbox" checked={includeInferred} onChange={event => setIncludeInferred(event.target.checked)}/>在图中显示待验证关联</label></div><div className="mb-2 flex items-center justify-between px-2 text-xs font-bold text-slate-600"><span>章节与范围</span><span className="text-[10px] font-normal text-slate-400">{chapters.total} 章</span></div><button onClick={() => chooseChapter('')} className={`mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs ${!chapterId ? 'bg-orange-50 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}`}><Layers className="h-3.5 w-3.5"/>全部已分析内容</button>
                 <div className="flex max-h-48 flex-col overflow-y-auto lg:max-h-[55vh]">{chapters.items.map(ch => <button key={ch.id} onClick={() => chooseChapter(ch.id)} title={ch.title} className={`flex items-start gap-2 rounded-lg px-3 py-2 text-left text-xs leading-5 ${chapterId === ch.id ? 'bg-orange-50 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}`}><i className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${ch.analyzed ? 'bg-lime-500' : 'bg-slate-200'}`}/><span className="line-clamp-2">{ch.ordinal}. {ch.title}</span></button>)}</div>
                 {chapters.total > 50 && <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2 text-[10px] text-slate-400"><button aria-label="上一页章节" disabled={chapterPage === 1} onClick={() => setChapterPage(p => p - 1)}><ChevronLeft className="h-4 w-4"/></button>{chapterPage} / {Math.ceil(chapters.total / 50)}<button aria-label="下一页章节" disabled={chapterPage * 50 >= chapters.total} onClick={() => setChapterPage(p => p + 1)}><ChevronRight className="h-4 w-4"/></button></div>}
                 <div className="mt-4 border-t border-slate-100 pt-3 text-[10px] leading-5 text-slate-400"><span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-lime-500"/>已分析章节可查看导读。<br/>跨章节内容以实际完成范围为准。</div>
@@ -79,10 +81,10 @@ export default function BookAnalysisPage() {
                     {graph.nodes.length > 0 && (view === 'graph' || view === 'mindmap') && <ReadingChart graph={graph} view={view} title={currentChapter?.title || status.book.title} order={order} onSelect={onSelect} onEdge={onEdge}/>}
                     <ReadingResults graph={graph} view={view} order={order} selectedId={selectedNode} page={graphPage} onPage={setGraphPage} onSelect={onSelect}/>
                 </>}
-                {!status.history && <ReadingAsk bookId={bookId} revisionId={status.revisionId} chapterId={view === 'overview' ? '' : chapterId} nodeId={selectedNode} scopeLabel={currentNode?.name || currentChapter?.title || '本书已分析范围'} onRead={onRead}/>}
+                {!status.history && <ReadingAsk bookId={bookId} revisionId={status.revisionId} chapterId={view === 'overview' ? '' : chapterId} nodeId={selectedNode} scopeLabel={`${currentNode?.name || currentChapter?.title || '本书已分析范围'}${throughChapter ? ` · 截至第 ${throughChapter} 章` : ''}`} throughChapter={throughChapter} onRead={onRead}/>}
                 </>}
             </section>
-            {selectedNode && status.revisionId && <ReadingNodePanel bookId={bookId} revisionId={status.revisionId} nodeId={selectedNode} graph={graph} canManage={status.canManage} refreshKey={refreshKey} onSelect={onSelect} onClose={() => selectNode('')} onRead={onRead} onSaved={onSaved}/>} 
+            {selectedNode && status.revisionId && <ReadingNodePanel bookId={bookId} revisionId={status.revisionId} nodeId={selectedNode} graph={graph} canManage={status.canManage} refreshKey={refreshKey} throughChapter={throughChapter} onSelect={onSelect} onClose={() => selectNode('')} onRead={onRead} onSaved={onSaved}/>}
         </div>
     </main>;
 }

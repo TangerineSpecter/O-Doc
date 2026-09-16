@@ -7,7 +7,9 @@ from unittest.mock import patch
 
 import pymupdf as fitz
 from django.contrib.auth.models import User
+from django.db import connection
 from django.db import transaction
+from django.test.utils import CaptureQueriesContext
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -55,7 +57,7 @@ class BookAnalysisTests(APITestCase):
         self.assertFalse(WorkerLease.objects.get(pk='book-analysis').owner)
         self.assertTrue(all(client.closed for client in clients))
         self.assertTrue(all(stream.closed for stream in streams))
-        index.assert_not_called()
+        index.assert_called_once()
         self.assertEqual(run.events.last().kind, 'run_failed')
 
     def test_stop_during_silent_stream_becomes_cancelled_without_resetting_flag(self):
@@ -732,3 +734,102 @@ class BookAnalysisTests(APITestCase):
         invalid['nodes'][0]['kind'] = {}
         with self.assertRaises(AnalysisError):
             validate_payload(invalid, text, chapter, 0, [])
+
+class StoryProfileTests(APITestCase):
+    make_book = BookAnalysisTests.make_book
+    inspected = BookAnalysisTests.inspected
+
+    def setUp(self):
+        BookAnalysisTests.setUp(self)
+        self.inspected()
+        analysis = BookAnalysis.objects.get(book=self.book)
+        self.revision = Revision.objects.create(book=self.book, source_hash=analysis.source_hash, mode='story', settings_version=analysis.settings_version)
+        analysis.published_revision = self.revision.pk
+        analysis.mode = 'story'
+        analysis.save()
+        self.chapter1 = Chapter.objects.filter(book=self.book).order_by('ordinal').first()
+        self.chapter2 = Chapter.objects.filter(book=self.book).order_by('ordinal')[1]
+
+    def payload(self, chapter, name, description, attribute=None):
+        quote = SourceCache.objects.get(chapter=chapter).text[:20]
+        node = {'canonical_id': 'person-1', 'kind': 'person', 'name': name, 'aliases': [], 'description': description, 'status': 'explicit', 'evidence': {'chapter_id': chapter.pk, 'chapter_title': chapter.title, 'ordinal': chapter.ordinal, 'quote': quote, 'locator': chapter.locator}, 'ordinal': chapter.ordinal * 1000000000, 'time_label': '', 'time_order': '', 'thread': ''}
+        attrs = [] if not attribute else [{'canonical_id': 'person-1', 'attribute': attribute[0], 'value': attribute[1], 'attribution': 'narrator', 'speaker': '', 'time_label': attribute[2] if len(attribute) > 2 else '', 'status': 'explicit', 'evidence': node['evidence'], 'ordinal': node['ordinal']}]
+        return {'nodes': [node], 'attributes': attrs, 'edges': [], 'summary': '', 'points': [], 'qa': [], 'inspiration': []}
+
+    def test_structured_profile_is_complete_outside_fact_page_and_scoped(self):
+        from .profiles import profile_for
+        add_segment(self.revision, self.chapter1, self.payload(self.chapter1, '桐原洋介', '当铺老板。', ('occupation', '当铺老板')))
+        add_segment(self.revision, self.chapter2, self.payload(self.chapter2, '桐原洋介', '五十二岁。', ('age', '五十二岁', '案发时')))
+        node = GraphNode.objects.get(revision=self.revision)
+        from .models import ProfileChange
+        ProfileChange.objects.create(id='p1', node=node, chapter=self.chapter1, patch={'introduction': [{'text': '经营当铺。', 'basis': [node.structured_facts.first().pk], 'status': 'explicit'}]})
+        profile = profile_for(node)
+        self.assertEqual({item['value'] for item in profile['attributes']}, {'当铺老板', '五十二岁'})
+        self.assertEqual([item['value'] for item in profile_for(node, 1)['attributes']], ['当铺老板'])
+        detail = node_detail(self.revision, node.canonical_id, through_chapter=1)
+        self.assertEqual(detail['node']['profile']['attributes'][0]['value'], '当铺老板')
+        self.assertNotIn('五十二岁', str(detail))
+
+    def test_hypothesis_history_and_graph_inference_are_scoped(self):
+        from .models import Hypothesis
+        add_segment(self.revision, self.chapter1, self.payload(self.chapter1, '人物甲', '出现。'))
+        add_segment(self.revision, self.chapter1, {**self.payload(self.chapter1, '人物乙', '出现。'), 'nodes': [{**self.payload(self.chapter1, '人物乙', '出现。')['nodes'][0], 'canonical_id': 'person-2'}]})
+        source, target = list(GraphNode.objects.filter(revision=self.revision).order_by('canonical_id'))
+        Hypothesis.objects.create(id='h1', revision=self.revision, key='same-clue', chapter=self.chapter1, source=source, target=target, description='可能相关', state='pending', basis=[])
+        Hypothesis.objects.create(id='h2', revision=self.revision, key='same-clue', chapter=self.chapter2, source=source, target=target, description='已被排除', state='refuted', basis=[])
+        early = read_graph(self.revision, through_chapter=1, include_inferred=True)
+        late = read_graph(self.revision, through_chapter=2, include_inferred=True)
+        self.assertEqual([e['origin'] for e in early['edges']], ['inferred'])
+        self.assertFalse(any(e['origin'] == 'inferred' for e in late['edges']))
+
+    def test_cross_chapter_update_preserves_current_patch_and_only_saves_cited_evidence(self):
+        import json
+        from .models import EntityFact, ProfileChange, SourceEvidence
+        from .profiles import update_profile
+        add_segment(self.revision, self.chapter1, self.payload(self.chapter1, '桐原洋介', '经营当铺。', ('occupation', '当铺老板')))
+        add_segment(self.revision, self.chapter2, self.payload(self.chapter2, '桐原洋介', '案发当晚外出。', ('behavior', '案发当晚外出')))
+        node = GraphNode.objects.get(revision=self.revision)
+        fact = node.structured_facts.filter(evidence__chapter=self.chapter2, attribute='behavior').get()
+        ProfileChange.objects.create(id='current-profile', node=node, chapter=self.chapter2, patch={'behavior': [{'text': '案发当晚外出。', 'basis': [fact.pk], 'status': 'explicit'}]}, basis=[fact.pk])
+        cited = {'chapter_id': self.chapter1.pk, 'chapter_title': self.chapter1.title, 'ordinal': 1, 'quote': '被引用的旧证据', 'locator': {'format': 'txt', 'offset': 901}}
+        ignored = {'chapter_id': self.chapter1.pk, 'chapter_title': self.chapter1.title, 'ordinal': 1, 'quote': '未被引用的候选证据', 'locator': {'format': 'txt', 'offset': 902}}
+        response = {'sections': {'background': [{'text': '早年经营当铺。', 'basis': ['S1'], 'status': 'explicit'}]}, 'hypotheses': []}
+        before_facts = EntityFact.objects.filter(node=node).count()
+        with patch('book_analysis.profiles.AIService.chat_completion', return_value=json.dumps(response, ensure_ascii=False)):
+            self.assertTrue(update_profile(node, self.chapter2, extra_sources=[cited, ignored]))
+        change = ProfileChange.objects.get(node=node, chapter=self.chapter2)
+        self.assertIn('behavior', change.patch)
+        self.assertIn('background', change.patch)
+        self.assertEqual(EntityFact.objects.filter(node=node).count(), before_facts)
+        self.assertTrue(SourceEvidence.objects.filter(revision=self.revision, quote=cited['quote']).exists())
+        self.assertFalse(SourceEvidence.objects.filter(revision=self.revision, quote=ignored['quote']).exists())
+        self.assertNotIn('S1', str(change.patch))
+
+    def test_merged_node_detail_combines_profiles_and_attributes(self):
+        from .models import ProfileChange
+        first = self.payload(self.chapter1, '人物甲', '经营当铺。', ('occupation', '当铺老板'))
+        second = self.payload(self.chapter2, '甲先生', '五十二岁。', ('age', '五十二岁', '案发时'))
+        second['nodes'][0]['canonical_id'] = 'person-2'
+        second['attributes'][0]['canonical_id'] = 'person-2'
+        add_segment(self.revision, self.chapter1, first)
+        add_segment(self.revision, self.chapter2, second)
+        target = GraphNode.objects.get(revision=self.revision, canonical_id='person-1')
+        duplicate = GraphNode.objects.get(revision=self.revision, canonical_id='person-2')
+        first_fact = target.structured_facts.filter(attribute='occupation').get()
+        second_fact = duplicate.structured_facts.filter(attribute='age').get()
+        ProfileChange.objects.create(id='merged-profile-1', node=target, chapter=self.chapter1, patch={'background': [{'text': '经营当铺。', 'basis': [first_fact.pk], 'status': 'explicit'}]})
+        ProfileChange.objects.create(id='merged-profile-2', node=duplicate, chapter=self.chapter2, patch={'changes': [{'text': '案发时五十二岁。', 'basis': [second_fact.pk], 'status': 'explicit'}]})
+        correct_node(self.revision, duplicate.canonical_id, {'merge_into': target.canonical_id})
+        profile = node_detail(self.revision, target.canonical_id)['node']['profile']
+        self.assertEqual({item['value'] for item in profile['attributes']}, {'当铺老板', '五十二岁'})
+        self.assertEqual(set(profile['sections']), {'background', 'changes'})
+
+    def test_relevant_registry_batches_profile_and_relation_queries(self):
+        from .graph import relevant_registry
+        for index in range(12):
+            GraphNode.objects.create(id=f'registry-node-{index}', revision=self.revision, canonical_id=f'registry-{index}', kind='person', name=f'人物{index}', ordinal=1)
+        text = '、'.join(f'人物{index}' for index in range(12))
+        with CaptureQueriesContext(connection) as queries:
+            registry = relevant_registry(self.revision, text, through_chapter=1)
+        self.assertEqual(len(registry), 12)
+        self.assertLessEqual(len(queries), 5)

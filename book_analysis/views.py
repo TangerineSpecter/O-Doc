@@ -47,10 +47,14 @@ class StatusView(AnalysisView):
             stale = bool(analysis and analysis.published_revision)
         if revision:
             stale = not analysis or revision.source_hash != current_hash(book) or revision.settings_version != analysis.settings_version or revision.mode != analysis.mode
+        statistics = {}
+        if revision:
+            from .models import EntityFact, ProfileChange, Hypothesis
+            statistics = {'facts': EntityFact.objects.filter(node__revision=revision).count(), 'profile_changes': ProfileChange.objects.filter(node__revision=revision).count(), 'pending_profiles': ProfileChange.objects.filter(node__revision=revision, state='pending').count(), 'hypotheses': Hypothesis.objects.filter(revision=revision).count()}
         history = bool(revision and (not analysis or revision.pk != analysis.published_revision))
         versions = list(Revision.objects.filter(book=book, state__in=['partial', 'complete']).order_by('-created_at').values('id', 'mode', 'created_at', 'overview')[:50])
         versions = [{'id': item['id'], 'mode': item['mode'], 'created_at': item['created_at'], 'complete': item['overview'].get('complete', False)} for item in versions]
-        return success_result({'book': {'book_id': book.pk, 'title': book.title, 'author': book.author, 'format': book.book_format, 'coll_id': book.anthology.coll_id, 'cover_url': f'/api/anthology/book/{book.pk}/cover', 'local_state': book.local_state}, 'history': history, 'versions': versions, 'can_manage': not history and request.user.is_authenticated and get_owned_anthology_queryset(request).filter(pk=book.anthology_id).exists(), 'mode': revision.mode if revision else analysis.mode if analysis else 'knowledge', 'inspection': analysis.inspection if analysis else {}, 'stale': stale, 'revision_id': revision.pk if revision else '', 'overview': revision.overview if revision else {}, 'run': run_data(AnalysisRun.objects.filter(book=book).order_by('-created_at').first())})
+        return success_result({'book': {'book_id': book.pk, 'title': book.title, 'author': book.author, 'format': book.book_format, 'coll_id': book.anthology.coll_id, 'cover_url': f'/api/anthology/book/{book.pk}/cover', 'local_state': book.local_state}, 'statistics': statistics, 'history': history, 'versions': versions, 'can_manage': not history and request.user.is_authenticated and get_owned_anthology_queryset(request).filter(pk=book.anthology_id).exists(), 'mode': revision.mode if revision else analysis.mode if analysis else 'knowledge', 'inspection': analysis.inspection if analysis else {}, 'stale': stale, 'revision_id': revision.pk if revision else '', 'overview': revision.overview if revision else {}, 'run': run_data(AnalysisRun.objects.filter(book=book).order_by('-created_at').first())})
 
 
 class ExecutionEventsView(AnalysisView):
@@ -131,4 +135,4 @@ class NodeView(AnalysisView):
         book = get_book(request, book_id)
         serializer = GraphInput(data=request.query_params)
         serializer.is_valid(raise_exception=True)
-        return success_result(node_detail(readable_revision(book, serializer.validated_data['revision_id']), node_id, serializer.validated_data['page']))
+        return success_result(node_detail(readable_revision(book, serializer.validated_data['revision_id']), node_id, serializer.validated_data['page'], serializer.validated_data['through_chapter']))

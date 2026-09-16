@@ -102,6 +102,7 @@ class Correction(models.Model):
     kind = models.CharField(max_length=16)
     key = models.CharField(max_length=64)
     patch = models.JSONField(default=dict)
+    introduced_ordinal = models.PositiveIntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
 
 
@@ -151,3 +152,55 @@ class ExecutionEvent(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=['run', 'id'])]
+
+
+class SourceEvidence(models.Model):
+    """A reusable, version-scoped excerpt; vectors are rebuildable elsewhere."""
+    id = models.CharField(primary_key=True, max_length=64)
+    revision = models.ForeignKey(Revision, on_delete=models.CASCADE)
+    chapter = models.ForeignKey(Chapter, on_delete=models.CASCADE)
+    quote = models.TextField()
+    locator = models.JSONField(default=dict)
+    ordinal = models.PositiveBigIntegerField(default=0)
+
+
+class EntityFact(models.Model):
+    id = models.CharField(primary_key=True, max_length=64)
+    node = models.ForeignKey(GraphNode, on_delete=models.CASCADE, related_name='structured_facts')
+    evidence = models.ForeignKey(SourceEvidence, on_delete=models.CASCADE)
+    attribute = models.CharField(max_length=32)
+    value = models.TextField()
+    attribution = models.CharField(max_length=24, default='narrator')
+    speaker = models.CharField(max_length=255, blank=True)
+    time_label = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=16, default='explicit')
+
+
+class ProfileChange(models.Model):
+    id = models.CharField(primary_key=True, max_length=64)
+    node = models.ForeignKey(GraphNode, on_delete=models.CASCADE, related_name='profile_changes')
+    chapter = models.ForeignKey(Chapter, on_delete=models.CASCADE)
+    patch = models.JSONField(default=dict)
+    basis = models.JSONField(default=list)
+    state = models.CharField(max_length=16, default='ready')
+    legacy = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['node', 'chapter'], name='book_profile_node_chapter')]
+
+
+class Hypothesis(models.Model):
+    """Append observations rather than overwriting an earlier interpretation."""
+    id = models.CharField(primary_key=True, max_length=64)
+    revision = models.ForeignKey(Revision, on_delete=models.CASCADE)
+    key = models.CharField(max_length=64)
+    chapter = models.ForeignKey(Chapter, on_delete=models.CASCADE)
+    source = models.ForeignKey(GraphNode, on_delete=models.CASCADE, related_name='hypotheses')
+    target = models.ForeignKey(GraphNode, on_delete=models.CASCADE, null=True, related_name='hypothesis_targets')
+    description = models.TextField()
+    state = models.CharField(max_length=16, default='pending')
+    basis = models.JSONField(default=list)
+
+    class Meta:
+        indexes = [models.Index(fields=['revision', 'key'])]

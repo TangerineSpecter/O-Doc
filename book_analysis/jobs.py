@@ -166,6 +166,8 @@ def copy_previous_revision(run):
             edges.append(GraphEdge(id=stable_id(run.revision.pk, edge.id), revision=run.revision, source_id=id_map[edge.source_id], target_id=id_map[edge.target_id], kind=edge.kind, label=edge.label, evidence=evidence, context=edge.context))
     GraphEdge.objects.bulk_create(edges)
     NodeSource.objects.bulk_create([NodeSource(id=stable_id(id_map[s.node_id], s.chapter_id), node_id=id_map[s.node_id], chapter_id=s.chapter_id) for s in NodeSource.objects.filter(node__revision=previous).exclude(chapter_id__in=excluded) if s.node_id in id_map])
+    from .lineage import copy_analysis
+    copy_analysis(previous, run.revision, excluded)
     record_bulk_change(GraphNode.objects.filter(revision=run.revision))
     record_bulk_change(GraphEdge.objects.filter(revision=run.revision))
     record_bulk_change(NodeSource.objects.filter(node__revision=run.revision))
@@ -195,6 +197,9 @@ def process_run(run, token: str):
     with transaction.atomic():
         check_run(run, token)
         copy_previous_revision(run)
+    if run.revision.mode == 'story':
+        from .facts import import_legacy
+        import_legacy(run.revision)
     for chapter in Chapter.objects.filter(pk__in=run.chapter_ids).order_by('ordinal'):
         check_run(run, token)
         if chapter.id in run.completed_ids:
@@ -212,13 +217,13 @@ def process_run(run, token: str):
             run.save(update_fields=['stage', 'updated_at'])
             cache_id = stable_id(chapter.pk, run.revision.mode, EXTRACTION_VERSION, offset, segment, run.revision.pk if run.force else '')
             cached = SegmentCache.objects.filter(pk=cache_id).first()
-            registry = relevant_registry(run.revision, segment)
+            registry = relevant_registry(run.revision, segment, chapter.ordinal)
             if previous:
                 known = {item['canonical_id'] for item in registry}
-                registry.extend(item for item in relevant_registry(previous, segment) if item['canonical_id'] not in known)
+                registry.extend(item for item in relevant_registry(previous, segment, chapter.ordinal) if item['canonical_id'] not in known)
             with ai_scope(phase='extract', chapter_title=chapter.title, chapter_ordinal=chapter.ordinal, segment=i + 1, segments=segment_count):
                 emit_ai_event('segment_started', '复用已完成的分段结果' if cached else '正文分段就绪，开始抽取', chars=len(segment))
-                payload = cached.payload if cached else extract_segment(segment, chapter, offset, run.revision.mode, registry[:40])
+                payload = cached.payload if cached else extract_segment(segment, chapter, offset, run.revision.mode, registry)
             with transaction.atomic():
                 check_run(run, token)
                 if not cached:
@@ -226,6 +231,11 @@ def process_run(run, token: str):
                 add_segment(run.revision, chapter, payload)
             record_event(run, 'segment_saved', '分段成果已保存', 'success', {'phase': 'extract', 'chapter_ordinal': chapter.ordinal, 'segment': i + 1, 'segments': segment_count, 'nodes': len(payload['nodes']), 'edges': len(payload['edges']), 'summary': payload.get('summary', '')}, token=token)
             payloads.append(payload)
+        if run.revision.mode == 'story':
+            from .profiles import update_chapter
+            with ai_scope(phase='profile', chapter_ordinal=chapter.ordinal):
+                ready = update_chapter(run.revision, chapter, lambda: check_run(run, token), include_descriptions=any('attributes' in payload for payload in payloads))
+            record_event(run, 'profile_updated', '本章画像已更新' if ready else '事实已保存，部分画像待更新', 'success' if ready else 'warning', {'phase': 'profile', 'chapter_ordinal': chapter.ordinal}, token=token)
         run.stage = f'第 {chapter.ordinal} 章 · 生成章节导读'
         run.save(update_fields=['stage', 'updated_at'])
         with ai_scope(phase='chapter_summary', chapter_title=chapter.title, chapter_ordinal=chapter.ordinal):
@@ -241,6 +251,20 @@ def process_run(run, token: str):
                 analysis.published_revision = run.revision.pk
                 analysis.save()
         record_event(run, 'chapter_completed', '章节导读已保存，发布状态以分析版本为准', 'success', {'chapter_ordinal': chapter.ordinal, 'chapter_title': chapter.title, 'summary': digest['summary']}, token=token)
+        try:
+            from .retrieval import index_revision
+            index_revision(run.revision, lambda: check_run(run, token), chapter_id=chapter.pk)
+        except AnalysisError:
+            raise
+        except Exception:
+            logger.warning('Chapter index pending: chapter=%s', chapter.pk)
+    if run.revision.mode == 'story':
+        from .profiles import update_chapter
+        run.stage = '完善人物画像与变化'
+        run.save(update_fields=['stage', 'updated_at'])
+        for completed_chapter in Chapter.objects.filter(chapterresult__revision=run.revision, pk__in=run.chapter_ids).order_by('ordinal'):
+            # Existing v2 facts are upgraded here; freshly generated chapter profiles are reused.
+            update_chapter(run.revision, completed_chapter, lambda: check_run(run, token), legacy=True)
     check_run(run, token)
     run.stage = '整理已分析章节与全书概要'
     run.save(update_fields=['stage', 'updated_at'])
@@ -271,8 +295,37 @@ def process_run(run, token: str):
     except Exception:
         logger.warning('Book index unavailable; keeping graph and digests: run=%s', run.pk, exc_info=True)
         run.index_state = 'failed'
-        record_event(run, 'index_failed', '向量检索失败，导读和图谱不受影响', 'warning', {'reason': '问答将退回关键词和图谱证据检索，可稍后重建索引。'}, token=token)
-    run.save(update_fields=['index_state', 'updated_at'])
+        record_event(run, 'index_failed', '向量检索失败，导读和图谱不受影响', 'warning', {'reason': '跨章节复核和问答将自动退回关键词及图谱证据。'}, token=token)
+    if run.revision.mode == 'story':
+        from django.db.models import Count
+        from .models import EntityFact
+        from .profiles import update_profile
+        from .retrieval import retrieve
+        covered = ChapterResult.objects.filter(revision=run.revision).select_related('chapter').order_by('chapter__ordinal')
+        cutoff = covered.last().chapter if covered.exists() else None
+        if cutoff and covered.count() > 1:
+            run.stage = '复核跨章节人物与线索'
+            run.save(update_fields=['stage', 'updated_at'])
+            affected_ids = EntityFact.objects.filter(node__revision=run.revision, evidence__chapter_id__in=run.chapter_ids).values('node_id')
+            targets = GraphNode.objects.filter(revision=run.revision, id__in=affected_ids, kind__in=['person', 'clue']).annotate(appearance_count=Count('structured_facts__evidence__chapter', distinct=True)).filter(Q(kind='clue') | Q(appearance_count__gt=1))
+            for node in targets:
+                check_run(run, token)
+                try:
+                    sources, method = retrieve(run.revision, f'{node.name}的身份、行为、动机和相关线索', node_id=node.canonical_id, through_chapter=cutoff.ordinal)
+                    record_event(run, 'cross_chapter_retrieved', '正在复核跨章节证据', details={'phase': 'cross_chapter', 'method': method, 'sources': len(sources)}, token=token)
+                    if sources:
+                        with ai_scope(phase='cross_chapter'):
+                            ready = update_profile(node, cutoff, lambda: check_run(run, token), extra_sources=sources)
+                        if ready is False:
+                            record_event(run, 'cross_chapter_pending', '跨章节复核待后续分析继续', 'warning', {'phase': 'cross_chapter'}, token=token)
+                except AnalysisError as exc:
+                    check_run(run, token)
+                    logger.warning('Cross-chapter synthesis skipped: node=%s reason=%s', node.pk, exc)
+                    record_event(run, 'cross_chapter_pending', '部分跨章节关联暂未完成', 'warning', {'phase': 'cross_chapter'}, token=token)
+                except Exception:
+                    logger.warning('Cross-chapter synthesis unavailable: node=%s', node.pk, exc_info=True)
+                    record_event(run, 'cross_chapter_pending', '部分跨章节关联暂未完成', 'warning', {'phase': 'cross_chapter'}, token=token)
+    run.save(update_fields=['index_state', 'stage', 'updated_at'])
 
 
 def execute_claim(claim):
