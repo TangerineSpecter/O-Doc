@@ -18,6 +18,12 @@ def add_segment(revision, chapter, payload: dict):
         if fact not in node.facts:
             node.facts = [*node.facts, fact]
         node.aliases = list(dict.fromkeys([*node.aliases, *item['aliases']]))
+        if item['name'] != node.name:
+            if len(item['name']) > len(node.name) and node.name in item['name']:
+                node.aliases = list(dict.fromkeys([*node.aliases, node.name]))
+                node.name = item['name']
+            elif item['name'] not in node.aliases:
+                node.aliases.append(item['name'])
         node.ordinal = min(node.ordinal, item['ordinal'])
         node.time_order = node.time_order or item['time_order']
         node.time_label = node.time_label or item['time_label']
@@ -63,7 +69,10 @@ def relevant_registry(revision, text: str, through_chapter: int | None = None) -
     result = []
     for row in rows:
         names = [row['name'], *row['aliases']]
-        if any(len(name) >= 2 and name in text for name in names):
+        mentions = [name for name in names if len(name) >= 2]
+        if row['kind'] == 'person':
+            mentions.extend(name[:2] for name in names if len(name) >= 3)
+        if any(name in text for name in mentions):
             result.append({k: row[k] for k in ('canonical_id', 'kind', 'name', 'aliases')})
         elif row['kind'] == 'event' and any(f['evidence']['quote'] in text for f in row['facts']):
             result.append({k: row[k] for k in ('canonical_id', 'kind', 'name', 'aliases')})

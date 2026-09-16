@@ -24,7 +24,7 @@ from .errors import AnalysisError
 from .extraction import extract_segment, summarize_all, validate_payload, verified_date
 from .graph import add_segment, correct_edge, correct_node, node_detail, read_graph
 from .inspection import edit_boundary, inspect_book, rebuild_source_cache
-from .jobs import cancel_run, check_run, claim_run, create_run, execute_claim, retry_run
+from .jobs import cancel_run, check_run, claim_run, copy_previous_revision, create_run, execute_claim, retry_run
 from .models import BookAnalysis, Chapter, ChapterResult, Correction, ExecutionEvent, GraphEdge, GraphNode, Revision, SourceCache, WorkerLease
 from .parsers import ParsedChapter, iter_segments, source_path, stable_id
 
@@ -111,7 +111,7 @@ class BookAnalysisTests(APITestCase):
         requests = [event for event in events if event.kind == 'model_request_started']
         self.assertEqual(requests[0].details['model_role'], 'simple')
         self.assertEqual(requests[1].details['attempt'], 2)
-        self.assertTrue(any(e.details.get('model_role') == 'default' and e.details.get('phase') == 'chapter_summary' for e in requests))
+        self.assertTrue(any(e.details.get('model_role') == 'simple' and e.details.get('phase') == 'chapter_summary' for e in requests))
         response = self.client.get(self.url)
         serialized = response.json()['data']['run']
         self.assertIn('createdAt', serialized['events'][0])
@@ -398,6 +398,50 @@ class BookAnalysisTests(APITestCase):
             edit_boundary(self.book, chapters.first(), 'merge')
         self.assertEqual(inspect_book(self.book).inspection['chapter_count'], 2)
 
+    def test_remove_chapter_excludes_source_and_renumbers_remaining_chapters(self):
+        chapters = self.inspected()
+        removed_text = SourceCache.objects.get(chapter=chapters[0]).text
+        retained_text = SourceCache.objects.get(chapter=chapters[1]).text
+        analysis = BookAnalysis.objects.get(book=self.book)
+        previous_settings_version = analysis.settings_version
+
+        response = self.client.patch(
+            self.url + f'/chapters/{chapters[0].pk}/boundary',
+            {'action': 'remove'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        current = list(Chapter.objects.filter(book=self.book, is_valid=True))
+        self.assertEqual([(chapter.ordinal, chapter.title) for chapter in current], [(1, chapters[1].title)])
+        self.assertEqual(SourceCache.objects.get(chapter=current[0]).text, retained_text)
+        self.assertNotEqual(removed_text, retained_text)
+        analysis.refresh_from_db()
+        self.assertEqual(analysis.inspection['chapter_count'], 1)
+        self.assertEqual(analysis.inspection['char_count'], len(retained_text))
+        self.assertTrue(analysis.inspection['custom_boundaries'])
+        self.assertEqual(analysis.settings_version, previous_settings_version + 1)
+        SourceCache.objects.filter(chapter=current[0]).delete()
+        refreshed = inspect_book(self.book).inspection
+        self.assertEqual(refreshed['chapter_count'], 1)
+        self.assertEqual(refreshed['char_count'], len(retained_text))
+        self.assertEqual(SourceCache.objects.get(chapter=current[0]).text, retained_text)
+
+    def test_remove_rejects_the_only_remaining_chapter(self):
+        chapters = self.inspected()
+        with transaction.atomic():
+            edit_boundary(self.book, chapters[0], 'remove')
+        remaining = Chapter.objects.filter(book=self.book, is_valid=True).get()
+
+        response = self.client.patch(
+            self.url + f'/chapters/{remaining.pk}/boundary',
+            {'action': 'remove'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Chapter.objects.filter(book=self.book, is_valid=True).count(), 1)
+
     def test_path_escape_and_mobi_are_not_analyzed(self):
         self.book.asset.file_path = '../private-book.txt'
         with self.assertRaises(AnalysisError):
@@ -554,6 +598,28 @@ class BookAnalysisTests(APITestCase):
             output = ''.join(answer_stream(revision, '谁？', '', ''))
         ai.assert_not_called()
         self.assertIn('没有找到可靠原文证据', output)
+
+    def test_question_endpoint_accepts_empty_optional_scope_from_browser(self):
+        self.inspected()
+        analysis = BookAnalysis.objects.get(book=self.book)
+        revision = Revision.objects.create(book=self.book, source_hash=analysis.source_hash, mode='story', settings_version=analysis.settings_version)
+        analysis.mode = 'story'
+        analysis.published_revision = revision.pk
+        analysis.save(update_fields=['mode', 'published_revision', 'updated_at'])
+        path = self.url + '/ask'
+        with patch('book_analysis.ask_views.answer_stream', return_value=iter(['event: done\ndata: {}\n\n'])) as answer:
+            response = self.client.post(path, {'question': '笹垣为什么追查线索？', 'chapterId': '', 'nodeId': '', 'revisionId': revision.pk}, format='json')
+            self.assertEqual(response.status_code, 200, response.json() if not response.streaming else '')
+            self.assertIn(b'event: done', b''.join(response.streaming_content))
+            answer.assert_called_once()
+            self.assertEqual((answer.call_args.kwargs['chapter_id'], answer.call_args.kwargs['node_id']), ('', ''))
+
+        chapter = Chapter.objects.filter(book=self.book, is_valid=True).order_by('ordinal').first()
+        with patch('book_analysis.ask_views.answer_stream', return_value=iter(['event: done\ndata: {}\n\n'])) as answer:
+            response = self.client.post(path, {'question': '谁收到信？', 'chapterId': chapter.pk, 'nodeId': '', 'revisionId': revision.pk, 'throughChapter': 1}, format='json')
+            self.assertEqual(response.status_code, 200, response.json() if not response.streaming else '')
+            self.assertIn(b'event: done', b''.join(response.streaming_content))
+            self.assertEqual((answer.call_args.kwargs['chapter_id'], answer.call_args.kwargs['node_id'], answer.call_args.kwargs['through_chapter']), (chapter.pk, '', 1))
 
     def test_knowledge_nodes_cross_chapter_and_inspiration_are_separate(self):
         one, two = self.inspected()
@@ -770,6 +836,107 @@ class StoryProfileTests(APITestCase):
         self.assertEqual(detail['node']['profile']['attributes'][0]['value'], '当铺老板')
         self.assertNotIn('五十二岁', str(detail))
 
+    def test_profile_projects_standard_occupation_roles_traits_and_hides_duplicate_relationship_text(self):
+        from .models import ProfileChange
+        from .profiles import profile_for
+        for attribute, value in (
+            ('occupation', '大阪府警察'),
+            ('occupation', '大阪府警刑警'),
+            ('occupation', '刑警'),
+            ('occupation', '搜查一科组长'),
+            ('role', '专案组负责人'),
+            ('trait', '头发剃成五分平头，戴金边眼镜'),
+        ):
+            add_segment(self.revision, self.chapter1, self.payload(self.chapter1, '中冢', value, (attribute, value)))
+        node = GraphNode.objects.get(revision=self.revision)
+        basis = [node.structured_facts.first().pk]
+        ProfileChange.objects.create(id='clean-profile', node=node, chapter=self.chapter1, patch={
+            'introduction': [{'text': '中冢是负责本案侦查的刑警。', 'basis': basis, 'status': 'explicit'}],
+            'behavior': [{'text': f'普通询问记录{i}', 'basis': basis, 'status': 'explicit'} for i in range(6)],
+            'relationships': [{'text': '与对象ID abbb39d10f3b680caad5d856df2410cd1cd6a2讨论案情。', 'basis': basis, 'status': 'explicit'}],
+        })
+        profile = profile_for(node)
+        values = lambda attribute: [item['value'] for item in profile['attributes'] if item['attribute'] == attribute]
+        self.assertEqual(values('occupation'), ['刑警'])
+        self.assertEqual(set(values('role')), {'搜查一科组长', '专案组负责人'})
+        self.assertEqual(set(values('trait')), {'头发剃成五分平头', '戴金边眼镜'})
+        self.assertEqual(len(profile['sections']['behavior']), 4)
+        self.assertNotIn('relationships', profile['sections'])
+        self.assertNotIn('对象ID', str(profile))
+
+    def test_explicit_short_name_reference_keeps_full_display_name(self):
+        from .extraction import validate_payload
+        from .graph import relevant_registry
+        add_segment(self.revision, self.chapter1, self.payload(self.chapter1, '笹垣润三', '大阪刑警。', ('occupation', '刑警')))
+        registry = relevant_registry(self.revision, '笹垣走进当铺。', through_chapter=1)
+        self.assertEqual([item['name'] for item in registry], ['笹垣润三'])
+        # A force rebuild may also expose a distinct short-name node. Reuse
+        # the full name only when the extractor explicitly identifies it.
+        registry.append({'canonical_id': 'polluted-short', 'kind': 'person', 'name': '笹垣', 'aliases': []})
+        text = '笹垣走进当铺。'
+        payload = {'nodes': [{'id': 'p', 'kind': 'person', 'name': '笹垣', 'existing_id': 'person-1', 'quote': '笹垣走进当铺'}], 'edges': [], 'summary': ''}
+        result = validate_payload(payload, text, self.chapter1, 0, registry)
+        self.assertEqual(result['nodes'][0]['canonical_id'], 'person-1')
+        add_segment(self.revision, self.chapter1, result)
+        node = GraphNode.objects.get(revision=self.revision)
+        self.assertEqual(node.name, '笹垣润三')
+        self.assertIn('笹垣', node.aliases)
+
+    def test_short_name_does_not_override_exact_person_or_guess_full_name(self):
+        from .extraction import validate_payload
+        text = '笹垣走进当铺。'
+        payload = {'nodes': [{'id': 'p', 'kind': 'person', 'name': '笹垣', 'quote': '笹垣走进当铺'}], 'edges': [], 'summary': ''}
+        full = {'canonical_id': 'full-person', 'kind': 'person', 'name': '笹垣润三', 'aliases': []}
+        short = {'canonical_id': 'other-person', 'kind': 'person', 'name': '笹垣', 'aliases': []}
+        exact = validate_payload(payload, text, self.chapter1, 0, [full, short])
+        self.assertEqual(exact['nodes'][0]['canonical_id'], 'other-person')
+        unresolved = validate_payload(payload, text, self.chapter1, 0, [full])
+        self.assertNotEqual(unresolved['nodes'][0]['canonical_id'], 'full-person')
+
+    def test_classmate_student_inference_requires_grounded_relation_and_respects_chapter(self):
+        from .profiles import profile_for
+        add_segment(self.revision, self.chapter1, self.payload(self.chapter1, '菊池文彦', '与雄一是朋友。'))
+        second = self.payload(self.chapter2, '秋吉雄一', '学生。', ('occupation', '学生'))
+        second['nodes'][0]['canonical_id'] = 'person-2'
+        second['attributes'][0]['canonical_id'] = 'person-2'
+        add_segment(self.revision, self.chapter2, second)
+        kikuchi = GraphNode.objects.get(revision=self.revision, canonical_id='person-1')
+        akiyoshi = GraphNode.objects.get(revision=self.revision, canonical_id='person-2')
+        bad_evidence = {'chapter_id': self.chapter2.pk, 'chapter_title': self.chapter2.title, 'ordinal': 2, 'quote': '菊池就来到他身边', 'locator': self.chapter2.locator}
+        GraphEdge.objects.create(id='classmate-unproven', revision=self.revision, source=akiyoshi, target=kikuchi, kind='ally', label='同班', evidence=[bad_evidence], context={'ordinal': 2})
+        GraphEdge.objects.create(id='classmate-wrong-people', revision=self.revision, source=akiyoshi, target=kikuchi, kind='ally', label='同班', evidence=[{**bad_evidence, 'quote': '秋吉雄一说桐原亮司与藤村同班'}], context={'ordinal': 2})
+        self.assertFalse(any(item['value'] == '学生' for item in profile_for(kikuchi, 2)['attributes']))
+        GraphEdge.objects.create(id='classmate-proven', revision=self.revision, source=akiyoshi, target=kikuchi, kind='ally', label='同班', evidence=[{**bad_evidence, 'quote': '菊池文彦与秋吉雄一同班'}], context={'ordinal': 2})
+        self.assertFalse(any(item['value'] == '学生' for item in profile_for(kikuchi, 1)['attributes']))
+        student = [item for item in profile_for(kikuchi, 2)['attributes'] if item['value'] == '学生']
+        self.assertEqual(len(student), 1)
+        self.assertEqual(student[0]['status'], 'inferred')
+        self.assertEqual(student[0]['time_label'], '同班时期')
+        self.assertEqual(student[0]['evidence']['quote'], '菊池文彦与秋吉雄一同班')
+
+    def test_contextual_student_attribute_keeps_inferred_status(self):
+        text = '菊池文彦回到教室，坐在座位上。'
+        payload = {'nodes': [{'id': 'p', 'kind': 'person', 'name': '菊池文彦', 'quote': '菊池文彦回到教室'}], 'attributes': [{'node_id': 'p', 'attribute': 'occupation', 'value': '学生', 'status': 'inferred', 'time_label': '在校时期', 'quote': '菊池文彦回到教室'}], 'edges': [], 'summary': ''}
+        normalized = validate_payload(payload, text, self.chapter2, 0, [])
+        self.assertEqual(normalized['attributes'][0]['status'], 'inferred')
+        self.assertEqual(normalized['attributes'][0]['time_label'], '在校时期')
+        unrelated = {**payload, 'attributes': [{**payload['attributes'][0], 'quote': '坐在座位上'}]}
+        with self.assertRaisesMessage(AnalysisError, '学生身份推断缺少就学情境证据'):
+            validate_payload(unrelated, text, self.chapter2, 0, [])
+
+    def test_later_explicit_student_evidence_replaces_inferred_display(self):
+        from .profiles import profile_for
+        add_segment(self.revision, self.chapter1, self.payload(self.chapter1, '菊池文彦', '出现在教室。', ('occupation', '学生')))
+        node = GraphNode.objects.get(revision=self.revision)
+        early = node.structured_facts.get(attribute='occupation')
+        early.status = 'inferred'
+        early.save(update_fields=['status'])
+        add_segment(self.revision, self.chapter2, self.payload(self.chapter2, '菊池文彦', '明确是学生。', ('occupation', '学生')))
+        self.assertEqual(profile_for(node, 1)['attributes'][0]['status'], 'inferred')
+        student = [item for item in profile_for(node, 2)['attributes'] if item['attribute'] == 'occupation']
+        self.assertEqual(len(student), 1)
+        self.assertEqual(student[0]['status'], 'explicit')
+
     def test_hypothesis_history_and_graph_inference_are_scoped(self):
         from .models import Hypothesis
         add_segment(self.revision, self.chapter1, self.payload(self.chapter1, '人物甲', '出现。'))
@@ -795,8 +962,9 @@ class StoryProfileTests(APITestCase):
         ignored = {'chapter_id': self.chapter1.pk, 'chapter_title': self.chapter1.title, 'ordinal': 1, 'quote': '未被引用的候选证据', 'locator': {'format': 'txt', 'offset': 902}}
         response = {'sections': {'background': [{'text': '早年经营当铺。', 'basis': ['S1'], 'status': 'explicit'}]}, 'hypotheses': []}
         before_facts = EntityFact.objects.filter(node=node).count()
-        with patch('book_analysis.profiles.AIService.chat_completion', return_value=json.dumps(response, ensure_ascii=False)):
+        with patch('book_analysis.profiles.AIService.chat_completion', return_value=json.dumps(response, ensure_ascii=False)) as ai:
             self.assertTrue(update_profile(node, self.chapter2, extra_sources=[cited, ignored]))
+        self.assertTrue(ai.call_args.kwargs['use_simple_model'])
         change = ProfileChange.objects.get(node=node, chapter=self.chapter2)
         self.assertIn('behavior', change.patch)
         self.assertIn('background', change.patch)
@@ -804,6 +972,38 @@ class StoryProfileTests(APITestCase):
         self.assertTrue(SourceEvidence.objects.filter(revision=self.revision, quote=cited['quote']).exists())
         self.assertFalse(SourceEvidence.objects.filter(revision=self.revision, quote=ignored['quote']).exists())
         self.assertNotIn('S1', str(change.patch))
+
+    def test_profile_synthesis_exposes_relation_ids_for_hypothesis_target(self):
+        import json
+        from .models import Hypothesis
+        from .profiles import update_profile
+        add_segment(self.revision, self.chapter1, self.payload(self.chapter1, '人物甲', '发现异常。', ('observation', '异常')))
+        second = self.payload(self.chapter1, '人物乙', '也在现场。')
+        second['nodes'][0]['canonical_id'] = 'person-2'
+        add_segment(self.revision, self.chapter1, second)
+        source = GraphNode.objects.get(revision=self.revision, canonical_id='person-1')
+        target = GraphNode.objects.get(revision=self.revision, canonical_id='person-2')
+        edge = GraphEdge.objects.create(id='hypothesis-relation', revision=self.revision, source=source, target=target, kind='related_to', label='同场出现', evidence=[], context={'ordinal': 1})
+        response = {'sections': {}, 'hypotheses': [{'description': '两人可能认识', 'target': target.canonical_id, 'state': 'pending', 'basis': [edge.pk]}]}
+        with patch('book_analysis.profiles.AIService.chat_completion', return_value=json.dumps(response, ensure_ascii=False)) as ai:
+            self.assertTrue(update_profile(source, self.chapter1))
+        prompt = ai.call_args.args[0]
+        self.assertIn(f'"source_id": "{source.canonical_id}"', prompt)
+        self.assertIn(f'"target_id": "{target.canonical_id}"', prompt)
+        self.assertEqual(Hypothesis.objects.get(source=source).target_id, target.pk)
+
+    def test_profile_synthesis_does_not_promote_inferred_student_fact_to_explicit(self):
+        import json
+        from .profiles import profile_for, update_profile
+        add_segment(self.revision, self.chapter1, self.payload(self.chapter1, '菊池文彦', '在教室上课。', ('occupation', '学生')))
+        node = GraphNode.objects.get(revision=self.revision)
+        fact = node.structured_facts.get(attribute='occupation')
+        fact.status = 'inferred'
+        fact.save(update_fields=['status'])
+        response = {'sections': {'introduction': [{'text': '菊池文彦当时是学生。', 'basis': [fact.pk], 'status': 'explicit'}]}, 'hypotheses': []}
+        with patch('book_analysis.profiles.AIService.chat_completion', return_value=json.dumps(response, ensure_ascii=False)):
+            self.assertTrue(update_profile(node, self.chapter1))
+        self.assertEqual(profile_for(node)['sections']['introduction'][0]['status'], 'inferred')
 
     def test_merged_node_detail_combines_profiles_and_attributes(self):
         from .models import ProfileChange
@@ -833,3 +1033,16 @@ class StoryProfileTests(APITestCase):
             registry = relevant_registry(self.revision, text, through_chapter=1)
         self.assertEqual(len(registry), 12)
         self.assertLessEqual(len(queries), 5)
+
+    def test_start_analysis_automatically_reextracts_selected_legacy_chapter(self):
+        from .models import ProfileChange
+        add_segment(self.revision, self.chapter2, self.payload(self.chapter2, '笹垣', '刑警，负责调查案件。'))
+        node = GraphNode.objects.get(revision=self.revision)
+        ProfileChange.objects.create(id='legacy-profile', node=node, chapter=self.chapter2, patch={}, state='pending', legacy=True)
+        ChapterResult.objects.create(id='legacy-result', revision=self.revision, chapter=self.chapter2, digest={'summary': '旧摘要'})
+        run = create_run(self.book, 'story', start=2, end=2)
+        copy_previous_revision(run)
+        self.assertFalse(ChapterResult.objects.filter(revision=run.revision, chapter=self.chapter2).exists())
+        self.assertFalse(GraphNode.objects.filter(revision=run.revision).exists())
+        event = run.events.get(kind='legacy_upgrade')
+        self.assertEqual(event.details['chapters'], 1)

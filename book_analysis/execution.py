@@ -9,7 +9,7 @@ from .models import ExecutionEvent, WorkerLease
 
 logger = logging.getLogger(__name__)
 STRING_FIELDS = {'phase', 'chapter_title', 'provider_name', 'model_name', 'model_role', 'request_id', 'finish_reason', 'error_type', 'reason', 'summary', 'json_mode', 'thinking_mode', 'method'}
-NUMBER_FIELDS = {'chapter_ordinal', 'segment', 'segments', 'attempt', 'chars', 'duration_ms', 'nodes', 'edges', 'timeout_seconds', 'sdk_retries', 'vectors', 'request_attempt', 'streaming', 'deadline_seconds', 'max_tokens', 'prompt_tokens', 'completion_tokens', 'split_depth', 'sources'}
+NUMBER_FIELDS = {'chapter_ordinal', 'chapters', 'segment', 'segments', 'attempt', 'chars', 'duration_ms', 'nodes', 'edges', 'timeout_seconds', 'sdk_retries', 'vectors', 'request_attempt', 'streaming', 'deadline_seconds', 'max_tokens', 'prompt_tokens', 'completion_tokens', 'split_depth', 'sources'}
 
 
 def record_event(run, kind: str, title: str, level: str = 'info', details: dict | None = None, token: str = ''):

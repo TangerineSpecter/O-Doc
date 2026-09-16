@@ -148,6 +148,15 @@ def copy_previous_revision(run):
     if not previous:
         return
     excluded = set(run.chapter_ids) if run.force else set()
+    legacy_selected = set()
+    if run.revision.mode == 'story' and not run.force:
+        from .models import EntityFact, ProfileChange
+        selected = set(run.chapter_ids)
+        current_profile_chapters = set(ProfileChange.objects.filter(node__revision=previous, chapter_id__in=selected, legacy=False).values_list('chapter_id', flat=True))
+        structured_chapters = set(EntityFact.objects.filter(node__revision=previous, evidence__chapter_id__in=selected).exclude(attribute__in=['description', 'name', 'alias']).values_list('evidence__chapter_id', flat=True))
+        legacy_profile_chapters = set(ProfileChange.objects.filter(node__revision=previous, chapter_id__in=selected, legacy=True).values_list('chapter_id', flat=True))
+        legacy_selected = legacy_profile_chapters | (selected - current_profile_chapters - structured_chapters)
+        excluded.update(legacy_selected)
     for result in ChapterResult.objects.filter(revision=previous).exclude(chapter_id__in=excluded):
         ChapterResult.objects.create(id=stable_id(run.revision.pk, result.chapter_id), revision=run.revision, chapter_id=result.chapter_id, digest=result.digest)
     old_nodes = list(GraphNode.objects.filter(revision=previous))
@@ -171,6 +180,8 @@ def copy_previous_revision(run):
     record_bulk_change(GraphNode.objects.filter(revision=run.revision))
     record_bulk_change(GraphEdge.objects.filter(revision=run.revision))
     record_bulk_change(NodeSource.objects.filter(node__revision=run.revision))
+    if legacy_selected:
+        record_event(run, 'legacy_upgrade', '检测到旧版故事分析，自动重新抽取选中章节', 'info', {'chapters': len(legacy_selected)})
 
 
 def digest_chapter(chapter, payloads: list[dict], mode: str) -> dict:

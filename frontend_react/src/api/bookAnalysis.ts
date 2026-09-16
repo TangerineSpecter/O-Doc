@@ -12,12 +12,12 @@ export const getReadingNode = (id: string, nodeId: string, page = 1, signal?: Ab
 export const startBookRun = (id: string, mode: ReadingMode, start: number, end: number, force = false, kind = 'analyze') => request.post<never, ReadingRun>(`${base(id)}/runs`, {mode, start, end, force, kind});
 export const runBookAction = (id: string, runId: string, action: 'cancel' | 'retry') => request.post<never, ReadingRun>(`${base(id)}/runs/${runId}/${action}`);
 export const getExecutionEvents = (id: string, runId: string, before: number, signal?: AbortSignal) => request.get<never, ExecutionPage>(`${base(id)}/runs/${runId}/events`, {params: {before}, signal});
-export const correctReadingProfile = (id: string, nodeId: string, attribute: 'identity' | 'age' | 'occupation' | 'background' | 'behavior' | 'goal', value: string, timeLabel = '') => request.post(`${base(id)}/nodes/${nodeId}/profile`, {attribute, value, timeLabel});
+export const correctReadingProfile = (id: string, nodeId: string, attribute: 'identity' | 'age' | 'occupation' | 'role' | 'trait' | 'background' | 'behavior' | 'goal', value: string, timeLabel = '') => request.post(`${base(id)}/nodes/${nodeId}/profile`, {attribute, value, timeLabel});
 export const correctReadingNode = (id: string, nodeId: string, patch: {name?: string; description?: string; aliases?: string[]; mergeInto?: string}) => request.patch(`${base(id)}/nodes/${nodeId}/correction`, patch);
 export const addReadingRelation = (id: string, source: string, target: string, kind: string, label: string) => request.post(`${base(id)}/relations`, {source, target, kind, label});
 export const correctReadingRelation = (id: string, edgeId: string, kind: string, label: string) => request.patch(`${base(id)}/relations/${edgeId}`, {kind, label});
 export const removeReadingRelation = (id: string, edgeId: string) => request.delete(`${base(id)}/relations/${edgeId}`);
-export const changeChapterBoundary = (id: string, chapterId: string, action: 'rename' | 'split' | 'merge', title: string, offset = 0) => request.patch(`${base(id)}/chapters/${chapterId}/boundary`, {action, title, offset});
+export const changeChapterBoundary = (id: string, chapterId: string, action: 'rename' | 'split' | 'merge' | 'remove', title = '', offset = 0) => request.patch(`${base(id)}/chapters/${chapterId}/boundary`, {action, title, offset});
 
 export function readingError(error: unknown): string {
     if (typeof error === 'object' && error && 'response' in error) {
@@ -30,7 +30,7 @@ export function readingError(error: unknown): string {
 export interface AskCallbacks {onAnswer: (text: string) => void; onSources: (sources: SourceEvidence[], method: string) => void}
 export async function askBook(id: string, question: string, chapterId: string, nodeId: string, signal: AbortSignal, callbacks: AskCallbacks, revisionId = '', throughChapter?: number): Promise<void> {
     const token = getAuthToken();
-    const response = await fetch(`/api${base(id)}/ask`, {method: 'POST', headers: {'Content-Type': 'application/json', ...(token ? {Authorization: `Token ${token}`} : {})}, body: JSON.stringify({question, chapterId, nodeId, revisionId, throughChapter}), signal});
+    const response = await fetch(`/api${base(id)}/ask`, {method: 'POST', headers: {'Content-Type': 'application/json', ...(token ? {Authorization: `Token ${token}`} : {})}, body: JSON.stringify({question, ...(chapterId ? {chapterId} : {}), ...(nodeId ? {nodeId} : {}), revisionId, throughChapter}), signal});
     if (!response.ok) {
         const result = await response.json().catch(() => ({})) as {msg?: string};
         throw new Error(result.msg || '问答请求失败');

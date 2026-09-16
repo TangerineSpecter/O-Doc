@@ -71,7 +71,8 @@ def inspect_book(book) -> BookAnalysis:
             # Synced custom boundaries are rebuilt below rather than overwritten.
             rebuild_source_cache(book, parsed)
         analysis.source_hash = current_hash(book)
-        analysis.inspection = {**report, 'supported': True, 'custom_boundaries': bool(custom), 'chapter_count': Chapter.objects.filter(book=book, source_hash=current_hash(book), is_valid=True).count(), 'recommended_mode': recommend_mode(book.title, parsed)}
+        current_chapters = Chapter.objects.filter(book=book, source_hash=current_hash(book), is_valid=True)
+        analysis.inspection = {**report, 'supported': True, 'custom_boundaries': bool(custom), 'chapter_count': current_chapters.count(), 'char_count': sum(current_chapters.values_list('char_count', flat=True)), 'recommended_mode': recommend_mode(book.title, parsed)}
         analysis.save()
     return analysis
 
@@ -133,9 +134,11 @@ def edit_boundary(book, chapter: Chapter, action: str, offset: int = 0, title: s
         analysis.save(update_fields=['inspection', 'updated_at'])
         return
     chapters = list(current.order_by('ordinal'))
+    if action == 'remove' and len(chapters) == 1:
+        raise AnalysisError('至少保留一个可分析章节')
     if action == 'merge' and chapter.id == chapters[-1].id:
         raise AnalysisError('最后一章没有可合并的下一章')
-    if action not in ('split', 'merge'):
+    if action not in ('split', 'merge', 'remove'):
         raise AnalysisError('不支持的章节边界操作')
     def regions(row):
         return row.locator.get('source_regions') or [{'id': row.locator.get('origin_id', row.id), 'start': row.locator.get('origin_offset', 0), 'length': row.char_count}]
@@ -155,6 +158,8 @@ def edit_boundary(book, chapter: Chapter, action: str, offset: int = 0, title: s
         if row.id != chapter.id:
             parsed.append(ParsedChapter(row.title, SourceCache.objects.get(chapter=row).text, {**row.locator, 'source_regions': regions(row)}))
             continue
+        if action == 'remove':
+            continue
         if action == 'merge':
             following = chapters[index + 1]
             following_text = SourceCache.objects.get(chapter=following).text
@@ -172,5 +177,5 @@ def edit_boundary(book, chapter: Chapter, action: str, offset: int = 0, title: s
             parsed.append(ParsedChapter(label[:255], text[start:end], loc))
     save_chapters(book, analysis.source_hash, parsed)
     analysis.settings_version += 1
-    analysis.inspection = {**analysis.inspection, 'chapter_count': len(parsed), 'custom_boundaries': True}
+    analysis.inspection = {**analysis.inspection, 'chapter_count': len(parsed), 'char_count': sum(len(item.text) for item in parsed), 'custom_boundaries': True}
     analysis.save()

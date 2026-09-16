@@ -2,7 +2,7 @@
 from .models import EntityFact, SourceEvidence
 from .parsers import stable_id
 
-ATTRIBUTES = {'description', 'name', 'alias', 'identity', 'age', 'occupation', 'background', 'behavior', 'goal', 'action', 'result', 'parent_place', 'time', 'object', 'observation', 'statement'}
+ATTRIBUTES = {'description', 'name', 'alias', 'identity', 'age', 'occupation', 'role', 'trait', 'background', 'behavior', 'goal', 'action', 'result', 'parent_place', 'time', 'object', 'observation', 'statement'}
 ATTRIBUTIONS = {'narrator', 'self_report', 'other_report', 'user'}
 
 

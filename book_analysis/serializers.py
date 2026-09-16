@@ -13,8 +13,8 @@ class AskInput(serializers.Serializer):
     revision_id = serializers.CharField(max_length=64, required=False, default='', allow_blank=True)
     through_chapter = serializers.IntegerField(min_value=1, required=False, allow_null=True, default=None)
     question = serializers.CharField(max_length=2000)
-    chapter_id = serializers.CharField(max_length=64, required=False, default='')
-    node_id = serializers.CharField(max_length=64, required=False, default='')
+    chapter_id = serializers.CharField(max_length=64, required=False, default='', allow_blank=True)
+    node_id = serializers.CharField(max_length=64, required=False, default='', allow_blank=True)
 
 
 class GraphInput(serializers.Serializer):
@@ -33,12 +33,12 @@ class GraphInput(serializers.Serializer):
 
 
 class BoundaryInput(serializers.Serializer):
-    action = serializers.ChoiceField(choices=['rename', 'split', 'merge'])
+    action = serializers.ChoiceField(choices=['rename', 'split', 'merge', 'remove'])
     offset = serializers.IntegerField(min_value=0, default=0)
     title = serializers.CharField(max_length=255, required=False, default='', allow_blank=True)
 
 
 class ProfileCorrectionInput(serializers.Serializer):
-    attribute = serializers.ChoiceField(choices=['identity', 'age', 'occupation', 'background', 'behavior', 'goal'])
+    attribute = serializers.ChoiceField(choices=['identity', 'age', 'occupation', 'role', 'trait', 'background', 'behavior', 'goal'])
     value = serializers.CharField(max_length=1200)
     time_label = serializers.CharField(max_length=255, required=False, default='', allow_blank=True)

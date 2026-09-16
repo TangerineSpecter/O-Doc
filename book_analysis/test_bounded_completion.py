@@ -226,6 +226,90 @@ class ExtractionRepairTests(SimpleTestCase):
         positions = [node['evidence']['locator']['offset'] for node in result['nodes']]
         self.assertEqual(positions[-1], 10 + 20 + len(text) - 7)
 
+    def test_evidence_with_collapsed_whitespace_uses_exact_source_slice(self):
+        from book_analysis.extraction import evidence_for
+        text = '桐原洋介走进银行，\n    随后看见柜台旁的人。'
+        evidence = evidence_for('桐原洋介走进银行， 随后看见柜台旁的人。', text, self.chapter, 0)
+        self.assertEqual(evidence['quote'], text)
+        self.assertEqual(evidence['locator']['offset'], 10)
+
+    def test_repeated_evidence_failure_splits_segment_instead_of_failing_run(self):
+        text = ('桐原洋介走进银行，随后看见柜台旁的人。\n' * 100)
+        full_attempts = 0
+        seen_parts = []
+        def responder(prompt, **kwargs):
+            nonlocal full_attempts
+            body = prompt.split('<book_text>\n', 1)[1].split('\n</book_text>', 1)[0]
+            if body == text:
+                full_attempts += 1
+                return json.dumps({'nodes': [{'id': 'n1', 'kind': 'person', 'name': '桐原洋介', 'quote': '原文不存在的改写证据'}], 'edges': [], 'summary': ''}, ensure_ascii=False)
+            seen_parts.append(body)
+            quote = body[:body.find('。') + 1]
+            return json.dumps({'nodes': [{'id': 'n1', 'kind': 'person', 'name': '桐原洋介', 'quote': quote}], 'edges': [], 'summary': quote}, ensure_ascii=False)
+        with patch('book_analysis.extraction.AIService.chat_completion', side_effect=responder):
+            result = extract_segment(text, self.chapter, 0, 'story', [])
+        self.assertEqual(full_attempts, 2)
+        self.assertEqual(''.join(seen_parts), text)
+        self.assertEqual(len(result['nodes']), 2)
+
+    def test_common_story_node_kind_aliases_are_normalized(self):
+        from book_analysis.extraction import validate_payload
+        text = '桐原洋介拿起了带血的剪刀。'
+        payload = {
+            'nodes': [
+                {'id': 'p1', 'kind': 'character', 'name': '桐原洋介', 'quote': '桐原洋介拿起了带血的剪刀'},
+                {'id': 'c1', 'kind': 'object', 'name': '带血的剪刀', 'quote': '带血的剪刀'},
+            ],
+            'edges': [],
+            'summary': '',
+        }
+        result = validate_payload(payload, text, self.chapter, 0, [])
+        self.assertEqual([node['kind'] for node in result['nodes']], ['person', 'clue'])
+
+    def test_repeated_unknown_node_kind_splits_segment(self):
+        text = ('桐原洋介走进银行，随后看见柜台旁的人。\n' * 100)
+        full_attempts = 0
+        def responder(prompt, **kwargs):
+            nonlocal full_attempts
+            body = prompt.split('<book_text>\n', 1)[1].split('\n</book_text>', 1)[0]
+            quote = body[:body.find('。') + 1]
+            if body == text:
+                full_attempts += 1
+                kind = 'organization'
+            else:
+                kind = 'person'
+            return json.dumps({'nodes': [{'id': 'n1', 'kind': kind, 'name': '桐原洋介', 'quote': quote}], 'edges': [], 'summary': quote}, ensure_ascii=False)
+        with patch('book_analysis.extraction.AIService.chat_completion', side_effect=responder):
+            result = extract_segment(text, self.chapter, 0, 'story', [])
+        self.assertEqual(full_attempts, 2)
+        self.assertEqual(len(result['nodes']), 2)
+
+    def test_failed_repair_salvages_valid_records(self):
+        text = '桐原洋介走进银行，看见柜台旁的人。'
+        response = json.dumps({
+            'nodes': [
+                {'id': 'valid', 'kind': 'person', 'name': '桐原洋介', 'quote': '桐原洋介走进银行'},
+                {'id': 'invalid', 'kind': 'person', 'name': '柜台旁的人', 'quote': ''},
+            ],
+            'attributes': [
+                {'node_id': 'valid', 'attribute': 'action', 'value': '走进银行', 'quote': '走进银行', 'attribution': 'narrator'},
+                {'node_id': 'invalid', 'attribute': 'action', 'value': '站在柜台旁', 'quote': '', 'attribution': 'narrator'},
+            ],
+            'edges': [],
+            'summary': '柜台旁的人持枪威胁桐原洋介。',
+        }, ensure_ascii=False)
+        with patch('book_analysis.extraction.AIService.chat_completion', return_value=response) as mocked:
+            result = extract_segment(text, self.chapter, 0, 'story', [])
+        self.assertEqual(mocked.call_count, 2)
+        self.assertEqual([node['name'] for node in result['nodes']], ['桐原洋介'])
+        self.assertEqual([fact['value'] for fact in result['attributes']], ['走进银行'])
+        self.assertEqual(result['summary'], '')
+
+    def test_short_exact_evidence_is_valid(self):
+        from book_analysis.extraction import evidence_for
+        evidence = evidence_for('笹垣', '刑警笹垣赶到现场。', self.chapter, 0)
+        self.assertEqual(evidence['quote'], '笹垣')
+
     def test_small_segment_overflow_fails_without_publishing_empty_results(self):
         with patch('book_analysis.extraction.AIService.chat_completion', return_value='{"nodes":[],"overflow":true}'):
             with self.assertRaises(AnalysisError):
