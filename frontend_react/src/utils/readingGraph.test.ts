@@ -3,6 +3,7 @@ import {test} from 'node:test';
 import {buildReadingTree, type ReadingTree} from './readingGraph.ts';
 import type {ReadingGraph, ReadingNode} from '../types/bookAnalysis.ts';
 import {orderedEvents, relationChartOption} from './readingChartOptions.ts';
+import {clusterTimelineEvents} from './readingTimeline.ts';
 
 const node = (id: string): ReadingNode => ({id, name: id, kind: 'concept', aliases: [], facts: [], ordinal: 1, timeLabel: '', timeOrder: ''});
 const graph = (ids: string[], relations: [string, string, string][]): ReadingGraph => ({nodes: ids.map(node), edges: relations.map(([source, target, kind], index) => ({id: String(index), source, target, kind, label: kind, evidence: [], context: {}, origin: 'ai'})), total: ids.length, page: 1, limit: 200});
@@ -34,4 +35,10 @@ test('event ordering retains unknown time and does not mutate the source graph',
     assert.deepEqual(orderedEvents(events, 'time').map(n => n.id), ['earlier', 'later', 'unknown']);
     assert.deepEqual(orderedEvents(events, 'narrative').map(n => n.id), ['later', 'earlier', 'unknown']);
     assert.equal(events[0].timeLabel, '某天夜里');
+});
+test('story timeline keeps undated events out of dated chronology', () => {
+    const events = [{...node('undated'), kind: 'event' as const, ordinal: 1, timeLabel: '星期六下午'}, {...node('dated'), kind: 'event' as const, ordinal: 2, timeOrder: '2000-01-02', timeLabel: '一月二日'}];
+    const groups = clusterTimelineEvents(events, 'time');
+    assert.deepEqual(groups.map(group => group.title), ['2000.01.02', '发生日期未明确']);
+    assert.deepEqual(groups.map(group => group.nodes.map(item => item.id)), [['dated'], ['undated']]);
 });

@@ -14,10 +14,10 @@ from utils.ai_observer import ai_scope, emit_ai_event, observe_ai
 
 from .errors import AnalysisError
 from .execution import record_event
-from .extraction import EXTRACTION_VERSION, extract_segment, summarize_all
+from .extraction import BIOGRAPHY_EXTRACTION_VERSION, EXTRACTION_VERSION, extract_segment, summarize_all
 from .graph import add_segment, relevant_registry
 from .inspection import current_hash, rebuild_source_cache
-from .models import AnalysisRun, BookAnalysis, Chapter, ChapterResult, GraphEdge, GraphNode, NodeSource, Revision, SegmentCache, SourceCache, WorkerLease
+from .models import AnalysisRun, BiographyQuote, BookAnalysis, Chapter, ChapterResult, GraphEdge, GraphNode, NodeSource, Revision, SegmentCache, SourceCache, WorkerLease
 from .parsers import iter_segments, stable_id
 
 logger = logging.getLogger(__name__)
@@ -29,21 +29,24 @@ def assert_current(run):
     book.refresh_from_db()
     analysis = BookAnalysis.objects.get(book=book)
     revision = run.revision
-    if not book.is_valid or not book.anthology.is_valid or current_hash(book) != revision.source_hash or analysis.source_hash != revision.source_hash or analysis.mode != revision.mode or analysis.settings_version != revision.settings_version:
+    if not book.is_valid or not book.anthology.is_valid or current_hash(book) != revision.source_hash or analysis.source_hash != revision.source_hash or analysis.mode != revision.mode or analysis.settings_version != revision.settings_version or (revision.mode == 'biography' and analysis.subject_name != revision.subject_name):
         raise AnalysisError('图书正文、模式或章节设置已变化，旧任务已停止，请重新分析', 409)
     return analysis
 
 
 @transaction.atomic
-def create_run(book, mode: str, start: int = 1, end: int | None = None, force: bool = False, kind: str = 'analyze') -> AnalysisRun:
-    if mode not in ('story', 'knowledge'):
-        raise AnalysisError('阅读模式必须为故事或知识')
+def create_run(book, mode: str, start: int = 1, end: int | None = None, force: bool = False, kind: str = 'analyze', subject_name: str = '') -> AnalysisRun:
+    if mode not in ('story', 'knowledge', 'biography'):
+        raise AnalysisError('阅读模式必须为故事、知识或传记')
     analysis = BookAnalysis.objects.select_for_update().get(book=book)
+    subject_name = (subject_name.strip() or (analysis.subject_name if kind == 'index' else '')) if mode == 'biography' else ''
+    if mode == 'biography' and (not subject_name or len(subject_name) > 255):
+        raise AnalysisError('请确认传主姓名')
     if not analysis.inspection.get('supported') or analysis.source_hash != current_hash(book):
         raise AnalysisError('请先检测可提取正文，或从书架恢复图书', 409)
     active = AnalysisRun.objects.filter(book=book, state__in=['queued', 'running']).first()
     if active:
-        if active.revision.mode != mode:
+        if active.revision.mode != mode or (mode == 'biography' and active.revision.subject_name != subject_name):
             raise AnalysisError('请先停止当前任务，再切换模式', 409)
         return active
     chapters = list(Chapter.objects.filter(book=book, source_hash=analysis.source_hash, is_valid=True))
@@ -53,8 +56,9 @@ def create_run(book, mode: str, start: int = 1, end: int | None = None, force: b
         end = min(len(chapters), 20) if len(chapters) > 100 else len(chapters)
     if start < 1 or end < start or end > len(chapters):
         raise AnalysisError('章节范围无效')
-    if analysis.mode != mode:
+    if analysis.mode != mode or (mode == 'biography' and analysis.subject_name != subject_name):
         analysis.mode = mode
+        analysis.subject_name = subject_name
         analysis.settings_version += 1
         analysis.save()
     if kind == 'index':
@@ -63,7 +67,7 @@ def create_run(book, mode: str, start: int = 1, end: int | None = None, force: b
             raise AnalysisError('没有可重建检索的已发布结果', 409)
         chapter_ids = list(ChapterResult.objects.filter(revision=revision).values_list('chapter_id', flat=True))
     else:
-        revision = Revision.objects.create(book=book, source_hash=analysis.source_hash, mode=mode, settings_version=analysis.settings_version)
+        revision = Revision.objects.create(book=book, source_hash=analysis.source_hash, mode=mode, subject_name=subject_name, settings_version=analysis.settings_version)
         chapter_ids = [ch.id for ch in chapters if start <= ch.ordinal <= end]
     run = AnalysisRun.objects.create(book=book, revision=revision, chapter_ids=chapter_ids, force=force, kind=kind)
     record_event(run, 'queued', '任务已创建，等待后台领取')
@@ -177,16 +181,35 @@ def copy_previous_revision(run):
     NodeSource.objects.bulk_create([NodeSource(id=stable_id(id_map[s.node_id], s.chapter_id), node_id=id_map[s.node_id], chapter_id=s.chapter_id) for s in NodeSource.objects.filter(node__revision=previous).exclude(chapter_id__in=excluded) if s.node_id in id_map])
     from .lineage import copy_analysis
     copy_analysis(previous, run.revision, excluded)
+    if run.revision.mode == 'biography':
+        BiographyQuote.objects.bulk_create([BiographyQuote(id=stable_id(run.revision.pk, row.chapter_id, row.ordinal, row.text), revision=run.revision, chapter=row.chapter, speaker=row.speaker, text=row.text, evidence=row.evidence, attribution_evidence=row.attribution_evidence, event_id=row.event_id, ordinal=row.ordinal) for row in BiographyQuote.objects.filter(revision=previous).exclude(chapter_id__in=excluded)])
     record_bulk_change(GraphNode.objects.filter(revision=run.revision))
     record_bulk_change(GraphEdge.objects.filter(revision=run.revision))
     record_bulk_change(NodeSource.objects.filter(node__revision=run.revision))
+    if run.revision.mode == 'biography':
+        record_bulk_change(BiographyQuote.objects.filter(revision=run.revision))
     if legacy_selected:
         record_event(run, 'legacy_upgrade', '检测到旧版故事分析，自动重新抽取选中章节', 'info', {'chapters': len(legacy_selected)})
 
 
 def digest_chapter(chapter, payloads: list[dict], mode: str) -> dict:
-    summary = summarize_all([p['summary'] for p in payloads if p['summary']], chapter.title, mode)
-    return {'summary': summary, 'points': [item for p in payloads for item in p['points']], 'qa': [item for p in payloads for item in p['qa']], 'inspiration': [item for p in payloads for item in p['inspiration']] if mode == 'knowledge' else [], 'node_ids': list(dict.fromkeys(n['canonical_id'] for p in payloads for n in p['nodes']))}
+    if mode == 'biography':
+        parts = []
+        for payload in payloads:
+            lines = [payload['summary']] if payload.get('summary') else []
+            lines.extend(f"经历：{node['name']}；{node['description']}" for node in payload['nodes'] if node['kind'] == 'event')
+            lines.extend(f"观点：{node['name']}；{node['description']}" for node in payload['nodes'] if node['kind'] == 'claim')
+            lines.extend(f"{item['kind']}：{item['text']}" for item in payload.get('insights', []))
+            lines.extend(f"脉络背景：{item['detail']}" for item in payload.get('flow', []) if item['kind'] == 'background')
+            lines.extend(f"传主原话：{item['text']}" for item in payload.get('quotes', []))
+            if lines:
+                parts.append('\n'.join(lines))
+    else:
+        parts = [p['summary'] for p in payloads if p['summary']]
+    summary = summarize_all(parts, chapter.title, mode)
+    flow = sorted((item for payload in payloads for item in payload.get('flow', [])), key=lambda item: item['position']) if mode == 'biography' else []
+    flow = list({(item['kind'], item['title'], item['evidence']['quote']): {key: value for key, value in item.items() if key != 'position'} for item in flow}.values())
+    return {'summary': summary, 'points': [item for p in payloads for item in p['points']], 'qa': [item for p in payloads for item in p['qa']], 'inspiration': [item for p in payloads for item in p['inspiration']] if mode == 'knowledge' else [], 'reflections': [item for p in payloads for item in p.get('reflections', [])] if mode == 'biography' else [], 'insights': [item for p in payloads for item in p.get('insights', [])] if mode == 'biography' else [], 'flow': flow, 'omitted_candidates': sum(p.get('omitted_candidates', 0) for p in payloads) if mode == 'biography' else 0, 'node_ids': list(dict.fromkeys(n['canonical_id'] for p in payloads for n in p['nodes']))}
 
 
 def process_run(run, token: str):
@@ -226,7 +249,8 @@ def process_run(run, token: str):
             check_run(run, token)
             run.stage = f'第 {chapter.ordinal} 章 · 分段 {i + 1}'
             run.save(update_fields=['stage', 'updated_at'])
-            cache_id = stable_id(chapter.pk, run.revision.mode, EXTRACTION_VERSION, offset, segment, run.revision.pk if run.force else '')
+            extraction_version = BIOGRAPHY_EXTRACTION_VERSION if run.revision.mode == 'biography' else EXTRACTION_VERSION
+            cache_id = stable_id(chapter.pk, run.revision.mode, run.revision.subject_name if run.revision.mode == 'biography' else '', extraction_version, offset, segment, run.revision.pk if run.force else '')
             cached = SegmentCache.objects.filter(pk=cache_id).first()
             registry = relevant_registry(run.revision, segment, chapter.ordinal)
             if previous:
@@ -234,13 +258,14 @@ def process_run(run, token: str):
                 registry.extend(item for item in relevant_registry(previous, segment, chapter.ordinal) if item['canonical_id'] not in known)
             with ai_scope(phase='extract', chapter_title=chapter.title, chapter_ordinal=chapter.ordinal, segment=i + 1, segments=segment_count):
                 emit_ai_event('segment_started', '复用已完成的分段结果' if cached else '正文分段就绪，开始抽取', chars=len(segment))
-                payload = cached.payload if cached else extract_segment(segment, chapter, offset, run.revision.mode, registry)
+                payload = cached.payload if cached else (extract_segment(segment, chapter, offset, run.revision.mode, registry, subject_name=run.revision.subject_name) if run.revision.mode == 'biography' else extract_segment(segment, chapter, offset, run.revision.mode, registry))
             with transaction.atomic():
                 check_run(run, token)
                 if not cached:
                     SegmentCache.objects.update_or_create(pk=cache_id, defaults={'chapter': chapter, 'mode': run.revision.mode, 'payload': payload})
                 add_segment(run.revision, chapter, payload)
-            record_event(run, 'segment_saved', '分段成果已保存', 'success', {'phase': 'extract', 'chapter_ordinal': chapter.ordinal, 'segment': i + 1, 'segments': segment_count, 'nodes': len(payload['nodes']), 'edges': len(payload['edges']), 'summary': payload.get('summary', '')}, token=token)
+            omitted = payload.get('omitted_candidates', 0)
+            record_event(run, 'segment_saved', '分段成果已部分保存' if omitted else '分段成果已保存', 'warning' if omitted else 'success', {'phase': 'extract', 'chapter_ordinal': chapter.ordinal, 'segment': i + 1, 'segments': segment_count, 'nodes': len(payload['nodes']), 'edges': len(payload['edges']), 'summary': payload.get('summary', ''), 'omitted_candidates': omitted}, token=token)
             payloads.append(payload)
         if run.revision.mode == 'story':
             from .profiles import update_chapter
@@ -285,6 +310,17 @@ def process_run(run, token: str):
         emit_ai_event('book_summary_started', '整理已完成范围的概要')
         summary = summarize_all([f'{r.chapter.title}\n{r.digest["summary"]}' for r in results], run.book.title, run.revision.mode)
     overview = {'summary': summary, 'complete': len(results) == all_count, 'covered_chapters': [r.chapter.ordinal for r in results], 'total_chapters': all_count}
+    if run.revision.mode == 'biography':
+        from .biography_map import create_biography_map
+        run.stage = '归纳人生与思想导图'
+        run.save(update_fields=['stage', 'updated_at'])
+        with ai_scope(phase='biography_map'):
+            emit_ai_event('biography_map_started', '从已分析章节归纳主题')
+            try:
+                overview['mindmap'] = create_biography_map(results, run.revision.subject_name, summary)
+            except Exception as exc:
+                logger.warning('Biography mindmap unavailable: %s', exc)
+                record_event(run, 'biography_map_unavailable', '导图归纳未通过校验，已保留章节分析；重新分析可重试', 'warning', token=token)
     with transaction.atomic():
         analysis = BookAnalysis.objects.select_for_update().get(book=run.book)
         check_run(run, token)

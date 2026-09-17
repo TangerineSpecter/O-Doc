@@ -13,7 +13,7 @@ from .graph import node_detail, read_graph
 from .inspection import current_hash, inspect_book
 from .execution import event_data, execution_data
 from .models import AnalysisRun, BookAnalysis, Chapter, ChapterResult, Revision, SourceCache
-from .serializers import GraphInput
+from .serializers import BiographyDetailInput, GraphInput
 
 
 class AnalysisView(APIView):
@@ -52,9 +52,9 @@ class StatusView(AnalysisView):
             from .models import EntityFact, ProfileChange, Hypothesis
             statistics = {'facts': EntityFact.objects.filter(node__revision=revision).count(), 'profile_changes': ProfileChange.objects.filter(node__revision=revision).count(), 'pending_profiles': ProfileChange.objects.filter(node__revision=revision, state='pending').count(), 'hypotheses': Hypothesis.objects.filter(revision=revision).count()}
         history = bool(revision and (not analysis or revision.pk != analysis.published_revision))
-        versions = list(Revision.objects.filter(book=book, state__in=['partial', 'complete']).order_by('-created_at').values('id', 'mode', 'created_at', 'overview')[:50])
-        versions = [{'id': item['id'], 'mode': item['mode'], 'created_at': item['created_at'], 'complete': item['overview'].get('complete', False)} for item in versions]
-        return success_result({'book': {'book_id': book.pk, 'title': book.title, 'author': book.author, 'format': book.book_format, 'coll_id': book.anthology.coll_id, 'cover_url': f'/api/anthology/book/{book.pk}/cover', 'local_state': book.local_state}, 'statistics': statistics, 'history': history, 'versions': versions, 'can_manage': not history and request.user.is_authenticated and get_owned_anthology_queryset(request).filter(pk=book.anthology_id).exists(), 'mode': revision.mode if revision else analysis.mode if analysis else 'knowledge', 'inspection': analysis.inspection if analysis else {}, 'stale': stale, 'revision_id': revision.pk if revision else '', 'overview': revision.overview if revision else {}, 'run': run_data(AnalysisRun.objects.filter(book=book).order_by('-created_at').first())})
+        versions = list(Revision.objects.filter(book=book, state__in=['partial', 'complete']).order_by('-created_at').values('id', 'mode', 'subject_name', 'created_at', 'overview')[:50])
+        versions = [{'id': item['id'], 'mode': item['mode'], 'subject_name': item['subject_name'], 'created_at': item['created_at'], 'complete': item['overview'].get('complete', False)} for item in versions]
+        return success_result({'book': {'book_id': book.pk, 'title': book.title, 'author': book.author, 'format': book.book_format, 'coll_id': book.anthology.coll_id, 'cover_url': f'/api/anthology/book/{book.pk}/cover', 'local_state': book.local_state}, 'statistics': statistics, 'history': history, 'versions': versions, 'can_manage': not history and request.user.is_authenticated and get_owned_anthology_queryset(request).filter(pk=book.anthology_id).exists(), 'mode': revision.mode if revision else analysis.mode if analysis else 'knowledge', 'subject_name': revision.subject_name if revision else analysis.subject_name if analysis else '', 'inspection': analysis.inspection if analysis else {}, 'stale': stale, 'revision_id': revision.pk if revision else '', 'overview': revision.overview if revision else {}, 'run': run_data(AnalysisRun.objects.filter(book=book).order_by('-created_at').first())})
 
 
 class ExecutionEventsView(AnalysisView):
@@ -128,6 +128,45 @@ class GraphView(AnalysisView):
         if options['chapter_id'] and not Chapter.objects.filter(pk=options['chapter_id'], book=book).exists():
             raise AnalysisError('章节不属于本书', 404)
         return success_result(read_graph(revision, **options))
+
+
+class BiographyView(AnalysisView):
+    def get(self, request, book_id):
+        from .biography import read_biography
+        book = get_book(request, book_id)
+        serializer = GraphInput(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        options = serializer.validated_data
+        revision = readable_revision(book, options['revision_id'])
+        if revision.mode != 'biography':
+            raise AnalysisError('该版本不是传记分析', 409)
+        if options['chapter_id'] and not Chapter.objects.filter(pk=options['chapter_id'], book=book).exists():
+            raise AnalysisError('章节不属于本书', 404)
+        return success_result(read_biography(revision, chapter_id=options['chapter_id'], through_chapter=options['through_chapter'], page=options['page']))
+
+
+class BiographyOutlineView(AnalysisView):
+    def get(self, request, book_id):
+        from .biography import read_biography_outline
+        book = get_book(request, book_id)
+        serializer = GraphInput(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        options = serializer.validated_data
+        revision = readable_revision(book, options['revision_id'])
+        if revision.mode != 'biography':
+            raise AnalysisError('该版本不是传记分析', 409)
+        return success_result(read_biography_outline(revision, through_chapter=options['through_chapter']))
+
+
+class BiographyDetailView(AnalysisView):
+    def get(self, request, book_id):
+        from .biography import read_biography_detail
+        book = get_book(request, book_id)
+        serializer = BiographyDetailInput(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        options = serializer.validated_data
+        revision = readable_revision(book, options.pop('revision_id'))
+        return success_result(read_biography_detail(revision, **options))
 
 
 class NodeView(AnalysisView):

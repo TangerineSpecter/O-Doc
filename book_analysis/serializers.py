@@ -2,7 +2,8 @@ from rest_framework import serializers
 
 
 class RunInput(serializers.Serializer):
-    mode = serializers.ChoiceField(choices=['story', 'knowledge'])
+    mode = serializers.ChoiceField(choices=['story', 'knowledge', 'biography'])
+    subject_name = serializers.CharField(max_length=255, required=False, default='', allow_blank=True, trim_whitespace=True)
     start = serializers.IntegerField(min_value=1, default=1)
     end = serializers.IntegerField(min_value=1, required=False, allow_null=True)
     force = serializers.BooleanField(default=False)
@@ -26,10 +27,19 @@ class GraphInput(serializers.Serializer):
     query = serializers.CharField(max_length=100, required=False, default='')
     center = serializers.CharField(max_length=64, required=False, default='')
     thread = serializers.CharField(max_length=120, required=False, default='')
+    thread_group = serializers.ChoiceField(choices=['', 'case', 'people', 'clues', 'whereabouts', 'other'], required=False, default='')
     view = serializers.ChoiceField(choices=['graph', 'flow', 'timeline', 'mindmap'], default='graph')
     order = serializers.ChoiceField(choices=['narrative', 'time'], default='narrative')
     page = serializers.IntegerField(min_value=1, default=1)
     limit = serializers.IntegerField(min_value=1, max_value=200, default=200)
+
+
+class BiographyDetailInput(serializers.Serializer):
+    revision_id = serializers.CharField(max_length=64, required=False, default='')
+    through_chapter = serializers.IntegerField(min_value=1, required=False, allow_null=True, default=None)
+    chapter_id = serializers.CharField(max_length=64)
+    target_id = serializers.CharField(max_length=64)
+    target_kind = serializers.ChoiceField(choices=['event', 'claim', 'quote'])
 
 
 class BoundaryInput(serializers.Serializer):

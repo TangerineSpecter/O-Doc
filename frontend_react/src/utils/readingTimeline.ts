@@ -130,6 +130,14 @@ function extractDateBucket(node: ReadingNode, order: 'narrative' | 'time'): {key
         }
     }
 
+    if (order === 'time') {
+        return {
+            key: 'undated',
+            title: '发生日期未明确',
+            subtitle: '仅按原文出现顺序列出，无法确定这些事件的先后',
+        };
+    }
+
     // 2. 尝试从 timeLabel 提取日期或星期
     const weekMatch = rawLabel.match(/(星期[一二三四五六日天]|周[一二三四五六日天])/);
     if (weekMatch) {

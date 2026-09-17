@@ -1,6 +1,6 @@
 import request from '../utils/request';
 import {getAuthToken} from '../utils/authStorage';
-import type {BookAnalysisStatus, BookInspection, ChapterGuide, ExecutionPage, GraphFilters, PagedChapters, ReadingGraph, ReadingMode, ReadingNode, ReadingRun, SourceEvidence} from '../types/bookAnalysis';
+import type {BiographyDetail, BiographyOutline, BiographyResult, BookAnalysisStatus, BookInspection, ChapterGuide, ExecutionPage, GraphFilters, PagedChapters, ReadingGraph, ReadingMode, ReadingNode, ReadingRun, SourceEvidence} from '../types/bookAnalysis';
 
 const base = (bookId: string) => `/book-analysis/books/${encodeURIComponent(bookId)}`;
 export const getBookAnalysis = (id: string, signal?: AbortSignal, revisionId = '') => request.get<never, BookAnalysisStatus>(base(id), {signal, params: {revisionId}});
@@ -8,8 +8,11 @@ export const inspectBook = (id: string) => request.post<never, BookInspection>(`
 export const getBookChapters = (id: string, page = 1, signal?: AbortSignal, revisionId = '') => request.get<never, PagedChapters>(`${base(id)}/chapters`, {params: {page, limit: 50, revisionId}, signal});
 export const getChapterGuide = (id: string, chapterId: string, signal?: AbortSignal, revisionId = '') => request.get<never, ChapterGuide>(`${base(id)}/chapters/${chapterId}`, {signal, params: {revisionId}});
 export const getReadingGraph = (id: string, filters: GraphFilters, signal?: AbortSignal) => request.get<never, ReadingGraph>(`${base(id)}/graph`, {params: filters, signal});
+export const getBiography = (id: string, params: {revisionId: string; chapterId?: string; throughChapter?: number; page: number}, signal?: AbortSignal) => request.get<never, BiographyResult>(`${base(id)}/biography`, {params, signal});
+export const getBiographyDetail = (id: string, params: {revisionId: string; chapterId: string; targetId: string; targetKind: 'event' | 'claim' | 'quote'; throughChapter?: number}, signal?: AbortSignal) => request.get<never, BiographyDetail>(`${base(id)}/biography/detail`, {params, signal});
+export const getBiographyOutline = (id: string, params: {revisionId: string; throughChapter?: number}, signal?: AbortSignal) => request.get<never, BiographyOutline>(`${base(id)}/biography/outline`, {params, signal});
 export const getReadingNode = (id: string, nodeId: string, page = 1, signal?: AbortSignal, revisionId = '', throughChapter?: number) => request.get<never, {node: ReadingNode; neighbors: ReadingGraph}>(`${base(id)}/nodes/${nodeId}`, {params: {page, revisionId, throughChapter}, signal});
-export const startBookRun = (id: string, mode: ReadingMode, start: number, end: number, force = false, kind = 'analyze') => request.post<never, ReadingRun>(`${base(id)}/runs`, {mode, start, end, force, kind});
+export const startBookRun = (id: string, mode: ReadingMode, start: number, end: number, force = false, kind = 'analyze', subjectName = '') => request.post<never, ReadingRun>(`${base(id)}/runs`, {mode, start, end, force, kind, subjectName});
 export const runBookAction = (id: string, runId: string, action: 'cancel' | 'retry') => request.post<never, ReadingRun>(`${base(id)}/runs/${runId}/${action}`);
 export const getExecutionEvents = (id: string, runId: string, before: number, signal?: AbortSignal) => request.get<never, ExecutionPage>(`${base(id)}/runs/${runId}/events`, {params: {before}, signal});
 export const correctReadingProfile = (id: string, nodeId: string, attribute: 'identity' | 'age' | 'occupation' | 'role' | 'trait' | 'background' | 'behavior' | 'goal', value: string, timeLabel = '') => request.post(`${base(id)}/nodes/${nodeId}/profile`, {attribute, value, timeLabel});

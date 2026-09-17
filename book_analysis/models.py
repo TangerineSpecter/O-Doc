@@ -11,6 +11,7 @@ def new_id():
 class BookAnalysis(models.Model):
     book = models.OneToOneField('anthology.Book', primary_key=True, on_delete=models.CASCADE)
     mode = models.CharField(max_length=16, default='knowledge')
+    subject_name = models.CharField(max_length=255, blank=True)
     source_hash = models.CharField(max_length=64, blank=True)
     inspection = models.JSONField(default=dict)
     published_revision = models.CharField(max_length=64, blank=True)
@@ -39,6 +40,7 @@ class Revision(models.Model):
     book = models.ForeignKey('anthology.Book', on_delete=models.CASCADE)
     source_hash = models.CharField(max_length=64)
     mode = models.CharField(max_length=16)
+    subject_name = models.CharField(max_length=255, blank=True)
     settings_version = models.PositiveIntegerField()
     overview = models.JSONField(default=dict)
     state = models.CharField(max_length=16, default='building')
@@ -162,6 +164,22 @@ class SourceEvidence(models.Model):
     quote = models.TextField()
     locator = models.JSONField(default=dict)
     ordinal = models.PositiveBigIntegerField(default=0)
+
+
+class BiographyQuote(models.Model):
+    """Verified subject speech, separate from narrator claims and AI reflections."""
+    id = models.CharField(primary_key=True, max_length=64)
+    revision = models.ForeignKey(Revision, on_delete=models.CASCADE)
+    chapter = models.ForeignKey(Chapter, on_delete=models.CASCADE)
+    speaker = models.CharField(max_length=255)
+    text = models.TextField()
+    evidence = models.JSONField(default=dict)
+    attribution_evidence = models.JSONField(default=dict)
+    event_id = models.CharField(max_length=64, blank=True)
+    ordinal = models.PositiveBigIntegerField(default=0)
+
+    class Meta:
+        indexes = [models.Index(fields=['revision', 'ordinal'])]
 
 
 class EntityFact(models.Model):

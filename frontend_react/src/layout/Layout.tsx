@@ -160,7 +160,6 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                 <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-orange-50/50 to-transparent"></div>
                 <div className="absolute right-0 top-20 w-96 h-96 bg-blue-100/30 rounded-full blur-3xl"></div>
                 <div className="absolute left-10 top-40 w-72 h-72 bg-orange-100/30 rounded-full blur-3xl"></div>
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10"></div>
                 <div className="absolute inset-0" style={{
                     backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)',
                     backgroundSize: '24px 24px',

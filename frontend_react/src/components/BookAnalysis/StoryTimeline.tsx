@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {ArrowUp, BookOpen, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, GitBranch, Sparkles, Zap} from 'lucide-react';
+import {ArrowUp, BookOpen, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, Zap} from 'lucide-react';
 import type {ReadingGraph, SourceEvidence} from '../../types/bookAnalysis';
 import {
     clusterTimelineEvents,
@@ -17,6 +17,7 @@ interface Props {
     onPage: (page: number) => void;
     onSelect: (id: string) => void;
     onRead?: (source: SourceEvidence) => void;
+    denseMode?: boolean;
 }
 
 export default function StoryTimeline({
@@ -27,10 +28,11 @@ export default function StoryTimeline({
     onPage,
     onSelect,
     onRead,
+    denseMode: propDenseMode,
 }: Props) {
-    const [denseMode, setDenseMode] = useState(false);
-    const [selectedThread, setSelectedThread] = useState<string>('all');
+    const denseMode = propDenseMode ?? false;
     const [expandedEvidences, setExpandedEvidences] = useState<Set<string>>(new Set());
+    const [showUndated, setShowUndated] = useState(false);
     const [canScrollUp, setCanScrollUp] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -39,7 +41,7 @@ export default function StoryTimeline({
             scrollRef.current.scrollTop = 0;
             setCanScrollUp(false);
         }
-    }, [page, selectedThread, order]);
+    }, [page, order]);
 
     const handleScroll = () => {
         if (scrollRef.current) {
@@ -56,16 +58,9 @@ export default function StoryTimeline({
     // 缓存节点快速查找表
     const nodesMap = useMemo(() => new Map(graph.nodes.map(n => [n.id, n])), [graph.nodes]);
 
-    // 故事线筛选过滤
-    const filteredNodes = useMemo(() => {
-        if (selectedThread === 'all') return graph.nodes;
-        return graph.nodes.filter(node => (node.thread || '未归类') === selectedThread);
-    }, [graph.nodes, selectedThread]);
-
-    // 连续平滑聚类分组
-    const groups = useMemo(() => {
-        return clusterTimelineEvents(filteredNodes, order);
-    }, [filteredNodes, order]);
+    const groups = useMemo(() => clusterTimelineEvents(graph.nodes, order), [graph.nodes, order]);
+    const undatedCount = groups.find(group => group.id === 'undated')?.nodes.length || 0;
+    const visibleGroups = groups.filter(group => group.id !== 'undated' || showUndated);
 
     // 切换折叠展开某节点的证据
     const toggleEvidence = (nodeId: string) => {
@@ -79,15 +74,6 @@ export default function StoryTimeline({
             return next;
         });
     };
-
-    // 统计所有可用故事线
-    const availableThreads = useMemo(() => {
-        const set = new Set<string>();
-        graph.nodes.forEach(n => {
-            if (n.thread) set.add(n.thread);
-        });
-        return Array.from(set);
-    }, [graph.nodes]);
 
     const totalPages = Math.ceil(graph.total / graph.limit);
 
@@ -104,97 +90,16 @@ export default function StoryTimeline({
     }
 
     return (
-        <section aria-label="故事事件时间线" className="space-y-4">
-            {/* 时间线控制与汇总头部 */}
-            <header className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
-                            <Sparkles className="h-4 w-4" />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h2 className="text-sm font-bold text-slate-800">
-                                    故事事件时间轴
-                                </h2>
-                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                                    {graph.total} 项记录
-                                </span>
-                            </div>
-                            <p className="text-[11px] text-slate-400">
-                                {order === 'time'
-                                    ? '按故事世界真实时间顺序还原事件始末'
-                                    : '按原著小说章节叙述脉络推进'}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        {/* 紧凑模式开关 */}
-                        <button
-                            type="button"
-                            onClick={() => setDenseMode(v => !v)}
-                            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                                denseMode
-                                    ? 'border-orange-300 bg-orange-50 text-orange-700'
-                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                            }`}
-                        >
-                            <span>紧凑模式</span>
-                        </button>
-
-                        {/* 分页状态 */}
-                        {graph.total > graph.limit && (
-                            <span className="text-xs text-slate-400">
-                                第 {page} / {totalPages} 页
-                            </span>
-                        )}
-                    </div>
+        <section aria-label="故事事件时间线" className="space-y-3">
+            <p className="px-1 text-xs text-slate-500">按原文明确日期排列；日期未明确的事件列在后面，不推断其发生顺序。</p>
+            {undatedCount > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+                    <span>{groups.length === 1 ? '当前页没有可按日期排序的事件。' : '另有日期未明确的事件。'}{undatedCount} 个事件仅能按原文出现顺序查看。</span>
+                    <button type="button" onClick={() => setShowUndated(value => !value)} className="font-semibold text-amber-800 hover:underline">
+                        {showUndated ? '收起未定日期事件' : '展开未定日期事件'}
+                    </button>
                 </div>
-
-                {/* 故事线快速过滤胶囊 */}
-                {availableThreads.length > 0 && (
-                    <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-3 text-xs">
-                        <span className="text-[11px] font-medium text-slate-400 mr-1">故事线：</span>
-                        <button
-                            type="button"
-                            onClick={() => setSelectedThread('all')}
-                            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
-                                selectedThread === 'all'
-                                    ? 'border border-orange-500 bg-orange-50 text-orange-600'
-                                    : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                            }`}
-                        >
-                            全部线索 ({graph.nodes.length})
-                        </button>
-                        {availableThreads.map(threadName => {
-                            const theme = getThreadTheme(threadName);
-                            const count = graph.nodes.filter(n => n.thread === threadName).length;
-                            const isActive = selectedThread === threadName;
-                            return (
-                                <button
-                                    key={threadName}
-                                    type="button"
-                                    onClick={() => setSelectedThread(threadName)}
-                                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition-all ${
-                                        isActive
-                                            ? `border ${theme.border} ${theme.bg} ${theme.text} font-medium`
-                                            : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                                    }`}
-                                >
-                                    <span
-                                        className="h-1.5 w-1.5 rounded-full"
-                                        style={{background: theme.dot}}
-                                    />
-                                    <span>{threadName}</span>
-                                    <span className="text-[10px] opacity-70">({count})</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-            </header>
-
+            )}
             {/* 时间线主体容器 */}
             <div className="relative rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
                 {/* 限制最大高度并在内部滚动 */}
@@ -203,7 +108,7 @@ export default function StoryTimeline({
                     onScroll={handleScroll}
                     className="max-h-[600px] xl:max-h-[680px] overflow-y-auto overscroll-contain pr-2 sm:pr-3 space-y-8 scroll-smooth"
                 >
-                    {groups.map((group, groupIndex) => (
+                    {visibleGroups.map((group, groupIndex) => (
                         <div key={group.id} className="timeline-group">
                             {/* 阶段分组标题标尺 */}
                             <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-2.5">

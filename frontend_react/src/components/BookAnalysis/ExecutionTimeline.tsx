@@ -23,6 +23,7 @@ function EventRow({event}: {event: ReadingExecutionEvent}) {
                 {data.maxTokens !== undefined && <span>输出上限 {data.maxTokens.toLocaleString()} token</span>}
                 {data.promptTokens !== undefined && <span>输入 {data.promptTokens.toLocaleString()} · 输出 {data.completionTokens?.toLocaleString() || '?'} token</span>}
                 {data.nodes !== undefined && <span>{data.nodes} 节点 · {data.edges || 0} 关系</span>}
+                {!!data.omittedCandidates && <span className="text-amber-700">舍弃 {data.omittedCandidates} 项未通过结构或证据校验的模型候选</span>}
                 {data.vectors !== undefined && <span>{data.vectors} 条向量</span>}
                 {data.finishReason && <span className={data.finishReason === 'length' ? 'text-amber-700' : ''}>结束原因：{data.finishReason}</span>}
                 {data.errorType && <span className="text-red-600">异常类型：{data.errorType}</span>}

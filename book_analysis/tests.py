@@ -1,8 +1,10 @@
 import hashlib
 import tempfile
+import json
 import zipfile
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pymupdf as fitz
@@ -19,17 +21,296 @@ from assets.models import Asset
 from utils.sync_manager import SyncManager
 from utils.ai_service import AIAuthenticationError
 from .access import published
+from .biography_map import create_biography_map
 from .ask_views import answer_stream
 from .errors import AnalysisError
-from .extraction import extract_segment, summarize_all, validate_payload, verified_date
+from .extraction import extract_segment, salvage_payload, summarize_all, validate_payload, verified_date
 from .graph import add_segment, correct_edge, correct_node, node_detail, read_graph
-from .inspection import edit_boundary, inspect_book, rebuild_source_cache
-from .jobs import cancel_run, check_run, claim_run, copy_previous_revision, create_run, execute_claim, retry_run
-from .models import BookAnalysis, Chapter, ChapterResult, Correction, ExecutionEvent, GraphEdge, GraphNode, Revision, SourceCache, WorkerLease
+from .inspection import edit_boundary, inspect_book, rebuild_source_cache, recommend_mode, suggest_subject
+from .jobs import cancel_run, check_run, claim_run, copy_previous_revision, create_run, digest_chapter, execute_claim, retry_run
+from .models import BiographyQuote, BookAnalysis, Chapter, ChapterResult, Correction, ExecutionEvent, GraphEdge, GraphNode, NodeSource, Revision, SourceCache, WorkerLease
 from .parsers import ParsedChapter, iter_segments, source_path, stable_id
 
 
 class BookAnalysisTests(APITestCase):
+    def test_biography_map_is_thematic_and_chapter_scoped(self):
+        chapters = [SimpleNamespace(chapter=SimpleNamespace(ordinal=1, title='少年'), digest={'summary': '马化腾喜欢天文。'})]
+        response = {'themes': [{'title': '兴趣与探索', 'summary': '从天文兴趣看探索习惯。', 'branches': [{'title': '天文观察', 'summary': '早期保持对未知事物的兴趣。', 'chapters': [1]}]}]}
+        with patch('book_analysis.biography_map.AIService.chat_completion', return_value=json.dumps(response, ensure_ascii=False)) as complete:
+            result = create_biography_map(chapters, '马化腾', '少年兴趣')
+        self.assertEqual(result['themes'][0]['branches'][0]['chapters'], [1])
+        self.assertIn('独立于章节目录', complete.call_args.args[0])
+        response['themes'][0]['branches'][0]['chapters'] = [2]
+        with patch('book_analysis.biography_map.AIService.chat_completion', return_value=json.dumps(response, ensure_ascii=False)):
+            with self.assertRaises(AnalysisError):
+                create_biography_map(chapters, '马化腾', '少年兴趣')
+
+    def test_biography_subject_confirmed_and_versioned(self):
+        self.assertEqual(recommend_mode('林雨自传', []), 'biography')
+        self.assertEqual(suggest_subject('林雨自传'), '林雨')
+        self.assertEqual(suggest_subject('人物传记'), '')
+        self.inspected()
+        with self.assertRaises(AnalysisError):
+            create_run(self.book, 'biography')
+        first = create_run(self.book, 'biography', subject_name='林雨')
+        self.assertEqual(first.revision.subject_name, '林雨')
+        self.assertEqual(BookAnalysis.objects.get(book=self.book).subject_name, '林雨')
+        self.assertEqual(create_run(self.book, 'biography', subject_name='林雨').pk, first.pk)
+        with self.assertRaises(AnalysisError):
+            create_run(self.book, 'biography', subject_name='陈青')
+        first.state = 'cancelled'
+        first.save(update_fields=['state'])
+        second = create_run(self.book, 'biography', subject_name='陈青')
+        self.assertNotEqual(first.revision.settings_version, second.revision.settings_version)
+        self.assertEqual(second.revision.subject_name, '陈青')
+
+    def test_biography_quote_requires_exact_speech_and_attribution(self):
+        chapter = self.inspected()[0]
+        text = '林雨说：“我相信自由比名利重要。”后来林雨去了远方。'
+        raw = {'nodes': [{'id': 'p', 'kind': 'person', 'name': '林雨', 'quote': '林雨说', 'description': '传主'}], 'edges': [], 'summary': '', 'quotes': [{'speaker': '林雨', 'quote': '我相信自由比名利重要。', 'attribution_quote': '林雨说：“我相信自由比名利重要。”', 'event_id': ''}], 'reflections': [{'text': '可以反思自由的意义。', 'quote': '后来林雨去了远方。'}]}
+        result = validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        self.assertEqual(result['quotes'][0]['speaker'], '林雨')
+        self.assertEqual(result['reflections'][0]['evidence']['quote'], '后来林雨去了远方。')
+        revision = Revision.objects.create(book=self.book, source_hash=self.book.asset.file_hash, mode='biography', subject_name='林雨', settings_version=1)
+        add_segment(revision, chapter, result)
+        self.assertEqual(BiographyQuote.objects.filter(revision=revision).count(), 1)
+        raw['quotes'][0]['speaker'] = '陈青'
+        with self.assertRaises(AnalysisError):
+            validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        raw['quotes'][0]['speaker'] = '林雨'
+        raw['quotes'][0]['attribution_quote'] = '后来林雨去了远方。'
+        with self.assertRaises(AnalysisError):
+            validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+
+    def test_biography_quote_survives_invalid_optional_event_reference(self):
+        chapter = self.inspected()[0]
+        text = '林雨说：“我相信自由比名利重要。”'
+        raw = {'nodes': [], 'edges': [], 'summary': '', 'quotes': [{'speaker': '林雨', 'quote': '我相信自由比名利重要。', 'attribution_quote': text, 'event_id': 'missing'}]}
+        result = validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        self.assertEqual(result['quotes'][0]['event_id'], '')
+        self.assertEqual(result['quotes'][0]['text'], '我相信自由比名利重要。')
+
+    def test_biography_background_links_only_to_sourced_claim(self):
+        chapter = self.inspected()[0]
+        text = '陈青创办网站。陈青的成功影响了林雨，林雨觉得互联网有创业机会。'
+        raw = {'nodes': [{'id': 'c', 'kind': 'claim', 'name': '看到创业机会', 'description': '林雨觉得互联网有创业机会', 'quote': '陈青的成功影响了林雨，林雨觉得互联网有创业机会'}], 'edges': [], 'summary': '', 'flow': [{'kind': 'background', 'title': '陈青创办网站', 'detail': '陈青创办网站。', 'quote': '陈青创办网站。', 'impact_quote': '陈青的成功影响了林雨，林雨觉得互联网有创业机会', 'claim_id': 'c'}], 'reflections': [{'claim_id': 'c', 'text': '哪些外部实例会改变你的选择？', 'quote': '林雨觉得互联网有创业机会'}]}
+        result = validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        claim_id = result['nodes'][0]['canonical_id']
+        self.assertEqual(result['flow'][0]['claim_id'], claim_id)
+        self.assertEqual(result['reflections'][0]['claim_id'], claim_id)
+        raw['flow'][0]['claim_id'] = 'unknown'
+        self.assertEqual(validate_payload(raw, text, chapter, 0, [], subject_name='林雨')['flow'][0]['claim_id'], '')
+
+    def test_biography_result_is_version_scoped_and_quotes_survive_incremental_copy(self):
+        chapters = self.inspected()
+        first = create_run(self.book, 'biography', start=1, end=1, subject_name='林雨')
+        chapter = chapters[0]
+        text = '林雨说：“我相信自由比名利重要。”林雨离开家乡。'
+        raw = {'nodes': [{'id': 'e', 'kind': 'event', 'name': '离开家乡', 'description': '林雨离开家乡', 'quote': '林雨离开家乡。'}, {'id': 'c', 'kind': 'claim', 'name': '自由更重要', 'description': '认为自由重要', 'quote': '我相信自由比名利重要。'}], 'edges': [], 'summary': '传主离开家乡', 'quotes': [{'speaker': '林雨', 'quote': '我相信自由比名利重要。', 'attribution_quote': '林雨说：“我相信自由比名利重要。”'}]}
+        payload = validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        add_segment(first.revision, chapter, payload)
+        ChapterResult.objects.create(id=stable_id(first.revision.pk, chapter.pk), revision=first.revision, chapter=chapter, digest={'summary': '传主离开家乡', 'reflections': []})
+        first.revision.state = 'partial'
+        first.revision.overview = {'covered_chapters': [1], 'total_chapters': len(chapters)}
+        first.revision.save()
+        analysis = BookAnalysis.objects.get(book=self.book)
+        analysis.published_revision = first.revision.pk
+        analysis.save()
+        first.state = 'completed'
+        first.save(update_fields=['state'])
+        response = self.client.get(self.url + '/biography')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['subjectName'], '林雨')
+        self.assertEqual(data['events']['total'], 1)
+        self.assertEqual(data['ideas']['total'], 1)
+        self.assertEqual(data['quotes']['total'], 1)
+        self.assertEqual(data['quotes']['items'][0]['attributionEvidence']['quote'], '林雨说：“我相信自由比名利重要。”')
+        outline = self.client.get(self.url + '/biography/outline').json()['data']
+        self.assertEqual(outline['total'], 1)
+        self.assertEqual(outline['chapters'][0]['id'], chapter.pk)
+        self.assertEqual(outline['chapters'][0]['events'], 1)
+        self.assertEqual(outline['chapters'][0]['ideas'], 1)
+        self.assertEqual(outline['chapters'][0]['quotes'], 1)
+        self.assertEqual({item['kind'] for item in outline['chapters'][0]['anchors']}, {'event', 'claim'})
+        self.assertEqual(self.client.get(self.url + '/biography/outline', {'throughChapter': 1}).json()['data']['total'], 1)
+        self.assertEqual(self.client.get(self.url + '/biography', {'chapterId': chapters[1].pk}).json()['data']['quotes']['total'], 0)
+        second = create_run(self.book, 'biography', start=2, end=2, subject_name='林雨')
+        copy_previous_revision(second)
+        self.assertEqual(BiographyQuote.objects.filter(revision=second.revision).count(), 1)
+        self.assertEqual(ChapterResult.objects.filter(revision=second.revision).count(), 1)
+        self.assertEqual(self.client.get(self.url + '/biography', {'revisionId': first.revision.pk}).status_code, 200)
+
+    def test_biography_detail_finds_other_pages_and_independent_quote_links(self):
+        chapter = self.inspected()[0]
+        analysis = BookAnalysis.objects.get(book=self.book)
+        analysis.mode, analysis.subject_name = 'biography', '林雨'
+        revision = Revision.objects.create(book=self.book, source_hash=analysis.source_hash, mode='biography', subject_name='林雨', settings_version=analysis.settings_version, state='partial')
+        analysis.published_revision = revision.pk
+        analysis.save()
+        ChapterResult.objects.create(id=stable_id(revision.pk, chapter.pk), revision=revision, chapter=chapter, digest={'summary': ''})
+        passage = '林雨说：“做产品必须保持专注和耐心。”'
+        evidence = {'chapter_id': chapter.pk, 'chapter_title': chapter.title, 'ordinal': chapter.ordinal, 'quote': passage, 'locator': {'format': 'txt', 'offset': 100}}
+        claim_evidence = {**evidence, 'quote': '做产品必须保持专注和耐心。', 'locator': {'format': 'txt', 'offset': 105}}
+        unrelated_evidence = {**evidence, 'quote': '林雨去了远方。', 'locator': {'format': 'txt', 'offset': 900}}
+        for index in range(25):
+            for kind in ('event', 'claim'):
+                node = GraphNode.objects.create(id=stable_id(revision.pk, kind, index), revision=revision, canonical_id=f'{kind}-{index}', kind=kind, name=f'{kind} {index}', ordinal=chapter.ordinal * 1000000000 + index, facts=[{'description': '有原文依据', 'evidence': claim_evidence if kind == 'claim' and index == 24 else unrelated_evidence}])
+                NodeSource.objects.create(id=stable_id(node.pk, chapter.pk), node=node, chapter=chapter)
+        quote = BiographyQuote.objects.create(id=stable_id(revision.pk, 'quote'), revision=revision, chapter=chapter, speaker='林雨', text='做产品必须保持专注和耐心。', evidence=claim_evidence, attribution_evidence=evidence, event_id='event-24', ordinal=chapter.ordinal * 1000000000)
+        page = self.client.get(self.url + '/biography', {'chapterId': chapter.pk, 'page': 2}).json()['data']
+        self.assertEqual(page['quotes']['items'], [])
+        for kind, target in (('event', 'event-24'), ('claim', 'claim-24')):
+            response = self.client.get(self.url + '/biography/detail', {'chapterId': chapter.pk, 'targetId': target, 'targetKind': kind})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()['data']['page'], 2)
+            self.assertEqual([item['id'] for item in response.json()['data']['relatedQuotes']], [quote.pk])
+        response = self.client.get(self.url + '/biography/detail', {'chapterId': chapter.pk, 'targetId': quote.pk, 'targetKind': 'quote'})
+        self.assertEqual(response.json()['data']['relatedClaims'], [{'id': 'claim-24', 'name': 'claim 24'}])
+        self.assertEqual(response.json()['data']['page'], 1)
+
+    def test_biography_extraction_uses_confirmed_subject_and_separates_reflection(self):
+        import json
+        chapter = self.inspected()[0]
+        text = '林雨说：“我相信自由比名利重要。”'
+        raw = {'nodes': [], 'edges': [], 'summary': '林雨谈自由', 'quotes': [{'speaker': '林雨', 'quote': '我相信自由比名利重要。', 'attribution_quote': text}], 'reflections': [{'text': '可以思考自由对自己的意义。', 'quote': text}], 'qa': [], 'inspiration': []}
+        with patch('book_analysis.extraction.AIService.chat_completion', return_value=json.dumps(raw, ensure_ascii=False)) as complete:
+            result = extract_segment(text, chapter, 0, 'biography', [], subject_name='林雨')
+        self.assertIn('读者确认传主为「林雨」', complete.call_args.args[0])
+        self.assertEqual(result['quotes'][0]['speaker'], '林雨')
+        self.assertEqual(result['reflections'][0]['text'], '可以思考自由对自己的意义。')
+
+    def test_biography_insight_requires_matching_event_and_exact_source(self):
+        chapter = self.inspected()[0]
+        text = '林雨创办公司，后来因资金不足关闭。林雨说：“这让我学会控制成本。”'
+        raw = {'nodes': [{'id': 'e', 'kind': 'event', 'name': '创办公司', 'description': '林雨创办公司', 'quote': '林雨创办公司'}],
+               'edges': [], 'summary': '创业与关闭', 'insights': [
+                   {'event_id': 'e', 'kind': 'outcome', 'text': '公司因资金不足关闭', 'quote': '后来因资金不足关闭'},
+                   {'event_id': 'e', 'kind': 'lesson', 'text': '学会控制成本', 'quote': '这让我学会控制成本'}]}
+        result = validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        self.assertEqual([item['kind'] for item in result['insights']], ['outcome', 'lesson'])
+        self.assertEqual(result['insights'][0]['event_id'], result['nodes'][0]['canonical_id'])
+        self.assertEqual(result['insights'][1]['evidence']['quote'], '这让我学会控制成本')
+        with patch('book_analysis.jobs.summarize_all', return_value='本章体现创业、关闭与成本认识。') as summarize:
+            digest = digest_chapter(chapter, [result], 'biography')
+        self.assertEqual(len(digest['insights']), 2)
+        self.assertIn('公司因资金不足关闭', summarize.call_args.args[0][0])
+        raw['insights'][0]['quote'] = '并不存在的结果'
+        with self.assertRaises(AnalysisError):
+            validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        raw['insights'][0]['quote'] = '后来因资金不足关闭'
+        raw['insights'][0]['event_id'] = 'missing'
+        with self.assertRaises(AnalysisError):
+            validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+
+    def test_biography_meeting_remains_an_event_without_inferred_outcome(self):
+        chapter = self.inspected()[0]
+        text = '林雨与周宁周末见面，讨论网站的页面设计。'
+        raw = {'nodes': [{'id': 'e', 'kind': 'event', 'name': '与周宁见面', 'description': '林雨与周宁周末见面', 'quote': text}],
+               'edges': [], 'summary': '林雨与周宁见面', 'insights': [{'event_id': 'e', 'kind': 'conversation', 'text': '讨论网站的页面设计', 'quote': '讨论网站的页面设计'}],
+               'reflections': [{'event_id': 'e', 'text': '技术交流可能成为合作的起点；这是 AI 解读。', 'quote': '讨论网站的页面设计'}]}
+        result = validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        self.assertEqual(result['nodes'][0]['kind'], 'event')
+        self.assertEqual(result['insights'][0]['kind'], 'conversation')
+        self.assertEqual(result['reflections'][0]['event_id'], result['nodes'][0]['canonical_id'])
+        raw['insights'] = []
+        self.assertEqual(len(validate_payload(raw, text, chapter, 0, [], subject_name='林雨')['nodes']), 1)
+        raw['insights'] = [{'event_id': 'e', 'kind': 'motivation', 'text': '林雨与周宁周末见面', 'quote': '林雨与周宁周末见面'}]
+        self.assertEqual(validate_payload(raw, text, chapter, 0, [], subject_name='林雨')['insights'], [])
+        raw['reflections'][0]['event_id'] = 'missing'
+        with self.assertRaises(AnalysisError):
+            validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+
+    def test_biography_external_milestone_is_not_the_subjects_experience(self):
+        chapter = self.inspected()[0]
+        text = '陈青创办网站。陈青卖出邮箱系统。陈青的成功让林雨意识到互联网也有创业机会，林雨决定创业。'
+        raw = {'nodes': [
+            {'id': 'other', 'kind': 'event', 'name': '陈青创办网站', 'description': '陈青创办网站。', 'quote': '陈青创办网站。'},
+            {'id': 'subject', 'kind': 'event', 'name': '受到创业成功启发', 'description': '林雨意识到互联网也有创业机会。', 'quote': '陈青的成功让林雨意识到互联网也有创业机会，林雨决定创业。'},
+        ], 'edges': [], 'summary': '创业启发', 'insights': [
+            {'event_id': 'subject', 'kind': 'cause', 'text': '陈青的成功让林雨意识到互联网有创业机会', 'quote': '陈青的成功让林雨意识到互联网也有创业机会'},
+        ]}
+        with self.assertRaises(AnalysisError):
+            validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        raw['nodes'][0]['quote'] = text
+        with self.assertRaises(AnalysisError):
+            validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        saved, dropped = salvage_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        self.assertIn('nodes[0]', dropped)
+        self.assertEqual(saved['omitted_candidates'], len(dropped))
+        self.assertEqual([node['name'] for node in saved['nodes']], ['受到创业成功启发'])
+        self.assertEqual(saved['insights'][0]['kind'], 'cause')
+        with patch('book_analysis.jobs.summarize_all', return_value='林雨受到创业启发。'):
+            digest = digest_chapter(chapter, [saved], 'biography')
+        self.assertEqual(digest['omitted_candidates'], len(dropped))
+
+    def test_biography_repair_moves_external_event_into_sourced_background(self):
+        import json
+        chapter = self.inspected()[0]
+        text = '陈青创办网站。陈青的成功影响了林雨，林雨决定创业。'
+        invalid = {'nodes': [{'id': 'other', 'kind': 'event', 'name': '陈青创办网站', 'description': '陈青创办网站。', 'quote': '陈青创办网站。'}], 'edges': [], 'summary': ''}
+        repaired = {'nodes': [{'id': 'subject', 'kind': 'event', 'name': '决定创业', 'description': '林雨决定创业。', 'quote': '林雨决定创业。'}], 'edges': [], 'summary': '', 'flow': [
+            {'kind': 'background', 'title': '陈青创办网站', 'detail': '陈青创办网站。', 'quote': '陈青创办网站。', 'impact_quote': '陈青的成功影响了林雨'},
+            {'kind': 'decision', 'title': '林雨决定创业', 'detail': '林雨决定创业。', 'quote': '林雨决定创业。', 'event_id': 'subject'},
+        ]}
+        with patch('book_analysis.extraction.AIService.chat_completion', side_effect=[json.dumps(invalid, ensure_ascii=False), json.dumps(repaired, ensure_ascii=False)]) as complete:
+            result = extract_segment(text, chapter, 0, 'biography', [], subject_name='林雨')
+        self.assertEqual([step['kind'] for step in result['flow']], ['background', 'decision'])
+        self.assertIn('不要作为传主 event', complete.call_args_list[1].args[0])
+
+    def test_biography_flow_keeps_sourced_external_context_out_of_life_events(self):
+        chapter = self.inspected()[0]
+        text = '陈青创办网站。陈青出售邮箱系统。陈青的成功影响了林雨，林雨决定创业。'
+        raw = {'nodes': [{'id': 'subject', 'kind': 'event', 'name': '决定创业', 'description': '林雨决定创业。', 'quote': '林雨决定创业。'}],
+               'edges': [], 'summary': '林雨受到启发', 'flow': [
+                   {'kind': 'background', 'title': '陈青创办网站', 'detail': '陈青创办网站。', 'quote': '陈青创办网站。', 'impact_quote': '陈青的成功影响了林雨', 'event_id': 'subject'},
+                   {'kind': 'background', 'title': '陈青出售邮箱', 'detail': '陈青出售邮箱系统。', 'quote': '陈青出售邮箱系统。', 'impact_quote': '陈青的成功影响了林雨', 'event_id': 'subject'},
+                   {'kind': 'impact', 'title': '林雨受到影响', 'detail': '陈青的成功影响了林雨。', 'quote': '陈青的成功影响了林雨', 'event_id': 'subject'},
+                   {'kind': 'decision', 'title': '林雨决定创业', 'detail': '林雨决定创业。', 'quote': '林雨决定创业。', 'event_id': 'subject'},
+               ]}
+        result = validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        self.assertEqual([node['name'] for node in result['nodes']], ['决定创业'])
+        self.assertEqual([step['kind'] for step in result['flow']], ['background', 'background', 'impact', 'decision'])
+        self.assertEqual(result['flow'][0]['impact_evidence']['quote'], '陈青的成功影响了林雨')
+        with patch('book_analysis.jobs.summarize_all', return_value='林雨受到启发并创业。'):
+            digest = digest_chapter(chapter, [result], 'biography')
+        self.assertEqual(len(digest['flow']), 4)
+        self.assertNotIn('position', digest['flow'][0])
+        raw['flow'][0]['impact_quote'] = '陈青出售邮箱系统。'
+        with self.assertRaises(AnalysisError):
+            validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        saved, dropped = salvage_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        self.assertIn('flow[0]', dropped)
+        self.assertEqual(len(saved['flow']), 3)
+        self.assertEqual(len(saved['nodes']), 1)
+        raw['flow'][0]['impact_quote'] = '陈青的成功影响了林雨'
+        raw['flow'][1]['event_id'] = 'missing'
+        self.assertEqual(validate_payload(raw, text, chapter, 0, [], subject_name='林雨')['flow'][1]['event_id'], '')
+
+    def test_biography_guessed_date_is_cleared_and_duplicate_outcome_is_omitted(self):
+        chapter = self.inspected()[0]
+        text = '林雨入职公司，成为工程师。'
+        raw = {'nodes': [{'id': 'event', 'kind': 'event', 'name': '入职公司', 'description': '林雨入职公司，成为工程师。', 'quote': text, 'time_order': '某年'}],
+               'edges': [], 'summary': '', 'insights': [{'event_id': 'event', 'kind': 'outcome', 'text': '林雨入职公司成为工程师', 'quote': text}]}
+        result = validate_payload(raw, text, chapter, 0, [], subject_name='林雨')
+        self.assertEqual(result['nodes'][0]['time_order'], '')
+        self.assertEqual(result['insights'], [])
+        with self.assertRaises(AnalysisError):
+            validate_payload(raw, text, chapter, 0, [])
+
+    def test_short_segment_tail_stays_with_its_context(self):
+        text = '甲' * 80 + '\n' + '乙' * 20
+        segments = list(iter_segments(text, size=100))
+        self.assertEqual(''.join(segment for _, segment in segments), text)
+        self.assertEqual(len(segments), 1)
+
+    def test_biography_quotes_are_in_sync_scope_not_local_cache(self):
+        from system_settings.sync_state import should_track
+        targets = set(SyncManager()._iter_target_models())
+        self.assertIn(BiographyQuote, targets)
+        self.assertTrue(should_track(BiographyQuote))
+        self.assertNotIn(SourceCache, targets)
+
     def test_model_timeout_releases_lease_and_keeps_completed_chapter(self):
         import json
         from .test_bounded_completion import CONFIG, FakeStream, fake_factory
@@ -664,6 +945,23 @@ class BookAnalysisTests(APITestCase):
         self.assertEqual(len(detail['node']['facts']), 20)
         self.assertEqual(detail['node']['fact_total'], 70)
         self.assertEqual(read_graph(run.revision, view='flow')['limit'], 50)
+
+    def test_story_thread_groups_filter_existing_free_text_without_changing_it(self):
+        self.inspected()
+        run = self.run_all()
+        event = GraphNode.objects.filter(revision=run.revision, kind='event').first()
+        event.thread = '桐原洋介命案调查'
+        event.save(update_fields=['thread'])
+        GraphNode.objects.create(id='event-case-2', revision=run.revision, canonical_id='event-case-2', kind='event', name='调查桐原洋介案', ordinal=event.ordinal + 1, thread='调查桐原洋介案')
+        GraphNode.objects.create(id='event-people', revision=run.revision, canonical_id='event-people', kind='event', name='家庭往事', ordinal=event.ordinal + 2, thread='家庭往事')
+        result = read_graph(run.revision, view='flow', thread_group='case')
+        self.assertEqual(result['total'], 2)
+        self.assertEqual({node['thread'] for node in result['nodes']}, {'桐原洋介命案调查', '调查桐原洋介案'})
+        self.assertEqual(result['thread_groups'], [{'value': 'case', 'label': '案件调查'}, {'value': 'people', 'label': '人物关系'}])
+        self.assertEqual(read_graph(run.revision, view='flow', thread='家庭往事')['total'], 1)
+        response = self.client.get(self.url + '/graph', {'view': 'timeline', 'threadGroup': 'case'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['data']['total'], 2)
 
     def test_correction_description_is_independent_of_fact_pagination(self):
         self.inspected()

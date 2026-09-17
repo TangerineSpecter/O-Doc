@@ -20,7 +20,7 @@ def published(book):
     if not analysis or not analysis.published_revision:
         raise AnalysisError('尚无已发布的分析结果，请先开始分析', 409)
     revision = Revision.objects.filter(pk=analysis.published_revision, book=book).first()
-    if not revision or revision.source_hash != current_hash(book) or revision.settings_version != analysis.settings_version or revision.mode != analysis.mode:
+    if not revision or revision.source_hash != current_hash(book) or revision.settings_version != analysis.settings_version or revision.mode != analysis.mode or (revision.mode == 'biography' and revision.subject_name != analysis.subject_name):
         raise AnalysisError('图书正文或分析设置已变化，请重新分析', 409)
     return revision
 

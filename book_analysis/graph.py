@@ -1,5 +1,6 @@
 """Graph persistence, bounded read projections and durable user overrides."""
 from copy import deepcopy
+import re
 
 from django.db import transaction
 from django.db.models import Q
@@ -55,6 +56,10 @@ def add_segment(revision, chapter, payload: dict):
                 event.time_label = event.time_label or moment.time_label or moment.name
                 event.time_order = event.time_order or moment.time_order
                 event.save()
+    if revision.mode == 'biography':
+        from .models import BiographyQuote
+        for item in payload.get('quotes', []):
+            BiographyQuote.objects.update_or_create(id=stable_id(revision.pk, chapter.pk, item['ordinal'], item['text']), defaults={'revision': revision, 'chapter': chapter, 'speaker': item['speaker'], 'text': item['text'], 'evidence': item['evidence'], 'attribution_evidence': item['attribution_evidence'], 'event_id': item['event_id'], 'ordinal': item['ordinal']})
 
 
 def edge_key(source: str, target: str, kind: str, context: dict, label: str) -> str:
@@ -176,14 +181,26 @@ class Projection:
         return [{'id': c.key, **c.patch, 'source': self.resolve(c.patch['source']), 'target': self.resolve(c.patch['target']), 'evidence': [], 'context': {}, 'origin': 'user'} for c in self.corrections if c.kind == 'relation' and not c.patch.get('hidden')]
 
 
-def read_graph(revision, *, chapter_id: str = '', kind: str = '', query: str = '', center: str = '', thread: str = '', view: str = 'graph', order: str = 'narrative', page: int = 1, limit: int = 200, through_chapter: int | None = None, include_inferred: bool = False) -> dict:
+THREAD_GROUPS = (
+    ('case', '案件调查', r'案|调查|侦|警方|警察|报案|现场|命案'),
+    ('people', '人物关系', r'家庭|亲属|父|母|夫妻|恋|婚|同学|学校|朋友|人物关系'),
+    ('clues', '线索与秘密', r'线索|秘密|暗线|疑点|证据|交易|计划'),
+    ('whereabouts', '遭遇与行踪', r'失踪|行踪|动向|遭遇|受害|被害|逃亡'),
+)
+
+
+def classify_thread(name: str) -> str:
+    for key, _, pattern in THREAD_GROUPS:
+        if re.search(pattern, name):
+            return key
+    return 'other'
+
+
+def read_graph(revision, *, chapter_id: str = '', kind: str = '', query: str = '', center: str = '', thread: str = '', thread_group: str = '', view: str = 'graph', order: str = 'narrative', page: int = 1, limit: int = 200, through_chapter: int | None = None, include_inferred: bool = False) -> dict:
     projection = Projection(revision, through_chapter)
     rows = GraphNode.objects.filter(revision=revision)
     if through_chapter is not None:
         rows = rows.filter(ordinal__lt=(through_chapter + 1) * 1000000000)
-    threads = list(rows.exclude(thread='').values_list('thread', flat=True).distinct().order_by('thread')[:100])
-    if thread:
-        rows = rows.filter(thread=thread)
     if center:
         center = projection.resolve(center)
         center_keys = projection.merged_keys({center})
@@ -202,6 +219,15 @@ def read_graph(revision, *, chapter_id: str = '', kind: str = '', query: str = '
         limit = min(limit, 50)
     elif kind:
         rows = rows.filter(kind=kind)
+    threads = list(rows.exclude(thread='').values_list('thread', flat=True).distinct().order_by('thread'))
+    group_labels = {key: label for key, label, _ in THREAD_GROUPS}
+    group_labels['other'] = '其他情节'
+    present_groups = {classify_thread(name) for name in threads}
+    thread_groups = [{'value': key, 'label': label} for key, label in group_labels.items() if key in present_groups]
+    if thread:
+        rows = rows.filter(thread=thread)
+    if thread_group:
+        rows = rows.filter(thread__in=[name for name in threads if classify_thread(name) == thread_group])
     if query:
         patched = {key for key, patch in projection.nodes.items() if query.casefold() in str(patch.get('name', '')).casefold() or any(query.casefold() in alias.casefold() for alias in patch.get('aliases', []))}
         if through_chapter is None:
@@ -238,7 +264,7 @@ def read_graph(revision, *, chapter_id: str = '', kind: str = '', query: str = '
     if view == 'flow':
         ordered = sorted(nodes, key=lambda n: (n['time_order'] == '', n['time_order'], n['ordinal']) if order == 'time' else (n['ordinal'],))
         edges += [{'id': stable_id(a['id'], b['id'], 'next'), 'source': a['id'], 'target': b['id'], 'kind': 'next', 'label': '叙述顺序' if order == 'narrative' else '展示顺序（非因果）', 'evidence': [], 'context': {}, 'origin': 'derived'} for a, b in zip(ordered, ordered[1:]) if not any(e['source'] == a['id'] and e['target'] == b['id'] and e['kind'] == 'next' for e in edges)]
-    return {'nodes': nodes, 'edges': edges, 'total': total, 'page': page, 'limit': limit, 'threads': threads}
+    return {'nodes': nodes, 'edges': edges, 'total': total, 'page': page, 'limit': limit, 'threads': threads[:100], 'thread_groups': thread_groups}
 
 
 def node_detail(revision, key: str, page: int = 1, through_chapter: int | None = None) -> dict:

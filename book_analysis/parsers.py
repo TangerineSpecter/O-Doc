@@ -245,5 +245,9 @@ def iter_segments(text: str, size: int = 4500):
             boundary = text.rfind('\n', start + size // 2, end)
             if boundary > start:
                 end = boundary + 1
+            # A tiny final segment loses the preceding context needed for
+            # pronouns, motivations and quote attribution.
+            if len(text) - end < min(500, size // 4):
+                end = len(text)
         yield start, text[start:end]
         start = end

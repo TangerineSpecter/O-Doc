@@ -1,4 +1,5 @@
 import hashlib
+import re
 
 from django.db import transaction
 
@@ -13,10 +14,23 @@ def current_hash(book) -> str:
 
 
 def recommend_mode(title: str, chapters: list[ParsedChapter]) -> str:
+    if any(marker in title for marker in ('自传', '传记', '回忆录', '口述史')) or title.endswith('传'):
+        return 'biography'
     sample = title + '\n' + '\n'.join(ch.title + ch.text[:600] for ch in chapters[:8])
     knowledge_words = ('算法', '技术', '编程', '数据库', '原理', '方法论', '管理', '经济', '教材', '定义', '学习目标', '代码', '计算', '概念')
     story_words = ('小说', '侦探', '推理', '故事', '凶手', '谋杀', '说道', '问道', '低声', '他走', '她说')
     return 'story' if sum(sample.count(w) for w in story_words) > sum(sample.count(w) for w in knowledge_words) else 'knowledge'
+
+
+def suggest_subject(title: str) -> str:
+    candidate = re.sub(r'[（(].*?[）)]', '', title).split('：', 1)[0].split(':', 1)[0].strip('《》 "“”')
+    matched = False
+    for suffix in ('自传', '传记', '回忆录', '传'):
+        if candidate.endswith(suffix):
+            candidate = candidate[:-len(suffix)].strip(' ·—-')
+            matched = True
+            break
+    return candidate if matched and 2 <= len(candidate) <= 40 and candidate not in ('人物', '名人', '一个人', '我的') else ''
 
 
 def save_chapters(book, source_hash: str, parsed: list[ParsedChapter]) -> list[Chapter]:
@@ -65,6 +79,7 @@ def inspect_book(book) -> BookAnalysis:
             save_chapters(book, current_hash(book), parsed)
             if changed_source:
                 analysis.mode = recommend_mode(book.title, parsed)
+                analysis.subject_name = ''
                 custom = False
             analysis.settings_version += 1
         elif SourceCache.objects.filter(chapter__book=book, chapter__source_hash=current_hash(book), chapter__is_valid=True).count() != Chapter.objects.filter(book=book, source_hash=current_hash(book), is_valid=True).count():
@@ -72,7 +87,7 @@ def inspect_book(book) -> BookAnalysis:
             rebuild_source_cache(book, parsed)
         analysis.source_hash = current_hash(book)
         current_chapters = Chapter.objects.filter(book=book, source_hash=current_hash(book), is_valid=True)
-        analysis.inspection = {**report, 'supported': True, 'custom_boundaries': bool(custom), 'chapter_count': current_chapters.count(), 'char_count': sum(current_chapters.values_list('char_count', flat=True)), 'recommended_mode': recommend_mode(book.title, parsed)}
+        analysis.inspection = {**report, 'supported': True, 'custom_boundaries': bool(custom), 'chapter_count': current_chapters.count(), 'char_count': sum(current_chapters.values_list('char_count', flat=True)), 'recommended_mode': recommend_mode(book.title, parsed), 'suggested_subject': suggest_subject(book.title)}
         analysis.save()
     return analysis
 
