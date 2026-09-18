@@ -1,0 +1,80 @@
+.orange-menu {--menu-ink: #665b48; position: fixed; right: max(22px, env(safe-area-inset-right)); bottom: max(17px, env(safe-area-inset-bottom)); z-index: 90; color: var(--menu-ink);}
+.orange-menu__panel {position: absolute; right: 133px; bottom: 20px; width: min(330px, calc(100vw - 32px)); max-height: calc(100dvh - 65px); overflow-y: auto; overscroll-behavior: contain; padding: 27px 20px 16px 29px; border: 1px solid #e4d9be; border-radius: 7px 18px 18px 7px; background: linear-gradient(90deg, #eee9d9 0, #f6f1e3 8px, transparent 9px), repeating-linear-gradient(0deg, transparent 0 25px, #b4b89912 25px 26px), #fffcf2; box-shadow: 3px 3px 0 -1px #f6eedc, 4px 4px 0 #e3dac6, 8px 8px 0 -2px #f9f4e9, 9px 9px 0 -2px #e7dfcb, 0 18px 45px #79684922; opacity: 0; visibility: hidden; transform: translate(18px,8px) rotate(5deg) scale(.85); transform-origin: 100% 90%; transition: opacity .2s, transform .4s cubic-bezier(.2,.9,.25,1.12), visibility .4s;}
+.orange-menu[data-open="true"] .orange-menu__panel {opacity: 1; visibility: visible; transform: translate(0,0) rotate(-1deg) scale(1);}
+.orange-menu__header {position: relative; padding-bottom: 20px;}
+.orange-menu__eyebrow {font-size: 9px; letter-spacing: 1.5px; color: #8c9973;}
+.orange-menu__header h2 {margin: 13px 0 8px; font-family: 'Songti SC', 'STSong', serif; font-size: 21px; font-weight: 700; letter-spacing: .3px;}
+.orange-menu__header h2 span {color: #dc984d; font-size: 24px;}
+.orange-menu__header p {margin: 0; font-size: 10px; color: #9b947f;}
+.orange-menu__dismiss {position: absolute; right: -9px; top: -15px; display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: #a99b81; cursor: pointer; transition: transform .2s;}
+.orange-menu__dismiss:hover {transform: rotate(90deg); background: #efe8d7;}
+.orange-menu__section-label {display: flex; justify-content: space-between; margin-bottom: 12px; padding-bottom: 7px; border-bottom: 1px dashed #dcd6bf; color: #a89c7e; letter-spacing: 1px; font-size: 10px;}
+.orange-menu__section-label span {color: #d3a44c;}
+.orange-menu__destinations {display: grid; grid-template-columns: 1fr 1fr; gap: 9px;}
+.orange-menu__item {--tile: #f1e9d7; --accent: #a18554; display: flex; position: relative; align-items: center; gap: 9px; min-width: 0; padding: 11px 6px; border: 1px solid transparent; border-radius: 6px; color: var(--menu-ink); text-decoration: none; transition: transform .2s, background .2s, box-shadow .2s;}
+.orange-menu__item--peach {--tile: #f9e7ca; --accent: #c58b4d;}
+.orange-menu__item--sage {--tile: #e9eedc; --accent: #8c9a65;}
+.orange-menu__item--blue {--tile: #e9efec; --accent: #80988b;}
+.orange-menu__item--lilac {--tile: #eee9df; --accent: #aa9075;}
+.orange-menu__icon {display: grid; place-items: center; flex-shrink: 0; color: var(--accent); width: 28px; height: 30px; transition: transform .25s;}
+.orange-menu__copy {display: flex; flex-direction: column; gap: 5px; min-width: 0;}
+.orange-menu__copy strong {font-size: 12px; font-weight: 600; letter-spacing: .3px;}
+.orange-menu__copy small {font-size: 9px; color: #9e9784; white-space: nowrap;}
+.orange-menu__arrow {margin-left: auto; flex-shrink: 0; color: #afa281;}
+.orange-menu__item--featured {flex-direction: column; align-items: flex-start; min-height: 113px; padding: 15px 12px 12px; margin-bottom: 24px; background: var(--tile); border: 1px solid #c1aa731c; border-radius: 3px 4px 13px 4px; box-shadow: 0 3px 5px #7264430a; transform: rotate(-2deg);}
+.orange-menu__item--featured:nth-child(2) {transform: rotate(2deg);}
+.orange-menu__item--featured::before {content: ''; position: absolute; width: 40px; height: 12px; left: calc(50% - 20px); top: -6px; background: #e2d5aa70; border-left: 1px dashed #e9dfc5; border-right: 1px dashed #e9dfc5; transform: rotate(-5deg);}
+.orange-menu__item--featured .orange-menu__icon {width: 33px; height: 33px; margin-bottom: 6px;}
+.orange-menu__item--featured .orange-menu__icon svg {width: 25px; height: 25px; stroke-width: 1.4;}
+.orange-menu__item--featured .orange-menu__arrow {position: absolute; right: 10px; top: 15px;}
+.orange-menu__item--collection-start::before {content: '02 / 整理收藏'; position: absolute; top: -19px; left: 0; width: 200px; font-size: 10px; letter-spacing: 1px; color: #a89c7e; pointer-events: none;}
+.orange-menu__item:not(.orange-menu__item--featured) .orange-menu__arrow {display: none;}
+.orange-menu__item:last-child {grid-column: 1 / -1; background: #edf0e26b; margin-top: 2px; border-top: 1px dashed #d9ddca; border-radius: 0;}
+.orange-menu__item:hover {background: var(--tile); transform: translateY(-3px) rotate(-2deg); box-shadow: 0 4px 7px #8a7b4610;}
+.orange-menu__item:hover .orange-menu__icon {transform: rotate(-9deg);}
+.orange-menu__item:active {transform: translateY(0) scale(.98);}
+.orange-menu__item.is-current {background: var(--tile); border-color: #c0a77866;}
+.orange-menu__item.is-current .orange-menu__copy strong::after {content: '·'; color: #ce934c; margin-left: 4px;}
+.orange-menu__item:focus-visible, .orange-menu__trigger:focus-visible, .orange-menu__dismiss:focus-visible, .orange-menu__play:focus-visible {outline: 2px solid #d39d5c; outline-offset: 3px;}
+.orange-menu[data-open="true"] .orange-menu__item {animation: orange-note-arrive .45s backwards; animation-delay: calc(var(--item-index) * 32ms);}
+.orange-menu__footer {margin-top: 13px; padding-top: 12px; border-top: 1px dashed #dcd6bf; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #a39b85; font-size: 9px;}
+.orange-menu__footer span {display: flex; align-items: center; gap: 5px;}
+.orange-menu__footer i {width: 5px; height: 5px; border-radius: 50%; background: #9da979;}
+.orange-menu__play {border: 0; padding: 4px 5px; border-radius: 4px; background: transparent; color: #b38a52; font: inherit; cursor: pointer;}
+.orange-menu__play:hover {background: #f5ebd5;}
+.orange-menu__trigger {position: relative; display: block; width: 128px; height: 170px; border: 0; padding: 0; border-radius: 40%; cursor: pointer; background: transparent; -webkit-tap-highlight-color: transparent;}
+.orange-menu__hint {position: absolute; right: 106px; top: 27px; display: flex; align-items: center; gap: 6px; white-space: nowrap; background: #fffdf4; border: 1px solid #e9dec6; padding: 10px 13px; border-radius: 13px 13px 3px 13px; color: #a5916f; font-size: 11px; opacity: 0; transform: translateY(5px) rotate(-3deg); transition: opacity .2s, transform .2s; pointer-events: none;}
+.orange-menu[data-open="false"] .orange-menu__trigger:hover .orange-menu__hint, .orange-menu[data-open="false"] .orange-menu__trigger:focus-visible .orange-menu__hint {opacity: 1; transform: translateY(0) rotate(-3deg);}
+@keyframes orange-note-arrive {from {opacity: 0; translate: 8px 13px; rotate: 5deg;} to {opacity: 1; translate: 0 0; rotate: 0deg;}}
+@media (max-width: 560px) {
+    .orange-menu {right: max(13px, env(safe-area-inset-right)); bottom: max(15px, env(safe-area-inset-bottom));}
+    .orange-menu__trigger {width: 105px; height: 140px;}
+    .orange-menu__panel {right: 5px; bottom: 153px; max-height: calc(100dvh - 190px); width: min(320px, calc(100vw - 36px)); padding: 23px 17px 14px 24px; transform-origin: 90% 100%;}
+    .orange-menu__hint {display: none;}
+    .orange-menu__header h2 {font-size: 20px;}
+}
+@media (max-height: 560px) and (min-width: 561px) {.orange-menu__panel {bottom: 0; max-height: calc(100dvh - 45px);}}
+@media (prefers-reduced-motion: reduce) {.orange-menu *, .orange-menu *::after {animation: none !important; transition: none !important;}}
+
+.orange-menu[data-open="true"] .orange-menu__toss {visibility: hidden;}
+
+/* Delay the visual reveal, but make links focusable immediately on open. */
+.orange-menu[data-open="true"] .orange-menu__panel {
+    transition: opacity .2s .18s, transform .4s cubic-bezier(.2,.9,.25,1.12) .18s, visibility 0s;
+}
+@media (prefers-reduced-motion: reduce) {.orange-menu[data-open="true"] .orange-menu__panel {transition-delay: 0s;}}
+
+.orange-menu__toss {position: absolute; right: 111px; bottom: 46px; z-index: 1; display: grid; place-items: center; width: 48px; height: 48px; padding: 1px; border: 0; background: transparent; cursor: pointer; border-radius: 50%; -webkit-tap-highlight-color: transparent;}
+.orange-menu__toss-star {position: relative; width: 44px; height: 44px; filter: drop-shadow(0 3px 2px #c58c3926); transform: rotate(-12deg); transition: transform .3s cubic-bezier(.2,1.6,.5,1), filter .2s;}
+.orange-menu__toss-orbit {position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle, #fff4cd9c, #fff9e000 72%); transform: scale(1.25); transition: transform .3s;}
+.orange-menu__toss:hover .orange-menu__toss-star, .orange-menu__toss:focus-visible .orange-menu__toss-star {transform: translateY(-4px) rotate(8deg) scale(1.08); filter: drop-shadow(0 5px 5px #dfab4540);}
+.orange-menu__toss:active .orange-menu__toss-star {transform: scale(.9) rotate(-8deg);}
+.orange-menu__control-tip {position: absolute; right: calc(100% + 5px); top: 12px; white-space: nowrap; padding: 5px 9px; border-radius: 9px 9px 2px 9px; background: #fffdf8f5; box-shadow: 0 3px 12px #75634012; color: #9c865f; font-size: 10px; pointer-events: none; opacity: 0; translate: 4px 0; transition: opacity .2s, translate .2s;}
+.orange-menu__toss:hover .orange-menu__control-tip, .orange-menu__toss:focus-visible .orange-menu__control-tip {opacity: 1; translate: 0 0;}
+.orange-menu__toss:focus-visible {outline: 2px solid #e6bc75; outline-offset: 2px;}
+.orange-menu__book-badge {position: absolute; right: 7px; bottom: 8px; display: grid; place-items: center; width: 30px; height: 30px; border: 2px solid #fffdf5; border-radius: 50% 50% 50% 8px; background: linear-gradient(145deg,#b9c999,#8fa972); color: #fffef3; box-shadow: 0 3px 7px #77855526; transform: rotate(8deg); transition: transform .25s, background .25s; pointer-events: none;}
+.orange-menu__book-badge svg {transform: rotate(-8deg);}
+.orange-menu__trigger:hover .orange-menu__book-badge {transform: translateY(-2px) rotate(0deg);}
+.orange-menu[data-open="true"] .orange-menu__book-badge {border-radius: 50%; background: #f1b278; transform: rotate(0);}
+@media (max-width: 560px) {.orange-menu__toss {right: 91px; bottom: 38px;} .orange-menu__control-tip {right: auto; left: -4px; top: 48px;} .orange-menu__book-badge {right: 0; bottom: 4px; width: 27px; height: 27px;}}
+@media (prefers-reduced-motion: reduce) {.orange-menu__toss-star, .orange-menu__control-tip, .orange-menu__book-badge {transition: none;}}

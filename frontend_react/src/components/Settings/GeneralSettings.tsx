@@ -1,8 +1,10 @@
 import {useEffect, useState} from 'react';
-import { Image, Monitor, Shield, Type as TypeIcon } from 'lucide-react';
+import { Image, Sparkles, Monitor, Shield, Type as TypeIcon } from 'lucide-react';
 import {SettingsSelect} from './SettingsSelect';
 import {APP_FONT_OPTIONS, AppFontId, getStoredAppFont, saveAndApplyAppFont} from '../../config/fonts';
 import {getImageUploadConfig, ImageUploadConfig, saveImageUploadConfig} from '../../api/setting';
+import {FLOATING_MENU_STYLE_OPTIONS, saveFloatingMenuStyle, type FloatingMenuStyle} from '../../config/floatingMenu';
+import {useFloatingMenuStyle} from '../../hooks/useFloatingMenuStyle';
 import {useToast} from '../common/ToastProvider';
 
 const DEFAULT_IMAGE_UPLOAD_CONFIG: ImageUploadConfig = { maxLongEdge: 2048, maxFileSizeMb: 10 };
@@ -13,6 +15,14 @@ export const GeneralSettings = () => {
     const [imageUploadConfig, setImageUploadConfig] = useState<ImageUploadConfig>(DEFAULT_IMAGE_UPLOAD_CONFIG);
     const [isSavingImageConfig, setIsSavingImageConfig] = useState(false);
     const toast = useToast();
+    const menuStyle = useFloatingMenuStyle();
+    const handleMenuStyleChange = (style: FloatingMenuStyle) => {
+        try {
+            saveFloatingMenuStyle(style);
+        } catch {
+            toast.error('无法保存菜单风格，请检查浏览器是否允许本地存储');
+        }
+    };
 
     useEffect(() => {
         getImageUploadConfig().then(setImageUploadConfig).catch(() => {
@@ -77,6 +87,26 @@ export const GeneralSettings = () => {
                         value={selectedFont}
                         options={APP_FONT_OPTIONS}
                         onChange={handleFontChange}
+                        buttonClassName="min-h-9 bg-slate-50 text-xs"
+                    />
+                </div>
+            </div>
+
+            <div className="h-px bg-slate-100"></div>
+
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Sparkles className="w-5 h-5" /></div>
+                    <div>
+                        <h3 className="font-bold text-slate-800">悬浮菜单风格</h3>
+                        <p className="text-xs text-slate-500">切换立即生效，自动保存在当前浏览器</p>
+                    </div>
+                </div>
+                <div className="w-full sm:w-56">
+                    <SettingsSelect
+                        value={menuStyle}
+                        options={FLOATING_MENU_STYLE_OPTIONS}
+                        onChange={handleMenuStyleChange}
                         buttonClassName="min-h-9 bg-slate-50 text-xs"
                     />
                 </div>
