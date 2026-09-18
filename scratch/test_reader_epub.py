@@ -6,13 +6,14 @@ OUT = Path('/tmp/reader-slide')
 TOKEN = os.environ.get('ODOC_TOKEN', '')
 if not TOKEN:
     raise SystemExit('Set ODOC_TOKEN')
+FRONTEND_URL = os.environ.get('ODOC_FRONTEND_URL', 'http://localhost:43127')
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     page = browser.new_context(viewport={'width': 1440, 'height': 900}).new_page()
-    page.goto('http://localhost:5173/login')
+    page.goto(f'{FRONTEND_URL}/login')
     page.evaluate(f"localStorage.setItem('token', '{TOKEN}')")
-    page.goto('http://localhost:5173/books/coll_HUs1KMlIWu')
+    page.goto(f'{FRONTEND_URL}/books/coll_HUs1KMlIWu')
     page.get_by_text('我的书架').wait_for(timeout=20000)
     page.locator('h2', has_text='深度学习').first.click()
     page.get_by_text('返回书架').wait_for(timeout=60000)

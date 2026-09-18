@@ -12,7 +12,8 @@ USE_POSTGRES="${ODOC_DEV_USE_POSTGRES:-true}"
 COMPOSE_PROJECT_NAME="${ODOC_COMPOSE_PROJECT:-deploy}"
 PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
 BACKEND_PORT="${ODOC_DEV_BACKEND_PORT:-11800}"
-FRONTEND_PORT="${ODOC_DEV_FRONTEND_PORT:-5173}"
+FRONTEND_PORT="${ODOC_DEV_FRONTEND_PORT:-43127}"
+PROJECT_ROOT="$(pwd -P)"
 
 generate_secret() {
     LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 50
@@ -136,10 +137,53 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 PY
 }
 
+is_valid_port() {
+    local port="$1"
+    case "$port" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$port" -ge 1 ] && [ "$port" -le 65535 ]
+}
+
+resolve_frontend_port() {
+    if ! is_valid_port "$FRONTEND_PORT"; then
+        echo "❌ ODOC_DEV_FRONTEND_PORT 必须是 1-65535 的数字端口。" >&2
+        exit 1
+    fi
+}
+
+process_cwd() {
+    local pid="$1"
+    lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | awk 'substr($0, 1, 1) == "n" { print substr($0, 2); exit }'
+}
+
+is_project_process() {
+    local pid="$1"
+    local cwd
+
+    cwd="$(process_cwd "$pid")"
+    case "$cwd" in
+        "$PROJECT_ROOT"|"$PROJECT_ROOT"/*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+project_listener_pids_on_port() {
+    local port="$1"
+    local pids pid
+
+    pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+    for pid in $pids; do
+        if is_project_process "$pid"; then
+            echo "$pid"
+        fi
+    done
+}
+
 stop_listener_on_port() {
     local port="$1"
     local label="$2"
-    local pids
+    local pids owned_pids
 
     if ! command -v lsof >/dev/null 2>&1; then
         echo "⚠️  未找到 lsof，无法自动清理 ${label} 端口 ${port}。"
@@ -151,26 +195,41 @@ stop_listener_on_port() {
         return
     fi
 
-    echo "♻️  停止占用 ${label} 端口 ${port} 的旧进程: ${pids//$'\n'/ }"
-    kill $pids 2>/dev/null || true
+    owned_pids="$(project_listener_pids_on_port "$port")"
+    if [ -z "$owned_pids" ]; then
+        echo "⚠️  ${label} 端口 ${port} 已被其他项目占用，保留现有进程。"
+        return
+    fi
+
+    echo "♻️  停止 O-Doc 占用 ${label} 端口 ${port} 的旧进程: ${owned_pids//$'\n'/ }"
+    kill $owned_pids 2>/dev/null || true
 
     for _ in {1..20}; do
-        if ! lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+        owned_pids="$(project_listener_pids_on_port "$port")"
+        if [ -z "$owned_pids" ]; then
             return
         fi
         sleep 0.2
     done
 
-    pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
-    if [ -n "$pids" ]; then
-        echo "⚠️  ${label} 端口 ${port} 未及时释放，强制停止: ${pids//$'\n'/ }"
-        kill -9 $pids 2>/dev/null || true
+    owned_pids="$(project_listener_pids_on_port "$port")"
+    if [ -n "$owned_pids" ]; then
+        echo "⚠️  O-Doc ${label} 端口 ${port} 未及时释放，强制停止: ${owned_pids//$'\n'/ }"
+        kill -9 $owned_pids 2>/dev/null || true
     fi
 }
 
 stop_existing_dev_servers() {
-    # Django 的自动重载会额外创建子进程；仅结束监听者时，父进程有时会留下来。
-    pkill -TERM -f "[m]anage.py runserver ${BACKEND_PORT}" 2>/dev/null || true
+    # 只清理当前项目目录下的旧进程，绝不按端口杀掉其他项目。
+    if command -v pgrep >/dev/null 2>&1 && command -v lsof >/dev/null 2>&1; then
+        local server_pids pid
+        server_pids="$(pgrep -f "[m]anage.py runserver ${BACKEND_PORT}" 2>/dev/null || true)"
+        for pid in $server_pids; do
+            if is_project_process "$pid"; then
+                kill -TERM "$pid" 2>/dev/null || true
+            fi
+        done
+    fi
     stop_listener_on_port "$BACKEND_PORT" "后端"
     stop_listener_on_port "$FRONTEND_PORT" "前端"
 }
@@ -181,7 +240,18 @@ if ! command -v python &> /dev/null; then
     exit 1
 fi
 
+resolve_frontend_port
 stop_existing_dev_servers
+
+if is_tcp_port_open "127.0.0.1" "$BACKEND_PORT"; then
+    echo "❌ 后端端口 ${BACKEND_PORT} 仍被占用，未启动 O-Doc；没有停止该进程。" >&2
+    exit 1
+fi
+
+if is_tcp_port_open "127.0.0.1" "$FRONTEND_PORT"; then
+    echo "❌ 前端端口 ${FRONTEND_PORT} 仍被占用，未启动 O-Doc；没有停止该进程。" >&2
+    exit 1
+fi
 
 if ! command -v npm &> /dev/null; then
     echo "❌ npm 未安装"
@@ -243,7 +313,7 @@ done
 
 # 启动前端
 echo "⚡ 启动前端开发服务器 (http://localhost:${FRONTEND_PORT})..."
-cd frontend_react && npm run dev -- --port "$FRONTEND_PORT" &
+cd frontend_react && npm run dev -- --port "$FRONTEND_PORT" --strictPort &
 FRONTEND_PID=$!
 
 echo ""

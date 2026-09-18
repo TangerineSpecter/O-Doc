@@ -7,7 +7,8 @@ OUT.mkdir(parents=True, exist_ok=True)
 TOKEN = os.environ.get('ODOC_TOKEN', '')
 if not TOKEN:
     raise SystemExit('Set ODOC_TOKEN')
-URL = 'http://localhost:5173/books/coll_HUs1KMlIWu'
+FRONTEND_URL = os.environ.get('ODOC_FRONTEND_URL', 'http://localhost:43127')
+URL = f'{FRONTEND_URL}/books/coll_HUs1KMlIWu'
 
 def wait_reader(page, timeout=60000):
     page.get_by_text('返回书架').wait_for(timeout=timeout)
@@ -59,7 +60,7 @@ with sync_playwright() as p:
     context = browser.new_context(viewport={'width': 1440, 'height': 900})
     page = context.new_page()
     page.on('console', lambda msg: print(f'CONSOLE[{msg.type}] {msg.text}') if msg.type in {'error', 'warning'} else None)
-    page.goto('http://localhost:5173/login')
+    page.goto(f'{FRONTEND_URL}/login')
     page.evaluate(f"localStorage.setItem('token', '{TOKEN}')")
     page.goto(URL)
     page.wait_for_load_state('networkidle')

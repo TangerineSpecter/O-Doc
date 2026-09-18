@@ -8,6 +8,7 @@ OUT.mkdir(parents=True, exist_ok=True)
 TOKEN = os.environ.get('ODOC_TOKEN', '')
 if not TOKEN:
     raise SystemExit('Set ODOC_TOKEN')
+FRONTEND_URL = os.environ.get('ODOC_FRONTEND_URL', 'http://localhost:43127')
 
 def snap(session, name):
     raw = session.send('Page.captureScreenshot', {'format': 'png'})
@@ -43,9 +44,9 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     page = browser.new_context(viewport={'width': 1440, 'height': 900}).new_page()
     session = page.context.new_cdp_session(page)
-    page.goto('http://localhost:5173/login')
+    page.goto(f'{FRONTEND_URL}/login')
     page.evaluate(f"localStorage.setItem('token', '{TOKEN}')")
-    page.goto('http://localhost:5173/books/coll_HUs1KMlIWu')
+    page.goto(f'{FRONTEND_URL}/books/coll_HUs1KMlIWu')
     page.get_by_text('我的书架').wait_for(timeout=20000)
 
     # PDF

@@ -135,9 +135,11 @@ cd frontend_react && npm install && cd ..
 脚本会自动检查并安装所有依赖，同时启动后端和前端服务。
 
 - 后端服务：http://localhost:11800
-- 前端服务：http://localhost:5173
+- 前端服务：http://localhost:43127
 
-日常前端开发请访问 `http://localhost:5173`。`http://localhost:11800` 是 Django 后端入口，只会加载已经构建并复制到 `templates/`、`static/` 的前端产物；`./dev.sh` 不会自动执行前端 build。
+日常前端开发请访问 `http://localhost:43127`。`http://localhost:11800` 是 Django 后端入口，只会加载已经构建并复制到 `templates/`、`static/` 的前端产物；`./dev.sh` 不会自动执行前端 build。
+
+如需固定前端端口，可执行 `ODOC_DEV_FRONTEND_PORT=5173 ./dev.sh`。
 
 前端 Mock 数据默认关闭，会通过 Vite 代理访问真实后端接口。如需启用 Mock 演示数据，可执行：
 
