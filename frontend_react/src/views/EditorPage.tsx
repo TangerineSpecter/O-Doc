@@ -1,4 +1,5 @@
 import Article from './Article';
+import {ArticleTemplatePicker} from '../components/Editor/ArticleTemplatePicker';
 import {EditorHeader} from '../components/Editor/EditorHeader';
 import {EditorMetaBar} from '../components/Editor/EditorMetaBar';
 import {SlashMenu} from '../components/Editor/SlashMenu';
@@ -158,7 +159,9 @@ export default function EditorPage() {
         onPolish,
         isPolishConfirmOpen,
         onPolishConfirm,
-        onPolishCancel
+        onPolishCancel,
+        showTemplatePicker,
+        onSelectArticleTemplate,
     } = useEditor();
 
     const todayStr = new Date().toLocaleDateString('zh-CN', {
@@ -352,6 +355,10 @@ export default function EditorPage() {
                                     onGenerateTags={onGenerateTags}
                                 />
                             </div>
+
+                            {showTemplatePicker && !isPreviewMode && !isPolishing && (
+                                <ArticleTemplatePicker onSelect={onSelectArticleTemplate}/>
+                            )}
 
                             {/* Textarea - 润色时完全隐去 */}
                             <textarea

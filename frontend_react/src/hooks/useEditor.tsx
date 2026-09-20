@@ -17,6 +17,7 @@ import {
     MAX_ATTACHMENT_SIZE,
     MAX_IMAGE_SIZE,
 } from './editor/editorConfig';
+import type {ArticleTemplate} from '../utils/articleTemplates';
 
 export const useEditor = () => {
     // Refs
@@ -58,7 +59,8 @@ export const useEditor = () => {
 
     // State: Content
     const [title, setTitle] = useState("未命名文档");
-    const [content, setContent] = useState(`> 💡 **提示**: 试一下插入图片、视频和简单图表功能吧！\n\n## 1. 图片测试\n试试复制一张图片粘贴到这里，或者使用 \`/图片\` 命令。\n\n## 2. 简单图表\n使用 \`/简单图表\` 命令插入折线图、柱状图、饼图或词云，模板里会带可修改的格式说明。\n`);
+    const [content, setContent] = useState('');
+    const [templateChosen, setTemplateChosen] = useState(false);
 
     // Toast
     const toast = useToast();
@@ -166,7 +168,7 @@ export const useEditor = () => {
 
     const updateAiLineHint = () => {
         const textarea = textareaRef.current;
-        if (!textarea || showMenu || isAiContinueOpen || isPolishing) {
+        if (!textarea || showMenu || isAiContinueOpen || isPolishing || !textarea.value) {
             setShowAiLineHint(false);
             return;
         }
@@ -562,10 +564,22 @@ export const useEditor = () => {
         setIsVideoLinkModalOpen(false);
     };
 
+    const applyArticleTemplate = (template: ArticleTemplate) => {
+        setContent(template.content);
+        setTemplateChosen(true);
+        setTimeout(() => {
+            const textarea = textareaRef.current;
+            if (!textarea) return;
+            textarea.focus();
+            textarea.setSelectionRange(0, 0);
+        }, 0);
+    };
+
     const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value;
         const pos = e.target.selectionStart;
         setContent(val);
+        if (!articleId && !templateChosen) setTemplateChosen(true);
         setShowAiLineHint(false);
 
         if (showMenu) {
@@ -1035,6 +1049,8 @@ export const useEditor = () => {
         onPolish: handlePolish, // 点击按钮打开弹窗
         isPolishConfirmOpen,
         onPolishConfirm: handlePolishConfirm, // 弹窗确认后执行
-        onPolishCancel: () => setIsPolishConfirmOpen(false) // 弹窗取消
+        onPolishCancel: () => setIsPolishConfirmOpen(false), // 弹窗取消
+        showTemplatePicker: !articleId && !templateChosen,
+        onSelectArticleTemplate: applyArticleTemplate,
     };
 };
