@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useRef} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Tag, FolderOpen, PenTool, BarChart2, Library, Leaf, StickyNote, HeartPulse} from 'lucide-react';
+import {Tag, FolderOpen, PenTool, BarChart2, Library, Leaf, StickyNote, HeartPulse, Sparkles} from 'lucide-react';
 
 // --- 右下角 导航菜单组件 ---
 
@@ -62,6 +62,7 @@ export default function ClassicFloatingMenu() {
     const RADIUS_NEAR = 85;  // 内圈
 
     const menuItems: MenuItem[] = [
+        {id: 'prompts', label: '提示词库', icon: <Sparkles className="w-5 h-5"/>, color: 'bg-amber-400', shadow: 'shadow-amber-500/40'},
         {
             id: 'maintenance',
             label: '知识维护',
@@ -117,6 +118,7 @@ export default function ClassicFloatingMenu() {
 
     const handleItemClick = (item: MenuItem) => {
         if (item.id === 'resources') navigate('/resources');
+        else if (item.id === 'prompts') navigate('/prompts');
         else if (item.id === 'stats') navigate('/stats');
         else if (item.id === 'tags') navigate('/tags');
         else if (item.id === 'categories') navigate('/categories');

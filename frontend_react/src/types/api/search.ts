@@ -1,7 +1,7 @@
-export type GlobalSearchType = 'article' | 'memo' | 'image' | 'resource';
+export type GlobalSearchType = 'article' | 'memo' | 'image' | 'resource' | 'prompt';
 
 export interface GlobalSearchRoute {
-    view: 'article' | 'memos' | 'image' | 'resources';
+    view: 'article' | 'memos' | 'image' | 'resources' | 'prompts';
     params?: Record<string, any>;
 }
 

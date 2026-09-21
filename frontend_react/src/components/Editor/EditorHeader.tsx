@@ -1,4 +1,4 @@
-import { ArrowLeft, Edit3, Eye, Type, Save, Sparkles, Wand2, Loader2 } from 'lucide-react'; // 引入新图标
+import { ArrowLeft, BookmarkPlus, Edit3, Eye, Type, Save, Sparkles, Wand2, Loader2 } from 'lucide-react';
 import {getPreviewShortcutLabel} from '../../utils/keyboard';
 
 // 更新 Props 接口
@@ -14,6 +14,7 @@ interface EditorHeaderProps {
     onGenerateTitle: () => void;
     isPolishing: boolean;
     onPolish: () => void;
+    onSaveAsTemplate: () => void;
 }
 
 export const EditorHeader = ({
@@ -27,7 +28,8 @@ export const EditorHeader = ({
     isGeneratingTitle,
     onGenerateTitle,
     isPolishing,
-    onPolish
+    onPolish,
+    onSaveAsTemplate,
 }: EditorHeaderProps) => {
     const previewShortcutLabel = getPreviewShortcutLabel();
 
@@ -77,6 +79,17 @@ export const EditorHeader = ({
 
                 {/* 分隔线 */}
                 <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
+
+                <button
+                    type="button"
+                    onClick={onSaveAsTemplate}
+                    disabled={isPolishing}
+                    className="flex items-center gap-2 rounded-lg border border-transparent px-3 py-1.5 text-sm font-medium text-slate-600 transition-all hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="把当前正文保存为本机模板"
+                >
+                    <BookmarkPlus className="w-4 h-4"/>
+                    <span className="hidden sm:inline">存为模板</span>
+                </button>
 
                 {/* AI 润色按钮 (新增) */}
                 <button

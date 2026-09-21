@@ -55,6 +55,30 @@ def generate_tag_id() -> str:
     """
     return generate_unique_id("tag")
 
+
+def generate_prompt_taxonomy_id() -> str:
+    return generate_unique_id("ptx")
+
+
+def generate_prompt_template_id() -> str:
+    return generate_unique_id("prompt")
+
+
+def generate_prompt_template_theme_id() -> str:
+    return generate_unique_id("pth")
+
+
+def generate_prompt_template_tag_id() -> str:
+    return generate_unique_id("ptg")
+
+
+def generate_prompt_usage_id() -> str:
+    return generate_unique_id("puse")
+
+
+def generate_prompt_result_image_id() -> str:
+    return generate_unique_id("pimg")
+
 # 为 AI 提供商生成带 prov 前缀的 ID
 def generate_provider_id() -> str:
     """

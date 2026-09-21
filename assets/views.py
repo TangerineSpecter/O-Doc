@@ -23,6 +23,7 @@ from utils.resource_assets import (
     is_asset_used_by_agent,
     is_asset_used_by_article,
     is_asset_used_by_image,
+    is_asset_used_by_prompt,
 )
 from utils.response_utils import success_result, error_result
 from .models import Asset
@@ -71,6 +72,9 @@ def can_read_asset(request, asset):
 
     if is_asset_used_by_agent(asset.id):
         return True
+
+    if is_asset_used_by_prompt(asset.id):
+        return request.user and request.user.is_authenticated and asset.uploader == get_current_user_identifier(request)
 
     if Book.objects.filter(
         Q(asset=asset) | Q(cover_asset=asset),
@@ -333,6 +337,9 @@ class ResourceDeleteView(APIView):
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
 
             if is_asset_used_by_agent(asset.id):
+                return error_result(ErrorCode.RESOURCE_IS_LINKED)
+
+            if is_asset_used_by_prompt(asset.id):
                 return error_result(ErrorCode.RESOURCE_IS_LINKED)
 
             if Book.objects.filter(Q(asset=asset) | Q(cover_asset=asset), is_valid=True).exists():

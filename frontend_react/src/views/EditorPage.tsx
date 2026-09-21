@@ -1,6 +1,7 @@
 import Article from './Article';
 import {ArticleTemplatePicker} from '../components/Editor/ArticleTemplatePicker';
 import {EditorHeader} from '../components/Editor/EditorHeader';
+import {SaveArticleTemplateModal} from '../components/Editor/SaveArticleTemplateModal';
 import {EditorMetaBar} from '../components/Editor/EditorMetaBar';
 import {SlashMenu} from '../components/Editor/SlashMenu';
 import ImageLinkModal from '../components/common/ImageLinkModal';
@@ -8,10 +9,13 @@ import VideoLinkModal from '../components/common/VideoLinkModal';
 import {useEditor} from '../hooks/useEditor';
 import {BubbleMenu} from '../components/Editor/BubbleMenu';
 import ConfirmationModal from '../components/common/ConfirmationModal';
+import {useToast} from '../components/common/ToastProvider';
 import {ArrowUp, Loader2, Sparkles, Wand2} from 'lucide-react';
-import {useMemo} from 'react';
+import {useMemo, useState} from 'react';
 import {getPreviewShortcutLabel} from '../utils/keyboard';
 import {useAuth} from '../contexts/AuthContext';
+import {useUserArticleTemplates} from '../hooks/useUserArticleTemplates';
+import {suggestUserArticleTemplateName, type ArticleTemplate} from '../utils/articleTemplates';
 
 // 1. 优化后的星星：更加晶莹剔透
 const MagicStar = ({styleClass, delay, top, left, size}: {
@@ -117,6 +121,10 @@ const AiContinueBox = ({
 export default function EditorPage() {
     const { userInfo } = useAuth();
     const currentAuthor = userInfo?.nickname || userInfo?.username || '';
+    const toast = useToast();
+    const {templates, save: saveUserTemplate, remove: removeUserTemplate} = useUserArticleTemplates();
+    const [isSaveTemplateOpen, setIsSaveTemplateOpen] = useState(false);
+    const [templateToDelete, setTemplateToDelete] = useState<ArticleTemplate | null>(null);
 
     const {
         textareaRef, fileInputRef, attachmentInputRef,
@@ -238,6 +246,7 @@ export default function EditorPage() {
                 isPreviewMode={isPreviewMode} onTogglePreview={onTogglePreview} onBack={onBack}
                 isGeneratingTitle={isGeneratingTitle} onGenerateTitle={onGenerateTitle}
                 isPolishing={isPolishing} onPolish={onPolish}
+                onSaveAsTemplate={() => setIsSaveTemplateOpen(true)}
             />
 
             <div className="flex-1 relative w-full overflow-hidden">
@@ -357,7 +366,12 @@ export default function EditorPage() {
                             </div>
 
                             {showTemplatePicker && !isPreviewMode && !isPolishing && (
-                                <ArticleTemplatePicker onSelect={onSelectArticleTemplate}/>
+                                <ArticleTemplatePicker
+                                    templates={templates}
+                                    onSelect={onSelectArticleTemplate}
+                                    onDeleteUser={setTemplateToDelete}
+                                    onSaveCurrent={() => setIsSaveTemplateOpen(true)}
+                                />
                             )}
 
                             {/* Textarea - 润色时完全隐去 */}
@@ -436,6 +450,35 @@ export default function EditorPage() {
                 title="✨AI 润色"
                 description={<div className="space-y-2"><p>AI 魔法将为您润色文章。</p></div>}
                 confirmText="开始润色" cancelText="取消"
+            />
+            {isSaveTemplateOpen && (
+                <SaveArticleTemplateModal
+                    defaultName={suggestUserArticleTemplateName(title)}
+                    onClose={() => setIsSaveTemplateOpen(false)}
+                    onSave={({name, description}) => {
+                        const result = saveUserTemplate({name, description, content});
+                        if (!result.ok) {
+                            toast.warning(result.error);
+                            return;
+                        }
+                        setIsSaveTemplateOpen(false);
+                        toast.success(`已保存模板「${result.template.name}」`);
+                    }}
+                />
+            )}
+            <ConfirmationModal
+                isOpen={Boolean(templateToDelete)}
+                onClose={() => setTemplateToDelete(null)}
+                onConfirm={() => {
+                    if (!templateToDelete) return;
+                    removeUserTemplate(templateToDelete.id);
+                    toast.success(`已删除模板「${templateToDelete.name}」`);
+                    setTemplateToDelete(null);
+                }}
+                title="删除自定义模板"
+                description={<p>删除后无法恢复。内置模板不受影响。</p>}
+                confirmText="删除" cancelText="取消"
+                type="danger"
             />
         </div>
     );

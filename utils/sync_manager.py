@@ -36,7 +36,7 @@ class SyncManager:
     REMOTE_LOCK_TTL_SECONDS = 2 * 60 * 60
     TARGET_APPS = [
         'article', 'anthology', 'categories', 'tags',
-        'assets', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis'
+        'assets', 'prompts', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis'
     ]
     LOCAL_ONLY_SYSTEM_SETTING_KEYS = frozenset({
         'system_webdav_config',
@@ -660,6 +660,19 @@ class SyncManager:
         if not full_overwrite:
             self._fill_missing_snapshot_fields_from_local(data_list, model_map)
 
+        # PromptTemplate points at PromptResultImage, while the result image in
+        # turn points at a usage/template. The normal serializer order writes
+        # templates before result images, so persist this optional relation only
+        # after every prompt record has been restored.
+        prompt_cover_links = []
+        for item in data_list:
+            if item.get('model') != 'prompts.prompttemplate':
+                continue
+            fields = item.get('fields') or {}
+            cover_id = fields.pop('cover_result_image', None)
+            if cover_id:
+                prompt_cover_links.append((str(item.get('pk')), str(cover_id)))
+
         for item in data_list:
             model_label = item.get('model')
             pk = item.get('pk')
@@ -672,6 +685,11 @@ class SyncManager:
             self._ensure_not_aborted(should_abort)
             for obj in serializers.deserialize('json', json.dumps(data_list)):
                 obj.save()
+
+            if prompt_cover_links:
+                from prompts.models import PromptTemplate
+                for template_id, image_id in prompt_cover_links:
+                    PromptTemplate.objects.filter(id=template_id).update(cover_result_image_id=image_id)
 
             self._ensure_not_aborted(should_abort)
             if not skip_extra_delete:

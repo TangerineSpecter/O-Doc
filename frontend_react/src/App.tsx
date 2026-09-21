@@ -19,6 +19,7 @@ import WhiteboardPage from './views/WhiteboardPage'
 import WhiteboardManagePage from './views/WhiteboardManagePage';
 import MaintenancePage from './views/MaintenancePage';
 import AgentWorldPage from './views/AgentWorldPage';
+import PromptLibraryPage from './views/PromptLibraryPage';
 import {getAuthToken} from './utils/authStorage';
 
 function hasAuthToken() {
@@ -180,6 +181,10 @@ function AppWithRouter() {
             navigate('/memos');
         } else if (viewName === 'resources') {
             navigate('/resources');
+        } else if (viewName === 'prompts') {
+            const {promptId, prompt_id} = params as { promptId?: string; prompt_id?: string };
+            const selectedPromptId = promptId || prompt_id;
+            navigate(selectedPromptId ? `/prompts?promptId=${encodeURIComponent(selectedPromptId)}` : '/prompts');
         } else if (viewName === 'maintenance') {
             navigate('/maintenance');
         } else if (viewName === 'agentWorld') {
@@ -229,6 +234,7 @@ function AppWithRouter() {
                     </Layout>
                 </RequireAuth>
             }/>
+            <Route path="/prompts" element={<RequireAuth><Layout onNavigate={handleNavigate}><PromptLibraryPage/></Layout></RequireAuth>}/>
             <Route path="/stats" element={
                 <RequireAuth>
                     <Layout onNavigate={handleNavigate}>

@@ -36,6 +36,7 @@ const SEARCH_FILTERS: Array<{type: 'all' | GlobalSearchType; label: string}> = [
     {type: 'memo', label: '闪念'},
     {type: 'image', label: '图片'},
     {type: 'resource', label: '资源'},
+    {type: 'prompt', label: '提示词'},
 ];
 
 const TYPE_META: Record<GlobalSearchType, {label: string; icon: ReactNode; activeClass: string; idleClass: string}> = {
@@ -63,6 +64,12 @@ const TYPE_META: Record<GlobalSearchType, {label: string; icon: ReactNode; activ
         activeClass: 'bg-indigo-50 text-indigo-600',
         idleClass: 'bg-slate-100 text-slate-500',
     },
+    prompt: {
+        label: '提示词',
+        icon: <Sparkles className="h-4 w-4"/>,
+        activeClass: 'bg-orange-50 text-orange-600',
+        idleClass: 'bg-slate-100 text-slate-500',
+    },
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -88,6 +95,7 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
         memo: 0,
         image: 0,
         resource: 0,
+        prompt: 0,
     });
     const [isSearching, setIsSearching] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
@@ -102,7 +110,7 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
             const normalizedKeyword = keyword.trim();
             if (!normalizedKeyword) {
                 setResults([]);
-                setCounts({article: 0, memo: 0, image: 0, resource: 0});
+                setCounts({article: 0, memo: 0, image: 0, resource: 0, prompt: 0});
                 setIsSearching(false);
                 return;
             }
@@ -120,6 +128,7 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
                     memo: response.counts?.memo || 0,
                     image: response.counts?.image || 0,
                     resource: response.counts?.resource || 0,
+                    prompt: response.counts?.prompt || 0,
                 });
                 setSearchIndex(0);
             } catch (error) {
@@ -139,7 +148,7 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
             setKeyword('');
             setActiveFilter('all');
             setResults([]);
-            setCounts({article: 0, memo: 0, image: 0, resource: 0});
+            setCounts({article: 0, memo: 0, image: 0, resource: 0, prompt: 0});
             setTimeout(() => searchInputRef.current?.focus(), 50);
         }
     }, [isOpen]);
@@ -238,7 +247,7 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
                         {SEARCH_FILTERS.map(filter => {
                             const isActive = activeFilter === filter.type;
                             const count = filter.type === 'all'
-                                ? counts.article + counts.memo + counts.image + counts.resource
+                                ? counts.article + counts.memo + counts.image + counts.resource + counts.prompt
                                 : counts[filter.type];
 
                             return (

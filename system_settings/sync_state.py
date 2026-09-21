@@ -67,7 +67,7 @@ def sync_entity_identity(model_label, object_pk, fields=None):
 def should_track(sender):
     return (
         sender._meta.app_label in {
-            'article', 'anthology', 'categories', 'tags', 'assets', 'stats',
+            'article', 'anthology', 'categories', 'tags', 'assets', 'prompts', 'stats',
             'ai_assistant', 'system_settings', 'user', 'auth', 'book_analysis',
         }
         and sender._meta.label_lower not in LOCAL_ONLY_MODEL_LABELS

@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'user.apps.UserConfig',
     'stats.apps.StatsConfig',
     'assets.apps.AssetsConfig',
+    'prompts.apps.PromptsConfig',
     'system_settings',
     'ai_assistant',
     'rag.apps.RagConfig',

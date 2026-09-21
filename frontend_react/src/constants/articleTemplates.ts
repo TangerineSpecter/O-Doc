@@ -1,8 +1,11 @@
+export type ArticleTemplateSource = 'builtin' | 'user';
+
 export type ArticleTemplate = {
     id: string;
     name: string;
     description: string;
     content: string;
+    source?: ArticleTemplateSource;
 };
 
 export const ARTICLE_TEMPLATES: ArticleTemplate[] = [

@@ -158,6 +158,12 @@ def is_asset_used_by_agent(resource_id):
     return Agent.objects.filter(avatar=get_resource_view_url(resource_id)).exists()
 
 
+def is_asset_used_by_prompt(resource_id):
+    """已关联提示词效果（包括回收站记录）的资源不可从资源库直接删除。"""
+    from prompts.models import PromptResultImage
+    return PromptResultImage.objects.filter(asset_id=resource_id).exists()
+
+
 def get_agent_resource_usage(resource_ids=None):
     from system_settings.models import Agent
 

@@ -1,12 +1,13 @@
 import {useEffect, useId, useRef, useState, type CSSProperties} from 'react';
 import {NavLink} from 'react-router-dom';
-import {ArrowUpRight, BookOpen, BarChart2, FolderOpen, HeartPulse, Library, PenTool, StickyNote, Tag, X} from 'lucide-react';
+import {ArrowUpRight, BookOpen, BarChart2, FolderOpen, HeartPulse, Library, PenTool, StickyNote, Tag, X, Sparkles} from 'lucide-react';
 import {useFloatingMenu} from './useFloatingMenu';
 import './floating-menu.css';
 import {StarCharm} from './StarCharm';
 import {OrangeCompanion} from './OrangeCompanion';
 
 const destinations = [
+    {path: '/prompts', label: '提示词库', description: '让好表达随时可用', icon: Sparkles, tone: 'sand'},
     {path: '/memos', label: '闪念记录', description: '接住一闪而过的想法', icon: StickyNote, tone: 'peach'},
     {path: '/whiteboard', label: '灵感白板', description: '让思绪自由生长', icon: PenTool, tone: 'sage'},
     {path: '/resources', label: '资源库', description: '收藏，皆有所用', icon: Library, tone: 'blue'},

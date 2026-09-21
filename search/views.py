@@ -6,13 +6,14 @@ from rest_framework.views import APIView
 from article.models import Article, Image
 from assets.models import Asset
 from memos.models import Memo
+from prompts.models import PromptTemplate
 from utils.drf_utils import get_current_user_identifier
 from utils.response_utils import success_result, error_result
 from utils.error_codes import ErrorCode
 from article.views import get_visible_anthology_queryset, get_visible_article_queryset
 
 
-SEARCH_TYPES = {'article', 'memo', 'image', 'resource'}
+SEARCH_TYPES = {'article', 'memo', 'image', 'resource', 'prompt'}
 DEFAULT_LIMIT = 6
 MAX_LIMIT = 12
 
@@ -225,6 +226,23 @@ class GlobalSearchView(APIView):
                             'file_type': resource.file_type,
                             'source_type': resource.source_type,
                         },
+                    })
+
+            if 'prompt' in selected_types:
+                prompts = PromptTemplate.objects.filter(user_id=current_user_id, is_valid=True).filter(
+                    Q(title__icontains=keyword) | Q(description__icontains=keyword) |
+                    Q(positive_template__icontains=keyword) | Q(negative_template__icontains=keyword) |
+                    Q(category__name__icontains=keyword) | Q(themes__name__icontains=keyword) | Q(tags__name__icontains=keyword)
+                ).distinct().order_by('-updated_at')
+                counts['prompt'] = prompts.count()
+                for prompt in prompts[:limit]:
+                    items.append({
+                        'id': f'prompt:{prompt.id}', 'type': 'prompt', 'title': prompt.title,
+                        'subtitle': dict(PromptTemplate.TYPE_CHOICES).get(prompt.prompt_type, '提示词'),
+                        'excerpt': build_excerpt(prompt.description or prompt.positive_template, keyword),
+                        'matched_fields': ['标题/描述/提示词/分类/主题/标签'], 'updated_at': prompt.updated_at,
+                        'route': {'view': 'prompts', 'params': {'prompt_id': prompt.id}},
+                        'meta': {'prompt_id': prompt.id},
                     })
 
             items.sort(key=lambda item: item.get('updated_at'), reverse=True)

@@ -21,6 +21,7 @@ class Asset(models.Model):
         ('attachment', '附件'),
         ('content', '内容'),
         ('image', '图片文集'),
+        ('prompt', '提示词效果'),
         ('other', '其他'),
     ]
 
