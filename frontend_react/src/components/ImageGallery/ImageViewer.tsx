@@ -65,6 +65,8 @@ export default function ImageViewer({
   const [imageRetryTokens, setImageRetryTokens] = useState<Record<string, number>>({});
   const thumbnailStripRef = useRef<HTMLDivElement>(null);
   const thumbnailRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const desktopThumbnailStripRef = useRef<HTMLDivElement>(null);
+  const desktopThumbnailRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const closeTimerRef = useRef<number | null>(null);
   const imageRetryAttemptsRef = useRef<Record<string, number>>({});
   const touchStartXRef = useRef<number | null>(null);
@@ -137,24 +139,26 @@ export default function ImageViewer({
   useEffect(() => {
     if (!isOpen || displayGroupImages.length < 2) return;
 
-    const thumbnailStrip = thumbnailStripRef.current;
-    const selectedThumbnail = thumbnailRefs.current[displayGroupIndex];
-    if (!thumbnailStrip || !selectedThumbnail) return;
+    const scrollStrip = (strip: HTMLDivElement | null, item: HTMLButtonElement | null) => {
+      if (!strip || !item) return;
+      const stripRect = strip.getBoundingClientRect();
+      const thumbnailRect = item.getBoundingClientRect();
+      const padding = 8;
+      let scrollOffset = 0;
 
-    const stripRect = thumbnailStrip.getBoundingClientRect();
-    const thumbnailRect = selectedThumbnail.getBoundingClientRect();
-    const padding = 8;
-    let scrollOffset = 0;
+      if (thumbnailRect.left < stripRect.left + padding) {
+        scrollOffset = thumbnailRect.left - stripRect.left - padding;
+      } else if (thumbnailRect.right > stripRect.right - padding) {
+        scrollOffset = thumbnailRect.right - stripRect.right + padding;
+      }
 
-    if (thumbnailRect.left < stripRect.left + padding) {
-      scrollOffset = thumbnailRect.left - stripRect.left - padding;
-    } else if (thumbnailRect.right > stripRect.right - padding) {
-      scrollOffset = thumbnailRect.right - stripRect.right + padding;
-    }
+      if (scrollOffset !== 0) {
+        strip.scrollBy({ left: scrollOffset, behavior: 'smooth' });
+      }
+    };
 
-    if (scrollOffset !== 0) {
-      thumbnailStrip.scrollBy({ left: scrollOffset, behavior: 'smooth' });
-    }
+    scrollStrip(thumbnailStripRef.current, thumbnailRefs.current[displayGroupIndex]);
+    scrollStrip(desktopThumbnailStripRef.current, desktopThumbnailRefs.current[displayGroupIndex]);
   }, [displayGroupImages.length, displayGroupIndex, isOpen]);
 
   const currentImage = isOpen && image ? image : displayImage;
@@ -299,15 +303,15 @@ export default function ImageViewer({
           </div>
         </header>
 
-        {/* 主展示区：图片视口 + 严格固定高度/宽度的描述面板 */}
-        <div className="flex min-h-0 flex-1 flex-col lg:flex-row overflow-hidden">
-          {/* 上部：图片视口（flex-1 自动撑满剩余固定视口，支持手势翻页） */}
+        {/* 移动端专属主展示区（< lg）：自适应贴顶，图片顶部贴齐，标题/参数/描述紧随其后垂直排版 */}
+        <div className="flex lg:hidden flex-1 min-h-0 flex-col overflow-y-auto bg-slate-50 select-text">
+          {/* 上部：贴顶图片展示区 */}
           <div
-            className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden bg-slate-100/75 p-2 sm:p-4 touch-pan-y select-none"
+            className="relative flex shrink-0 w-full flex-col items-center justify-center overflow-hidden bg-slate-100/80 select-none touch-pan-y"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
-            {/* 浮动翻页按钮：上一张（移动端与桌面端均提供便捷轻触） */}
+            {/* 浮动翻页按钮：上一张 */}
             {hasPrevious && (
               <button
                 type="button"
@@ -315,11 +319,11 @@ export default function ImageViewer({
                   e.stopPropagation();
                   onPrevious?.();
                 }}
-                className="absolute left-2.5 sm:left-4 top-1/2 z-20 -translate-y-1/2 flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:text-orange-600 active:scale-90"
+                className="absolute left-2.5 top-1/2 z-20 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:text-orange-600 active:scale-90"
                 aria-label="上一张"
                 title={previousImage ? `上一张 · ${previousImage.title || ''}` : '上一张'}
               >
-                <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
+                <ChevronLeft className="h-5 w-5" />
               </button>
             )}
 
@@ -331,21 +335,21 @@ export default function ImageViewer({
                   e.stopPropagation();
                   onNext?.();
                 }}
-                className="absolute right-2.5 sm:right-4 top-1/2 z-20 -translate-y-1/2 flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:text-orange-600 active:scale-90"
+                className="absolute right-2.5 top-1/2 z-20 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:text-orange-600 active:scale-90"
                 aria-label="下一张"
                 title={nextImage ? `下一张 · ${nextImage.title || ''}` : '下一张'}
               >
-                <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
+                <ChevronRight className="h-5 w-5" />
               </button>
             )}
 
-            {/* 核心大图容器：保证无论横图竖图均在固定视口内完整居中呈现 */}
-            <div className="flex h-full w-full items-center justify-center overflow-hidden">
+            {/* 图片自适应贴顶呈现容器 */}
+            <div className={`flex w-full items-center justify-center ${showInfo ? 'max-h-[62vh] min-h-[180px]' : 'h-full min-h-[70vh]'} overflow-hidden`}>
               <img
                 src={getImageSource(currentImage.imageUrl)}
                 alt={currentImage.title}
                 onError={() => retryImageOnce(currentImage.imageUrl)}
-                className="max-h-full max-w-full object-contain rounded-lg shadow-md shadow-slate-300/60 transition-transform duration-200"
+                className="w-full h-auto max-h-[62vh] object-contain shadow-xs transition-transform duration-200"
               />
             </div>
 
@@ -364,7 +368,182 @@ export default function ImageViewer({
                       }}
                       type="button"
                       onClick={() => onSelectGroupImage?.(index)}
-                      className={`relative h-11 w-14 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
+                      className={`relative h-10 w-13 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
+                        index === currentGroupIdx
+                          ? 'border-orange-500 ring-2 ring-orange-500/40 scale-105'
+                          : 'border-slate-200 opacity-65 hover:opacity-100'
+                      }`}
+                      aria-label={`查看第 ${index + 1} 张`}
+                    >
+                      <img
+                        src={getImageSource(groupImage.imageUrl)}
+                        alt={`第 ${index + 1} 张`}
+                        loading={index === currentGroupIdx ? 'eager' : 'lazy'}
+                        onError={() => retryImageOnce(groupImage.imageUrl)}
+                        className="h-full w-full object-cover"
+                      />
+                      <span className="absolute bottom-0 inset-x-0 bg-slate-900/65 py-0.5 text-[8px] font-semibold text-white">
+                        {groupImage.focalLength ? `${groupImage.focalLength}mm` : `${index + 1}`}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 下部：排版内容卡片（标题、作者、EXIF、标签、描述） */}
+          {showInfo && (
+            <div className="flex-1 bg-white px-4 py-3.5 sm:px-5 space-y-3 border-t border-slate-200/80 shadow-2xs">
+              {/* 标题与作者 */}
+              <div>
+                <div className="mb-1.5 h-1 w-6 rounded-full bg-orange-500" />
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                    {currentImage.title}
+                  </h2>
+                  {authorName && (
+                    <span className="text-xs text-slate-500">
+                      by <span className="font-semibold text-orange-600">{authorName}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* EXIF 与 标签 徽章胶囊区 */}
+              {(focalLengthLabel || location || placeName || shootingDate || (currentImage.tags && currentImage.tags.length > 0)) && (
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  {focalLengthLabel && (
+                    <div className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 font-medium text-sky-700">
+                      <Aperture className="h-3.5 w-3.5 text-sky-500" />
+                      <span>焦段 {focalLengthLabel}</span>
+                    </div>
+                  )}
+                  {location && (
+                    <div className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+                      <MapPin className="h-3.5 w-3.5 text-emerald-500" />
+                      <span>{location}</span>
+                    </div>
+                  )}
+                  {placeName && (
+                    <div className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-teal-50 px-2 py-0.5 font-medium text-teal-700">
+                      <MapPin className="h-3.5 w-3.5 text-teal-500" />
+                      <span>{placeName}</span>
+                    </div>
+                  )}
+                  {shootingDate && (
+                    <div className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
+                      <Calendar className="h-3.5 w-3.5 text-amber-500" />
+                      <span>{shootingDate}</span>
+                    </div>
+                  )}
+                  {currentImage.tags && currentImage.tags.map((tag, index) => (
+                    <div
+                      key={index}
+                      className="inline-flex items-center gap-1 rounded-md border border-orange-200 bg-orange-50 px-2 py-0.5 font-medium text-orange-700"
+                    >
+                      <TagIcon className="h-3 w-3 text-orange-500" />
+                      <span>{tag}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 描述信息 */}
+              {currentImage.description && (
+                <div className="pt-2 border-t border-slate-100">
+                  <div className="mb-1.5 flex items-center justify-between text-xs font-semibold text-slate-700">
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-orange-500" />
+                      <span>描述</span>
+                    </div>
+                    {currentImage.createdAt && (
+                      <span className="text-[11px] font-normal text-slate-400">
+                        上传于 {currentImage.createdAt}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs sm:text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
+                    {currentImage.description}
+                  </p>
+                </div>
+              )}
+
+              {/* 无描述时的上传时间 */}
+              {!currentImage.description && currentImage.createdAt && (
+                <div className="pt-2 border-t border-slate-100 text-right text-[11px] text-slate-400">
+                  上传于 {currentImage.createdAt}
+                </div>
+              )}
+
+              {/* 底部呼吸垫片 */}
+              <div className="h-8" />
+            </div>
+          )}
+        </div>
+
+        {/* 桌面端大屏专属展示区（>= lg）：左侧大图视口 + 右侧固定侧边栏 */}
+        <div className="hidden lg:flex min-h-0 flex-1 flex-row overflow-hidden">
+          {/* 左侧大图视口 */}
+          <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden bg-slate-100/75 p-4 select-none">
+            {/* 浮动翻页按钮：上一张 */}
+            {hasPrevious && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPrevious?.();
+                }}
+                className="absolute left-4 top-1/2 z-20 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:text-orange-600 active:scale-90"
+                aria-label="上一张"
+                title={previousImage ? `上一张 · ${previousImage.title || ''}` : '上一张'}
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+            )}
+
+            {/* 浮动翻页按钮：下一张 */}
+            {hasNext && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNext?.();
+                }}
+                className="absolute right-4 top-1/2 z-20 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:text-orange-600 active:scale-90"
+                aria-label="下一张"
+                title={nextImage ? `下一张 · ${nextImage.title || ''}` : '下一张'}
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            )}
+
+            {/* 核心大图容器 */}
+            <div className="flex h-full w-full items-center justify-center overflow-hidden">
+              <img
+                src={getImageSource(currentImage.imageUrl)}
+                alt={currentImage.title}
+                onError={() => retryImageOnce(currentImage.imageUrl)}
+                className="max-h-full max-w-full object-contain rounded-lg shadow-md shadow-slate-300/60 transition-transform duration-200"
+              />
+            </div>
+
+            {/* 组图水平缩略图条 */}
+            {isPhotoGroup && (
+              <div className="absolute bottom-4 inset-x-0 z-20 flex justify-center px-4">
+                <div
+                  ref={desktopThumbnailStripRef}
+                  className="flex max-w-full gap-2 overflow-x-auto rounded-xl border border-slate-200/90 bg-white/90 p-1.5 backdrop-blur-md shadow-md scrollbar-none"
+                >
+                  {currentGroupImages.map((groupImage, index) => (
+                    <button
+                      key={`${groupImage.imageUrl}-${index}`}
+                      ref={(element) => {
+                        desktopThumbnailRefs.current[index] = element;
+                      }}
+                      type="button"
+                      onClick={() => onSelectGroupImage?.(index)}
+                      className={`relative h-12 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
                         index === currentGroupIdx
                           ? 'border-orange-500 ring-2 ring-orange-500/40 scale-105'
                           : 'border-slate-200 opacity-65 hover:opacity-100'
@@ -388,9 +567,9 @@ export default function ImageViewer({
             )}
           </div>
 
-          {/* 下部：详细信息面板（移动端固定高度 h-[210px]，绝不随内容多少发生上下位移） */}
+          {/* 桌面端专属：详细信息右侧边栏 */}
           {showInfo && (
-            <aside className="shrink-0 flex flex-col border-t border-slate-200/90 bg-white transition-all duration-200 h-[210px] sm:h-[225px] lg:h-full lg:w-80 xl:w-96 lg:border-l lg:border-t-0 shadow-xs">
+            <aside className="hidden lg:flex shrink-0 flex-col border-l border-slate-200/90 bg-white transition-all duration-200 lg:h-full lg:w-80 xl:w-96 shadow-xs">
               {/* 标题与作者信息（固定高顶栏） */}
               <div className="shrink-0 border-b border-slate-100 px-4 py-2.5 sm:px-5 sm:py-3.5 bg-white">
                 <div className="mb-1 h-1 w-6 rounded-full bg-orange-500" />
