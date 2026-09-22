@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Bot, MessageCircle } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import FloatingActionMenu from '../components/FloatingActionMenu';
 import { AIChatWindow } from '../components/AIChatWindow';
 import AgentContactPanel from '../components/AgentContactPanel';
@@ -117,14 +117,10 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                 <button
                     type="button"
                     onClick={handleOpenAIEntry}
-                    className="fixed right-0 top-1/2 -translate-y-1/2 z-[80] bg-gradient-to-r from-orange-500 to-orange-600 text-white p-3 rounded-l-xl shadow-lg cursor-pointer hover:w-20 transition-all w-12 flex flex-col items-center gap-3 group border-y border-l border-white/20"
+                    className="fixed right-0 top-1/2 -translate-y-1/2 z-[80] bg-gradient-to-r from-orange-500 to-orange-600 text-white w-12 h-12 rounded-l-xl shadow-lg hover:shadow-xl hover:w-14 transition-all duration-200 cursor-pointer flex items-center justify-center border-y border-l border-white/20 group"
                     title={isAuthenticated ? '打开 AI 中心' : '打开小橘 AI助手'}
                 >
-                    <Bot className="w-6 h-6"/>
-                    <div className="flex flex-col items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                        <span className="text-[10px] font-bold writing-vertical-rl tracking-widest">AI</span>
-                        <MessageCircle className="w-3 h-3 mt-1"/>
-                    </div>
+                    <Bot className="w-6 h-6 transition-transform duration-200 group-hover:scale-110"/>
                 </button>
             )}
 
