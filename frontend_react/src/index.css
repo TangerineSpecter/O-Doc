@@ -511,13 +511,40 @@ code, pre {
   filter: blur(5px);
 }
 
-@media (max-width: 639px) {
+@media (max-width: 767px) {
+  /* 移动端打开图书加载时彻底去除分页竖线与中脊渐变阴影 */
+  .reader-loading-book > div + div {
+    display: none;
+    border-left: none;
+    box-shadow: none;
+  }
+  .reader-loading-book::after {
+    display: none;
+  }
+
+  /* 移动端正文阅读时为平整纯净单页，去除书脊阴影和中缝分割线 */
+  .reader-book-spread {
+    background: #fff;
+    box-shadow:
+      0 2px 0 #e2e8f0,
+      0 8px 24px rgba(15, 23, 42, .08);
+  }
   .reader-book-spread::before {
-    background: linear-gradient(90deg, rgba(71, 85, 105, .07), transparent 4%, transparent 96%, rgba(71, 85, 105, .07));
+    display: none;
+  }
+  .reader-book-spread::after {
+    inset: -2px -4px -6px;
+  }
+  .reader-book-page-left {
+    border-radius: inherit;
+  }
+  .reader-turn-shadow {
+    display: none;
   }
   .reader-txt-page-content {
-    padding: 2.5rem 2.25rem;
-    font-size: 17px;
+    padding: 2rem 1.25rem;
+    font-size: 16.5px;
+    line-height: 1.95;
   }
   .reader-turn-sheet,
   .reader-reveal-page { width: 100%; }
@@ -576,5 +603,45 @@ code, pre {
 .ai-peeking-eyes {
   animation: ai-peeking-blink 4s infinite;
   transform-origin: center;
+}
+
+/* 隐藏滚动条但保留滚动能力（移动端和 PC 全浏览器兼容） */
+.scrollbar-hide,
+.no-scrollbar {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* 彻底清除移动端/触屏点击时产生的边框与高亮遮罩 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 消除 Recharts 图表点击或获得焦点时产生的聚焦高亮边框 */
+.recharts-wrapper,
+.recharts-surface,
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+.recharts-wrapper *:focus,
+.recharts-responsive-container:focus,
+.recharts-legend-wrapper:focus {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* 消除 SVG、Canvas 等图表元素在被点击聚焦时的默认 outline 边框 */
+svg:focus,
+canvas:focus,
+[tabindex="-1"]:focus {
+  outline: none !important;
 }
 

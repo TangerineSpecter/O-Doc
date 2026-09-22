@@ -99,7 +99,6 @@ export default function MobileBottomBar({ onOpenAI }: MobileBottomBarProps) {
                         aria-label="打开 AI 助手"
                     >
                         <Bot className="w-6 h-6 transition-transform group-hover:scale-110" />
-                        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-300 ring-2 ring-white" />
                     </button>
                     <span className="text-[10px] text-orange-600 font-bold tracking-tight mt-0.5 whitespace-nowrap">
                         AI 助手

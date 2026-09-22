@@ -927,6 +927,7 @@ function MarkdownArticle({
                             headers={headers}
                             activeId={activeHeader}
                             isEmbedded={isEmbedded ?? false}
+                            scrollContainerId={scrollContainerId}
                             onEdit={onEdit}
                             onDelete={onDelete}
                             onSync={canManage ? handleSyncToKB : undefined}
@@ -1135,24 +1136,26 @@ function MarkdownArticle({
                     portalRoot
                 )}
 
-                {mobileTocOpen && headers.length > 0 && (
+                {portalRoot && mobileTocOpen && headers.length > 0 && createPortal(
                     <div
-                        className="article-print-hidden fixed inset-0 z-50 bg-slate-950/30 backdrop-blur-[1px] 2xl:hidden"
+                        className="article-print-hidden fixed inset-0 z-[120] bg-slate-950/40 backdrop-blur-sm 2xl:hidden flex items-center justify-center p-4 animate-in fade-in duration-200"
                         onClick={onMobileTocClose}
                     >
                         <div
-                            className="absolute inset-x-3 top-20 h-[calc(100vh-6rem)] max-h-[36rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                            className="w-full max-w-sm sm:max-w-md max-h-[76vh] bg-white rounded-2xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
                             onClick={(event) => event.stopPropagation()}
                         >
                             <TableOfContents
                                 headers={headers}
                                 activeId={activeHeader}
                                 isEmbedded={isEmbedded ?? false}
+                                scrollContainerId={scrollContainerId}
                                 layout="mobile"
                                 onClose={onMobileTocClose}
                             />
                         </div>
-                    </div>
+                    </div>,
+                    portalRoot
                 )}
 
                 <button

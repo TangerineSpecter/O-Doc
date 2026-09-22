@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Image as ImageIcon, Plus } from 'lucide-react';
+import { Aperture, ArrowLeft, BarChart3, Image as ImageIcon, Plus, Tag } from 'lucide-react';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
 import ImageGroupModal from '../components/ImageGallery/ImageGroupModal';
@@ -9,6 +9,7 @@ import ImageGalleryFilters from '../components/ImageAnthology/ImageGalleryFilter
 import ImageLocationPanel, { ImageLocationCountryGroup, ImageLocationStats } from '../components/ImageAnthology/ImageLocationPanel';
 import ImageMasonryGrid, { ImageDisplayItem } from '../components/ImageAnthology/ImageMasonryGrid';
 import ImageTagStatsPanel from '../components/ImageAnthology/ImageTagStatsPanel';
+import LandscapeChartModal from '../components/ImageAnthology/LandscapeChartModal';
 import { SelectOption } from '../components/common/Select';
 import { getAnthologyDetail, Anthology } from '../api/anthology';
 import { deleteImage, deleteImageGroup, getImagesByAnthology, Image } from '../api/image';
@@ -83,8 +84,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
   const [images, setImages] = useState<Image[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedGroup, setSelectedGroup] = useState<Image[] | null>(null);
-  const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
+  const [viewerGlobalIndex, setViewerGlobalIndex] = useState<number | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Image[] | null>(null);
@@ -107,6 +107,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [dominantColors, setDominantColors] = useState<Record<string, DominantColorResult | null>>({});
   const [imageAspectRatios, setImageAspectRatios] = useState<Record<string, number>>({});
   const [galleryColumnCount, setGalleryColumnCount] = useState(getGalleryColumnCount);
+  const [mobileTab, setMobileTab] = useState<'gallery' | 'stats'>('gallery');
   const colorExtractionKeysRef = useRef(new Set<string>());
   const toast = useToast();
 
@@ -139,27 +140,6 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const handleBack = () => {
     if (onNavigate) {
       onNavigate('home');
-    }
-  };
-
-  const handleImageClick = (item: ImageDisplayItem) => {
-    setSelectedGroup(item.images);
-    setSelectedGroupIndex(0);
-  };
-
-  const handleCloseViewer = () => {
-    setSelectedGroup(null);
-  };
-
-  const handlePrevious = () => {
-    if (selectedGroupIndex > 0) {
-      setSelectedGroupIndex(selectedGroupIndex - 1);
-    }
-  };
-
-  const handleNext = () => {
-    if (selectedGroup && selectedGroupIndex < selectedGroup.length - 1) {
-      setSelectedGroupIndex(selectedGroupIndex + 1);
     }
   };
 
@@ -465,11 +445,32 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
       .map(color => ({ ...color, count: counts.get(color.key) || 0 }));
   }, [baseVisibleImages, dominantColors]);
 
-  const extractedColorCount = baseVisibleImages.filter(image => dominantColors[image.imageId]).length;
   const visibleImages = useMemo(() => {
     if (selectedColor === 'all') return baseVisibleImages;
     return baseVisibleImages.filter(image => dominantColors[image.imageId]?.key === selectedColor);
   }, [baseVisibleImages, dominantColors, selectedColor]);
+
+  const handleImageClick = (item: ImageDisplayItem) => {
+    const targetImage = item.images[0] || item.image;
+    const index = visibleImages.findIndex(img => img.imageId === targetImage.imageId);
+    setViewerGlobalIndex(index >= 0 ? index : 0);
+  };
+
+  const handleCloseViewer = () => {
+    setViewerGlobalIndex(null);
+  };
+
+  const handlePrevious = () => {
+    if (viewerGlobalIndex !== null && viewerGlobalIndex > 0) {
+      setViewerGlobalIndex(viewerGlobalIndex - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (viewerGlobalIndex !== null && viewerGlobalIndex < visibleImages.length - 1) {
+      setViewerGlobalIndex(viewerGlobalIndex + 1);
+    }
+  };
 
   const displayImages = useMemo<ImageDisplayItem[]>(() => {
     const groups = new Map<string, Image[]>();
@@ -505,7 +506,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   }, [displayImages, galleryColumnCount, imageAspectRatios]);
 
   useEffect(() => {
-    setSelectedGroup(null);
+    setViewerGlobalIndex(null);
   }, [galleryCountry, galleryFocalMax, galleryFocalMin, galleryTags, selectedColor]);
 
   useEffect(() => {
@@ -591,6 +592,18 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     ));
   };
 
+  const activeViewerImage = viewerGlobalIndex !== null ? visibleImages[viewerGlobalIndex] : null;
+  const activePhotoGroup = useMemo(() => {
+    if (!activeViewerImage) return [];
+    if (!activeViewerImage.photoGroupId) return [activeViewerImage];
+    return visibleImages.filter(img => img.photoGroupId === activeViewerImage.photoGroupId);
+  }, [activeViewerImage, visibleImages]);
+  const activePhotoGroupIndex = useMemo(() => {
+    if (!activeViewerImage || activePhotoGroup.length <= 1) return 0;
+    const found = activePhotoGroup.findIndex(img => img.imageId === activeViewerImage.imageId);
+    return found >= 0 ? found : 0;
+  }, [activePhotoGroup, activeViewerImage]);
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-orange-50 flex-col">
@@ -601,13 +614,18 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   }
 
   const displayTitle = anthologyInfo?.title || title || '图片文集';
-  const selectedImage = selectedGroup?.[selectedGroupIndex] || null;
+  const handleSelectGroupImage = (groupIndex: number) => {
+    const target = activePhotoGroup[groupIndex];
+    if (!target) return;
+    const idx = visibleImages.findIndex(img => img.imageId === target.imageId);
+    if (idx >= 0) setViewerGlobalIndex(idx);
+  };
   const isDetailPanelOpen = isFocalLengthDetailOpen || isTagDetailOpen || isLocationMapOpen;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50">
-      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200/60 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200/60 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 py-2.5 sm:px-6 sm:py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
@@ -651,7 +669,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1480px] px-5 py-7 lg:px-6">
+      <div className="mx-auto max-w-[1480px] px-3.5 py-4 sm:px-5 sm:py-6 lg:px-6">
         {images.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-6">
             <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center mb-4">
@@ -665,150 +683,250 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
             </p>
           </div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
-            <ImageAnthologySidebar
-              imageCount={images.length}
-              locationCityCount={locationStats.cityCount}
-              isLocationMapOpen={isLocationMapOpen}
-              isFocalLengthDetailOpen={isFocalLengthDetailOpen}
-              isTagDetailOpen={isTagDetailOpen}
-              focalLengthStats={focalLengthStats}
-              focalLengthSummaryStats={focalLengthSummaryStats}
-              focalLengthTotal={focalLengthTotal}
-              missingFocalLengthCount={missingFocalLengthCount}
-              maxFocalLengthCount={maxFocalLengthCount}
-              tagStats={tagStats}
-              tagSummaryStats={tagSummaryStats}
-              taggedImageCount={taggedImageCount}
-              tagTotal={tagTotal}
-              maxTagCount={maxTagCount}
-              selectedColor={selectedColor}
-              colorStats={colorStats}
-              extractedColorCount={extractedColorCount}
-              baseVisibleImageCount={baseVisibleImages.length}
-              onToggleLocationMap={() => {
-                setIsLocationMapOpen(open => !open);
-                setIsFocalLengthDetailOpen(false);
-                setIsTagDetailOpen(false);
-              }}
-              onToggleFocalLengthDetail={() => {
-                setIsFocalLengthDetailOpen(open => !open);
-                setIsLocationMapOpen(false);
-                setIsTagDetailOpen(false);
-              }}
-              onToggleTagDetail={() => {
-                setIsTagDetailOpen(open => !open);
-                setIsLocationMapOpen(false);
-                setIsFocalLengthDetailOpen(false);
-              }}
-              onSelectColor={setSelectedColor}
-            />
+          <div>
+            {/* 移动端顶部视图切换胶囊控制栏 */}
+            <div className="mb-4 flex items-center justify-center lg:hidden">
+              <div className="flex w-full max-w-xs items-center rounded-xl border border-slate-200/80 bg-slate-100/90 p-1 shadow-inner backdrop-blur-sm">
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('gallery')}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all ${
+                    mobileTab === 'gallery'
+                      ? 'bg-white text-orange-600 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  <span>作品相册 ({visibleImages.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('stats')}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all ${
+                    mobileTab === 'stats'
+                      ? 'bg-white text-orange-600 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  <span>拍摄统计</span>
+                </button>
+              </div>
+            </div>
 
-            <div className="min-w-0">
-              <ImageGalleryFilters
-                visibleCount={visibleImages.length}
-                totalCount={images.length}
-                galleryCountry={galleryCountry}
-                galleryCountryOptions={galleryCountryOptions}
-                galleryTags={galleryTags}
-                galleryTagOptions={galleryTagOptions}
-                galleryFocalMin={galleryFocalMin}
-                galleryFocalMax={galleryFocalMax}
-                hasGalleryFilters={hasGalleryFilters}
-                onGalleryCountryChange={setGalleryCountry}
-                onGalleryTagToggle={handleGalleryTagToggle}
-                onGalleryFocalMinChange={setGalleryFocalMin}
-                onGalleryFocalMaxChange={setGalleryFocalMax}
-                onClearFilters={clearGalleryFilters}
-              />
-
-              {isFocalLengthDetailOpen && (
-                <FocalLengthDetailChart
-                  stats={filteredFocalLengthStats}
-                  totalImages={filteredFocalImages.length}
-                  focalLengthTotal={filteredFocalLengthTotal}
-                  missingFocalLengthCount={filteredMissingFocalLengthCount}
-                  countryOptions={focalCountryOptions}
-                  cityOptions={focalCityOptions}
-                  tagOptions={focalTagOptions}
-                  selectedCountry={selectedFocalCountry}
-                  selectedCities={selectedFocalCities}
-                  selectedTags={selectedFocalTags}
-                  selectedStartDate={selectedFocalStartDate}
-                  selectedEndDate={selectedFocalEndDate}
-                  onCountryChange={handleFocalCountryChange}
-                  onCityToggle={handleFocalCityToggle}
-                  onTagToggle={handleFocalTagToggle}
-                  onStartDateChange={setSelectedFocalStartDate}
-                  onEndDateChange={setSelectedFocalEndDate}
-                  onClearFilters={clearFocalFilters}
+            <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
+              {/* 统计侧边栏：移动端在 stats tab 显示，PC端常驻左侧 */}
+              <div className={`${mobileTab === 'stats' ? 'block' : 'hidden'} lg:block space-y-4`}>
+                <ImageAnthologySidebar
+                  imageCount={images.length}
+                  locationCityCount={locationStats.cityCount}
+                  isLocationMapOpen={isLocationMapOpen}
+                  isFocalLengthDetailOpen={isFocalLengthDetailOpen}
+                  isTagDetailOpen={isTagDetailOpen}
+                  focalLengthStats={focalLengthStats}
+                  focalLengthSummaryStats={focalLengthSummaryStats}
+                  focalLengthTotal={focalLengthTotal}
+                  missingFocalLengthCount={missingFocalLengthCount}
+                  maxFocalLengthCount={maxFocalLengthCount}
+                  tagStats={tagStats}
+                  tagSummaryStats={tagSummaryStats}
+                  taggedImageCount={taggedImageCount}
+                  tagTotal={tagTotal}
+                  maxTagCount={maxTagCount}
+                  onToggleLocationMap={() => {
+                    setIsLocationMapOpen(open => !open);
+                    setIsFocalLengthDetailOpen(false);
+                    setIsTagDetailOpen(false);
+                  }}
+                  onToggleFocalLengthDetail={() => {
+                    setIsFocalLengthDetailOpen(open => !open);
+                    setIsLocationMapOpen(false);
+                    setIsTagDetailOpen(false);
+                  }}
+                  onToggleTagDetail={() => {
+                    setIsTagDetailOpen(open => !open);
+                    setIsLocationMapOpen(false);
+                    setIsFocalLengthDetailOpen(false);
+                  }}
                 />
-              )}
 
-              {isTagDetailOpen && (
-                <ImageTagStatsPanel tagStats={tagStats} maxTagCount={maxTagCount} />
-              )}
+                {/* 移动端横屏全屏模态：焦段统计图表 */}
+                <LandscapeChartModal
+                  isOpen={isFocalLengthDetailOpen}
+                  title="完整焦段统计图表"
+                  icon={<Aperture className="h-4 w-4 text-sky-600" />}
+                  onClose={() => setIsFocalLengthDetailOpen(false)}
+                >
+                  <FocalLengthDetailChart
+                    stats={filteredFocalLengthStats}
+                    totalImages={filteredFocalImages.length}
+                    focalLengthTotal={filteredFocalLengthTotal}
+                    missingFocalLengthCount={filteredMissingFocalLengthCount}
+                    countryOptions={focalCountryOptions}
+                    cityOptions={focalCityOptions}
+                    tagOptions={focalTagOptions}
+                    selectedCountry={selectedFocalCountry}
+                    selectedCities={selectedFocalCities}
+                    selectedTags={selectedFocalTags}
+                    selectedStartDate={selectedFocalStartDate}
+                    selectedEndDate={selectedFocalEndDate}
+                    onCountryChange={handleFocalCountryChange}
+                    onCityToggle={handleFocalCityToggle}
+                    onTagToggle={handleFocalTagToggle}
+                    onStartDateChange={setSelectedFocalStartDate}
+                    onEndDateChange={setSelectedFocalEndDate}
+                    onClearFilters={clearFocalFilters}
+                    onClose={() => setIsFocalLengthDetailOpen(false)}
+                  />
+                </LandscapeChartModal>
 
-              {isLocationMapOpen && (
-                <ImageLocationPanel
-                  locationStats={locationStats}
-                  locationCountryGroups={locationCountryGroups}
-                  expandedLocationCountries={expandedLocationCountries}
-                  onToggleCountry={handleLocationCountryToggle}
+                {/* 移动端横屏全屏模态：标签统计 */}
+                <LandscapeChartModal
+                  isOpen={isTagDetailOpen}
+                  title="完整标签统计"
+                  icon={<Tag className="h-4 w-4 text-orange-600" />}
+                  onClose={() => setIsTagDetailOpen(false)}
+                >
+                  <ImageTagStatsPanel
+                    tagStats={tagStats}
+                    maxTagCount={maxTagCount}
+                    onClose={() => setIsTagDetailOpen(false)}
+                  />
+                </LandscapeChartModal>
+
+                {/* 移动端下如果在统计 tab 打开了地图详情，就地展示 */}
+                <div className="space-y-4 lg:hidden">
+                  {isLocationMapOpen && (
+                    <ImageLocationPanel
+                      locationStats={locationStats}
+                      locationCountryGroups={locationCountryGroups}
+                      expandedLocationCountries={expandedLocationCountries}
+                      onToggleCountry={handleLocationCountryToggle}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* 相册主视图：移动端在 gallery tab 显示，PC端常驻右侧 */}
+              <div className={`min-w-0 ${mobileTab === 'gallery' ? 'block' : 'hidden'} lg:block`}>
+                <ImageGalleryFilters
+                  visibleCount={visibleImages.length}
+                  totalCount={images.length}
+                  galleryCountry={galleryCountry}
+                  galleryCountryOptions={galleryCountryOptions}
+                  selectedColor={selectedColor}
+                  colorStats={colorStats}
+                  galleryTags={galleryTags}
+                  galleryTagOptions={galleryTagOptions}
+                  galleryFocalMin={galleryFocalMin}
+                  galleryFocalMax={galleryFocalMax}
+                  hasGalleryFilters={hasGalleryFilters}
+                  onGalleryCountryChange={setGalleryCountry}
+                  onSelectColor={setSelectedColor}
+                  onGalleryTagToggle={handleGalleryTagToggle}
+                  onGalleryFocalMinChange={setGalleryFocalMin}
+                  onGalleryFocalMaxChange={setGalleryFocalMax}
+                  onClearFilters={clearGalleryFilters}
                 />
-              )}
 
-              <ImageMasonryGrid
-                isHidden={isDetailPanelOpen}
-                imageColumns={imageColumns}
-                visibleImageCount={displayImages.length}
-                dominantColors={dominantColors}
-                isAuthenticated={isAuthenticated}
-                onImageClick={handleImageClick}
-                onEditImage={handleOpenEditModal}
-                onDeleteImage={setDeleteTarget}
-                onImageAspectRatio={(imageId, ratio) => {
-                  setImageAspectRatios(prev => (
-                    prev[imageId] === ratio ? prev : { ...prev, [imageId]: ratio }
-                  ));
-                }}
-                onClearFilters={clearGalleryFilters}
-              />
+                {/* 桌面端详情面板展示在右侧列 */}
+                <div className="hidden lg:block">
+                  {isFocalLengthDetailOpen && (
+                    <FocalLengthDetailChart
+                      stats={filteredFocalLengthStats}
+                      totalImages={filteredFocalImages.length}
+                      focalLengthTotal={filteredFocalLengthTotal}
+                      missingFocalLengthCount={filteredMissingFocalLengthCount}
+                      countryOptions={focalCountryOptions}
+                      cityOptions={focalCityOptions}
+                      tagOptions={focalTagOptions}
+                      selectedCountry={selectedFocalCountry}
+                      selectedCities={selectedFocalCities}
+                      selectedTags={selectedFocalTags}
+                      selectedStartDate={selectedFocalStartDate}
+                      selectedEndDate={selectedFocalEndDate}
+                      onCountryChange={handleFocalCountryChange}
+                      onCityToggle={handleFocalCityToggle}
+                      onTagToggle={handleFocalTagToggle}
+                      onStartDateChange={setSelectedFocalStartDate}
+                      onEndDateChange={setSelectedFocalEndDate}
+                      onClearFilters={clearFocalFilters}
+                      onClose={() => setIsFocalLengthDetailOpen(false)}
+                    />
+                  )}
+
+                  {isTagDetailOpen && (
+                    <ImageTagStatsPanel
+                      tagStats={tagStats}
+                      maxTagCount={maxTagCount}
+                      onClose={() => setIsTagDetailOpen(false)}
+                    />
+                  )}
+
+                  {isLocationMapOpen && (
+                    <ImageLocationPanel
+                      locationStats={locationStats}
+                      locationCountryGroups={locationCountryGroups}
+                      expandedLocationCountries={expandedLocationCountries}
+                      onToggleCountry={handleLocationCountryToggle}
+                    />
+                  )}
+                </div>
+
+                <ImageMasonryGrid
+                  isHidden={isDetailPanelOpen}
+                  imageColumns={imageColumns}
+                  visibleImageCount={displayImages.length}
+                  dominantColors={dominantColors}
+                  isAuthenticated={isAuthenticated}
+                  onImageClick={handleImageClick}
+                  onEditImage={handleOpenEditModal}
+                  onDeleteImage={setDeleteTarget}
+                  onImageAspectRatio={(imageId, ratio) => {
+                    setImageAspectRatios(prev => (
+                      prev[imageId] === ratio ? prev : { ...prev, [imageId]: ratio }
+                    ));
+                  }}
+                  onClearFilters={clearGalleryFilters}
+                />
+              </div>
             </div>
           </div>
         )}
       </div>
 
       <ImageViewer
-        isOpen={selectedGroup !== null}
-        image={selectedImage ? {
-          imageUrl: selectedImage.imageUrl,
-          title: selectedImage.title,
-          description: selectedImage.description,
-          shootingTime: selectedImage.shootingTimeStr,
-          country: selectedImage.country,
-          city: selectedImage.city,
-          placeName: selectedImage.placeName,
-          latitude: selectedImage.latitude,
-          longitude: selectedImage.longitude,
-          focalLength: selectedImage.focalLength,
-          tags: selectedImage.tagsList,
-          author: selectedImage.author,
-          authorNickname: selectedImage.authorNickname,
-          createdAt: selectedImage.createdAt,
+        isOpen={viewerGlobalIndex !== null && activeViewerImage !== null}
+        image={activeViewerImage ? {
+          imageUrl: activeViewerImage.imageUrl,
+          title: activeViewerImage.title,
+          description: activeViewerImage.description,
+          shootingTime: activeViewerImage.shootingTimeStr,
+          country: activeViewerImage.country,
+          city: activeViewerImage.city,
+          placeName: activeViewerImage.placeName,
+          latitude: activeViewerImage.latitude,
+          longitude: activeViewerImage.longitude,
+          focalLength: activeViewerImage.focalLength,
+          tags: activeViewerImage.tagsList,
+          author: activeViewerImage.author,
+          authorNickname: activeViewerImage.authorNickname,
+          createdAt: activeViewerImage.createdAt,
         } : null}
         onClose={handleCloseViewer}
         onPrevious={handlePrevious}
         onNext={handleNext}
-        hasPrevious={selectedGroupIndex > 0}
-        hasNext={Boolean(selectedGroup && selectedGroupIndex < selectedGroup.length - 1)}
-        currentGroupIndex={selectedGroupIndex}
-        groupImages={(selectedGroup || []).map(groupImage => ({
+        hasPrevious={viewerGlobalIndex !== null && viewerGlobalIndex > 0}
+        hasNext={viewerGlobalIndex !== null && viewerGlobalIndex < visibleImages.length - 1}
+        currentIndex={viewerGlobalIndex ?? 0}
+        totalCount={visibleImages.length}
+        currentGroupIndex={activePhotoGroupIndex}
+        groupImages={activePhotoGroup.map(groupImage => ({
           imageUrl: groupImage.imageUrl,
           title: groupImage.title,
           focalLength: groupImage.focalLength,
         }))}
-        onSelectGroupImage={setSelectedGroupIndex}
+        onSelectGroupImage={handleSelectGroupImage}
       />
 
       {isAuthenticated && (

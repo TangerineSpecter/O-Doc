@@ -532,7 +532,7 @@ function AgentPostCollectionView({
                     </button>
                 </div>
 
-                <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
+                <div className="mb-5 flex gap-2 overflow-x-auto pb-1 scrollbar-hide no-scrollbar touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                     <button
                         type="button"
                         onClick={() => setActiveCategory('all')}
@@ -762,11 +762,16 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                     new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME))
                 ]);
 
-                // 3. 更新数据
+                // 3. 更新数据并预判文章是否有目录标题（## ~ ######），消除加载完成后本文目录按钮突兀跳出的问题
+                const hasToc = Boolean(
+                    detail?.content && /(?:^|\n)#{2,6}\s+\S+/m.test(detail.content)
+                );
+                setHasArticleToc(hasToc);
                 setArticleDetail(detail);
             } catch (error) {
                 console.error('获取文章详情失败:', error);
                 setArticleDetail(null);
+                setHasArticleToc(false);
             } finally {
                 // 4. 结束 Loading
                 setArticleLoading(false);
@@ -781,7 +786,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
         if (window.innerWidth < 768) setIsSidebarOpen(false);
         setIsMobileTocOpen(false);
         const mainContainer = document.getElementById('right-content-window');
-        if (mainContainer) mainContainer.scrollTo({top: 0, behavior: 'smooth'});
+        if (mainContainer) mainContainer.scrollTop = 0;
         if (onNavigate) onNavigate('article', {collId, articleId: docArticleId});
     };
 
@@ -1010,8 +1015,27 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
             <main id="right-content-window"
                   className="min-w-0 flex-1 bg-white relative overflow-y-auto overflow-x-hidden scroll-smooth">
+                {/* --- 全局平滑加载遮罩层 --- */}
+                {/* 覆盖整个阅读窗口与移动端顶栏，加载时整体纯净遮罩，加载完成后顶栏与文章内容整体同步显现 */}
                 <div
-                    className="md:hidden sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-3 h-12 flex items-center justify-between">
+                    className={`
+                        fixed inset-0 z-40 md:absolute md:z-30 flex items-center justify-center md:items-start md:pt-[25vh]
+                        bg-white/95 backdrop-blur-[2px]
+                        transition-all duration-300 ease-out
+                        ${articleLoading ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}
+                    `}
+                >
+                    <div
+                        className={`transition-all duration-300 transform ${articleLoading ? 'translate-y-0 scale-100' : 'translate-y-4 scale-95'}`}>
+                        <StarLoader/>
+                    </div>
+                </div>
+
+                <div
+                    className={`md:hidden sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-3 h-12 flex items-center justify-between transition-opacity duration-200 ${
+                        articleLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                    }`}
+                >
                     <button
                         type="button"
                         onClick={() => setIsSidebarOpen(true)}
@@ -1037,26 +1061,9 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
                 {activeDocId ? (
                     <div className="min-h-full bg-white relative">
-                        {/* --- 平滑遮罩层 --- */}
-                        {/* 使用 opacity 控制显隐，pointer-events-none 确保消失后不挡鼠标 */}
-                        <div
-                            className={`
-                                absolute inset-0 z-50 flex items-start pt-[25vh] justify-center 
-                                bg-white/80 backdrop-blur-[2px] 
-                                transition-all duration-500 ease-out
-                                ${articleLoading ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}
-                            `}
-                        >
-                            <div
-                                className={`transition-all duration-500 transform ${articleLoading ? 'translate-y-0 scale-100' : 'translate-y-4 scale-95'}`}>
-                                <StarLoader/>
-                            </div>
-                        </div>
-
                         {/* --- 文章内容 --- */}
-                        {/* 内容在加载时轻微变透明和模糊，营造呼吸感 */}
                         <div
-                            className={`transition-all duration-500 ease-out ${articleLoading ? 'opacity-30 blur-[1px]' : 'opacity-100 blur-0'}`}>
+                            className={`transition-all duration-300 ease-out ${articleLoading ? 'opacity-0' : 'opacity-100'}`}>
                             <Article
                                 onBack={handleResetView}
                                 isEmbedded={true}

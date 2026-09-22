@@ -5,6 +5,7 @@ export interface SelectOption<T extends string> {
     value: T;
     label: string;
     description?: string;
+    icon?: React.ReactNode;
 }
 
 interface SelectProps<T extends string> {
@@ -67,15 +68,18 @@ export function Select<T extends string>({
                 onClick={() => setOpen(prev => !prev)}
                 className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-700 shadow-sm transition-all hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 ${buttonClassName}`}
             >
-                <span className="min-w-0">
-                    <span className={`block truncate ${selected ? 'text-slate-800' : 'text-slate-400'}`}>
-                        {selected?.label || placeholder}
-                    </span>
-                    {showSelectedDescription && selected?.description && (
-                        <span className="mt-0.5 block truncate text-[11px] text-slate-400">
-                            {selected.description}
+                <span className="flex min-w-0 items-center gap-2">
+                    {selected?.icon}
+                    <span className="min-w-0 truncate">
+                        <span className={`block truncate ${selected ? 'text-slate-800' : 'text-slate-400'}`}>
+                            {selected?.label || placeholder}
                         </span>
-                    )}
+                        {showSelectedDescription && selected?.description && (
+                            <span className="mt-0.5 block truncate text-[11px] text-slate-400">
+                                {selected.description}
+                            </span>
+                        )}
+                    </span>
                 </span>
                 <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}/>
             </button>
@@ -106,13 +110,16 @@ export function Select<T extends string>({
                                 }}
                                 className={`flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left text-sm transition-colors ${active ? accentClassName : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                             >
-                                <span className="min-w-0">
-                                    <span className="block truncate font-medium">{option.label}</span>
-                                    {option.description && (
-                                        <span className={`mt-0.5 block truncate text-[11px] ${active ? 'text-current opacity-70' : 'text-slate-400'}`}>
-                                            {option.description}
-                                        </span>
-                                    )}
+                                <span className="flex min-w-0 items-center gap-2">
+                                    {option.icon}
+                                    <span className="min-w-0 truncate">
+                                        <span className="block truncate font-medium">{option.label}</span>
+                                        {option.description && (
+                                            <span className={`mt-0.5 block truncate text-[11px] ${active ? 'text-current opacity-70' : 'text-slate-400'}`}>
+                                                {option.description}
+                                            </span>
+                                        )}
+                                    </span>
                                 </span>
                                 {active && <Check className="h-4 w-4 shrink-0"/>}
                             </button>

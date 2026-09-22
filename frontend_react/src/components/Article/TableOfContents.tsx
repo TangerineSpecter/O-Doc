@@ -18,6 +18,7 @@ interface TableOfContentsProps {
     layout?: 'absolute' | 'inline' | 'mobile';
     onClose?: () => void;
     topActions?: ReactNode;
+    scrollContainerId?: string;
 }
 
 export const TableOfContents = ({
@@ -32,7 +33,8 @@ export const TableOfContents = ({
                                     lastSyncedTime,
                                     layout = 'absolute',
                                     onClose,
-                                    topActions
+                                    topActions,
+                                    scrollContainerId
                                 }: TableOfContentsProps) => {
     // 根据状态计算按钮样式和提示文案
     const getSyncButtonState = () => {
@@ -84,6 +86,42 @@ export const TableOfContents = ({
         : layout === 'inline'
             ? 'relative h-full w-64 shrink-0'
             : 'absolute left-full top-0 ml-4 h-full w-64';
+
+    const handleHeaderClick = (e: React.MouseEvent, slug: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const targetEl = document.getElementById(slug);
+        if (!targetEl) {
+            onClose?.();
+            return;
+        }
+
+        const container = (scrollContainerId ? document.getElementById(scrollContainerId) : null)
+            || document.getElementById('right-content-window');
+
+        if (container) {
+            const containerRect = container.getBoundingClientRect();
+            const targetRect = targetEl.getBoundingClientRect();
+            // 移动端菜单栏高度约 48px，保留顶部安全间隙共约 60px，确保标题位于菜单正下方且完全可见
+            const headerOffset = 60;
+            const targetScrollTop = container.scrollTop + (targetRect.top - containerRect.top) - headerOffset;
+
+            container.scrollTo({
+                top: Math.max(0, targetScrollTop),
+                behavior: 'smooth'
+            });
+        } else {
+            const targetRect = targetEl.getBoundingClientRect();
+            const headerOffset = 60;
+            window.scrollBy({
+                top: targetRect.top - headerOffset,
+                behavior: 'smooth'
+            });
+        }
+
+        onClose?.();
+    };
 
     return (
         <div className={`${visibilityClass} ${layoutClass}`}>
@@ -150,12 +188,12 @@ export const TableOfContents = ({
                                 </button>
                             )}
                         </div>
-                        <ul className={`${isMobileLayout ? 'flex-1 overflow-y-auto px-4 py-3 custom-scrollbar' : 'max-h-[calc(100vh-7rem)] overflow-y-auto pr-2 custom-scrollbar'} space-y-1 relative border-l border-slate-200`}>
+                        <ul className={`${isMobileLayout ? 'flex-1 overflow-y-auto px-4 py-3 scrollbar-hide no-scrollbar' : 'max-h-[calc(100vh-7rem)] overflow-y-auto pr-2 scrollbar-hide no-scrollbar'} space-y-1 relative border-l border-slate-200`}>
                             {headers.map((h, i) => (
                                 <li key={i}>
                                     <a href={`#${h.slug}`}
-                                       onClick={onClose}
-                                       className={`block text-sm py-1.5 border-l-2 transition-all truncate ${h.level > 2 ? 'pl-6 text-xs' : 'pl-4'} ${activeId === h.slug ? 'border-[#0ea5e9] text-[#0ea5e9] font-medium bg-sky-50/30' : 'border-transparent text-slate-500 hover:text-slate-900'}`}>
+                                       onClick={(e) => handleHeaderClick(e, h.slug)}
+                                       className={`block text-sm py-2 border-l-2 transition-all truncate ${h.level > 2 ? 'pl-6 text-xs' : 'pl-4'} ${activeId === h.slug ? 'border-orange-500 text-orange-600 font-semibold bg-orange-50/60' : 'border-transparent text-slate-600 hover:text-slate-900 active:bg-slate-50'}`}>
                                         {h.text}
                                     </a>
                                 </li>

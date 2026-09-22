@@ -34,6 +34,7 @@ interface FocalLengthDetailChartProps {
   onStartDateChange: (date: string) => void;
   onEndDateChange: (date: string) => void;
   onClearFilters: () => void;
+  onClose?: () => void;
 }
 
 export default function FocalLengthDetailChart({
@@ -55,6 +56,7 @@ export default function FocalLengthDetailChart({
   onStartDateChange,
   onEndDateChange,
   onClearFilters,
+  onClose,
 }: FocalLengthDetailChartProps) {
   const numericStats = useMemo(
     () => stats
@@ -94,7 +96,7 @@ export default function FocalLengthDetailChart({
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 bg-slate-50/80 px-6 py-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-bold text-slate-900">完整焦段统计</h2>
             <p className="mt-1 text-xs text-slate-500">
@@ -110,13 +112,23 @@ export default function FocalLengthDetailChart({
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
               <Aperture className="h-5 w-5" />
             </div>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+                aria-label="关闭焦段图表"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       <div className="px-6 py-7">
         <div className="mb-6 rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
               <Filter className="h-4 w-4 text-sky-600" />
               筛选条件
@@ -133,7 +145,7 @@ export default function FocalLengthDetailChart({
             )}
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))] xl:grid-cols-[220px_minmax(0,1fr)]">
             <div>
               <label className="mb-2 block text-xs font-semibold text-slate-500">国家</label>
               <Select
@@ -182,7 +194,7 @@ export default function FocalLengthDetailChart({
               <Calendar className="h-3.5 w-3.5 text-sky-600" />
               拍摄日期
             </label>
-            <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
+            <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))] max-w-xl">
               <input
                 type="date"
                 value={selectedStartDate}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Hash, List, Network, Plus, Shuffle } from 'lucide-react';
+import { Hash, Plus, Shuffle } from 'lucide-react';
 
 interface MemoTagFilter {
   name: string;
@@ -27,7 +27,6 @@ interface MemosSidebarProps {
 }
 
 export default function MemosSidebar({
-  viewMode,
   content,
   tag,
   saving,
@@ -36,7 +35,6 @@ export default function MemosSidebar({
   selectedTag,
   normalizedKeyword,
   tagFilters,
-  onViewModeChange,
   onContentChange,
   onTagChange,
   onCreate,
@@ -46,43 +44,15 @@ export default function MemosSidebar({
 }: MemosSidebarProps) {
   return (
     <aside className="lg:sticky lg:top-24">
-      <div className="mb-4 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-        <div className="grid grid-cols-2 gap-1">
-          <button
-            type="button"
-            onClick={() => onViewModeChange('feed')}
-            className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg text-sm font-medium transition ${
-              viewMode === 'feed'
-                ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/20'
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-            }`}
-          >
-            <List className="h-4 w-4" />
-            信息流
-          </button>
-          <button
-            type="button"
-            onClick={() => onViewModeChange('graph')}
-            className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg text-sm font-medium transition ${
-              viewMode === 'graph'
-                ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/20'
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-            }`}
-          >
-            <Network className="h-4 w-4" />
-            知识图谱
-          </button>
-        </div>
-      </div>
-
-      <form onSubmit={onCreate} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
+      {/* 快速收集卡片（移动端紧凑化） */}
+      <form onSubmit={onCreate} className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4 shadow-sm">
+        <div className="mb-2.5 sm:mb-3 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-slate-900">快速收集</h2>
+            <h2 className="text-sm sm:text-base font-bold text-slate-900">快速收集</h2>
             <p className="mt-0.5 text-xs text-slate-500">先记下来，之后再整理成文章或任务。</p>
           </div>
-          <span className="rounded-md bg-orange-50 p-2 text-orange-600">
-            <Plus className="h-4 w-4" />
+          <span className="rounded-md bg-orange-50 p-1.5 sm:p-2 text-orange-600">
+            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </span>
         </div>
 
@@ -90,32 +60,33 @@ export default function MemosSidebar({
           value={content}
           onChange={(event) => onContentChange(event.target.value)}
           placeholder="记下一句闪过脑子的东西..."
-          className="min-h-36 w-full resize-y rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800 outline-none transition focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
+          className="min-h-20 sm:min-h-28 lg:min-h-36 w-full resize-y rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 sm:px-4 sm:py-3 text-sm leading-6 text-slate-800 outline-none transition focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
           autoFocus
         />
 
-        <div className="mt-3 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
+        <div className="mt-2.5 sm:mt-3 flex flex-col gap-2.5 sm:flex-row lg:flex-col xl:flex-row">
           <div className="relative min-w-0 flex-1">
-            <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Hash className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={tag}
               onChange={(event) => onTagChange(event.target.value)}
               placeholder="添加标签"
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/15"
+              className="h-9 sm:h-10 w-full rounded-lg border border-slate-200 bg-white pl-8 sm:pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/15"
             />
           </div>
           <button
             type="submit"
             disabled={!content.trim() || saving}
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-orange-500 px-4 text-sm font-semibold text-white shadow-sm shadow-orange-500/20 transition hover:bg-orange-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+            className="inline-flex h-9 sm:h-10 items-center justify-center gap-1.5 rounded-lg bg-orange-500 px-4 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-orange-500/20 transition hover:bg-orange-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             记录
           </button>
         </div>
       </form>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-orange-100 bg-white shadow-sm">
+      {/* 桌面端专属卡片：随机漫步（移动端已提升至顶层工具栏） */}
+      <div className="mt-4 hidden lg:block overflow-hidden rounded-xl border border-orange-100 bg-white shadow-sm">
         <button
           type="button"
           onClick={onPickRandomMemo}
@@ -137,7 +108,8 @@ export default function MemosSidebar({
         </button>
       </div>
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      {/* 桌面端专属卡片：信息密度 */}
+      <div className="mt-4 hidden lg:block rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-bold text-slate-900">信息密度</h2>
         <div className="mt-3 space-y-3">
           <div>
@@ -160,7 +132,8 @@ export default function MemosSidebar({
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      {/* 桌面端专属卡片：标签筛选列表（移动端改为顶层横向滑动条） */}
+      <div className="mt-4 hidden lg:block rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-bold text-slate-900">标签筛选</h2>
           {selectedTag && (

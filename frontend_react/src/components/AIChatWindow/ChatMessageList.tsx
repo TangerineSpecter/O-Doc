@@ -247,7 +247,7 @@ export const ChatMessageList = ({
                     <div key={idx} className={`flex gap-2.5 sm:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                         {/* 头像 */}
                         {showAvatar ? (
-                            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 border shadow-sm overflow-hidden ${
+                            <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 border shadow-sm overflow-hidden ${
                                 msg.role === 'user'
                                     ? 'bg-white text-slate-600 border-slate-200'
                                     : 'bg-orange-100 text-orange-600 border-orange-200'
@@ -256,16 +256,16 @@ export const ChatMessageList = ({
                                     userInfo?.avatar ? (
                                         <img src={userInfo.avatar} alt="用户头像" className="h-full w-full object-cover" />
                                     ) : (
-                                        <User className="w-4 h-4 sm:w-5 sm:h-5" />
+                                        <User className="w-5 h-5 sm:w-6 sm:h-6" />
                                     )
                                 ) : isImageAvatarValue(activeAgent?.avatar) ? (
                                     <img src={activeAgent?.avatar} alt={activeAgent?.name || 'Agent'} className="h-full w-full object-cover" />
                                 ) : (
-                                    activeAgent?.avatar?.trim() || <Bot className="w-4 h-4 sm:w-5 sm:h-5" />
+                                    activeAgent?.avatar?.trim() || <Bot className="w-5 h-5 sm:w-6 sm:h-6" />
                                 )}
                             </div>
                         ) : (
-                            <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0" />
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0" />
                         )}
 
                         {/* 消息气泡 */}

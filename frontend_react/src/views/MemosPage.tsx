@@ -2,8 +2,11 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import remarkGfm from 'remark-gfm';
 import {
     Inbox,
+    List,
+    Network,
     Pin,
     Search,
+    Shuffle,
     Sparkles,
 } from 'lucide-react';
 import {createMemo, deleteMemo, getMemoKnowledgeGraph, getMemoList, syncMemoVectors, updateMemo} from '../api/memo';
@@ -59,7 +62,8 @@ export default function MemosPage() {
     const [editTag, setEditTag] = useState('');
     const [editPinned, setEditPinned] = useState(false);
     const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const isFirstMountRef = useRef(true);
     const [viewMode, setViewMode] = useState<'feed' | 'graph'>('feed');
     const [graphData, setGraphData] = useState<MemoKnowledgeGraph | null>(null);
     const [graphLoading, setGraphLoading] = useState(false);
@@ -186,6 +190,12 @@ export default function MemosPage() {
     };
 
     useEffect(() => {
+        if (isFirstMountRef.current) {
+            isFirstMountRef.current = false;
+            fetchMemos();
+            return;
+        }
+
         const timer = window.setTimeout(() => {
             fetchMemos();
         }, 180);
@@ -608,139 +618,312 @@ export default function MemosPage() {
             )}
 
             <main className="mx-auto max-w-7xl">
-                <section className="mb-5 rounded-xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <section className="mb-4 sm:mb-5 rounded-xl border border-slate-100 bg-white p-3.5 sm:p-5 shadow-sm">
+                    <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div>
-                            <div className="flex items-center gap-3">
-                                <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-600 shadow-sm shadow-orange-500/10">
-                                    <Sparkles className="h-5 w-5"/>
+                            <div className="flex items-center gap-2.5 sm:gap-3">
+                                <span className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-600 shadow-sm shadow-orange-500/10 shrink-0">
+                                    <Sparkles className="h-4 w-4 sm:h-5 sm:w-5"/>
                                 </span>
                                 <div>
-                                    <h1 className="text-2xl font-bold tracking-tight text-slate-950">Memos</h1>
-                                    <p className="mt-1 text-sm text-slate-500">把临时闪念收进一个清爽、可回看的焦点流。</p>
+                                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-950">Memos</h1>
+                                    <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-slate-500">把临时闪念收进一个清爽、可回看的焦点流。</p>
                                 </div>
                             </div>
                         </div>
 
                         <div className="relative w-full lg:w-80">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/>
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-slate-400"/>
                             <input
                                 value={keyword}
                                 onChange={(event) => setKeyword(event.target.value)}
                                 placeholder="搜索内容或标签"
-                                className="h-10 w-full rounded-full border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition hover:bg-white focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
+                                className="h-9 sm:h-10 w-full rounded-full border border-slate-200 bg-slate-50 pl-8 sm:pl-9 pr-3 text-xs sm:text-sm outline-none transition hover:bg-white focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
                             />
                         </div>
                     </div>
 
-                    <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                        <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                            <p className="text-xs text-slate-500">当前视图</p>
-                            <p className="mt-1 text-lg font-bold text-slate-900">{visibleMemos.length}</p>
+                    {/* 核心指标统计：移动端收拢为单行一体化数据条，桌面端保持标准 4 宫格 */}
+                    <div className="mt-3 sm:mt-5">
+                        {/* 移动端极简收拢条 (单行仅约 40px 高度，彻底解决大块留白问题) */}
+                        <div className="grid grid-cols-4 items-center rounded-xl border border-slate-100 bg-slate-50/90 py-2 divide-x divide-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)] sm:hidden">
+                            <div className="flex flex-col items-center justify-center px-1">
+                                <span className="text-[10px] text-slate-400">全部</span>
+                                <span className="mt-0.5 text-sm font-bold text-slate-900 leading-none">{visibleMemos.length}</span>
+                            </div>
+                            <div className="flex flex-col items-center justify-center px-1">
+                                <span className="text-[10px] text-orange-500 font-medium">置顶</span>
+                                <span className="mt-0.5 text-sm font-bold text-orange-600 leading-none">{pinnedMemos.length}</span>
+                            </div>
+                            <div className="flex flex-col items-center justify-center px-1">
+                                <span className="text-[10px] text-slate-400">标签</span>
+                                <span className="mt-0.5 text-sm font-bold text-slate-900 leading-none">{tagCount}</span>
+                            </div>
+                            <div className="flex flex-col items-center justify-center px-1 min-w-0">
+                                <span className="text-[10px] text-slate-400">最近</span>
+                                <span className="mt-0.5 text-[11px] font-semibold text-slate-700 truncate w-full text-center leading-none" title={latestMemoTime}>
+                                    {latestMemoTime.replace(/(\d+)月(\d+)日/, '$1-$2')}
+                                </span>
+                            </div>
                         </div>
-                        <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
-                            <p className="text-xs text-orange-600">置顶焦点</p>
-                            <p className="mt-1 text-lg font-bold text-orange-700">{pinnedMemos.length}</p>
-                        </div>
-                        <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                            <p className="text-xs text-slate-500">标签</p>
-                            <p className="mt-1 text-lg font-bold text-slate-900">{tagCount}</p>
-                        </div>
-                        <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                            <p className="text-xs text-slate-500">最近收集</p>
-                            <p className="mt-1 truncate text-sm font-semibold text-slate-800">{latestMemoTime}</p>
+
+                        {/* 桌面端独立卡片 (>= sm) */}
+                        <div className="hidden sm:grid sm:grid-cols-4 gap-3">
+                            <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                                <p className="text-xs text-slate-500">当前视图</p>
+                                <p className="mt-1 text-lg font-bold text-slate-900">{visibleMemos.length}</p>
+                            </div>
+                            <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
+                                <p className="text-xs text-orange-600">置顶焦点</p>
+                                <p className="mt-1 text-lg font-bold text-orange-700">{pinnedMemos.length}</p>
+                            </div>
+                            <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                                <p className="text-xs text-slate-500">标签</p>
+                                <p className="mt-1 text-lg font-bold text-slate-900">{tagCount}</p>
+                            </div>
+                            <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                                <p className="text-xs text-slate-500">最近收集</p>
+                                <p className="mt-1 truncate text-sm font-semibold text-slate-800">{latestMemoTime}</p>
+                            </div>
                         </div>
                     </div>
+
+                    {/* 视图模式切换与快捷操作栏 */}
+                    <div className="mt-4 flex flex-col gap-2.5 border-t border-slate-100 pt-3.5 sm:flex-row sm:items-center sm:justify-between">
+                        {/* 模式切换：移动端等宽两栏 50%/50%，桌面端自适应 */}
+                        <div className="grid grid-cols-2 w-full sm:w-auto sm:inline-flex rounded-xl bg-slate-100 p-1">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('feed')}
+                                className={`flex items-center justify-center gap-1.5 rounded-lg py-2 px-4 text-xs sm:text-sm font-semibold transition ${
+                                    viewMode === 'feed'
+                                        ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/20'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                <List className="h-4 w-4" />
+                                <span>信息流</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('graph')}
+                                className={`flex items-center justify-center gap-1.5 rounded-lg py-2 px-4 text-xs sm:text-sm font-semibold transition ${
+                                    viewMode === 'graph'
+                                        ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/20'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                <Network className="h-4 w-4" />
+                                <span>知识图谱</span>
+                            </button>
+                        </div>
+
+                        {/* 桌面端快捷漫步按钮 */}
+                        <div className="hidden sm:flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={pickRandomMemo}
+                                disabled={visibleMemos.length === 0}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50/80 px-3 py-1.5 text-xs font-semibold text-orange-700 transition hover:bg-orange-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                                title="从当前范围抽一条闪念，单独漫步"
+                            >
+                                <Shuffle className="h-3.5 w-3.5" />
+                                <span>随机漫步</span>
+                                <span className="rounded-full bg-orange-200/70 px-1.5 py-0.2 text-[10px] text-orange-800">
+                                    {visibleMemos.length}
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 移动端横向滑动标签栏 (在 feed 模式下可见) */}
+                    {viewMode === 'feed' && (
+                        <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden lg:hidden">
+                            {/* 移动端快捷漫步胶囊 */}
+                            <button
+                                type="button"
+                                onClick={pickRandomMemo}
+                                disabled={visibleMemos.length === 0}
+                                className="shrink-0 flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700 active:scale-95 disabled:opacity-50"
+                            >
+                                <Shuffle className="h-3 w-3" />
+                                <span>漫步</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedTag('')}
+                                className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
+                                    !selectedTag
+                                        ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/20'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
+                            >
+                                全部 ({memos.length})
+                            </button>
+                            {tagFilters.map(item => (
+                                <button
+                                    key={item.name}
+                                    type="button"
+                                    onClick={() => setSelectedTag(selectedTag === item.name ? '' : item.name)}
+                                    className={`shrink-0 flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition ${
+                                        selectedTag === item.name
+                                            ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/20'
+                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    <span>{renderTagLabel(item.name)}</span>
+                                    <span className={selectedTag === item.name ? 'text-orange-100' : 'text-slate-400'}>
+                                        {item.count}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </section>
 
-                <div className="grid gap-5 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-start">
-                    <MemosSidebar
-                        viewMode={viewMode}
-                        content={content}
-                        tag={tag}
-                        saving={saving}
-                        visibleMemoCount={visibleMemos.length}
-                        totalCharacters={totalCharacters}
-                        selectedTag={selectedTag}
-                        normalizedKeyword={normalizedKeyword}
-                        tagFilters={tagFilters}
-                        onViewModeChange={setViewMode}
-                        onContentChange={setContent}
-                        onTagChange={setTag}
-                        onCreate={handleCreate}
-                        onPickRandomMemo={pickRandomMemo}
-                        onSelectedTagChange={setSelectedTag}
-                        renderTagLabel={renderTagLabel}
-                    />
+                {viewMode === 'graph' ? (
+                    /* 知识图谱模式：全屏展示，彻底隐藏图2（快速收集、漫步、密度、标签），让图谱占据全屏 */
+                    <section className="w-full">
+                        <KnowledgeGraphPanel
+                            graphData={graphData}
+                            graphLoading={graphLoading}
+                            vectorSyncing={vectorSyncing}
+                            selectedGraphNode={selectedGraphNode}
+                            graphDetailCollapsed={graphDetailCollapsed}
+                            markdownComponents={markdownComponents}
+                            remarkPlugins={[remarkSoftLineBreaks, remarkGfm]}
+                            onRefresh={fetchKnowledgeGraph}
+                            onSyncHistory={handleSyncHistoryMemos}
+                            onSelectNode={setSelectedGraphNode}
+                            onDetailCollapsedChange={setGraphDetailCollapsed}
+                            onEditMemo={openEditModal}
+                            formatDate={formatDate}
+                            renderTagLabel={renderTagLabel}
+                            getMemoAuthorMeta={getMemoAuthorMeta}
+                        />
+                    </section>
+                ) : (
+                    /* 信息流模式：桌面端左右分栏，移动端紧凑排布 */
+                    <div className="grid gap-5 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-start">
+                        <MemosSidebar
+                            viewMode={viewMode}
+                            content={content}
+                            tag={tag}
+                            saving={saving}
+                            visibleMemoCount={visibleMemos.length}
+                            totalCharacters={totalCharacters}
+                            selectedTag={selectedTag}
+                            normalizedKeyword={normalizedKeyword}
+                            tagFilters={tagFilters}
+                            onViewModeChange={setViewMode}
+                            onContentChange={setContent}
+                            onTagChange={setTag}
+                            onCreate={handleCreate}
+                            onPickRandomMemo={pickRandomMemo}
+                            onSelectedTagChange={setSelectedTag}
+                            renderTagLabel={renderTagLabel}
+                        />
 
-                    <section className="min-w-0">
-                        {viewMode === 'graph' ? (
-                            <KnowledgeGraphPanel
-                                graphData={graphData}
-                                graphLoading={graphLoading}
-                                vectorSyncing={vectorSyncing}
-                                selectedGraphNode={selectedGraphNode}
-                                graphDetailCollapsed={graphDetailCollapsed}
-                                markdownComponents={markdownComponents}
-                                remarkPlugins={[remarkSoftLineBreaks, remarkGfm]}
-                                onRefresh={fetchKnowledgeGraph}
-                                onSyncHistory={handleSyncHistoryMemos}
-                                onSelectNode={setSelectedGraphNode}
-                                onDetailCollapsedChange={setGraphDetailCollapsed}
-                                onEditMemo={openEditModal}
-                                formatDate={formatDate}
-                                renderTagLabel={renderTagLabel}
-                                getMemoAuthorMeta={getMemoAuthorMeta}
-                            />
-                        ) : loading ? (
-                            <div className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400 shadow-sm">正在整理闪念...</div>
-                        ) : visibleMemos.length === 0 ? (
-                            <div className="flex min-h-80 flex-col items-center justify-center rounded-xl border border-slate-200 bg-white text-center shadow-sm">
-                                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600">
-                                    <Sparkles className="h-7 w-7"/>
+                        <section className="min-w-0">
+                            {loading ? (
+                                <div className="space-y-3.5">
+                                    <div className="rounded-xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm animate-pulse space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="h-4 w-16 bg-orange-100 rounded-full"></div>
+                                                <div className="h-3 w-20 bg-slate-100 rounded"></div>
+                                            </div>
+                                            <div className="h-4 w-8 bg-slate-100 rounded-full"></div>
+                                        </div>
+                                        <div className="space-y-2 py-1">
+                                            <div className="h-4 w-full bg-slate-100 rounded"></div>
+                                            <div className="h-4 w-4/5 bg-slate-100 rounded"></div>
+                                        </div>
+                                        <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+                                            <div className="h-3 w-24 bg-slate-100 rounded"></div>
+                                            <div className="h-3 w-12 bg-slate-100 rounded"></div>
+                                        </div>
+                                    </div>
+                                    <div className="rounded-xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm animate-pulse space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="h-4 w-20 bg-orange-100 rounded-full"></div>
+                                                <div className="h-3 w-16 bg-slate-100 rounded"></div>
+                                            </div>
+                                            <div className="h-4 w-8 bg-slate-100 rounded-full"></div>
+                                        </div>
+                                        <div className="space-y-2 py-1">
+                                            <div className="h-4 w-11/12 bg-slate-100 rounded"></div>
+                                            <div className="h-4 w-2/3 bg-slate-100 rounded"></div>
+                                        </div>
+                                        <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+                                            <div className="h-3 w-20 bg-slate-100 rounded"></div>
+                                            <div className="h-3 w-14 bg-slate-100 rounded"></div>
+                                        </div>
+                                    </div>
+                                    <div className="rounded-xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm animate-pulse space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="h-4 w-14 bg-slate-200 rounded-full"></div>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2 py-1">
+                                            <div className="h-4 w-full bg-slate-100 rounded"></div>
+                                            <div className="h-4 w-1/2 bg-slate-100 rounded"></div>
+                                        </div>
+                                        <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+                                            <div className="h-3 w-16 bg-slate-100 rounded"></div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <p className="font-semibold text-slate-800">{normalizedKeyword || selectedTag ? '没有找到相关碎片' : '这里还没有碎片'}</p>
-                                <p className="mt-1 text-sm text-slate-400">{normalizedKeyword || selectedTag ? '换个关键词或标签，或者记录一条新的。' : '写下第一条，它会自然落到焦点流里。'}</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-6">
-                                {pinnedMemos.length > 0 && (
+                            ) : visibleMemos.length === 0 ? (
+                                <div className="flex min-h-80 flex-col items-center justify-center rounded-xl border border-slate-200 bg-white text-center shadow-sm animate-in fade-in duration-200">
+                                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600">
+                                        <Sparkles className="h-7 w-7"/>
+                                    </div>
+                                    <p className="font-semibold text-slate-800">{normalizedKeyword || selectedTag ? '没有找到相关碎片' : '这里还没有碎片'}</p>
+                                    <p className="mt-1 text-sm text-slate-400">{normalizedKeyword || selectedTag ? '换个关键词或标签，或者记录一条新的。' : '写下第一条，它会自然落到焦点流里。'}</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6 animate-in fade-in duration-200">
+                                    {pinnedMemos.length > 0 && (
+                                        <div>
+                                            <div className="mb-3 flex items-center justify-between">
+                                                <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                                                    <Pin className="h-4 w-4 text-orange-600"/>
+                                                    置顶焦点
+                                                </h2>
+                                                <span className="text-xs text-slate-400">{pinnedMemos.length} 条</span>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {pinnedMemos.map(memo => renderMemoCard(memo, true))}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div>
                                         <div className="mb-3 flex items-center justify-between">
                                             <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                                                <Pin className="h-4 w-4 text-orange-600"/>
-                                                置顶焦点
+                                                <Inbox className="h-4 w-4 text-slate-500"/>
+                                                收集流
                                             </h2>
-                                            <span className="text-xs text-slate-400">{pinnedMemos.length} 条</span>
+                                            <span className="text-xs text-slate-400">{unpinnedMemos.length} 条</span>
                                         </div>
-                                        <div className="space-y-3">
-                                            {pinnedMemos.map(memo => renderMemoCard(memo, true))}
-                                        </div>
+                                        {unpinnedMemos.length === 0 ? (
+                                            <div className="rounded-xl border border-dashed border-slate-200 bg-white/70 px-4 py-10 text-center text-sm text-slate-400">
+                                                暂无普通闪念，置顶内容都在上方。
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {unpinnedMemos.map(memo => renderMemoCard(memo))}
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-
-                                <div>
-                                    <div className="mb-3 flex items-center justify-between">
-                                        <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                                            <Inbox className="h-4 w-4 text-slate-500"/>
-                                            收集流
-                                        </h2>
-                                        <span className="text-xs text-slate-400">{unpinnedMemos.length} 条</span>
-                                    </div>
-                                    {unpinnedMemos.length === 0 ? (
-                                        <div className="rounded-xl border border-dashed border-slate-200 bg-white/70 px-4 py-10 text-center text-sm text-slate-400">
-                                            暂无普通闪念，置顶内容都在上方。
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {unpinnedMemos.map(memo => renderMemoCard(memo))}
-                                        </div>
-                                    )}
                                 </div>
-                            </div>
-                        )}
-                    </section>
-                </div>
+                            )}
+                        </section>
+                    </div>
+                )}
             </main>
         </div>
     );
