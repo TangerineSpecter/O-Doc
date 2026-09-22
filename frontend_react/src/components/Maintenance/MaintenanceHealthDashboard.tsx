@@ -141,9 +141,9 @@ export default function MaintenanceHealthDashboard({
     const ScoreIcon = scoreTier.icon;
 
     return (
-        <section className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-            {/* 卡片 1：综合健康指数主仪表盘（紧凑高度） */}
-            <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-br from-white via-orange-50/15 to-white p-3.5 shadow-sm transition-all duration-200 hover:shadow sm:p-4">
+        <section className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-3.5 lg:grid-cols-4">
+            {/* 卡片 1：综合健康指数主仪表盘（移动端独占首行横向紧凑展示） */}
+            <div className="col-span-3 sm:col-span-1 relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/90 bg-gradient-to-br from-white via-orange-50/15 to-white p-3 shadow-sm transition-all duration-200 hover:shadow sm:rounded-2xl sm:p-4">
                 <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-orange-100/30 blur-xl" />
 
                 {/* 顶部标题与评级 */}
@@ -158,8 +158,8 @@ export default function MaintenanceHealthDashboard({
                 </div>
 
                 {/* 中间仪表刻度与评分（紧凑化尺寸） */}
-                <div className="relative my-2 flex items-center gap-3">
-                    <div className="relative flex h-[54px] w-[54px] shrink-0 items-center justify-center">
+                <div className="relative my-1.5 sm:my-2 flex items-center gap-3">
+                    <div className="relative flex h-11 w-11 sm:h-[54px] sm:w-[54px] shrink-0 items-center justify-center">
                         <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 60 60">
                             <circle
                                 cx="30"
@@ -183,7 +183,7 @@ export default function MaintenanceHealthDashboard({
                             />
                         </svg>
                         <div className="absolute flex flex-col items-center justify-center">
-                            <span className="text-lg font-black tracking-tight text-slate-900">
+                            <span className="text-base sm:text-lg font-black tracking-tight text-slate-900">
                                 {loading ? '--' : score}
                             </span>
                         </div>
@@ -200,12 +200,12 @@ export default function MaintenanceHealthDashboard({
                 </div>
 
                 {/* 底部微提示 */}
-                <div className="relative border-t border-slate-100/80 pt-1.5 text-[10px] text-slate-400">
+                <div className="relative border-t border-slate-100/80 pt-1 text-[10px] text-slate-400 sm:pt-1.5">
                     文章、闪念与 RAG 综合评估
                 </div>
             </div>
 
-            {/* 卡片 2、3、4：三个严重程度互动卡片（高度紧凑） */}
+            {/* 卡片 2、3、4：三个严重程度互动卡片（移动端三列并排展示，高度极度克制收拢） */}
             {severityConfigs.map(config => {
                 const count = health?.severityCounts[config.level] || 0;
                 const percentage = totalIssues > 0 ? Math.round((count / totalIssues) * 100) : 0;
@@ -217,41 +217,41 @@ export default function MaintenanceHealthDashboard({
                         type="button"
                         key={config.level}
                         onClick={() => onSelectSeverity(isSelected ? '' : config.level)}
-                        className={`group relative flex flex-col justify-between rounded-2xl border bg-white p-3.5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow sm:p-4 focus:outline-none ${
+                        className={`col-span-1 group relative flex flex-col justify-between rounded-xl border bg-white p-2.5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow sm:rounded-2xl sm:p-4 focus:outline-none ${
                             isSelected
                                 ? `${config.colorClasses.selectedBorder} ${config.colorClasses.selectedRing}`
                                 : 'border-slate-200/90 hover:border-slate-300'
                         }`}
                     >
                         {/* 顶部图标与占比胶囊 */}
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <span className={`flex h-7 w-7 items-center justify-center rounded-lg ring-1 transition-transform group-hover:scale-105 ${config.colorClasses.iconBox}`}>
-                                    <Icon className="h-3.5 w-3.5" />
+                        <div className="flex items-center justify-between gap-1">
+                            <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                                <span className={`flex h-5 w-5 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-md sm:rounded-lg ring-1 transition-transform group-hover:scale-105 ${config.colorClasses.iconBox}`}>
+                                    <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                 </span>
-                                <span className="text-xs sm:text-sm font-bold text-slate-800">
+                                <span className="truncate text-xs sm:text-sm font-bold text-slate-800">
                                     {config.title}
                                 </span>
                             </div>
 
                             {isSelected ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                                    <Check className="h-2.5 w-2.5" />
-                                    已筛选
+                                <span className="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-slate-900 px-1 py-0.5 sm:px-1.5 text-[9px] sm:text-[10px] font-bold text-white shadow-sm">
+                                    <Check className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
+                                    <span className="hidden sm:inline">已选</span>
                                 </span>
                             ) : (
-                                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                                <span className="hidden sm:inline-block rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
                                     占比 {percentage}%
                                 </span>
                             )}
                         </div>
 
                         {/* 中间指标大字与单位 */}
-                        <div className="my-1.5 flex items-baseline gap-1.5">
-                            <span className="text-2xl font-black tracking-tight text-slate-900">
+                        <div className="my-1 sm:my-1.5 flex items-baseline gap-1">
+                            <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
                                 {count}
                             </span>
-                            <span className="text-[11px] font-medium text-slate-400">
+                            <span className="truncate text-[10px] sm:text-[11px] font-medium text-slate-400">
                                 {config.sublabel}
                             </span>
                         </div>
@@ -264,7 +264,7 @@ export default function MaintenanceHealthDashboard({
                                     style={{width: `${percentage}%`}}
                                 />
                             </div>
-                            <p className="truncate text-[10px] text-slate-400" title={config.desc}>
+                            <p className="hidden sm:block truncate text-[10px] text-slate-400" title={config.desc}>
                                 {config.desc}
                             </p>
                         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Aperture,
   Calendar,
@@ -36,6 +36,10 @@ interface ImageViewerProps {
   onNext?: () => void;
   hasPrevious?: boolean;
   hasNext?: boolean;
+  onSwipePrevious?: () => void;
+  onSwipeNext?: () => void;
+  hasSwipePrevious?: boolean;
+  hasSwipeNext?: boolean;
   groupImages?: ImageData[];
   currentGroupIndex?: number;
   onSelectGroupImage?: (index: number) => void;
@@ -51,6 +55,10 @@ export default function ImageViewer({
   onNext,
   hasPrevious,
   hasNext,
+  onSwipePrevious,
+  onSwipeNext,
+  hasSwipePrevious,
+  hasSwipeNext,
   groupImages = [],
   currentGroupIndex = 0,
   onSelectGroupImage,
@@ -62,16 +70,35 @@ export default function ImageViewer({
   const [displayGroupImages, setDisplayGroupImages] = useState<ImageData[]>(groupImages);
   const [displayGroupIndex, setDisplayGroupIndex] = useState(currentGroupIndex);
   const [showInfo, setShowInfo] = useState(true);
+  const [areNavButtonsVisible, setAreNavButtonsVisible] = useState(true);
   const [imageRetryTokens, setImageRetryTokens] = useState<Record<string, number>>({});
   const thumbnailStripRef = useRef<HTMLDivElement>(null);
   const thumbnailRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const desktopThumbnailStripRef = useRef<HTMLDivElement>(null);
   const desktopThumbnailRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const closeTimerRef = useRef<number | null>(null);
+  const hideNavTimerRef = useRef<number | null>(null);
   const imageRetryAttemptsRef = useRef<Record<string, number>>({});
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
+  const isTouchInBottomZoneRef = useRef<boolean>(false);
+  const isTouchInImageZoneRef = useRef<boolean>(false);
+  const [edgeSwipeProgress, setEdgeSwipeProgress] = useState<{ deltaX: number; clientY: number } | null>(null);
+  const isEdgeSwipingRef = useRef(false);
+  const edgeSwipeStartXRef = useRef(0);
+  const edgeSwipeStartYRef = useRef(0);
+  const hasVibratedRef = useRef(false);
   const groupImageUrls = groupImages.map(groupImage => groupImage.imageUrl).join('|');
+
+  const resetNavButtonsTimer = useCallback(() => {
+    setAreNavButtonsVisible(true);
+    if (hideNavTimerRef.current !== null) {
+      window.clearTimeout(hideNavTimerRef.current);
+    }
+    hideNavTimerRef.current = window.setTimeout(() => {
+      setAreNavButtonsVisible(false);
+    }, 1500);
+  }, []);
 
   useEffect(() => {
     if (closeTimerRef.current !== null) {
@@ -84,9 +111,14 @@ export default function ImageViewer({
         setIsVisible(true);
       });
       document.body.style.overflow = 'hidden';
+      resetNavButtonsTimer();
     } else {
       setIsVisible(false);
       document.body.style.overflow = 'unset';
+      if (hideNavTimerRef.current !== null) {
+        window.clearTimeout(hideNavTimerRef.current);
+        hideNavTimerRef.current = null;
+      }
       closeTimerRef.current = window.setTimeout(() => {
         setDisplayImage(null);
         setDisplayGroupImages([]);
@@ -97,8 +129,11 @@ export default function ImageViewer({
       if (closeTimerRef.current !== null) {
         window.clearTimeout(closeTimerRef.current);
       }
+      if (hideNavTimerRef.current !== null) {
+        window.clearTimeout(hideNavTimerRef.current);
+      }
     };
-  }, [isOpen, image]);
+  }, [isOpen, image, resetNavButtonsTimer]);
 
   useEffect(() => {
     if (!isOpen || !image) return;
@@ -106,7 +141,8 @@ export default function ImageViewer({
     setDisplayImage(image);
     setDisplayGroupImages(groupImages);
     setDisplayGroupIndex(currentGroupIndex);
-  }, [currentGroupIndex, groupImages, image, isOpen]);
+    resetNavButtonsTimer();
+  }, [currentGroupIndex, groupImages, image, isOpen, resetNavButtonsTimer]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -125,16 +161,26 @@ export default function ImageViewer({
 
       if (e.key === 'Escape') {
         onClose();
-      } else if (e.key === 'ArrowLeft' && hasPrevious) {
-        onPrevious?.();
-      } else if (e.key === 'ArrowRight' && hasNext) {
-        onNext?.();
+      } else if (e.key === 'ArrowLeft') {
+        resetNavButtonsTimer();
+        if (hasSwipePrevious && onSwipePrevious) {
+          onSwipePrevious();
+        } else if (hasPrevious) {
+          onPrevious?.();
+        }
+      } else if (e.key === 'ArrowRight') {
+        resetNavButtonsTimer();
+        if (hasSwipeNext && onSwipeNext) {
+          onSwipeNext();
+        } else if (hasNext) {
+          onNext?.();
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, onPrevious, onNext, hasPrevious, hasNext]);
+  }, [isOpen, onClose, onPrevious, onNext, hasPrevious, hasNext, onSwipePrevious, onSwipeNext, hasSwipePrevious, hasSwipeNext, resetNavButtonsTimer]);
 
   useEffect(() => {
     if (!isOpen || displayGroupImages.length < 2) return;
@@ -200,31 +246,148 @@ export default function ImageViewer({
   const previousImage = currentGroupIdx > 0 ? currentGroupImages[currentGroupIdx - 1] : null;
   const nextImage = currentGroupIdx < currentGroupImages.length - 1 ? currentGroupImages[currentGroupIdx + 1] : null;
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    e.stopPropagation();
-    touchStartXRef.current = e.touches[0].clientX;
-    touchStartYRef.current = e.touches[0].clientY;
+  const handleImageTouchStart = (e: React.TouchEvent) => {
+    resetNavButtonsTimer();
+    const touch = e.touches[0];
+    if (!touch) return;
+    const startX = touch.clientX;
+
+    // 屏幕左侧边缘起手判定（<= 45px）：触发边缘右滑返回
+    if (startX <= 45) {
+      isEdgeSwipingRef.current = true;
+      edgeSwipeStartXRef.current = startX;
+      edgeSwipeStartYRef.current = touch.clientY;
+      hasVibratedRef.current = false;
+      touchStartXRef.current = null;
+      return;
+    }
+
+    isEdgeSwipingRef.current = false;
+    isTouchInImageZoneRef.current = true;
+    isTouchInBottomZoneRef.current = false;
+    touchStartXRef.current = startX;
+    touchStartYRef.current = touch.clientY;
+  };
+
+  const handleContainerTouchStart = (e: React.TouchEvent) => {
+    resetNavButtonsTimer();
+    const touch = e.touches[0];
+    if (!touch) return;
+    const startX = touch.clientX;
+    const clientY = touch.clientY;
+
+    // 屏幕左侧边缘起手判定（<= 45px）：触发边缘右滑返回
+    if (startX <= 45) {
+      isEdgeSwipingRef.current = true;
+      edgeSwipeStartXRef.current = startX;
+      edgeSwipeStartYRef.current = clientY;
+      hasVibratedRef.current = false;
+      touchStartXRef.current = null;
+      return;
+    }
+
+    isEdgeSwipingRef.current = false;
+    // 判定是否处于屏幕底部 20%~25% 区域 (即视口下半部分 clientY >= 75%)
+    const isBottomArea = clientY >= window.innerHeight * 0.75;
+    if (isBottomArea) {
+      isTouchInBottomZoneRef.current = true;
+      isTouchInImageZoneRef.current = false;
+      touchStartXRef.current = startX;
+      touchStartYRef.current = clientY;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    resetNavButtonsTimer();
+
+    // 边缘右滑返回手势处理
+    if (isEdgeSwipingRef.current) {
+      const touch = e.touches[0];
+      if (!touch) return;
+      const currentDeltaX = touch.clientX - edgeSwipeStartXRef.current;
+      const currentDeltaY = touch.clientY - edgeSwipeStartYRef.current;
+
+      // 若纵向位移明显大于水平位移，说明是上下拖拽，取消边缘返回
+      if (Math.abs(currentDeltaY) > Math.abs(currentDeltaX) * 1.5 && Math.abs(currentDeltaY) > 25) {
+        isEdgeSwipingRef.current = false;
+        setEdgeSwipeProgress(null);
+        return;
+      }
+
+      if (currentDeltaX > 0) {
+        // 达到有效返回阈值（60px）时触发微触感反馈
+        if (currentDeltaX >= 60 && !hasVibratedRef.current) {
+          hasVibratedRef.current = true;
+          if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+            try { navigator.vibrate(10); } catch { /* ignore */ }
+          }
+        } else if (currentDeltaX < 60) {
+          hasVibratedRef.current = false;
+        }
+
+        setEdgeSwipeProgress({ deltaX: currentDeltaX, clientY: touch.clientY });
+      } else {
+        setEdgeSwipeProgress(null);
+      }
+    }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    e.stopPropagation();
+    resetNavButtonsTimer();
+
+    // 边缘右滑返回手势松手结算
+    if (isEdgeSwipingRef.current) {
+      const deltaX = edgeSwipeProgress?.deltaX || 0;
+      isEdgeSwipingRef.current = false;
+      setEdgeSwipeProgress(null);
+
+      if (deltaX >= 60) {
+        onClose();
+        return;
+      }
+    }
+
     if (touchStartXRef.current === null || touchStartYRef.current === null) return;
     const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
     const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+    const isImageZone = isTouchInImageZoneRef.current;
+    const isBottomZone = isTouchInBottomZoneRef.current;
 
-    // 水平左右滑动手势翻页
-    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
-      if (deltaX < -40 && hasNext) {
-        onNext?.();
-      } else if (deltaX > 40 && hasPrevious) {
-        onPrevious?.();
+    // 仅在图片展示区或底部 20%~25% 区域响应滑动手势翻页
+    if (isImageZone || isBottomZone) {
+      // 水平左右滑动手势翻页
+      if (Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+        if (deltaX < -35) {
+          // 向左滑：查看下一张
+          const canSwipeNext = hasSwipeNext ?? hasNext;
+          if (canSwipeNext) {
+            if (onSwipeNext) {
+              onSwipeNext();
+            } else {
+              onNext?.();
+            }
+          }
+        } else if (deltaX > 35) {
+          // 向右滑：查看上一张
+          const canSwipePrev = hasSwipePrevious ?? hasPrevious;
+          if (canSwipePrev) {
+            if (onSwipePrevious) {
+              onSwipePrevious();
+            } else {
+              onPrevious?.();
+            }
+          }
+        }
+      } else if (isImageZone && deltaY > 90 && Math.abs(deltaY) > Math.abs(deltaX) * 1.5) {
+        // 仅在图片展示区：垂直向下滑动快速退出预览
+        onClose();
       }
-    } else if (deltaY > 90 && Math.abs(deltaY) > Math.abs(deltaX) * 1.5) {
-      // 垂直向下滑动快速退出预览
-      onClose();
     }
+
     touchStartXRef.current = null;
     touchStartYRef.current = null;
+    isTouchInBottomZoneRef.current = false;
+    isTouchInImageZoneRef.current = false;
   };
 
   const hasExtraInfo = Boolean(shootingDate || location || placeName || focalLengthLabel || (currentImage.tags && currentImage.tags.length > 0) || currentImage.description);
@@ -243,7 +406,17 @@ export default function ImageViewer({
       {/* 整个画廊主容器（Light 纯净浅色背景） */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full flex-col bg-slate-50 overflow-hidden select-none"
+        className={`flex h-full w-full flex-col bg-slate-50 overflow-hidden select-none ${
+          edgeSwipeProgress ? 'transition-none' : 'transition-transform duration-200 ease-out'
+        }`}
+        style={
+          edgeSwipeProgress
+            ? {
+                transform: `translateX(${Math.max(0, edgeSwipeProgress.deltaX * 0.35)}px)`,
+                opacity: Math.max(0.72, 1 - edgeSwipeProgress.deltaX / 360),
+              }
+            : undefined
+        }
       >
         {/* 顶部优雅轻量控制栏 */}
         <header className="relative z-30 flex h-12 sm:h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/95 px-3 sm:px-6 backdrop-blur-md shadow-xs">
@@ -304,40 +477,54 @@ export default function ImageViewer({
         </header>
 
         {/* 移动端专属主展示区（< lg）：自适应贴顶，图片顶部贴齐，标题/参数/描述紧随其后垂直排版 */}
-        <div className="flex lg:hidden flex-1 min-h-0 flex-col overflow-y-auto bg-slate-50 select-text">
+        <div
+          className="flex lg:hidden flex-1 min-h-0 flex-col overflow-y-auto bg-slate-50 select-text"
+          onTouchStart={handleContainerTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onClick={resetNavButtonsTimer}
+        >
           {/* 上部：贴顶图片展示区 */}
           <div
             className="relative flex shrink-0 w-full flex-col items-center justify-center overflow-hidden bg-slate-100/80 select-none touch-pan-y"
-            onTouchStart={handleTouchStart}
+            onTouchStart={handleImageTouchStart}
+            onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            onClick={resetNavButtonsTimer}
           >
-            {/* 浮动翻页按钮：上一张 */}
+            {/* 浮动翻页按钮：上一张（进入上一张照片条目） */}
             {hasPrevious && (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
+                  resetNavButtonsTimer();
                   onPrevious?.();
                 }}
-                className="absolute left-2.5 top-1/2 z-20 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:text-orange-600 active:scale-90"
-                aria-label="上一张"
-                title={previousImage ? `上一张 · ${previousImage.title || ''}` : '上一张'}
+                className={`absolute left-2.5 top-1/2 z-20 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all duration-300 hover:bg-white hover:text-orange-600 active:scale-90 ${
+                  areNavButtonsVisible ? 'opacity-100 pointer-events-auto scale-100' : 'opacity-0 pointer-events-none scale-95'
+                }`}
+                aria-label="上一张相片"
+                title={previousImage ? `上一张 · ${previousImage.title || ''}` : '上一张相片'}
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
             )}
 
-            {/* 浮动翻页按钮：下一张 */}
+            {/* 浮动翻页按钮：下一张（进入下一张照片条目） */}
             {hasNext && (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
+                  resetNavButtonsTimer();
                   onNext?.();
                 }}
-                className="absolute right-2.5 top-1/2 z-20 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:text-orange-600 active:scale-90"
-                aria-label="下一张"
-                title={nextImage ? `下一张 · ${nextImage.title || ''}` : '下一张'}
+                className={`absolute right-2.5 top-1/2 z-20 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all duration-300 hover:bg-white hover:text-orange-600 active:scale-90 ${
+                  areNavButtonsVisible ? 'opacity-100 pointer-events-auto scale-100' : 'opacity-0 pointer-events-none scale-95'
+                }`}
+                aria-label="下一张相片"
+                title={nextImage ? `下一张 · ${nextImage.title || ''}` : '下一张相片'}
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -481,6 +668,47 @@ export default function ImageViewer({
             </div>
           )}
         </div>
+
+        {/* 屏幕左边缘右滑返回动态反馈指示器（微信/iOS 风格弹性抽拉气泡） */}
+        {edgeSwipeProgress && (
+          <aside
+            aria-hidden="true"
+            className="pointer-events-none fixed left-0 z-50 flex items-center select-none"
+            style={{
+              top: `${Math.max(70, Math.min(window.innerHeight - 90, edgeSwipeProgress.clientY - 26))}px`,
+              transform: `translateX(${Math.min(edgeSwipeProgress.deltaX * 0.5, 46) - 46}px)`,
+              transition: 'transform 75ms ease-out',
+            }}
+          >
+            <div
+              className={`flex h-13 items-center rounded-r-full pl-3.5 pr-2.5 shadow-xl transition-all duration-150 ${
+                edgeSwipeProgress.deltaX >= 60
+                  ? 'bg-orange-500 text-white shadow-orange-500/40 ring-2 ring-orange-300 scale-105'
+                  : 'bg-white/95 text-slate-700 backdrop-blur-xl border-y border-r border-slate-200/90 shadow-slate-900/15'
+              }`}
+            >
+              <ChevronLeft
+                className={`h-5 w-5 transition-transform duration-150 ${
+                  edgeSwipeProgress.deltaX >= 60 ? 'scale-125' : ''
+                }`}
+              />
+            </div>
+          </aside>
+        )}
+
+        {/* 移动端专属悬浮返回按钮（质感毛玻璃圆纽扣，纯图标设计，居于右侧距离底部 15% 黄金舒适区） */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="fixed right-3.5 bottom-[15%] z-40 lg:hidden flex h-11 w-11 items-center justify-center rounded-full bg-white/90 backdrop-blur-xl border border-white/80 shadow-[0_4px_16px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.04] text-slate-700 transition-all duration-200 hover:scale-105 active:scale-90 active:bg-white hover:border-orange-200 hover:shadow-orange-500/20 hover:text-orange-600"
+          aria-label="退出照片预览"
+          title="退出照片预览"
+        >
+          <ChevronLeft className="h-5 w-5 -translate-x-0.5" />
+        </button>
 
         {/* 桌面端大屏专属展示区（>= lg）：左侧大图视口 + 右侧固定侧边栏 */}
         <div className="hidden lg:flex min-h-0 flex-1 flex-row overflow-hidden">

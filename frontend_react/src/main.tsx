@@ -4,8 +4,10 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.tsx';
 import { applyAppFont, getStoredAppFont } from './config/fonts.ts';
+import { setupPreventZoom } from './utils/preventZoom.ts';
 
 applyAppFont(getStoredAppFont());
+setupPreventZoom();
 
 async function enableMocking() {
   // Mock 数据只在显式开启时启用，避免开发联调时拦截真实后端接口。

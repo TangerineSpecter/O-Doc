@@ -1,6 +1,9 @@
-import { Aperture, MapPin, Tag } from 'lucide-react';
+import { Aperture, Droplets, MapPin, Tag } from 'lucide-react';
 import { FocalLengthStat, ImageTagStat } from '../../types/imageAnthology';
+import { COLOR_SWATCHES, DominantColorKey } from '../../utils/imageColor';
 import { formatFocalLength } from './FocalLengthDetailChart';
+
+export type ColorStat = (typeof COLOR_SWATCHES)[number] & { count: number };
 
 interface ImageAnthologySidebarProps {
   imageCount: number;
@@ -18,9 +21,14 @@ interface ImageAnthologySidebarProps {
   taggedImageCount: number;
   tagTotal: number;
   maxTagCount: number;
+  selectedColor: DominantColorKey | 'all';
+  colorStats: ColorStat[];
+  extractedColorCount: number;
+  baseVisibleImageCount: number;
   onToggleLocationMap: () => void;
   onToggleFocalLengthDetail: () => void;
   onToggleTagDetail: () => void;
+  onSelectColor: (color: DominantColorKey | 'all') => void;
 }
 
 export default function ImageAnthologySidebar({
@@ -39,9 +47,14 @@ export default function ImageAnthologySidebar({
   taggedImageCount,
   tagTotal,
   maxTagCount,
+  selectedColor,
+  colorStats,
+  extractedColorCount,
+  baseVisibleImageCount,
   onToggleLocationMap,
   onToggleFocalLengthDetail,
   onToggleTagDetail,
+  onSelectColor,
 }: ImageAnthologySidebarProps) {
   return (
     <aside className="self-start rounded-xl border border-slate-200 bg-white/85 p-4 shadow-sm backdrop-blur lg:sticky lg:top-24">
@@ -163,6 +176,58 @@ export default function ImageAnthologySidebar({
           暂无标签数据
         </div>
       )}
+
+      <div className="my-5 border-t border-slate-100" />
+
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-slate-900">主色调</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            {extractedColorCount} / {baseVisibleImageCount} 张已识别
+          </p>
+        </div>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+          <Droplets className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => onSelectColor('all')}
+          className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+            selectedColor === 'all'
+              ? 'border-orange-200 bg-orange-50 text-orange-700'
+              : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700'
+          }`}
+        >
+          <span>全部颜色</span>
+          <span>{baseVisibleImageCount} 张</span>
+        </button>
+        <div className="grid grid-cols-2 gap-2">
+          {colorStats.map((color) => (
+            <button
+              key={color.key}
+              type="button"
+              onClick={() => onSelectColor(color.key)}
+              className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold transition-all ${
+                selectedColor === color.key
+                  ? `${color.borderClass} ${color.bgClass} ${color.textClass} ring-2 ring-offset-1 ring-orange-500/20`
+                  : `border-slate-200 bg-white text-slate-600 hover:bg-slate-50 ${color.count === 0 ? 'opacity-55' : ''}`
+              }`}
+            >
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full border border-black/10"
+                  style={{ backgroundColor: color.hex }}
+                />
+                <span className="truncate">{color.label}</span>
+              </span>
+              <span className="shrink-0 text-slate-400">{color.count}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </aside>
   );
 }

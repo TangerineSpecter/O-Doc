@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Aperture, ArrowLeft, BarChart3, Image as ImageIcon, Plus, Tag } from 'lucide-react';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
@@ -450,6 +450,10 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     return baseVisibleImages.filter(image => dominantColors[image.imageId]?.key === selectedColor);
   }, [baseVisibleImages, dominantColors, selectedColor]);
 
+  const extractedColorCount = useMemo(() => {
+    return baseVisibleImages.filter(image => dominantColors[image.imageId]).length;
+  }, [baseVisibleImages, dominantColors]);
+
   const handleImageClick = (item: ImageDisplayItem) => {
     const targetImage = item.images[0] || item.image;
     const index = visibleImages.findIndex(img => img.imageId === targetImage.imageId);
@@ -458,18 +462,6 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
 
   const handleCloseViewer = () => {
     setViewerGlobalIndex(null);
-  };
-
-  const handlePrevious = () => {
-    if (viewerGlobalIndex !== null && viewerGlobalIndex > 0) {
-      setViewerGlobalIndex(viewerGlobalIndex - 1);
-    }
-  };
-
-  const handleNext = () => {
-    if (viewerGlobalIndex !== null && viewerGlobalIndex < visibleImages.length - 1) {
-      setViewerGlobalIndex(viewerGlobalIndex + 1);
-    }
   };
 
   const displayImages = useMemo<ImageDisplayItem[]>(() => {
@@ -593,16 +585,77 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   };
 
   const activeViewerImage = viewerGlobalIndex !== null ? visibleImages[viewerGlobalIndex] : null;
+
+  const currentCardIndex = useMemo(() => {
+    if (!activeViewerImage) return -1;
+    return displayImages.findIndex(item =>
+      item.images.some(img => img.imageId === activeViewerImage.imageId)
+    );
+  }, [activeViewerImage, displayImages]);
+
+  const currentCard = currentCardIndex >= 0 ? displayImages[currentCardIndex] : null;
+
+  const currentSubIndex = useMemo(() => {
+    if (!currentCard || !activeViewerImage) return 0;
+    const idx = currentCard.images.findIndex(img => img.imageId === activeViewerImage.imageId);
+    return idx >= 0 ? idx : 0;
+  }, [currentCard, activeViewerImage]);
+
   const activePhotoGroup = useMemo(() => {
+    if (currentCard) return currentCard.images;
     if (!activeViewerImage) return [];
-    if (!activeViewerImage.photoGroupId) return [activeViewerImage];
-    return visibleImages.filter(img => img.photoGroupId === activeViewerImage.photoGroupId);
-  }, [activeViewerImage, visibleImages]);
-  const activePhotoGroupIndex = useMemo(() => {
-    if (!activeViewerImage || activePhotoGroup.length <= 1) return 0;
-    const found = activePhotoGroup.findIndex(img => img.imageId === activeViewerImage.imageId);
-    return found >= 0 ? found : 0;
-  }, [activePhotoGroup, activeViewerImage]);
+    return [activeViewerImage];
+  }, [currentCard, activeViewerImage]);
+
+  const activePhotoGroupIndex = currentSubIndex;
+
+  // 按钮跨相片条目翻页（进入上一个/下一个相片条目，而不是图册的下一张）
+  const handlePreviousItem = useCallback(() => {
+    if (currentCardIndex > 0) {
+      const prevCard = displayImages[currentCardIndex - 1];
+      const targetImage = prevCard.images[0] || prevCard.image;
+      const idx = visibleImages.findIndex(img => img.imageId === targetImage.imageId);
+      if (idx >= 0) setViewerGlobalIndex(idx);
+    }
+  }, [currentCardIndex, displayImages, visibleImages]);
+
+  const handleNextItem = useCallback(() => {
+    if (currentCardIndex >= 0 && currentCardIndex < displayImages.length - 1) {
+      const nextCard = displayImages[currentCardIndex + 1];
+      const targetImage = nextCard.images[0] || nextCard.image;
+      const idx = visibleImages.findIndex(img => img.imageId === targetImage.imageId);
+      if (idx >= 0) setViewerGlobalIndex(idx);
+    }
+  }, [currentCardIndex, displayImages, visibleImages]);
+
+  // 手势滑动逐张翻页（图册内一张一张翻，最后一张继续翻进入下一张相片条目）
+  const handleSwipePrevious = useCallback(() => {
+    if (!currentCard) return;
+    if (currentSubIndex > 0) {
+      const targetImage = currentCard.images[currentSubIndex - 1];
+      const idx = visibleImages.findIndex(img => img.imageId === targetImage.imageId);
+      if (idx >= 0) setViewerGlobalIndex(idx);
+    } else if (currentCardIndex > 0) {
+      const prevCard = displayImages[currentCardIndex - 1];
+      const targetImage = prevCard.images[prevCard.images.length - 1] || prevCard.image;
+      const idx = visibleImages.findIndex(img => img.imageId === targetImage.imageId);
+      if (idx >= 0) setViewerGlobalIndex(idx);
+    }
+  }, [currentCard, currentSubIndex, currentCardIndex, displayImages, visibleImages]);
+
+  const handleSwipeNext = useCallback(() => {
+    if (!currentCard) return;
+    if (currentSubIndex < currentCard.images.length - 1) {
+      const targetImage = currentCard.images[currentSubIndex + 1];
+      const idx = visibleImages.findIndex(img => img.imageId === targetImage.imageId);
+      if (idx >= 0) setViewerGlobalIndex(idx);
+    } else if (currentCardIndex < displayImages.length - 1) {
+      const nextCard = displayImages[currentCardIndex + 1];
+      const targetImage = nextCard.images[0] || nextCard.image;
+      const idx = visibleImages.findIndex(img => img.imageId === targetImage.imageId);
+      if (idx >= 0) setViewerGlobalIndex(idx);
+    }
+  }, [currentCard, currentSubIndex, currentCardIndex, displayImages, visibleImages]);
 
   if (loading) {
     return (
@@ -733,6 +786,10 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   taggedImageCount={taggedImageCount}
                   tagTotal={tagTotal}
                   maxTagCount={maxTagCount}
+                  selectedColor={selectedColor}
+                  colorStats={colorStats}
+                  extractedColorCount={extractedColorCount}
+                  baseVisibleImageCount={baseVisibleImages.length}
                   onToggleLocationMap={() => {
                     setIsLocationMapOpen(open => !open);
                     setIsFocalLengthDetailOpen(false);
@@ -748,6 +805,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                     setIsLocationMapOpen(false);
                     setIsFocalLengthDetailOpen(false);
                   }}
+                  onSelectColor={setSelectedColor}
                 />
 
                 {/* 移动端横屏全屏模态：焦段统计图表 */}
@@ -914,12 +972,16 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
           createdAt: activeViewerImage.createdAt,
         } : null}
         onClose={handleCloseViewer}
-        onPrevious={handlePrevious}
-        onNext={handleNext}
-        hasPrevious={viewerGlobalIndex !== null && viewerGlobalIndex > 0}
-        hasNext={viewerGlobalIndex !== null && viewerGlobalIndex < visibleImages.length - 1}
-        currentIndex={viewerGlobalIndex ?? 0}
-        totalCount={visibleImages.length}
+        onPrevious={handlePreviousItem}
+        onNext={handleNextItem}
+        hasPrevious={currentCardIndex > 0}
+        hasNext={currentCardIndex >= 0 && currentCardIndex < displayImages.length - 1}
+        onSwipePrevious={handleSwipePrevious}
+        onSwipeNext={handleSwipeNext}
+        hasSwipePrevious={currentCardIndex > 0 || currentSubIndex > 0}
+        hasSwipeNext={(currentCard !== null && currentSubIndex < currentCard.images.length - 1) || (currentCardIndex >= 0 && currentCardIndex < displayImages.length - 1)}
+        currentIndex={currentCardIndex >= 0 ? currentCardIndex : 0}
+        totalCount={displayImages.length}
         currentGroupIndex={activePhotoGroupIndex}
         groupImages={activePhotoGroup.map(groupImage => ({
           imageUrl: groupImage.imageUrl,

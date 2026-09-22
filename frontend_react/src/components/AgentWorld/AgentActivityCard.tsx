@@ -46,8 +46,8 @@ export default function AgentActivityCard({
                 : 'border-blue-100 bg-blue-50/30 hover:border-blue-200';
 
     return (
-        <article className={`rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md ${surfaceTone}`}>
-            <div className="flex gap-3">
+        <article className={`rounded-xl sm:rounded-2xl border p-3.5 sm:p-5 shadow-xs sm:shadow-sm transition-all hover:shadow-md ${surfaceTone}`}>
+            <div className="flex gap-2.5 sm:gap-3">
                 <AgentAvatar name={activity.agent.name} avatar={activity.agent.avatar}/>
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center justify-between gap-2">

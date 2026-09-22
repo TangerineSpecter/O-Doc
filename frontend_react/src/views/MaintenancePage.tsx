@@ -180,53 +180,67 @@ export default function MaintenancePage() {
     const totalPages = health ? Math.max(1, Math.ceil(health.total / health.pageSize)) : 1;
 
     return (
-        <main className="min-h-[calc(100vh-4rem)] bg-[radial-gradient(circle_at_12%_0%,#fff1dd,transparent_28%),radial-gradient(circle_at_88%_12%,#ecfccb,transparent_24%)] px-4 py-7 sm:px-6 lg:px-8">
+        <main className="min-h-[calc(100vh-4rem)] bg-[radial-gradient(circle_at_12%_0%,#fff1dd,transparent_28%),radial-gradient(circle_at_88%_12%,#ecfccb,transparent_24%)] px-3.5 py-4 sm:px-6 sm:py-7 lg:px-8">
             <div className="mx-auto max-w-7xl">
-                <button type="button" onClick={() => navigate('/')} className="mb-5 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition hover:text-orange-600"><ArrowLeft className="h-3.5 w-3.5"/>返回首页</button>
+                <button type="button" onClick={() => navigate('/')} className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition hover:text-orange-600 sm:mb-5"><ArrowLeft className="h-3.5 w-3.5"/>返回首页</button>
 
-                <header className="relative overflow-hidden rounded-[1.75rem] bg-slate-950 px-6 py-7 text-white shadow-2xl shadow-slate-300 sm:px-8">
+                <header className="relative overflow-hidden rounded-2xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300 sm:rounded-[1.75rem] sm:px-8 sm:py-7 sm:shadow-2xl">
                     <div className="absolute right-0 top-0 h-full w-2/5 bg-[radial-gradient(circle_at_center,rgba(251,146,60,.28),transparent_60%)]"/>
-                    <div className="relative flex flex-col justify-between gap-6 md:flex-row md:items-end">
+                    <div className="relative flex flex-col justify-between gap-3.5 sm:gap-6 md:flex-row md:items-end">
                         <div>
-                            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold tracking-wider text-orange-200 ring-1 ring-white/10"><Sparkles className="h-3.5 w-3.5"/>KNOWLEDGE CARE</div>
-                            <h1 className="text-3xl font-black tracking-tight sm:text-4xl">知识维护</h1>
-                            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">让旧内容重新浮现，也让知识库中需要整理的角落清晰可见。</p>
+                            <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-orange-200 ring-1 ring-white/10 sm:mb-3 sm:px-3 sm:py-1 sm:text-xs">
+                                <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5"/>KNOWLEDGE CARE
+                            </div>
+                            <h1 className="text-xl font-black tracking-tight sm:text-4xl">知识维护</h1>
+                            <p className="mt-1 max-w-xl text-xs leading-5 text-slate-300 sm:mt-2 sm:text-sm sm:leading-6">让旧内容重新浮现，也让知识库中需要整理的角落清晰可见。</p>
                         </div>
-                        <div className="flex gap-3">
-                            <div className="min-w-28 rounded-2xl bg-white/10 p-3 ring-1 ring-white/10"><p className="text-[11px] text-slate-400">连续完成</p><p className="mt-1 text-2xl font-black">{review?.streak || 0}<span className="ml-1 text-xs font-medium text-slate-400">天</span></p></div>
-                            <div className="min-w-28 rounded-2xl bg-orange-500 p-3 shadow-lg shadow-orange-950/30"><p className="text-[11px] text-orange-100">健康分</p><p className="mt-1 text-2xl font-black">{health?.score ?? '--'}<span className="ml-1 text-xs font-medium text-orange-100">分</span></p></div>
+                        <div className="flex gap-2 sm:gap-3">
+                            <div className="flex-1 rounded-xl bg-white/10 p-2 text-center ring-1 ring-white/10 sm:min-w-28 sm:flex-initial sm:rounded-2xl sm:p-3 sm:text-left">
+                                <p className="text-[10px] text-slate-400 sm:text-[11px]">连续完成</p>
+                                <p className="mt-0.5 text-lg font-black sm:mt-1 sm:text-2xl">{review?.streak || 0}<span className="ml-1 text-xs font-medium text-slate-400">天</span></p>
+                            </div>
+                            <div className="flex-1 rounded-xl bg-orange-500 p-2 text-center shadow-md shadow-orange-950/30 sm:min-w-28 sm:flex-initial sm:rounded-2xl sm:p-3 sm:text-left sm:shadow-lg">
+                                <p className="text-[10px] text-orange-100 sm:text-[11px]">健康分</p>
+                                <p className="mt-0.5 text-lg font-black sm:mt-1 sm:text-2xl">{health?.score ?? '--'}<span className="ml-1 text-xs font-medium text-orange-100">分</span></p>
+                            </div>
                         </div>
                     </div>
                 </header>
 
-                <div className="mt-6 inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-                    <button type="button" onClick={() => setActiveTab('review')} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition ${activeTab === 'review' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}><BookMarked className="h-4 w-4"/>今日回顾</button>
-                    <button type="button" onClick={() => setActiveTab('health')} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition ${activeTab === 'health' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}><HeartPulse className="h-4 w-4"/>健康检查</button>
+                <div className="mt-3.5 inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:mt-6">
+                    <button type="button" onClick={() => setActiveTab('review')} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:gap-2 sm:px-4 sm:py-2 sm:text-sm ${activeTab === 'review' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}><BookMarked className="h-3.5 w-3.5 sm:h-4 sm:w-4"/>今日回顾</button>
+                    <button type="button" onClick={() => setActiveTab('health')} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:gap-2 sm:px-4 sm:py-2 sm:text-sm ${activeTab === 'health' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}><HeartPulse className="h-3.5 w-3.5 sm:h-4 sm:w-4"/>健康检查</button>
                 </div>
 
                 {activeTab === 'review' ? (
-                    <section className="mt-6">
-                        <div className="mb-5 flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center">
-                            <div className="flex items-center gap-4">
-                                <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-slate-100"><span className="text-sm font-black text-slate-800">{progress}%</span><div className="absolute inset-0 rounded-full border-4 border-orange-400" style={{clipPath: `inset(${100 - progress}% 0 0 0)`}}/></div>
-                                <div><p className="font-bold text-slate-900">{isToday ? '今天的回顾进度' : `${reviewDate} 的回顾`}</p><p className="mt-1 text-sm text-slate-500">已处理 {review?.handled || 0} / {review?.total || 0} 张卡片</p></div>
+                    <section className="mt-3.5 sm:mt-6">
+                        <div className="mb-3.5 flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:mb-5 sm:rounded-2xl sm:p-4 sm:gap-4 md:flex-row md:items-center">
+                            <div className="flex items-center gap-3 sm:gap-4">
+                                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 sm:h-14 sm:w-14">
+                                    <span className="text-xs font-black text-slate-800 sm:text-sm">{progress}%</span>
+                                    <div className="absolute inset-0 rounded-full border-[3px] border-orange-400 sm:border-4" style={{clipPath: `inset(${100 - progress}% 0 0 0)`}}/>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold text-slate-900 sm:text-base">{isToday ? '今天的回顾进度' : `${reviewDate} 的回顾`}</p>
+                                    <p className="mt-0.5 text-[11px] text-slate-500 sm:mt-1 sm:text-sm">已处理 {review?.handled || 0} / {review?.total || 0} 张卡片</p>
+                                </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
-                                <div className="w-32">
+                                <div className="w-28 sm:w-32">
                                     <Select
                                         value={reviewDate}
                                         options={dateOptions}
                                         onChange={setReviewDate}
-                                        buttonClassName="!min-h-[34px] !h-[34px] px-2.5 !py-1 text-xs font-semibold rounded-lg bg-slate-50 border-slate-200 hover:border-slate-300"
+                                        buttonClassName="!min-h-[30px] !h-[30px] sm:!min-h-[34px] sm:!h-[34px] px-2.5 !py-1 text-xs font-semibold rounded-lg bg-slate-50 border-slate-200 hover:border-slate-300"
                                         menuClassName="w-36 right-0 z-40"
                                         showSelectedDescription={false}
                                     />
                                 </div>
-                                {isToday && <button type="button" disabled={refreshing || !review?.pending} onClick={handleRefresh} className="inline-flex h-[34px] items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 text-xs font-bold text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-40"><RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`}/>换一批</button>}
+                                {isToday && <button type="button" disabled={refreshing || !review?.pending} onClick={handleRefresh} className="inline-flex h-[30px] sm:h-[34px] items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-2.5 sm:px-3 text-xs font-bold text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-40"><RefreshCw className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${refreshing ? 'animate-spin' : ''}`}/>换一批</button>}
                             </div>
                         </div>
                         {reviewLoading ? <div className="flex h-56 items-center justify-center text-orange-500"><Loader2 className="h-6 w-6 animate-spin"/></div> : review?.items.length ? (
-                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
                                 {review.items.map(item => (
                                     <ReviewCard
                                         key={item.id}
@@ -243,7 +257,7 @@ export default function MaintenancePage() {
                         )}
                     </section>
                 ) : (
-                    <section className="mt-6">
+                    <section className="mt-3.5 sm:mt-6">
                         <MaintenanceHealthDashboard
                             health={health}
                             loading={healthLoading}
@@ -254,43 +268,84 @@ export default function MaintenancePage() {
                             }}
                         />
 
-                        <div className="mt-5 flex flex-col justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
-                            <div className="flex flex-wrap gap-2"><button type="button" onClick={() => {setRuleCode(''); setHealthPage(1);}} className={`rounded-full px-3 py-1.5 text-xs font-bold ${!ruleCode ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>全部规则</button>{Object.entries(ruleLabels).map(([code, label]) => <button type="button" key={code} onClick={() => {setRuleCode(code); setHealthPage(1);}} className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${ruleCode === code ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-orange-50 hover:text-orange-700'}`}>{label}</button>)}</div>
+                        <div className="mt-3.5 flex flex-col justify-between gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:mt-5 sm:rounded-2xl sm:p-4 sm:gap-3 sm:flex-row sm:items-center">
+                            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                                <button type="button" onClick={() => {setRuleCode(''); setHealthPage(1);}} className={`rounded-full px-2.5 py-1 text-xs font-bold sm:px-3 sm:py-1.5 ${!ruleCode ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>全部规则</button>
+                                {Object.entries(ruleLabels).map(([code, label]) => <button type="button" key={code} onClick={() => {setRuleCode(code); setHealthPage(1);}} className={`rounded-full px-2.5 py-1 text-xs font-bold transition sm:px-3 sm:py-1.5 ${ruleCode === code ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-orange-50 hover:text-orange-700'}`}>{label}</button>)}
+                            </div>
                             <button
                                 type="button"
                                 onClick={() => {
                                     setIncludeIgnored(current => !current);
                                     setHealthPage(1);
                                 }}
-                                className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                                className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition sm:gap-2 sm:py-1.5 ${
                                     includeIgnored
                                         ? 'border border-orange-200 bg-orange-50/70 text-orange-700'
                                         : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                 }`}
                             >
                                 <span
-                                    className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                                    className={`flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded border transition-colors ${
                                         includeIgnored
                                             ? 'border-orange-500 bg-orange-500 text-white'
                                             : 'border-slate-300 bg-white'
                                     }`}
                                 >
-                                    {includeIgnored && <Check className="h-3 w-3 stroke-[3]" />}
+                                    {includeIgnored && <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 stroke-[3]" />}
                                 </span>
                                 <span>显示已忽略</span>
                             </button>
                         </div>
 
-                        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                            {healthLoading ? <div className="flex h-56 items-center justify-center text-orange-500"><Loader2 className="h-6 w-6 animate-spin"/></div> : health?.items.length ? health.items.map(issue => { const config = severityConfig[issue.severity]; const Icon = config.icon; const busy = healthBusyKey === issue.issueKey; return (
-                                <div key={issue.issueKey} className={`flex flex-col gap-4 border-b border-slate-100 p-5 last:border-b-0 sm:flex-row sm:items-center ${issue.ignored ? 'bg-slate-50 opacity-65' : ''}`}>
-                                    <span className={`self-start rounded-xl p-2.5 ring-1 ${config.color}`}><Icon className="h-4 w-4"/></span>
-                                    <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-bold text-slate-850">{issue.title}</h3><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">{issue.ruleTitle}</span>{issue.ignored && <span className="text-[10px] font-bold text-slate-400">已忽略</span>}</div><p className="mt-1 text-sm text-slate-500">{issue.description}</p></div>
-                                    <div className="flex shrink-0 gap-2"><button type="button" disabled={busy} onClick={() => handleIgnore(issue)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-50">{issue.ignored ? '恢复显示' : '忽略'}</button>{!issue.ignored && <button type="button" disabled={busy} onClick={() => handleIssueAction(issue)} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-50">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <CheckCircle2 className="h-3.5 w-3.5"/>}去处理</button>}</div>
-                                </div>
-                            ); }) : <div className="py-20 text-center"><ShieldCheck className="mx-auto h-10 w-10 text-emerald-500"/><p className="mt-3 font-bold text-slate-700">当前筛选下没有问题</p><p className="mt-1 text-sm text-slate-400">知识库状态很不错。</p></div>}
+                        <div className="mt-3.5 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:mt-4 sm:rounded-2xl">
+                            {healthLoading ? <div className="flex h-56 items-center justify-center text-orange-500"><Loader2 className="h-6 w-6 animate-spin"/></div> : health?.items.length ? health.items.map(issue => {
+                                const config = severityConfig[issue.severity];
+                                const Icon = config.icon;
+                                const busy = healthBusyKey === issue.issueKey;
+                                return (
+                                    <div key={issue.issueKey} className={`flex flex-col justify-between gap-3 border-b border-slate-100 p-3.5 last:border-b-0 sm:flex-row sm:items-center sm:gap-4 sm:p-5 ${issue.ignored ? 'bg-slate-50 opacity-65' : ''}`}>
+                                        {/* 图标与标题/描述在移动端和桌面端均水平并排对齐 */}
+                                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                                            <span className={`shrink-0 rounded-xl p-2 sm:p-2.5 ring-1 ${config.color} mt-0.5 sm:mt-0`}>
+                                                <Icon className="h-4 w-4"/>
+                                            </span>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                                    <h3 className="truncate text-sm sm:text-base font-bold text-slate-850">{issue.title}</h3>
+                                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">{issue.ruleTitle}</span>
+                                                    {issue.ignored && <span className="text-[10px] font-bold text-slate-400">已忽略</span>}
+                                                </div>
+                                                <p className="mt-1 text-xs sm:text-sm text-slate-500">{issue.description}</p>
+                                            </div>
+                                        </div>
+                                        {/* 操作按钮区 */}
+                                        <div className="flex shrink-0 items-center justify-end gap-2 pt-0.5 sm:pt-0">
+                                            <button
+                                                type="button"
+                                                disabled={busy}
+                                                onClick={() => handleIgnore(issue)}
+                                                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-50 sm:px-3 sm:py-2"
+                                            >
+                                                {issue.ignored ? '恢复显示' : '忽略'}
+                                            </button>
+                                            {!issue.ignored && (
+                                                <button
+                                                    type="button"
+                                                    disabled={busy}
+                                                    onClick={() => handleIssueAction(issue)}
+                                                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-50 sm:px-3 sm:py-2"
+                                                >
+                                                    {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <CheckCircle2 className="h-3.5 w-3.5"/>}
+                                                    去处理
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            }) : <div className="py-20 text-center"><ShieldCheck className="mx-auto h-10 w-10 text-emerald-500"/><p className="mt-3 font-bold text-slate-700">当前筛选下没有问题</p><p className="mt-1 text-sm text-slate-400">知识库状态很不错。</p></div>}
                         </div>
-                        {health && totalPages > 1 && <div className="mt-4 flex items-center justify-center gap-3"><button type="button" disabled={healthPage <= 1} onClick={() => setHealthPage(page => page - 1)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 disabled:opacity-40"><ChevronLeft className="h-4 w-4"/></button><span className="text-xs font-semibold text-slate-500">{healthPage} / {totalPages}</span><button type="button" disabled={healthPage >= totalPages} onClick={() => setHealthPage(page => page + 1)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 disabled:opacity-40"><ChevronRight className="h-4 w-4"/></button></div>}
+                        {health && totalPages > 1 && <div className="mt-3.5 flex items-center justify-center gap-3 sm:mt-4"><button type="button" disabled={healthPage <= 1} onClick={() => setHealthPage(page => page - 1)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 disabled:opacity-40"><ChevronLeft className="h-4 w-4"/></button><span className="text-xs font-semibold text-slate-500">{healthPage} / {totalPages}</span><button type="button" disabled={healthPage >= totalPages} onClick={() => setHealthPage(page => page + 1)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 disabled:opacity-40"><ChevronRight className="h-4 w-4"/></button></div>}
                     </section>
                 )}
             </div>
