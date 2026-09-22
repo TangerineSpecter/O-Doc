@@ -7,8 +7,7 @@ import { useCollections } from '../hooks/useCollections'; // 引入新 Hook
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useAuth } from '../contexts/AuthContext';
-import MaintenanceSummary from '../components/Maintenance/MaintenanceSummary';
-import AgentWorldSummary from '../components/AgentWorld/AgentWorldSummary';
+import HomeStatusBar from '../components/Home/HomeStatusBar';
 
 interface HomePageProps {
     onNavigate: (viewName: string, params?: any) => void;
@@ -142,10 +141,8 @@ export default function HomePage({ onNavigate }: HomePageProps) {
             )}
 
             <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-                {isAuthenticated && <AgentWorldSummary onOpen={() => onNavigate('agentWorld')}/>}
-                <div>
-                    {isAuthenticated && <MaintenanceSummary onOpen={() => onNavigate('maintenance')}/>}
-                    <div className="min-w-0">
+                {isAuthenticated && <HomeStatusBar onNavigate={onNavigate} />}
+                <div className="min-w-0">
                         {/* 过滤和排序 */}
                         <div
                             className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-white p-3 rounded-xl shadow-sm border border-slate-100">
@@ -326,7 +323,6 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                     ) : null}
                         </div>
                     </div>
-                </div>
             </main>
         </div>
     );
