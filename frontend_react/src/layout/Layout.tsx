@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Bot } from 'lucide-react';
 import FloatingActionMenu from '../components/FloatingActionMenu';
 import { AIChatWindow } from '../components/AIChatWindow';
+import { PeekingBotButton } from '../components/AIChatWindow/PeekingBotButton';
 import AgentContactPanel from '../components/AgentContactPanel';
 import { getUserInfo } from '../api/user';
 import type { UserInfo } from '../types/api/user';
@@ -114,14 +114,11 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
             />
 
             {!isChatOpen && !isAgentPanelOpen && (
-                <button
-                    type="button"
+                <PeekingBotButton
                     onClick={handleOpenAIEntry}
-                    className="fixed right-0 top-1/2 -translate-y-1/2 z-[80] bg-gradient-to-r from-orange-500 to-orange-600 text-white w-12 h-12 rounded-l-xl shadow-lg hover:shadow-xl hover:w-14 transition-all duration-200 cursor-pointer flex items-center justify-center border-y border-l border-white/20 group"
                     title={isAuthenticated ? '打开 AI 中心' : '打开小橘 AI助手'}
-                >
-                    <Bot className="w-6 h-6 transition-transform duration-200 group-hover:scale-110"/>
-                </button>
+                    zIndexClass="z-[80]"
+                />
             )}
 
             <SearchModal

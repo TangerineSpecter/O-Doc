@@ -12,6 +12,7 @@ import { AgentSidebar } from './AgentSidebar';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatSettingsToolbar } from './ChatSettingsToolbar';
 import { ChatInput } from './ChatInput';
+import { PeekingBotButton } from './PeekingBotButton';
 import {isImageAvatarValue} from '../../utils/avatar';
 
 const getAgentId = (agent?: AgentConfig | null) => {
@@ -239,13 +240,12 @@ export const AIChatWindow = ({
     // 最小化状态视图
     if (isMinimized) {
         return (
-            <div
-                className="fixed right-0 top-1/2 -translate-y-1/2 z-[100] bg-gradient-to-r from-orange-500 to-orange-600 text-white w-12 h-12 rounded-l-xl shadow-lg hover:shadow-xl hover:w-14 transition-all duration-200 cursor-pointer flex items-center justify-center border-y border-l border-white/20 group"
+            <PeekingBotButton
                 onClick={() => setIsMinimized(false)}
                 title="展开 AI 对话"
-            >
-                <Bot className="w-6 h-6 animate-pulse transition-transform duration-200 group-hover:scale-110" />
-            </div>
+                zIndexClass="z-[100]"
+                pulse
+            />
         );
     }
 

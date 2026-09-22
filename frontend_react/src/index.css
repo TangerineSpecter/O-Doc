@@ -562,3 +562,19 @@ code, pre {
   pointer-events: none;
   z-index: 10;
 }
+
+/* 探头小机器人自然眨眼动画 */
+@keyframes ai-peeking-blink {
+  0%, 90%, 100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+
+.ai-peeking-eyes {
+  animation: ai-peeking-blink 4s infinite;
+  transform-origin: center;
+}
+
