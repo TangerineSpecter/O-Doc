@@ -57,9 +57,9 @@ export default function ClassicFloatingMenu() {
     const buttonRef = useRef<HTMLButtonElement>(null);
     const navigate = useNavigate();
 
-    // 调整半径，让错位更明显
-    const RADIUS_FAR = 135;  // 外圈稍微远一点，给内圈留空间
-    const RADIUS_NEAR = 85;  // 内圈
+    // 调整半径与角度范围，使内外圈错落有致、呼吸感充足，避免按钮拥挤重叠
+    const RADIUS_FAR = 185;  // 外圈半径
+    const RADIUS_NEAR = 125; // 内圈半径
 
     const menuItems: MenuItem[] = [
         {id: 'prompts', label: '提示词库', icon: <Sparkles className="w-5 h-5"/>, color: 'bg-amber-400', shadow: 'shadow-amber-500/40'},
@@ -128,34 +128,18 @@ export default function ClassicFloatingMenu() {
         setIsOpen(false);
     };
 
-    // 🟢 核心修改：蜂巢交错算法
+    // 🟢 蜂巢交错扇形展开算法（自动适配任意数量按钮，杜绝按钮挤压与遮挡）
     const getPosition = (index: number, total: number) => {
         if (!isOpen) return {x: 0, y: 0};
+        if (total <= 1) return {x: 0, y: -RADIUS_FAR};
 
-        // 针对 6 个按钮的特殊布局：3外 + 3内
-        if (total === 6) {
-            // 第一排（外圈）：Index 0, 2, 4 -> 保持原有的间隔 (-90, -135, -180)
-            if (index % 2 === 0) {
-                const farIndex = index / 2; // 0, 1, 2
-                // 角度：-90(上), -135(斜), -180(左)
-                const angle = (-90 - (farIndex * 45)) * (Math.PI / 180);
-                return {x: RADIUS_FAR * Math.cos(angle), y: RADIUS_FAR * Math.sin(angle)};
-            }
-            // 第二排（内圈）：Index 1, 3, 5 -> 按照“左到右”排序 (-180, -135, -90)
-            else {
-                const nearIndex = (index - 1) / 2; // 0(对应1), 1(对应3), 2(对应5)
-                // 原本顺序是 -90, -135, -180 (从上到左)
-                // 您需要“左到右”，即反过来：-180, -135, -90
-                const angle = (-180 + (nearIndex * 45)) * (Math.PI / 180);
-                return {x: RADIUS_NEAR * Math.cos(angle), y: RADIUS_NEAR * Math.sin(angle)};
-            }
-        }
+        // 角度范围：从上方偏右（-85°）平滑延伸到左方偏下（-190°），形成舒展的 105° 扇面
+        const startAngleDeg = -85;
+        const endAngleDeg = -190;
+        const step = (endAngleDeg - startAngleDeg) / (total - 1);
+        const angle = (startAngleDeg + index * step) * (Math.PI / 180);
 
-        // 少于6个时的默认逻辑 (Zigzag)
-        const startAngle = -Math.PI / 2;
-        const endAngle = -Math.PI;
-        const step = (endAngle - startAngle) / (total - 1);
-        const angle = startAngle + (index * step);
+        // 外圈与内圈交替分布（偶数在外圈，奇数在内圈），形成空间利用率最优的蜂巢花瓣形态
         const currentRadius = index % 2 === 0 ? RADIUS_FAR : RADIUS_NEAR;
         return {x: currentRadius * Math.cos(angle), y: currentRadius * Math.sin(angle)};
     };
