@@ -9,6 +9,7 @@ import type { AgentConfig } from '../types/api/setting';
 import Navbar from './Navbar';
 import SearchModal from '../components/SearchModal';
 import ProfileCenterModal from '../components/ProfileCenterModal';
+import MobileBottomBar from '../components/common/MobileBottomBar';
 import { AuthProvider } from '../contexts/AuthContext';
 import {clearAuthToken, getAuthToken} from '../utils/authStorage';
 
@@ -114,11 +115,13 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
             />
 
             {!isChatOpen && !isAgentPanelOpen && (
-                <PeekingBotButton
-                    onClick={handleOpenAIEntry}
-                    title={isAuthenticated ? '打开 AI 中心' : '打开小橘 AI助手'}
-                    zIndexClass="z-[80]"
-                />
+                <div className="hidden sm:block">
+                    <PeekingBotButton
+                        onClick={handleOpenAIEntry}
+                        title={isAuthenticated ? '打开 AI 中心' : '打开小橘 AI助手'}
+                        zIndexClass="z-[80]"
+                    />
+                </div>
             )}
 
             <SearchModal
@@ -131,6 +134,7 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
             <Navbar
                 onNavigate={onNavigate}
                 onOpenSearch={() => setIsSearchOpen(true)}
+                onOpenAI={handleOpenAIEntry}
                 userInfo={userInfo}
                 onLogout={handleLogout}
                 onOpenProfile={() => setIsProfileOpen(true)}
@@ -144,9 +148,20 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                 onLogout={handleLogout}
             />
 
-            {children}
+            <div className="pb-24 sm:pb-0">
+                {children}
+            </div>
 
-            {isAuthenticated && <FloatingActionMenu />}
+            {/* 移动端底部胶囊导航栏：闪念、提示词库、正中间橙色大圆AI按钮、资源库、数据统计 */}
+            {!isChatOpen && !isAgentPanelOpen && (
+                <MobileBottomBar onOpenAI={handleOpenAIEntry} />
+            )}
+
+            {isAuthenticated && (
+                <div className="hidden sm:block">
+                    <FloatingActionMenu />
+                </div>
+            )}
 
             {/* 背景装饰 */}
             <div className="fixed inset-0 pointer-events-none z-[-1] opacity-40">

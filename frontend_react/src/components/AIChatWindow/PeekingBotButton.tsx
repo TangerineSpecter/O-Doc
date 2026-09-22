@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 
 interface PeekingBotButtonProps {
     onClick: () => void;
@@ -9,8 +9,8 @@ interface PeekingBotButtonProps {
 
 /**
  * 侧边 AI 入口抽屉按钮
- * - 风格严密遵循系统现代扁平规范（bg-orange-500 hover:bg-orange-600, rounded-l-md）
- * - 鼠标悬停时展开纯白高对比小尾巴对话气泡「Hi!」，彻底解决半透明浑浊发灰问题
+ * - 桌面端：居中定位（top-1/2），悬停展示「Hi!」气泡
+ * - 移动端：默认下移至安全区（bottom-28），彻底避免遮挡正文内容，并支持垂直轻量拖动防遮挡
  */
 export const PeekingBotButton: React.FC<PeekingBotButtonProps> = ({
     onClick,
@@ -18,14 +18,60 @@ export const PeekingBotButton: React.FC<PeekingBotButtonProps> = ({
     zIndexClass = 'z-[80]',
     pulse = false,
 }) => {
+    const [dragY, setDragY] = useState<number | null>(null);
+    const touchStartY = useRef(0);
+    const initialTop = useRef(0);
+    const isDragging = useRef(false);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        touchStartY.current = touch.clientY;
+        if (buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            initialTop.current = rect.top;
+        }
+        isDragging.current = false;
+    }, []);
+
+    const handleTouchMove = useCallback((e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        const deltaY = touch.clientY - touchStartY.current;
+        if (Math.abs(deltaY) > 6) {
+            isDragging.current = true;
+            const newTop = Math.max(72, Math.min(window.innerHeight - 80, initialTop.current + deltaY));
+            setDragY(newTop);
+        }
+    }, []);
+
+    const handleTouchEnd = useCallback(() => {
+        // 轻触直接唤起，防止与拖拽冲突
+        if (!isDragging.current) {
+            onClick();
+        }
+    }, [onClick]);
+
+    const handleClick = useCallback(() => {
+        if (!isDragging.current) {
+            onClick();
+        }
+    }, [onClick]);
+
     return (
         <button
+            ref={buttonRef}
             type="button"
-            onClick={onClick}
+            onClick={handleClick}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             title={title}
-            className={`group fixed right-0 top-1/2 -translate-y-1/2 ${zIndexClass} cursor-pointer select-none active:scale-95 transition-transform duration-150`}
+            style={dragY !== null ? { top: `${dragY}px`, transform: 'none', bottom: 'auto' } : undefined}
+            className={`group fixed right-0 ${
+                dragY === null ? 'bottom-28 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2' : ''
+            } ${zIndexClass} cursor-pointer select-none active:scale-95 transition-transform duration-150 touch-none`}
         >
-            <div className="relative flex items-center bg-orange-500 hover:bg-orange-600 text-white rounded-l-md rounded-r-none border-y border-l border-orange-600/30 border-r-0 shadow-sm shadow-orange-500/20 group-hover:shadow-md group-hover:shadow-orange-500/30 transition-all duration-200 h-9 w-9 group-hover:w-[78px] overflow-hidden pl-2 -mr-[1px]">
+            <div className="relative flex items-center bg-orange-500 hover:bg-orange-600 text-white rounded-l-md rounded-r-none border-y border-l border-orange-600/30 border-r-0 shadow-sm shadow-orange-500/20 group-hover:shadow-md group-hover:shadow-orange-500/30 transition-all duration-200 h-9 w-9 sm:group-hover:w-[78px] overflow-hidden pl-2 -mr-[1px]">
                 {/* 机器人图标主体 */}
                 <div className={`relative shrink-0 flex items-center justify-center w-5 h-5 ${pulse ? 'animate-pulse' : ''}`}>
                     <svg
@@ -52,8 +98,8 @@ export const PeekingBotButton: React.FC<PeekingBotButtonProps> = ({
                     </svg>
                 </div>
 
-                {/* 悬停展开的高对比纯白对话气泡（带指向小机器人的小尾巴） */}
-                <div className="relative ml-2 shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none">
+                {/* 桌面端悬停展开的高对比纯白对话气泡 */}
+                <div className="hidden sm:block relative ml-2 shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none">
                     <div className="bg-white text-orange-600 px-2 py-0.5 rounded-md text-[11px] font-black tracking-wide shadow-sm flex items-center justify-center">
                         Hi!
                     </div>

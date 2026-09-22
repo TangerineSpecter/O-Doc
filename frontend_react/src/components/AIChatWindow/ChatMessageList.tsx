@@ -200,39 +200,39 @@ export const ChatMessageList = ({
         <div
             ref={chatBodyRef}
             onScroll={onScroll}
-            className="flex-1 min-h-0 overflow-y-auto p-6 pb-10 space-y-6 bg-slate-50/30"
+            className="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-6 pb-6 sm:pb-10 space-y-4 sm:space-y-6 bg-slate-50/30"
         >
             {messages.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-6 -mt-10">
-                    <div className="w-20 h-20 bg-white rounded-3xl shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4 sm:space-y-6 -mt-6 sm:-mt-10 px-4">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
                         {isImageAvatarValue(activeAgent?.avatar) ? (
                             <img src={activeAgent?.avatar} alt={activeAgent?.name || 'Agent'} className="h-full w-full object-cover" />
                         ) : (
-                            activeAgent?.avatar?.trim() || <Bot className="w-10 h-10 text-orange-500" />
+                            activeAgent?.avatar?.trim() || <Bot className="w-8 h-8 sm:w-10 sm:h-10 text-orange-500" />
                         )}
                     </div>
                     <div className="text-center space-y-2">
-                        <p className="text-lg font-medium text-slate-600">
+                        <p className="text-base sm:text-lg font-medium text-slate-600">
                             {activeAgent ? `和 ${activeAgent.name} 聊点什么？` : '有什么可以帮你的吗？'}
                         </p>
-                        <div className="flex gap-2 justify-center text-xs text-slate-400">
+                        <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center text-xs text-slate-400">
                             {activeAgent ? (
                                 <>
-                                    <span className="px-2 py-1 bg-white border border-slate-200 rounded-md">
+                                    <span className="px-2 py-0.5 sm:py-1 bg-white border border-slate-200 rounded-md">
                                         {activeAgent.modelDetail?.name || 'Agent 模型'}
                                     </span>
-                                    <span className="px-2 py-1 bg-white border border-slate-200 rounded-md">
+                                    <span className="px-2 py-0.5 sm:py-1 bg-white border border-slate-200 rounded-md">
                                         {activeAgentSkills.length} 个技能
                                     </span>
-                                    <span className="px-2 py-1 bg-white border border-slate-200 rounded-md">
+                                    <span className="px-2 py-0.5 sm:py-1 bg-white border border-slate-200 rounded-md">
                                         {activeAgentMcpServers.length} 个工具
                                     </span>
                                 </>
                             ) : (
                                 <>
-                                    <span className="px-2 py-1 bg-white border border-slate-200 rounded-md">文档检索</span>
-                                    <span className="px-2 py-1 bg-white border border-slate-200 rounded-md">代码生成</span>
-                                    <span className="px-2 py-1 bg-white border border-slate-200 rounded-md">创意写作</span>
+                                    <span className="px-2 py-0.5 sm:py-1 bg-white border border-slate-200 rounded-md">文档检索</span>
+                                    <span className="px-2 py-0.5 sm:py-1 bg-white border border-slate-200 rounded-md">代码生成</span>
+                                    <span className="px-2 py-0.5 sm:py-1 bg-white border border-slate-200 rounded-md">创意写作</span>
                                 </>
                             )}
                         </div>
@@ -244,10 +244,10 @@ export const ChatMessageList = ({
                 const showAvatar = idx === 0 || messages[idx - 1].role !== msg.role;
                 const isLatestAssistant = msg.role === 'assistant' && idx === messages.length - 1 && isLoading;
                 return (
-                    <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <div key={idx} className={`flex gap-2.5 sm:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                         {/* 头像 */}
                         {showAvatar ? (
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm overflow-hidden ${
+                            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 border shadow-sm overflow-hidden ${
                                 msg.role === 'user'
                                     ? 'bg-white text-slate-600 border-slate-200'
                                     : 'bg-orange-100 text-orange-600 border-orange-200'
@@ -256,27 +256,27 @@ export const ChatMessageList = ({
                                     userInfo?.avatar ? (
                                         <img src={userInfo.avatar} alt="用户头像" className="h-full w-full object-cover" />
                                     ) : (
-                                        <User className="w-5 h-5" />
+                                        <User className="w-4 h-4 sm:w-5 sm:h-5" />
                                     )
                                 ) : isImageAvatarValue(activeAgent?.avatar) ? (
                                     <img src={activeAgent?.avatar} alt={activeAgent?.name || 'Agent'} className="h-full w-full object-cover" />
                                 ) : (
-                                    activeAgent?.avatar?.trim() || <Bot className="w-5 h-5" />
+                                    activeAgent?.avatar?.trim() || <Bot className="w-4 h-4 sm:w-5 sm:h-5" />
                                 )}
                             </div>
                         ) : (
-                            <div className="w-10 h-10 shrink-0" />
+                            <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0" />
                         )}
 
                         {/* 消息气泡 */}
-                        <div className={`max-w-[85%] break-words overflow-hidden text-[15px] leading-relaxed ${
+                        <div className={`max-w-[90%] sm:max-w-[85%] break-words overflow-hidden text-sm sm:text-[15px] leading-relaxed ${
                             msg.role === 'user'
-                                ? 'bg-slate-800 text-white rounded-xl px-5 py-3.5 shadow-sm'
+                                ? 'bg-slate-800 text-white rounded-xl px-3.5 py-2.5 sm:px-5 sm:py-3.5 shadow-sm'
                                 : msg.statusId === 'typing'
                                     ? 'flex items-center px-2 py-1.5'
                                     : msg.status
-                                        ? 'bg-orange-50 border border-orange-200 text-orange-800 rounded-xl px-4 py-2.5 shadow-[0_2px_8px_rgba(251,146,60,0.04)] ring-1 ring-orange-100/50'
-                                        : `bg-[#eef2f6] text-slate-800 rounded-xl px-5 py-3.5 ${isLatestAssistant ? 'streaming-bubble' : ''}`
+                                        ? 'bg-orange-50 border border-orange-200 text-orange-800 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 shadow-[0_2px_8px_rgba(251,146,60,0.04)] ring-1 ring-orange-100/50'
+                                        : `bg-[#eef2f6] text-slate-800 rounded-xl px-3.5 py-2.5 sm:px-5 sm:py-3.5 ${isLatestAssistant ? 'streaming-bubble' : ''}`
                         }`}>
                             {msg.role === 'assistant' ? (
                                 msg.status ? (

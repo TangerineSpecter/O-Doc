@@ -91,14 +91,14 @@ export const ChatSettingsToolbar = ({
         };
     }, [skillPanelOpen, setSkillPanelOpen]);
     return (
-        <div className="flex items-center justify-between mb-3 px-1">
-            <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center justify-between mb-2 sm:mb-3 px-1">
+            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 max-w-full">
                 {/* MCP 模式选择 */}
-                <div ref={mcpPanelRef} className="relative">
+                <div ref={mcpPanelRef} className="relative shrink-0">
                     <button
                         type="button"
                         onClick={() => setMcpPanelOpen(!mcpPanelOpen)}
-                        className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all ${
+                        className={`flex h-7 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl border px-2 sm:px-3 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
                             assistantMode === 'manual' && selectedMcpIds.length > 0
                                 ? 'border-orange-200 bg-orange-50 text-orange-700 ring-1 ring-orange-100'
                                 : assistantMode === 'auto'
@@ -106,16 +106,16 @@ export const ChatSettingsToolbar = ({
                                     : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
                         }`}
                     >
-                        <Plug className="h-3.5 w-3.5" />
+                        <Plug className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         {assistantMode === 'disabled'
                             ? 'MCP：已禁用'
                             : assistantMode === 'auto'
                                 ? 'MCP：自动'
                                 : `MCP：${selectedMcpIds.length} 个`}
-                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${mcpPanelOpen ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`h-3 w-3 sm:h-3.5 sm:w-3.5 transition-transform ${mcpPanelOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {mcpPanelOpen && (
-                        <div className="absolute bottom-full left-0 z-[130] mb-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
+                        <div className="absolute bottom-full left-0 z-[130] mb-2 w-72 sm:w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
                             <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">
                                 MCP 模式
                             </div>
@@ -194,22 +194,22 @@ export const ChatSettingsToolbar = ({
                 </div>
 
                 {/* 技能装载 */}
-                <div ref={skillPanelRef} className="relative">
+                <div ref={skillPanelRef} className="relative shrink-0">
                     <button
                         type="button"
                         onClick={() => setSkillPanelOpen(prev => !prev)}
                         disabled={chatSkills.length === 0}
-                        className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all ${
+                        className={`flex h-7 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl border px-2 sm:px-3 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
                             selectedSkillIds.length > 0
                                 ? 'bg-orange-50 text-orange-700 border-orange-200 shadow-sm ring-1 ring-orange-100'
                                 : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed'
                         }`}
                     >
-                        <WandSparkles className="w-3.5 h-3.5" />
-                        {selectedSkillIds.length > 0 ? `技能：${selectedSkillIds.length} 个已装载` : '装载技能'}
+                        <WandSparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        {selectedSkillIds.length > 0 ? `技能：${selectedSkillIds.length} 个` : '装载技能'}
                     </button>
                     {skillPanelOpen && chatSkills.length > 0 && (
-                        <div className="absolute bottom-full left-0 z-[130] mb-2 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
+                        <div className="absolute bottom-full left-0 z-[130] mb-2 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
                             <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">
                                 AI 对话技能
                             </div>
@@ -250,28 +250,30 @@ export const ChatSettingsToolbar = ({
                 <button
                     type="button"
                     onClick={() => setUseThinking(!useThinking)}
-                    className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all ${
+                    className={`flex h-7 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl border px-2 sm:px-3 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
                         useThinking
                             ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm ring-1 ring-amber-100'
                             : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
                     }`}
                 >
-                    <BrainCircuit className="w-3.5 h-3.5" />
-                    {useThinking ? '思考模式：已开启' : '思考模式：未开启'}
+                    <BrainCircuit className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                    <span className="hidden sm:inline">思考模式：</span>
+                    <span>{useThinking ? '思考中' : '深度思考'}</span>
                 </button>
 
                 {/* 知识库模式 */}
                 <button
                     type="button"
                     onClick={() => setUseKb(prev => !prev)}
-                    className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-all ${
+                    className={`flex h-7 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl border px-2 sm:px-3 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
                         useKb
                             ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-sm ring-1 ring-blue-100'
                             : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
                     }`}
                 >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    {useKb ? '知识库模式：已开启' : '知识库模式：未开启'}
+                    <BookOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                    <span className="hidden sm:inline">知识库模式：</span>
+                    <span>{useKb ? '知识库开' : '知识库关'}</span>
                 </button>
                 {useKb && (
                     <Select
@@ -282,12 +284,12 @@ export const ChatSettingsToolbar = ({
                         emptyMessage="暂无文章文集"
                         accentClassName="bg-blue-50 text-blue-700"
                         showSelectedDescription={false}
-                        buttonClassName="!h-10 !min-h-10 w-[156px] rounded-xl border-blue-200 px-3 !py-0 text-xs font-semibold shadow-none hover:border-blue-300 focus:border-blue-400 focus:ring-blue-100"
-                        menuClassName="bottom-full right-0 !mt-0 mb-2 w-64 max-h-[min(320px,45vh)] overflow-y-auto z-[120]"
+                        buttonClassName="!h-7 sm:!h-10 !min-h-7 sm:!min-h-10 w-auto min-w-[84px] max-w-[130px] sm:w-[156px] rounded-lg sm:rounded-xl border-blue-200 px-2 sm:px-3 !py-0 text-[11px] sm:text-xs font-semibold shadow-none hover:border-blue-300 focus:border-blue-400 focus:ring-blue-100 shrink-0"
+                        menuClassName="bottom-full right-0 !mt-0 mb-2 w-60 sm:w-64 max-h-[min(320px,45vh)] overflow-y-auto z-[120]"
                     />
                 )}
             </div>
-            <span className="text-[11px] text-slate-300 font-mono flex items-center gap-1">
+            <span className="hidden md:flex text-[11px] text-slate-300 font-mono items-center gap-1 shrink-0 ml-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 Model: Auto
             </span>

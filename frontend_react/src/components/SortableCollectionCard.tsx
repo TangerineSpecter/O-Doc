@@ -60,7 +60,6 @@ export const SortableCollectionCard = ({
         transition: isDragging ? 'none' : transition,
         zIndex: isDragging ? 50 : 'auto',
         position: 'relative' as const,
-        touchAction: 'none'
     };
     const hideCoverContent = item.hideCoverContent ?? item.hide_cover_content ?? false;
     const shouldMaskCover = hideCoverContent && item.count > 0;
@@ -95,6 +94,7 @@ export const SortableCollectionCard = ({
                 <div
                     {...attributes}
                     {...listeners}
+                    style={{ touchAction: 'none' }}
                     className="absolute top-1.5 left-1/2 -translate-x-1/2 w-12 h-5 flex items-center justify-center rounded-full text-slate-300 hover:text-orange-500 hover:bg-orange-50 cursor-grab active:cursor-grabbing z-30 transition-colors opacity-0 group-hover:opacity-100"
                     title="按住拖动排序"
                 >
@@ -107,7 +107,7 @@ export const SortableCollectionCard = ({
             <div className="absolute top-2 right-2 z-20">
                 <button
                     onClick={onToggleMenu}
-                    className={`p-1.5 rounded-md transition-colors ${isMenuOpen ? 'bg-orange-50 text-orange-600' : 'text-slate-300 hover:bg-slate-50 hover:text-slate-600 opacity-0 group-hover:opacity-100'}`}
+                    className={`p-1.5 rounded-md transition-colors ${isMenuOpen ? 'bg-orange-50 text-orange-600' : 'text-slate-400 sm:text-slate-300 hover:bg-slate-50 hover:text-slate-600 opacity-100 sm:opacity-0 sm:group-hover:opacity-100'}`}
                 >
                     <MoreHorizontal className="w-4 h-4" />
                 </button>
@@ -214,7 +214,7 @@ export const SortableCollectionCard = ({
                                         {renderAgentAvatar(post.agentAvatar, post.agentName)}
                                     </span>
                                     <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-600 transition-colors group-hover/item:text-slate-900">{post.title}</span>
-                                    <span className="max-w-12 shrink-0 truncate text-[10px] text-slate-400">{post.agentName || 'Agent'}</span>
+                                    <span className="max-w-20 shrink-0 truncate text-right text-[10px] text-slate-400">{post.agentName || 'Agent'}</span>
                                 </button>
                             ))}
                         </div>
@@ -300,14 +300,14 @@ export const SortableCollectionCard = ({
                                     })}
                                     className="group/item flex h-8 w-full items-center justify-between rounded px-2 transition-all hover:bg-white hover:shadow-sm cursor-pointer"
                                 >
-                                    <div className="flex items-center gap-2 overflow-hidden">
+                                    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                                         <FileText
                                             className="h-4 w-4 shrink-0 text-slate-300 group-hover/item:text-orange-500" />
                                         <span
                                             className="min-w-0 flex-1 truncate text-xs font-medium text-slate-600 transition-colors group-hover/item:text-slate-900">{article.title}</span>
                                     </div>
                                     <span
-                                        className="max-w-12 shrink-0 truncate pl-2 text-[10px] text-slate-400">{article.date}</span>
+                                        className="shrink-0 whitespace-nowrap pl-2 text-[10px] text-slate-400 font-mono">{article.date}</span>
                                 </li>
                             ))}
                         </ul>

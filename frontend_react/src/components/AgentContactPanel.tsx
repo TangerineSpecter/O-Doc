@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useState} from 'react';
 import {
     Bot,
+    ChevronLeft,
     Loader2,
     MessageCircle,
     Search,
@@ -135,28 +136,36 @@ export default function AgentContactPanel({
     return (
         <div className="fixed inset-0 z-[100] flex justify-end bg-slate-900/20 backdrop-blur-[2px] animate-in fade-in duration-200">
             <button type="button" className="hidden flex-1 cursor-default md:block" onClick={onClose} aria-label="关闭 Agent 联系人"/>
-            <section className="flex h-full w-full max-w-[430px] flex-col border-l border-slate-200 bg-white shadow-2xl shadow-slate-900/20 animate-in slide-in-from-right-6 duration-300">
-                <header className="border-b border-slate-100 bg-slate-50/90 px-5 py-4 backdrop-blur">
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 text-orange-600 shadow-sm">
+            <section className="flex h-full w-full md:max-w-[430px] flex-col border-l border-slate-200 bg-white shadow-2xl shadow-slate-900/20 animate-in slide-in-from-right-6 duration-300">
+                <header className="border-b border-slate-100 bg-slate-50/90 px-4 py-3.5 sm:px-5 sm:py-4 backdrop-blur">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="md:hidden -ml-1.5 rounded-lg p-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+                                title="返回"
+                            >
+                                <ChevronLeft className="h-5 w-5" />
+                            </button>
+                            <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 text-orange-600 shadow-sm">
                                 <UsersRound className="h-5 w-5"/>
                             </div>
                             <div className="min-w-0">
-                                <h2 className="truncate text-lg font-bold text-slate-900">AI 中心</h2>
+                                <h2 className="truncate text-base sm:text-lg font-bold text-slate-900">AI 中心</h2>
                                 <p className="truncate text-xs text-slate-500">公共助手和你的智能体联系人</p>
                             </div>
                         </div>
                         <button
                             type="button"
                             onClick={onClose}
-                            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                            className="rounded-lg p-1.5 sm:p-2 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
                             title="关闭"
                         >
                             <X className="h-5 w-5"/>
                         </button>
                     </div>
-                    <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-orange-300 focus-within:ring-2 focus-within:ring-orange-500/10">
+                    <div className="mt-3 sm:mt-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-orange-300 focus-within:ring-2 focus-within:ring-orange-500/10">
                         <Search className="h-4 w-4 text-slate-400"/>
                         <input
                             value={query}

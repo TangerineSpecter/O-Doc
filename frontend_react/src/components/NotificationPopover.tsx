@@ -610,7 +610,7 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
 
     return (
         <>
-        <div ref={wrapperRef} className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xl shadow-slate-900/10 animate-in fade-in slide-in-from-top-2 duration-200 sm:w-96">
+        <div ref={wrapperRef} className="absolute right-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xl shadow-slate-900/10 animate-in fade-in slide-in-from-top-2 duration-200 sm:w-96">
             <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-3">
                 <h3 className="text-sm font-semibold text-slate-800">系统通知</h3>
                 <button

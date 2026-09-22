@@ -1,7 +1,7 @@
 // frontend_react/src/components/AIChatWindow/index.tsx
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Bot, MessageCircle, Trash2, Minimize2, X } from 'lucide-react';
+import { Bot, MessageCircle, Trash2, Minimize2, X, ChevronLeft } from 'lucide-react';
 
 import { type AgentConfig } from '../../api/setting';
 import { type AIChatWindowProps } from './types';
@@ -263,7 +263,7 @@ export const AIChatWindow = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] sm:p-4 animate-in fade-in duration-200">
             {/* 确认弹窗 */}
             <ConfirmationModal
                 isOpen={isClearModalOpen}
@@ -280,25 +280,43 @@ export const AIChatWindow = ({
 
             {/* 主容器 */}
             <div
-                className="relative h-[80vh] max-h-[820px] w-[min(1120px,95vw)] bg-white rounded-2xl shadow-2xl border border-slate-200 flex animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 ring-1 ring-slate-900/5 overflow-hidden"
+                className="relative h-full w-full sm:h-[80vh] sm:max-h-[820px] sm:w-[min(1120px,95vw)] bg-white sm:rounded-2xl shadow-2xl sm:border sm:border-slate-200 flex flex-col md:flex-row animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 sm:ring-1 sm:ring-slate-900/5 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
                 {showContactSidebar && (
-                    <AgentSidebar
-                        conversationItems={conversationItems}
-                        activeConversationKey={activeConversationKey}
-                        onSelectAgent={onSelectAgent}
-                        contactQuery={contactQuery}
-                        setContactQuery={setContactQuery}
-                        setContactSidebarOpen={setContactSidebarOpen}
-                    />
+                    <div className="hidden md:block shrink-0">
+                        <AgentSidebar
+                            conversationItems={conversationItems}
+                            activeConversationKey={activeConversationKey}
+                            onSelectAgent={onSelectAgent}
+                            contactQuery={contactQuery}
+                            setContactQuery={setContactQuery}
+                            setContactSidebarOpen={setContactSidebarOpen}
+                        />
+                    </div>
                 )}
 
-                <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex min-w-0 flex-1 flex-col h-full">
                     {/* Header */}
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur-sm">
-                        <div className="min-w-0 flex items-center gap-3 text-slate-800">
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-orange-100 bg-orange-100 text-orange-600 shadow-sm">
+                    <div className="flex items-center justify-between px-3.5 py-3 sm:px-6 sm:py-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur-sm shrink-0">
+                        <div className="min-w-0 flex items-center gap-2 sm:gap-3 text-slate-800">
+                            {/* 移动端返回按钮 */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (onOpenContacts) {
+                                        onOpenContacts();
+                                    } else {
+                                        onClose();
+                                    }
+                                }}
+                                className="sm:hidden -ml-1 rounded-lg p-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+                                title="返回"
+                            >
+                                <ChevronLeft className="h-5 w-5" />
+                            </button>
+
+                            <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl sm:rounded-2xl border border-orange-100 bg-orange-100 text-orange-600 shadow-sm">
                                 {isImageAvatarValue(activeAgent?.avatar) ? (
                                     <img src={activeAgent?.avatar} alt={activeAgent?.name || 'Agent'} className="h-full w-full object-cover" />
                                 ) : (
@@ -306,19 +324,19 @@ export const AIChatWindow = ({
                                 )}
                             </div>
                             <div className="min-w-0">
-                                <div className="flex min-w-0 items-center gap-2">
-                                    <span className="truncate text-lg font-bold">{activeAgentName}</span>
-                                    <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold leading-5 ${
+                                <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                                    <span className="truncate text-base sm:text-lg font-bold">{activeAgentName}</span>
+                                    <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold leading-5 ${
                                         activeAgent ? 'bg-violet-100 text-violet-600' : 'bg-slate-100 text-slate-400'
                                     }`}>
                                         {activeAgent ? '智能体' : '公共'}
                                     </span>
                                 </div>
                                 {activeAgent && (
-                                    <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] font-normal text-slate-400">
+                                    <div className="mt-0.5 sm:mt-1 flex min-w-0 items-center gap-1.5 text-[10px] sm:text-[11px] font-normal text-slate-400">
                                         {activeAgent.modelDetail?.name && <span className="truncate">模型：{activeAgent.modelDetail.name}</span>}
                                         {(activeAgentSkills.length > 0 || activeAgentMcpServers.length > 0) && (
-                                            <span className="truncate">
+                                            <span className="truncate hidden sm:inline">
                                                 {activeAgent.modelDetail?.name ? ' · ' : ''}
                                                 {activeAgentSkills.length} 技能 / {activeAgentMcpServers.length} 工具
                                             </span>
@@ -327,11 +345,17 @@ export const AIChatWindow = ({
                                 )}
                             </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5 sm:gap-1">
                             {onOpenContacts && (
                                 <button
-                                    onClick={() => setContactSidebarOpen(!contactSidebarOpen)}
-                                    className="mr-1 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-200 hover:text-orange-600"
+                                    onClick={() => {
+                                        if (window.innerWidth < 768) {
+                                            onOpenContacts();
+                                        } else {
+                                            setContactSidebarOpen(!contactSidebarOpen);
+                                        }
+                                    }}
+                                    className="rounded-lg p-1.5 sm:p-2 text-slate-400 transition-colors hover:bg-slate-200 hover:text-orange-600"
                                     title={contactSidebarOpen ? '收起会话列表' : '展开会话列表'}
                                 >
                                     <MessageCircle className="w-5 h-5" />
@@ -340,7 +364,7 @@ export const AIChatWindow = ({
                             <button
                                 onClick={handleClearMessages}
                                 disabled={messages.length === 0}
-                                className={`p-2 rounded-lg transition-colors mr-1 ${
+                                className={`p-1.5 sm:p-2 rounded-lg transition-colors ${
                                     messages.length === 0
                                         ? 'text-slate-200 cursor-not-allowed'
                                         : 'text-slate-400 hover:bg-slate-200 hover:text-orange-600'
@@ -351,14 +375,14 @@ export const AIChatWindow = ({
                             </button>
                             <button
                                 onClick={() => setIsMinimized(true)}
-                                className="p-2 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
+                                className="hidden sm:flex p-2 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
                                 title="最小化"
                             >
                                 <Minimize2 className="w-5 h-5" />
                             </button>
                             <button
                                 onClick={onClose}
-                                className="p-2 hover:bg-red-50 hover:text-red-500 rounded-lg text-slate-400 transition-colors"
+                                className="p-1.5 sm:p-2 hover:bg-red-50 hover:text-red-500 rounded-lg text-slate-400 transition-colors"
                                 title="关闭"
                             >
                                 <X className="w-5 h-5" />
@@ -382,7 +406,7 @@ export const AIChatWindow = ({
                     />
 
                     {/* Footer 输入框及状态面板区域 */}
-                    <div className="p-5 bg-white border-t border-slate-100">
+                    <div className="p-3 sm:p-5 bg-white border-t border-slate-100 shrink-0">
                         {!activeAgent && (
                             <ChatSettingsToolbar
                                 assistantMode={assistantMode}

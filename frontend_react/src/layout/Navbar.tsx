@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, ArrowUpCircle, UserRound } from 'lucide-react';
 import packageJson from '../../package.json';
 import NotificationPopover from '../components/NotificationPopover';
@@ -10,6 +10,7 @@ import { getLatestReleaseTag, isReleaseUpdateAvailable } from '../utils/systemUp
 interface NavbarProps {
     onNavigate?: (viewName: string, params?: any) => void;
     onOpenSearch: () => void;
+    onOpenAI?: () => void;
     userInfo: UserInfo | null;
     onLogout: () => void;
     onOpenProfile: () => void;
@@ -19,6 +20,19 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [hasNewVersion, setHasNewVersion] = useState(false);
+    const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+    const userMenuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!isUserMenuOpen) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+                setIsUserMenuOpen(false);
+            }
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [isUserMenuOpen]);
 
     const fetchUnread = async () => {
         if (!userInfo) {
@@ -156,8 +170,8 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                     </div>
 
                     {/* Right Actions */}
-                    <div className="flex items-center gap-4 sm:gap-6">
-                        {/* Search Bar */}
+                    <div className="flex items-center gap-1.5 sm:gap-6">
+                        {/* Search Bar (Desktop) */}
                         <div className="hidden md:flex relative group cursor-pointer" onClick={onOpenSearch}>
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <Search className="h-4 w-4 text-slate-400 group-hover:text-orange-500 transition-colors" />
@@ -169,11 +183,12 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                                 </div>
                             </div>
                         </div>
-                        <button className="md:hidden p-2 text-slate-500 hover:text-slate-700" onClick={onOpenSearch}>
+                        {/* Search Button (Mobile) */}
+                        <button className="md:hidden p-2 text-slate-500 hover:text-slate-700" onClick={onOpenSearch} title="搜索">
                             <Search className="w-5 h-5" />
                         </button>
 
-                        <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
+                        <div className="flex items-center gap-1.5 sm:gap-3 pl-2 sm:pl-4 border-l border-slate-200">
                             {/* Notification Bell */}
                             <div className="relative">
                                 <button
@@ -197,21 +212,26 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                                 )}
                             </div>
 
-                            {/* User Dropdown */}
-                            <div className="relative group z-[100]">
-                                <div className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1.5 rounded-full pr-3 transition-colors">
+                            {/* User Menu (Desktop) */}
+                            <div ref={userMenuRef} className="hidden sm:block relative group z-[100]">
+                                <div
+                                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                                    className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1.5 rounded-full pr-3 transition-colors"
+                                >
                                     <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-200 to-slate-300 flex items-center justify-center text-slate-600 border border-white shadow-sm overflow-hidden">
                                         <img src={userInfo?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Visitor"} alt="User" />
                                     </div>
                                     <span className="text-sm font-medium text-slate-700 hidden sm:block">
                                         {userInfo ? (userInfo.nickname || userInfo.username || '管理员') : '访客用户'}
                                     </span>
-                                    <ChevronDown className="w-3 h-3 text-slate-400 hidden sm:block group-hover:rotate-180 transition-transform" />
+                                    <ChevronDown className={`w-3 h-3 text-slate-400 hidden sm:block transition-transform ${isUserMenuOpen ? 'rotate-180' : 'group-hover:rotate-180'}`} />
                                 </div>
 
                                 {/* Dropdown Menu */}
-                                <div className="absolute right-0 top-full z-[110] pt-2 w-56 hidden group-hover:block animate-in fade-in slide-in-from-top-1 duration-200">
-                                    <div className="bg-white rounded-xl shadow-xl border border-slate-100 p-2">
+                                <div className={`absolute right-0 top-full z-[110] pt-2 w-56 animate-in fade-in slide-in-from-top-1 duration-200 ${
+                                    isUserMenuOpen ? 'block' : 'hidden sm:group-hover:block'
+                                }`}>
+                                    <div className="bg-white rounded-xl shadow-xl border border-slate-100 p-2" onClick={() => setIsUserMenuOpen(false)}>
                                         <div className="px-3 py-2 border-b border-slate-100 mb-1">
                                             <p className="text-sm font-semibold text-slate-800">{userInfo ? '已登录' : '未登录'}</p>
                                             {userInfo && (
@@ -242,6 +262,25 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Mobile User Avatar Button */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (userInfo) {
+                                        onOpenProfile();
+                                    } else if (onNavigate) {
+                                        onNavigate('login');
+                                    }
+                                }}
+                                className="sm:hidden p-0.5 rounded-full hover:ring-2 hover:ring-orange-400 transition-all"
+                                aria-label={userInfo ? "个人中心" : "登录"}
+                                title={userInfo ? "个人中心" : "登录"}
+                            >
+                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 border border-slate-200 overflow-hidden">
+                                    <img src={userInfo?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Visitor"} alt="User" className="w-full h-full object-cover" />
+                                </div>
+                            </button>
                         </div>
                     </div>
                 </div>
