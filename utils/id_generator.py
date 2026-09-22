@@ -29,6 +29,11 @@ def generate_book_id() -> str:
     return generate_unique_id("book")
 
 
+def generate_whiteboard_id() -> str:
+    """生成带 wb 前缀的白板 ID。"""
+    return generate_unique_id("wb")
+
+
 # 为文章生成带art前缀的ID
 def generate_article_id() -> str:
     """

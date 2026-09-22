@@ -798,16 +798,28 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                     {/* 自动同步时间间隔 */}
                     <div className="pt-2 border-t border-slate-100">
                         <div className="flex items-center justify-between mb-2">
-                            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                                <Clock3 className="w-3.5 h-3.5 text-slate-400" />
-                                自动定时同步间隔
-                            </label>
-                            <span className="text-xs font-mono font-bold text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-md border border-orange-100">
-                                每 {config.interval >= 60 ? `${(config.interval / 60).toFixed(1).replace('.0', '')} 小时` : `${config.interval} 分钟`}
-                            </span>
+                            <div>
+                                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                                    <Clock3 className="w-3.5 h-3.5 text-slate-400" />
+                                    自动定时同步
+                                </label>
+                                <p className="text-[11px] text-slate-400 mt-1">关闭后仍可手动上传或下载，不会自动运行</p>
+                            </div>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={config.autoSyncEnabled}
+                                onClick={() => onChange({...config, autoSyncEnabled: !config.autoSyncEnabled})}
+                                disabled={isSaving}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 disabled:opacity-60 ${config.autoSyncEnabled ? 'bg-orange-500' : 'bg-slate-200'}`}
+                            >
+                                <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${config.autoSyncEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                                />
+                            </button>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className={`flex items-center gap-3 ${config.autoSyncEnabled ? '' : 'opacity-50'}`}>
                             <input
                                 type="range"
                                 min="5"
@@ -815,8 +827,12 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                                 step="5"
                                 className="flex-1 h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-orange-500"
                                 value={config.interval}
+                                disabled={!config.autoSyncEnabled}
                                 onChange={(e) => onChange({...config, interval: parseInt(e.target.value) || 30})}
                             />
+                            <span className="text-xs font-mono font-bold text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-md border border-orange-100 whitespace-nowrap">
+                                每 {config.interval >= 60 ? `${(config.interval / 60).toFixed(1).replace('.0', '')} 小时` : `${config.interval} 分钟`}
+                            </span>
                         </div>
 
                         {/* 常用预设快捷胶囊 */}
@@ -826,12 +842,13 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                                 <button
                                     key={preset.value}
                                     type="button"
+                                    disabled={!config.autoSyncEnabled}
                                     onClick={() => onChange({...config, interval: preset.value})}
                                     className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
                                         config.interval === preset.value
                                             ? 'bg-orange-500 text-white shadow-xs'
                                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                    }`}
+                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                                 >
                                     {preset.label}
                                 </button>

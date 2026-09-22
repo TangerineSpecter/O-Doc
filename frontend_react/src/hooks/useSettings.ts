@@ -61,6 +61,7 @@ export const useSettings = () => {
     // WebDav 配置暂时略过，逻辑类似
     const [webDavConfig, setWebDavConfig] = useState<WebDavConfig>({
         enabled: false,
+        autoSyncEnabled: true,
         protocol: 'webdav',
         url: '',
         host: '',
@@ -145,6 +146,7 @@ export const useSettings = () => {
                 const config = configRes as unknown as WebDavConfig;
                 setWebDavConfig({
                     enabled: Boolean(config.enabled),
+                    autoSyncEnabled: config.autoSyncEnabled ?? (config as {auto_sync_enabled?: boolean}).auto_sync_enabled ?? true,
                     protocol: config.protocol || 'webdav',
                     url: config.url || '',
                     host: config.host || '',

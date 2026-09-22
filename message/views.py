@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 
 from utils.response_utils import success_result
 from utils.drf_utils import get_current_user_identifier
+from system_settings.sync_state import record_bulk_change
 from memos.models import Memo
 from .models import Notification
 from .serializers import NotificationSerializer
@@ -33,7 +34,9 @@ class NotificationView(APIView):
 
     def post(self, request):
         # 只处理自己的通知
-        Notification.objects.filter(user=request.user, is_deleted=False).update(is_read=True)
+        queryset = Notification.objects.filter(user=request.user, is_deleted=False)
+        record_bulk_change(queryset)
+        queryset.update(is_read=True)
         return success_result()
 
 
@@ -41,11 +44,15 @@ class NotificationDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, notification_id):
-        Notification.objects.filter(id=notification_id, user=request.user, is_deleted=False).update(is_read=True)
+        queryset = Notification.objects.filter(id=notification_id, user=request.user, is_deleted=False)
+        record_bulk_change(queryset)
+        queryset.update(is_read=True)
         return success_result()
 
     def delete(self, request, notification_id):
-        Notification.objects.filter(id=notification_id, user=request.user, is_deleted=False).update(
+        queryset = Notification.objects.filter(id=notification_id, user=request.user, is_deleted=False)
+        record_bulk_change(queryset)
+        queryset.update(
             is_deleted=True,
             deleted_at=timezone.now()
         )
@@ -56,7 +63,9 @@ class NotificationRestoreView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, notification_id):
-        Notification.objects.filter(id=notification_id, user=request.user, is_deleted=True).update(
+        queryset = Notification.objects.filter(id=notification_id, user=request.user, is_deleted=True)
+        record_bulk_change(queryset)
+        queryset.update(
             is_deleted=False,
             deleted_at=None
         )

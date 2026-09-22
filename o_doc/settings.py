@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'rag.apps.RagConfig',
     'message.apps.MessageConfig',
     'memos.apps.MemosConfig',
+    'whiteboard.apps.WhiteboardConfig',
     'knowledge_maintenance.apps.KnowledgeMaintenanceConfig',
     'book_analysis.apps.BookAnalysisConfig',
 ]

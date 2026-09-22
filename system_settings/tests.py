@@ -17,6 +17,7 @@ from anthology.book_views import _soft_delete_orphaned_book_asset
 from article.models import Image
 from assets.models import Asset
 from memos.models import Memo
+from message.models import Notification
 from system_settings.agent_memory import (
     get_or_create_im_session,
     purge_expired_short_term_memories,
@@ -353,6 +354,66 @@ class SyncManagerTests(TestCase):
             digest = snapshot['media'][rel_path]['hash']
             self.assertEqual(client.files[f'{manager.v2_blobs_dir}/{digest}'], content)
 
+    def test_snapshot_includes_memos_but_excludes_local_email_and_nickname(self):
+        user = User.objects.create_user(username='snapshot-user', email='local@example.com', password='password')
+        UserProfile.objects.create(user=user, userid='snapshot-user', nickname='本机昵称', avatar='/media/avatars/snapshot-user.png')
+        memo = Memo.objects.create(memo_id='memo_snapshot', content='需要同步的闪念', user_id='snapshot-user')
+        notification = Notification.objects.create(user=user, title='需要同步的通知', content='通知正文', link='/memos')
+
+        snapshot = SyncManager(FakeWebDavClient(), '/o-doc-sync/').build_snapshot_data()
+        by_model = {(item['model'], str(item['pk'])): item for item in snapshot}
+
+        self.assertIn(('memos.memo', memo.memo_id), by_model)
+        self.assertIn(('message.notification', notification.id), by_model)
+        self.assertNotIn('email', by_model[('auth.user', str(user.pk))]['fields'])
+        self.assertNotIn('nickname', by_model[('user.userprofile', str(user.profile.pk))]['fields'])
+        self.assertEqual(by_model[('user.userprofile', str(user.profile.pk))]['fields']['avatar'], '/media/avatars/snapshot-user.png')
+
+    def test_full_overwrite_preserves_device_local_email_and_nickname(self):
+        user = User.objects.create_user(
+            username='local-profile-user',
+            email='local@example.com',
+            password='password',
+        )
+        profile = UserProfile.objects.create(
+            user=user,
+            userid='local-profile-user',
+            nickname='本机昵称',
+        )
+        snapshot_data = json.loads(serializers.serialize('json', [user, profile]))
+        for item in snapshot_data:
+            if item['model'] == 'auth.user':
+                item['fields']['email'] = 'remote@example.com'
+            elif item['model'] == 'user.userprofile':
+                item['fields']['nickname'] = '远端昵称'
+
+        SyncManager(FakeWebDavClient(), '/o-doc-sync/').apply_snapshot_data(
+            snapshot_data,
+            full_overwrite=True,
+        )
+
+        user.refresh_from_db()
+        profile.refresh_from_db()
+        self.assertEqual(user.email, 'local@example.com')
+        self.assertEqual(profile.nickname, '本机昵称')
+
+    def test_v2_avatar_blob_restores_to_media_root_path_referenced_by_profile(self):
+        client = MemoryStorageClient()
+        manager = SyncManager(client, '/o-doc-sync/')
+        user = User.objects.create_user(username='avatar-restore-user', password='password')
+        UserProfile.objects.create(user=user, userid='avatar-restore-user', avatar='/media/avatars/avatar-restore.png')
+        avatar_path = os.path.join(self._test_media_root.name, 'avatars/avatar-restore.png')
+        os.makedirs(os.path.dirname(avatar_path), exist_ok=True)
+        with open(avatar_path, 'wb') as file_obj:
+            file_obj.write(b'avatar-content')
+
+        snapshot = manager.publish_v2_snapshot(source='test', data_list=[], revisions={})
+        os.remove(avatar_path)
+        manager._restore_v2_media(snapshot['media'])
+
+        with open(avatar_path, 'rb') as file_obj:
+            self.assertEqual(file_obj.read(), b'avatar-content')
+
     def test_validate_upload_state_reports_missing_asset_file(self):
         manager = SyncManager(FakeWebDavClient(), '/o-doc-sync/')
         with patch.object(
@@ -402,7 +463,7 @@ class SyncManagerTests(TestCase):
         self.assertEqual(local_skill.name, '文章润色')
         self.assertEqual(Agent.objects.get(pk='agent_remote').skills, ['skill_local_builtin'])
 
-    def test_sync_data_download_reuses_local_user_profile(self):
+    def test_sync_data_download_reuses_local_user_profile_without_overwriting_nickname(self):
         now = timezone.now()
         local_user = User.objects.create_user(username='admin', password='local-password')
         local_profile = UserProfile.objects.create(
@@ -426,24 +487,30 @@ class SyncManagerTests(TestCase):
         self.assertEqual(UserProfile.objects.count(), 1)
         local_profile.refresh_from_db()
         self.assertEqual(local_profile.user_id, local_user.id)
-        self.assertEqual(local_profile.nickname, '远端管理员')
+        self.assertEqual(local_profile.nickname, '本地管理员')
 
     def test_sync_data_download_restores_users_without_replacing_local_admin_password(self):
         now = timezone.now()
-        local_admin = User.objects.create_superuser(username='admin', password='local-password')
+        local_admin = User.objects.create_superuser(username='admin', email='local-admin@example.com', password='local-password')
         local_admin_password = local_admin.password
         UserProfile.objects.create(user=local_admin, userid='admin')
         remote_group = Group(id=3, name='编辑')
         remote_user = User(id=1, username='alice', password='remote-alice-password', is_staff=True)
-        remote_admin = User(id=2, username='admin', password='remote-admin-password', is_superuser=True, is_staff=True)
+        remote_admin = User(id=2, username='admin', email='remote-admin@example.com', password='remote-admin-password', is_superuser=True, is_staff=True)
         remote_alice_profile = UserProfile(pk=99, user_id=1, userid='alice', nickname='Alice')
         remote_admin_profile = UserProfile(pk=100, user_id=2, userid='admin', nickname='远端管理员')
         for profile in (remote_alice_profile, remote_admin_profile):
             profile.created_at = now
             profile.updated_at = now
+        remote_notification = Notification(
+            id='msg_remote_admin', user_id=2, title='远端通知', content='已正确映射用户', created_at=now,
+        )
         snapshot_data = json.loads(serializers.serialize(
             'json',
-            [remote_group, remote_user, remote_admin, remote_alice_profile, remote_admin_profile],
+            [
+                remote_group, remote_user, remote_admin, remote_alice_profile, remote_admin_profile,
+                remote_notification,
+            ],
         ))
         for item in snapshot_data:
             if item['model'] == 'auth.user' and item['fields']['username'] == 'alice':
@@ -454,11 +521,13 @@ class SyncManagerTests(TestCase):
 
         local_admin.refresh_from_db()
         self.assertEqual(local_admin.password, local_admin_password)
+        self.assertEqual(local_admin.email, 'local-admin@example.com')
         alice = User.objects.get(username='alice')
         self.assertTrue(alice.is_staff)
         self.assertEqual(list(alice.groups.values_list('name', flat=True)), ['编辑'])
         self.assertEqual(UserProfile.objects.get(userid='alice').user_id, alice.id)
         self.assertEqual(UserProfile.objects.get(userid='admin').user_id, local_admin.id)
+        self.assertEqual(Notification.objects.get(id='msg_remote_admin').user_id, local_admin.id)
 
     def _create_book_asset(self, asset_id, rel_path, media_root, content=b'book-bytes'):
         os.makedirs(os.path.join(media_root, os.path.dirname(rel_path)), exist_ok=True)
@@ -989,14 +1058,23 @@ class RemoteStorageFactoryTests(TestCase):
         from utils.remote_storage import public_sync_config
         payload = public_sync_config({
             'remote_path': '/custom/',
+            'auto_sync_enabled': False,
             'use_tls': True,
             'private_key': 'KEY',
             'host_key': 'ssh-ed25519 AAAA',
         })
         self.assertEqual(payload['remotePath'], '/custom/')
+        self.assertFalse(payload['autoSyncEnabled'])
         self.assertTrue(payload['useTls'])
         self.assertEqual(payload['privateKey'], 'KEY')
         self.assertEqual(payload['hostKey'], 'ssh-ed25519 AAAA')
+
+    def test_normalize_sync_config_accepts_camel_case_scheduled_sync_switch(self):
+        config = normalize_sync_config({
+            'autoSyncEnabled': False,
+            'remote_path': '/custom/',
+        })
+        self.assertFalse(config['auto_sync_enabled'])
 
     def test_destination_signature_ignores_password_changes(self):
         old = {
@@ -2093,6 +2171,23 @@ class WebDavSchedulerTests(TestCase):
         SystemSetting.objects.create(
             key='system_webdav_config',
             value={'enabled': True, 'protocol': 'webdav', 'url': 'https://dav.example.com', 'remote_path': ''},
+        )
+        scheduler = WebDavAutoSyncScheduler()
+        scheduler._boot_at = timezone.now() - timedelta(hours=1)
+        with patch.object(scheduler, '_run_sync') as run_sync:
+            scheduler._maybe_run_sync()
+        run_sync.assert_not_called()
+
+    def test_auto_sync_skips_when_scheduled_sync_is_disabled(self):
+        SystemSetting.objects.create(
+            key='system_webdav_config',
+            value={
+                'enabled': True,
+                'auto_sync_enabled': False,
+                'protocol': 'webdav',
+                'url': 'https://dav.example.com',
+                'remote_path': '/o-doc-backup/',
+            },
         )
         scheduler = WebDavAutoSyncScheduler()
         scheduler._boot_at = timezone.now() - timedelta(hours=1)

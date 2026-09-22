@@ -51,6 +51,7 @@ def default_sync_config():
         'username': '',
         'password': '',
         'remote_path': '',
+        'auto_sync_enabled': True,
         'interval': 30,
         'use_tls': False,
         'passive': True,
@@ -81,6 +82,9 @@ def normalize_sync_config(data):
 
     config = {
         'enabled': bool(data.get('enabled', False)),
+        # Keep scheduled sync enabled for existing configurations that predate
+        # this independent switch; the service switch remains separate.
+        'auto_sync_enabled': bool(data.get('auto_sync_enabled', data.get('autoSyncEnabled', True))),
         'protocol': protocol,
         'url': (data.get('url') or '').strip(),
         'host': (data.get('host') or '').strip(),
@@ -183,8 +187,10 @@ def create_storage_client(config):
 
 
 def public_sync_config(config):
-    value = {**default_sync_config(), **(config or {})}
+    config = config or {}
+    value = {**default_sync_config(), **config}
     value['remotePath'] = value.get('remote_path') or ''
+    value['autoSyncEnabled'] = bool(config.get('auto_sync_enabled', config.get('autoSyncEnabled', True)))
     value['useTls'] = bool(value.get('use_tls', False))
     value['privateKey'] = value.get('private_key') or ''
     value['hostKey'] = value.get('host_key') or ''

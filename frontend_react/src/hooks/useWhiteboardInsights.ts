@@ -13,8 +13,8 @@ interface UseWhiteboardInsightsOptions {
     nodes: WhiteboardNode[];
     edges: WhiteboardEdge[];
     selectedNodeIds: string[];
-    getDocument: (id?: string) => WhiteboardDocument | null;
-    updateDocument: (id: string, patch: {insights?: WhiteboardInsights | null}) => WhiteboardDocument | null;
+    getDocument: (id?: string) => Promise<WhiteboardDocument | null>;
+    updateDocument: (id: string, patch: {insights?: WhiteboardInsights | null}) => Promise<WhiteboardDocument>;
 }
 
 const toErrorMessage = (error: unknown) => {
@@ -42,6 +42,7 @@ export function useWhiteboardInsights({
     const insightsRef = useRef<WhiteboardInsights | null>(null);
     const digestingRef = useRef(false);
     const digestGenRef = useRef(0);
+    const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
     const boardIdRef = useRef(boardId);
     boardIdRef.current = boardId;
 
@@ -57,10 +58,19 @@ export function useWhiteboardInsights({
     };
 
     useEffect(() => {
-        const document = boardId ? getDocument(boardId) : null;
-        setInsights(document?.insights || null);
-        setScope(document?.insights?.scope || (selectedNodeIds.length > 0 ? 'selection' : 'board'));
-        setError(null);
+        let active = true;
+        const load = async () => {
+            try {
+                const document = boardId ? await getDocument(boardId) : null;
+                if (!active) return;
+                setInsights(document?.insights || null);
+                setScope(document?.insights?.scope || (selectedNodeIds.length > 0 ? 'selection' : 'board'));
+                setError(null);
+            } catch (loadError) {
+                if (active) setError(loadError instanceof Error ? loadError.message : '加载白板 AI 内容失败');
+            }
+        };
+        void load();
         digestGenRef.current += 1;
         digestingRef.current = false;
         setIsDigesting(false);
@@ -69,12 +79,33 @@ export function useWhiteboardInsights({
         answerAbortRef.current = null;
         // 只在切换白板时回填，避免保存启发时把进行中的对话冲掉
         // eslint-disable-next-line react-hooks/exhaustive-deps
+        return () => {
+            active = false;
+        };
     }, [boardId]);
 
-    const persist = useCallback((next: WhiteboardInsights | null) => {
+    const persist = useCallback(async (next: WhiteboardInsights | null) => {
         setInsights(next);
         insightsRef.current = next;
-        if (boardId) updateDocument(boardId, {insights: next});
+        const targetBoardId = boardId;
+        if (!targetBoardId) return true;
+
+        const operation = persistQueueRef.current
+            .catch(() => undefined)
+            .then(async () => {
+                await updateDocument(targetBoardId, {insights: next});
+            });
+        persistQueueRef.current = operation.catch(() => undefined);
+        try {
+            await operation;
+            return true;
+        } catch (saveError) {
+            if (targetBoardId === boardIdRef.current) {
+                const detail = saveError instanceof Error && saveError.message ? `：${saveError.message}` : '';
+                setError(`AI 内容已生成，但保存失败，请重试${detail}`);
+            }
+            return false;
+        }
     }, [boardId, updateDocument]);
 
     const brief = useMemo(
@@ -108,7 +139,7 @@ export function useWhiteboardInsights({
             if (gen !== digestGenRef.current || requestBoardId !== boardIdRef.current) return;
             const validNodeIds = new Set(activeBrief.scopedNodes.map(node => node.id));
             const normalized = normalizeInsightResponse(raw, activeBrief.citeMap, validNodeIds);
-            persist({
+            await persist({
                 generatedAt: Date.now(),
                 scope: activeBrief.scope,
                 scopeNodeIds: activeBrief.scopedNodes.map(node => node.id),
@@ -187,16 +218,16 @@ export function useWhiteboardInsights({
             if (last?.role === 'assistant') {
                 messages[messages.length - 1] = {role: 'assistant', content: answer || last.content};
             }
-            persist({...current, messages});
+            await persist({...current, messages});
         } catch (err) {
             if (answerAbortRef.current !== controller) return;
             if (controller.signal.aborted) {
-                persist(dropEmptyAssistant(insightsRef.current));
+                await persist(dropEmptyAssistant(insightsRef.current));
                 return;
             }
             const message = toErrorMessage(err);
             if (message) setError(message);
-            persist(dropEmptyAssistant(insightsRef.current));
+            await persist(dropEmptyAssistant(insightsRef.current));
         } finally {
             if (answerAbortRef.current === controller) {
                 answerAbortRef.current = null;

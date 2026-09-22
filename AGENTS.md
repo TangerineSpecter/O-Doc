@@ -8,6 +8,7 @@
 
 # 后端注意事项
 - 数据同步逻辑参考：`docs/数据同步逻辑说明.md`
+- 新增数据字段时，务必需跟用户确认是否需要在WebDev中同步管理，确保数据有被同步，无需同步的字段，需在md 文档中注释说明。
 
 前端核心模块对应文件路径：
 - AI 对话窗口：`frontend_react/src/components/AIChatWindow.tsx`

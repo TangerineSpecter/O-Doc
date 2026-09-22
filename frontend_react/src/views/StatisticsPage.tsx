@@ -30,11 +30,11 @@ import {
     YAxis
 } from 'recharts';
 import {getStatisticsData, StatsDashboardData} from '../api/stats';
+import {getWhiteboardList} from '../api/whiteboard';
 import {Select, SelectOption} from '../components/common/Select';
 
 // 预定义颜色，用于分类图表
 const COLORS = ['#3b82f6', '#f97316', '#ec4899', '#10b981', '#8b5cf6', '#6366f1', '#14b8a6', '#f43f5e'];
-const WHITEBOARD_STORAGE_KEY = 'odoc-whiteboards';
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 const MONTH_LABELS = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 
@@ -64,10 +64,6 @@ const CustomTooltip = ({active, payload, label}: CustomTooltipProps) => {
     return null;
 };
 
-interface WhiteboardDocumentSnapshot {
-    createdAt?: number;
-}
-
 interface CreationDay {
     date: string;
     articles: number;
@@ -95,27 +91,14 @@ const formatDateKey = (date: Date) => {
     return `${year}-${month}-${day}`;
 };
 
-const readWhiteboardDailyCounts = (year: number) => {
+const buildWhiteboardDailyCounts = (year: number, documents: {createdAt: number}[]) => {
     const counts = new Map<string, number>();
-
-    try {
-        const raw = localStorage.getItem(WHITEBOARD_STORAGE_KEY);
-        if (!raw) return counts;
-
-        const documents = JSON.parse(raw) as WhiteboardDocumentSnapshot[];
-        if (!Array.isArray(documents)) return counts;
-
-        documents.forEach((document) => {
-            if (!document.createdAt) return;
-            const createdAt = new Date(document.createdAt);
-            if (Number.isNaN(createdAt.getTime()) || createdAt.getFullYear() !== year) return;
-            const dateKey = formatDateKey(createdAt);
-            counts.set(dateKey, (counts.get(dateKey) || 0) + 1);
-        });
-    } catch (error) {
-        console.warn('Failed to read whiteboard stats', error);
-    }
-
+    documents.forEach((document) => {
+        const createdAt = new Date(document.createdAt);
+        if (Number.isNaN(createdAt.getTime()) || createdAt.getFullYear() !== year) return;
+        const dateKey = formatDateKey(createdAt);
+        counts.set(dateKey, (counts.get(dateKey) || 0) + 1);
+    });
     return counts;
 };
 
@@ -128,9 +111,8 @@ const getIntensityClass = (count: number, maxCount: number) => {
     return 'bg-orange-100 border-orange-100';
 };
 
-const buildHeatmapCells = (year: number, dailyCreation: StatsDashboardData['dailyCreation']): HeatmapCell[] => {
+const buildHeatmapCells = (year: number, dailyCreation: StatsDashboardData['dailyCreation'], whiteboardCounts: Map<string, number>): HeatmapCell[] => {
     const serverDailyMap = new Map(dailyCreation.map((item) => [item.date, item]));
-    const whiteboardCounts = readWhiteboardDailyCounts(year);
     const cells: HeatmapCell[] = [];
 
     const startDate = new Date(year, 0, 1);
@@ -210,6 +192,7 @@ export default function StatisticsPage() {
     const [data, setData] = useState<StatsDashboardData | null>(null);
     const [selectedYear, setSelectedYear] = useState(currentYear);
     const [heatmapHover, setHeatmapHover] = useState<HeatmapHoverState | null>(null);
+    const [whiteboardCounts, setWhiteboardCounts] = useState<Map<string, number>>(new Map());
 
     useEffect(() => {
         let ignore = false;
@@ -224,8 +207,16 @@ export default function StatisticsPage() {
                     setHeatmapHover(null);
                 }
 
-                const res = await getStatisticsData(selectedYear);
+                const [res, whiteboards] = await Promise.all([
+                    getStatisticsData(selectedYear),
+                    getWhiteboardList().catch((error) => {
+                        console.warn('Failed to fetch whiteboard stats:', error);
+                        return [];
+                    }),
+                ]);
                 if (ignore) return;
+
+                setWhiteboardCounts(buildWhiteboardDailyCounts(selectedYear, whiteboards));
 
                 setData((prev) => {
                     if (!prev) return res;
@@ -289,7 +280,7 @@ export default function StatisticsPage() {
         };
     });
 
-    const heatmapCells = buildHeatmapCells(selectedYear, data.dailyCreation);
+    const heatmapCells = buildHeatmapCells(selectedYear, data.dailyCreation, whiteboardCounts);
     const monthMarkers = getMonthMarkers(heatmapCells);
     const maxCreationCount = heatmapCells.reduce((max, item) => Math.max(max, item.total), 0);
     const yearlyCreationTotal = heatmapCells.reduce((total, item) => total + item.total, 0);

@@ -36,7 +36,7 @@ class SyncManager:
     REMOTE_LOCK_TTL_SECONDS = 2 * 60 * 60
     TARGET_APPS = [
         'article', 'anthology', 'categories', 'tags',
-        'assets', 'prompts', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis'
+        'assets', 'prompts', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis', 'whiteboard', 'memos', 'message'
     ]
     LOCAL_ONLY_SYSTEM_SETTING_KEYS = frozenset({
         'system_webdav_config',
@@ -214,6 +214,40 @@ class SyncManager:
                 continue
             filtered.append(item)
         return filtered
+
+    @staticmethod
+    def _strip_device_local_user_fields(data_list):
+        """不让每台设备独立维护的登录/展示资料进入跨设备快照。"""
+        user_label = get_user_model()._meta.label_lower
+        for item in data_list:
+            fields = item.get('fields') or {}
+            if item.get('model') == user_label:
+                fields.pop('email', None)
+            elif item.get('model') == 'user.userprofile':
+                fields.pop('nickname', None)
+        return data_list
+
+    @staticmethod
+    def _restore_device_local_user_fields(data_list):
+        """恢复快照中刻意省略的本机用户资料，避免全量反序列化写成默认空值。"""
+        User = get_user_model()
+        local_emails = dict(User.objects.values_list('username', 'email'))
+
+        from user.models import UserProfile
+        local_nicknames = dict(UserProfile.objects.values_list('userid', 'nickname'))
+
+        user_label = User._meta.label_lower
+        for item in data_list:
+            fields = item.get('fields') or {}
+            if item.get('model') == user_label:
+                username = fields.get('username')
+                if username in local_emails:
+                    fields['email'] = local_emails[username]
+            elif item.get('model') == 'user.userprofile':
+                userid = fields.get('userid')
+                if userid in local_nicknames:
+                    fields['nickname'] = local_nicknames[userid]
+        return data_list
 
     @staticmethod
     def _ensure_not_aborted(should_abort):
@@ -591,6 +625,7 @@ class SyncManager:
         except Exception as e:
             raise SyncError(f"导出数据库快照失败: {str(e)}")
 
+        self._strip_device_local_user_fields(all_data)
         yield json.dumps({"step": "processing", "msg": f"正在打包上传 {total_count} 条数据..."}) + "\n"
 
         tmp_path = None
@@ -647,10 +682,13 @@ class SyncManager:
     def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None):
         """把快照写回数据库。full_overwrite 用于本地压缩包导入，按备份全量覆盖。"""
         data_list = self._drop_local_only_settings(data_list)
+        self._strip_device_local_user_fields(data_list)
+        self._restore_device_local_user_fields(data_list)
         self._reuse_local_builtin_skill_ids(data_list)
         group_id_mapping = self._reuse_local_group_ids(data_list)
         user_id_mapping = self._reuse_local_user_ids(data_list, group_id_mapping)
         self._reuse_local_user_profile_ids(data_list, user_id_mapping)
+        self._remap_notification_users(data_list, user_id_mapping)
         remote_pk_map = defaultdict(set)
         model_map = {}
         for model in self._iter_target_models():
@@ -881,6 +919,17 @@ class SyncManager:
             if remote_user_id in user_id_mapping:
                 fields['user'] = user_id_mapping[remote_user_id]
 
+    @staticmethod
+    def _remap_notification_users(data_list, user_id_mapping):
+        """通知的用户外键跟随跨设备用户名映射，不能直接使用远端自增 ID。"""
+        for item in data_list:
+            if item.get('model') != 'message.notification':
+                continue
+            fields = item.get('fields') or {}
+            remote_user_id = str(fields.get('user'))
+            if remote_user_id in user_id_mapping:
+                fields['user'] = user_id_mapping[remote_user_id]
+
     def sync_assets_download(self, should_abort=None):
         """根据数据库快照修复本地媒体资源，并清理多余文件。"""
         from assets.models import Asset
@@ -987,7 +1036,7 @@ class SyncManager:
             queryset = self._queryset_for_export(model)
             if queryset.exists():
                 all_data.extend(json.loads(serializers.serialize('json', queryset)))
-        return all_data
+        return self._strip_device_local_user_fields(all_data)
 
     @staticmethod
     def _safe_extract_zip(archive, dest_dir):
@@ -1161,16 +1210,23 @@ class SyncManager:
                 rel_path = self._get_media_relative_path((item.get('fields') or {}).get('avatar') or '')
                 if rel_path:
                     media[rel_path] = {'hash': '', 'legacy_path': True, 'size': 0}
-        return {'meta': {**meta, 'snapshot_id': '', 'format': 1}, 'data': data, 'revisions': revisions, 'media': media, 'legacy': True}
+        return {
+            'meta': {**meta, 'snapshot_id': '', 'format': 1},
+            'data': self._strip_device_local_user_fields(data),
+            'revisions': revisions,
+            'media': media,
+            'legacy': True,
+        }
 
     def get_v2_snapshot(self, snapshot_id):
         meta = self._read_remote_json(self._snapshot_path(snapshot_id, 'snapshot_meta.json'), required=True)
         if meta.get('format') != self.SNAPSHOT_FORMAT:
             raise SyncError('远端快照格式不受支持，请升级客户端')
         self.validate_remote_snapshot_version(meta)
+        data = self._read_remote_json(self._snapshot_path(snapshot_id, 'data_index.json'), required=True)
         return {
             'meta': meta,
-            'data': self._read_remote_json(self._snapshot_path(snapshot_id, 'data_index.json'), required=True),
+            'data': self._strip_device_local_user_fields(data),
             'revisions': self._read_remote_json(self._snapshot_path(snapshot_id, 'revisions.json'), required=True),
             'media': self._read_remote_json(self._snapshot_path(snapshot_id, 'media_manifest.json'), required=True),
         }

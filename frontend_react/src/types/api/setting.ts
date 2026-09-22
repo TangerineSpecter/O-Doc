@@ -297,6 +297,7 @@ export type SyncProtocol = 'webdav' | 'ftp' | 'sftp';
 
 export interface WebDavConfig {
     enabled: boolean;
+    autoSyncEnabled: boolean;
     protocol?: SyncProtocol;
     url: string;
     host?: string;

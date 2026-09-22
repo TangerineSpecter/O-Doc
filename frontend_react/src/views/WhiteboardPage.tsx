@@ -192,29 +192,35 @@ export default function WhiteboardPage() {
             return;
         }
 
-        const document = getDocument(boardId);
-        if (!document) {
-            toast.warning('白板不存在或已被删除');
-            navigate('/whiteboard');
-            return;
-        }
+        let active = true;
+        const load = async () => {
+            try {
+                const document = await getDocument(boardId);
+                if (!active) return;
+                if (!document) {
+                    toast.warning('白板不存在或已被删除');
+                    navigate('/whiteboard');
+                    return;
+                }
 
-        setTitle(document.title);
-        const nextOffset = document.viewOffset || {x: 80, y: 80};
-        const nextScale = document.scale || 1;
-        setViewOffset(nextOffset);
-        setScale(nextScale);
-        applyCamera(nextScale, nextOffset);
-        resetWhiteboardState(document.nodes || [], document.edges || []);
-        setLastSavedAt(document.updatedAt);
-        setSavedSnapshot(JSON.stringify({
-            title: document.title,
-            nodes: document.nodes || [],
-            edges: document.edges || [],
-            viewOffset: document.viewOffset || {x: 80, y: 80},
-            scale: document.scale || 1
-        }));
-    }, [boardId]);
+                setTitle(document.title);
+                const nextOffset = document.viewOffset || {x: 80, y: 80};
+                const nextScale = document.scale || 1;
+                setViewOffset(nextOffset);
+                setScale(nextScale);
+                applyCamera(nextScale, nextOffset);
+                resetWhiteboardState(document.nodes || [], document.edges || []);
+                setLastSavedAt(document.updatedAt);
+                setSavedSnapshot(JSON.stringify({title: document.title, nodes: document.nodes || [], edges: document.edges || [], viewOffset: nextOffset, scale: nextScale}));
+            } catch (error) {
+                if (active) toast.error(error instanceof Error ? error.message : '加载白板失败');
+            }
+        };
+        void load();
+        return () => {
+            active = false;
+        };
+    }, [boardId, getDocument, navigate, resetWhiteboardState, toast]);
 
     const insight = useWhiteboardInsights({
         boardId,
@@ -242,28 +248,20 @@ export default function WhiteboardPage() {
         insight.openWithPreferredScope(selectedNodeIds.length);
     }, [insight, selectedNodeIds.length]);
 
-    const handleSave = useCallback(() => {
+    const handleSave = useCallback(async () => {
         if (!boardId) return;
         setIsSaving(true);
         const camera = viewStateRef.current;
-        updateDocument(boardId, {
-            title,
-            nodes,
-            edges,
-            viewOffset: camera.viewOffset,
-            scale: camera.scale
-        });
-        const now = Date.now();
-        setLastSavedAt(now);
-        setSavedSnapshot(JSON.stringify({
-            title,
-            nodes,
-            edges,
-            viewOffset: camera.viewOffset,
-            scale: camera.scale
-        }));
-        setTimeout(() => setIsSaving(false), 250);
-        toast.success('白板已保存');
+        try {
+            const document = await updateDocument(boardId, {title, nodes, edges, viewOffset: camera.viewOffset, scale: camera.scale});
+            setLastSavedAt(document.updatedAt);
+            setSavedSnapshot(JSON.stringify({title, nodes, edges, viewOffset: camera.viewOffset, scale: camera.scale}));
+            toast.success('白板已保存');
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : '保存白板失败');
+        } finally {
+            setIsSaving(false);
+        }
     }, [boardId, edges, nodes, title, toast, updateDocument]);
 
     const getViewport = useCallback(() => ({

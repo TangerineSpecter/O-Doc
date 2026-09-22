@@ -309,6 +309,8 @@ class WebDavAutoSyncScheduler:
         config = config_setting.value or {}
         if not config.get('enabled'):
             return
+        if not config.get('auto_sync_enabled', config.get('autoSyncEnabled', True)):
+            return
 
         from utils.remote_storage import get_remote_path
         if not get_remote_path(config):

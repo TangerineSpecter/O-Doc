@@ -1,35 +1,18 @@
-import {useCallback, useMemo, useState} from 'react';
-import {WhiteboardDocument, WhiteboardEdge, WhiteboardInsights, WhiteboardNode} from '../types/whiteboard';
+import {useCallback, useEffect, useMemo, useState} from 'react';
+import {
+    createWhiteboard,
+    deleteWhiteboard,
+    getWhiteboardDetail,
+    getWhiteboardList,
+    importLegacyWhiteboards,
+    updateWhiteboard,
+} from '../api/whiteboard';
+import type {WhiteboardDocument, WhiteboardEdge, WhiteboardInsights, WhiteboardNode} from '../types/whiteboard';
 import {normalizeDocument} from '../utils/whiteboardOps';
 
-const STORAGE_KEY = 'odoc-whiteboards';
-
-const createId = () => `wb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
-
-const readDocuments = (): WhiteboardDocument[] => {
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed)
-            ? parsed.filter((item): item is Partial<WhiteboardDocument> & {id: string} => Boolean(item?.id)).map(normalizeDocument)
-            : [];
-    } catch (error) {
-        console.warn('Failed to read whiteboards', error);
-        return [];
-    }
-};
-
-const writeDocuments = (documents: WhiteboardDocument[]) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(documents));
-};
-
-export interface CreateWhiteboardInput {
-    title?: string;
-    description?: string;
-}
+const LEGACY_STORAGE_KEY = 'odoc-whiteboards';
+const LEGACY_BACKUP_KEY = 'odoc-whiteboards-legacy-backup-v1';
+const LEGACY_MIGRATION_KEY = 'odoc-whiteboards-server-migrated-v1';
 
 export interface SaveWhiteboardInput {
     title?: string;
@@ -41,102 +24,123 @@ export interface SaveWhiteboardInput {
     insights?: WhiteboardInsights | null;
 }
 
-export function createWhiteboardDocument(input: CreateWhiteboardInput = {}): WhiteboardDocument {
-    const now = Date.now();
-    return {
-        id: createId(),
-        title: input.title?.trim() || '未命名白板',
-        description: input.description?.trim() || '',
-        nodes: [],
-        edges: [],
-        viewOffset: {x: 80, y: 80},
-        scale: 1,
-        createdAt: now,
-        updatedAt: now
-    };
-}
+export type CreateWhiteboardInput = SaveWhiteboardInput;
+
+const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+
+const readLegacyDocuments = (): WhiteboardDocument[] => {
+    try {
+        const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed)
+            ? parsed.filter((item): item is Partial<WhiteboardDocument> & {id: string} => Boolean(item?.id)).map(normalizeDocument)
+            : [];
+    } catch (error) {
+        console.warn('Failed to read legacy whiteboards', error);
+        return [];
+    }
+};
+
+const migrateLegacyDocuments = async () => {
+    if (localStorage.getItem(LEGACY_MIGRATION_KEY)) return;
+    const legacyDocuments = readLegacyDocuments();
+    if (legacyDocuments.length > 0) {
+        await importLegacyWhiteboards(legacyDocuments);
+        const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (raw) localStorage.setItem(LEGACY_BACKUP_KEY, raw);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+    }
+    localStorage.setItem(LEGACY_MIGRATION_KEY, '1');
+};
 
 export function useWhiteboardDocuments() {
-    const [documents, setDocuments] = useState<WhiteboardDocument[]>(() => readDocuments());
+    const [documents, setDocuments] = useState<WhiteboardDocument[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const persist = useCallback((updater: (current: WhiteboardDocument[]) => WhiteboardDocument[]) => {
-        setDocuments(current => {
-            const next = updater(current);
-            writeDocuments(next);
-            return next;
-        });
+    const refreshDocuments = useCallback(async () => {
+        const next = await getWhiteboardList();
+        setDocuments(next.map(normalizeDocument));
     }, []);
+
+    useEffect(() => {
+        let active = true;
+        const load = async () => {
+            try {
+                await migrateLegacyDocuments();
+                if (active) await refreshDocuments();
+            } catch (error) {
+                console.error('Failed to load whiteboards', error);
+            } finally {
+                if (active) setIsLoading(false);
+            }
+        };
+        void load();
+        return () => {
+            active = false;
+        };
+    }, [refreshDocuments]);
 
     const sortedDocuments = useMemo(
         () => [...documents].sort((a, b) => b.updatedAt - a.updatedAt),
         [documents]
     );
 
-    const getDocument = useCallback(
-        (id?: string) => documents.find(document => document.id === id) || null,
-        [documents]
-    );
-
-    const createDocument = useCallback((input: CreateWhiteboardInput = {}) => {
-        const document = createWhiteboardDocument(input);
-        persist(current => [document, ...current]);
+    const getDocument = useCallback(async (id?: string) => {
+        if (!id) return null;
+        const document = normalizeDocument(await getWhiteboardDetail(id));
+        setDocuments(current => {
+            const index = current.findIndex(item => item.id === document.id);
+            if (index === -1) return [document, ...current];
+            return current.map(item => item.id === document.id ? document : item);
+        });
         return document;
-    }, [persist]);
+    }, []);
 
-    const updateDocument = useCallback((id: string, patch: SaveWhiteboardInput) => {
-        const updatedAt = Date.now();
-        let saved: WhiteboardDocument | null = null;
-
-        persist(current => current.map(document => {
-            if (document.id !== id) return document;
-            saved = {
-                ...document,
-                ...patch,
-                title: patch.title !== undefined ? patch.title.trim() || '未命名白板' : document.title,
-                description: patch.description !== undefined ? patch.description.trim() : document.description,
-                nodes: patch.nodes ? clone(patch.nodes) : document.nodes,
-                edges: patch.edges ? clone(patch.edges) : document.edges,
-                viewOffset: patch.viewOffset ? {...patch.viewOffset} : document.viewOffset,
-                scale: patch.scale ?? document.scale,
-                insights: patch.insights === undefined
-                    ? document.insights
-                    : patch.insights
-                        ? clone(patch.insights)
-                        : undefined,
-                updatedAt
-            };
-            return saved;
+    const createDocument = useCallback(async (input: CreateWhiteboardInput = {}) => {
+        const document = normalizeDocument(await createWhiteboard({
+            ...input,
+            title: input.title?.trim() || '未命名白板',
+            description: input.description?.trim() || '',
+            nodes: input.nodes ? clone(input.nodes) : undefined,
+            edges: input.edges ? clone(input.edges) : undefined,
+            viewOffset: input.viewOffset ? {...input.viewOffset} : undefined,
+            insights: input.insights ? clone(input.insights) : undefined,
         }));
+        setDocuments(current => [document, ...current]);
+        return document;
+    }, []);
 
-        return saved;
-    }, [persist]);
+    const updateDocument = useCallback(async (id: string, patch: SaveWhiteboardInput) => {
+        const document = normalizeDocument(await updateWhiteboard(id, {
+            ...patch,
+            nodes: patch.nodes ? clone(patch.nodes) : undefined,
+            edges: patch.edges ? clone(patch.edges) : undefined,
+            viewOffset: patch.viewOffset ? {...patch.viewOffset} : undefined,
+            insights: patch.insights === undefined ? undefined : patch.insights ? clone(patch.insights) : null,
+        }));
+        setDocuments(current => current.map(item => item.id === document.id ? document : item));
+        return document;
+    }, []);
 
-    const deleteDocument = useCallback((id: string) => {
-        persist(current => current.filter(document => document.id !== id));
-    }, [persist]);
+    const deleteDocument = useCallback(async (id: string) => {
+        await deleteWhiteboard(id);
+        setDocuments(current => current.filter(document => document.id !== id));
+    }, []);
 
-    const duplicateDocument = useCallback((id: string) => {
-        const source = documents.find(document => document.id === id);
+    const duplicateDocument = useCallback(async (id: string) => {
+        const source = documents.find(document => document.id === id) || await getDocument(id);
         if (!source) return null;
-
-        const now = Date.now();
-        const duplicate: WhiteboardDocument = {
-            ...clone(source),
-            id: createId(),
+        return createDocument({
             title: `${source.title} 副本`,
-            createdAt: now,
-            updatedAt: now
-        };
-        persist(current => [duplicate, ...current]);
-        return duplicate;
-    }, [documents, persist]);
+            description: source.description,
+            nodes: clone(source.nodes),
+            edges: clone(source.edges),
+            viewOffset: source.viewOffset,
+            scale: source.scale,
+            insights: source.insights || null,
+        });
+    }, [createDocument, documents, getDocument]);
 
-    return {
-        documents: sortedDocuments,
-        getDocument,
-        createDocument,
-        updateDocument,
-        deleteDocument,
-        duplicateDocument
-    };
+    return {documents: sortedDocuments, isLoading, getDocument, createDocument, updateDocument, deleteDocument, duplicateDocument, refreshDocuments};
 }

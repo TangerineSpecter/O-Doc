@@ -24,7 +24,7 @@ const getBoardStats = (document: WhiteboardDocument) => ({
 export default function WhiteboardManagePage() {
     const navigate = useNavigate();
     const toast = useToast();
-    const {documents, createDocument, deleteDocument, duplicateDocument} = useWhiteboardDocuments();
+    const {documents, isLoading, createDocument, deleteDocument, duplicateDocument} = useWhiteboardDocuments();
     const [searchQuery, setSearchQuery] = useState('');
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -38,24 +38,36 @@ export default function WhiteboardManagePage() {
         );
     }, [documents, searchQuery]);
 
-    const handleCreate = () => {
-        const document = createDocument({title: `新白板 ${documents.length + 1}`});
-        toast.success('白板已创建');
-        navigate(`/whiteboard/${document.id}`);
+    const handleCreate = async () => {
+        try {
+            const document = await createDocument({title: `新白板 ${documents.length + 1}`});
+            toast.success('白板已创建');
+            navigate(`/whiteboard/${document.id}`);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : '创建白板失败');
+        }
     };
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (!deleteTargetId) return;
-        deleteDocument(deleteTargetId);
-        setDeleteTargetId(null);
-        toast.success('白板已删除');
+        try {
+            await deleteDocument(deleteTargetId);
+            setDeleteTargetId(null);
+            toast.success('白板已删除');
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : '删除白板失败');
+        }
     };
 
-    const handleDuplicate = (id: string) => {
-        const duplicate = duplicateDocument(id);
-        if (!duplicate) return;
-        setActiveMenuId(null);
-        toast.success('白板副本已创建');
+    const handleDuplicate = async (id: string) => {
+        try {
+            const duplicate = await duplicateDocument(id);
+            if (!duplicate) return;
+            setActiveMenuId(null);
+            toast.success('白板副本已创建');
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : '复制白板失败');
+        }
     };
 
     return (
@@ -104,7 +116,9 @@ export default function WhiteboardManagePage() {
                     </div>
             </div>
 
-            {documents.length === 0 ? (
+            {isLoading ? (
+                <div className="py-20 flex justify-center text-sm text-slate-400">正在加载白板...</div>
+            ) : documents.length === 0 ? (
                 <div className="bg-white rounded-xl border border-slate-100 shadow-sm py-20 flex flex-col items-center justify-center text-center">
                     <div className="w-20 h-20 bg-orange-50 rounded-full border border-orange-100 flex items-center justify-center mb-4">
                         <PenLine className="w-9 h-9 text-orange-300"/>
