@@ -25,6 +25,8 @@ interface ImageAnthologyPageProps {
   onNavigate?: (viewName: string, params?: any) => void;
   collId?: string;
   title?: string;
+  openImageId?: string;
+  openImageRequestId?: string;
 }
 
 const parseImageTags = (image: Image) => {
@@ -79,7 +81,7 @@ const getGalleryColumnCount = () => {
   return 1;
 };
 
-export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageAnthologyPageProps) {
+export default function ImageAnthologyPage({ onNavigate, collId, title, openImageId, openImageRequestId }: ImageAnthologyPageProps) {
   const { isAuthenticated } = useAuth();
   const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
   const [images, setImages] = useState<Image[]>([]);
@@ -109,6 +111,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
   const [galleryColumnCount, setGalleryColumnCount] = useState(getGalleryColumnCount);
   const [mobileTab, setMobileTab] = useState<'gallery' | 'stats'>('gallery');
   const colorExtractionKeysRef = useRef(new Set<string>());
+  const lastOpenedPreviewRequestRef = useRef<string | null>(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -449,6 +452,28 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     if (selectedColor === 'all') return baseVisibleImages;
     return baseVisibleImages.filter(image => dominantColors[image.imageId]?.key === selectedColor);
   }, [baseVisibleImages, dominantColors, selectedColor]);
+
+  useEffect(() => {
+    if (!openImageId || !openImageRequestId || loading) return;
+
+    const requestKey = `${openImageRequestId}:${openImageId}`;
+    if (lastOpenedPreviewRequestRef.current === requestKey) return;
+    if (!images.some(image => image.imageId === openImageId)) return;
+
+    const targetIndex = visibleImages.findIndex(image => image.imageId === openImageId);
+    if (targetIndex < 0) {
+      setGalleryCountry('all');
+      setGalleryTags([]);
+      setGalleryFocalMin('');
+      setGalleryFocalMax('');
+      setSelectedColor('all');
+      return;
+    }
+
+    lastOpenedPreviewRequestRef.current = requestKey;
+    setMobileTab('gallery');
+    setViewerGlobalIndex(targetIndex);
+  }, [images, loading, openImageId, openImageRequestId, visibleImages]);
 
   const extractedColorCount = useMemo(() => {
     return baseVisibleImages.filter(image => dominantColors[image.imageId]).length;

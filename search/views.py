@@ -1,6 +1,6 @@
 import re
 
-from django.db.models import Q
+from django.db.models import Max, Q
 from rest_framework.views import APIView
 
 from article.models import Article, Image
@@ -166,8 +166,42 @@ class GlobalSearchView(APIView):
                     Q(city__icontains=keyword) |
                     Q(place_name__icontains=keyword)
                 ).order_by('-updated_at')
-                counts['image'] = images.count()
-                for image in images[:limit]:
+
+                # A multi-photo group stores one Image row per photo but is shown as
+                # one card in the anthology. Keep standalone images separate and
+                # collapse group members into one global-search result.
+                grouped_images = images.exclude(photo_group_id='')
+                image_groups = grouped_images.values('coll_id', 'photo_group_id').annotate(
+                    latest_updated_at=Max('updated_at'),
+                ).order_by('-latest_updated_at')
+                standalone_images = images.filter(photo_group_id='')
+                counts['image'] = image_groups.count() + standalone_images.count()
+
+                selected_groups = list(image_groups[:limit])
+                group_filter = Q()
+                group_updated_at = {}
+                for group in selected_groups:
+                    group_key = (group['coll_id'], group['photo_group_id'])
+                    group_filter |= Q(coll_id=group['coll_id'], photo_group_id=group['photo_group_id'])
+                    group_updated_at[group_key] = group['latest_updated_at']
+
+                representatives = {}
+                if selected_groups:
+                    for image in grouped_images.filter(group_filter).order_by(
+                        'coll_id', 'photo_group_id', 'group_index', '-updated_at'
+                    ):
+                        group_key = (image.coll_id, image.photo_group_id)
+                        representatives.setdefault(group_key, image)
+
+                image_results = [
+                    (image, image.updated_at)
+                    for image in standalone_images[:limit]
+                ]
+                for group_key, image in representatives.items():
+                    image_results.append((image, group_updated_at[group_key]))
+                image_results.sort(key=lambda result: result[1], reverse=True)
+
+                for image, result_updated_at in image_results[:limit]:
                     anthology = anthology_map.get(image.coll_id, {})
                     location = ' '.join(part for part in [image.country, image.city, image.place_name] if part)
                     items.append({
@@ -177,7 +211,7 @@ class GlobalSearchView(APIView):
                         'subtitle': f"图片文集: {anthology.get('title') or image.coll_id}",
                         'excerpt': build_excerpt(image.description or image.tags or location, keyword),
                         'matched_fields': ['标题/描述/标签/地点'],
-                        'updated_at': image.updated_at,
+                        'updated_at': result_updated_at,
                         'route': {
                             'view': 'image',
                             'params': {

@@ -27,6 +27,11 @@ function hasAuthToken() {
     return Boolean(getAuthToken());
 }
 
+function buildImagePath(collId: string, imageId?: string) {
+    const imageQuery = imageId ? `?imageId=${encodeURIComponent(imageId)}` : '';
+    return `/image/${collId}${imageQuery}`;
+}
+
 function RequireAuth({children}: { children: ReactNode }) {
     const location = useLocation();
 
@@ -54,8 +59,8 @@ function HomeRoute() {
                 navigate(`/article/${collId}`);
             }
         } else if (viewName === 'image') {
-            const {collId} = params as { collId: string };
-            navigate(`/image/${collId}`);
+            const {collId, imageId} = params as { collId: string; imageId?: string };
+            navigate(buildImagePath(collId, imageId));
         } else if (viewName === 'book') {
             const {collId} = params as {collId: string}; navigate(`/books/${collId}`);
         } else if (viewName === 'login') { // 新增
@@ -105,8 +110,8 @@ function ArticleRoute() {
                 navigate(`/article/${collId}`);
             }
         } else if (viewName === 'image') {
-            const {collId} = params as { collId: string };
-            navigate(`/image/${collId}`);
+            const {collId, imageId} = params as { collId: string; imageId?: string };
+            navigate(buildImagePath(collId, imageId));
         } else if (viewName === 'login') { // 新增
             navigate('/login');
         }
@@ -125,6 +130,8 @@ function ArticleRoute() {
 function ImageAnthologyRoute() {
     const params = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+    const openImageId = new URLSearchParams(location.search).get('imageId') || undefined;
 
     const handleNavigate = (viewName: string, params = {}) => {
         window.scrollTo(0, 0);
@@ -139,8 +146,8 @@ function ImageAnthologyRoute() {
                 navigate(`/article/${collId}`);
             }
         } else if (viewName === 'image') {
-            const {collId} = params as { collId: string };
-            navigate(`/image/${collId}`);
+            const {collId, imageId} = params as { collId: string; imageId?: string };
+            navigate(buildImagePath(collId, imageId));
         } else if (viewName === 'login') {
             navigate('/login');
         }
@@ -150,6 +157,8 @@ function ImageAnthologyRoute() {
         <ImageAnthologyPage
             onNavigate={handleNavigate}
             collId={params.collId}
+            openImageId={openImageId}
+            openImageRequestId={location.key}
         />
     );
 }
@@ -171,8 +180,8 @@ function AppWithRouter() {
                 navigate(`/article/${collId}`);
             }
         } else if (viewName === 'image') {
-            const {collId} = params as { collId: string };
-            navigate(`/image/${collId}`);
+            const {collId, imageId} = params as { collId: string; imageId?: string };
+            navigate(buildImagePath(collId, imageId));
         } else if (viewName === 'login') { // 新增：处理登录跳转
             navigate('/login');
         } else if (viewName === 'settings') { // 新增：处理设置页跳转
