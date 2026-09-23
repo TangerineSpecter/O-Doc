@@ -99,6 +99,8 @@ class AIService:
                 "provider_name": provider.name,
             }
         except Exception as e:
+            if isinstance(e, ValueError) and str(e) == "No default model configured":
+                raise
             logger.error(f"Failed to load AI config: {e}")
             raise e
 

@@ -328,7 +328,17 @@ class ChatView(APIView):
             if sources_markdown:
                 yield json.dumps({'type': 'answer', 'content': sources_markdown}, ensure_ascii=False) + "\n"
 
-        except Exception as e:
+        except ValueError as e:
+            if str(e) == 'No default model configured':
+                logger.warning('AI chat requested without a default model')
+                yield json.dumps({
+                    'type': 'error',
+                    'content': '请先在系统设置中配置默认对话模型',
+                }, ensure_ascii=False) + "\n"
+                return
+            logger.exception('Stream generation failed')
+            yield json.dumps({'type': 'error', 'content': '系统异常，请稍后重试'}, ensure_ascii=False) + "\n"
+        except Exception:
             logger.exception('Stream generation failed')
             yield json.dumps({'type': 'error', 'content': '系统异常，请稍后重试'}, ensure_ascii=False) + "\n"
 
@@ -370,7 +380,17 @@ class ChatView(APIView):
                     use_simple_model=use_simple_model,
                 )
                 event_queue.put({'type': 'answer', 'content': content})
-            except Exception as e:
+            except ValueError as e:
+                if str(e) == 'No default model configured':
+                    logger.warning('AI tool chat requested without a default model')
+                    event_queue.put({
+                        'type': 'error',
+                        'content': '请先在系统设置中配置默认对话模型',
+                    })
+                else:
+                    logger.exception('Tool stream generation failed')
+                    event_queue.put({'type': 'error', 'content': '系统异常，请稍后重试'})
+            except Exception:
                 logger.exception('Tool stream generation failed')
                 event_queue.put({'type': 'error', 'content': '系统异常，请稍后重试'})
             finally:

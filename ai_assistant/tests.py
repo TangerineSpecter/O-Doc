@@ -94,6 +94,39 @@ class ChatViewMCPContextTests(TestCase):
         mock_fetch_tools.assert_not_called()
 
 
+class ChatViewStreamErrorTests(TestCase):
+    def test_missing_default_model_returns_actionable_stream_error(self):
+        with patch(
+            'ai_assistant.views.AIService.stream_chat_completion',
+            side_effect=ValueError('No default model configured'),
+        ), patch('ai_assistant.views.logger') as logger:
+            payload = ''.join(ChatView._stream_response_generator([], ''))
+
+        self.assertEqual(json.loads(payload), {
+            'type': 'error',
+            'content': '请先在系统设置中配置默认对话模型',
+        })
+        logger.warning.assert_called_once()
+        logger.exception.assert_not_called()
+
+    def test_missing_default_model_in_tool_chat_returns_actionable_stream_error(self):
+        with patch(
+            'ai_assistant.views.AIService.chat_completion_messages_with_tools',
+            side_effect=ValueError('No default model configured'),
+        ), patch('ai_assistant.views.logger') as logger:
+            payload = ''.join(ChatView._stream_tool_response_generator(
+                [],
+                {'tools': [], 'tool_map': {}},
+            ))
+
+        self.assertEqual(json.loads(payload), {
+            'type': 'error',
+            'content': '请先在系统设置中配置默认对话模型',
+        })
+        logger.warning.assert_called_once()
+        logger.exception.assert_not_called()
+
+
 class WhiteboardInsightHelperTests(TestCase):
     def test_extract_json_from_fenced_output(self):
         payload = extract_json_object('好的\n```json\n{"findings": [], "questions": [{"text": "为什么 A 推不出 B？"}]}\n```')

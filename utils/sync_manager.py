@@ -15,7 +15,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.conf import settings
 from django.core import serializers
-from django.db import transaction
+from django.core.management.color import no_style
+from django.db import connection, transaction
 from django.db.models import PROTECT
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -313,6 +314,34 @@ class SyncManager:
             ordered.append(chosen)
             remaining.remove(chosen)
         return ordered
+
+    @staticmethod
+    def _reset_restored_sequences(models):
+        """显式恢复自增主键后同步数据库序列，避免后续新记录撞主键。"""
+        statements = connection.ops.sequence_reset_sql(no_style(), models)
+        if not statements:
+            return
+        with connection.cursor() as cursor:
+            for statement in statements:
+                cursor.execute(statement)
+
+    @staticmethod
+    def _lock_restored_sequence_tables(models):
+        """PostgreSQL 恢复期间阻止并发写入抢占待校正的自增序列。"""
+        if connection.vendor != 'postgresql':
+            return
+        table_names = {
+            model._meta.db_table
+            for model in models
+            if getattr(model._meta.pk, 'get_internal_type', lambda: '')()
+            in {'AutoField', 'BigAutoField', 'SmallAutoField'}
+        }
+        if not table_names:
+            return
+        with connection.cursor() as cursor:
+            for table_name in sorted(table_names):
+                quoted_table = connection.ops.quote_name(table_name)
+                cursor.execute(f'LOCK TABLE {quoted_table} IN SHARE ROW EXCLUSIVE MODE')
 
     @staticmethod
     def _get_media_relative_path(media_url):
@@ -718,9 +747,15 @@ class SyncManager:
                 remote_pk_map[model_label].add(str(pk))
 
         skip_extra_delete = (not full_overwrite) and self.is_remote_version_older((remote_meta or {}).get('app_version'))
+        restored_models = [
+            model_map[model_label]
+            for model_label, primary_keys in remote_pk_map.items()
+            if primary_keys
+        ]
 
         with transaction.atomic():
             self._ensure_not_aborted(should_abort)
+            self._lock_restored_sequence_tables(restored_models)
             for obj in serializers.deserialize('json', json.dumps(data_list)):
                 obj.save()
 
@@ -759,6 +794,8 @@ class SyncManager:
                                 asset.save()
                             stale = stale.exclude(pk__in=[asset.pk for asset in owned])
                         stale.delete()
+
+            self._reset_restored_sequences(restored_models)
 
             from article.html_note_resources import retry_html_cleanup
             transaction.on_commit(retry_html_cleanup)
