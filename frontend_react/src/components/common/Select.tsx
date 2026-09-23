@@ -46,7 +46,10 @@ export function Select<T extends string>({
         };
 
         const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setOpen(false);
+            if (event.key === 'Escape' || event.key === 'Esc') {
+                event.stopPropagation();
+                setOpen(false);
+            }
         };
 
         document.addEventListener('mousedown', closeOnOutside);

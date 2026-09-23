@@ -470,7 +470,7 @@ class ResourceUploadView(APIView):
             # 根据扩展名确定文件类型
             if file_extension in ['.pdf', '.doc', '.docx', '.txt', '.md', '.xls', '.xlsx', '.csv', '.ppt', '.pptx']:
                 file_type = 'document'
-            elif file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg']:
+            elif file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp', '.avif']:
                 file_type = 'image'
             elif file_extension in ['.mp3', '.wav', '.flac', '.aac']:
                 file_type = 'audio'

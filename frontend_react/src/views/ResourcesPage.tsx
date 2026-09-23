@@ -2,6 +2,7 @@ import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {useToast} from '../components/common/ToastProvider';
 import {useNavigate} from 'react-router-dom';
 import PageLoading from '../components/common/PageLoading';
+import AuthenticatedResourceImage from '../components/common/AuthenticatedResourceImage';
 
 import {
     Search, Filter, Download, Trash2, FileText,
@@ -481,7 +482,7 @@ export default function ResourcesPage() {
                             {/* 图片或图标预览区域 */}
                             <div className="w-full aspect-[16/10] bg-slate-50 rounded-xl overflow-hidden border border-slate-100 flex items-center justify-center">
                                 {getResourcePreviewUrl(previewFile) ? (
-                                    <img src={getResourcePreviewUrl(previewFile)} alt={previewFile.name} className="w-full h-full object-contain" />
+                                    <AuthenticatedResourceImage resourceId={previewFile.id} alt={previewFile.name} className="w-full h-full object-contain" loading="eager"/>
                                 ) : (
                                     <div className="flex flex-col items-center gap-2 text-slate-400">
                                         <div className={`p-3 rounded-xl ${getFileStyle(previewFile.type)}`}>
@@ -758,8 +759,8 @@ export default function ResourcesPage() {
                                     <div
                                         className="aspect-[16/10] bg-slate-50/50 border-b border-slate-100/50 flex items-center justify-center relative overflow-hidden">
                                         {getResourcePreviewUrl(file) ? (
-                                            <img
-                                                src={getResourcePreviewUrl(file)}
+                                            <AuthenticatedResourceImage
+                                                resourceId={file.id}
                                                 alt={file.name}
                                                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                                 loading="lazy"

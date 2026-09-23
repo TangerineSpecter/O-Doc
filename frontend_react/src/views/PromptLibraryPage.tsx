@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
 import {ArchiveRestore, Filter, FolderCog, Plus, Search, Sparkles, Trash2} from 'lucide-react';
-import {createPromptTemplate, getPromptTaxonomy, getPromptTemplate, getPromptTemplates, getPromptTrash, purgePromptTemplate, purgePromptUsage, restorePromptTemplate, restorePromptUsage, updatePromptTemplate} from '../api/prompt';
+import {createPromptTaxonomy, createPromptTemplate, createPromptUsage, getPromptTaxonomy, getPromptTemplate, getPromptTemplates, getPromptTrash, purgePromptTemplate, purgePromptUsage, restorePromptTemplate, restorePromptUsage, updatePromptTemplate} from '../api/prompt';
+import {uploadResource} from '../api/resources';
 import type {PromptFilters, PromptTaxonomies, PromptTemplate, PromptTemplateInput, PromptTrash} from '../types/api/prompt';
 import {useToast} from '../components/common/ToastProvider';
 import {Select, type SelectOption} from '../components/common/Select';
@@ -10,6 +11,7 @@ import PromptDetailDrawer from '../components/PromptLibrary/PromptDetailDrawer';
 import PromptTemplateModal from '../components/PromptLibrary/PromptTemplateModal';
 import PromptTaxonomyModal from '../components/PromptLibrary/PromptTaxonomyModal';
 import PageLoading from '../components/common/PageLoading';
+import {defaultPromptValues} from '../utils/promptRenderer';
 
 const emptyTaxonomies: PromptTaxonomies = {categories: [], themes: [], tags: []};
 
@@ -44,7 +46,54 @@ export default function PromptLibraryPage() {
     if (!promptId) return;
     void getPromptTemplate(promptId).then(setSelected).catch(() => toast.error('未找到该提示词')).finally(() => setSearchParams({}, {replace: true}));
   }, [searchParams, setSearchParams, toast]);
-  const save = async (data: PromptTemplateInput) => { try { const saved = editing ? await updatePromptTemplate(editing.id, data) : await createPromptTemplate(data); toast.success(editing ? '模板已更新' : '模板已创建'); setEditing(undefined); await refresh(); if (selected?.id === saved.id) setSelected(await getPromptTemplate(saved.id)); } catch (error) { toast.error((error as Error).message || '保存失败'); throw error; } };
+
+  useEffect(() => {
+    if (!trash) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' || event.key === 'Esc') {
+        event.stopPropagation();
+        setTrash(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [trash]);
+  const save = async (data: PromptTemplateInput, initialImages: File[], usageMeta?: { modelName?: string; note?: string }) => {
+    let saved: PromptTemplate;
+    try {
+      saved = editing ? await updatePromptTemplate(editing.id, data) : await createPromptTemplate(data);
+    } catch (error) {
+      toast.error((error as Error).message || '保存失败');
+      throw error;
+    }
+
+    if (initialImages.length) {
+      try {
+        const uploads = await Promise.all(initialImages.map(file => uploadResource(file, 'prompt')));
+        await createPromptUsage(saved.id, {
+          inputValues: defaultPromptValues(data.fieldSchema),
+          assetIds: uploads.map(item => item.id),
+          modelName: usageMeta?.modelName || '',
+          note: usageMeta?.note || '',
+        });
+      } catch (error) {
+        toast.error(`模板已保存，但效果图保存失败：${(error as Error).message || '请重试'}`);
+        setEditing(undefined);
+        await refresh();
+        return;
+      }
+    }
+
+    toast.success(editing ? '模板已更新' : '模板已创建');
+    setEditing(undefined);
+    await refresh();
+    if (selected?.id === saved.id) setSelected(await getPromptTemplate(saved.id));
+  };
+  const createTaxonomy = async (kind: keyof PromptTaxonomies, name: string) => {
+    const created = await createPromptTaxonomy(kind, {name});
+    setTaxonomies(current => ({...current, [kind]: [...current[kind].filter(item => item.id !== created.id), created]}));
+    return created;
+  };
   const toggleFavorite = async (item: PromptTemplate) => { try { await updatePromptTemplate(item.id, {isFavorite: !item.isFavorite}); await refresh(); } catch (error) { toast.error((error as Error).message || '更新收藏失败'); } };
   const showTrash = async () => { try { setTrash(await getPromptTrash()); } catch (error) { toast.error((error as Error).message || '加载回收站失败'); } };
   const restore = async (id: string) => { await restorePromptTemplate(id); toast.success('提示词已恢复'); setTrash(await getPromptTrash()); await refresh(); };
@@ -178,9 +227,9 @@ export default function PromptLibraryPage() {
         </div>
       )}
     </section>
-    <PromptTemplateModal key={editing?.id || (editing === null ? 'new' : 'closed')} open={editing !== undefined} template={editing || null} taxonomies={taxonomies} onClose={() => setEditing(undefined)} onSave={save}/>
+    <PromptTemplateModal key={editing?.id || (editing === null ? 'new' : 'closed')} open={editing !== undefined} template={editing || null} taxonomies={taxonomies} onClose={() => setEditing(undefined)} onSave={save} onCreateTaxonomy={createTaxonomy}/>
     <PromptTaxonomyModal open={taxonomyOpen} taxonomies={taxonomies} onClose={() => setTaxonomyOpen(false)} onChanged={() => void refresh()}/>
-    <PromptDetailDrawer template={selected} onClose={() => setSelected(null)} onChanged={() => { if (selected) void open(selected); void refresh(); }}/>
+    <PromptDetailDrawer template={selected} onClose={() => setSelected(null)} onChanged={() => { if (selected) void open(selected); void refresh(); }} onEdit={item => { setSelected(null); setEditing(item); }}/>
     {trash && <div className="fixed inset-0 z-[121] flex items-center justify-center p-4"><div className="absolute inset-0 bg-slate-900/40" onClick={() => setTrash(null)}/><section className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl"><header className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-lg font-bold text-slate-900">提示词回收站</h2><p className="mt-1 text-xs text-slate-500">恢复不会删除图片；彻底删除时，只清理未被其他内容引用的提示词图片。</p></div><button onClick={() => setTrash(null)} className="text-slate-400">×</button></header><div className="max-h-[60vh] space-y-5 overflow-y-auto p-4"><div><p className="mb-2 text-xs font-bold text-slate-500">模板</p>{trash.templates.map(item => <div key={item.id} className="mb-2 flex items-center justify-between rounded-xl border border-slate-100 p-3"><div><p className="text-sm font-semibold text-slate-700">{item.title}</p><p className="text-xs text-slate-400">删除于 {item.deletedAt || '未知时间'}</p></div><div className="flex gap-2"><button onClick={() => void restore(item.id)} className="inline-flex items-center gap-1 rounded-lg bg-lime-50 px-3 py-2 text-xs font-semibold text-lime-700"><ArchiveRestore className="h-3.5 w-3.5"/>恢复</button><button onClick={() => void purgeTemplate(item.id)} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">彻底删除</button></div></div>)}</div><div><p className="mb-2 text-xs font-bold text-slate-500">效果记录</p>{trash.usages.map(item => <div key={item.id} className="mb-2 flex items-center justify-between rounded-xl border border-slate-100 p-3"><div><p className="text-sm font-semibold text-slate-700">{item.modelName || '未命名效果记录'}</p><p className="text-xs text-slate-400">{item.resultImages.length} 张图片 · 删除于 {item.deletedAt || '未知时间'}</p></div><div className="flex gap-2"><button onClick={() => void restoreUsage(item.id)} className="rounded-lg bg-lime-50 px-3 py-2 text-xs font-semibold text-lime-700">恢复</button><button onClick={() => void purgeUsage(item.id)} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">彻底删除</button></div></div>)}{!trash.templates.length && !trash.usages.length && <p className="py-10 text-center text-sm text-slate-400">回收站是空的。</p>}</div></div></section></div>}
   </main>;
 }

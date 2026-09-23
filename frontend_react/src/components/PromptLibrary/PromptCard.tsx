@@ -1,5 +1,6 @@
 import {Copy, Heart, Image as ImageIcon, Sparkles} from 'lucide-react';
 import type {PromptTemplate} from '../../types/api/prompt';
+import AuthenticatedResourceImage from '../common/AuthenticatedResourceImage';
 
 interface Props { item: PromptTemplate; onOpen: () => void; onToggleFavorite: () => void; }
 const typeLabel = {image: '生图', html_report: 'HTML 报告', general: '通用'};
@@ -12,8 +13,8 @@ export default function PromptCard({item, onOpen, onToggleFavorite}: Props) {
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-orange-50 via-amber-50 to-lime-50">
         {item.coverImage ? (
-          <img
-            src={item.coverImage.imageUrl}
+          <AuthenticatedResourceImage
+            resourceId={item.coverImage.assetId}
             alt={`${item.title} 效果`}
             className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
           />
