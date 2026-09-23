@@ -23,6 +23,8 @@ interface ImageGalleryFiltersProps {
   galleryFocalMin: string;
   galleryFocalMax: string;
   hasGalleryFilters: boolean;
+  hasCountryData?: boolean;
+  hasFocalData?: boolean;
   onGalleryCountryChange: (country: string) => void;
   onSelectColor: (color: DominantColorKey | 'all') => void;
   onGalleryTagToggle: (tag: string) => void;
@@ -43,6 +45,8 @@ export default function ImageGalleryFilters({
   galleryFocalMin,
   galleryFocalMax,
   hasGalleryFilters,
+  hasCountryData,
+  hasFocalData,
   onGalleryCountryChange,
   onSelectColor,
   onGalleryTagToggle,
@@ -50,6 +54,9 @@ export default function ImageGalleryFilters({
   onGalleryFocalMaxChange,
   onClearFilters,
 }: ImageGalleryFiltersProps) {
+  const hasCountry = hasCountryData ?? galleryCountryOptions.some(o => o.value !== 'all');
+  const hasFocal = hasFocalData ?? (galleryFocalMin !== '' || galleryFocalMax !== '');
+
   // 移动端默认收拢，减少空间占用；用户可随时展开修改（仅移动端生效）
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -114,21 +121,23 @@ export default function ImageGalleryFilters({
             </div>
           </div>
 
-          <div className="grid flex-1 gap-3 md:grid-cols-[minmax(150px,0.8fr)_minmax(220px,1.4fr)_minmax(220px,1fr)_auto] xl:max-w-4xl">
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">国家</label>
-              <Select
-                value={galleryCountry}
-                options={galleryCountryOptions}
-                onChange={onGalleryCountryChange}
-                placeholder="选择国家"
-                buttonClassName="min-h-9 py-1.5 text-xs bg-white"
-                menuClassName="z-[100]"
-                showSelectedDescription={false}
-              />
-            </div>
+          <div className="flex flex-1 flex-wrap items-end gap-3 xl:max-w-4xl">
+            {hasCountry && (
+              <div className="w-full sm:w-44 shrink-0">
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">国家</label>
+                <Select
+                  value={galleryCountry}
+                  options={galleryCountryOptions}
+                  onChange={onGalleryCountryChange}
+                  placeholder="选择国家"
+                  buttonClassName="min-h-9 py-1.5 text-xs bg-white"
+                  menuClassName="z-[100]"
+                  showSelectedDescription={false}
+                />
+              </div>
+            )}
 
-            <div>
+            <div className="min-w-[200px] flex-1">
               <div className="mb-1.5 flex items-center justify-between gap-2">
                 <label className="text-xs font-semibold text-slate-600">标签</label>
                 {galleryTags.length > 0 && (
@@ -163,42 +172,44 @@ export default function ImageGalleryFilters({
               )}
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">焦段范围</label>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  inputMode="decimal"
-                  value={galleryFocalMin}
-                  onChange={(event) => onGalleryFocalMinChange(event.target.value)}
-                  placeholder="最小 mm"
-                  className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  inputMode="decimal"
-                  value={galleryFocalMax}
-                  onChange={(event) => onGalleryFocalMaxChange(event.target.value)}
-                  placeholder="最大 mm"
-                  className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                />
+            {hasFocal && (
+              <div className="w-full sm:w-56 shrink-0">
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">焦段范围</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    value={galleryFocalMin}
+                    onChange={(event) => onGalleryFocalMinChange(event.target.value)}
+                    placeholder="最小 mm"
+                    className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    value={galleryFocalMax}
+                    onChange={(event) => onGalleryFocalMaxChange(event.target.value)}
+                    placeholder="最大 mm"
+                    className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="flex items-end">
-              {hasGalleryFilters && (
+            {hasGalleryFilters && (
+              <div className="flex items-end shrink-0">
                 <button
                   type="button"
                   onClick={onClearFilters}
-                  className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 md:w-auto"
+                  className="flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
                 >
                   <X className="h-3.5 w-3.5" />
                   清除
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -256,7 +267,12 @@ export default function ImageGalleryFilters({
               )}
               {!hasGalleryFilters && (
                 <span className="text-[11px] text-slate-400 font-normal">
-                  国家 · 颜色 · 标签 · 焦段
+                  {[
+                    hasCountry && '国家',
+                    '颜色',
+                    '标签',
+                    hasFocal && '焦段',
+                  ].filter(Boolean).join(' · ')}
                 </span>
               )}
             </div>
@@ -326,20 +342,22 @@ export default function ImageGalleryFilters({
           <div className="mt-3 pt-3 border-t border-slate-200/70 animate-in fade-in slide-in-from-top-2 duration-150 min-w-0">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(120px,1fr)_minmax(130px,1fr)_minmax(200px,1.5fr)_minmax(160px,1.2fr)_auto] items-end min-w-0">
               {/* 国家与主色调：移动端并排双列（省垂直高度），平板与PC端自动变为独立网格项 */}
-              <div className="grid grid-cols-2 gap-2.5 sm:contents min-w-0">
+              <div className={`${hasCountry ? 'grid grid-cols-2 gap-2.5' : ''} sm:contents min-w-0`}>
                 {/* 国家选择 */}
-                <div className="min-w-0">
-                  <label className="mb-1 block text-xs font-semibold text-slate-600">国家</label>
-                  <Select
-                    value={galleryCountry}
-                    options={galleryCountryOptions}
-                    onChange={onGalleryCountryChange}
-                    placeholder="全部国家"
-                    buttonClassName="min-h-9 py-1 px-2.5 text-xs bg-white"
-                    menuClassName="z-[100]"
-                    showSelectedDescription={false}
-                  />
-                </div>
+                {hasCountry && (
+                  <div className="min-w-0">
+                    <label className="mb-1 block text-xs font-semibold text-slate-600">国家</label>
+                    <Select
+                      value={galleryCountry}
+                      options={galleryCountryOptions}
+                      onChange={onGalleryCountryChange}
+                      placeholder="全部国家"
+                      buttonClassName="min-h-9 py-1 px-2.5 text-xs bg-white"
+                      menuClassName="z-[100]"
+                      showSelectedDescription={false}
+                    />
+                  </div>
+                )}
 
                 {/* 主色调选择（仅在移动端使用下拉筛选） */}
                 <div className="min-w-0">
@@ -393,29 +411,31 @@ export default function ImageGalleryFilters({
               </div>
 
               {/* 焦段范围 */}
-              <div className="min-w-0 sm:col-span-1">
-                <label className="mb-1 block text-xs font-semibold text-slate-600">焦段范围 (mm)</label>
-                <div className="grid grid-cols-2 gap-1.5 min-w-0">
-                  <input
-                    type="number"
-                    min="0"
-                    inputMode="decimal"
-                    value={galleryFocalMin}
-                    onChange={(event) => onGalleryFocalMinChange(event.target.value)}
-                    placeholder="最小"
-                    className="min-h-9 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    inputMode="decimal"
-                    value={galleryFocalMax}
-                    onChange={(event) => onGalleryFocalMaxChange(event.target.value)}
-                    placeholder="最大"
-                    className="min-h-9 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                  />
+              {hasFocal && (
+                <div className="min-w-0 sm:col-span-1">
+                  <label className="mb-1 block text-xs font-semibold text-slate-600">焦段范围 (mm)</label>
+                  <div className="grid grid-cols-2 gap-1.5 min-w-0">
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      value={galleryFocalMin}
+                      onChange={(event) => onGalleryFocalMinChange(event.target.value)}
+                      placeholder="最小"
+                      className="min-h-9 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      value={galleryFocalMax}
+                      onChange={(event) => onGalleryFocalMaxChange(event.target.value)}
+                      placeholder="最大"
+                      className="min-h-9 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* 清除按钮 */}
               <div className="flex items-center gap-2 min-w-0 sm:col-span-1">

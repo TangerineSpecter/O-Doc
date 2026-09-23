@@ -578,6 +578,18 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
     setExpandedLocationCountries(prev => prev.filter(country => availableCountries.has(country)));
   }, [locationCountryGroups]);
 
+  useEffect(() => {
+    if (locationStats.cityCount === 0 && isLocationMapOpen) {
+      setIsLocationMapOpen(false);
+    }
+  }, [locationStats.cityCount, isLocationMapOpen]);
+
+  useEffect(() => {
+    if (focalLengthTotal === 0 && isFocalLengthDetailOpen) {
+      setIsFocalLengthDetailOpen(false);
+    }
+  }, [focalLengthTotal, isFocalLengthDetailOpen]);
+
   const handleLocationCountryToggle = (country: string) => {
     setExpandedLocationCountries(prev => (
       prev.includes(country) ? prev.filter(item => item !== country) : [...prev, country]
@@ -762,7 +774,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   }`}
                 >
                   <BarChart3 className="h-3.5 w-3.5" />
-                  <span>拍摄统计</span>
+                  <span>{locationStats.cityCount > 0 || focalLengthTotal > 0 ? '拍摄统计' : '图集统计'}</span>
                 </button>
               </div>
             </div>
@@ -879,6 +891,8 @@ export default function ImageAnthologyPage({ onNavigate, collId, title }: ImageA
                   galleryFocalMin={galleryFocalMin}
                   galleryFocalMax={galleryFocalMax}
                   hasGalleryFilters={hasGalleryFilters}
+                  hasCountryData={galleryCountryOptions.length > 1}
+                  hasFocalData={focalLengthTotal > 0}
                   onGalleryCountryChange={setGalleryCountry}
                   onSelectColor={setSelectedColor}
                   onGalleryTagToggle={handleGalleryTagToggle}

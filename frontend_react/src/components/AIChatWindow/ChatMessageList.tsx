@@ -244,7 +244,7 @@ export const ChatMessageList = ({
                 const showAvatar = idx === 0 || messages[idx - 1].role !== msg.role;
                 const isLatestAssistant = msg.role === 'assistant' && idx === messages.length - 1 && isLoading;
                 return (
-                    <div key={idx} className={`flex gap-2.5 sm:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <div key={idx} className={`flex items-start gap-2.5 sm:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                         {/* 头像 */}
                         {showAvatar ? (
                             <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 border shadow-sm overflow-hidden ${
@@ -293,7 +293,7 @@ export const ChatMessageList = ({
                                             </div>
                                         ) : msg.meta?.kind === 'mcp' ? (
                                             <details className="group min-w-[240px]">
-                                                <summary className="flex cursor-pointer list-none items-center gap-2">
+                                                <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
                                                     {msg.status === 'done' ? (
                                                         <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                                                     ) : (
@@ -317,7 +317,7 @@ export const ChatMessageList = ({
                                             </details>
                                         ) : msg.meta?.kind === 'skills' ? (
                                             <details className="group min-w-[240px]">
-                                                <summary className="flex cursor-pointer list-none items-center gap-2">
+                                                <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
                                                     <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                                                     <span className="text-sm font-semibold text-orange-800">{msg.content}</span>
                                                     <ChevronDown className="ml-auto h-3.5 w-3.5 text-orange-500 transition-transform group-open:rotate-180" />
