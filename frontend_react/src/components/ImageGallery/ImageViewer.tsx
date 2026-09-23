@@ -385,13 +385,12 @@ export default function ImageViewer({
     isTouchInImageZoneRef.current = false;
   };
 
-  const hasExtraInfo = Boolean(shootingDate || location || placeName || focalLengthLabel || (currentImage.tags && currentImage.tags.length > 0) || currentImage.description);
-
   return (
     <div
       data-disable-swipe-back="true"
       className={`
-        fixed inset-0 z-50 flex flex-col bg-slate-900/40 backdrop-blur-sm text-slate-900
+        fixed inset-0 z-50 flex flex-col bg-slate-900/40 p-0 backdrop-blur-sm text-slate-900
+        lg:inset-x-0 lg:top-16 lg:bottom-0 lg:px-28 lg:py-6 xl:px-32
         transition-opacity duration-200
         ${isVisible ? 'opacity-100' : 'opacity-0'}
         ${isOpen ? 'pointer-events-auto' : 'pointer-events-none'}
@@ -401,7 +400,9 @@ export default function ImageViewer({
       {/* 整个画廊主容器（Light 纯净浅色背景） */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`flex h-full w-full flex-col bg-slate-50 overflow-hidden select-none ${
+        className={`relative mx-auto flex h-full w-full max-w-[1920px] flex-col overflow-hidden bg-slate-50 select-none
+          lg:rounded-2xl lg:border lg:border-white lg:shadow-[0_24px_80px_rgba(15,23,42,0.22)] lg:transition-all lg:duration-300 lg:ease-out
+          ${isVisible ? 'lg:translate-y-0 lg:scale-100' : 'lg:translate-y-3 lg:scale-[0.985]'} ${
           edgeSwipeProgress ? 'transition-none' : 'transition-transform duration-200 ease-out'
         }`}
         style={
@@ -540,10 +541,12 @@ export default function ImageViewer({
               <div className="absolute bottom-4 inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
                 <div
                   ref={thumbnailStripRef}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onTouchMove={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => e.stopPropagation()}
-                  className="flex max-w-full items-center gap-2 overflow-x-auto rounded-xl border border-slate-200/90 bg-white/90 p-1.5 backdrop-blur-md shadow-md scrollbar-none pointer-events-auto"
+                  onTouchStart={(e) => { resetNavButtonsTimer(); e.stopPropagation(); }}
+                  onTouchMove={(e) => { resetNavButtonsTimer(); e.stopPropagation(); }}
+                  onTouchEnd={(e) => { resetNavButtonsTimer(); e.stopPropagation(); }}
+                  className={`flex max-w-full items-center gap-2 overflow-x-auto rounded-xl border border-slate-200/90 bg-white/90 p-1.5 backdrop-blur-md shadow-md scrollbar-none transition-opacity duration-200 ${
+                    areNavButtonsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                  }`}
                 >
                   {currentGroupImages.map((groupImage, index) => {
                     const isSelected = index === currentGroupIdx;
@@ -586,12 +589,16 @@ export default function ImageViewer({
 
           {/* 当展开信息模式（showInfo === true）时，组图缩略图条自然流平铺在大图下方，杜绝遮挡大图 */}
           {isPhotoGroup && showInfo && (
-            <div className="shrink-0 border-y border-slate-200/70 bg-white/95 px-3 py-2 backdrop-blur-md shadow-2xs">
+            <div className={`shrink-0 overflow-hidden bg-white/95 backdrop-blur-md shadow-2xs transition-all duration-200 ${
+              areNavButtonsVisible
+                ? 'max-h-16 border-y border-slate-200/70 px-3 py-2 opacity-100'
+                : 'max-h-0 border-y-0 px-3 py-0 opacity-0 pointer-events-none'
+            }`}>
               <div
                 ref={thumbnailStripRef}
-                onTouchStart={(e) => e.stopPropagation()}
-                onTouchMove={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => e.stopPropagation()}
+                onTouchStart={(e) => { resetNavButtonsTimer(); e.stopPropagation(); }}
+                onTouchMove={(e) => { resetNavButtonsTimer(); e.stopPropagation(); }}
+                onTouchEnd={(e) => { resetNavButtonsTimer(); e.stopPropagation(); }}
                 className="flex max-w-full items-center gap-2 overflow-x-auto scrollbar-none py-0.5 px-0.5"
               >
                 {currentGroupImages.map((groupImage, index) => {
@@ -766,7 +773,10 @@ export default function ImageViewer({
         {/* 桌面端大屏专属展示区（>= lg）：左侧大图视口 + 右侧固定侧边栏 */}
         <div className="hidden lg:flex min-h-0 flex-1 flex-row overflow-hidden">
           {/* 左侧大图视口 */}
-          <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden bg-slate-100/75 p-4 select-none">
+          <div
+            className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden bg-slate-100/75 p-4 select-none"
+            onMouseMove={resetNavButtonsTimer}
+          >
             {/* 浮动翻页按钮：上一张 */}
             {hasPrevious && (
               <button
@@ -775,7 +785,9 @@ export default function ImageViewer({
                   e.stopPropagation();
                   onPrevious?.();
                 }}
-                className="absolute left-4 top-1/2 z-20 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:text-orange-600 active:scale-90"
+                className={`absolute left-4 top-1/2 z-20 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:text-orange-600 active:scale-90 ${
+                  areNavButtonsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                }`}
                 aria-label="上一张"
                 title={previousImage ? `上一张 · ${previousImage.title || ''}` : '上一张'}
               >
@@ -791,7 +803,9 @@ export default function ImageViewer({
                   e.stopPropagation();
                   onNext?.();
                 }}
-                className="absolute right-4 top-1/2 z-20 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:text-orange-600 active:scale-90"
+                className={`absolute right-4 top-1/2 z-20 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/90 bg-white/90 text-slate-700 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:text-orange-600 active:scale-90 ${
+                  areNavButtonsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                }`}
                 aria-label="下一张"
                 title={nextImage ? `下一张 · ${nextImage.title || ''}` : '下一张'}
               >
@@ -814,7 +828,9 @@ export default function ImageViewer({
               <div className="absolute bottom-4 inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
                 <div
                   ref={desktopThumbnailStripRef}
-                  className="flex max-w-full items-center gap-2 overflow-x-auto rounded-xl border border-slate-200/90 bg-white/90 p-1.5 backdrop-blur-md shadow-md scrollbar-none pointer-events-auto"
+                  className={`flex max-w-full items-center gap-2 overflow-x-auto rounded-xl border border-slate-200/90 bg-white/90 p-1.5 backdrop-blur-md shadow-md scrollbar-none transition-opacity duration-200 ${
+                    areNavButtonsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                  }`}
                 >
                   {currentGroupImages.map((groupImage, index) => {
                     const isSelected = index === currentGroupIdx;
@@ -871,84 +887,91 @@ export default function ImageViewer({
                 )}
               </div>
 
-              {/* 详细信息内容滚动区（固定面板内部独立滚动，杜绝抖动） */}
-              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2.5 sm:px-5 sm:py-3 space-y-2.5 text-xs">
-                {/* EXIF 胶囊信息行 */}
-                {(focalLengthLabel || location || placeName || shootingDate) && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {focalLengthLabel && (
-                      <div className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 font-medium text-sky-700">
-                        <Aperture className="h-3 w-3 text-sky-500" />
-                        <span>焦段 {focalLengthLabel}</span>
+              {/* 桌面端信息区沿用移动端改版前的宽松排版 */}
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                <div className="space-y-6">
+                  {currentImage.description && (
+                    <section>
+                      <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                        <FileText className="h-4 w-4 text-orange-500" />
+                        <span>描述</span>
                       </div>
-                    )}
-                    {location && (
-                      <div className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
-                        <MapPin className="h-3 w-3 text-emerald-500" />
-                        <span>{location}</span>
+                      <p className="text-sm leading-7 text-slate-600 whitespace-pre-wrap">
+                        {currentImage.description}
+                      </p>
+                    </section>
+                  )}
+
+                  {(shootingDate || location || placeName || focalLengthLabel) && (
+                    <section className="divide-y divide-slate-100 border-y border-slate-100">
+                      {shootingDate && (
+                        <div className="grid grid-cols-[104px_minmax(0,1fr)] gap-4 py-4">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                            <Calendar className="h-4 w-4 text-orange-500" />
+                            <span>拍摄日期</span>
+                          </div>
+                          <p className="break-words text-sm font-semibold text-slate-800">{shootingDate}</p>
+                        </div>
+                      )}
+
+                      {location && (
+                        <div className="grid grid-cols-[104px_minmax(0,1fr)] gap-4 py-4">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                            <MapPin className="h-4 w-4 text-emerald-500" />
+                            <span>拍摄地点</span>
+                          </div>
+                          <p className="break-words text-sm font-semibold text-slate-800">{location}</p>
+                        </div>
+                      )}
+
+                      {placeName && (
+                        <div className="grid grid-cols-[104px_minmax(0,1fr)] gap-4 py-4">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                            <MapPin className="h-4 w-4 text-lime-500" />
+                            <span>具体地点</span>
+                          </div>
+                          <p className="break-words text-sm font-semibold text-slate-800">{placeName}</p>
+                        </div>
+                      )}
+
+                      {focalLengthLabel && (
+                        <div className="grid grid-cols-[104px_minmax(0,1fr)] gap-4 py-4">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                            <Aperture className="h-4 w-4 text-sky-500" />
+                            <span>焦段</span>
+                          </div>
+                          <p className="break-words text-sm font-semibold text-slate-800">{focalLengthLabel}</p>
+                        </div>
+                      )}
+                    </section>
+                  )}
+
+                  {currentImage.tags && currentImage.tags.length > 0 && (
+                    <section>
+                      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                        <TagIcon className="h-4 w-4 text-orange-500" />
+                        <span>标签</span>
                       </div>
-                    )}
-                    {placeName && (
-                      <div className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-teal-50 px-2 py-0.5 font-medium text-teal-700">
-                        <MapPin className="h-3 w-3 text-teal-500" />
-                        <span>{placeName}</span>
+                      <div className="flex flex-wrap gap-2">
+                        {currentImage.tags.map((tag, index) => (
+                          <span
+                            key={index}
+                            className="rounded-md border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700"
+                          >
+                            {tag}
+                          </span>
+                        ))}
                       </div>
-                    )}
-                    {shootingDate && (
-                      <div className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
-                        <Calendar className="h-3 w-3 text-amber-500" />
-                        <span>{shootingDate}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 标签列表 */}
-                {currentImage.tags && currentImage.tags.length > 0 && (
-                  <div>
-                    <div className="mb-1 flex items-center gap-1 font-semibold text-slate-600">
-                      <TagIcon className="h-3 w-3 text-orange-500" />
-                      <span>标签</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {currentImage.tags.map((tag, index) => (
-                        <span
-                          key={index}
-                          className="rounded-md border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 描述信息 */}
-                {currentImage.description && (
-                  <div>
-                    <div className="mb-1 flex items-center gap-1 font-semibold text-slate-600">
-                      <FileText className="h-3 w-3 text-orange-500" />
-                      <span>描述</span>
-                    </div>
-                    <p className="leading-relaxed text-slate-700 whitespace-pre-wrap">
-                      {currentImage.description}
-                    </p>
-                  </div>
-                )}
-
-                {!hasExtraInfo && (
-                  <p className="text-slate-400 py-1 italic">
-                    暂无更多参数描述
-                  </p>
-                )}
-
-                {/* 上传时间 */}
-                {currentImage.createdAt && (
-                  <div className="pt-2 border-t border-slate-100 text-right text-[10px] text-slate-400">
-                    上传于 {currentImage.createdAt}
-                  </div>
-                )}
+                    </section>
+                  )}
+                </div>
               </div>
+
+              {currentImage.createdAt && (
+                <div className="shrink-0 border-t border-slate-100 bg-slate-50/70 px-6 py-4 text-right text-xs font-medium text-slate-400">
+                  上传于 {currentImage.createdAt}
+                </div>
+              )}
             </aside>
           )}
         </div>

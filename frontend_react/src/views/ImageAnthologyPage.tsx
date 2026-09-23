@@ -310,7 +310,10 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
 
   useEffect(() => {
     const availableTags = new Set(tagStats.map(option => option.name));
-    setGalleryTags(prev => prev.filter(tag => availableTags.has(tag)));
+    setGalleryTags(prev => {
+      const next = prev.filter(tag => availableTags.has(tag));
+      return next.length === prev.length ? prev : next;
+    });
   }, [tagStats]);
 
   const galleryTagOptions = tagStats;

@@ -190,6 +190,14 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
 
         const route = item.data?.route;
         if (route && onNavigate) {
+            if (item.type === 'image' && item.data) {
+                const routeParams = route.params || {};
+                const imageId = routeParams.imageId
+                    || routeParams.image_id
+                    || item.data.id.replace(/^image:/, '');
+                onNavigate(route.view, {...routeParams, imageId});
+                return;
+            }
             onNavigate(route.view, route.params);
         }
     };

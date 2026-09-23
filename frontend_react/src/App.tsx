@@ -27,7 +27,17 @@ function hasAuthToken() {
     return Boolean(getAuthToken());
 }
 
-function buildImagePath(collId: string, imageId?: string) {
+interface ImageNavigationParams {
+    collId?: string;
+    coll_id?: string;
+    imageId?: string;
+    image_id?: string;
+}
+
+function buildImagePath(params: ImageNavigationParams) {
+    const collId = params.collId || params.coll_id;
+    const imageId = params.imageId || params.image_id;
+    if (!collId) return '/';
     const imageQuery = imageId ? `?imageId=${encodeURIComponent(imageId)}` : '';
     return `/image/${collId}${imageQuery}`;
 }
@@ -59,8 +69,7 @@ function HomeRoute() {
                 navigate(`/article/${collId}`);
             }
         } else if (viewName === 'image') {
-            const {collId, imageId} = params as { collId: string; imageId?: string };
-            navigate(buildImagePath(collId, imageId));
+            navigate(buildImagePath(params as ImageNavigationParams));
         } else if (viewName === 'book') {
             const {collId} = params as {collId: string}; navigate(`/books/${collId}`);
         } else if (viewName === 'login') { // 新增
@@ -110,8 +119,7 @@ function ArticleRoute() {
                 navigate(`/article/${collId}`);
             }
         } else if (viewName === 'image') {
-            const {collId, imageId} = params as { collId: string; imageId?: string };
-            navigate(buildImagePath(collId, imageId));
+            navigate(buildImagePath(params as ImageNavigationParams));
         } else if (viewName === 'login') { // 新增
             navigate('/login');
         }
@@ -146,8 +154,7 @@ function ImageAnthologyRoute() {
                 navigate(`/article/${collId}`);
             }
         } else if (viewName === 'image') {
-            const {collId, imageId} = params as { collId: string; imageId?: string };
-            navigate(buildImagePath(collId, imageId));
+            navigate(buildImagePath(params as ImageNavigationParams));
         } else if (viewName === 'login') {
             navigate('/login');
         }
@@ -180,8 +187,7 @@ function AppWithRouter() {
                 navigate(`/article/${collId}`);
             }
         } else if (viewName === 'image') {
-            const {collId, imageId} = params as { collId: string; imageId?: string };
-            navigate(buildImagePath(collId, imageId));
+            navigate(buildImagePath(params as ImageNavigationParams));
         } else if (viewName === 'login') { // 新增：处理登录跳转
             navigate('/login');
         } else if (viewName === 'settings') { // 新增：处理设置页跳转
