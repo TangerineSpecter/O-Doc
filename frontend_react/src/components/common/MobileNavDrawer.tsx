@@ -2,7 +2,6 @@ import { type FC } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     BarChart2,
-    Bot,
     FolderOpen,
     HeartPulse,
     Library,
@@ -17,6 +16,7 @@ import {
     X,
     ChevronRight,
 } from 'lucide-react';
+import BlinkingBotIcon from './BlinkingBotIcon';
 import type { UserInfo } from '../../types/api/user';
 
 interface MobileNavDrawerProps {
@@ -266,7 +266,7 @@ export const MobileNavDrawer: FC<MobileNavDrawerProps> = ({
                         >
                             <div className="flex items-center gap-3">
                                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 text-white shadow-sm shadow-orange-500/30">
-                                    <Bot className="h-5 w-5" />
+                                    <BlinkingBotIcon className="h-5 w-5" />
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-1.5">

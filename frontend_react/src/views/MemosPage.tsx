@@ -19,6 +19,7 @@ import MemoEditModal from '../components/Memos/MemoEditModal';
 import MemoCard from '../components/Memos/MemoCard';
 import MemosSidebar from '../components/Memos/MemosSidebar';
 import RandomWalkModal from '../components/Memos/RandomWalkModal';
+import PageLoading from '../components/common/PageLoading';
 
 const remarkSoftLineBreaks = () => {
     const visit = (node: any) => {
@@ -826,56 +827,7 @@ export default function MemosPage() {
 
                         <section className="min-w-0">
                             {loading ? (
-                                <div className="space-y-3.5">
-                                    <div className="rounded-xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm animate-pulse space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="h-4 w-16 bg-orange-100 rounded-full"></div>
-                                                <div className="h-3 w-20 bg-slate-100 rounded"></div>
-                                            </div>
-                                            <div className="h-4 w-8 bg-slate-100 rounded-full"></div>
-                                        </div>
-                                        <div className="space-y-2 py-1">
-                                            <div className="h-4 w-full bg-slate-100 rounded"></div>
-                                            <div className="h-4 w-4/5 bg-slate-100 rounded"></div>
-                                        </div>
-                                        <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-                                            <div className="h-3 w-24 bg-slate-100 rounded"></div>
-                                            <div className="h-3 w-12 bg-slate-100 rounded"></div>
-                                        </div>
-                                    </div>
-                                    <div className="rounded-xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm animate-pulse space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="h-4 w-20 bg-orange-100 rounded-full"></div>
-                                                <div className="h-3 w-16 bg-slate-100 rounded"></div>
-                                            </div>
-                                            <div className="h-4 w-8 bg-slate-100 rounded-full"></div>
-                                        </div>
-                                        <div className="space-y-2 py-1">
-                                            <div className="h-4 w-11/12 bg-slate-100 rounded"></div>
-                                            <div className="h-4 w-2/3 bg-slate-100 rounded"></div>
-                                        </div>
-                                        <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-                                            <div className="h-3 w-20 bg-slate-100 rounded"></div>
-                                            <div className="h-3 w-14 bg-slate-100 rounded"></div>
-                                        </div>
-                                    </div>
-                                    <div className="rounded-xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm animate-pulse space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="h-4 w-14 bg-slate-200 rounded-full"></div>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2 py-1">
-                                            <div className="h-4 w-full bg-slate-100 rounded"></div>
-                                            <div className="h-4 w-1/2 bg-slate-100 rounded"></div>
-                                        </div>
-                                        <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-                                            <div className="h-3 w-16 bg-slate-100 rounded"></div>
-                                        </div>
-                                    </div>
-                                </div>
+                                <PageLoading message="正在加载闪念..." minHeight="min-h-[380px]" />
                             ) : visibleMemos.length === 0 ? (
                                 <div className="flex min-h-80 flex-col items-center justify-center rounded-xl border border-slate-200 bg-white text-center shadow-sm animate-in fade-in duration-200">
                                     <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600">

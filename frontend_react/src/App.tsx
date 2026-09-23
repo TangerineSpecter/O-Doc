@@ -1,6 +1,7 @@
 import {lazy, Suspense, type ReactNode} from 'react';
 import {BrowserRouter, Navigate, Routes, Route, useLocation, useNavigate, useParams} from 'react-router-dom';
 import {ToastProvider} from './components/common/ToastProvider'; // 1. 引入 Provider
+import GlobalSwipeBack from './components/common/GlobalSwipeBack';
 import Layout from './layout/Layout';
 import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';
@@ -193,7 +194,9 @@ function AppWithRouter() {
     };
 
     return (
-        <Routes>
+        <>
+            <GlobalSwipeBack/>
+            <Routes>
             <Route path="/" element={
                 <Layout onNavigate={handleNavigate}>
                     <HomeRoute/>
@@ -299,6 +302,7 @@ function AppWithRouter() {
                 </RequireAuth>
             }/>
         </Routes>
+        </>
     );
 }
 

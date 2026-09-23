@@ -34,6 +34,7 @@ import {
 import {getStatisticsData, StatsDashboardData} from '../api/stats';
 import {getWhiteboardList} from '../api/whiteboard';
 import {Select, SelectOption} from '../components/common/Select';
+import PageLoading from '../components/common/PageLoading';
 
 // 预定义颜色，用于分类图表
 const COLORS = ['#3b82f6', '#f97316', '#ec4899', '#10b981', '#8b5cf6', '#6366f1', '#14b8a6', '#f43f5e'];
@@ -261,14 +262,7 @@ export default function StatisticsPage() {
     }, [selectedYear]);
 
     if (loading) {
-        return (
-            <div className="h-screen flex items-center justify-center bg-slate-50">
-                <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-8 h-8 text-orange-500 animate-spin"/>
-                    <p className="text-slate-400 text-sm">正在分析数据...</p>
-                </div>
-            </div>
-        );
+        return <PageLoading message="正在分析数据..." minHeight="min-h-[calc(100vh-160px)]" />;
     }
 
     if (!data) return null;

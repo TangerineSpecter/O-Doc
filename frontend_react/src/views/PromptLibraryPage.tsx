@@ -9,6 +9,7 @@ import PromptCard from '../components/PromptLibrary/PromptCard';
 import PromptDetailDrawer from '../components/PromptLibrary/PromptDetailDrawer';
 import PromptTemplateModal from '../components/PromptLibrary/PromptTemplateModal';
 import PromptTaxonomyModal from '../components/PromptLibrary/PromptTaxonomyModal';
+import PageLoading from '../components/common/PageLoading';
 
 const emptyTaxonomies: PromptTaxonomies = {categories: [], themes: [], tags: []};
 
@@ -159,28 +160,7 @@ export default function PromptLibraryPage() {
 
     <section className="mt-4 sm:mt-5">
       {loading ? (
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3 animate-pulse">
-          {Array.from({length: 6}).map((_, index) => (
-            <div key={index} className="rounded-xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-sm space-y-3 select-none">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="h-4 w-12 rounded bg-orange-100/80"></div>
-                  <div className="h-4 w-16 rounded bg-slate-100"></div>
-                </div>
-                <div className="h-4 w-4 rounded-full bg-slate-100"></div>
-              </div>
-              <div className="h-5 w-3/4 rounded bg-slate-200/70"></div>
-              <div className="space-y-1.5 rounded-lg bg-slate-50/80 p-3">
-                <div className="h-3.5 w-full rounded bg-slate-200/60"></div>
-                <div className="h-3.5 w-4/5 rounded bg-slate-200/60"></div>
-              </div>
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100/80">
-                <div className="h-3 w-20 rounded bg-slate-100"></div>
-                <div className="h-3 w-14 rounded bg-slate-100"></div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <PageLoading message="正在加载提示词..." minHeight="min-h-[380px]" />
       ) : items.length ? (
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3 animate-in fade-in duration-200">
           {items.map(item => (

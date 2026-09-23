@@ -3,7 +3,12 @@ import {useNavigate} from 'react-router-dom';
 import {Mail, Lock, ArrowRight, Leaf, ArrowLeft} from 'lucide-react';
 import {login} from '../api/user';
 import {useToast} from '../components/common/ToastProvider';
-import {saveAuthToken} from '../utils/authStorage';
+import {
+    saveAuthToken,
+    getRememberedAccount,
+    saveRememberedAccount,
+    clearRememberedAccount
+} from '../utils/authStorage';
 
 // 1. 定义子组件的 Props 类型
 interface FloatingCitrusProps {
@@ -49,9 +54,10 @@ const FloatingCitrus = ({className, size = 200, rotation = 0, delay = 0}: Floati
 export default function LoginPage() {
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
-    // 3. 这里的 formData 不需要显式定义接口，TS 会自动推断为 { email: string, password: string }
-    const [formData, setFormData] = useState({email: '', password: ''});
-    const [rememberMe, setRememberMe] = useState(false);
+    const savedAccount = getRememberedAccount();
+    // 3. 若本地存有已记住账号，则自动回填并默认勾选“记住我”
+    const [formData, setFormData] = useState({email: savedAccount, password: ''});
+    const [rememberMe, setRememberMe] = useState(Boolean(savedAccount));
 
     // 2. 获取 toast 方法
     const {success, error, warning} = useToast();
@@ -69,12 +75,19 @@ export default function LoginPage() {
             // 保存 token：普通登录有效期 7 天；勾选“记住我”长期保存。
             saveAuthToken(res.token, rememberMe);
 
+            // 记住或清除账号信息
+            if (rememberMe) {
+                saveRememberedAccount(formData.email);
+            } else {
+                clearRememberedAccount();
+            }
+
             success('欢迎回来！登录成功');
 
-            // 延迟一点跳转，让用户看清提示（可选）
+            // 原生跳转：触发浏览器原生表单嗅探，弹出“保存密码 / 更新密码”弹窗
             setTimeout(() => {
-                navigate('/');
-            }, 500);
+                window.location.href = '/';
+            }, 400);
         } catch (err: any) {
             console.error('登录失败', err);
             const errorMsg = err.response?.data?.msg || err.message || '登录失败，请检查账号密码';
@@ -142,7 +155,7 @@ export default function LoginPage() {
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
                 <div
                     className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 sm:rounded-2xl sm:px-10 border border-slate-100">
-                    <form className="space-y-6" onSubmit={handleLogin}>
+                    <form className="space-y-6" onSubmit={handleLogin} method="post" action="#">
                         <div>
                             <label htmlFor="email" className="block text-sm font-medium text-slate-700">
                                 邮箱地址
@@ -153,9 +166,9 @@ export default function LoginPage() {
                                 </div>
                                 <input
                                     id="email"
-                                    name="email"
+                                    name="username"
                                     type="email"
-                                    autoComplete="email"
+                                    autoComplete="username"
                                     required
                                     value={formData.email}
                                     onChange={(e) => setFormData({...formData, email: e.target.value})}

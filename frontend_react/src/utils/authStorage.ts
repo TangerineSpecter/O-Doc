@@ -1,7 +1,20 @@
 const TOKEN_KEY = 'token';
 const TOKEN_EXPIRES_AT_KEY = 'tokenExpiresAt';
 const REMEMBER_ME_KEY = 'rememberMe';
+const REMEMBERED_ACCOUNT_KEY = 'rememberedAccount';
 const STANDARD_LOGIN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export const saveRememberedAccount = (account: string) => {
+    localStorage.setItem(REMEMBERED_ACCOUNT_KEY, account);
+};
+
+export const getRememberedAccount = (): string => {
+    return localStorage.getItem(REMEMBERED_ACCOUNT_KEY) || '';
+};
+
+export const clearRememberedAccount = () => {
+    localStorage.removeItem(REMEMBERED_ACCOUNT_KEY);
+};
 
 export const saveAuthToken = (token: string, rememberMe: boolean) => {
     localStorage.setItem(TOKEN_KEY, token);

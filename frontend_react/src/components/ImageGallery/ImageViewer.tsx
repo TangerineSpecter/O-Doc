@@ -189,18 +189,13 @@ export default function ImageViewer({
       if (!strip || !item) return;
       const stripRect = strip.getBoundingClientRect();
       const thumbnailRect = item.getBoundingClientRect();
-      const padding = 8;
-      let scrollOffset = 0;
 
-      if (thumbnailRect.left < stripRect.left + padding) {
-        scrollOffset = thumbnailRect.left - stripRect.left - padding;
-      } else if (thumbnailRect.right > stripRect.right - padding) {
-        scrollOffset = thumbnailRect.right - stripRect.right + padding;
-      }
+      // 计算使选中项居中展示的目标滚动距离
+      const currentScrollLeft = strip.scrollLeft;
+      const itemOffsetFromStripLeft = thumbnailRect.left - stripRect.left;
+      const targetScrollLeft = currentScrollLeft + itemOffsetFromStripLeft - (stripRect.width - thumbnailRect.width) / 2;
 
-      if (scrollOffset !== 0) {
-        strip.scrollBy({ left: scrollOffset, behavior: 'smooth' });
-      }
+      strip.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
     };
 
     scrollStrip(thumbnailStripRef.current, thumbnailRefs.current[displayGroupIndex]);
@@ -530,24 +525,78 @@ export default function ImageViewer({
               </button>
             )}
 
-            {/* 图片自适应贴顶呈现容器 */}
-            <div className={`flex w-full items-center justify-center ${showInfo ? 'max-h-[62vh] min-h-[180px]' : 'h-full min-h-[70vh]'} overflow-hidden`}>
+            {/* 图片呈现容器：采用固定高度，保证无论横图竖图大图视口高度恒定，杜绝下方缩略图上下跳变 */}
+            <div className={`flex w-full items-center justify-center ${showInfo ? 'h-[50vh] sm:h-[54vh]' : 'h-full min-h-[70vh]'} overflow-hidden`}>
               <img
                 src={getImageSource(currentImage.imageUrl)}
                 alt={currentImage.title}
                 onError={() => retryImageOnce(currentImage.imageUrl)}
-                className="w-full h-auto max-h-[62vh] object-contain shadow-xs transition-transform duration-200"
+                className="max-h-full max-w-full object-contain shadow-xs transition-transform duration-200"
               />
             </div>
 
-            {/* 组图水平缩略图条 */}
-            {isPhotoGroup && (
-              <div className="absolute bottom-2.5 inset-x-0 z-20 flex justify-center px-4">
+            {/* 当隐藏信息模式（showInfo === false）全屏沉浸看图时，缩略图条浮动于大图底部 */}
+            {isPhotoGroup && !showInfo && (
+              <div className="absolute bottom-4 inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
                 <div
                   ref={thumbnailStripRef}
-                  className="flex max-w-full gap-2 overflow-x-auto rounded-xl border border-slate-200/90 bg-white/90 p-1.5 backdrop-blur-md shadow-md scrollbar-none"
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                  className="flex max-w-full items-center gap-2 overflow-x-auto rounded-xl border border-slate-200/90 bg-white/90 p-1.5 backdrop-blur-md shadow-md scrollbar-none pointer-events-auto"
                 >
-                  {currentGroupImages.map((groupImage, index) => (
+                  {currentGroupImages.map((groupImage, index) => {
+                    const isSelected = index === currentGroupIdx;
+                    return (
+                      <button
+                        key={`${groupImage.imageUrl}-${index}`}
+                        ref={(element) => {
+                          thumbnailRefs.current[index] = element;
+                        }}
+                        type="button"
+                        onClick={() => onSelectGroupImage?.(index)}
+                        className={`group relative h-11 w-14 shrink-0 overflow-hidden rounded-lg border-2 transition-all active:scale-95 ${
+                          isSelected
+                            ? 'border-orange-500 ring-2 ring-orange-500/35 scale-105 shadow-xs z-10'
+                            : 'border-slate-200/90 opacity-60 hover:opacity-100'
+                        }`}
+                        aria-label={`查看第 ${index + 1} 张`}
+                      >
+                        <img
+                          src={getImageSource(groupImage.imageUrl)}
+                          alt={`第 ${index + 1} 张`}
+                          loading={isSelected ? 'eager' : 'lazy'}
+                          onError={() => retryImageOnce(groupImage.imageUrl)}
+                          className="h-full w-full object-cover"
+                        />
+                        <span
+                          className={`absolute bottom-0.5 inset-x-0.5 flex items-center justify-center rounded py-0.5 text-[9px] font-semibold leading-none shadow-xs ${
+                            isSelected ? 'bg-orange-600/90 text-white' : 'bg-slate-900/60 text-white'
+                          }`}
+                        >
+                          {groupImage.focalLength ? `${groupImage.focalLength}mm` : `${index + 1}`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 当展开信息模式（showInfo === true）时，组图缩略图条自然流平铺在大图下方，杜绝遮挡大图 */}
+          {isPhotoGroup && showInfo && (
+            <div className="shrink-0 border-y border-slate-200/70 bg-white/95 px-3 py-2 backdrop-blur-md shadow-2xs">
+              <div
+                ref={thumbnailStripRef}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+                className="flex max-w-full items-center gap-2 overflow-x-auto scrollbar-none py-0.5 px-0.5"
+              >
+                {currentGroupImages.map((groupImage, index) => {
+                  const isSelected = index === currentGroupIdx;
+                  return (
                     <button
                       key={`${groupImage.imageUrl}-${index}`}
                       ref={(element) => {
@@ -555,29 +604,33 @@ export default function ImageViewer({
                       }}
                       type="button"
                       onClick={() => onSelectGroupImage?.(index)}
-                      className={`relative h-10 w-13 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
-                        index === currentGroupIdx
-                          ? 'border-orange-500 ring-2 ring-orange-500/40 scale-105'
-                          : 'border-slate-200 opacity-65 hover:opacity-100'
+                      className={`group relative h-11 w-14 shrink-0 overflow-hidden rounded-lg border-2 transition-all active:scale-95 ${
+                        isSelected
+                          ? 'border-orange-500 ring-2 ring-orange-500/35 scale-105 shadow-xs z-10'
+                          : 'border-slate-200/90 opacity-60 hover:opacity-100'
                       }`}
                       aria-label={`查看第 ${index + 1} 张`}
                     >
                       <img
                         src={getImageSource(groupImage.imageUrl)}
                         alt={`第 ${index + 1} 张`}
-                        loading={index === currentGroupIdx ? 'eager' : 'lazy'}
+                        loading={isSelected ? 'eager' : 'lazy'}
                         onError={() => retryImageOnce(groupImage.imageUrl)}
                         className="h-full w-full object-cover"
                       />
-                      <span className="absolute bottom-0 inset-x-0 bg-slate-900/65 py-0.5 text-[8px] font-semibold text-white">
+                      <span
+                        className={`absolute bottom-0.5 inset-x-0.5 flex items-center justify-center rounded py-0.5 text-[9px] font-semibold leading-none shadow-xs ${
+                          isSelected ? 'bg-orange-600/90 text-white' : 'bg-slate-900/60 text-white'
+                        }`}
+                      >
                         {groupImage.focalLength ? `${groupImage.focalLength}mm` : `${index + 1}`}
                       </span>
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* 下部：排版内容卡片（标题、作者、EXIF、标签、描述） */}
           {showInfo && (
@@ -758,38 +811,45 @@ export default function ImageViewer({
 
             {/* 组图水平缩略图条 */}
             {isPhotoGroup && (
-              <div className="absolute bottom-4 inset-x-0 z-20 flex justify-center px-4">
+              <div className="absolute bottom-4 inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
                 <div
                   ref={desktopThumbnailStripRef}
-                  className="flex max-w-full gap-2 overflow-x-auto rounded-xl border border-slate-200/90 bg-white/90 p-1.5 backdrop-blur-md shadow-md scrollbar-none"
+                  className="flex max-w-full items-center gap-2 overflow-x-auto rounded-xl border border-slate-200/90 bg-white/90 p-1.5 backdrop-blur-md shadow-md scrollbar-none pointer-events-auto"
                 >
-                  {currentGroupImages.map((groupImage, index) => (
-                    <button
-                      key={`${groupImage.imageUrl}-${index}`}
-                      ref={(element) => {
-                        desktopThumbnailRefs.current[index] = element;
-                      }}
-                      type="button"
-                      onClick={() => onSelectGroupImage?.(index)}
-                      className={`relative h-12 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
-                        index === currentGroupIdx
-                          ? 'border-orange-500 ring-2 ring-orange-500/40 scale-105'
-                          : 'border-slate-200 opacity-65 hover:opacity-100'
-                      }`}
-                      aria-label={`查看第 ${index + 1} 张`}
-                    >
-                      <img
-                        src={getImageSource(groupImage.imageUrl)}
-                        alt={`第 ${index + 1} 张`}
-                        loading={index === currentGroupIdx ? 'eager' : 'lazy'}
-                        onError={() => retryImageOnce(groupImage.imageUrl)}
-                        className="h-full w-full object-cover"
-                      />
-                      <span className="absolute bottom-0 inset-x-0 bg-slate-900/65 py-0.5 text-[9px] font-semibold text-white">
-                        {groupImage.focalLength ? `${groupImage.focalLength}mm` : `${index + 1}`}
-                      </span>
-                    </button>
-                  ))}
+                  {currentGroupImages.map((groupImage, index) => {
+                    const isSelected = index === currentGroupIdx;
+                    return (
+                      <button
+                        key={`${groupImage.imageUrl}-${index}`}
+                        ref={(element) => {
+                          desktopThumbnailRefs.current[index] = element;
+                        }}
+                        type="button"
+                        onClick={() => onSelectGroupImage?.(index)}
+                        className={`group relative h-12 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-all active:scale-95 ${
+                          isSelected
+                            ? 'border-orange-500 ring-2 ring-orange-500/35 scale-105 shadow-sm z-10'
+                            : 'border-slate-200/90 opacity-60 hover:opacity-100'
+                        }`}
+                        aria-label={`查看第 ${index + 1} 张`}
+                      >
+                        <img
+                          src={getImageSource(groupImage.imageUrl)}
+                          alt={`第 ${index + 1} 张`}
+                          loading={isSelected ? 'eager' : 'lazy'}
+                          onError={() => retryImageOnce(groupImage.imageUrl)}
+                          className="h-full w-full object-cover"
+                        />
+                        <span
+                          className={`absolute bottom-0.5 inset-x-0.5 flex items-center justify-center rounded py-0.5 text-[9px] font-semibold leading-none shadow-xs ${
+                            isSelected ? 'bg-orange-600/90 text-white' : 'bg-slate-900/60 text-white'
+                          }`}
+                        >
+                          {groupImage.focalLength ? `${groupImage.focalLength}mm` : `${index + 1}`}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

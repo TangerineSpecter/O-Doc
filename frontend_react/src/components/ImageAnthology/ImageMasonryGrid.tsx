@@ -9,6 +9,27 @@ export interface ImageDisplayItem {
   index: number;
 }
 
+const formatFocalSummary = (images: Image[]): string | undefined => {
+  if (!images || images.length <= 1) return undefined;
+
+  const validFocals = images
+    .map(img => (img.focalLength ? Number.parseFloat(img.focalLength) : NaN))
+    .filter(val => !Number.isNaN(val) && val > 0);
+
+  if (validFocals.length === 0) return undefined;
+
+  const minFocal = Math.min(...validFocals);
+  const maxFocal = Math.max(...validFocals);
+
+  const formatNumber = (num: number) => (Number.isInteger(num) ? String(num) : String(Number(num.toFixed(1))));
+
+  if (minFocal === maxFocal) {
+    return `${formatNumber(minFocal)}mm`;
+  }
+
+  return `${formatNumber(minFocal)}-${formatNumber(maxFocal)}mm`;
+};
+
 interface ImageMasonryGridProps {
   isHidden: boolean;
   imageColumns: Array<ImageDisplayItem[]>;
@@ -57,7 +78,7 @@ export default function ImageMasonryGrid({
                     city={item.image.city}
                     focalLength={item.image.focalLength}
                     photoCount={item.images.length}
-                    focalSummary={item.images.length > 1 ? item.images.map(image => image.focalLength ? `${image.focalLength}mm` : '未知').join(' · ') : undefined}
+                    focalSummary={formatFocalSummary(item.images)}
                     dominantColor={dominantColors[item.image.imageId]}
                     onClick={() => onImageClick(item)}
                     onEdit={isAuthenticated ? () => onEditImage(item) : undefined}

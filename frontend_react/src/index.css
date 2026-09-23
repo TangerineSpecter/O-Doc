@@ -609,6 +609,7 @@ code, pre {
 
 .ai-peeking-eyes {
   animation: ai-peeking-blink 4s infinite;
+  transform-box: fill-box;
   transform-origin: center;
 }
 

@@ -38,6 +38,7 @@ const ImageCard = memo(({
   const location = [country, city].filter(Boolean).join(' ');
   const shootingDate = shootingTime ? shootingTime.replace('T', ' ').slice(0, 10) : '';
   const focalLengthLabel = focalLength ? `${focalLength}mm` : '';
+  const displayFocal = photoCount && photoCount > 1 ? focalSummary : (focalSummary || focalLengthLabel);
 
   return (
     <div
@@ -161,10 +162,10 @@ const ImageCard = memo(({
             </div>
           )}
 
-          {(focalSummary || focalLengthLabel) && (
+          {displayFocal && (
             <div className="flex items-center gap-2 text-xs text-slate-500 group-hover:text-slate-600 transition-colors">
               <Aperture className="w-3.5 h-3.5 text-sky-400" />
-              <span className="truncate">{focalSummary || focalLengthLabel}</span>
+              <span className="truncate">{displayFocal}</span>
             </div>
           )}
         </div>

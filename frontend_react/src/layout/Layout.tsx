@@ -12,7 +12,7 @@ import ProfileCenterModal from '../components/ProfileCenterModal';
 import MobileBottomBar from '../components/common/MobileBottomBar';
 import { AuthProvider } from '../contexts/AuthContext';
 import {clearAuthToken, getAuthToken} from '../utils/authStorage';
-import { useSwipeBack } from '../hooks/useSwipeBack';
+import { registerSwipeBackInterceptor } from '../utils/swipeBackRegistry';
 
 interface LayoutProps {
     children: ReactNode;
@@ -90,9 +90,13 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    // --- 移动端边缘右滑返回交互 ---
-    useSwipeBack({
-        onIntercept: () => {
+    // --- 移动端边缘右滑拦截（优先关闭打开的浮层） ---
+    useEffect(() => {
+        if (!isChatOpen && !isAgentPanelOpen && !isSearchOpen && !isProfileOpen) {
+            return;
+        }
+
+        const unregister = registerSwipeBackInterceptor(() => {
             if (isChatOpen) {
                 setIsChatOpen(false);
                 return true;
@@ -110,8 +114,10 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                 return true;
             }
             return false;
-        }
-    });
+        });
+
+        return unregister;
+    }, [isChatOpen, isAgentPanelOpen, isSearchOpen, isProfileOpen]);
 
     const isAuthenticated = Boolean(userInfo);
 

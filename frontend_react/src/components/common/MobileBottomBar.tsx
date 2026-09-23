@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { StickyNote, Sparkles, Bot, Library, BarChart2 } from 'lucide-react';
+import { StickyNote, Sparkles, Library, BarChart2 } from 'lucide-react';
+import BlinkingBotIcon from './BlinkingBotIcon';
 
 interface MobileBottomBarProps {
     onOpenAI: () => void;
@@ -98,7 +99,7 @@ export default function MobileBottomBar({ onOpenAI }: MobileBottomBarProps) {
                         title="打开 AI 助手"
                         aria-label="打开 AI 助手"
                     >
-                        <Bot className="w-6 h-6 transition-transform group-hover:scale-110" />
+                        <BlinkingBotIcon className="w-6 h-6 transition-transform group-hover:scale-110" />
                     </button>
                     <span className="text-[10px] text-orange-600 font-bold tracking-tight mt-0.5 whitespace-nowrap">
                         AI 助手

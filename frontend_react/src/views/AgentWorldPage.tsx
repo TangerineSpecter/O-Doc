@@ -158,7 +158,11 @@ export default function AgentWorldPage() {
                     />
                 </div>
             </div>
-            <AgentRunDrawer activity={selectedActivity} onClose={() => setSelectedActivity(null)}/>
+            <AgentRunDrawer
+                key={selectedActivity?.runRecordId || selectedActivity?.id || 'closed'}
+                activity={selectedActivity}
+                onClose={() => setSelectedActivity(null)}
+            />
         </main>
     );
 }
