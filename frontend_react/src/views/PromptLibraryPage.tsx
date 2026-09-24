@@ -11,6 +11,7 @@ import PromptDetailDrawer from '../components/PromptLibrary/PromptDetailDrawer';
 import PromptTemplateModal from '../components/PromptLibrary/PromptTemplateModal';
 import PromptTaxonomyModal from '../components/PromptLibrary/PromptTaxonomyModal';
 import PageLoading from '../components/common/PageLoading';
+import ImageLightboxModal from '../components/common/ImageLightboxModal';
 import {defaultPromptValues} from '../utils/promptRenderer';
 
 const emptyTaxonomies: PromptTaxonomies = {categories: [], themes: [], tags: []};
@@ -33,6 +34,7 @@ export default function PromptLibraryPage() {
   const [editing, setEditing] = useState<PromptTemplate | null | undefined>(undefined);
   const [taxonomyOpen, setTaxonomyOpen] = useState(false);
   const [trash, setTrash] = useState<PromptTrash | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<{resourceId?: string; imageUrl?: string; title?: string} | null>(null);
 
   const categoryFilterOptions = useMemo<SelectOption<string>[]>(() => [
     {value: '', label: '全部分类'},
@@ -213,7 +215,13 @@ export default function PromptLibraryPage() {
       ) : items.length ? (
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3 animate-in fade-in duration-200">
           {items.map(item => (
-            <PromptCard key={item.id} item={item} onOpen={() => void open(item)} onToggleFavorite={() => void toggleFavorite(item)}/>
+            <PromptCard
+              key={item.id}
+              item={item}
+              onOpen={() => void open(item)}
+              onToggleFavorite={() => void toggleFavorite(item)}
+              onPreviewImage={(assetId, title) => setLightboxImage({resourceId: assetId, title: title || item.title})}
+            />
           ))}
         </div>
       ) : (
@@ -229,7 +237,21 @@ export default function PromptLibraryPage() {
     </section>
     <PromptTemplateModal key={editing?.id || (editing === null ? 'new' : 'closed')} open={editing !== undefined} template={editing || null} taxonomies={taxonomies} onClose={() => setEditing(undefined)} onSave={save} onCreateTaxonomy={createTaxonomy}/>
     <PromptTaxonomyModal open={taxonomyOpen} taxonomies={taxonomies} onClose={() => setTaxonomyOpen(false)} onChanged={() => void refresh()}/>
-    <PromptDetailDrawer template={selected} onClose={() => setSelected(null)} onChanged={() => { if (selected) void open(selected); void refresh(); }} onEdit={item => { setSelected(null); setEditing(item); }}/>
+    <PromptDetailDrawer
+      template={selected}
+      onClose={() => setSelected(null)}
+      onChanged={() => { if (selected) void open(selected); void refresh(); }}
+      onEdit={item => { setSelected(null); setEditing(item); }}
+      onPreviewImage={(assetId, title) => setLightboxImage({resourceId: assetId, title: title || ''})}
+      isLightboxOpen={!!lightboxImage}
+    />
+    <ImageLightboxModal
+      open={!!lightboxImage}
+      resourceId={lightboxImage?.resourceId}
+      imageUrl={lightboxImage?.imageUrl}
+      title={lightboxImage?.title}
+      onClose={() => setLightboxImage(null)}
+    />
     {trash && <div className="fixed inset-0 z-[121] flex items-center justify-center p-4"><div className="absolute inset-0 bg-slate-900/40" onClick={() => setTrash(null)}/><section className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl"><header className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-lg font-bold text-slate-900">提示词回收站</h2><p className="mt-1 text-xs text-slate-500">恢复不会删除图片；彻底删除时，只清理未被其他内容引用的提示词图片。</p></div><button onClick={() => setTrash(null)} className="text-slate-400">×</button></header><div className="max-h-[60vh] space-y-5 overflow-y-auto p-4"><div><p className="mb-2 text-xs font-bold text-slate-500">模板</p>{trash.templates.map(item => <div key={item.id} className="mb-2 flex items-center justify-between rounded-xl border border-slate-100 p-3"><div><p className="text-sm font-semibold text-slate-700">{item.title}</p><p className="text-xs text-slate-400">删除于 {item.deletedAt || '未知时间'}</p></div><div className="flex gap-2"><button onClick={() => void restore(item.id)} className="inline-flex items-center gap-1 rounded-lg bg-lime-50 px-3 py-2 text-xs font-semibold text-lime-700"><ArchiveRestore className="h-3.5 w-3.5"/>恢复</button><button onClick={() => void purgeTemplate(item.id)} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">彻底删除</button></div></div>)}</div><div><p className="mb-2 text-xs font-bold text-slate-500">效果记录</p>{trash.usages.map(item => <div key={item.id} className="mb-2 flex items-center justify-between rounded-xl border border-slate-100 p-3"><div><p className="text-sm font-semibold text-slate-700">{item.modelName || '未命名效果记录'}</p><p className="text-xs text-slate-400">{item.resultImages.length} 张图片 · 删除于 {item.deletedAt || '未知时间'}</p></div><div className="flex gap-2"><button onClick={() => void restoreUsage(item.id)} className="rounded-lg bg-lime-50 px-3 py-2 text-xs font-semibold text-lime-700">恢复</button><button onClick={() => void purgeUsage(item.id)} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">彻底删除</button></div></div>)}{!trash.templates.length && !trash.usages.length && <p className="py-10 text-center text-sm text-slate-400">回收站是空的。</p>}</div></div></section></div>}
   </main>;
 }

@@ -1,22 +1,38 @@
-import {Copy, Heart, Image as ImageIcon, Sparkles} from 'lucide-react';
+import {Copy, Heart, Image as ImageIcon, Maximize2, Sparkles} from 'lucide-react';
 import type {PromptTemplate} from '../../types/api/prompt';
 import AuthenticatedResourceImage from '../common/AuthenticatedResourceImage';
 
-interface Props { item: PromptTemplate; onOpen: () => void; onToggleFavorite: () => void; }
+interface Props {
+  item: PromptTemplate;
+  onOpen: () => void;
+  onToggleFavorite: () => void;
+  onPreviewImage?: (assetId: string, title?: string) => void;
+}
 const typeLabel = {image: '生图', html_report: 'HTML 报告', general: '通用'};
 
-export default function PromptCard({item, onOpen, onToggleFavorite}: Props) {
+export default function PromptCard({item, onOpen, onToggleFavorite, onPreviewImage}: Props) {
   return (
     <article
       onClick={onOpen}
       className="group cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md active:scale-[0.99]"
     >
-      <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-orange-50 via-amber-50 to-lime-50">
+      <div
+        className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-orange-50 via-amber-50 to-lime-50"
+        onClick={event => {
+          if (item.coverImage && onPreviewImage) {
+            event.stopPropagation();
+            onPreviewImage(item.coverImage.assetId, item.title);
+          }
+        }}
+        title={item.coverImage ? '点击查看高清大图' : undefined}
+      >
         {item.coverImage ? (
           <AuthenticatedResourceImage
             resourceId={item.coverImage.assetId}
             alt={`${item.title} 效果`}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+            fitMode="contain-blur"
+            className="h-full w-full"
+            imageClassName="p-1 transition duration-500 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center text-orange-300">
@@ -24,9 +40,24 @@ export default function PromptCard({item, onOpen, onToggleFavorite}: Props) {
             <span className="mt-1.5 text-xs text-orange-400/80">等待第一张效果图</span>
           </div>
         )}
+
+        {item.coverImage && onPreviewImage && (
+          <button
+            type="button"
+            onClick={event => {
+              event.stopPropagation();
+              onPreviewImage(item.coverImage!.assetId, item.title);
+            }}
+            className="absolute left-2.5 top-2.5 z-20 rounded-full bg-slate-900/40 hover:bg-slate-900/70 p-2 text-white/90 shadow-sm backdrop-blur hover:text-white active:scale-95 transition-all w-8 h-8 flex items-center justify-center opacity-75 group-hover:opacity-100"
+            title="查看高清原图"
+          >
+            <Maximize2 className="h-3.5 w-3.5"/>
+          </button>
+        )}
+
         <button
           onClick={event => { event.stopPropagation(); onToggleFavorite(); }}
-          className="absolute right-2.5 top-2.5 rounded-full bg-white/90 p-2 text-slate-400 shadow-sm backdrop-blur hover:text-orange-500 active:scale-95 transition-all w-8 h-8 flex items-center justify-center"
+          className="absolute right-2.5 top-2.5 z-20 rounded-full bg-white/90 p-2 text-slate-400 shadow-sm backdrop-blur hover:text-orange-500 active:scale-95 transition-all w-8 h-8 flex items-center justify-center"
           title={item.isFavorite ? '取消收藏' : '收藏'}
         >
           <Heart className={`h-4 w-4 ${item.isFavorite ? 'fill-orange-400 text-orange-400' : ''}`}/>

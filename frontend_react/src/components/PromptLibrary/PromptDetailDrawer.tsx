@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useState} from 'react';
-import {Copy, ImagePlus, Pencil, Star, Trash2, X} from 'lucide-react';
+import {Copy, ImagePlus, Maximize2, Pencil, Star, Trash2, X} from 'lucide-react';
 import type {PromptTemplate} from '../../api/prompt';
 import {deletePromptTemplate, deletePromptUsage, setPromptCover} from '../../api/prompt';
 import {defaultPromptValues, renderPromptTemplate, type PromptValues} from '../../utils/promptRenderer';
@@ -12,9 +12,11 @@ interface Props {
     onClose: () => void;
     onChanged: () => void;
     onEdit: (template: PromptTemplate) => void;
+    onPreviewImage?: (assetId: string, title?: string) => void;
+    isLightboxOpen?: boolean;
 }
 
-export default function PromptDetailDrawer({template, onClose, onChanged, onEdit}: Props) {
+export default function PromptDetailDrawer({template, onClose, onChanged, onEdit, onPreviewImage, isLightboxOpen}: Props) {
     const toast = useToast();
     const [values, setValues] = useState<PromptValues>({});
 
@@ -26,6 +28,7 @@ export default function PromptDetailDrawer({template, onClose, onChanged, onEdit
     useEffect(() => {
         if (!template) return;
         const closeOnEscape = (event: KeyboardEvent) => {
+            if (isLightboxOpen) return;
             if (event.key === 'Escape' || event.key === 'Esc') {
                 event.stopPropagation();
                 onClose();
@@ -33,7 +36,7 @@ export default function PromptDetailDrawer({template, onClose, onChanged, onEdit
         };
         window.addEventListener('keydown', closeOnEscape);
         return () => window.removeEventListener('keydown', closeOnEscape);
-    }, [template, onClose]);
+    }, [template, onClose, isLightboxOpen]);
 
     const rendered = useMemo(() => template ? renderPromptTemplate(template.positiveTemplate, template.fieldSchema, values) : {text: '', missing: []}, [template, values]);
     const negative = useMemo(() => template ? renderPromptTemplate(template.negativeTemplate, template.fieldSchema, values) : {text: '', missing: []}, [template, values]);
@@ -326,15 +329,37 @@ export default function PromptDetailDrawer({template, onClose, onChanged, onEdit
 
                                             {/* 图片展示 */}
                                             {usage.resultImages.length === 1 ? (
-                                                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-slate-200 bg-white group">
+                                                <div
+                                                    className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-900/5 group cursor-pointer"
+                                                    onClick={() => onPreviewImage?.(usage.resultImages[0].assetId, usage.resultImages[0].caption || template.title)}
+                                                    title="点击查看高清大图"
+                                                >
                                                     <AuthenticatedResourceImage
                                                         resourceId={usage.resultImages[0].assetId}
                                                         alt={usage.resultImages[0].caption || '提示词效果'}
-                                                        className="h-full w-full object-cover"
+                                                        fitMode="contain-blur"
+                                                        className="h-full w-full"
+                                                        imageClassName="transition duration-300 group-hover:scale-[1.02]"
                                                     />
+                                                    {onPreviewImage && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={e => {
+                                                                e.stopPropagation();
+                                                                onPreviewImage(usage.resultImages[0].assetId, usage.resultImages[0].caption || template.title);
+                                                            }}
+                                                            className="absolute left-1.5 top-1.5 rounded-md p-1.5 bg-slate-900/40 hover:bg-slate-900/70 text-white/90 hover:text-white shadow-sm backdrop-blur transition-all opacity-0 group-hover:opacity-100"
+                                                            title="查看高清原图"
+                                                        >
+                                                            <Maximize2 className="h-3.5 w-3.5"/>
+                                                        </button>
+                                                    )}
                                                     <button
-                                                        onClick={() => void setPromptCover(template.id, usage.resultImages[0].id).then(onChanged)}
-                                                        className={`absolute bottom-1.5 right-1.5 rounded-md p-1.5 shadow-sm transition-all ${
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            void setPromptCover(template.id, usage.resultImages[0].id).then(onChanged);
+                                                        }}
+                                                        className={`absolute bottom-1.5 right-1.5 rounded-md p-1.5 shadow-sm transition-all z-20 ${
                                                             template.coverImage?.id === usage.resultImages[0].id
                                                                 ? 'bg-orange-500 text-white shadow-orange-500/30'
                                                                 : 'bg-white/80 backdrop-blur-sm text-slate-400 hover:text-orange-500 hover:bg-white'
@@ -347,15 +372,38 @@ export default function PromptDetailDrawer({template, onClose, onChanged, onEdit
                                             ) : (
                                                 <div className="grid grid-cols-2 gap-1.5">
                                                     {usage.resultImages.map(image => (
-                                                        <div key={image.id} className="relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-white group">
+                                                        <div
+                                                            key={image.id}
+                                                            className="relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-900/5 group cursor-pointer"
+                                                            onClick={() => onPreviewImage?.(image.assetId, image.caption || template.title)}
+                                                            title="点击查看高清大图"
+                                                        >
                                                             <AuthenticatedResourceImage
                                                                 resourceId={image.assetId}
                                                                 alt={image.caption || '提示词效果'}
-                                                                className="h-full w-full object-cover"
+                                                                fitMode="contain-blur"
+                                                                className="h-full w-full"
+                                                                imageClassName="transition duration-300 group-hover:scale-[1.02]"
                                                             />
+                                                            {onPreviewImage && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={e => {
+                                                                        e.stopPropagation();
+                                                                        onPreviewImage(image.assetId, image.caption || template.title);
+                                                                    }}
+                                                                    className="absolute left-1 top-1 rounded p-1 bg-slate-900/40 hover:bg-slate-900/70 text-white/90 hover:text-white shadow-sm backdrop-blur transition-all opacity-0 group-hover:opacity-100"
+                                                                    title="查看高清原图"
+                                                                >
+                                                                    <Maximize2 className="h-3 w-3"/>
+                                                                </button>
+                                                            )}
                                                             <button
-                                                                onClick={() => void setPromptCover(template.id, image.id).then(onChanged)}
-                                                                className={`absolute bottom-1 right-1 rounded p-1 shadow-sm transition-all ${
+                                                                onClick={e => {
+                                                                    e.stopPropagation();
+                                                                    void setPromptCover(template.id, image.id).then(onChanged);
+                                                                }}
+                                                                className={`absolute bottom-1 right-1 rounded p-1 shadow-sm transition-all z-20 ${
                                                                     template.coverImage?.id === image.id
                                                                         ? 'bg-orange-500 text-white shadow-orange-500/30'
                                                                         : 'bg-white/80 backdrop-blur-sm text-slate-400 hover:text-orange-500 hover:bg-white'
