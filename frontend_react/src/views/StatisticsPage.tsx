@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {
     BookOpen,
     Calendar,
@@ -72,6 +72,7 @@ interface CreationDay {
     articles: number;
     images: number;
     memos: number;
+    prompts: number;
     whiteboards: number;
     total: number;
 }
@@ -127,6 +128,7 @@ const buildHeatmapCells = (year: number, dailyCreation: StatsDashboardData['dail
             articles: 0,
             images: 0,
             memos: 0,
+            prompts: 0,
             whiteboards: 0,
             total: 0,
             isBlank: true,
@@ -141,14 +143,16 @@ const buildHeatmapCells = (year: number, dailyCreation: StatsDashboardData['dail
         const articles = serverItem?.articles || 0;
         const images = serverItem?.images || 0;
         const memos = serverItem?.memos || 0;
+        const prompts = serverItem?.prompts || 0;
 
         cells.push({
             date: dateKey,
             articles,
             images,
             memos,
+            prompts,
             whiteboards,
-            total: articles + images + memos + whiteboards,
+            total: articles + images + memos + prompts + whiteboards,
             dayOfWeek: date.getDay(),
         });
     }
@@ -208,6 +212,39 @@ export default function StatisticsPage() {
     const [heatmapHover, setHeatmapHover] = useState<HeatmapHoverState | null>(null);
     const [selectedCell, setSelectedCell] = useState<HeatmapCell | null>(null);
     const [whiteboardCounts, setWhiteboardCounts] = useState<Map<string, number>>(new Map());
+    const heatmapTooltipRef = useRef<HTMLDivElement | null>(null);
+    const heatmapHoverPositionRef = useRef({x: 0, y: 0});
+    const heatmapHoverFrameRef = useRef<number | null>(null);
+
+    const updateHeatmapTooltipPosition = (x: number, y: number) => {
+        heatmapHoverPositionRef.current = {x, y};
+        if (heatmapHoverFrameRef.current !== null) return;
+
+        heatmapHoverFrameRef.current = window.requestAnimationFrame(() => {
+            heatmapHoverFrameRef.current = null;
+            const tooltip = heatmapTooltipRef.current;
+            if (!tooltip) return;
+
+            const {x: pointerX, y: pointerY} = heatmapHoverPositionRef.current;
+            const left = Math.min(pointerX + 14, window.innerWidth - 240);
+            const top = Math.max(pointerY - 18, 12);
+            tooltip.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+        });
+    };
+
+    const clearHeatmapHover = () => {
+        if (heatmapHoverFrameRef.current !== null) {
+            window.cancelAnimationFrame(heatmapHoverFrameRef.current);
+            heatmapHoverFrameRef.current = null;
+        }
+        setHeatmapHover(null);
+    };
+
+    useEffect(() => () => {
+        if (heatmapHoverFrameRef.current !== null) {
+            window.cancelAnimationFrame(heatmapHoverFrameRef.current);
+        }
+    }, []);
 
     useEffect(() => {
         let ignore = false;
@@ -543,17 +580,12 @@ export default function StatisticsPage() {
                                             key={`${cell.date}-${index}`}
                                             aria-label={tooltip}
                                             onClick={() => setSelectedCell(isCurrentSelected ? null : cell)}
-                                            onMouseEnter={(event) => setHeatmapHover({
-                                                cell,
-                                                x: event.clientX,
-                                                y: event.clientY
-                                            })}
-                                            onMouseMove={(event) => setHeatmapHover({
-                                                cell,
-                                                x: event.clientX,
-                                                y: event.clientY
-                                            })}
-                                            onMouseLeave={() => setHeatmapHover(null)}
+                                            onMouseEnter={(event) => {
+                                                setHeatmapHover({cell, x: event.clientX, y: event.clientY});
+                                                updateHeatmapTooltipPosition(event.clientX, event.clientY);
+                                            }}
+                                            onMouseMove={(event) => updateHeatmapTooltipPosition(event.clientX, event.clientY)}
+                                            onMouseLeave={clearHeatmapHover}
                                             className={`w-[14px] h-[14px] rounded-[3px] border cursor-pointer transition-transform hover:scale-125 hover:ring-2 hover:ring-orange-500/20 ${isCurrentSelected ? 'ring-2 ring-orange-500 scale-125 z-10' : ''} ${getIntensityClass(cell.total, maxCreationCount)}`}
                                         />
                                     );
@@ -614,6 +646,15 @@ export default function StatisticsPage() {
                                     </span>
                                     <span
                                         className={`px-1.5 py-0.5 rounded text-[11px] font-mono flex items-center gap-1 shrink-0 ${
+                                            selectedCell.prompts > 0 ? 'bg-amber-100/80 text-amber-700 font-semibold' : 'bg-white/60 text-slate-400'
+                                        }`}
+                                        title={`提示词: ${selectedCell.prompts}`}
+                                    >
+                                        <Sparkles className="w-3 h-3 text-amber-500 shrink-0"/>
+                                        <span className="hidden xs:inline">提示词</span> {selectedCell.prompts}
+                                    </span>
+                                    <span
+                                        className={`px-1.5 py-0.5 rounded text-[11px] font-mono flex items-center gap-1 shrink-0 ${
                                             selectedCell.whiteboards > 0 ? 'bg-purple-100/80 text-purple-700 font-semibold' : 'bg-white/60 text-slate-400'
                                         }`}
                                         title={`白板: ${selectedCell.whiteboards}`}
@@ -650,10 +691,12 @@ export default function StatisticsPage() {
             {/* 桌面端悬浮浮层 */}
             {heatmapHover && (
                 <div
+                    ref={heatmapTooltipRef}
                     className="hidden sm:block fixed z-50 w-56 rounded-xl border border-slate-100 bg-white p-3 text-xs shadow-xl shadow-slate-900/10 pointer-events-none"
                     style={{
-                        left: Math.min(heatmapHover.x + 14, window.innerWidth - 240),
-                        top: Math.max(heatmapHover.y - 18, 12),
+                        left: 0,
+                        top: 0,
+                        transform: `translate3d(${Math.min(heatmapHover.x + 14, window.innerWidth - 240)}px, ${Math.max(heatmapHover.y - 18, 12)}px, 0)`,
                     }}
                 >
                     <div className="font-bold text-slate-800">{formatHeatmapDate(heatmapHover.cell.date)}</div>
@@ -672,6 +715,10 @@ export default function StatisticsPage() {
                         <div className="rounded-lg bg-pink-50 px-2 py-1.5 text-pink-600">
                             <div className="text-[10px] text-pink-400">闪念</div>
                             <div className="font-mono font-bold">{heatmapHover.cell.memos}</div>
+                        </div>
+                        <div className="rounded-lg bg-amber-50 px-2 py-1.5 text-amber-600">
+                            <div className="text-[10px] text-amber-500">提示词</div>
+                            <div className="font-mono font-bold">{heatmapHover.cell.prompts}</div>
                         </div>
                         <div className="rounded-lg bg-purple-50 px-2 py-1.5 text-purple-600">
                             <div className="text-[10px] text-purple-400">白板</div>

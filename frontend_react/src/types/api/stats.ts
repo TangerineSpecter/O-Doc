@@ -39,6 +39,7 @@ export interface StatsDashboardData {
         articles: number;
         images: number;
         memos: number;
+        prompts: number;
         total: number;
     }[];
     selectedYear: number;

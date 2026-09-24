@@ -10,6 +10,7 @@ from article.models import Article, Image
 from assets.models import Asset
 from categories.models import Category
 from memos.models import Memo
+from prompts.models import PromptTemplate
 from stats.models import ReadStat
 from tags.models import Tag
 from utils.drf_utils import get_current_user_identifier
@@ -241,6 +242,15 @@ class StatisticsView(APIView):
                 memos=Count('memo_id')
             )
 
+            prompt_daily_stats = PromptTemplate.objects.filter(
+                is_valid=True,
+                created_at__year=selected_year
+            ).annotate(
+                date=TruncDate('created_at')
+            ).values('date').annotate(
+                prompts=Count('id')
+            )
+
             daily_creation_map = {}
 
             def ensure_daily_item(date_value):
@@ -251,6 +261,7 @@ class StatisticsView(APIView):
                         'articles': 0,
                         'images': 0,
                         'memos': 0,
+                        'prompts': 0,
                         'total': 0
                     }
                 return daily_creation_map[date_key]
@@ -267,9 +278,13 @@ class StatisticsView(APIView):
                 daily_item = ensure_daily_item(item['date'])
                 daily_item['memos'] = item['memos']
 
+            for item in prompt_daily_stats:
+                daily_item = ensure_daily_item(item['date'])
+                daily_item['prompts'] = item['prompts']
+
             daily_creation = []
             for item in daily_creation_map.values():
-                item['total'] = item['articles'] + item['images'] + item['memos']
+                item['total'] = item['articles'] + item['images'] + item['memos'] + item['prompts']
                 daily_creation.append(item)
 
             daily_creation.sort(key=lambda item: item['date'])
