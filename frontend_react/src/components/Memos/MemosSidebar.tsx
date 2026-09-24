@@ -60,7 +60,7 @@ export default function MemosSidebar({
           value={content}
           onChange={(event) => onContentChange(event.target.value)}
           placeholder="记下一句闪过脑子的东西..."
-          className="min-h-20 sm:min-h-28 lg:min-h-36 w-full resize-y rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 sm:px-4 sm:py-3 text-sm leading-6 text-slate-800 outline-none transition focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
+          className="min-h-20 sm:min-h-28 lg:min-h-36 w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 sm:px-4 sm:py-3 text-sm leading-6 text-slate-800 outline-none transition focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
         />
 
         <div className="mt-2.5 sm:mt-3 flex flex-col gap-2.5 sm:flex-row lg:flex-col xl:flex-row">
