@@ -152,6 +152,25 @@ def get_image_resource_usage(resource_ids=None):
     return usage
 
 
+def get_prompt_resource_usage(resource_ids=None):
+    from prompts.models import PromptResultImage
+
+    queryset = PromptResultImage.objects.filter(
+        usage__is_valid=True,
+        usage__template__is_valid=True,
+    ).select_related('usage__template').order_by('-usage__created_at', 'sort', 'created_at')
+    if resource_ids is not None:
+        queryset = queryset.filter(asset_id__in=set(resource_ids))
+
+    usage = {}
+    for image in queryset:
+        usage.setdefault(image.asset_id, {
+            'id': image.usage.template_id,
+            'title': image.usage.template.title,
+        })
+    return usage
+
+
 def is_asset_used_by_agent(resource_id):
     from system_settings.models import Agent
 

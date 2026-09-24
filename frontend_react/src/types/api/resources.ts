@@ -24,6 +24,11 @@ export interface BookSource {
     role: 'file' | 'cover';
 }
 
+export interface PromptSource {
+    id: string;
+    title: string;
+}
+
 export interface ResourceItem {
     id: string;
     name: string;
@@ -34,6 +39,7 @@ export interface ResourceItem {
     fileExists: boolean;
     sourceArticle: ArticleSource | null;
     sourceImage?: ImageSource | null;
+    sourcePrompt?: PromptSource | null;
     sourceAgent?: AgentSource | null;
     sourceBook?: BookSource | null;
     duplicate?: boolean; // 标记是否为重复文件

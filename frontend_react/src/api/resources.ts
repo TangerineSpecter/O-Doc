@@ -2,6 +2,7 @@ import request from '../utils/request';
 import type { 
     ArticleSource, 
     BookSource,
+    PromptSource,
     ResourceItem, 
     GetResourcesParams, 
     ResourceUploadResponse, 
@@ -13,6 +14,7 @@ import type {
 export type { 
     ArticleSource, 
     BookSource,
+    PromptSource,
     ResourceItem, 
     GetResourcesParams, 
     ResourceUploadResponse, 

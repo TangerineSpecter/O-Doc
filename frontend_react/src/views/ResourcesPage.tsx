@@ -8,8 +8,9 @@ import {
     Search, Filter, Download, Trash2, FileText,
     Image as ImageIcon, Music, Video, Box, FileCode, File,
     HardDrive, Cloud, CheckCircle2, Link2Off, X, Loader2, AlertTriangle,
-    BookOpen
+    BookOpen, Maximize2, Sparkles
 } from 'lucide-react';
+import ImageLightboxModal from '../components/common/ImageLightboxModal';
 
 import {getResources, deleteResource, downloadResource, ResourceItem, GetResourcesParams, FormattedSize} from '../api/resources';
 import {formatFileSize} from '@/utils/format';
@@ -66,6 +67,7 @@ export default function ResourcesPage() {
     const [formattedTotalSize, setFormattedTotalSize] = useState<FormattedSize>({size: 0, unit: 'B'});
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [previewFile, setPreviewFile] = useState<ResourceItem | null>(null);
+    const [lightboxImage, setLightboxImage] = useState<{resourceId?: string; title?: string} | null>(null);
 
     // --- Delete Modal State ---
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -150,11 +152,30 @@ export default function ResourcesPage() {
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setSelectedIds(new Set());
+            if (event.key === 'Escape' || event.key === 'Esc') {
+                if (lightboxImage) {
+                    setLightboxImage(null);
+                    return;
+                }
+                if (previewFile) {
+                    setPreviewFile(null);
+                    return;
+                }
+                if (isDeleteModalOpen) {
+                    setIsDeleteModalOpen(false);
+                    setDeletingId(null);
+                    return;
+                }
+                if (selectedIds.size > 0 || isSelectMode) {
+                    setSelectedIds(new Set());
+                    setIsSelectMode(false);
+                    return;
+                }
+            }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    }, [lightboxImage, previewFile, isDeleteModalOpen, selectedIds.size, isSelectMode]);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -375,6 +396,10 @@ export default function ResourcesPage() {
         navigate(`/image/${collId}`);
     };
 
+    const handlePromptClick = (promptId: string) => {
+        navigate(`/prompts?promptId=${encodeURIComponent(promptId)}`);
+    };
+
     return (
         <div
             className="w-full min-h-[calc(100vh-80px)] select-none"
@@ -480,9 +505,38 @@ export default function ResourcesPage() {
 
                         <div className="p-4 space-y-4">
                             {/* 图片或图标预览区域 */}
-                            <div className="w-full aspect-[16/10] bg-slate-50 rounded-xl overflow-hidden border border-slate-100 flex items-center justify-center">
+                            <div
+                                className={`w-full aspect-[16/10] bg-slate-50 rounded-xl overflow-hidden border border-slate-100 flex items-center justify-center relative ${
+                                    previewFile.type === 'image' ? 'cursor-pointer group' : ''
+                                }`}
+                                onClick={() => {
+                                    if (previewFile.type === 'image') {
+                                        setLightboxImage({resourceId: previewFile.id, title: previewFile.name});
+                                    }
+                                }}
+                                title={previewFile.type === 'image' ? '点击查看高清大图' : undefined}
+                            >
                                 {getResourcePreviewUrl(previewFile) ? (
-                                    <AuthenticatedResourceImage resourceId={previewFile.id} alt={previewFile.name} className="w-full h-full object-contain" loading="eager"/>
+                                    <>
+                                        <AuthenticatedResourceImage
+                                            resourceId={previewFile.id}
+                                            alt={previewFile.name}
+                                            className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+                                            loading="eager"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setLightboxImage({resourceId: previewFile.id, title: previewFile.name});
+                                            }}
+                                            className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900/60 hover:bg-slate-900/80 text-white text-xs backdrop-blur-sm transition-all shadow-sm group-hover:scale-105"
+                                            title="查看高清大图"
+                                        >
+                                            <Maximize2 className="w-3.5 h-3.5" />
+                                            <span className="text-[11px] font-medium">查看大图</span>
+                                        </button>
+                                    </>
                                 ) : (
                                     <div className="flex flex-col items-center gap-2 text-slate-400">
                                         <div className={`p-3 rounded-xl ${getFileStyle(previewFile.type)}`}>
@@ -529,6 +583,17 @@ export default function ResourcesPage() {
                                         </button>
                                     ) : previewFile.sourceBook ? (
                                         <span className="text-slate-600 truncate">书架 · {previewFile.sourceBook.title}</span>
+                                    ) : previewFile.sourcePrompt ? (
+                                        <button
+                                            onClick={() => {
+                                                setPreviewFile(null);
+                                                handlePromptClick(previewFile.sourcePrompt!.id);
+                                            }}
+                                            className="text-orange-600 hover:underline truncate flex items-center gap-1"
+                                        >
+                                            <Sparkles className="w-3 h-3 shrink-0" />
+                                            <span className="truncate">{previewFile.sourcePrompt.title}</span>
+                                        </button>
                                     ) : (
                                         <span className="text-slate-400">未关联任何文章</span>
                                     )}
@@ -548,6 +613,18 @@ export default function ResourcesPage() {
                                 勾选此项
                             </button>
                             <div className="flex items-center gap-2">
+                                {previewFile.type === 'image' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setLightboxImage({resourceId: previewFile.id, title: previewFile.name});
+                                        }}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 border border-orange-200/60 text-xs font-medium hover:bg-orange-100 transition-colors"
+                                    >
+                                        <Maximize2 className="w-3.5 h-3.5" />
+                                        查看大图
+                                    </button>
+                                )}
                                 <button
                                     onClick={(e) => {
                                         handleSingleDeleteClick(e, previewFile.id);
@@ -742,6 +819,16 @@ export default function ResourcesPage() {
 
                                         {/* 桌面端快速操作按钮 */}
                                         <div className={`gap-1 hidden sm:group-hover:flex ${isSelected ? 'sm:flex' : ''}`}>
+                                            {file.type === 'image' && (
+                                                <button onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setLightboxImage({resourceId: file.id, title: file.name});
+                                                }}
+                                                        className="p-1 rounded-md bg-white/90 text-slate-400 hover:text-orange-600 hover:bg-orange-50 shadow-sm border border-slate-200 transition-all"
+                                                        title="查看高清大图">
+                                                    <Maximize2 className="w-3.5 h-3.5"/>
+                                                </button>
+                                            )}
                                             <button onClick={(e) => handleSingleDownload(e, file)} disabled={!file.fileExists}
                                                     className="p-1 rounded-md bg-white/90 text-slate-400 hover:text-blue-600 hover:bg-blue-50 shadow-sm border border-slate-200 transition-all disabled:cursor-not-allowed disabled:opacity-40"
                                                     title={file.fileExists ? '下载文件' : '文件已不在本地'}>
@@ -815,6 +902,18 @@ export default function ResourcesPage() {
                                                 <BookOpen className="w-3 h-3 text-slate-300 shrink-0"/>
                                                 <span className="truncate" title={file.sourceBook.title}>书架 · {file.sourceBook.title}</span>
                                             </div>
+                                        ) : file.sourcePrompt ? (
+                                            <div
+                                                className="mt-1.5 pt-1.5 border-t border-slate-50 flex items-center gap-1 text-[10px] text-slate-400 group/source cursor-pointer"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handlePromptClick(file.sourcePrompt!.id);
+                                                }}>
+                                                <Sparkles className="w-3 h-3 text-slate-300 group-hover/source:text-orange-400 transition-colors shrink-0"/>
+                                                <span
+                                                    className="truncate group-hover/source:text-orange-600 group-hover/source:underline transition-colors"
+                                                    title={file.sourcePrompt.title}>{file.sourcePrompt.title}</span>
+                                            </div>
                                         ) : (
                                            <div className="mt-1.5 pt-1.5 border-t border-slate-50 h-5 flex items-center">
                                                 <span className="text-[10px] text-slate-300">未关联</span>
@@ -848,6 +947,14 @@ export default function ResourcesPage() {
                     </div>
                 )}
             </div>
+
+            {/* 高清大图预览 */}
+            <ImageLightboxModal
+                open={!!lightboxImage}
+                resourceId={lightboxImage?.resourceId}
+                title={lightboxImage?.title}
+                onClose={() => setLightboxImage(null)}
+            />
         </div>
     );
 }

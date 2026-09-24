@@ -20,6 +20,7 @@ from utils.resource_assets import (
     get_agent_resource_usage,
     get_article_resource_usage,
     get_image_resource_usage,
+    get_prompt_resource_usage,
     is_asset_used_by_agent,
     is_asset_used_by_article,
     is_asset_used_by_image,
@@ -107,6 +108,8 @@ class ResourceListView(APIView):
             article_linked_resource_ids = set(article_usage.keys())
             image_usage = get_image_resource_usage()
             image_linked_resource_ids = set(image_usage.keys())
+            prompt_usage = get_prompt_resource_usage()
+            prompt_linked_resource_ids = set(prompt_usage.keys())
             agent_usage = get_agent_resource_usage()
             agent_linked_resource_ids = set(agent_usage.keys())
             book_linked_resource_ids = set()
@@ -116,7 +119,7 @@ class ResourceListView(APIView):
                     book_linked_resource_ids.add(cover_asset_id)
             referenced_resource_ids = (
                 article_linked_resource_ids | image_linked_resource_ids |
-                agent_linked_resource_ids | book_linked_resource_ids
+                prompt_linked_resource_ids | agent_linked_resource_ids | book_linked_resource_ids
             )
 
             # 筛选条件
@@ -156,6 +159,7 @@ class ResourceListView(APIView):
             page_file_paths = {asset.id: asset.file_path for asset in page_obj.object_list}
             page_article_usage = get_article_resource_usage(page_resource_ids)
             page_image_usage = get_image_resource_usage(page_resource_ids)
+            page_prompt_usage = get_prompt_resource_usage(page_resource_ids)
             page_agent_usage = get_agent_resource_usage(page_resource_ids)
             page_book_usage = {}
             for book in Book.objects.filter(
@@ -175,6 +179,7 @@ class ResourceListView(APIView):
             for asset in serializer.data:
                 source_article = asset['sourceArticle'] or page_article_usage.get(asset['id'])
                 source_image = page_image_usage.get(asset['id'])
+                source_prompt = page_prompt_usage.get(asset['id'])
                 source_agent = page_agent_usage.get(asset['id'])
                 source_book = page_book_usage.get(asset['id'])
                 resource_data = {
@@ -183,10 +188,11 @@ class ResourceListView(APIView):
                     'type': asset['file_type'],
                     'size': asset['file_size'],
                     'date': asset['upload_time'],
-                    'linked': asset['is_linked'] or bool(source_article) or bool(source_image) or bool(source_agent) or bool(source_book),
+                    'linked': asset['is_linked'] or bool(source_article) or bool(source_image) or bool(source_prompt) or bool(source_agent) or bool(source_book),
                     'fileExists': os.path.isfile(os.path.join(settings.MEDIA_ROOT, page_file_paths[asset['id']])),
                     'sourceArticle': source_article,
                     'sourceImage': source_image,
+                    'sourcePrompt': source_prompt,
                     'sourceAgent': source_agent,
                     'sourceBook': source_book,
                     'sourceType': asset['source_type']
