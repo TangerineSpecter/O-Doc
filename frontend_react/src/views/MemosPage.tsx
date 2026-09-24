@@ -8,7 +8,9 @@ import {
     Search,
     Shuffle,
     Sparkles,
+    ArchiveRestore,
 } from 'lucide-react';
+import {useNavigate} from 'react-router-dom';
 import {createMemo, deleteMemo, getMemoKnowledgeGraph, getMemoList, syncMemoVectors, updateMemo} from '../api/memo';
 import type {CreateMemoParams, MemoItem, MemoKnowledgeGraph, MemoGraphNode} from '../types/api/memo';
 import {CodeBlock} from '../components/Article/MarkdownElements';
@@ -52,6 +54,7 @@ const remarkSoftLineBreaks = () => {
 };
 
 export default function MemosPage() {
+    const navigate = useNavigate();
     const [memos, setMemos] = useState<MemoItem[]>([]);
     const [content, setContent] = useState('');
     const [tag, setTag] = useState('');
@@ -271,7 +274,7 @@ export default function MemosPage() {
             if (viewMode === 'graph') {
                 fetchKnowledgeGraph();
             }
-            showToast('闪念已删除', 'success');
+            showToast('闪念已移入回收站', 'success');
         } catch (error) {
             console.error('Failed to delete memo', error);
             showToast('删除失败', 'error');
@@ -582,8 +585,8 @@ export default function MemosPage() {
                 onClose={() => setDeleteId(null)}
                 onConfirm={confirmDelete}
                 title="删除闪念"
-                description="确定要删除这条记录吗？删除后无法恢复。"
-                confirmText="确认删除"
+                description="将这条闪念移入回收站？你可以之后恢复。"
+                confirmText="移入回收站"
                 type="danger"
             />
 
@@ -633,14 +636,23 @@ export default function MemosPage() {
                             </div>
                         </div>
 
-                        <div className="relative w-full lg:w-80">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-slate-400"/>
-                            <input
-                                value={keyword}
-                                onChange={(event) => setKeyword(event.target.value)}
-                                placeholder="搜索内容或标签"
-                                className="h-9 sm:h-10 w-full rounded-full border border-slate-200 bg-slate-50 pl-8 sm:pl-9 pr-3 text-xs sm:text-sm outline-none transition hover:bg-white focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
-                            />
+                        <div className="flex w-full items-center gap-2 lg:w-auto">
+                            <div className="relative min-w-0 flex-1 lg:w-80 lg:flex-none">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-slate-400"/>
+                                <input
+                                    value={keyword}
+                                    onChange={(event) => setKeyword(event.target.value)}
+                                    placeholder="搜索内容或标签"
+                                    className="h-9 sm:h-10 w-full rounded-full border border-slate-200 bg-slate-50 pl-8 sm:pl-9 pr-3 text-xs sm:text-sm outline-none transition hover:bg-white focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/recycle')}
+                                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-orange-200 hover:text-orange-700 sm:text-sm"
+                            >
+                                <ArchiveRestore className="h-4 w-4"/>回收站
+                            </button>
                         </div>
                     </div>
 

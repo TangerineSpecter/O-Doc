@@ -257,7 +257,7 @@ function AgentPostCollectionView({
                 onNavigate?.('article', {collId});
             }
             setDeleteTarget(null);
-            toast.success('帖子已删除');
+            toast.success('帖子已移入回收站');
         } catch (error) {
             console.error('删除 Agent 帖子失败:', error);
             toast.error(error instanceof Error ? error.message : '删除帖子失败');
@@ -333,8 +333,8 @@ function AgentPostCollectionView({
                         onClose={() => setDeleteTarget(null)}
                         onConfirm={confirmDeletePost}
                         title="删除 Agent 帖子"
-                        description="确定要删除这条 Agent 帖子吗？此操作无法恢复。"
-                        confirmText="删除"
+                        description="删除后将移入回收站，可从回收站恢复。"
+                        confirmText="移入回收站"
                         type="danger"
                     />
                 )}
@@ -506,8 +506,8 @@ function AgentPostCollectionView({
                     onClose={() => setDeleteTarget(null)}
                     onConfirm={confirmDeletePost}
                     title="删除 Agent 帖子"
-                    description="确定要删除这条 Agent 帖子吗？此操作无法恢复。"
-                    confirmText="删除"
+                    description="删除后将移入回收站，可从回收站恢复。"
+                    confirmText="移入回收站"
                     type="danger"
                 />
             )}
@@ -885,7 +885,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
         navigate(`/editor/${activeDocId}`);
     };
 
-    const [deleteDescription, setDeleteDescription] = useState('确定要删除当前文档吗？此操作无法恢复。');
+    const [deleteDescription, setDeleteDescription] = useState('删除后将移入回收站，可从回收站恢复。');
     const handleDeleteArticle = async () => {
         if (!isAuthenticated || !activeDocId) return;
         if (articleDetail?.contentFormat === 'html') {
@@ -893,7 +893,11 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                 const summary = await getHtmlDeletionSummary(activeDocId);
                 setDeleteDescription(`此操作不可恢复，将清理 ${summary.exclusiveCount} 个专属资源，保留 ${summary.sharedCount} 个共享或已有资源。`);
             } catch (reason) {toast.error(reason instanceof Error ? reason.message : '无法读取资源清理信息'); return;}
-        } else setDeleteDescription('确定要删除当前文档吗？此操作无法恢复。');
+        } else if (articleDetail?.contentFormat === 'markdown') {
+            setDeleteDescription('删除后将移入回收站，可从回收站恢复。');
+        } else {
+            setDeleteDescription('确定要删除当前文档吗？此操作无法恢复。');
+        }
         setIsDeleteModalOpen(true);
     };
 
@@ -901,7 +905,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
         if (!isAuthenticated || !activeDocId) return;
         try {
             await deleteArticle(activeDocId);
-            toast.success('文章删除成功');
+            toast.success(articleDetail?.contentFormat === 'html' ? 'HTML 笔记删除成功' : '文章已移入回收站');
             setActiveDocId(undefined);
             if (onNavigate) onNavigate('article', {collId});
             setIsDeleteModalOpen(false);
@@ -968,7 +972,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
                     onConfirm={confirmDelete}
                     title="删除文档"
                     description={deleteDescription}
-                    confirmText="删除"
+                    confirmText={articleDetail?.contentFormat === 'markdown' ? '移入回收站' : '删除'}
                     type="danger"
                 />
             )}

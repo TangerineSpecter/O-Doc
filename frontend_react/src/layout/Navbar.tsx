@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, ArrowUpCircle, UserRound } from 'lucide-react';
+import { Search, Bell, ChevronDown, LogIn, LogOut, Settings, Leaf, ArrowUpCircle, UserRound, ArchiveRestore } from 'lucide-react';
 import packageJson from '../../package.json';
 import NotificationPopover from '../components/NotificationPopover';
 import { getNotifications, pushRandomMemoNotification } from '../api/message';
@@ -248,6 +248,9 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                                             <>
                                                 <button onClick={onOpenProfile} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors text-left">
                                                     <UserRound className="w-4 h-4" /> 个人中心
+                                                </button>
+                                                <button onClick={() => onNavigate?.('recycle')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors text-left">
+                                                    <ArchiveRestore className="w-4 h-4" /> 回收站
                                                 </button>
                                                 {userInfo.isAdmin && (
                                                     <button onClick={() => onNavigate && onNavigate('settings')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors text-left">

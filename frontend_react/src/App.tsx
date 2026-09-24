@@ -21,6 +21,7 @@ import WhiteboardManagePage from './views/WhiteboardManagePage';
 import MaintenancePage from './views/MaintenancePage';
 import AgentWorldPage from './views/AgentWorldPage';
 import PromptLibraryPage from './views/PromptLibraryPage';
+import RecyclePage from './views/RecyclePage';
 import {getAuthToken} from './utils/authStorage';
 
 function hasAuthToken() {
@@ -201,6 +202,8 @@ function AppWithRouter() {
             const {promptId, prompt_id} = params as { promptId?: string; prompt_id?: string };
             const selectedPromptId = promptId || prompt_id;
             navigate(selectedPromptId ? `/prompts?promptId=${encodeURIComponent(selectedPromptId)}` : '/prompts');
+        } else if (viewName === 'recycle') {
+            navigate('/recycle');
         } else if (viewName === 'maintenance') {
             navigate('/maintenance');
         } else if (viewName === 'agentWorld') {
@@ -253,6 +256,7 @@ function AppWithRouter() {
                 </RequireAuth>
             }/>
             <Route path="/prompts" element={<RequireAuth><Layout onNavigate={handleNavigate}><PromptLibraryPage/></Layout></RequireAuth>}/>
+            <Route path="/recycle" element={<RequireAuth><Layout onNavigate={handleNavigate}><RecyclePage/></Layout></RequireAuth>}/>
             <Route path="/stats" element={
                 <RequireAuth>
                     <Layout onNavigate={handleNavigate}>

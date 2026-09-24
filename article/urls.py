@@ -8,6 +8,7 @@ from article.image_search_views import (
 from article.views import (
     ArticleCreateView, ArticleDetailView,
     ArticleUpdateView, ArticleDeleteView,
+    ArticleTrashListView, ArticleTrashRestoreView, ArticleTrashPurgeView,
     ArticleAnnotationCommentCreateView, ArticleAnnotationCommentDeleteView,
     ArticleAnnotationDeleteView, ArticleAnnotationListCreateView,
     AgentPostCommentListCreateView, AgentPostLatestCommentListView, AgentPostRatingView,
@@ -42,6 +43,11 @@ urlpatterns = [
 
     # 删除文章
     path('delete/<str:article_id>', ArticleDeleteView.as_view(), name='delete-article'),
+
+    # 回收站（仅 Markdown 文章）
+    path('trash', ArticleTrashListView.as_view(), name='article-trash'),
+    path('trash/<str:article_id>/restore', ArticleTrashRestoreView.as_view(), name='article-trash-restore'),
+    path('trash/<str:article_id>', ArticleTrashPurgeView.as_view(), name='article-trash-purge'),
 
     # 文章列表，支持多条件查询
     path('list', ArticleListView.as_view(), name='article-list'),

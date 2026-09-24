@@ -1,8 +1,11 @@
 import logging
 
 from django.db.models import Q
+from django.db import transaction
 from django.shortcuts import get_object_or_404
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from system_settings.sync_state import permanent_deletion
 
 from utils.drf_utils import get_current_user_identifier
 from utils.error_codes import ErrorCode
@@ -93,6 +96,68 @@ class MemoDeleteView(APIView):
             return success_result()
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+
+class MemoTrashListView(APIView):
+    """List the authenticated user's deleted memos."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        memos = Memo.objects.filter(
+            user_id=get_current_user_identifier(request),
+            is_valid=False,
+        ).only('memo_id', 'content', 'tag', 'created_at', 'updated_at').order_by('-updated_at')
+        return success_result(data=[
+            {
+                'item_type': 'memo',
+                'id': memo.memo_id,
+                'memo_id': memo.memo_id,
+                'preview': memo.content[:360].strip(),
+                'tag': memo.tag,
+                'created_at': memo.created_at,
+                # updated_at is already refreshed by the existing soft-delete path.
+                'deleted_at': memo.updated_at,
+            }
+            for memo in memos
+        ])
+
+
+class MemoTrashRestoreView(APIView):
+    """Restore a deleted memo on its owning account."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, memo_id):
+        with transaction.atomic():
+            memo = get_object_or_404(
+                Memo.objects.select_for_update(),
+                memo_id=memo_id,
+                user_id=get_current_user_identifier(request),
+                is_valid=False,
+            )
+            memo.is_valid = True
+            memo.save()
+        # Vector rebuilding is intentionally left to the existing manual/background sync.
+        return success_result(data={'memo_id': memo.memo_id})
+
+
+class MemoTrashPurgeView(APIView):
+    """Permanently delete a memo and record its sync-v2 tombstone."""
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, memo_id):
+        with transaction.atomic():
+            memo = get_object_or_404(
+                Memo.objects.select_for_update(),
+                memo_id=memo_id,
+                user_id=get_current_user_identifier(request),
+                is_valid=False,
+            )
+            with permanent_deletion():
+                memo.delete()
+        return success_result()
 
 
 class MemoVectorSyncView(APIView):

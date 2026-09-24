@@ -6,11 +6,17 @@ from .views import (
     MemoDetailView,
     MemoKnowledgeGraphView,
     MemoListView,
+    MemoTrashListView,
+    MemoTrashRestoreView,
+    MemoTrashPurgeView,
     MemoUpdateView,
     MemoVectorSyncView,
 )
 
 urlpatterns = [
+    path('trash', MemoTrashListView.as_view(), name='memo-trash'),
+    path('trash/<str:memo_id>/restore', MemoTrashRestoreView.as_view(), name='memo-trash-restore'),
+    path('trash/<str:memo_id>', MemoTrashPurgeView.as_view(), name='memo-trash-purge'),
     path('list', MemoListView.as_view(), name='memo_list'),
     path('knowledge_graph', MemoKnowledgeGraphView.as_view(), name='memo_knowledge_graph'),
     path('sync_vectors', MemoVectorSyncView.as_view(), name='memo_sync_vectors'),

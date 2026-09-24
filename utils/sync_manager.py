@@ -22,7 +22,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from system_settings.sync_state import (
-    LOCAL_ONLY_MODEL_LABELS, canonical_hash, get_device_id, suspend_tracking,
+    LOCAL_ONLY_MODEL_LABELS, PERMANENT_DELETE_HASH_PREFIX, canonical_hash, get_device_id, suspend_tracking,
     sync_entity_identity,
 )
 
@@ -1361,8 +1361,12 @@ class SyncManager:
 
     @staticmethod
     def _revision_winner(local_revision, remote_revision):
-        """删除与编辑冲突保留编辑；其余冲突按时间、设备 ID 稳定决策。"""
+        """Permanent purges win; normal delete/edit conflicts preserve the edit."""
         if bool(local_revision.get('deleted')) != bool(remote_revision.get('deleted')):
+            if local_revision.get('deleted') and str(local_revision.get('hash', '')).startswith(PERMANENT_DELETE_HASH_PREFIX):
+                return local_revision
+            if remote_revision.get('deleted') and str(remote_revision.get('hash', '')).startswith(PERMANENT_DELETE_HASH_PREFIX):
+                return remote_revision
             return remote_revision if local_revision.get('deleted') else local_revision
         local_at = local_revision.get('revision_at', '')
         remote_at = remote_revision.get('revision_at', '')

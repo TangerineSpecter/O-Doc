@@ -17,6 +17,7 @@ from django.shortcuts import get_object_or_404
 from PIL import Image as PILImage
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from system_settings.sync_state import permanent_deletion
 
 from article.annotation_service import (
     AnnotationError,
@@ -71,7 +72,7 @@ from utils.resource_assets import (
     extract_resource_id_from_view_url,
     is_asset_used_by_image,
 )
-from utils.response_utils import success_result, error_result
+from utils.response_utils import success_result, error_result, valid_result
 from utils.web_parser import WebParserError
 from anthology.models import Anthology
 from assets.models import Asset
@@ -444,6 +445,114 @@ class ArticleDeleteView(APIView):
 
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
+
+
+class ArticleTrashListView(APIView):
+    """List the authenticated user's deleted Markdown articles."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        owner = get_current_user_identifier(request)
+        articles = list(
+            Article.objects.filter(
+                author=owner,
+                content_format='markdown',
+                is_valid=False,
+            )
+            .only('article_id', 'title', 'content', 'coll_id', 'created_at', 'updated_at')
+            .order_by('-updated_at')
+        )
+        anthology_ids = {article.coll_id for article in articles}
+        article_ids = [article.article_id for article in articles]
+        parent_ids_with_children = set(
+            Article.objects.filter(parent_id__in=article_ids)
+            .values_list('parent_id', flat=True)
+        )
+        anthologies = {
+            anthology.coll_id: anthology
+            for anthology in Anthology.objects.filter(
+                coll_id__in=anthology_ids,
+                user_id=owner,
+                type__in=('article', 'agent'),
+            ).only('coll_id', 'title', 'is_valid', 'user_id', 'type')
+        }
+        return success_result(data=[
+            {
+                'item_type': 'article',
+                'id': article.article_id,
+                'article_id': article.article_id,
+                'title': article.title,
+                'preview': article.content[:360].strip(),
+                'coll_id': article.coll_id,
+                'anthology_title': anthologies[article.coll_id].title if article.coll_id in anthologies else '',
+                'collection_available': bool(
+                    article.coll_id in anthologies and anthologies[article.coll_id].is_valid
+                ),
+                'has_children': article.article_id in parent_ids_with_children,
+                'created_at': article.created_at,
+                # The existing updated_at field is refreshed by soft-delete and needs no sync schema change.
+                'deleted_at': article.updated_at,
+            }
+            for article in articles
+        ])
+
+
+class ArticleTrashRestoreView(APIView):
+    """Restore a deleted Markdown article to its original active collection."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, article_id):
+        owner = get_current_user_identifier(request)
+        with transaction.atomic():
+            article = get_object_or_404(
+                Article.objects.select_for_update(),
+                article_id=article_id,
+                author=owner,
+                content_format='markdown',
+                is_valid=False,
+            )
+            anthology = Anthology.objects.filter(
+                coll_id=article.coll_id,
+                user_id=owner,
+                type__in=('article', 'agent'),
+            ).first()
+            if anthology is None or not anthology.is_valid:
+                return valid_result(msg='所属文集已删除，暂无法恢复', status=409)
+
+            article.is_valid = True
+            article.is_rag_synced = False
+            article.last_rag_synced_at = None
+            article.save()
+            refresh_anthology_stats(article.coll_id)
+
+        return success_result(data={'article_id': article.article_id, 'coll_id': article.coll_id})
+
+
+class ArticleTrashPurgeView(APIView):
+    """Permanently delete a deleted Markdown article and record its sync tombstone."""
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, article_id):
+        owner = get_current_user_identifier(request)
+        with transaction.atomic():
+            article = get_object_or_404(
+                Article.objects.select_for_update(),
+                article_id=article_id,
+                author=owner,
+                content_format='markdown',
+                is_valid=False,
+            )
+            if article.children.exists():
+                return valid_result(msg='请先彻底删除该文章的子文章，再删除这篇文章', status=409)
+            coll_id = article.coll_id
+            # Mark the article and cascaded records as permanent sync tombstones.
+            with permanent_deletion():
+                article.delete()
+            refresh_anthology_stats(coll_id)
+        return success_result()
 
 
 class ArticleListView(APIView):

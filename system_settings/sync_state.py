@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from django.utils import timezone
 
 DEVICE_SETTING_KEY = 'system_sync_v2_device'
+# A normal SHA-256 hash is hexadecimal; this marker fits the existing 64-character field.
+PERMANENT_DELETE_HASH_PREFIX = '!'
 LOCAL_ONLY_MODEL_LABELS = frozenset({
     'system_settings.syncentitystate', 'book_analysis.sourcecache',
     'book_analysis.segmentcache', 'book_analysis.analysisrun', 'book_analysis.workerlease',
@@ -29,6 +31,17 @@ def suspend_tracking():
         yield
     finally:
         _local.suspended = previous
+
+
+@contextmanager
+def permanent_deletion():
+    """Give explicit purge tombstones priority over concurrent edits, including cascades."""
+    previous = bool(getattr(_local, 'permanent_deletion', False))
+    _local.permanent_deletion = True
+    try:
+        yield
+    finally:
+        _local.permanent_deletion = previous
 
 
 def get_device_id():
@@ -84,7 +97,7 @@ def record_change(sender, instance, deleted=False):
         field.name: getattr(instance, field.name, None)
         for field in sender._meta.fields
     }
-    SyncEntityState.objects.update_or_create(
+    state, _ = SyncEntityState.objects.update_or_create(
         model_label=sender._meta.label_lower,
         object_pk=sync_entity_identity(sender._meta.label_lower, instance.pk, fields),
         defaults={
@@ -93,6 +106,10 @@ def record_change(sender, instance, deleted=False):
             'is_deleted': deleted,
         },
     )
+    if deleted and getattr(_local, 'permanent_deletion', False):
+        previous_hash = state.content_hash.lstrip(PERMANENT_DELETE_HASH_PREFIX)
+        state.content_hash = PERMANENT_DELETE_HASH_PREFIX + previous_hash[:63]
+        state.save(update_fields=['content_hash', 'updated_at'])
 
 
 def record_bulk_change(queryset):
