@@ -1360,13 +1360,17 @@ class SyncManager:
         return (base or {}).get('hash') != (candidate or {}).get('hash') or bool((base or {}).get('deleted')) != bool((candidate or {}).get('deleted'))
 
     @staticmethod
+    def _is_permanent_delete(revision):
+        return bool(revision.get('deleted')) and str(revision.get('hash', '')).startswith(PERMANENT_DELETE_HASH_PREFIX)
+
+    @staticmethod
     def _revision_winner(local_revision, remote_revision):
         """Permanent purges win; normal delete/edit conflicts preserve the edit."""
+        local_purged = SyncManager._is_permanent_delete(local_revision)
+        remote_purged = SyncManager._is_permanent_delete(remote_revision)
+        if local_purged != remote_purged:
+            return local_revision if local_purged else remote_revision
         if bool(local_revision.get('deleted')) != bool(remote_revision.get('deleted')):
-            if local_revision.get('deleted') and str(local_revision.get('hash', '')).startswith(PERMANENT_DELETE_HASH_PREFIX):
-                return local_revision
-            if remote_revision.get('deleted') and str(remote_revision.get('hash', '')).startswith(PERMANENT_DELETE_HASH_PREFIX):
-                return remote_revision
             return remote_revision if local_revision.get('deleted') else local_revision
         local_at = local_revision.get('revision_at', '')
         remote_at = remote_revision.get('revision_at', '')
@@ -1393,7 +1397,11 @@ class SyncManager:
             remote_rev = remote_revisions.get(key, {'deleted': True, 'hash': ''})
             local_changed = self._revision_changed(base_rev, local_rev)
             remote_changed = self._revision_changed(base_rev, remote_rev)
-            if local_changed and remote_changed and local_rev != remote_rev:
+            if self._is_permanent_delete(local_rev) != self._is_permanent_delete(remote_rev):
+                winner = self._revision_winner(local_rev, remote_rev)
+                if local_changed and remote_changed and local_rev != remote_rev:
+                    summary['conflicts'] += 1
+            elif local_changed and remote_changed and local_rev != remote_rev:
                 winner = self._revision_winner(local_rev, remote_rev)
                 summary['conflicts'] += 1
             elif remote_changed:
