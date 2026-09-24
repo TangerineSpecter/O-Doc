@@ -5,7 +5,7 @@ import {GraphChart} from 'echarts/charts';
 import {LegendComponent, TooltipComponent} from 'echarts/components';
 import {CanvasRenderer} from 'echarts/renderers';
 import type {EChartsOption} from 'echarts';
-import {ChevronRight, Edit3, Hash, Network, PanelRightOpen, Pin, RefreshCw, StickyNote, X} from 'lucide-react';
+import {Bot, ChevronRight, Edit3, Hash, Network, PanelRightOpen, Pin, RefreshCw, StickyNote, User, X} from 'lucide-react';
 import type {MemoGraphNode, MemoKnowledgeGraph, MemoItem} from '../../types/api/memo';
 
 echarts.use([GraphChart, TooltipComponent, LegendComponent, CanvasRenderer]);
@@ -396,22 +396,36 @@ export default function KnowledgeGraphPanel({
                             </ReactMarkdown>
                         </div>
 
-                        {/* 极简核心指标条 */}
-                        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                        {/* 核心指标条 */}
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-center">
                             <div className="rounded-xl border border-slate-100 bg-slate-50/70 py-1.5 px-2">
                                 <div className="text-[10px] text-slate-400">正文字数</div>
                                 <div className="mt-0.5 text-xs font-bold text-slate-700">{memo.content.length} 字</div>
                             </div>
                             <div className="rounded-xl border border-slate-100 bg-slate-50/70 py-1.5 px-2">
-                                <div className="text-[10px] text-slate-400">记录人</div>
-                                <div className="mt-0.5 truncate text-xs font-bold text-slate-700">
-                                    {author?.name || (author?.isAgent ? 'Agent' : '我')}
-                                </div>
-                            </div>
-                            <div className="rounded-xl border border-slate-100 bg-slate-50/70 py-1.5 px-2">
                                 <div className="text-[10px] text-slate-400">图谱连线</div>
                                 <div className="mt-0.5 text-xs font-bold text-orange-600">{relatedLinks.length} 条</div>
                             </div>
+                        </div>
+
+                        {/* 记录人信息栏（完整单行展示，避免长名称被截断） */}
+                        <div className="mt-2 flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-1.5 text-xs">
+                            <span className="text-[10px] text-slate-400">记录人</span>
+                            <span
+                                className={`inline-flex max-w-[200px] items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${
+                                    author?.isAgent
+                                        ? 'bg-emerald-50 text-emerald-700 ring-emerald-200/60'
+                                        : 'bg-blue-50 text-blue-700 ring-blue-200/60'
+                                }`}
+                                title={author?.name}
+                            >
+                                {author?.isAgent ? (
+                                    <Bot className="h-3 w-3 shrink-0 text-emerald-600" />
+                                ) : (
+                                    <User className="h-3 w-3 shrink-0 text-blue-600" />
+                                )}
+                                <span className="truncate">{author?.name || (author?.isAgent ? 'Agent' : '我')}</span>
+                            </span>
                         </div>
 
                         {/* 操作按钮 */}
@@ -474,8 +488,8 @@ export default function KnowledgeGraphPanel({
                             暂无直接关联节点
                         </div>
                     ) : (
-                        <div className="space-y-1.5">
-                            {relatedLinks.slice(0, 10).map((link, index) => {
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300">
+                            {relatedLinks.map((link, index) => {
                                 const otherId = link.source === selectedGraphNode.id ? link.target : link.source;
                                 const otherNode = graphData?.nodes.find(node => node.id === otherId);
                                 const isOtherTag = otherNode?.category === 'tag';
@@ -517,11 +531,6 @@ export default function KnowledgeGraphPanel({
                                     </button>
                                 );
                             })}
-                            {relatedLinks.length > 10 && (
-                                <p className="pt-1 text-center text-[10px] text-slate-400">
-                                    仅展示前 10 条关联
-                                </p>
-                            )}
                         </div>
                     )}
                 </div>
@@ -570,12 +579,12 @@ export default function KnowledgeGraphPanel({
                 </div>
             </div>
 
-            <div className={`grid transition-[grid-template-columns] duration-200 ${
+            <div className={`grid h-[calc(100vh-230px)] min-h-[460px] lg:h-[640px] transition-[grid-template-columns] duration-200 ${
                 isDetailCollapsed
                     ? 'lg:grid-cols-[minmax(0,1fr)_48px]'
-                    : 'lg:grid-cols-[minmax(0,1fr)_300px]'
+                    : 'lg:grid-cols-[minmax(0,1fr)_320px]'
             }`}>
-                <div className="relative h-[calc(100vh-230px)] min-h-[460px] lg:h-[620px] bg-[radial-gradient(circle_at_20%_20%,rgba(249,115,22,0.08),transparent_32%),linear-gradient(180deg,#fff,#f8fafc)]">
+                <div className="relative h-full w-full bg-[radial-gradient(circle_at_20%_20%,rgba(249,115,22,0.08),transparent_32%),linear-gradient(180deg,#fff,#f8fafc)]">
                     {graphLoading && (
                         <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 text-sm text-slate-500 backdrop-blur-sm">
                             正在梳理关系...
@@ -609,14 +618,14 @@ export default function KnowledgeGraphPanel({
                 </div>
 
                 {/* 桌面端右侧面板（移动端隐藏） */}
-                <aside className={`hidden lg:block border-l border-slate-100 bg-slate-50/70 transition-all duration-200 ${
-                    isDetailCollapsed ? 'p-2' : 'p-4'
+                <aside className={`hidden lg:flex lg:flex-col h-full overflow-hidden border-l border-slate-100 bg-slate-50/70 transition-all duration-200 ${
+                    isDetailCollapsed ? 'p-2' : 'p-3.5'
                 }`}>
                     {isDetailCollapsed ? (
                         <button
                             type="button"
                             onClick={() => selectedGraphNode && onDetailCollapsedChange(false)}
-                            className="flex h-full min-h-[520px] w-full flex-col items-center justify-start gap-2 rounded-lg border border-dashed border-slate-200 bg-white/80 px-2 py-4 text-slate-400 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                            className="flex h-full w-full flex-col items-center justify-start gap-2 rounded-lg border border-dashed border-slate-200 bg-white/80 px-2 py-4 text-slate-400 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
                             title={selectedGraphNode ? '展开详情' : '点击节点后查看详情'}
                         >
                             <PanelRightOpen className="h-4 w-4"/>
@@ -625,7 +634,9 @@ export default function KnowledgeGraphPanel({
                             </span>
                         </button>
                     ) : (
-                        renderDetailBody(false)
+                        <div className="flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300">
+                            {renderDetailBody(false)}
+                        </div>
                     )}
                 </aside>
             </div>
