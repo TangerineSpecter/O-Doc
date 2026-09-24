@@ -60,6 +60,8 @@ export const useEditor = () => {
     // State: Content
     const [title, setTitle] = useState("未命名文档");
     const [content, setContent] = useState('');
+    const [contentFormat, setContentFormat] = useState<'markdown' | 'html' | null>(null);
+    const [articleAuthor, setArticleAuthor] = useState('');
     const [templateChosen, setTemplateChosen] = useState(false);
 
     // Toast
@@ -708,6 +710,8 @@ export const useEditor = () => {
                     navigate(`/article/${articleDetail.collId}/${articleDetail.articleId}`, {replace: true});
                     return;
                 }
+                setContentFormat(articleDetail.contentFormat || 'markdown');
+                setArticleAuthor(articleDetail.author);
 
                 // 设置文章内容
                 setTitle(articleDetail.title);
@@ -988,6 +992,7 @@ export const useEditor = () => {
         // Refs
         textareaRef, fileInputRef, attachmentInputRef,
         // State
+        articleId, contentFormat, articleAuthor,
         title, setTitle,
         content,
         category, setCategory,

@@ -22,7 +22,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from system_settings.sync_state import (
-    LOCAL_ONLY_MODEL_LABELS, PERMANENT_DELETE_HASH_PREFIX, canonical_hash, get_device_id, suspend_tracking,
+    LOCAL_ONLY_MODEL_LABELS, PERMANENT_DELETE_HASH_PREFIX, canonical_hash, get_device_id, is_tracking_suspended, suspend_tracking,
     sync_entity_identity,
 )
 
@@ -819,6 +819,10 @@ class SyncManager:
                 transaction.on_commit(lambda vectors=dict(image_vectors_to_remove): delete_image_vectors(vectors), robust=True)
             from article.html_note_resources import retry_html_cleanup
             transaction.on_commit(retry_html_cleanup)
+
+        if not is_tracking_suspended():
+            from article.version_service import enforce_article_version_retention
+            enforce_article_version_retention()
 
         return len(data_list)
 
@@ -1716,6 +1720,9 @@ class SyncManager:
         self._ensure_not_aborted(should_abort)
         report('正在创建本机完整安全快照。', 5)
         safety_backup = self.create_local_safety_backup('before-sync')
+        from article.version_service import enforce_article_version_retention
+
+        enforce_article_version_retention()
         report('本机安全快照已完成，正在连接远端并获取同步锁。', 18)
         self._ensure_not_aborted(should_abort)
         # 首次扫描不能直接作废普通媒体：远端快照可能仍有可恢复副本。
@@ -1749,6 +1756,9 @@ class SyncManager:
                     with suspend_tracking():
                         self.apply_snapshot_data(merged_data, full_overwrite=True)
                     self._apply_v2_revisions(merged_revisions)
+                    # A three-way merge can combine independently retained histories.
+                    # Pruning after revision import records tombstones for every device.
+                    enforce_article_version_retention()
                 # 远端新图书的正文被刻意跳过下载；写入数据库后立即将其转为
                 # 仅云端状态，确保本次同步完成后书架就能触发按需恢复。
                 self.reconcile_missing_book_media()
@@ -1780,6 +1790,7 @@ class SyncManager:
                 with suspend_tracking():
                     self.apply_snapshot_data(snapshot['data'], full_overwrite=True)
                 self._apply_v2_revisions(snapshot['revisions'])
+                enforce_article_version_retention()
             restored = self.publish_v2_snapshot(
                 source='history-restore', runner_id=runner_id, base_snapshot_id=snapshot_id,
                 previous_media=snapshot.get('media'), data_list=snapshot['data'], revisions=snapshot['revisions'],

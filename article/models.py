@@ -11,6 +11,7 @@ from utils.id_generator import (
     generate_article_id,
     generate_article_post_comment_id,
     generate_article_post_rating_id,
+    generate_article_version_id,
     generate_image_id,
 )
 
@@ -280,6 +281,57 @@ class Article(models.Model):
             self.read_time = 0
 
         super().save(*args, **kwargs)
+
+
+class ArticleVersion(models.Model):
+    """A restorable snapshot of a persisted Markdown article state."""
+
+    SOURCE_CHOICES = [
+        ('save', '保存'),
+        ('polish', '润色'),
+        ('restore', '恢复'),
+        ('import', '导入'),
+    ]
+
+    version_id = models.CharField(
+        max_length=32,
+        primary_key=True,
+        default=generate_article_version_id,
+        editable=False,
+        verbose_name='版本 ID',
+        db_comment='跨设备稳定的文章版本 ID',
+    )
+    article = models.ForeignKey(
+        Article,
+        to_field='article_id',
+        db_column='article_id',
+        on_delete=models.CASCADE,
+        related_name='versions',
+        verbose_name='所属文章',
+        db_comment='所属文章 ID',
+    )
+    title = models.CharField(max_length=255, verbose_name='文章标题')
+    content = models.TextField(verbose_name='Markdown 正文')
+    coll_id = models.CharField(max_length=32, verbose_name='文集 ID')
+    category_id = models.CharField(max_length=36, blank=True, default='', verbose_name='分类 ID')
+    tag_ids = models.JSONField(blank=True, default=list, verbose_name='标签 ID 列表')
+    post_summary = models.CharField(max_length=300, blank=True, default='', verbose_name='文章摘要')
+    word_count = models.PositiveIntegerField(default=0, verbose_name='文章字数')
+    operator_id = models.CharField(max_length=80, blank=True, default='', verbose_name='操作者')
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='save', verbose_name='版本来源')
+    created_at = models.DateTimeField(default=timezone.now, editable=False, verbose_name='版本时间')
+
+    class Meta:
+        db_table = 'article_versions'
+        verbose_name = '文章历史版本'
+        verbose_name_plural = '文章历史版本'
+        ordering = ['-created_at', '-version_id']
+        indexes = [
+            models.Index(fields=['article', '-created_at'], name='art_ver_art_cr_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.article_id}:{self.version_id}'
 
 
 class ArticleAsset(models.Model):

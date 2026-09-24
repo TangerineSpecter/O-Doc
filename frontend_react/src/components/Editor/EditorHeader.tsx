@@ -1,4 +1,4 @@
-import { ArrowLeft, BookmarkPlus, Edit3, Eye, Type, Save, Sparkles, Wand2, Loader2 } from 'lucide-react';
+import { ArrowLeft, BookmarkPlus, Edit3, Eye, History, Type, Save, Sparkles, Wand2, Loader2 } from 'lucide-react';
 import {getPreviewShortcutLabel} from '../../utils/keyboard';
 
 // 更新 Props 接口
@@ -15,6 +15,8 @@ interface EditorHeaderProps {
     isPolishing: boolean;
     onPolish: () => void;
     onSaveAsTemplate: () => void;
+    articleId?: string;
+    onOpenHistory?: () => void;
 }
 
 export const EditorHeader = ({
@@ -30,6 +32,8 @@ export const EditorHeader = ({
     isPolishing,
     onPolish,
     onSaveAsTemplate,
+    articleId,
+    onOpenHistory,
 }: EditorHeaderProps) => {
     const previewShortcutLabel = getPreviewShortcutLabel();
 
@@ -79,6 +83,19 @@ export const EditorHeader = ({
 
                 {/* 分隔线 */}
                 <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
+
+                {articleId && onOpenHistory && (
+                    <button
+                        type="button"
+                        onClick={onOpenHistory}
+                        disabled={isSaving || isPolishing}
+                        className="flex items-center gap-2 rounded-lg border border-transparent px-3 py-1.5 text-sm font-medium text-slate-600 transition-all hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        title="查看文章历史版本"
+                    >
+                        <History className="h-4 w-4"/>
+                        <span className="hidden sm:inline">历史</span>
+                    </button>
+                )}
 
                 <button
                     type="button"

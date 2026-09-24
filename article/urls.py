@@ -19,6 +19,7 @@ from article.views import (
     ImageCreateView, ImageUpdateView, ImageDeleteView, ImageGroupCreateView, ImageGroupUpdateView, ImageGroupDeleteView,
     ImageDescriptionGenerateView
 )
+from article.version_views import ArticleVersionDetailView, ArticleVersionListView, ArticleVersionRestoreView
 
 urlpatterns = [
     path('image/search', ImageSmartSearchView.as_view()),
@@ -48,6 +49,11 @@ urlpatterns = [
     path('trash', ArticleTrashListView.as_view(), name='article-trash'),
     path('trash/<str:article_id>/restore', ArticleTrashRestoreView.as_view(), name='article-trash-restore'),
     path('trash/<str:article_id>', ArticleTrashPurgeView.as_view(), name='article-trash-purge'),
+
+    # Markdown article history and restore
+    path('<str:article_id>/versions', ArticleVersionListView.as_view(), name='article-version-list'),
+    path('<str:article_id>/versions/<str:version_id>', ArticleVersionDetailView.as_view(), name='article-version-detail'),
+    path('<str:article_id>/versions/<str:version_id>/restore', ArticleVersionRestoreView.as_view(), name='article-version-restore'),
 
     # 文章列表，支持多条件查询
     path('list', ArticleListView.as_view(), name='article-list'),

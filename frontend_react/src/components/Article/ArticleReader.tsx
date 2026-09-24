@@ -1,7 +1,7 @@
 import React, {ReactNode, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import 'katex/dist/katex.min.css';
-import {Bot, BrainCircuit, ChevronLeft, ChevronRight, Download, FileDown, Loader2, MessageCircle, Paperclip, Send, Trash2, X} from 'lucide-react';
+import {Bot, BrainCircuit, ChevronLeft, ChevronRight, Download, FileDown, History, Loader2, MessageCircle, Paperclip, Send, Trash2, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {useToast} from '../common/ToastProvider';
 import {useArticle} from '../../hooks/useArticle';
@@ -36,6 +36,7 @@ import {useArticlePrintExport} from '../../hooks/useArticlePrintExport';
 import {ArticleMarkdown} from './ArticleMarkdown';
 import {isImageAvatarValue} from '../../utils/avatar';
 import HtmlNoteReader from './HtmlNoteReader';
+import ArticleVersionHistoryModal from './ArticleVersionHistoryModal';
 
 export interface AttachmentItem {
     id: string;
@@ -196,6 +197,8 @@ function MarkdownArticle({
                                     isEmbedded,
                                     scrollContainerId,
                                     onBack,
+                                    contentFormat,
+                                    collId,
                                     content,
                                     title,
                                     category,
@@ -267,6 +270,7 @@ function MarkdownArticle({
     const [isSyncing, setIsSyncing] = React.useState(false);
     const {isExportingPdf, handleExportPdf} = useArticlePrintExport(articlePrintRef, toast.error);
     const [isMindMapOpen, setIsMindMapOpen] = useState(false);
+    const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
     const [isGeneratingMindMap, setIsGeneratingMindMap] = useState(false);
     const [localMindMap, setLocalMindMap] = useState<MindMapNode | undefined>(mindMap);
     const [annotations, setAnnotations] = useState<ArticleAnnotation[]>([]);
@@ -695,6 +699,9 @@ function MarkdownArticle({
     const useInlineToc = tocLayout === 'inline';
     const hasMindMap = !!localMindMap?.children?.length;
     const canShowMindMapButton = !!articleId && (canManage || hasMindMap);
+    const canAccessVersionHistory = Boolean(
+        articleId && author && userInfo?.userid === author && canManage && (contentFormat || 'markdown') === 'markdown'
+    );
     const tocTopActions = (
         <div className="flex flex-wrap items-center gap-2">
             {!!articleId && (
@@ -731,6 +738,18 @@ function MarkdownArticle({
                 </button>
             )}
 
+            {canAccessVersionHistory && (
+                <button
+                    type="button"
+                    onClick={() => setIsVersionHistoryOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-all duration-200 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+                    title="查看文章历史版本"
+                >
+                    <History className="h-3.5 w-3.5"/>
+                    <span>历史</span>
+                </button>
+            )}
+
             <button
                 type="button"
                 onClick={handleExportPdf}
@@ -758,6 +777,22 @@ function MarkdownArticle({
                 mindMap={localMindMap}
                 onClose={() => setIsMindMapOpen(false)}
             />
+            {canAccessVersionHistory && articleId && (
+                <ArticleVersionHistoryModal
+                    articleId={articleId}
+                    currentTitle={displayTitle}
+                    currentContent={content || ''}
+                    isOpen={isVersionHistoryOpen}
+                    onClose={() => setIsVersionHistoryOpen(false)}
+                    onRestored={restoredArticle => {
+                        if (restoredArticle.collId !== collId) {
+                            window.location.replace(`/article/${restoredArticle.collId}/${articleId}`);
+                        } else {
+                            navigate(0);
+                        }
+                    }}
+                />
+            )}
 
             <div
                 className={`min-h-screen bg-white transition-colors duration-300 ${isEmbedded ? '!bg-transparent !min-h-full' : ''}`}>

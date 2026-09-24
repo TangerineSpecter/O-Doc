@@ -48,7 +48,9 @@ from article.agent_post_views import (
     AgentPostLatestCommentListView,
     AgentPostRatingView,
 )
+from article.html_note_locking import lock_html_owner
 from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating, Image
+from article.version_service import create_article_version, has_versionable_changes
 from article.prompts import ARTICLE_MIND_MAP_PROMPT_TEMPLATE, POLISH_ARTICLE_PROMPT_TEMPLATE
 from article.serializers import (
     AgentPostLatestCommentSerializer,
@@ -193,8 +195,16 @@ class ArticlePolisher:
 
             # 4. 更新文章
             if polished_content:
-                article.content = polished_content
-                article.save()
+                with transaction.atomic():
+                    article = Article.objects.select_for_update().get(
+                        article_id=self.article_id,
+                        is_valid=True,
+                        content_format='markdown',
+                    )
+                    if article.content != polished_content:
+                        create_article_version(article, source='polish', operator_id=article.author)
+                        article.content = polished_content
+                        article.save()
 
                 logger.info(f"Article {self.article_id} polished successfully.")
 
@@ -364,12 +374,15 @@ class ArticleUpdateView(APIView):
     更新文章视图
     """
 
+    @transaction.atomic
     def put(self, request, article_id):
+        operator_id = get_current_user_identifier(request)
+        lock_html_owner(operator_id)
         # 查找文章
         article = get_object_or_404(
-            Article,
+            Article.objects.select_for_update(),
             article_id=article_id,
-            author=get_current_user_identifier(request),
+            author=operator_id,
             is_valid=True
         )
         old_coll_id = article.coll_id
@@ -382,6 +395,9 @@ class ArticleUpdateView(APIView):
         target_coll_id = serializer.validated_data.get('coll_id', article.coll_id)
         if not can_manage_anthology(request, target_coll_id, 'article'):
             return error_result(ErrorCode.RESOURCE_NOT_FOUND)
+
+        if has_versionable_changes(article, serializer.validated_data):
+            create_article_version(article, source='save', operator_id=operator_id)
 
         update_kwargs = {'is_rag_synced': False}
         if 'content' in serializer.validated_data and serializer.validated_data['content'] != article.content:

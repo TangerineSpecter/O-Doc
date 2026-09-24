@@ -16,6 +16,7 @@ import {getPreviewShortcutLabel} from '../utils/keyboard';
 import {useAuth} from '../contexts/AuthContext';
 import {useUserArticleTemplates} from '../hooks/useUserArticleTemplates';
 import {suggestUserArticleTemplateName, type ArticleTemplate} from '../utils/articleTemplates';
+import ArticleVersionHistoryModal from '../components/Article/ArticleVersionHistoryModal';
 
 // 1. 优化后的星星：更加晶莹剔透
 const MagicStar = ({styleClass, delay, top, left, size}: {
@@ -125,8 +126,10 @@ export default function EditorPage() {
     const {templates, save: saveUserTemplate, remove: removeUserTemplate} = useUserArticleTemplates();
     const [isSaveTemplateOpen, setIsSaveTemplateOpen] = useState(false);
     const [templateToDelete, setTemplateToDelete] = useState<ArticleTemplate | null>(null);
+    const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
 
     const {
+        articleId, contentFormat, articleAuthor,
         textareaRef, fileInputRef, attachmentInputRef,
         title, setTitle,
         content,
@@ -247,6 +250,8 @@ export default function EditorPage() {
                 isGeneratingTitle={isGeneratingTitle} onGenerateTitle={onGenerateTitle}
                 isPolishing={isPolishing} onPolish={onPolish}
                 onSaveAsTemplate={() => setIsSaveTemplateOpen(true)}
+                articleId={contentFormat === 'markdown' && articleAuthor === userInfo?.userid ? articleId : undefined}
+                onOpenHistory={() => setIsVersionHistoryOpen(true)}
             />
 
             <div className="flex-1 relative w-full overflow-hidden">
@@ -480,6 +485,19 @@ export default function EditorPage() {
                 confirmText="删除" cancelText="取消"
                 type="danger"
             />
+            {articleId && contentFormat === 'markdown' && articleAuthor === userInfo?.userid && (
+                <ArticleVersionHistoryModal
+                    articleId={articleId}
+                    currentTitle={title}
+                    currentContent={content}
+                    isOpen={isVersionHistoryOpen}
+                    onClose={() => setIsVersionHistoryOpen(false)}
+                    restoreDescription="恢复时会先把当前已保存内容留作历史版本，再还原所选版本。编辑器里尚未保存的修改不会进入历史，并会被替换。"
+                    onRestored={restoredArticle => {
+                        window.location.replace(`/editor/${articleId}?collId=${encodeURIComponent(restoredArticle.collId)}`);
+                    }}
+                />
+            )}
         </div>
     );
 }

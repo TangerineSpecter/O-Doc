@@ -43,6 +43,11 @@ def generate_article_id() -> str:
     return generate_unique_id("art")
 
 
+def generate_article_version_id() -> str:
+    """Generate a stable cross-device ID for an article history version."""
+    return generate_unique_id("aver")
+
+
 # 为分类生成带cat前缀的ID
 def generate_category_id() -> str:
     """
