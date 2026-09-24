@@ -66,30 +66,12 @@ def is_builtin_memo_mcp(mcp_server):
 
 
 def fetch_builtin_system_mcp_tools(scope):
-    from system_mcp.views import (
-        TOOLS,
-        VISIBLE_ANTHOLOGY_TOOL_NAMES,
-        VISIBLE_AGENT_POST_TOOL_NAMES,
-        VISIBLE_ARTICLE_TOOL_NAMES,
-        VISIBLE_COMMENT_TOOL_NAMES,
-        VISIBLE_MEMO_TOOL_NAMES,
-    )
+    from system_mcp.views import get_system_mcp_tools_for_scope
 
-    tool_names_by_scope = {
-        'memos': VISIBLE_MEMO_TOOL_NAMES,
-        'anthologies': VISIBLE_ANTHOLOGY_TOOL_NAMES,
-        'articles': VISIBLE_ARTICLE_TOOL_NAMES,
-        'agent_posts': VISIBLE_AGENT_POST_TOOL_NAMES,
-        'comments': VISIBLE_COMMENT_TOOL_NAMES,
-    }
-    tool_names = tool_names_by_scope.get(scope)
-    if not tool_names:
+    if scope not in BUILTIN_SYSTEM_MCP_SCOPES.values():
         return [], f"未知系统 MCP 范围：{scope}"
 
-    return format_mcp_tools([
-        tool for tool in TOOLS
-        if tool.get('name') in tool_names
-    ]), None
+    return format_mcp_tools(get_system_mcp_tools_for_scope(scope)), None
 
 
 def fetch_builtin_memo_tools():

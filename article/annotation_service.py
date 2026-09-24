@@ -7,6 +7,7 @@ from difflib import SequenceMatcher
 from django.db import transaction
 from django.db.models import Q
 
+from anthology.models import Anthology
 from article.models import Article, ArticleAnnotation, ArticleAnnotationComment
 from user.models import UserProfile
 from utils.drf_utils import get_current_user_identifier
@@ -27,6 +28,11 @@ DOUBLE_QUOTE_CHARS = set('"“”„‟')
 
 class AnnotationError(ValueError):
     pass
+
+
+def ensure_article_anthology_for_annotations(article: Article) -> None:
+    if not Anthology.objects.filter(coll_id=article.coll_id, type='article', is_valid=True).exists():
+        raise AnnotationError('划线评论仅支持文章文集；Agent 帖子请使用帖子评论或评分')
 
 
 @dataclass
@@ -369,6 +375,7 @@ def _send_article_comment_notification(article, identity, comment):
 
 
 def create_annotation_with_comment(article, anchor, comment, identity):
+    ensure_article_anthology_for_annotations(article)
     comment = str(comment or '').strip()
     if not comment:
         raise AnnotationError('comment 不能为空')
@@ -396,6 +403,7 @@ def create_annotation_with_comment(article, anchor, comment, identity):
 
 
 def add_comment(annotation, comment, identity):
+    ensure_article_anthology_for_annotations(annotation.article)
     comment = str(comment or '').strip()
     if not comment:
         raise AnnotationError('comment 不能为空')

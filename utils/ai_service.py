@@ -382,6 +382,31 @@ class AIService:
             logger.error(f"AI Image Description Error: {e}")
             raise e
 
+    @classmethod
+    def image_visual_fingerprint(cls, image_data_url):
+        """为图片检索提取客观画面特征，不覆盖图片介绍。"""
+        config = cls.get_default_image_client_config()
+        try:
+            client = OpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=55.0, max_retries=0)
+            response = client.chat.completions.create(
+                model=config['model_name'],
+                messages=[{'role': 'user', 'content': [
+                    {'type': 'text', 'text': (
+                        '请用简洁中文描述这张图可用于搜索的可见特征：主体外观、动作、场景、构图、画风、主色和情绪。'
+                        '如有清晰可见的文字，逐字写出；看不清就省略。不要根据标题猜测，不要编造角色、作品或地点名称。'
+                        '只输出描述正文，不要解释。'
+                    )},
+                    {'type': 'image_url', 'image_url': {'url': image_data_url}},
+                ]}],
+                stream=False,
+            )
+            description = cls.strip_thinking(response.choices[0].message.content or '').strip()
+            if not description:
+                raise ValueError('图像模型未返回可用于检索的描述')
+            return description[:4000], config['model_name']
+        except AuthenticationError as exc:
+            cls._raise_authentication_error(exc, config)
+
     @staticmethod
     def _raise_authentication_error(exc, config):
         """Convert provider authentication responses to a safe application error."""

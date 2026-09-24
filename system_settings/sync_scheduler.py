@@ -8,7 +8,8 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from django.db import OperationalError, ProgrammingError, close_old_connections
+from django.contrib.auth import get_user_model
+from django.db import OperationalError, ProgrammingError, close_old_connections, transaction
 from django.utils import timezone
 
 from utils.remote_storage import create_sync_manager
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 SYNC_RUNTIME_KEY = 'system_webdav_sync_runtime'
 RUNNING_STALE_MINUTES = 180
 STARTUP_SYNC_DELAY_MINUTES = 5
+MAX_AUTO_SYNC_FAILURES = 5
+MAX_AUTO_SYNC_RETRY_INTERVAL_MINUTES = 24 * 60
 
 
 def _env_flag(name, default='true'):
@@ -82,6 +85,86 @@ def update_runtime_state(**patch):
         return current
 
     return current
+
+
+def reset_auto_sync_failure_state():
+    """Clear the local retry circuit breaker after a successful connection or sync."""
+    return update_runtime_state(
+        auto_sync_consecutive_failures=0,
+        auto_sync_next_retry_at='',
+        auto_sync_paused=False,
+        auto_sync_pause_notice_sent=False,
+    )
+
+
+def _record_auto_sync_failure(error, interval_minutes):
+    """Persist retry backoff and emit one administrator notice when auto sync pauses."""
+    with transaction.atomic():
+        setting, _ = SystemSetting.objects.select_for_update().get_or_create(
+            key=SYNC_RUNTIME_KEY,
+            defaults={'value': {}, 'description': '自动同步运行时状态'},
+        )
+        state = dict(setting.value or {})
+        try:
+            failures = max(0, int(state.get('auto_sync_consecutive_failures') or 0))
+        except (TypeError, ValueError):
+            failures = 0
+
+        if state.get('auto_sync_paused'):
+            return state
+
+        failures += 1
+        paused = failures >= MAX_AUTO_SYNC_FAILURES
+        retry_minutes = min(
+            max(1, interval_minutes) * (2 ** (failures - 1)),
+            MAX_AUTO_SYNC_RETRY_INTERVAL_MINUTES,
+        )
+        now = timezone.now()
+        state.update({
+            'status': 'error',
+            'trigger': 'scheduler',
+            'last_error': str(error)[:2000],
+            'auto_sync_consecutive_failures': failures,
+            'auto_sync_next_retry_at': '' if paused else (now + timedelta(minutes=retry_minutes)).isoformat(),
+            'auto_sync_paused': paused,
+            'updated_at': now.isoformat(),
+        })
+
+        if paused and not state.get('auto_sync_pause_notice_sent'):
+            recipients = []
+            try:
+                with transaction.atomic():
+                    User = get_user_model()
+                    recipients = list(User.objects.filter(is_active=True, is_superuser=True))
+                    if not recipients:
+                        recipients = list(User.objects.filter(is_active=True, is_staff=True))
+                    if not recipients:
+                        recipients = list(User.objects.filter(is_active=True))
+
+                    if recipients:
+                        from message.models import Notification
+
+                        for recipient in recipients:
+                            Notification.objects.create(
+                                user=recipient,
+                                title='自动同步已暂停，需要人工处理',
+                                content=(
+                                    f'自动同步已连续失败 {failures} 次，系统已暂停后续自动重试。'
+                                    '请检查同步服务器地址、网络和访问权限；修复后在“设置 > 同步与备份”'
+                                    '保存配置并通过连接测试，即可恢复自动重试。建议再手动同步一次确认数据已对齐。'
+                                ),
+                                type='warning',
+                                link='/settings',
+                            )
+            except Exception:
+                logger.exception('Failed to create WebDAV auto-sync pause notification')
+            else:
+                if recipients:
+                    state['auto_sync_pause_notice_sent'] = True
+
+        setting.value = state
+        setting.save(update_fields=['value'])
+        return state
 
 
 def _parse_runtime_datetime(value):
@@ -344,14 +427,29 @@ class WebDavAutoSyncScheduler:
         if is_sync_running(runtime_state):
             return False
 
+        if runtime_state.get('auto_sync_paused'):
+            return False
+
         if self._boot_at is not None:
             # 服务刚启动时先保留一段配置窗口，避免旧的内网备份地址立刻触发连接。
             if timezone.now() - self._boot_at < timedelta(minutes=STARTUP_SYNC_DELAY_MINUTES):
                 return False
 
+        failure_count = runtime_state.get('auto_sync_consecutive_failures', 0)
+        try:
+            failure_count = max(0, int(failure_count or 0))
+        except (TypeError, ValueError):
+            failure_count = 0
+
+        if failure_count:
+            next_retry_at = self._parse_datetime(runtime_state.get('auto_sync_next_retry_at'))
+            if next_retry_at is not None:
+                return timezone.now() >= next_retry_at
+
         last_success_at = self._parse_datetime(runtime_state.get('last_success_at'))
         last_started_at = self._parse_datetime(runtime_state.get('last_started_at'))
-        anchor = last_success_at or last_started_at
+        anchors = [value for value in (last_success_at, last_started_at) if value is not None]
+        anchor = max(anchors) if anchors else None
 
         if anchor is None:
             return self._boot_at is not None
@@ -447,6 +545,10 @@ class WebDavAutoSyncScheduler:
                 runner_id=self.runner_id,
                 last_success_at=timezone.now().isoformat(),
                 last_error='',
+                auto_sync_consecutive_failures=0,
+                auto_sync_next_retry_at='',
+                auto_sync_paused=False,
+                auto_sync_pause_notice_sent=False,
                 last_uploaded_snapshot_id=snapshot_meta['snapshot_id'],
                 last_synced_snapshot_id=snapshot_meta['snapshot_id'],
                 last_base_snapshot_id=snapshot_meta.get('base_snapshot_id', ''),
@@ -461,13 +563,20 @@ class WebDavAutoSyncScheduler:
         except Exception as exc:
             if not runner_owns_sync(self.runner_id):
                 return
-            self._save_runtime_state(
-                status='error',
-                trigger='scheduler',
-                runner_id=self.runner_id,
-                last_error=str(exc),
+            failure_state = _record_auto_sync_failure(
+                exc,
+                self._parse_interval_minutes(config.get('interval', 30)),
             )
-            logger.exception('WebDAV auto sync failed')
+            if failure_state.get('auto_sync_consecutive_failures') == 1:
+                logger.exception('WebDAV auto sync failed; retry scheduled for %s', failure_state.get('auto_sync_next_retry_at'))
+            else:
+                logger.warning(
+                    'WebDAV auto sync failed (%s); consecutive failures=%s, paused=%s, next_retry_at=%s',
+                    type(exc).__name__,
+                    failure_state.get('auto_sync_consecutive_failures', 0),
+                    failure_state.get('auto_sync_paused', False),
+                    failure_state.get('auto_sync_next_retry_at') or 'none',
+                )
 
 
 _scheduler = WebDavAutoSyncScheduler()

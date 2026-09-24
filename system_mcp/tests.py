@@ -2,10 +2,11 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 
 from anthology.models import Anthology
-from article.models import Article, ArticlePostComment, ArticlePostRating
+from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating
 from message.models import Notification
 from system_settings.models import Agent, MCPServer
 from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
+from utils.error_codes import ErrorCode
 
 User = get_user_model()
 
@@ -29,6 +30,46 @@ class BuiltinSystemMCPTests(TestCase):
         self.assertIn('delete_article', tool_names)
         self.assertNotIn('create_anthology', tool_names)
         self.assertNotIn('create_agent_post', tool_names)
+
+    def test_article_mcp_does_not_read_or_mutate_agent_posts(self):
+        article_coll = Anthology.objects.create(coll_id='coll_article_only', title='文章文集', type='article', user_id='admin')
+        agent_coll = Anthology.objects.create(coll_id='coll_agent_only', title='Agent 文集', type='agent', user_id='admin')
+        article = Article.objects.create(article_id='art_article_only', title='普通文章', content='正文', coll_id=article_coll.coll_id, author='admin')
+        post = Article.objects.create(article_id='art_agent_only', title='Agent 帖子', content='帖子正文', coll_id=agent_coll.coll_id, author='admin')
+        server = MCPServer.objects.create(
+            name='文章 MCP', transport='streamableHttp',
+            url='http://unreachable.example.invalid/api/system-mcp/articles/',
+            source='system', enabled=True, tools=[],
+        )
+
+        listed, error_msg = call_mcp_tool(server, 'list_articles', {})
+        self.assertIsNone(error_msg)
+        self.assertEqual([item['article_id'] for item in listed['articles']], [article.article_id])
+
+        random_result, error_msg = call_mcp_tool(server, 'get_random_article', {})
+        self.assertIsNone(error_msg)
+        self.assertEqual(random_result['article']['article_id'], article.article_id)
+
+        for tool_name, arguments in (
+            ('get_article', {'article_id': post.article_id}),
+            ('update_article', {'article_id': post.article_id, 'title': '不应修改'}),
+            ('delete_article', {'article_id': post.article_id}),
+        ):
+            result, error_msg = call_mcp_tool(server, tool_name, arguments)
+            self.assertIsNone(result)
+            self.assertIn('No Article matches', error_msg)
+
+        created, error_msg = call_mcp_tool(server, 'create_article', {
+            'title': '不应创建的子文章', 'content': '正文',
+            'coll_id': article_coll.coll_id, 'parent_id': post.article_id,
+        })
+        self.assertIsNone(created)
+        self.assertIn('No Article matches', error_msg)
+
+        post.refresh_from_db()
+        self.assertTrue(post.is_valid)
+        self.assertEqual(post.title, 'Agent 帖子')
+        self.assertFalse(Article.objects.filter(title='不应创建的子文章').exists())
 
     def test_builtin_agent_post_mcp_requires_internal_category(self):
         anthology = Anthology.objects.create(
@@ -235,6 +276,63 @@ class BuiltinSystemMCPTests(TestCase):
         notification = Notification.objects.get(user__username='admin')
         self.assertEqual(notification.title, '哈哈 评论了《评论通知文章》')
         self.assertEqual(notification.link, f'/article/{anthology.coll_id}/{article.article_id}')
+
+    def test_comment_mcp_and_article_api_reject_agent_post_annotations(self):
+        user = User.objects.create_user(username='admin', password='password')
+        anthology = Anthology.objects.create(coll_id='coll_no_agent_annotations', title='Agent 帖子文集', type='agent', user_id='admin')
+        post = Article.objects.create(
+            article_id='art_no_agent_annotations', title='Agent 帖子', content='这段帖子正文不能被划线评论。',
+            coll_id=anthology.coll_id, author='admin',
+        )
+        server = MCPServer.objects.create(
+            name='评论 MCP', transport='streamableHttp',
+            url='http://unreachable.example.invalid/api/system-mcp/comments/',
+            source='system', enabled=True, tools=[],
+        )
+
+        result, error_msg = call_mcp_tool(server, 'create_article_annotation', {
+            'article_id': post.article_id,
+            'selected_text': '帖子正文不能被划线评论',
+            'comment': '不应记录到批注表',
+        })
+        self.assertIsNone(result)
+        self.assertIn('划线评论仅支持文章文集', error_msg)
+
+        self.client.force_login(user)
+        response = self.client.post(
+            '/api/article/annotations',
+            {'articleId': post.article_id, 'selectedText': '帖子正文不能被划线评论', 'comment': '也不能从网页写入'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.json()['code'], ErrorCode.PARAM_ERROR.code)
+        self.assertEqual(response.json()['data'], '划线评论仅支持文章文集；Agent 帖子请使用帖子评论或评分')
+        listed = self.client.get('/api/article/annotations', {'articleId': post.article_id})
+        self.assertEqual(listed.json()['code'], ErrorCode.PARAM_ERROR.code)
+        self.assertFalse(ArticleAnnotation.objects.filter(article=post).exists())
+        self.assertFalse(Notification.objects.exists())
+
+    def test_comment_mcp_cannot_append_to_legacy_agent_post_annotation(self):
+        anthology = Anthology.objects.create(coll_id='coll_legacy_agent_annotation', title='Agent 帖子文集', type='agent', user_id='admin')
+        post = Article.objects.create(
+            article_id='art_legacy_agent_annotation', title='Agent 帖子', content='旧帖子正文',
+            coll_id=anthology.coll_id, author='admin',
+        )
+        annotation = ArticleAnnotation.objects.create(
+            article=post, selected_text='旧帖子正文', start_offset=0, end_offset=5,
+        )
+        server = MCPServer.objects.create(
+            name='评论 MCP', transport='streamableHttp',
+            url='http://unreachable.example.invalid/api/system-mcp/comments/',
+            source='system', enabled=True, tools=[],
+        )
+
+        result, error_msg = call_mcp_tool(server, 'add_article_annotation_comment', {
+            'annotation_id': annotation.annotation_id,
+            'comment': '不应继续写入旧批注',
+        })
+        self.assertIsNone(result)
+        self.assertIn('划线评论仅支持文章文集', error_msg)
+        self.assertFalse(ArticleAnnotationComment.objects.filter(annotation=annotation).exists())
 
     def test_builtin_comment_mcp_without_agent_context_uses_visitor(self):
         User.objects.create_user(username='admin', password='password')

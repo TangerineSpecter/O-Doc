@@ -20,12 +20,14 @@ from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 
 from system_settings.sync_scheduler import (
+    MAX_AUTO_SYNC_FAILURES,
     append_sync_message,
     cancel_running_sync,
     generate_runner_id,
     get_runtime_state,
     is_sync_running,
     mark_sync_started,
+    reset_auto_sync_failure_state,
     runner_owns_sync,
     should_abort_sync,
     should_pull_remote_before_push,
@@ -150,6 +152,11 @@ class SystemConfigViewSet(viewsets.ViewSet):
             'last_merge_summary': runtime_state.get('last_merge_summary', {}),
             'sync_progress': runtime_state.get('sync_progress', 0),
             'cancel_requested': bool(runtime_state.get('cancel_requested')),
+            'auto_sync_consecutive_failures': runtime_state.get('auto_sync_consecutive_failures', 0),
+            'auto_sync_next_retry_at': runtime_state.get('auto_sync_next_retry_at', ''),
+            'auto_sync_paused': bool(runtime_state.get('auto_sync_paused')),
+            'auto_sync_pause_notice_sent': bool(runtime_state.get('auto_sync_pause_notice_sent')),
+            'auto_sync_max_failures': MAX_AUTO_SYNC_FAILURES,
             'updated_at': runtime_state.get('updated_at', ''),
         }
         payload.update({
@@ -168,6 +175,11 @@ class SystemConfigViewSet(viewsets.ViewSet):
             'lastMergeSummary': payload['last_merge_summary'],
             'syncProgress': payload['sync_progress'],
             'cancelRequested': payload['cancel_requested'],
+            'autoSyncConsecutiveFailures': payload['auto_sync_consecutive_failures'],
+            'autoSyncNextRetryAt': payload['auto_sync_next_retry_at'],
+            'autoSyncPaused': payload['auto_sync_paused'],
+            'autoSyncPauseNoticeSent': payload['auto_sync_pause_notice_sent'],
+            'autoSyncMaxFailures': payload['auto_sync_max_failures'],
             'updatedAt': payload['updated_at'],
         })
         return payload
@@ -681,6 +693,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 key='system_webdav_config',
                 defaults={'value': data}
             )
+            reset_auto_sync_failure_state()
             return success_result(msg="连接测试通过并保存成功")
         except Exception as e:
             logger.exception('Remote synchronization connection test failed: storage_type=%s', config.get('type'))
@@ -739,6 +752,10 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     last_base_snapshot_id=snapshot_meta.get('base_snapshot_id', ''),
                     last_push_at=timezone.now().isoformat(),
                     last_error='',
+                    auto_sync_consecutive_failures=0,
+                    auto_sync_next_retry_at='',
+                    auto_sync_paused=False,
+                    auto_sync_pause_notice_sent=False,
                     last_safety_backup=safety_backup,
                     last_merge_summary=summary,
                     sync_progress=100,
@@ -808,6 +825,10 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     runner_id=runner_id,
                     last_success_at=timezone.now().isoformat(),
                     last_error='',
+                    auto_sync_consecutive_failures=0,
+                    auto_sync_next_retry_at='',
+                    auto_sync_paused=False,
+                    auto_sync_pause_notice_sent=False,
                     last_synced_snapshot_id=snapshot['meta']['snapshot_id'],
                     last_base_snapshot_id=snapshot['meta'].get('base_snapshot_id', ''),
                     last_pulled_snapshot_id=remote['meta']['snapshot_id'],

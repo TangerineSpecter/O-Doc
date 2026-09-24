@@ -12,6 +12,7 @@ LOCAL_ONLY_MODEL_LABELS = frozenset({
     'system_settings.syncentitystate', 'book_analysis.sourcecache',
     'book_analysis.segmentcache', 'book_analysis.analysisrun', 'book_analysis.workerlease',
     'book_analysis.executionevent',
+    'article.imagevisualindex', 'article.imageindexjob', 'article.imageindexlease',
 })
 _local = threading.local()
 

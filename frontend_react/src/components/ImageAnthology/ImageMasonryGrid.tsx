@@ -35,6 +35,7 @@ interface ImageMasonryGridProps {
   imageColumns: Array<ImageDisplayItem[]>;
   visibleImageCount: number;
   dominantColors: Record<string, DominantColorResult | null>;
+  matchReasons?: Record<string, string>;
   isAuthenticated: boolean;
   onImageClick: (item: ImageDisplayItem) => void;
   onEditImage: (item: ImageDisplayItem) => void;
@@ -48,6 +49,7 @@ export default function ImageMasonryGrid({
   imageColumns,
   visibleImageCount,
   dominantColors,
+  matchReasons,
   isAuthenticated,
   onImageClick,
   onEditImage,
@@ -79,6 +81,7 @@ export default function ImageMasonryGrid({
                     focalLength={item.image.focalLength}
                     photoCount={item.images.length}
                     focalSummary={formatFocalSummary(item.images)}
+                    matchReason={matchReasons?.[item.image.imageId]}
                     dominantColor={dominantColors[item.image.imageId]}
                     onClick={() => onImageClick(item)}
                     onEdit={isAuthenticated ? () => onEditImage(item) : undefined}

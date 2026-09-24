@@ -1,5 +1,10 @@
 from django.urls import path
 from article.html_note_views import HtmlPreviewView, HtmlConversionView, HtmlDeletionSummaryView
+from article.image_search_views import (
+    ImageSmartSearchView, ImageReferenceSearchView, ImageSimilarView,
+    ImageIndexStatusView, ImageVisualDetailView, ImageIndexJobView,
+    ImageIndexJobCancelView, ImageIndexRemoveView,
+)
 from article.views import (
     ArticleCreateView, ArticleDetailView,
     ArticleUpdateView, ArticleDeleteView,
@@ -15,6 +20,14 @@ from article.views import (
 )
 
 urlpatterns = [
+    path('image/search', ImageSmartSearchView.as_view()),
+    path('image/search-by-image', ImageReferenceSearchView.as_view()),
+    path('image/similar/<str:image_id>', ImageSimilarView.as_view()),
+    path('image/index-status/<str:coll_id>', ImageIndexStatusView.as_view()),
+    path('image/visual/<str:image_id>', ImageVisualDetailView.as_view()),
+    path('image/index-jobs', ImageIndexJobView.as_view()),
+    path('image/index-jobs/<str:job_id>/cancel', ImageIndexJobCancelView.as_view()),
+    path('image/index-remove', ImageIndexRemoveView.as_view()),
     path('html-preview/<str:article_id>', HtmlPreviewView.as_view()),
     path('html-convert/<str:article_id>', HtmlConversionView.as_view()),
     path('html-delete-summary/<str:article_id>', HtmlDeletionSummaryView.as_view()),

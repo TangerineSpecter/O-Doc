@@ -7,6 +7,7 @@ from webdav3.exceptions import ResponseErrorCode
 
 
 logger = logging.getLogger(__name__)
+WEBDAV_CONNECTION_TIMEOUT_SECONDS = 8
 
 
 class WebDavClient:
@@ -22,6 +23,15 @@ class WebDavClient:
         }
         self.client = Client(self.options)
 
+    def _request_with_connection_timeout(self, request, *args, **kwargs):
+        """Use a short timeout for connection and directory probes, not file transfers."""
+        original_timeout = self.client.timeout
+        self.client.timeout = WEBDAV_CONNECTION_TIMEOUT_SECONDS
+        try:
+            return request(*args, **kwargs)
+        finally:
+            self.client.timeout = original_timeout
+
     @staticmethod
     def normalize_base_url(base_url):
         base_url = (base_url or '').strip()
@@ -35,7 +45,7 @@ class WebDavClient:
 
     def check_connection(self):
         try:
-            self.client.info('/')
+            self._request_with_connection_timeout(self.client.info, '/')
             return True
         except Exception as e:
             logger.warning('WebDAV connection check failed: host=%s, reason=%s', self.options.get('webdav_hostname'), e)
@@ -61,9 +71,8 @@ class WebDavClient:
 
     def ensure_directory(self, remote_dir):
         """
-        递归创建目录（激进模式）
-        既然 check() 不可靠，那就直接尝试 mkdir。
-        如果目录已存在，mkdir 会失败（通常报 405），我们捕获并忽略这个错误。
+        逐级创建目录。把常见的已存在目录响应（301、302、405）视为成功；
+        网络错误或其他响应必须立即向调用方抛出，避免远端不可达时继续请求每一级目录。
         """
         if not remote_dir or remote_dir == '/' or remote_dir == '.':
             return
@@ -76,33 +85,24 @@ class WebDavClient:
         current_path = ""
 
         for part in parts:
-            if not part: continue  # 防止空字符串
+            if not part:
+                continue
 
             current_path += "/" + part
 
-            # --- 核心修改 ---
-            # 不再使用 self.client.check(current_path) 进行预判
-            # 直接尝试创建
             try:
-                self.client.mkdir(current_path)
+                self._request_with_connection_timeout(self.client.mkdir, current_path)
             except ResponseErrorCode as e:
-                # 405 Method Not Allowed: 资源已存在 (标准 WebDAV 行为)
-                # 301/302: 有些服务器会对已存在的目录做重定向
-                # 我们假设这些错误都意味着“不用创建了”
-                if e.code == 405:
-                    pass
-                else:
-                    # 如果是 409 Conflict，说明上一级目录没创建成功（不应该发生，因为我们是循环下来的）
-                    # 打印日志方便调试，但不抛出异常中断整个流程，万一服务器抽风呢
-                    logger.warning('WebDAV directory creation warning: path=%s, reason=%s', current_path, e)
-            except Exception as e:
-                # 捕获其他未知异常，防止中断
-                logger.exception('WebDAV directory creation failed: path=%s', current_path)
+                if e.code not in {301, 302, 405}:
+                    raise
 
     def try_create_directory(self, remote_dir):
         """仅在目录不存在时创建，用作跨设备同步锁。"""
         try:
-            self.client.mkdir(self._normalize_remote_path(remote_dir))
+            self._request_with_connection_timeout(
+                self.client.mkdir,
+                self._normalize_remote_path(remote_dir),
+            )
             return True
         except ResponseErrorCode as exc:
             if exc.code == 405:

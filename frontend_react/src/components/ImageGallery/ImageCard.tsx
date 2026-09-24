@@ -11,6 +11,7 @@ interface ImageCardProps {
   focalLength?: string;
   photoCount?: number;
   focalSummary?: string;
+  matchReason?: string;
   dominantColor?: DominantColorResult | null;
   onClick?: () => void;
   onEdit?: () => void;
@@ -27,6 +28,7 @@ const ImageCard = memo(({
   focalLength,
   photoCount = 1,
   focalSummary,
+  matchReason,
   dominantColor,
   onClick,
   onEdit,
@@ -127,6 +129,7 @@ const ImageCard = memo(({
 
       {/* Info Section */}
       <div className="space-y-2.5 p-3.5">
+        {matchReason && <span className="inline-flex rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-700">{matchReason}</span>}
         {/* Title */}
         <div className="flex items-start justify-between gap-3">
           <h3 className="line-clamp-2 min-w-0 text-sm font-semibold leading-6 text-slate-800 transition-colors duration-300 group-hover:text-orange-600">

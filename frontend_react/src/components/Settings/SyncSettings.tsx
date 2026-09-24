@@ -103,7 +103,13 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
 
     const refreshHistory = actions.refreshHistory;
 
-    const statusMeta = {
+    const statusMeta = status.autoSyncPaused ? {
+        icon: AlertCircle,
+        label: '自动同步已暂停',
+        desc: '连续失败次数已达上限，需要检查配置并手动恢复',
+        badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+        bgClass: 'bg-amber-50/50 border-amber-200'
+    } : {
         idle: {
             icon: Clock3,
             label: '就绪 / 等待同步',
@@ -297,8 +303,35 @@ export const SyncSettings = ({config, status, onChange, onRefreshStatus}: SyncSe
                     </div>
                 </div>
 
+                {status.autoSyncPaused && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900 flex items-start gap-3">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                            <span className="font-semibold block mb-1">自动定时同步已暂停，需要人工处理</span>
+                            <p>连续失败 {status.autoSyncConsecutiveFailures || status.autoSyncMaxFailures || 5} 次后，系统暂停了自动重试；手动任务仍受服务总开关控制。</p>
+                            <p className="mt-1">检查网络和服务器配置，保存配置并通过连接测试后，自动重试会恢复；建议再手动同步一次确认数据已对齐。</p>
+                            {status.lastError && <p className="mt-2 text-amber-800 break-all">最近错误：{status.lastError}</p>}
+                            <p className="mt-2 text-amber-700">
+                                {status.autoSyncPauseNoticeSent
+                                    ? '已发送一条系统通知；同一故障不会逐次推送失败提醒。'
+                                    : '当前未能创建系统通知，请在本页检查同步状态。'}
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {config.enabled && config.autoSyncEnabled && !status.autoSyncPaused && (status.autoSyncConsecutiveFailures || 0) > 0 && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
+                        <Clock3 className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                            <span className="font-semibold">自动同步正在退避重试</span>
+                            <p className="mt-0.5">已连续失败 {status.autoSyncConsecutiveFailures} 次；下次计划重试：{formatDateTime(status.autoSyncNextRetryAt)}。达到 {status.autoSyncMaxFailures || 5} 次失败后将暂停自动重试并发送一条系统通知。</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* 错误提示条 */}
-                {status.lastError && (
+                {status.lastError && !status.autoSyncPaused && (
                     <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-800 flex items-start gap-3 animate-in fade-in duration-200">
                         <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">

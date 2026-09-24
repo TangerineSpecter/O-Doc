@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Aperture,
   Calendar,
@@ -45,6 +45,7 @@ interface ImageViewerProps {
   onSelectGroupImage?: (index: number) => void;
   currentIndex?: number;
   totalCount?: number;
+  smartPanel?: ReactNode;
 }
 
 export default function ImageViewer({
@@ -64,12 +65,14 @@ export default function ImageViewer({
   onSelectGroupImage,
   currentIndex,
   totalCount,
+  smartPanel,
 }: ImageViewerProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [displayImage, setDisplayImage] = useState<ImageData | null>(image);
   const [displayGroupImages, setDisplayGroupImages] = useState<ImageData[]>(groupImages);
   const [displayGroupIndex, setDisplayGroupIndex] = useState(currentGroupIndex);
   const [showInfo, setShowInfo] = useState(true);
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches);
   const [areNavButtonsVisible, setAreNavButtonsVisible] = useState(true);
   const [imageRetryTokens, setImageRetryTokens] = useState<Record<string, number>>({});
   const thumbnailStripRef = useRef<HTMLDivElement>(null);
@@ -78,6 +81,13 @@ export default function ImageViewer({
   const desktopThumbnailRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const closeTimerRef = useRef<number | null>(null);
   const hideNavTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px)');
+    const update = () => setIsDesktop(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const imageRetryAttemptsRef = useRef<Record<string, number>>({});
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
@@ -723,6 +733,8 @@ export default function ImageViewer({
                 </div>
               )}
 
+              {!isDesktop && smartPanel}
+
               {/* 底部呼吸垫片 */}
               <div className="h-8" />
             </div>
@@ -964,6 +976,7 @@ export default function ImageViewer({
                       </div>
                     </section>
                   )}
+                  {isDesktop && smartPanel}
                 </div>
               </div>
 

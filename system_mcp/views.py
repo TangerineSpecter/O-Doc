@@ -1,5 +1,6 @@
 import json
 import logging
+from copy import deepcopy
 from hmac import compare_digest
 
 from django.db import IntegrityError, transaction
@@ -14,6 +15,7 @@ from article.annotation_service import (
     AnnotationError,
     add_comment,
     create_annotation_with_comment,
+    ensure_article_anthology_for_annotations,
     get_agent_identity,
     locate_unique_text,
     serialize_annotation,
@@ -215,7 +217,7 @@ TOOLS = [
     },
     {
         'name': 'list_articles',
-        'description': '查询文章列表，可按文集或关键词过滤。',
+        'description': '查询文章文集中的文章列表，可按文集或关键词过滤；不包含 Agent 帖子。',
         'inputSchema': {
             'type': 'object',
             'properties': {
@@ -239,7 +241,7 @@ TOOLS = [
     },
     {
         'name': 'get_random_article',
-        'description': '随机获取一篇文章。可指定文集；不指定时从当前账号全局随机一篇。',
+        'description': '从文章文集中随机获取一篇文章。可指定文集；不指定时从当前账号的文章文集随机获取，不包含 Agent 帖子。',
         'inputSchema': {
             'type': 'object',
             'properties': {
@@ -452,7 +454,7 @@ TOOLS = [
     },
     {
         'name': 'create_article_annotation',
-        'description': '为文章指定原文创建划线批注，并添加一条 Agent 评论。selected_text 必须从文章正文渲染后的纯文本中逐字复制一段连续原文，且唯一出现。服务端会兼容常见内联标记（如 ==、++、%%、[[ ]]）、空白折叠、全角/半角、Unicode 连字符/引号差异。不支持 fenced 代码块、图片、HTML 标签等会被纯文本化时移除的内容；链接只匹配展示文字，行内代码只匹配去掉反引号后的文字。不要传翻译、总结、改写、补写、省略或替换标点后的文本。',
+        'description': '仅为文章文集中的文章创建划线批注和 Agent 评论；Agent 帖子请使用 Agent 帖子 MCP 的 add_agent_post_comment 和 rate_agent_post。selected_text 必须从文章正文渲染后的纯文本中逐字复制一段连续原文，且唯一出现。服务端会兼容常见内联标记（如 ==、++、%%、[[ ]]）、空白折叠、全角/半角、Unicode 连字符/引号差异。不支持 fenced 代码块、图片、HTML 标签等会被纯文本化时移除的内容；链接只匹配展示文字，行内代码只匹配去掉反引号后的文字。不要传翻译、总结、改写、补写、省略或替换标点后的文本。',
         'inputSchema': {
             'type': 'object',
             'properties': {
@@ -465,7 +467,7 @@ TOOLS = [
     },
     {
         'name': 'list_article_annotations',
-        'description': '查询一篇文章下的划线批注和评论。',
+        'description': '查询文章文集中的文章划线批注和评论；不适用于 Agent 帖子。',
         'inputSchema': {
             'type': 'object',
             'properties': {
@@ -476,7 +478,7 @@ TOOLS = [
     },
     {
         'name': 'add_article_annotation_comment',
-        'description': '向已有文章划线批注追加一条 Agent 评论。',
+        'description': '向文章文集中的已有划线批注追加一条 Agent 评论；Agent 帖子请使用 Agent 帖子 MCP 的 add_agent_post_comment。',
         'inputSchema': {
             'type': 'object',
             'properties': {
@@ -512,6 +514,54 @@ VISIBLE_ARTICLE_TOOL_NAMES = ARTICLE_TOOL_NAMES
 VISIBLE_AGENT_POST_TOOL_NAMES = AGENT_POST_TOOL_NAMES
 VISIBLE_ANTHOLOGY_TOOL_NAMES = ANTHOLOGY_TOOL_NAMES
 VISIBLE_COMMENT_TOOL_NAMES = {'create_article_annotation', 'list_article_annotations', 'add_article_annotation_comment', 'delete_article_annotation_comment'}
+
+
+def get_system_mcp_tools_for_scope(tool_scope):
+    tool_names_by_scope = {
+        'system': VISIBLE_TOOL_NAMES,
+        'memos': VISIBLE_MEMO_TOOL_NAMES,
+        'anthologies': VISIBLE_ANTHOLOGY_TOOL_NAMES,
+        'articles': VISIBLE_ARTICLE_TOOL_NAMES,
+        'agent_posts': VISIBLE_AGENT_POST_TOOL_NAMES,
+        'comments': VISIBLE_COMMENT_TOOL_NAMES,
+    }
+    tool_names = tool_names_by_scope.get(tool_scope, VISIBLE_TOOL_NAMES)
+    tools = deepcopy([tool for tool in TOOLS if tool['name'] in tool_names])
+
+    if tool_scope == 'agent_posts':
+        collections = list(
+            Anthology.objects.filter(type='agent', is_valid=True)
+            .order_by('title', 'coll_id')
+            .values('coll_id', 'title')
+        )
+        valid_ids = [collection['coll_id'] for collection in collections]
+        collection_choices = '；'.join(
+            f"{collection['title']} (coll_id={collection['coll_id']})"
+            for collection in collections
+        )
+
+        for tool in tools:
+            if tool['name'] not in {'create_agent_post', 'list_agent_posts', 'get_random_agent_post'}:
+                continue
+            coll_id = tool['inputSchema']['properties']['coll_id']
+            if valid_ids:
+                coll_id['enum'] = valid_ids
+                choices_description = f'当前有效选项：{collection_choices}。'
+            else:
+                choices_description = '当前没有有效的 Agent 文集。'
+
+            if tool['name'] == 'list_agent_posts':
+                coll_id['description'] = (
+                    f'可选 Agent 文集 ID。{choices_description}'
+                    '省略此参数时查询全部 Agent 帖子；不要传普通文章文集 ID。'
+                )
+            else:
+                coll_id['description'] = (
+                    f'所属 Agent 文集 ID。{choices_description}'
+                    '此参数必须使用有效 Agent 文集 ID，不要传普通文章文集 ID。'
+                )
+
+    return tools
 
 
 class ODocSystemMCPView(APIView):
@@ -560,17 +610,7 @@ class ODocSystemMCPView(APIView):
         return self._error(request_id, -32601, f'未知 MCP 方法：{method}')
 
     def _available_tools(self):
-        if self.tool_scope == 'memos':
-            return [tool for tool in TOOLS if tool['name'] in VISIBLE_MEMO_TOOL_NAMES]
-        if self.tool_scope == 'articles':
-            return [tool for tool in TOOLS if tool['name'] in VISIBLE_ARTICLE_TOOL_NAMES]
-        if self.tool_scope == 'agent_posts':
-            return [tool for tool in TOOLS if tool['name'] in VISIBLE_AGENT_POST_TOOL_NAMES]
-        if self.tool_scope == 'anthologies':
-            return [tool for tool in TOOLS if tool['name'] in VISIBLE_ANTHOLOGY_TOOL_NAMES]
-        if self.tool_scope == 'comments':
-            return [tool for tool in TOOLS if tool['name'] in VISIBLE_COMMENT_TOOL_NAMES]
-        return [tool for tool in TOOLS if tool['name'] in VISIBLE_TOOL_NAMES]
+        return get_system_mcp_tools_for_scope(self.tool_scope)
 
     def _is_tool_available(self, name):
         if name == 'insert_memo':
@@ -749,7 +789,12 @@ class ODocSystemMCPView(APIView):
     def _validate_article_collection(coll_id):
         if not coll_id:
             raise ValueError('coll_id 不能为空')
-        return get_object_or_404(Anthology, coll_id=coll_id, type='article', is_valid=True)
+        return get_object_or_404(Anthology, coll_id=coll_id, type='article', user_id='admin', is_valid=True)
+
+    @staticmethod
+    def _article_queryset():
+        article_coll_ids = Anthology.objects.filter(type='article', user_id='admin', is_valid=True).values_list('coll_id', flat=True)
+        return Article.objects.filter(is_valid=True, author='admin', coll_id__in=article_coll_ids)
 
     @staticmethod
     def _validate_agent_collection(coll_id):
@@ -757,11 +802,11 @@ class ODocSystemMCPView(APIView):
             raise ValueError('coll_id 不能为空')
         return get_object_or_404(Anthology, coll_id=coll_id, type='agent', is_valid=True)
 
-    @staticmethod
-    def _validate_parent(parent_id):
+    @classmethod
+    def _validate_parent(cls, parent_id):
         if parent_id in (None, ''):
             return None
-        return get_object_or_404(Article, article_id=parent_id, is_valid=True)
+        return get_object_or_404(cls._article_queryset(), article_id=parent_id)
 
     def _create_article(self, arguments):
         title = str(arguments.get('title') or '').strip()
@@ -873,7 +918,10 @@ class ODocSystemMCPView(APIView):
         keyword = str(arguments.get('keyword') or '').strip()
         category = str(arguments.get('category') or '').strip()
         if coll_id:
-            get_object_or_404(Anthology, coll_id=coll_id, type='agent', is_valid=True)
+            if not Anthology.objects.filter(coll_id=coll_id, type='agent', is_valid=True).exists():
+                raise ValueError(
+                    'coll_id 必须指向有效的 Agent 文集；查询全部 Agent 帖子时请省略 coll_id。'
+                )
             queryset = queryset.filter(coll_id=coll_id)
         if category:
             queryset = queryset.filter(agent_post_category=category)
@@ -990,10 +1038,10 @@ class ODocSystemMCPView(APIView):
         _refresh_anthology(coll_id)
         return {'article_id': article_id, 'deleted': True}
 
-    @staticmethod
-    def _list_articles(arguments):
+    @classmethod
+    def _list_articles(cls, arguments):
         limit = min(max(int(arguments.get('limit') or 50), 1), 200)
-        queryset = Article.objects.filter(is_valid=True, author='admin').order_by('sort', '-updated_at')
+        queryset = cls._article_queryset().order_by('sort', '-updated_at')
         coll_id = str(arguments.get('coll_id') or '').strip()
         keyword = str(arguments.get('keyword') or '').strip()
         if coll_id:
@@ -1004,20 +1052,20 @@ class ODocSystemMCPView(APIView):
         articles = [_article_to_dict(article, include_content=include_content) for article in queryset[:limit]]
         return {'articles': articles, 'count': len(articles)}
 
-    @staticmethod
-    def _get_article(arguments):
+    @classmethod
+    def _get_article(cls, arguments):
         article_id = str(arguments.get('article_id') or '').strip()
         if not article_id:
             raise ValueError('article_id 不能为空')
-        article = get_object_or_404(Article, article_id=article_id, author='admin', is_valid=True)
+        article = get_object_or_404(cls._article_queryset(), article_id=article_id)
         return {'article': _article_to_dict(article)}
 
-    @staticmethod
-    def _get_random_article(arguments):
-        queryset = Article.objects.filter(is_valid=True, author='admin')
+    @classmethod
+    def _get_random_article(cls, arguments):
+        queryset = cls._article_queryset()
         coll_id = str(arguments.get('coll_id') or '').strip()
         if coll_id:
-            get_object_or_404(Anthology, coll_id=coll_id, type='article', user_id='admin', is_valid=True)
+            cls._validate_article_collection(coll_id)
             queryset = queryset.filter(coll_id=coll_id)
         article = queryset.order_by('?').first()
         if not article:
@@ -1029,7 +1077,7 @@ class ODocSystemMCPView(APIView):
         article_id = str(arguments.get('article_id') or '').strip()
         if not article_id:
             raise ValueError('article_id 不能为空')
-        article = get_object_or_404(Article, article_id=article_id, author='admin', is_valid=True)
+        article = get_object_or_404(self._article_queryset(), article_id=article_id)
         old_coll_id = article.coll_id
 
         if 'title' in arguments:
@@ -1072,12 +1120,12 @@ class ODocSystemMCPView(APIView):
             raise ValueError('同一文集下文章标题已存在')
         return {'article': _article_to_dict(article)}
 
-    @staticmethod
-    def _delete_article(arguments):
+    @classmethod
+    def _delete_article(cls, arguments):
         article_id = str(arguments.get('article_id') or '').strip()
         if not article_id:
             raise ValueError('article_id 不能为空')
-        article = get_object_or_404(Article, article_id=article_id, author='admin', is_valid=True)
+        article = get_object_or_404(cls._article_queryset(), article_id=article_id)
         if Article.objects.filter(parent=article, is_valid=True).exists():
             raise ValueError('文章下仍有子文章，不能删除')
         coll_id = article.coll_id
@@ -1195,6 +1243,7 @@ class ODocSystemMCPView(APIView):
         if not article_id:
             raise ValueError('article_id 不能为空')
         article = get_object_or_404(Article, article_id=article_id, author='admin', is_valid=True)
+        ensure_article_anthology_for_annotations(article)
         try:
             anchor = locate_unique_text(article, selected_text)
             if not anchor:
@@ -1215,6 +1264,7 @@ class ODocSystemMCPView(APIView):
         if not article_id:
             raise ValueError('article_id 不能为空')
         article = get_object_or_404(Article, article_id=article_id, author='admin', is_valid=True)
+        ensure_article_anthology_for_annotations(article)
         annotations = ArticleAnnotation.objects.filter(article=article, is_valid=True).prefetch_related('comments')
         data = [serialize_annotation(annotation) for annotation in annotations]
         return {'annotations': data, 'count': len(data)}

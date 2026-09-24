@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Aperture, ArrowLeft, BarChart3, Image as ImageIcon, Plus, Tag } from 'lucide-react';
 import ImageViewer from '../components/ImageGallery/ImageViewer';
+import ImageVisualPanel from '../components/ImageGallery/ImageVisualPanel';
+import ImageSmartSearchBar from '../components/ImageAnthology/ImageSmartSearchBar';
+import ImageIndexManager from '../components/ImageAnthology/ImageIndexManager';
 import ImageUploadModal from '../components/ImageGallery/ImageUploadModal';
 import ImageGroupModal from '../components/ImageGallery/ImageGroupModal';
 import FocalLengthDetailChart, { FocalLengthFilterOption } from '../components/ImageAnthology/FocalLengthDetailChart';
@@ -20,6 +23,7 @@ import { useToast } from '../components/common/ToastProvider';
 import { FocalLengthStat, ImageTagStat } from '../types/imageAnthology';
 import { COLOR_SWATCHES, DominantColorKey, DominantColorResult, extractDominantColor } from '../utils/imageColor';
 import { useAuth } from '../contexts/AuthContext';
+import { useImageSmartSearch } from '../hooks/useImageSmartSearch';
 
 interface ImageAnthologyPageProps {
   onNavigate?: (viewName: string, params?: any) => void;
@@ -83,6 +87,9 @@ const getGalleryColumnCount = () => {
 
 export default function ImageAnthologyPage({ onNavigate, collId, title, openImageId, openImageRequestId }: ImageAnthologyPageProps) {
   const { isAuthenticated } = useAuth();
+  const smart = useImageSmartSearch(collId);
+  const [indexManagerOpen, setIndexManagerOpen] = useState(false);
+  const [pendingSimilarId, setPendingSimilarId] = useState('');
   const [anthologyInfo, setAnthologyInfo] = useState<Anthology | null>(null);
   const [images, setImages] = useState<Image[]>([]);
   const [loading, setLoading] = useState(true);
@@ -452,9 +459,30 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
   }, [baseVisibleImages, dominantColors]);
 
   const visibleImages = useMemo(() => {
+    if (smart.mode !== 'none') {
+      const local = new Map(images.map(image => [image.imageId, image]));
+      const seen = new Set<string>();
+      const ordered: Image[] = [];
+      smart.items.forEach(item => {
+        const matched = local.get(item.image.imageId) || item.image;
+        const group = matched.photoGroupId
+          ? images.filter(image => image.photoGroupId === matched.photoGroupId)
+          : [matched];
+        [matched, ...group].forEach(image => {
+          if (!seen.has(image.imageId)) { seen.add(image.imageId); ordered.push(image); }
+        });
+      });
+      return ordered;
+    }
     if (selectedColor === 'all') return baseVisibleImages;
     return baseVisibleImages.filter(image => dominantColors[image.imageId]?.key === selectedColor);
-  }, [baseVisibleImages, dominantColors, selectedColor]);
+  }, [baseVisibleImages, dominantColors, selectedColor, images, smart.mode, smart.items]);
+
+  useEffect(() => {
+    if (!pendingSimilarId) return;
+    const index = visibleImages.findIndex(image => image.imageId === pendingSimilarId);
+    if (index >= 0) { setViewerGlobalIndex(index); setPendingSimilarId(''); }
+  }, [pendingSimilarId, visibleImages]);
 
   useEffect(() => {
     if (!openImageId || !openImageRequestId || loading) return;
@@ -483,7 +511,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
   }, [baseVisibleImages, dominantColors]);
 
   const handleImageClick = (item: ImageDisplayItem) => {
-    const targetImage = item.images[0] || item.image;
+    const targetImage = item.image;
     const index = visibleImages.findIndex(img => img.imageId === targetImage.imageId);
     setViewerGlobalIndex(index >= 0 ? index : 0);
   };
@@ -500,9 +528,10 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
     });
     return Array.from(groups.values()).map((group, index) => {
       const ordered = group.slice().sort((a, b) => (a.groupIndex || 0) - (b.groupIndex || 0));
-      return { image: ordered[0], images: ordered, index };
+      const match = smart.mode === 'none' ? null : smart.items.find(item => ordered.some(image => image.imageId === item.image.imageId));
+      return { image: match ? ordered.find(image => image.imageId === match.image.imageId) || ordered[0] : ordered[0], images: ordered, index };
     });
-  }, [visibleImages]);
+  }, [visibleImages, smart.mode, smart.items]);
 
   const imageColumns = useMemo(() => {
     const columnCount = Math.max(galleryColumnCount, 1);
@@ -707,6 +736,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
   }
 
   const displayTitle = anthologyInfo?.title || title || '图片文集';
+  const canManageSmartIndex = isAuthenticated && Boolean(smart.summary?.canManage);
   const handleSelectGroupImage = (groupIndex: number) => {
     const target = activePhotoGroup[groupIndex];
     if (!target) return;
@@ -907,6 +937,22 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
 
               {/* 相册主视图：移动端在 gallery tab 显示，PC端常驻右侧 */}
               <div className={`min-w-0 ${mobileTab === 'gallery' ? 'block' : 'hidden'} lg:block`}>
+                <ImageSmartSearchBar
+                  query={smart.query}
+                  onQueryChange={smart.setQuery}
+                  onSearch={() => void smart.submitText()}
+                  onReference={file => void smart.submitReference(file)}
+                  onClear={smart.clear}
+                  onManage={() => setIndexManagerOpen(true)}
+                  active={smart.mode !== 'none'}
+                  busy={smart.busy}
+                  canManage={canManageSmartIndex}
+                  indexed={smart.summary?.indexed || 0}
+                  total={smart.summary?.total || images.length}
+                  error={smart.error}
+                  semanticAvailable={smart.semanticAvailable}
+                  resultCount={smart.items.length}
+                />
                 <ImageGalleryFilters
                   visibleCount={visibleImages.length}
                   totalCount={images.length}
@@ -928,6 +974,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
                   onGalleryFocalMaxChange={setGalleryFocalMax}
                   onClearFilters={clearGalleryFilters}
                 />
+                {smart.mode !== 'none' && <p className="mb-3 text-xs text-slate-500">{smart.mode === 'reference' ? '参考图语义相似结果' : `“${smart.query.trim()}”的搜索结果`} · 每组展示最相关的一张照片</p>}
 
                 {/* 桌面端详情面板展示在右侧列 */}
                 <div className="hidden lg:block">
@@ -978,6 +1025,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
                   imageColumns={imageColumns}
                   visibleImageCount={displayImages.length}
                   dominantColors={dominantColors}
+                  matchReasons={smart.mode === 'none' ? undefined : Object.fromEntries(smart.items.map(item => [item.image.imageId, item.matchReason]))}
                   isAuthenticated={isAuthenticated}
                   onImageClick={handleImageClick}
                   onEditImage={handleOpenEditModal}
@@ -987,8 +1035,9 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
                       prev[imageId] === ratio ? prev : { ...prev, [imageId]: ratio }
                     ));
                   }}
-                  onClearFilters={clearGalleryFilters}
+                  onClearFilters={() => { smart.clear(); clearGalleryFilters(); }}
                 />
+                {smart.mode === 'text' && smart.hasMore && <div className="mt-4 text-center"><button disabled={smart.busy} onClick={() => void smart.submitText(smart.page + 1)} className="rounded-lg border border-orange-200 bg-white px-4 py-2 text-xs font-semibold text-orange-700 hover:bg-orange-50 disabled:opacity-50">加载更多结果</button></div>}
               </div>
             </div>
           </div>
@@ -1031,7 +1080,10 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
           focalLength: groupImage.focalLength,
         }))}
         onSelectGroupImage={handleSelectGroupImage}
+        smartPanel={activeViewerImage && collId ? <ImageVisualPanel key={activeViewerImage.imageId} imageId={activeViewerImage.imageId} collId={collId} status={smart.summary?.statuses[activeViewerImage.imageId]} canManage={canManageSmartIndex} onIndexChanged={() => void smart.refreshStatus()} onViewSimilar={imageId => { setPendingSimilarId(imageId); smart.clear(); clearGalleryFilters(); setMobileTab('gallery'); }}/>: undefined}
       />
+
+      {collId && canManageSmartIndex && <ImageIndexManager open={indexManagerOpen} onClose={() => setIndexManagerOpen(false)} collId={collId} images={images} summary={smart.summary} onRefresh={smart.refreshStatus}/>}
 
       {isAuthenticated && (
         <ImageGroupModal

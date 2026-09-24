@@ -158,3 +158,53 @@ export const generateImageDescription = async (data: GenerateImageDescriptionPar
 export const deleteImage = (imageId: string) => {
   return request.delete<any, void>(`/article/image/delete/${imageId}`);
 };
+
+export type ImageIndexStatus = 'unrecognized' | 'recognized' | 'indexed' | 'needs_recognition' | 'needs_index' | 'failed';
+export interface ImageSearchItem { image: Image; matchReason: string }
+export interface ImageSearchResponse { items: ImageSearchItem[]; page?: number; hasMore?: boolean; semanticAvailable?: boolean }
+export interface ImageIndexJob {
+  id: string;
+  state: 'queued' | 'running' | 'completed' | 'cancelled';
+  mode: 'reuse' | 'refresh' | 'index_only';
+  total: number;
+  completed: number;
+  failed: number;
+  failures: Record<string, string>;
+  cancelRequested: boolean;
+}
+export interface ImageIndexSummary { total: number; indexed: number; statuses: Record<string, ImageIndexStatus>; job: ImageIndexJob | null; canManage: boolean }
+export interface ImageVisualDetail { aiDescription: string; override: string; status: ImageIndexStatus; model: string; error: string }
+
+export const searchImages = (query: string, collId?: string, page = 1) =>
+  request.post<any, ImageSearchResponse>('/article/image/search', {query, collId, page, pageSize: 30}, {timeout: 45000});
+
+export const searchImagesByReference = (image: File, collId?: string) => {
+  const body = new FormData();
+  body.append('image', image);
+  if (collId) body.append('coll_id', collId);
+  return request.post<any, ImageSearchResponse>('/article/image/search-by-image', body, {timeout: 120000});
+};
+
+export const getSimilarImages = (imageId: string) =>
+  request.get<any, ImageSearchResponse>(`/article/image/similar/${imageId}`);
+
+export const getImageIndexStatus = (collId: string) =>
+  request.get<any, ImageIndexSummary>(`/article/image/index-status/${collId}`);
+
+export const getImageVisualDetail = (imageId: string) =>
+  request.get<any, ImageVisualDetail>(`/article/image/visual/${imageId}`);
+
+export const updateImageVisualDescription = (imageId: string, override: string) =>
+  request.put<any, {status: ImageIndexStatus}>(`/article/image/visual/${imageId}`, {override});
+
+export const createImageIndexJob = (collId: string, imageIds: string[] | 'all', mode: ImageIndexJob['mode'] = 'reuse') =>
+  request.post<any, ImageIndexJob>('/article/image/index-jobs', {collId, imageIds, mode});
+
+export const getImageIndexJobs = (collId: string) =>
+  request.get<any, ImageIndexJob[]>('/article/image/index-jobs', {params: {collId}});
+
+export const cancelImageIndexJob = (jobId: string) =>
+  request.post<any, ImageIndexJob>(`/article/image/index-jobs/${jobId}/cancel`);
+
+export const removeImageIndexes = (collId: string, imageIds: string[]) =>
+  request.post<any, {removed: number}>('/article/image/index-remove', {collId, imageIds});

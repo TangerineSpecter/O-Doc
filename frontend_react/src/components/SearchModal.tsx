@@ -12,6 +12,7 @@ import {
     Zap
 } from 'lucide-react';
 import {globalSearch, type GlobalSearchItem, type GlobalSearchType} from '../api/search';
+import {searchImages} from '../api/image';
 
 interface SuggestionItem {
     id: string;
@@ -98,7 +99,37 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
         prompt: 0,
     });
     const [isSearching, setIsSearching] = useState(false);
+    const [smartImageResults, setSmartImageResults] = useState<GlobalSearchItem[] | null>(null);
+    const [smartSearching, setSmartSearching] = useState(false);
+    const [smartError, setSmartError] = useState('');
+    const smartRequest = useRef(0);
     const searchInputRef = useRef<HTMLInputElement>(null);
+
+    const runSmartImageSearch = async () => {
+        const term = keyword.trim();
+        if (!term || smartSearching) return;
+        const requestId = ++smartRequest.current;
+        setSmartSearching(true); setSmartError('');
+        try {
+            const response = await searchImages(term);
+            if (smartRequest.current !== requestId) return;
+            setSmartImageResults(response.items.slice(0, 8).map(item => ({
+                id: `image:${item.image.imageId}`, type: 'image', title: item.image.title,
+                subtitle: `${item.matchReason} · 图片文集`, excerpt: item.image.description || '',
+                route: {view: 'image', params: {coll_id: item.image.collId, image_id: item.image.imageId}},
+                meta: {image_url: item.image.imageUrl},
+            })));
+            setSearchIndex(1);
+            if (!response.semanticAvailable) setSmartError('语义模型不可用，已显示关键词结果');
+        } catch (error) {
+            if (smartRequest.current === requestId) setSmartError(error instanceof Error ? error.message : '智能搜图失败');
+        } finally { if (smartRequest.current === requestId) setSmartSearching(false); }
+    };
+
+    useEffect(() => {
+        smartRequest.current += 1;
+        setSmartImageResults(null); setSmartError(''); setSmartSearching(false);
+    }, [keyword, activeFilter]);
 
     const selectedTypes = useMemo(
         () => activeFilter === 'all' ? undefined : [activeFilter],
@@ -162,9 +193,10 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
             icon: <Zap className="h-4 w-4"/>,
         };
 
+        const displayedResults = activeFilter === 'image' && smartImageResults !== null ? smartImageResults : results;
         return [
             aiSuggestion,
-            ...results.map((item) => {
+            ...displayedResults.map((item) => {
                 const meta = TYPE_META[item.type];
                 return {
                     id: item.id,
@@ -177,7 +209,7 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
                 };
             }),
         ];
-    }, [keyword, results]);
+    }, [keyword, results, activeFilter, smartImageResults]);
 
     const handleSelectSuggestion = (item?: SuggestionItem) => {
         if (!item) return;
@@ -216,18 +248,22 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
             }
             if (event.key === 'Enter') {
                 event.preventDefault();
+                if (activeFilter === 'image' && smartImageResults === null && keyword.trim()) {
+                    void runSmartImageSearch();
+                    return;
+                }
                 handleSelectSuggestion(suggestions[searchIndex]);
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onClose, searchIndex, suggestions]);
+    }, [isOpen, onClose, searchIndex, suggestions, activeFilter, smartImageResults, keyword, smartSearching]);
 
     if (!isOpen) return null;
 
     const hasKeyword = Boolean(keyword.trim());
-    const hasResults = results.length > 0;
+    const hasResults = (activeFilter === 'image' && smartImageResults !== null ? smartImageResults : results).length > 0;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[10vh] animate-in fade-in duration-200">
@@ -277,7 +313,9 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
                                 </button>
                             );
                         })}
+                        {activeFilter === 'image' && hasKeyword && <button type="button" disabled={smartSearching} onClick={() => void runSmartImageSearch()} className="ml-auto inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5"/>{smartSearching ? '正在搜图' : '智能搜图'}</button>}
                     </div>
+                    {smartError && <p role="status" className="mt-2 text-xs text-amber-700">{smartError}</p>}
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto p-2">

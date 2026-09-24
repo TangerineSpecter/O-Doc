@@ -89,7 +89,12 @@ export const useSettings = () => {
         lastSyncedSnapshotId: '',
         lastUploadedSnapshotId: '',
         lastPulledSnapshotId: '',
-        updatedAt: ''
+        updatedAt: '',
+        autoSyncConsecutiveFailures: 0,
+        autoSyncNextRetryAt: '',
+        autoSyncPaused: false,
+        autoSyncPauseNoticeSent: false,
+        autoSyncMaxFailures: 5,
     });
     const webDavStatusRequestRef = useRef(0);
 

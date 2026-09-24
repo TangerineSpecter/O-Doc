@@ -10,6 +10,7 @@ import {clearAuthToken, getAuthToken} from './authStorage';
 // 扩展AxiosError类型，添加自定义数据类型
 type CustomAxiosError = AxiosError<{
     msg?: string;
+    detail?: string;
     code?: number;
     data?: any;
 }>;
@@ -114,7 +115,12 @@ service.interceptors.response.use(
             }
             // ------------------------------------
             // 服务器返回了错误响应
-            errorMsg = error.response.data?.msg || error.response.statusText || errorMsg;
+            const responseData = error.response.data;
+            errorMsg = responseData?.msg
+                || responseData?.detail
+                || error.response.statusText
+                || errorMsg;
+            error.message = errorMsg;
             console.error('Response Error:', errorMsg);
 
             // 可以根据 status code 做统一提示

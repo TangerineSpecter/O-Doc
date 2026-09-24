@@ -324,6 +324,14 @@ class Image(models.Model):
         db_comment="图片描述"
     )
 
+    # 可跨设备复用的识图成果；搜索索引与任务进度属于本机派生数据。
+    ai_visual_description = models.TextField(blank=True, default='')
+    visual_description_override = models.TextField(blank=True, default='')
+    ai_visual_source_hash = models.CharField(max_length=64, blank=True, default='')
+    visual_override_source_hash = models.CharField(max_length=64, blank=True, default='')
+    ai_visual_prompt_version = models.PositiveIntegerField(default=0)
+    ai_visual_model = models.CharField(max_length=255, blank=True, default='')
+
     # 图片URL（存储在资源服务器上的路径）
     image_url = models.CharField(
         max_length=500,
@@ -497,6 +505,47 @@ class Image(models.Model):
         if not self.tags:
             return []
         return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
+
+
+class ImageVisualIndex(models.Model):
+    """本机图片搜索索引状态，不进入业务同步快照。"""
+
+    image = models.OneToOneField(Image, on_delete=models.CASCADE, primary_key=True)
+    coll_id = models.CharField(max_length=32, blank=True, default='')
+    enabled = models.BooleanField(default=True)
+    collection_name = models.CharField(max_length=64, blank=True, default='')
+    model_key = models.CharField(max_length=64, blank=True, default='')
+    text_hash = models.CharField(max_length=64, blank=True, default='')
+    image_hash = models.CharField(max_length=64, blank=True, default='')
+    error = models.CharField(max_length=500, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+def generate_image_index_job_id():
+    return uuid.uuid4().hex
+
+
+class ImageIndexJob(models.Model):
+    """本机可恢复的手动索引任务。"""
+
+    id = models.CharField(primary_key=True, max_length=32, default=generate_image_index_job_id)
+    coll_id = models.CharField(max_length=32)
+    owner = models.CharField(max_length=50)
+    image_ids = models.JSONField(default=list)
+    completed_ids = models.JSONField(default=list)
+    failures = models.JSONField(default=dict)
+    mode = models.CharField(max_length=20, default='reuse')
+    state = models.CharField(max_length=20, default='queued')
+    cancel_requested = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class ImageIndexLease(models.Model):
+    id = models.CharField(primary_key=True, max_length=32, default='image-index')
+    owner = models.CharField(max_length=64, blank=True, default='')
+    job_id = models.CharField(max_length=32, blank=True, default='')
+    expires_at = models.DateTimeField(null=True)
 
 
 class ArticleAnnotation(models.Model):

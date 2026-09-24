@@ -332,6 +332,11 @@ export interface WebDavSyncStatus {
     lastMergeSummary?: {created?: number; updated?: number; deleted?: number; conflicts?: number};
     cancelRequested?: boolean;
     syncProgress?: number;
+    autoSyncConsecutiveFailures?: number;
+    autoSyncNextRetryAt?: string;
+    autoSyncPaused?: boolean;
+    autoSyncPauseNoticeSent?: boolean;
+    autoSyncMaxFailures?: number;
 }
 
 export interface SyncHistoryEntry {

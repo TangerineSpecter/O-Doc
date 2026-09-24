@@ -14,6 +14,7 @@ from article.image_service import (
     compress_image_data_url,
 )
 from article.models import Image
+from article.image_search_service import remove_image_index
 from article.serializers import ImageSerializer
 from assets.models import Asset
 from utils.ai_service import AIService
@@ -248,6 +249,11 @@ class ImageGroupUpdateView(APIView):
                 record_bulk_change(anthology_queryset)
                 anthology_queryset.update(count=models.F('count') - len(removed) + sum(1 for photo in photos if not (photo.get('image_id') or photo.get('imageId'))))
             cleanup_group_image_assets(removed)
+            for image in removed:
+                try:
+                    remove_image_index(image)
+                except Exception:
+                    logger.exception('Could not remove local index for deleted image %s', image.pk)
             refreshed = Image.objects.filter(photo_group_id=group_id, is_valid=True).order_by('group_index')
             if not refreshed.exists():
                 # 组内只剩一张时已降级为普通图片，仍需在更新响应中返回它。
@@ -277,6 +283,11 @@ class ImageGroupDeleteView(APIView):
                 record_bulk_change(anthology_queryset)
                 anthology_queryset.update(count=models.F('count') - len(images))
             cleanup_group_image_assets(images)
+            for image in images:
+                try:
+                    remove_image_index(image)
+                except Exception:
+                    logger.exception('Could not remove local index for deleted image %s', image.pk)
             return success_result(msg='删除成功')
         except Exception as e:
             return error_result(ErrorCode.SYSTEM_ERROR, str(e))
@@ -368,6 +379,10 @@ class ImageDeleteView(APIView):
             resource_id = extract_resource_id_from_view_url(image.image_url)
             image.is_valid = False
             image.save()
+            try:
+                remove_image_index(image)
+            except Exception:
+                logger.exception('Could not remove local index for deleted image %s', image.pk)
 
             # 组内仅剩一张时降级为普通单图，避免留下没有意义的拍摄组标识。
             if image.photo_group_id:

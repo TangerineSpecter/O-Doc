@@ -140,7 +140,7 @@ def _sync_scanned_system_mcp_servers(request, value):
         value,
         '评论 MCP',
         '/api/system-mcp/comments/',
-        'O-Doc 内置系统 MCP，仅提供文章批注和评论相关的工具。',
+        'O-Doc 内置系统 MCP，仅提供文章文集的划线批注和评论工具。',
         _comment_mcp_tools(),
     )
 
@@ -387,7 +387,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             'env': {},
             'source': 'system',
             'enabled': bool(value.get('enabled', True)),
-            'description': 'O-Doc 内置系统 MCP，仅提供文章批注和评论相关的工具。',
+            'description': 'O-Doc 内置系统 MCP，仅提供文章文集的划线批注和评论工具。',
             'tools': cls._format_builtin_tools(VISIBLE_COMMENT_TOOL_NAMES),
         }
 
