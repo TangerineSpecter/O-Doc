@@ -19,24 +19,39 @@ LEASE_SECONDS = 180
 def create_index_job(coll_id, owner, image_ids, mode='reuse'):
     if mode not in {'reuse', 'refresh', 'index_only'}:
         raise ValueError('无效的建索引方式')
-    if not Anthology.objects.filter(coll_id=coll_id, user_id=owner, type='image', is_valid=True).exists():
-        raise ValueError('无权管理这个图片文集')
-    if image_ids == 'all':
-        ids = list(Image.objects.filter(coll_id=coll_id, is_valid=True).values_list('image_id', flat=True))
-    elif isinstance(image_ids, list) and image_ids:
-        ids = list(dict.fromkeys(str(value) for value in image_ids))
-        if len(ids) > 2000 or Image.objects.filter(coll_id=coll_id, is_valid=True, image_id__in=ids).count() != len(ids):
-            raise ValueError('所选图片无效或超过单次 2000 张的限制')
-    else:
-        raise ValueError('请选择要处理的图片')
-    if not ids:
-        raise ValueError('文集中没有可处理的图片')
-    active = ImageIndexJob.objects.filter(coll_id=coll_id, owner=owner, state__in=['queued', 'running']).order_by('created_at').first()
-    if active:
-        if active.image_ids == ids and active.mode == mode:
-            return active
-        raise ValueError('这个文集已有处理中的任务')
-    return ImageIndexJob.objects.create(coll_id=coll_id, owner=owner, image_ids=ids, mode=mode)
+    with transaction.atomic():
+        if not Anthology.objects.select_for_update().filter(coll_id=coll_id, user_id=owner, type='image', is_valid=True).exists():
+            raise ValueError('无权管理这个图片文集')
+        if image_ids == 'all':
+            ids = list(Image.objects.filter(coll_id=coll_id, is_valid=True).values_list('image_id', flat=True))
+        elif isinstance(image_ids, list) and image_ids:
+            ids = list(dict.fromkeys(str(value) for value in image_ids))
+            if len(ids) > 2000 or Image.objects.filter(coll_id=coll_id, is_valid=True, image_id__in=ids).count() != len(ids):
+                raise ValueError('所选图片无效或超过单次 2000 张的限制')
+        else:
+            raise ValueError('请选择要处理的图片')
+        if not ids:
+            raise ValueError('文集中没有可处理的图片')
+        active = ImageIndexJob.objects.filter(coll_id=coll_id, owner=owner, state__in=['queued', 'running']).order_by('created_at').first()
+        if active:
+            if active.image_ids == ids and active.mode == mode:
+                return active
+            raise ValueError('这个文集已有处理中的任务')
+        return ImageIndexJob.objects.create(coll_id=coll_id, owner=owner, image_ids=ids, mode=mode)
+
+
+def enqueue_edited_image_reindex(coll_id: str, owner: str, image_id: str) -> ImageIndexJob:
+    """合并尚未执行的修正任务；运行中的任务可能已读旧文本，需另排一次。"""
+    with transaction.atomic():
+        if not Anthology.objects.select_for_update().filter(coll_id=coll_id, user_id=owner, type='image', is_valid=True).exists():
+            raise ValueError('无权管理这个图片文集')
+        pending = ImageIndexJob.objects.select_for_update().filter(
+            coll_id=coll_id, owner=owner, state='queued', cancel_requested=False,
+        ).order_by('created_at')
+        for job in pending:
+            if image_id in job.image_ids:
+                return job
+        return ImageIndexJob.objects.create(coll_id=coll_id, owner=owner, image_ids=[image_id], mode='index_only')
 
 
 def serialize_job(job):

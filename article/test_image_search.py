@@ -1,12 +1,13 @@
 from io import BytesIO
 from datetime import timedelta
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core import serializers
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from PIL import Image as PILImage
 from rest_framework.test import APIClient
@@ -16,6 +17,7 @@ from article.image_search_jobs import claim_job, create_index_job, execute_claim
 from article.image_search_service import PROMPT_VERSION, image_index_status, image_source_hash, index_image, remove_image_index
 from article.models import Image, ImageIndexJob, ImageIndexLease, ImageVisualIndex
 from system_settings.sync_state import LOCAL_ONLY_MODEL_LABELS
+from utils.sync_manager import SyncManager
 
 
 class FakeCollection:
@@ -54,6 +56,11 @@ class FakeCollection:
 
 class ImageSearchTests(TestCase):
     def setUp(self):
+        self.test_media_root = TemporaryDirectory()
+        self.addCleanup(self.test_media_root.cleanup)
+        media_override = override_settings(MEDIA_ROOT=self.test_media_root.name)
+        media_override.enable()
+        self.addCleanup(media_override.disable)
         self.user = User.objects.create_user(username='image-owner', password='password')
         self.owner = f'user_{self.user.pk}'
         self.client = APIClient()
@@ -120,6 +127,42 @@ class ImageSearchTests(TestCase):
         self.target.coll_id = 'different-anthology'
         self.target.save()
         self.assertEqual(image_index_status(self.target, state, self.model), 'needs_index')
+
+    def test_current_manual_correction_remains_searchable_after_image_changes(self):
+        self.make_caption(self.target)
+        index_image(self.target, mode='index_only')
+        self.target.image_url = 'replaced.png'
+        self.target.save()
+
+        response = self.client.put(f'/api/article/image/visual/{self.target.pk}', {
+            'override': '新画面中紫发少女拿着法杖',
+        }, format='json')
+        self.assertEqual(response.data['data']['status'], 'needs_index')
+        execute_claim(claim_job())
+
+        self.target.refresh_from_db()
+        record = ImageVisualIndex.objects.get(image=self.target)
+        self.assertEqual(image_index_status(self.target, record, self.model), 'indexed')
+        search = self.client.post('/api/article/image/search', {'query': '法杖'}, format='json')
+        self.assertEqual(search.data['data']['items'][0]['image']['image_id'], self.target.pk)
+
+    def test_keyword_ranking_includes_older_exact_tag_past_two_thousand_matches(self):
+        self.target.tags = '紫发'
+        self.target.save()
+        Image.objects.filter(pk=self.target.pk).update(updated_at=timezone.now() - timedelta(days=1))
+        Image.objects.bulk_create([
+            Image(image_id=f'keyword-filler-{index}', title='其他图片', description='紫发',
+                  image_url=f'filler-{index}.png', coll_id=self.anthology.pk, author=self.owner)
+            for index in range(2000)
+        ])
+
+        with patch('utils.rag_client.RagClient.get_embedding_model', return_value=None):
+            response = self.client.post('/api/article/image/search', {'query': '紫发'}, format='json')
+            last_page = self.client.post('/api/article/image/search', {'query': '紫发', 'page': 67}, format='json')
+        self.assertEqual(response.data['data']['items'][0]['image']['image_id'], self.target.pk)
+        self.assertEqual(response.data['data']['items'][0]['match_reason'], '人工标签命中')
+        self.assertEqual(len(last_page.data['data']['items']), 21)
+        self.assertFalse(last_page.data['data']['has_more'])
 
     def test_reference_search_does_not_save_image(self):
         self.make_caption(self.target)
@@ -196,6 +239,81 @@ class ImageSearchTests(TestCase):
         self.target.refresh_from_db()
         self.assertEqual(image_index_status(self.target, record, self.model), 'indexed')
         self.assertIn('红色帽子', self.collections[record.collection_name].values[self.target.pk][1])
+
+    def test_repeated_visual_edits_reuse_one_pending_job(self):
+        self.make_caption(self.target)
+        index_image(self.target, mode='index_only')
+        for override in ('红色帽子', '红色帽子', '蓝色背景'):
+            response = self.client.put(f'/api/article/image/visual/{self.target.pk}', {'override': override}, format='json')
+            self.assertEqual(response.data['code'], 200)
+        self.assertEqual(ImageIndexJob.objects.filter(state='queued').count(), 1)
+        execute_claim(claim_job())
+        record = ImageVisualIndex.objects.get(image=self.target)
+        self.assertIn('蓝色背景', self.collections[record.collection_name].values[self.target.pk][1])
+
+    def test_visual_edit_reuses_queued_bulk_job_but_follows_running_job(self):
+        self.make_caption(self.target)
+        index_image(self.target, mode='index_only')
+        existing = create_index_job(self.anthology.pk, self.owner, 'all', 'index_only')
+        self.client.put(f'/api/article/image/visual/{self.target.pk}', {'override': '第一次修正'}, format='json')
+        self.assertEqual(ImageIndexJob.objects.count(), 1)
+
+        existing.state = 'running'
+        existing.save(update_fields=['state'])
+        self.client.put(f'/api/article/image/visual/{self.target.pk}', {'override': '第二次修正'}, format='json')
+        self.assertEqual(ImageIndexJob.objects.count(), 2)
+        self.assertTrue(ImageIndexJob.objects.filter(state='queued', mode='index_only', image_ids=[self.target.pk]).exists())
+
+    def test_sync_soft_deleted_image_removes_local_vector_after_commit(self):
+        self.make_caption(self.target)
+        index_image(self.target, mode='index_only')
+        record = ImageVisualIndex.objects.get(image=self.target)
+        snapshot = SyncManager().build_snapshot_data()
+        for item in snapshot:
+            if item['model'] == 'article.image' and item['pk'] == self.target.pk:
+                item['fields']['is_valid'] = False
+
+        with self.captureOnCommitCallbacks(execute=True):
+            SyncManager().apply_snapshot_data(snapshot, full_overwrite=True)
+
+        self.target.refresh_from_db()
+        record.refresh_from_db()
+        self.assertFalse(self.target.is_valid)
+        self.assertFalse(record.enabled)
+        self.assertNotIn(self.target.pk, self.collections[record.collection_name].values)
+
+    def test_sync_hard_deleted_image_removes_vector_after_commit(self):
+        self.make_caption(self.target)
+        index_image(self.target, mode='index_only')
+        record = ImageVisualIndex.objects.get(image=self.target)
+        snapshot = [item for item in SyncManager().build_snapshot_data()
+                    if not (item['model'] == 'article.image' and item['pk'] == self.target.pk)]
+
+        with self.captureOnCommitCallbacks(execute=True):
+            SyncManager().apply_snapshot_data(snapshot, full_overwrite=True)
+
+        self.assertFalse(Image.objects.filter(pk=self.target.pk).exists())
+        self.assertNotIn(self.target.pk, self.collections[record.collection_name].values)
+
+    def test_failed_sync_keeps_image_and_local_vector(self):
+        self.make_caption(self.target)
+        index_image(self.target, mode='index_only')
+        record = ImageVisualIndex.objects.get(image=self.target)
+        snapshot = SyncManager().build_snapshot_data()
+        for item in snapshot:
+            if item['model'] == 'article.image' and item['pk'] == self.target.pk:
+                item['fields']['is_valid'] = False
+
+        with patch.object(SyncManager, '_reset_restored_sequences', side_effect=RuntimeError('restore failed')):
+            with self.assertRaisesMessage(RuntimeError, 'restore failed'):
+                with self.captureOnCommitCallbacks(execute=True):
+                    SyncManager().apply_snapshot_data(snapshot, full_overwrite=True)
+
+        self.target.refresh_from_db()
+        record.refresh_from_db()
+        self.assertTrue(self.target.is_valid)
+        self.assertTrue(record.enabled)
+        self.assertIn(self.target.pk, self.collections[record.collection_name].values)
 
     def test_missing_embedding_model_keeps_keyword_search_and_blocks_index_job(self):
         with patch('utils.rag_client.RagClient.get_embedding_model', return_value=None):

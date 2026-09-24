@@ -2,6 +2,8 @@
 
 import base64
 import hashlib
+import logging
+from collections import defaultdict
 from io import BytesIO
 from pathlib import Path
 
@@ -21,6 +23,7 @@ MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_STORED_IMAGE_BYTES = 50 * 1024 * 1024
 MAX_IMAGE_PIXELS = 40_000_000
 SUPPORTED_FORMATS = {'JPEG', 'PNG', 'WEBP', 'GIF'}
+logger = logging.getLogger(__name__)
 
 
 def digest(value):
@@ -96,7 +99,10 @@ def index_text(image, source_hash=None):
 
 def image_index_status(image, record=None, model=None, *, source_hash=None):
     source_hash = source_hash or image_source_hash(image)
-    if image.ai_visual_description and (image.ai_visual_source_hash != source_hash or image.ai_visual_prompt_version != PROMPT_VERSION):
+    has_current_override = bool(image.visual_description_override.strip() and image.visual_override_source_hash == source_hash)
+    if not has_current_override and image.ai_visual_description and (
+        image.ai_visual_source_hash != source_hash or image.ai_visual_prompt_version != PROMPT_VERSION
+    ):
         return 'needs_recognition'
     if record and record.enabled and record.error:
         return 'failed'
@@ -169,6 +175,19 @@ def remove_image_index(image):
     record.save(update_fields=['enabled', 'error', 'updated_at'])
 
 
+def delete_image_vectors(vectors: dict[str, str]) -> None:
+    """同步提交后清理由远端删除的图片向量；不触碰其他集合。"""
+    by_collection = defaultdict(list)
+    for image_id, name in vectors.items():
+        if name:
+            by_collection[name].append(image_id)
+    for name, image_ids in by_collection.items():
+        try:
+            RagClient.get_collection(name).delete(ids=image_ids)
+        except Exception:
+            logger.exception('Could not remove synced image vectors: collection=%s count=%s', name, len(image_ids))
+
+
 def visible_images(request, coll_id=None):
     from article.access import get_visible_anthology_queryset
 
@@ -194,14 +213,39 @@ def query_vectors(vector, coll_ids, *, limit):
 def rank_results(request, vector_matches, keyword='', coll_id=None, page=1, page_size=30):
     queryset, _ = visible_images(request, coll_id)
     model = RagClient.get_embedding_model()
-    candidates = {}
+    offset = (page - 1) * page_size
+    keep_count = offset + page_size + 1
+    grouped = {}
+
+    def add_candidate(image: Image, score: float, reason: str) -> None:
+        key = (image.coll_id, image.photo_group_id or image.image_id)
+        previous = grouped.get(key)
+        if previous is None or (score, image.updated_at) > (previous[1], previous[0].updated_at):
+            grouped[key] = (image, score, reason)
+        # 只保留足以生成当前页和 has_more 的最佳拍摄组，避免常见标签占满内存。
+        if len(grouped) > max(1000, keep_count * 2):
+            best = sorted(grouped.items(), key=lambda item: (item[1][1], item[1][0].updated_at), reverse=True)[:keep_count]
+            grouped.clear()
+            grouped.update(best)
+
+    ids = [image_id for image_id, _ in vector_matches]
+    records = ImageVisualIndex.objects.in_bulk(ids, field_name='image_id') if ids else {}
+    images = queryset.filter(image_id__in=ids).in_bulk(field_name='image_id') if ids else {}
+    source_hashes = image_source_hashes(images.values())
+    vector_scores = {}
+    for image_id, distance in vector_matches:
+        image, record = images.get(image_id), records.get(image_id)
+        if image and image_index_status(image, record, model, source_hash=source_hashes[image_id]) == 'indexed':
+            vector_scores[image_id] = 2.0 / (1.0 + max(0.0, float(distance)))
+
     keyword = keyword.strip()
+    keyword_vector_ids = set()
     if keyword:
         matches = queryset.filter(
             Q(title__icontains=keyword) | Q(tags__icontains=keyword) |
             Q(description__icontains=keyword) | Q(country__icontains=keyword) |
             Q(city__icontains=keyword) | Q(place_name__icontains=keyword)
-        ).order_by('-updated_at')[:2000]
+        ).order_by('-updated_at').iterator(chunk_size=500)
         for image in matches:
             tags = image.get_tags_list()
             if any(tag.casefold() == keyword.casefold() for tag in tags):
@@ -212,28 +256,14 @@ def rank_results(request, vector_matches, keyword='', coll_id=None, page=1, page
                 score, reason = 7.0, '人工标签命中'
             else:
                 score, reason = 5.0, '描述或地点命中'
-            candidates[image.image_id] = (image, score, reason)
-    ids = [image_id for image_id, _ in vector_matches]
-    records = ImageVisualIndex.objects.in_bulk(ids, field_name='image_id') if ids else {}
-    images = queryset.filter(image_id__in=ids).in_bulk(field_name='image_id') if ids else {}
-    source_hashes = image_source_hashes(images.values())
-    for image_id, distance in vector_matches:
-        image, record = images.get(image_id), records.get(image_id)
-        if not image or image_index_status(image, record, model, source_hash=source_hashes[image_id]) != 'indexed':
-            continue
-        score = 2.0 / (1.0 + max(0.0, float(distance)))
-        previous = candidates.get(image_id)
-        if previous:
-            candidates[image_id] = (image, previous[1] + score, previous[2])
-        else:
-            candidates[image_id] = (image, score, '视觉描述相关')
-    grouped = {}
-    for image, score, reason in candidates.values():
-        key = (image.coll_id, image.photo_group_id or image.image_id)
-        if key not in grouped or score > grouped[key][1]:
-            grouped[key] = (image, score, reason)
+            if image.image_id in vector_scores:
+                keyword_vector_ids.add(image.image_id)
+                score += vector_scores[image.image_id]
+            add_candidate(image, score, reason)
+    for image_id, score in vector_scores.items():
+        if image_id not in keyword_vector_ids:
+            add_candidate(images[image_id], score, '视觉描述相关')
     ordered = sorted(grouped.values(), key=lambda item: (item[1], item[0].updated_at), reverse=True)
-    offset = (page - 1) * page_size
     return ordered[offset:offset + page_size], len(ordered) > offset + page_size
 
 

@@ -175,8 +175,8 @@ export interface ImageIndexJob {
 export interface ImageIndexSummary { total: number; indexed: number; statuses: Record<string, ImageIndexStatus>; job: ImageIndexJob | null; canManage: boolean }
 export interface ImageVisualDetail { aiDescription: string; override: string; status: ImageIndexStatus; model: string; error: string }
 
-export const searchImages = (query: string, collId?: string, page = 1) =>
-  request.post<any, ImageSearchResponse>('/article/image/search', {query, collId, page, pageSize: 30}, {timeout: 45000});
+export const searchImages = (query: string, collId?: string, page = 1, signal?: AbortSignal) =>
+  request.post<any, ImageSearchResponse>('/article/image/search', {query, collId, page, pageSize: 30}, {timeout: 45000, signal});
 
 export const searchImagesByReference = (image: File, collId?: string) => {
   const body = new FormData();

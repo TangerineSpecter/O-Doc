@@ -710,6 +710,9 @@ class SyncManager:
 
     def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None):
         """把快照写回数据库。full_overwrite 用于本地压缩包导入，按备份全量覆盖。"""
+        from article.image_search_service import delete_image_vectors
+        from article.models import ImageVisualIndex
+
         data_list = self._drop_local_only_settings(data_list)
         self._strip_device_local_user_fields(data_list)
         self._restore_device_local_user_fields(data_list)
@@ -752,6 +755,14 @@ class SyncManager:
             for model_label, primary_keys in remote_pk_map.items()
             if primary_keys
         ]
+        invalid_image_ids = {
+            str(item.get('pk')) for item in data_list
+            if item.get('model') == 'article.image' and (item.get('fields') or {}).get('is_valid') is False
+        }
+        image_vectors_to_remove = dict(
+            ImageVisualIndex.objects.filter(image_id__in=invalid_image_ids).exclude(collection_name='')
+            .values_list('image_id', 'collection_name')
+        ) if invalid_image_ids else {}
 
         with transaction.atomic():
             self._ensure_not_aborted(should_abort)
@@ -782,6 +793,11 @@ class SyncManager:
                     ]
                     if stale_pks:
                         stale = local_objects.filter(**{f"{model._meta.pk.attname}__in": stale_pks})
+                        if model._meta.label_lower == 'article.image':
+                            image_vectors_to_remove.update(
+                                ImageVisualIndex.objects.filter(image_id__in=stale_pks).exclude(collection_name='')
+                                .values_list('image_id', 'collection_name')
+                            )
                         if model._meta.label_lower == 'assets.asset':
                             # Remote HTML deletion must also reclaim this device's files.
                             # Keep invalid records until cleanup succeeds, preserving retries.
@@ -797,6 +813,10 @@ class SyncManager:
 
             self._reset_restored_sequences(restored_models)
 
+            if image_vectors_to_remove:
+                ImageVisualIndex.objects.filter(image_id__in=image_vectors_to_remove).update(enabled=False, error='')
+                # 外部 Chroma 写入必须晚于数据库提交；回滚时保留原索引。
+                transaction.on_commit(lambda vectors=dict(image_vectors_to_remove): delete_image_vectors(vectors), robust=True)
             from article.html_note_resources import retry_html_cleanup
             transaction.on_commit(retry_html_cleanup)
 

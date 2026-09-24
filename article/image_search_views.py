@@ -2,12 +2,13 @@
 
 import logging
 
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from article.access import can_access_anthology, can_manage_anthology
-from article.image_search_jobs import create_index_job, serialize_job
+from article.image_search_jobs import create_index_job, enqueue_edited_image_reindex, serialize_job
 from article.image_search_service import (
     image_index_status, image_source_hash, image_source_hashes, rank_results, remove_image_index,
     search_by_uploaded_image, search_images, similar_images, visible_images,
@@ -139,13 +140,19 @@ class ImageVisualDetailView(APIView):
         value = request.data.get('override')
         if not isinstance(value, str) or len(value) > 4000:
             return valid_result('视觉描述最多 4000 字')
-        image.visual_description_override = value.strip()
-        image.visual_override_source_hash = image_source_hash(image) if value.strip() else ''
-        image.save(update_fields=['visual_description_override', 'visual_override_source_hash', 'updated_at'])
-        state = ImageVisualIndex.objects.filter(image=image, enabled=True).first()
-        if state:
-            ImageIndexJob.objects.create(coll_id=image.coll_id, owner=get_current_user_identifier(request),
-                                         image_ids=[image.pk], mode='index_only')
+        with transaction.atomic():
+            image = Image.objects.select_for_update().filter(pk=image.pk, is_valid=True).first()
+            if not image:
+                return valid_result('图片不可访问')
+            source_hash = image_source_hash(image) if value.strip() else ''
+            changed = image.visual_description_override != value.strip() or image.visual_override_source_hash != source_hash
+            image.visual_description_override = value.strip()
+            image.visual_override_source_hash = source_hash
+            if changed:
+                image.save(update_fields=['visual_description_override', 'visual_override_source_hash', 'updated_at'])
+            state = ImageVisualIndex.objects.filter(image=image, enabled=True).first()
+            if state and changed:
+                enqueue_edited_image_reindex(image.coll_id, get_current_user_identifier(request), image.pk)
         return success_result({'status': image_index_status(image, state, RagClient.get_embedding_model())})
 
 
