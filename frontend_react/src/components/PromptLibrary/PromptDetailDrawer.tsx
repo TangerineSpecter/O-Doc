@@ -6,6 +6,7 @@ import {defaultPromptValues, renderPromptTemplate, type PromptValues} from '../.
 import {useToast} from '../common/ToastProvider';
 import {Select} from '../common/Select';
 import AuthenticatedResourceImage from '../common/AuthenticatedResourceImage';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface Props {
     template: PromptTemplate | null;
@@ -19,24 +20,12 @@ interface Props {
 export default function PromptDetailDrawer({template, onClose, onChanged, onEdit, onPreviewImage, isLightboxOpen}: Props) {
     const toast = useToast();
     const [values, setValues] = useState<PromptValues>({});
+    useEscapeDismissal(Boolean(template && !isLightboxOpen), onClose);
 
     useEffect(() => {
         if (!template) return;
         setValues(defaultPromptValues(template.fieldSchema));
     }, [template]);
-
-    useEffect(() => {
-        if (!template) return;
-        const closeOnEscape = (event: KeyboardEvent) => {
-            if (isLightboxOpen) return;
-            if (event.key === 'Escape' || event.key === 'Esc') {
-                event.stopPropagation();
-                onClose();
-            }
-        };
-        window.addEventListener('keydown', closeOnEscape);
-        return () => window.removeEventListener('keydown', closeOnEscape);
-    }, [template, onClose, isLightboxOpen]);
 
     const rendered = useMemo(() => template ? renderPromptTemplate(template.positiveTemplate, template.fieldSchema, values) : {text: '', missing: []}, [template, values]);
     const negative = useMemo(() => template ? renderPromptTemplate(template.negativeTemplate, template.fieldSchema, values) : {text: '', missing: []}, [template, values]);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ImageIcon, X, Loader2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface ImageLinkModalProps {
     isOpen: boolean;
@@ -17,6 +18,7 @@ export default function ImageLinkModal({
     const [altText, setAltText] = useState('图片');
     const [isLoading, setIsLoading] = useState(false);
     const toast = useToast();
+    useEscapeDismissal(isOpen, () => {if (!isLoading) onClose();});
 
     if (!isOpen) return null;
 

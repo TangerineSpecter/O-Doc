@@ -6,6 +6,7 @@ import { Select } from '../common/Select';
 import { type SkillConfig } from '../../api/setting';
 import { type AssistantMode } from './types';
 import { type SelectOption } from '../common/Select';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface ChatSettingsToolbarProps {
     assistantMode: AssistantMode;
@@ -53,6 +54,9 @@ export const ChatSettingsToolbar = ({
     const mcpPanelRef = useRef<HTMLDivElement>(null);
     const skillPanelRef = useRef<HTMLDivElement>(null);
     const [mobileKbOpen, setMobileKbOpen] = useState(false);
+    useEscapeDismissal(mcpPanelOpen, () => setMcpPanelOpen(false));
+    useEscapeDismissal(skillPanelOpen && chatSkills.length > 0, () => setSkillPanelOpen(false));
+    useEscapeDismissal(mobileKbOpen, () => setMobileKbOpen(false));
 
     const selectedAnthology = anthologyOptions.find(opt => opt.value === selectedCollId);
 
@@ -67,14 +71,9 @@ export const ChatSettingsToolbar = ({
                 }
             }
         };
-        const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setMcpPanelOpen(false);
-        };
         document.addEventListener('mousedown', closeOnOutside);
-        document.addEventListener('keydown', closeOnEscape);
         return () => {
             document.removeEventListener('mousedown', closeOnOutside);
-            document.removeEventListener('keydown', closeOnEscape);
         };
     }, [mcpPanelOpen, setMcpPanelOpen]);
 
@@ -88,14 +87,9 @@ export const ChatSettingsToolbar = ({
                 }
             }
         };
-        const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setSkillPanelOpen(false);
-        };
         document.addEventListener('mousedown', closeOnOutside);
-        document.addEventListener('keydown', closeOnEscape);
         return () => {
             document.removeEventListener('mousedown', closeOnOutside);
-            document.removeEventListener('keydown', closeOnEscape);
         };
     }, [skillPanelOpen, setSkillPanelOpen]);
 

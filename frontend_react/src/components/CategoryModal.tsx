@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
 import { CategoryItem } from '../api/category';
+import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 
 // 定义颜色主题类型
 interface ColorTheme {
@@ -47,6 +48,7 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
 }) => {
     // 表单数据状态
     const [formData, setFormData] = useState<CategoryFormData>(initialFormData);
+    useEscapeDismissal(isOpen, onClose);
 
     // 当编辑的分类或初始表单数据变化时更新表单
     useEffect(() => {

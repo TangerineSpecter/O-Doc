@@ -12,6 +12,7 @@ import {
 import type {PromptTaxonomies} from '../../types/api/prompt';
 import {createPromptTaxonomy, deletePromptTaxonomy, updatePromptTaxonomy} from '../../api/prompt';
 import {useToast} from '../common/ToastProvider';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface Props {
   open: boolean;
@@ -97,22 +98,10 @@ export default function PromptTaxonomyModal({open, taxonomies, onClose, onChange
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
-
-  // 支持键盘 Esc 退出
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (editingId) {
-          setEditingId(null);
-        } else {
-          onClose();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, editingId, onClose]);
+  useEscapeDismissal(open, () => {
+    if (editingId) setEditingId(null);
+    else onClose();
+  });
 
   // 编辑模式时自动聚焦
   useEffect(() => {
@@ -305,7 +294,7 @@ export default function PromptTaxonomyModal({open, taxonomies, onClose, onChange
                                 onChange={e => setEditingName(e.target.value)}
                                 onKeyDown={e => {
                                   if (e.key === 'Enter') void handleSaveRename();
-                                  if (e.key === 'Escape') setEditingId(null);
+                                  if (e.key === 'Escape') {e.stopPropagation(); setEditingId(null);}
                                 }}
                                 className="w-full rounded-lg border border-orange-400 px-2.5 py-1 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                               />
@@ -385,7 +374,7 @@ export default function PromptTaxonomyModal({open, taxonomies, onClose, onChange
                                 onChange={e => setEditingName(e.target.value)}
                                 onKeyDown={e => {
                                   if (e.key === 'Enter') void handleSaveRename();
-                                  if (e.key === 'Escape') setEditingId(null);
+                                  if (e.key === 'Escape') {e.stopPropagation(); setEditingId(null);}
                                 }}
                                 className="w-full rounded-md border border-violet-400 px-2 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                               />
@@ -461,7 +450,7 @@ export default function PromptTaxonomyModal({open, taxonomies, onClose, onChange
                               onChange={e => setEditingName(e.target.value)}
                               onKeyDown={e => {
                                 if (e.key === 'Enter') void handleSaveRename();
-                                if (e.key === 'Escape') setEditingId(null);
+                                if (e.key === 'Escape') {e.stopPropagation(); setEditingId(null);}
                               }}
                               className="w-full rounded border border-sky-400 px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
                             />

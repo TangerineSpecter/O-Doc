@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import {
   Aperture,
   Calendar,
@@ -94,6 +95,7 @@ export default function ImageViewer({
   const isTouchInBottomZoneRef = useRef<boolean>(false);
   const isTouchInImageZoneRef = useRef<boolean>(false);
   const [edgeSwipeProgress, setEdgeSwipeProgress] = useState<{ deltaX: number; clientY: number } | null>(null);
+  useEscapeDismissal(isOpen && Boolean(image), onClose);
   const isEdgeSwipingRef = useRef(false);
   const edgeSwipeStartXRef = useRef(0);
   const edgeSwipeStartYRef = useRef(0);
@@ -169,9 +171,7 @@ export default function ImageViewer({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
 
-      if (e.key === 'Escape') {
-        onClose();
-      } else if (e.key === 'ArrowLeft') {
+      if (e.key === 'ArrowLeft') {
         resetNavButtonsTimer();
         if (hasSwipePrevious && onSwipePrevious) {
           onSwipePrevious();
@@ -190,7 +190,7 @@ export default function ImageViewer({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, onPrevious, onNext, hasPrevious, hasNext, onSwipePrevious, onSwipeNext, hasSwipePrevious, hasSwipeNext, resetNavButtonsTimer]);
+  }, [isOpen, onPrevious, onNext, hasPrevious, hasNext, onSwipePrevious, onSwipeNext, hasSwipePrevious, hasSwipeNext, resetNavButtonsTimer]);
 
   useEffect(() => {
     if (!isOpen || displayGroupImages.length < 2) return;

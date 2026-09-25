@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, Send, Star, Trash2} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
+import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 import Article from './Article';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import {getHtmlDeletionSummary} from '../api/htmlNote';
@@ -715,6 +716,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
 
     const [activeDocId, setActiveDocId] = useState<string | undefined>(articleId);
     const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 768);
+    useEscapeDismissal(isSidebarOpen && window.innerWidth < 768, () => setIsSidebarOpen(false));
     const [isMobileTocOpen, setIsMobileTocOpen] = useState(false);
     const [hasArticleToc, setHasArticleToc] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);

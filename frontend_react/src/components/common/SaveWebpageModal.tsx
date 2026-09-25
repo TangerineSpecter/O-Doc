@@ -3,6 +3,7 @@ import {
     FileCode2, FileText, Globe2, ImageDown, Link as LinkIcon, Loader2,
     ScanText, Sparkles, UploadCloud, X
 } from 'lucide-react';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface CommonImportOptions {
     importMode?: 'extract' | 'original';
@@ -91,6 +92,7 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
         resetForm();
         onClose();
     };
+    useEscapeDismissal(isOpen, handleClose);
 
     const selectFiles = (nextFiles: File[]) => {
         if (!nextFiles.length) return;

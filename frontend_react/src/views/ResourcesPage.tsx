@@ -3,6 +3,7 @@ import {useToast} from '../components/common/ToastProvider';
 import {useNavigate} from 'react-router-dom';
 import PageLoading from '../components/common/PageLoading';
 import AuthenticatedResourceImage from '../components/common/AuthenticatedResourceImage';
+import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 
 import {
     Search, Filter, Download, Trash2, FileText,
@@ -72,6 +73,8 @@ export default function ResourcesPage() {
     // --- Delete Modal State ---
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null); // 单个删除的ID
+    useEscapeDismissal(isDeleteModalOpen, () => {setIsDeleteModalOpen(false); setDeletingId(null);});
+    useEscapeDismissal(Boolean(previewFile), () => setPreviewFile(null));
 
     // Refs
     const isLoadingRef = useRef(false);
@@ -153,23 +156,9 @@ export default function ResourcesPage() {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape' || event.key === 'Esc') {
-                if (lightboxImage) {
-                    setLightboxImage(null);
-                    return;
-                }
-                if (previewFile) {
-                    setPreviewFile(null);
-                    return;
-                }
-                if (isDeleteModalOpen) {
-                    setIsDeleteModalOpen(false);
-                    setDeletingId(null);
-                    return;
-                }
-                if (selectedIds.size > 0 || isSelectMode) {
+                if (!lightboxImage && !previewFile && !isDeleteModalOpen && (selectedIds.size > 0 || isSelectMode)) {
                     setSelectedIds(new Set());
                     setIsSelectMode(false);
-                    return;
                 }
             }
         };

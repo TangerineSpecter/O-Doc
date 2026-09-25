@@ -2,6 +2,7 @@ import {useState, useEffect} from 'react';
 import {AIProvider} from '../../api/setting';
 import {Server, X} from 'lucide-react';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface ProviderModalProps {
     isOpen: boolean;
@@ -13,6 +14,7 @@ interface ProviderModalProps {
 export const ProviderModal = ({isOpen, onClose, onSave, initialData}: ProviderModalProps) => {
     // 默认值设为 OpenAi
     const [form, setForm] = useState<Partial<AIProvider>>({name: '', type: 'OpenAi', baseUrl: '', apiKey: ''});
+    useEscapeDismissal(isOpen, onClose);
 
     const providerOptions: SettingsSelectOption<AIProvider['type']>[] = [
         {value: 'OpenAi', label: 'OpenAI', description: 'https://api.openai.com/v1'},

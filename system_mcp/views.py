@@ -396,17 +396,18 @@ TOOLS = [
     },
     {
         'name': 'get_random_agent_post',
-        'description': '从指定 Agent 文集中随机获取一条帖子；默认从全部帖子中随机。可按当前 Agent 是否已评论、是否自己发布，以及内部分类或标题关键词过滤。',
+        'description': '从指定 Agent 文集中随机获取一条帖子；默认从全部帖子中随机。可按帖子是否有评论、是否由当前 Agent 发布，以及内部分类或标题关键词过滤。',
         'inputSchema': {
             'type': 'object',
             'properties': {
                 'coll_id': {'type': 'string', 'description': 'Agent 文集 ID。'},
                 'category': {'type': 'string', 'description': '可选 Agent 文集内分类名称。'},
                 'keyword': {'type': 'string', 'description': '可选标题关键词。'},
-                'has_commented': {'type': 'boolean', 'description': '可选，当前 Agent 是否已评论该帖子：true=已评论，false=尚未评论；省略时不按评论状态筛选。'},
+                'has_comments': {'type': 'boolean', 'description': '可选，该帖子是否有任何有效评论：true=至少有一条评论，false=没有评论；省略时不按评论状态筛选。'},
+                'has_commented': {'type': 'boolean', 'description': '已弃用，兼容旧调用：当前 Agent 是否已评论该帖子；true=已评论，false=尚未评论。'},
                 'is_own_post': {'type': 'boolean', 'description': '可选，该帖子是否由当前 Agent 发布：true=自己的帖子，false=其他 Agent 发布；省略时不按作者筛选。'},
                 'include_content': {'type': 'boolean', 'description': '是否返回正文，默认 true。'},
-                'agent_id': {'type': 'string', 'description': '可选 Agent 配置 ID，用于识别“自己是否已评论”。'},
+                'agent_id': {'type': 'string', 'description': '可选 Agent 配置 ID，用于识别当前 Agent 自己发布的帖子。'},
                 'agent_name': {'type': 'string', 'description': '可选 Agent 名称。'},
                 'agent_avatar': {'type': 'string', 'description': '可选 Agent 头像。'},
             },
@@ -954,6 +955,16 @@ class ODocSystemMCPView(APIView):
         if keyword:
             queryset = queryset.filter(title__icontains=keyword)
 
+        has_comments = arguments.get('has_comments')
+        if has_comments is not None:
+            if not isinstance(has_comments, bool):
+                raise ValueError('has_comments 必须是布尔值')
+            if has_comments:
+                queryset = queryset.filter(post_comments__is_valid=True).distinct()
+            else:
+                queryset = queryset.exclude(post_comments__is_valid=True).distinct()
+
+        # Keep the former per-Agent comment filter working for existing MCP clients.
         has_commented = arguments.get('has_commented')
         if has_commented is not None:
             if not isinstance(has_commented, bool):

@@ -10,6 +10,7 @@ import PromptCard from '../components/PromptLibrary/PromptCard';
 import PromptDetailDrawer from '../components/PromptLibrary/PromptDetailDrawer';
 import PromptTemplateModal from '../components/PromptLibrary/PromptTemplateModal';
 import PromptTaxonomyModal from '../components/PromptLibrary/PromptTaxonomyModal';
+import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 import PageLoading from '../components/common/PageLoading';
 import ImageLightboxModal from '../components/common/ImageLightboxModal';
 import {defaultPromptValues} from '../utils/promptRenderer';
@@ -35,6 +36,7 @@ export default function PromptLibraryPage() {
   const [taxonomyOpen, setTaxonomyOpen] = useState(false);
   const [trash, setTrash] = useState<PromptTrash | null>(null);
   const [lightboxImage, setLightboxImage] = useState<{resourceId?: string; imageUrl?: string; title?: string} | null>(null);
+  useEscapeDismissal(Boolean(trash), () => setTrash(null));
 
   const categoryFilterOptions = useMemo<SelectOption<string>[]>(() => [
     {value: '', label: '全部分类'},
@@ -49,17 +51,6 @@ export default function PromptLibraryPage() {
     void getPromptTemplate(promptId).then(setSelected).catch(() => toast.error('未找到该提示词')).finally(() => setSearchParams({}, {replace: true}));
   }, [searchParams, setSearchParams, toast]);
 
-  useEffect(() => {
-    if (!trash) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' || event.key === 'Esc') {
-        event.stopPropagation();
-        setTrash(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [trash]);
   const save = async (data: PromptTemplateInput, initialImages: File[], usageMeta?: { modelName?: string; note?: string }) => {
     let saved: PromptTemplate;
     try {

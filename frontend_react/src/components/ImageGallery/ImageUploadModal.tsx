@@ -12,6 +12,7 @@ import { useToast } from '../common/ToastProvider';
 import { SettingsSelect } from '../Settings/SettingsSelect';
 import ImageResizeModal from './ImageResizeModal';
 import { imageExceedsUploadLimit } from '../../utils/imageUpload';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface ImageUploadModalProps {
   isOpen: boolean;
@@ -475,24 +476,6 @@ export default function ImageUploadModal({
     return () => document.removeEventListener('mousedown', closeOnOutside);
   }, [isTagMenuOpen]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      if (isDatePickerOpen) {
-        setIsDatePickerOpen(false);
-        return;
-      }
-      if (!isUploading) {
-        handleClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isDatePickerOpen, isUploading]);
-
   const applySelectedFile = (selectedFile: File, readMetadata = true) => {
     setFile(selectedFile);
     const reader = new FileReader();
@@ -608,6 +591,9 @@ export default function ImageUploadModal({
     resetForm();
     onClose();
   };
+  useEscapeDismissal(isOpen, () => {if (!isUploading) handleClose();});
+  useEscapeDismissal(isOpen && isDatePickerOpen, () => setIsDatePickerOpen(false));
+  useEscapeDismissal(isOpen && isTagMenuOpen, () => setIsTagMenuOpen(false));
 
   if (!isOpen) return null;
 

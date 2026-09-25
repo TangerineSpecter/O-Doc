@@ -1,6 +1,6 @@
 import {BrainCircuit, X} from 'lucide-react';
 import {createPortal} from 'react-dom';
-import {useEffect} from 'react';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import type {MindMapNode} from '@/types/api/article';
 
 interface MindMapModalProps {
@@ -45,14 +45,7 @@ const MindMapBranch = ({node, depth = 0}: { node: MindMapNode; depth?: number })
 };
 
 export default function MindMapModal({isOpen, mindMap, onClose}: MindMapModalProps) {
-    useEffect(() => {
-        if (!isOpen) return;
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onClose]);
+    useEscapeDismissal(isOpen, onClose);
 
     if (!isOpen) return null;
 

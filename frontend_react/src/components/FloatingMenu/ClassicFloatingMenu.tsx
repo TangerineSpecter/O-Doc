@@ -1,6 +1,7 @@
 import React, {useState, useEffect, useRef} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {Tag, FolderOpen, PenTool, BarChart2, Library, Leaf, StickyNote, HeartPulse, Sparkles} from 'lucide-react';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 // --- 右下角 导航菜单组件 ---
 
@@ -47,6 +48,7 @@ export default function ClassicFloatingMenu() {
     const [starAnimState, setStarAnimState] = useState<string>('idle');
     const [showBonk, setShowBonk] = useState<boolean>(false); // 控制 Bonk 文字显示
     const [eyePos, setEyePos] = useState<EyePos>({x: 0, y: 0});
+    useEscapeDismissal(isOpen, () => setIsOpen(false));
 
     // 解决闭包陷阱
     const stateRef = useRef<StateRef>({isOpen, starAnimState, isWinking});

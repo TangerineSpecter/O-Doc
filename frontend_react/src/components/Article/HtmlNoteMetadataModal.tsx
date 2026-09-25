@@ -4,6 +4,7 @@ import {getAnthologyList, type Anthology} from '../../api/anthology';
 import {updateArticle} from '../../api/article';
 import type {ArticleProps} from './ArticleReader';
 import {useAuth} from '../../contexts/AuthContext';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface Props {note: ArticleProps; onClose: () => void; onSaved: (collId: string) => void}
 export default function HtmlNoteMetadataModal({note, onClose, onSaved}: Props) {
@@ -18,6 +19,7 @@ export default function HtmlNoteMetadataModal({note, onClose, onSaved}: Props) {
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    useEscapeDismissal(true, () => {if (!busy) onClose();});
     useEffect(() => {
         let active = true;
         Promise.all([getCategoryList(), getAnthologyList('article')]).then(([cats, colls]) => {

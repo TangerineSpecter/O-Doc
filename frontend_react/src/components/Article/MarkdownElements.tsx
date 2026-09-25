@@ -1,6 +1,7 @@
 // frontend_react/src/components/Article/MarkdownElements.tsx
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import mermaid from 'mermaid';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow as darkTheme } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -573,6 +574,7 @@ export const MermaidChart = ({ chart }: { chart: string }) => {
     const [error, setError] = useState<string | null>(null);
     const [scale, setScale] = useState(1);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    useEscapeDismissal(isFullscreen, () => setIsFullscreen(false));
     const [isDraggingChart, setIsDraggingChart] = useState(false);
     const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
     const chartContentRef = useRef<HTMLDivElement>(null);
@@ -614,17 +616,6 @@ export const MermaidChart = ({ chart }: { chart: string }) => {
         event.currentTarget.scrollTop = dragState.scrollTop - (event.clientY - dragState.startY);
     };
     const stopChartDrag = () => setIsDraggingChart(false);
-
-    useEffect(() => {
-        if (!isFullscreen) return;
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setIsFullscreen(false);
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isFullscreen]);
 
     useEffect(() => {
         let isMounted = true;
@@ -810,6 +801,10 @@ export const SimpleChart = ({ chart }: { chart: string }) => {
     const parsed = parseSimpleChart(chart);
     const [activeWord, setActiveWord] = useState<SimpleChartDataPoint | null>(null);
     const [isWordCloudFullscreen, setIsWordCloudFullscreen] = useState(false);
+    useEscapeDismissal(parsed.type === 'wordcloud' && isWordCloudFullscreen, () => {
+        setIsWordCloudFullscreen(false);
+        setActiveWord(null);
+    });
 
     if (parsed.error) {
         return (

@@ -3,6 +3,7 @@ import { Camera, Loader2, LockKeyhole, Mail, ShieldCheck, UserRound, X } from 'l
 import { changePassword, updateUserProfile, uploadUserAvatar } from '../api/user';
 import type { UserInfo } from '../types/api/user';
 import { useToast } from './common/ToastProvider';
+import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 
 interface ProfileCenterModalProps {
     isOpen: boolean;
@@ -33,6 +34,7 @@ export default function ProfileCenterModal({
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     const [isChangingPassword, setIsChangingPassword] = useState(false);
+    useEscapeDismissal(isOpen && Boolean(userInfo), onClose);
 
     useEffect(() => {
         if (userInfo) {

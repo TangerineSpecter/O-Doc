@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 import {
     Archive,
     Bell,
@@ -190,6 +191,9 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
     const [isExpanded, setIsExpanded] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const mobileSheetRef = useRef<HTMLDivElement>(null);
+    useEscapeDismissal(true, onClose);
+    useEscapeDismissal(historyOpen, () => setHistoryOpen(false));
+    useEscapeDismissal(Boolean(selectedNotification), () => setSelectedNotification(null));
 
     const fetchList = async () => {
         if (!isAuthenticated) {
@@ -254,32 +258,6 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [selectedNotification, historyOpen]);
-
-    useEffect(() => {
-        if (!selectedNotification) return;
-
-        const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                setSelectedNotification(null);
-            }
-        };
-
-        document.addEventListener('keydown', closeOnEscape);
-        return () => document.removeEventListener('keydown', closeOnEscape);
-    }, [selectedNotification]);
-
-    useEffect(() => {
-        if (!historyOpen) return;
-
-        const closeHistoryOnEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                setHistoryOpen(false);
-            }
-        };
-
-        document.addEventListener('keydown', closeHistoryOnEscape);
-        return () => document.removeEventListener('keydown', closeHistoryOnEscape);
-    }, [historyOpen]);
 
     const handleMarkAllRead = async () => {
         if (!isAuthenticated) return;

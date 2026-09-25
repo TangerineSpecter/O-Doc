@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Video, X, Loader2 } from 'lucide-react';
 import { useToast } from './ToastProvider';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface VideoLinkModalProps {
     isOpen: boolean;
@@ -16,6 +17,7 @@ export default function VideoLinkModal({
     const [url, setUrl] = useState('https://');
     const [isLoading, setIsLoading] = useState(false);
     const toast = useToast();
+    useEscapeDismissal(isOpen, () => {if (!isLoading) onClose();});
 
     if (!isOpen) return null;
 

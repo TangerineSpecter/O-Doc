@@ -5,11 +5,13 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type {SourceEvidence} from '../../types/bookAnalysis';
 import {linkBookCitations} from '../../utils/readingAnswer';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface Props {answer: string; sources: SourceEvidence[]; onRead: (source: SourceEvidence) => void}
 
 export default function ReadingAnswer({answer, sources, onRead}: Props) {
     const [selectedId, setSelectedId] = useState('');
+    useEscapeDismissal(Boolean(selectedId), () => setSelectedId(''));
     const closeRef = useRef<HTMLButtonElement>(null);
     const sourceMap = useMemo(() => new Map(sources.filter(source => source.sourceId).map(source => [source.sourceId!, source])), [sources]);
     const markdown = useMemo(() => linkBookCitations(answer, [...sourceMap.keys()]), [answer, sourceMap]);
@@ -18,9 +20,7 @@ export default function ReadingAnswer({answer, sources, onRead}: Props) {
         if (!selected) return;
         const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         closeRef.current?.focus();
-        const closeOnEscape = (event: KeyboardEvent) => {if (event.key === 'Escape') setSelectedId('');};
-        document.addEventListener('keydown', closeOnEscape);
-        return () => {document.removeEventListener('keydown', closeOnEscape); previousFocus?.focus();};
+        return () => {previousFocus?.focus();};
     }, [selected]);
 
     return <>

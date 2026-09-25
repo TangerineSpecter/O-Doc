@@ -1,18 +1,19 @@
 import {useEffect, useRef} from 'react';
 import {createPortal} from 'react-dom';
 import {X} from 'lucide-react';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface Selection {title: string; summary: string; chapters?: number[]}
 interface Props {selection: Selection; onClose: () => void}
 
 export default function BiographyMindmapFocus({selection, onClose}: Props) {
     const dialog = useRef<HTMLDivElement>(null);
+    useEscapeDismissal(true, onClose);
 
     useEffect(() => {
         const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         dialog.current?.focus();
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') onClose();
             if (event.key === 'Tab' && dialog.current) {
                 const closeButton = dialog.current.querySelector<HTMLButtonElement>('button');
                 if (!closeButton) return;

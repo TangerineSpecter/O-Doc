@@ -1,6 +1,7 @@
 import {useState} from 'react';
 import {BookOpenCheck, Edit2, Plus, ShieldCheck, Sparkles, Trash2, X} from 'lucide-react';
 import type {SkillConfig} from '@/api/setting';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface SkillSettingsProps {
     skills: SkillConfig[];
@@ -33,6 +34,7 @@ export const SkillSettings = ({skills, onSave, onDelete}: SkillSettingsProps) =>
     const [modalOpen, setModalOpen] = useState(false);
     const [saving, setSaving] = useState(false);
     const [form, setForm] = useState<SkillForm>(defaultForm);
+    useEscapeDismissal(modalOpen, () => {if (!saving) setModalOpen(false);});
 
     const openCreateModal = () => {
         setForm(defaultForm);

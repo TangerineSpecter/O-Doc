@@ -1,5 +1,6 @@
-import {useEffect, useState} from 'react';
+import {useState} from 'react';
 import {BookmarkPlus, X} from 'lucide-react';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface SaveArticleTemplateModalProps {
     defaultName: string;
@@ -14,14 +15,7 @@ export function SaveArticleTemplateModal({
 }: SaveArticleTemplateModalProps) {
     const [name, setName] = useState(defaultName);
     const [description, setDescription] = useState('');
-
-    useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onClose]);
+    useEscapeDismissal(true, onClose);
 
     const submit = () => {
         onSave({name, description});

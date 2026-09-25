@@ -11,6 +11,7 @@ import { SettingsSelect } from '../Settings/SettingsSelect';
 import { getImageDimensions, PhotoExifMetadata, readPhotoExifMetadata } from './ImageUploadModal';
 import ImageResizeModal from './ImageResizeModal';
 import { useToast } from '../common/ToastProvider';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import {
   classifyImageUploads,
   collectDroppedFiles,
@@ -55,6 +56,10 @@ export default function ImageGroupModal({ isOpen, collId, initialImages, existin
   const [generating, setGenerating] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<DraftPhoto | null>(null);
+  useEscapeDismissal(isOpen, () => {if (!saving) onClose();});
+  useEscapeDismissal(isOpen && isDatePickerOpen, () => setIsDatePickerOpen(false));
+  useEscapeDismissal(isOpen && isTagMenuOpen, () => setIsTagMenuOpen(false));
+  useEscapeDismissal(Boolean(previewPhoto), () => setPreviewPhoto(null));
   const [resizeQueue, setResizeQueue] = useState<ResizeQueueState<PendingResize>>(() => emptyResizeQueue());
   const resizeQueueRef = useRef(resizeQueue);
   resizeQueueRef.current = resizeQueue;
@@ -203,15 +208,6 @@ export default function ImageGroupModal({ isOpen, collId, initialImages, existin
     try { setGenerating(true); const result = await generateImageDescription({ title, country, city, placeName, imageFile: first.file, imageUrl: first.file ? undefined : first.imageUrl }); setDescription(result.description || ''); }
     catch { toast.error('AI 生成描述失败'); } finally { setGenerating(false); }
   };
-
-  useEffect(() => {
-    if (!previewPhoto) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPreviewPhoto(null);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [previewPhoto]);
 
   const save = async () => {
     if (!photos.length || !title.trim()) { toast.error('请至少添加一张照片并填写标题'); return; }

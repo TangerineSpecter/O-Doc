@@ -1,4 +1,5 @@
 import {useEffect, useMemo, useState} from 'react';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import {Check, RotateCcw, Search, Sparkles, Trash2, X} from 'lucide-react';
 import {
   cancelImageIndexJob, createImageIndexJob, getImageIndexJobs, removeImageIndexes,
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export default function ImageIndexManager({open, onClose, collId, images, summary, onRefresh}: Props) {
+  useEscapeDismissal(open, onClose);
   const [selected, setSelected] = useState<string[]>([]);
   const [filter, setFilter] = useState<'all' | 'unindexed' | 'failed'>('all');
   const [keyword, setKeyword] = useState('');

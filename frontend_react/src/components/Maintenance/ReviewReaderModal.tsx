@@ -11,6 +11,7 @@ import type {MemoItem} from '../../types/api/memo';
 import type {DailyReviewItem, MaintenanceTarget, ReviewStatus} from '../../types/api/maintenance';
 import ArticleReader from '../Article/ArticleReader';
 import {isImageAvatarValue} from '../../utils/avatar';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface ReviewReaderModalProps {
     item: DailyReviewItem;
@@ -92,6 +93,10 @@ export default function ReviewReaderModal({
     readonly,
     busy,
 }: ReviewReaderModalProps) {
+    useEscapeDismissal(true, () => {
+        if (hasOpenArticleLayer()) return false;
+        onClose();
+    });
     const [article, setArticle] = useState<ArticleDetail | null>(null);
     // 闪念初始内容直接使用卡片已有数据，尺寸稳定不抖动
     const [memo, setMemo] = useState<MemoItem | null>(() => {
@@ -118,14 +123,8 @@ export default function ReviewReaderModal({
         const previousOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
 
-        // 监听 Escape 关闭，不再强行 closeButtonRef.current?.focus()，避免打开弹窗时关闭按钮出现选中框
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape' && !hasOpenArticleLayer()) onClose();
-        };
-        window.addEventListener('keydown', handleKeyDown);
         return () => {
             document.body.style.overflow = previousOverflow;
-            window.removeEventListener('keydown', handleKeyDown);
         };
     }, [onClose]);
 

@@ -40,6 +40,7 @@ import type {
     SkillConfig,
 } from '@/api/setting';
 import {useToast} from '../common/ToastProvider';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
 import {useAgentMemories} from './agent/useAgentMemories';
 import {useAgentAvatarUpload} from './agent/useAgentAvatarUpload';
@@ -217,6 +218,14 @@ export const AgentSettings = ({
         handleMemorySubmit,
         archiveMemory,
     } = useAgentMemories();
+    const selectedRecord = selectedRecordId ? runRecords.find(record => record.id === selectedRecordId) || null : null;
+    useEscapeDismissal(Boolean(selectedRecord), () => setSelectedRecordId(null));
+    useEscapeDismissal(taskModalOpen, () => setTaskModalOpen(false));
+    useEscapeDismissal(Boolean(memoryModalAgent), closeMemoryModal);
+    useEscapeDismissal(modalOpen, () => {
+        clearAvatarPreview();
+        setModalOpen(false);
+    });
 
     const modelOptions = useMemo<SettingsSelectOption<string>[]>(() => {
         return getModelsByType('chat').map(model => ({
@@ -512,7 +521,6 @@ export const AgentSettings = ({
     const getMcpName = (serverId: string) => mcpServers.find(server => server.id === serverId)?.name || serverId;
     const enabledSkills = skills.filter(skill => skill.enabled);
     const getSkillName = (skillId: string) => skills.find(skill => skill.id === skillId)?.name || skillId;
-    const selectedRecord = selectedRecordId ? runRecords.find(record => record.id === selectedRecordId) : null;
     const selectedRecordAgentRuns = selectedRecord?.agentRuns?.length ? selectedRecord.agentRuns : [];
     const getAgentById = (agentId: string) => agents.find(agent => agent.id === agentId);
     const getTaskAgentIds = (task: AgentTaskConfig) => task.agents?.length ? task.agents : (task.agent ? [task.agent] : []);

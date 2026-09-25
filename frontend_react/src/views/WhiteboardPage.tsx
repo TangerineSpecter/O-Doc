@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
+import {hasActiveEscapeDismissal} from '../utils/escapeDismissalRegistry';
 import {ArrowLeft, CheckCircle2, Maximize2, Save, Sparkles, X} from 'lucide-react';
 import {Article, getArticles} from '../api/article';
 import {CodeBlock, CUSTOM_STYLES, MermaidChart, SimpleChart} from '../components/Article/MarkdownElements';
@@ -429,6 +430,7 @@ export default function WhiteboardPage() {
                 return;
             }
             if (e.key === 'Escape') {
+                if (hasActiveEscapeDismissal()) return;
                 setActiveTool('select');
                 setConnectSourceId(null);
                 setIsConnecting(false);

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import BlinkingBotIcon from './BlinkingBotIcon';
 import type { UserInfo } from '../../types/api/user';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface MobileNavDrawerProps {
     isOpen: boolean;
@@ -115,6 +116,7 @@ export const MobileNavDrawer: FC<MobileNavDrawerProps> = ({
     onOpenAI,
 }) => {
     const navigate = useNavigate();
+    useEscapeDismissal(isOpen, onClose);
 
     if (!isOpen) return null;
 

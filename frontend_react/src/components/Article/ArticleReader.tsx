@@ -3,6 +3,7 @@ import {createPortal} from 'react-dom';
 import 'katex/dist/katex.min.css';
 import {Bot, BrainCircuit, ChevronLeft, ChevronRight, Download, FileDown, History, Loader2, MessageCircle, Paperclip, Send, Trash2, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import {useToast} from '../common/ToastProvider';
 import {useArticle} from '../../hooks/useArticle';
 import {
@@ -286,6 +287,13 @@ function MarkdownArticle({
     const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
     const [replyDraft, setReplyDraft] = useState('');
     const [isAnnotationDrawerOpen, setIsAnnotationDrawerOpen] = useState(false);
+    useEscapeDismissal(Boolean(mobileTocOpen && onMobileTocClose), () => onMobileTocClose?.());
+    useEscapeDismissal(Boolean(activeAnnotationId), () => {
+        setActiveAnnotationId(null);
+        setReplyDraft('');
+    });
+    useEscapeDismissal(isAnnotationDrawerOpen, () => setIsAnnotationDrawerOpen(false));
+    useEscapeDismissal(Boolean(selectionAnchor), () => setSelectionAnchor(null));
     const [submittingAnnotation, setSubmittingAnnotation] = useState(false);
 
     useEffect(() => {
@@ -322,27 +330,6 @@ function MarkdownArticle({
         }, 50);
         return () => window.clearTimeout(timer);
     }, [annotations, annotationLoading]);
-
-    useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key !== 'Escape') return;
-            if (activeAnnotationId) {
-                setActiveAnnotationId(null);
-                setReplyDraft('');
-                return;
-            }
-            if (isAnnotationDrawerOpen) {
-                setIsAnnotationDrawerOpen(false);
-                return;
-            }
-            if (selectionAnchor) {
-                setSelectionAnchor(null);
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activeAnnotationId, isAnnotationDrawerOpen, selectionAnchor]);
 
     // 2. 计算同步状态逻辑
     const syncStatus: SyncStatusType = useMemo(() => {

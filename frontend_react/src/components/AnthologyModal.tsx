@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Globe, Lock, Loader2, Save, Plus, Pin, FileText, Image, EyeOff, Bot, Library } from 'lucide-react';
 import { AVAILABLE_ICONS } from '../constants/iconList';
+import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 
 export interface AnthologyFormData {
     id?: number;
@@ -65,18 +66,7 @@ export default function CreateAnthologyModal({
         }
     }, [isOpen, initialData]);
 
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape' && !isSubmitting) {
-                onClose();
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, isSubmitting, onClose]);
+    useEscapeDismissal(isOpen, () => {if (!isSubmitting) onClose();});
 
     const handleSubmit = async () => {
         if (!formData.title) return;

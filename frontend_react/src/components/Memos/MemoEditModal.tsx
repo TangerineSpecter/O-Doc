@@ -1,6 +1,7 @@
 import React from 'react';
 import { Hash, Pin, PinOff, X } from 'lucide-react';
 import { MemoItem } from '../../types/api/memo';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface MemoEditModalProps {
   memo: MemoItem;
@@ -32,6 +33,8 @@ export default function MemoEditModal({
   onDiscardWithoutSaving,
   onCancelDiscardConfirm,
 }: MemoEditModalProps) {
+  useEscapeDismissal(true, () => {if (!editSaving) onRequestClose();});
+  useEscapeDismissal(showDiscardConfirm, onCancelDiscardConfirm);
   return (
     <div className="fixed inset-0 z-[115] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div

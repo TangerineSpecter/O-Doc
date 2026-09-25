@@ -14,6 +14,7 @@ import {
 import {globalSearch, type GlobalSearchItem, type GlobalSearchType} from '../api/search';
 import {useGlobalSmartImageSearch} from '../hooks/useGlobalSmartImageSearch';
 import {mergeGlobalSearchResults, visibleImageCount} from '../utils/globalSearchMerge';
+import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 
 interface SuggestionItem {
     id: string;
@@ -91,6 +92,7 @@ const highlightKeyword = (text: string, keyword: string) => {
 };
 
 export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: SearchModalProps) {
+    useEscapeDismissal(isOpen, onClose);
     const [searchIndex, setSearchIndex] = useState(0);
     const [keyword, setKeyword] = useState('');
     const [activeFilter, setActiveFilter] = useState<'all' | GlobalSearchType>('all');
@@ -250,7 +252,6 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (!isOpen) return;
-            if (event.key === 'Escape') onClose();
             if (event.key === 'ArrowDown') {
                 event.preventDefault();
                 setSearchIndex(prev => (prev + 1) % Math.max(suggestions.length, 1));

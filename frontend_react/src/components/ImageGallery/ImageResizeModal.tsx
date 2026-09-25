@@ -3,6 +3,7 @@ import { Crop, Loader2, Maximize2, RotateCw, X } from 'lucide-react';
 import { getProcessedImageOutput, getResizeDrawSource } from '../../utils/imageUpload';
 import type { CropRect, ResizeMode } from '../../utils/imageUpload';
 import { useToast } from '../common/ToastProvider';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 type CropHandle = 'move' | 'nw' | 'ne' | 'sw' | 'se';
 type CropOrientation = 'landscape' | 'portrait';
@@ -56,6 +57,7 @@ export default function ImageResizeModal({ file, maxLongEdge, queueIndex, queueT
   const dragStart = useRef<{ handle: CropHandle; clientX: number; clientY: number; crop: CropRect } | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const processLock = useRef(false);
+  useEscapeDismissal(Boolean(file), () => {if (!isProcessing) onCancel();});
 
   useEffect(() => {
     if (!file) return;

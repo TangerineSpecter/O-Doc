@@ -14,6 +14,7 @@ import {markdownSanitizeSchema} from '../../utils/markdownSecurity';
 import {remarkQuoteVariants} from './MarkdownElements';
 import ConfirmationModal from '../common/ConfirmationModal';
 import {useToast} from '../common/ToastProvider';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface ArticleVersionHistoryModalProps {
     articleId: string;
@@ -70,6 +71,7 @@ export default function ArticleVersionHistoryModal({
     const [errorMessage, setErrorMessage] = useState('');
     const [restoreOutcome, setRestoreOutcome] = useState<ArticleVersionRestoreResult | null>(null);
     const currentWordCount = Array.from(currentContent.replace(/[#*`>~-]/g, '').trim()).length;
+    useEscapeDismissal(isOpen, () => {if (!isRestoring) onClose();});
 
     useEffect(() => {
         if (!isOpen) return;

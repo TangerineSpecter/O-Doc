@@ -13,6 +13,7 @@ import {
 import {getAgents, type AgentConfig} from '../api/setting';
 import { formatSummaryDate } from '../utils/format';
 import {isImageAvatarValue} from '../utils/avatar';
+import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 
 interface AgentContactPanelProps {
     isOpen: boolean;
@@ -95,6 +96,7 @@ export default function AgentContactPanel({
     onStartAgentChat,
     onManageAgents,
 }: AgentContactPanelProps) {
+    useEscapeDismissal(isOpen, onClose);
     const [agents, setAgents] = useState<AgentConfig[]>([]);
     const [chatSummaries, setChatSummaries] = useState<Record<string, ChatSummary | null>>({});
     const [query, setQuery] = useState('');

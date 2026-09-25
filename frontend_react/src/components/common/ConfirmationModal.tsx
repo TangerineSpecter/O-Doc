@@ -1,5 +1,6 @@
-import React, {useEffect} from 'react';
+import React from 'react';
 import { AlertTriangle, Info, X, Loader2 } from 'lucide-react';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 type ModalType = 'danger' | 'warning' | 'info';
 
@@ -47,14 +48,7 @@ export default function ConfirmationModal({
     type = 'danger',
     isLoading = false
 }: ConfirmationModalProps) {
-    useEffect(() => {
-        if (!isOpen || isLoading) return;
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, isLoading, onClose]);
+    useEscapeDismissal(isOpen, () => {if (!isLoading) onClose();});
 
     if (!isOpen) return null;
 

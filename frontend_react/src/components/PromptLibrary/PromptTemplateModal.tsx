@@ -1,9 +1,10 @@
-import {useEffect, useMemo, useState} from 'react';
+import {useMemo, useState} from 'react';
 import {Braces, FolderTree, ImagePlus, Plus, Star, Trash2, X} from 'lucide-react';
 import type {PromptField, PromptTaxonomies, PromptTaxonomy, PromptTemplate, PromptTemplateInput, PromptType} from '../../types/api/prompt';
 import {promptToken} from '../../utils/promptRenderer';
 import {Select, type SelectOption} from '../common/Select';
 import PromptImageDropzone from './PromptImageDropzone';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 type TaxonomyKind = keyof PromptTaxonomies;
 
@@ -139,23 +140,15 @@ export default function PromptTemplateModal({open, template, taxonomies, onClose
     const [modelName, setModelName] = useState('');
     const [note, setNote] = useState('');
     const [imageError, setImageError] = useState('');
+    useEscapeDismissal(open, () => {
+        if (saving) return false;
+        onClose();
+    });
 
     const categoryOptions = useMemo<SelectOption<string>[]>(() => [
         {value: '', label: '未分类 (无分类)'},
         ...taxonomies.categories.map(item => ({value: item.id, label: item.name})),
     ], [taxonomies.categories]);
-
-    useEffect(() => {
-        if (!open) return;
-        const closeOnEscape = (event: KeyboardEvent) => {
-            if ((event.key === 'Escape' || event.key === 'Esc') && !saving) {
-                event.stopPropagation();
-                onClose();
-            }
-        };
-        window.addEventListener('keydown', closeOnEscape);
-        return () => window.removeEventListener('keydown', closeOnEscape);
-    }, [open, onClose, saving]);
 
     if (!open) return null;
 

@@ -5,9 +5,11 @@ import type {ReadingGraph, ReadingNode, SourceEvidence} from '../../types/bookAn
 import {nodeColors, nodeLabels} from '../../utils/readingGraph';
 import NodeCorrections from './NodeCorrections';
 import ReadingNodeDetails from './ReadingNodeDetails';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface Props {throughChapter?: number; bookId: string; revisionId: string; nodeId: string; graph: ReadingGraph; canManage: boolean; refreshKey: string; canGoBack: boolean; onSelect: (id: string) => void; onBack: () => void; onClose: () => void; onRead: (source: SourceEvidence) => void; onSaved: () => void}
 export default function ReadingNodePanel({bookId, revisionId, nodeId, graph, canManage, refreshKey, throughChapter, canGoBack, onSelect, onBack, onClose, onRead, onSaved}: Props) {
+    useEscapeDismissal(true, onClose);
     const [data, setData] = useState<{node: ReadingNode; neighbors: ReadingGraph} | null>(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);

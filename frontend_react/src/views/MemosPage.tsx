@@ -455,38 +455,6 @@ export default function MemosPage() {
     };
 
     useEffect(() => {
-        if (!editingMemo) return;
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key !== 'Escape') return;
-            event.preventDefault();
-
-            if (showDiscardConfirm) {
-                setShowDiscardConfirm(false);
-                return;
-            }
-
-            requestCloseEditModal();
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [editingMemo, editHasChanges, editSaving, showDiscardConfirm]);
-
-    useEffect(() => {
-        if (!randomWalkMemo) return;
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key !== 'Escape') return;
-            event.preventDefault();
-            closeRandomWalk();
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [randomWalkMemo]);
-
-    useEffect(() => {
         return () => {
             if (randomWalkTimerRef.current !== null) {
                 window.clearTimeout(randomWalkTimerRef.current);

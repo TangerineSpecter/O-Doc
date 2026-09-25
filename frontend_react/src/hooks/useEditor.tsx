@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
+import {useEscapeDismissal} from './useEscapeDismissal';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import type {CommandItem} from '../components/Editor/SlashMenu';
 import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
@@ -533,6 +534,7 @@ export const useEditor = () => {
         setSlashIndex(-1);
         setSearchQuery('');
     };
+    useEscapeDismissal(showMenu, closeMenu);
 
     const handleImageLinkConfirm = (url: string, altText: string) => {
         const imageMarkdown = `![${altText || '图片'}](${url})`;
@@ -646,6 +648,7 @@ export const useEditor = () => {
             executeCommand(commands[selectedIndex]);
         } else if (e.key === 'Escape') {
             e.preventDefault();
+            e.stopPropagation();
             closeMenu();
         }
     };

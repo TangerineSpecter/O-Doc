@@ -7,6 +7,7 @@ import {CanvasRenderer} from 'echarts/renderers';
 import type {EChartsOption} from 'echarts';
 import {Bot, ChevronRight, Edit3, Hash, Network, PanelRightOpen, Pin, RefreshCw, StickyNote, User, X} from 'lucide-react';
 import type {MemoGraphNode, MemoKnowledgeGraph, MemoItem} from '../../types/api/memo';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 echarts.use([GraphChart, TooltipComponent, LegendComponent, CanvasRenderer]);
 
@@ -79,6 +80,7 @@ export default function KnowledgeGraphPanel({
     renderTagLabel,
     getMemoAuthorMeta,
 }: KnowledgeGraphPanelProps) {
+    useEscapeDismissal(Boolean(selectedGraphNode && !graphDetailCollapsed), () => onDetailCollapsedChange(true));
     const graphRef = useRef<HTMLDivElement | null>(null);
     const graphChartRef = useRef<echarts.ECharts | null>(null);
 

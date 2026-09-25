@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useState} from 'react';
 import {Download, ImageOff, RotateCcw, X, ZoomIn, ZoomOut} from 'lucide-react';
 import {downloadResource} from '../../api/resources';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface Props {
     open: boolean;
@@ -16,6 +17,7 @@ export default function ImageLightboxModal({open, resourceId, imageUrl, alt = '�
     const [loading, setLoading] = useState<boolean>(false);
     const [failed, setFailed] = useState<boolean>(false);
     const [scale, setScale] = useState<number>(1);
+    useEscapeDismissal(open, onClose);
 
     // 加载图片资源
     useEffect(() => {
@@ -62,16 +64,11 @@ export default function ImageLightboxModal({open, resourceId, imageUrl, alt = '�
         };
     }, [open, resourceId, imageUrl]);
 
-    // 快捷键监听（使用捕获阶段优先拦截 Esc，避免下层弹窗/抽屉误关）
+    // 快捷键监听
     useEffect(() => {
         if (!open) return;
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                event.stopPropagation();
-                event.stopImmediatePropagation();
-                onClose();
-            } else if (event.key === '+' || event.key === '=') {
+            if (event.key === '+' || event.key === '=') {
                 setScale(s => Math.min(3, +(s + 0.25).toFixed(2)));
             } else if (event.key === '-') {
                 setScale(s => Math.max(0.5, +(s - 0.25).toFixed(2)));
@@ -79,9 +76,9 @@ export default function ImageLightboxModal({open, resourceId, imageUrl, alt = '�
                 setScale(1);
             }
         };
-        window.addEventListener('keydown', handleKeyDown, true);
-        return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [open, onClose]);
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [open]);
 
     const handleZoomIn = useCallback(() => {
         setScale(s => Math.min(3, +(s + 0.25).toFixed(2)));

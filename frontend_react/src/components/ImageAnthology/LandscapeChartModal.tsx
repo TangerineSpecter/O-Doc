@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Minimize2, X, Smartphone } from 'lucide-react';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface LandscapeChartModalProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export default function LandscapeChartModal({
     if (typeof window === 'undefined') return false;
     return window.innerWidth < 1024;
   });
+  useEscapeDismissal(isOpen && isMobileViewport, onClose);
 
   useEffect(() => {
     const handleResize = () => {
@@ -50,18 +52,6 @@ export default function LandscapeChartModal({
       document.body.style.overflow = originalOverflow;
     };
   }, [isMobileViewport, isOpen]);
-
-  // 监听 Esc 退出
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
 
   if (!isOpen || !isMobileViewport) return null;
 

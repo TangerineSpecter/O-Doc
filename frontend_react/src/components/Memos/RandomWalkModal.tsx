@@ -2,6 +2,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import {Hash, Inbox, Pin, Shuffle, X} from 'lucide-react';
 import type {MemoItem} from '../../types/api/memo';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface RandomWalkModalProps {
     memo: MemoItem;
@@ -24,6 +25,7 @@ export default function RandomWalkModal({
     formatDate,
     renderTagLabel,
 }: RandomWalkModalProps) {
+    useEscapeDismissal(phase !== 'leaving', onClose);
     return (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 pb-24 animate-in fade-in duration-200">
             <style>{`

@@ -19,6 +19,7 @@ import {getAgentRunRecord} from '../../api/setting';
 import type {AgentActivity, AgentRunRecordConfig} from '../../types/api/setting';
 import StarLoader from '../common/StarLoader';
 import AgentAvatar from './AgentAvatar';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 const formatTrigger = (trigger?: string) => {
     if (!trigger) return '系统调度';
@@ -41,15 +42,10 @@ export default function AgentRunDrawer({activity, onClose}: {activity: AgentActi
     const [error, setError] = useState('');
     const [isExpanded, setIsExpanded] = useState(false);
     const [copied, setCopied] = useState(false);
+    useEscapeDismissal(Boolean(activity), onClose);
 
     const dialogRef = useRef<HTMLDivElement>(null);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
-    const onCloseRef = useRef(onClose);
-
-    useEffect(() => {
-        onCloseRef.current = onClose;
-    }, [onClose]);
-
     // 加载执行结果详情
     const runRecordId = activity?.runRecordId;
     const isLoading = Boolean(runRecordId && record?.id !== runRecordId && !error);
@@ -80,11 +76,6 @@ export default function AgentRunDrawer({activity, onClose}: {activity: AgentActi
         const focusTimer = window.setTimeout(() => closeButtonRef.current?.focus(), 50);
 
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                onCloseRef.current();
-                return;
-            }
             if (event.key !== 'Tab' || !dialogRef.current) return;
 
             const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(

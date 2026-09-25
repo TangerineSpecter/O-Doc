@@ -1,6 +1,7 @@
 import React, {useState, useEffect} from 'react';
 import {X, Save} from 'lucide-react';
 import {TagItem} from '../api/tag';
+import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 
 // 定义接口
 export interface TagFormData {
@@ -35,6 +36,7 @@ export default function TagModal({
                                      colorThemes
                                  }: TagModalProps) {
     const [formData, setFormData] = useState<TagFormData>(initialFormData);
+    useEscapeDismissal(isOpen, onClose);
 
     useEffect(() => {
         if (isOpen) {

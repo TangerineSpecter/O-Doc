@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ModelType } from '../../api/setting';
 import {Eye, Layers, MessageCircle, SearchCheck, X} from 'lucide-react';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface ModelModalProps {
     isOpen: boolean;
@@ -16,6 +17,7 @@ export const ModelModal = ({ isOpen, onClose, onSave }: ModelModalProps) => {
         {type: 'embedding', label: '向量', icon: Layers},
         {type: 'rerank', label: '重排', icon: SearchCheck},
     ];
+    useEscapeDismissal(isOpen, onClose);
 
     useEffect(() => {
         if (isOpen) setForm({ name: '', type: 'chat' });

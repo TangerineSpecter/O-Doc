@@ -14,6 +14,7 @@ import { ChatSettingsToolbar } from './ChatSettingsToolbar';
 import { ChatInput } from './ChatInput';
 import { PeekingBotButton } from './PeekingBotButton';
 import {isImageAvatarValue} from '../../utils/avatar';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 const getAgentId = (agent?: AgentConfig | null) => {
     if (!agent) return '';
@@ -54,16 +55,7 @@ export const AIChatWindow = ({
     const activeAgentName = activeAgent?.name || '小橘 AI助手';
     const showContactSidebar = Boolean(onSelectAgent) && contactSidebarOpen;
 
-    // ESC 键监听：最小化窗口
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isOpen && !isMinimized) {
-                setIsMinimized(true);
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, isMinimized]);
+    useEscapeDismissal(isOpen && !isMinimized, () => setIsMinimized(true));
 
     // 加载全部智能体列表
     useEffect(() => {

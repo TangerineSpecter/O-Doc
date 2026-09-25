@@ -10,6 +10,7 @@ import {
     type SystemMCPConfig,
 } from '@/api/setting';
 import {SettingsSelect} from './SettingsSelect';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface MCPSettingsProps {
     servers: MCPServerConfig[];
@@ -119,6 +120,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
     const [systemMCPConfig, setSystemMCPConfig] = useState<SystemMCPConfig | null>(null);
     const [systemMCPLoading, setSystemMCPLoading] = useState(false);
     const [systemMCPUpdating, setSystemMCPUpdating] = useState(false);
+    useEscapeDismissal(modalOpen, () => setModalOpen(false));
 
     useEffect(() => {
         setSystemMCPLoading(true);
@@ -467,15 +469,24 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
                                                 <button
                                                     key={tool.name}
                                                     onClick={() => toggleTool(server.id, tool.name)}
-                                                    className={`rounded-lg border px-3 py-2 text-left transition-colors ${tool.enabled ? 'border-emerald-100 bg-white text-slate-700' : 'border-slate-200 bg-white/70 text-slate-400'}`}
+                                                    title={tool.description ? `【${tool.name}】\n${tool.description}` : tool.name}
+                                                    className={`h-[72px] rounded-lg border px-3 py-2 text-left transition-all flex flex-col justify-start overflow-hidden ${
+                                                        tool.enabled
+                                                            ? 'border-emerald-200 bg-white text-slate-700 hover:border-emerald-300 hover:shadow-xs'
+                                                            : 'border-slate-200 bg-white/70 text-slate-400 hover:border-slate-300 hover:bg-white'
+                                                    }`}
                                                 >
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`h-2 w-2 rounded-full ${tool.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
+                                                    <div className="flex items-center gap-2 w-full shrink-0">
+                                                        <span className={`h-2 w-2 rounded-full shrink-0 ${tool.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
                                                         <span className="truncate text-xs font-semibold">{tool.name}</span>
                                                     </div>
-                                                    {tool.description && (
-                                                        <p className="mt-1 truncate pl-4 text-[11px] text-slate-400">
+                                                    {tool.description ? (
+                                                        <p className="mt-1 pl-4 text-[11px] text-slate-400 line-clamp-2 leading-[16px] break-words">
                                                             {tool.description}
+                                                        </p>
+                                                    ) : (
+                                                        <p className="mt-1 pl-4 text-[11px] text-slate-300 italic">
+                                                            暂无描述
                                                         </p>
                                                     )}
                                                 </button>

@@ -4,6 +4,7 @@ import {BookItem, deleteBook, getBooks, releaseBook, repairBookUpload, restoreBo
 import {useToast} from '../components/common/ToastProvider';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import BookReader from '../components/Book/BookReader';
+import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 
 interface Props { collId?: string; onNavigate: (view: string, params?: {bookId?: string; collId?: string}) => void; }
 const formatLabel: Record<string, string> = {pdf: 'PDF', txt: 'TXT', epub: 'EPUB', mobi: 'MOBI'};
@@ -20,6 +21,7 @@ function FallbackCover({book}: {book: BookItem}) {
 export default function BookAnthologyPage({collId, onNavigate}: Props) {
     const toast = useToast(); const inputRef = useRef<HTMLInputElement>(null); const repairInputRef = useRef<HTMLInputElement>(null);
     const [books, setBooks] = useState<BookItem[]>([]); const [loading, setLoading] = useState(true); const [selected, setSelected] = useState<BookItem | null>(null); const [reading, setReading] = useState<BookItem | null>(null); const [releaseCandidate, setReleaseCandidate] = useState<BookItem | null>(null); const [deleteCandidate, setDeleteCandidate] = useState<BookItem | null>(null); const [repairCandidate, setRepairCandidate] = useState<BookItem | null>(null); const [isActionLoading, setIsActionLoading] = useState(false); const [isDraggingBooks, setIsDraggingBooks] = useState(false); const [isImporting, setIsImporting] = useState(false);
+    useEscapeDismissal(Boolean(selected && !releaseCandidate && !deleteCandidate && !repairCandidate), () => setSelected(null));
     const reload = async () => {
         if (!collId) return;
         setLoading(true);
@@ -36,14 +38,6 @@ export default function BookAnthologyPage({collId, onNavigate}: Props) {
         }
     };
     useEffect(() => { reload(); }, [collId]);
-    useEffect(() => {
-        if (!selected || releaseCandidate || deleteCandidate || repairCandidate) return;
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setSelected(null);
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selected, releaseCandidate, deleteCandidate, repairCandidate]);
     const importFiles = async (files: File[]) => {
         if (!collId || !files.length || isImporting) return;
         const validFiles = files.filter(file => {
