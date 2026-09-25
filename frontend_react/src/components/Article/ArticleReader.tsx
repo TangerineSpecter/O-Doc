@@ -35,6 +35,7 @@ import {useAuth} from '../../contexts/AuthContext';
 import {getSafeIframeUrl, getSafeVideoUrl} from '../../utils/markdownSecurity';
 import {useArticlePrintExport} from '../../hooks/useArticlePrintExport';
 import {ArticleMarkdown} from './ArticleMarkdown';
+import AuthenticatedResourceImage, {getPreviewResourceId} from './AuthenticatedResourceImage';
 import {isImageAvatarValue} from '../../utils/avatar';
 import HtmlNoteReader from './HtmlNoteReader';
 import ArticleVersionHistoryModal from './ArticleVersionHistoryModal';
@@ -162,6 +163,7 @@ export interface ArticleProps {
     permission?: 'public' | 'private';
     downloadUrl?: string;
     isEmbedded?: boolean;
+    previewResourceImages?: boolean;
     scrollContainerId?: string;
     onBack?: () => void;
     content?: string;
@@ -196,6 +198,7 @@ export default function Article(props: ArticleProps) {
 
 function MarkdownArticle({
                                     isEmbedded,
+                                    previewResourceImages = false,
                                     scrollContainerId,
                                     onBack,
                                     contentFormat,
@@ -419,6 +422,12 @@ function MarkdownArticle({
 
     // 3. 配置 Markdown 组件 (Hook: useMemo)
     const components = useMemo(() => ({
+        img: ({node: _node, src, ...props}: any) => {
+            const resourceId = previewResourceImages ? getPreviewResourceId(String(src || '')) : null;
+            return resourceId
+                ? <AuthenticatedResourceImage {...props} resourceId={resourceId}/>
+                : <img {...props} src={src}/>;
+        },
         pre: (props: any) => <div className="not-prose">{props.children}</div>,
         p: (props: any) => {
             const {children} = props;
@@ -505,7 +514,7 @@ function MarkdownArticle({
                 />
             );
         }
-    }), []);
+    }), [previewResourceImages]);
 
     const getSelectionOffsets = () => {
         const root = articleContentRef.current;

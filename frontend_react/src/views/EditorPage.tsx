@@ -461,7 +461,7 @@ export default function EditorPage() {
                 <div id="preview-scroll-container"
                      className={`absolute inset-0 overflow-y-auto bg-slate-50 transition-opacity duration-200 ${isPreviewMode ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none z-0'}`}>
                     <div className="max-w-5xl mx-auto py-8 sm:px-6 lg:px-8 min-h-full">
-                        <Article isEmbedded={true} content={content} scrollContainerId="preview-scroll-container"
+                        <Article isEmbedded={true} previewResourceImages={isPreviewMode} content={content} scrollContainerId="preview-scroll-container"
                                  title={title} category={category?.name || ''} tags={tags} date={todayStr}
                                  attachments={attachments}
                                  authorName={currentAuthor}/>

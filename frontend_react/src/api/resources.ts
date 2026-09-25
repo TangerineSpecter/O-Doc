@@ -43,8 +43,8 @@ export const deleteResource = (resourceId: string) => {
 };
 
 // 下载资源接口
-export const downloadResource = (resourceId: string) => {
-    return request.get<any, Blob>(`/resource/download/${resourceId}`, {responseType: 'blob'});
+export const downloadResource = (resourceId: string, signal?: AbortSignal) => {
+    return request.get<any, Blob>(`/resource/download/${resourceId}`, {responseType: 'blob', signal});
 };
 
 // 上传资源接口
