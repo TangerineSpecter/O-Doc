@@ -32,6 +32,8 @@ class AIProvider(models.Model):
         ('Ollama', 'Ollama'),
         ('SiliconFlow', 'SiliconFlow (硅基流动)'),
         ('MiniMax', 'MiniMax'),
+        ('Grsai', 'Grsai'),
+        ('NewAPI', 'New API'),
         ('custom', '自定义 (Custom)'),
     ]
 
@@ -84,6 +86,7 @@ class AIModel(models.Model):
     MODEL_TYPES = [
         ('chat', '对话 (Chat)'),
         ('image', '图像识别 (Image Recognition)'),
+        ('image_generation', '图像生成 (Image Generation)'),
         ('embedding', '向量化 (Embedding)'),
         ('rerank', '重排序 (Rerank)'),
     ]

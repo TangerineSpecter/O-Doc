@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import {CheckCircle2, Edit2, Eye, Globe, Key, Layers, Loader2, Plus, Server, Trash2, Wifi, X, XCircle, Zap} from 'lucide-react';
+import {CheckCircle2, Edit2, Eye, Globe, ImagePlus, Key, Layers, Loader2, Plus, Server, Trash2, Wifi, X, XCircle, Zap} from 'lucide-react';
 import {AIModel, AIModelConnectionResult, AIProvider, ModelType, SystemAIConfig, testAIModelConnection} from '@/api/setting';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
 import {useToast} from '../common/ToastProvider';
@@ -108,7 +108,11 @@ export const AISettings = ({
     }>>({});
 
     const buildModelOptions = (type: ModelType): SettingsSelectOption<string>[] => {
-        return getModelsByType(type).map(model => ({
+        const supportedImageModelIds = type === 'image_generation'
+            ? new Set(providers.filter(provider => provider.type === 'Grsai' || provider.type === 'NewAPI')
+                .flatMap(provider => (provider.models || []).map(model => model.id)))
+            : null;
+        return getModelsByType(type).filter(model => !supportedImageModelIds || supportedImageModelIds.has(model.id)).map(model => ({
             value: model.id,
             label: `${model.providerName} / ${model.name}`,
             description: model.name,
@@ -119,10 +123,11 @@ export const AISettings = ({
         const styles = {
             chat: 'bg-blue-50 text-blue-600 border-blue-100',
             image: 'bg-cyan-50 text-cyan-600 border-cyan-100',
+            image_generation: 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100',
             embedding: 'bg-emerald-50 text-emerald-600 border-emerald-100',
             rerank: 'bg-purple-50 text-purple-600 border-purple-100'
         };
-        const labels = {chat: '对话', image: '图像识别', embedding: '向量', rerank: '重排'};
+        const labels = {chat: '对话', image: '图像识别', image_generation: '生图', embedding: '向量', rerank: '重排'};
         return (
             <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${styles[type]}`}>
                 {labels[type]}
@@ -223,7 +228,7 @@ export const AISettings = ({
                     </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-5 border-t border-slate-100">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pt-5 border-t border-slate-100">
                         {/* Simple Chat Model Selector */}
                         <div className="space-y-2">
                             <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
@@ -249,7 +254,7 @@ export const AISettings = ({
                         <div className="space-y-2">
                             <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
                                 <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
-                                图像模型 (Image)
+                                图像识别模型 (Image)
                                 <span className="text-[10px] font-medium text-slate-400">可选</span>
                             </label>
                             <div className="relative">
@@ -265,6 +270,29 @@ export const AISettings = ({
                             </div>
                             <p className="text-[10px] text-slate-400 flex items-center gap-1">
                                 <Eye className="w-3 h-3"/> 用于图片内容理解、视觉识别等能力
+                            </p>
+                        </div>
+
+                        {/* Image Generation Model Selector */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-fuchsia-500"></span>
+                                生图模型 (Image Generation)
+                                <span className="text-[10px] font-medium text-slate-400">可选</span>
+                            </label>
+                            <div className="relative">
+                                <SettingsSelect
+                                    value={systemConfig.defaultImageGenerationModelId}
+                                    options={buildModelOptions('image_generation')}
+                                    onChange={value => setSystemConfig({...systemConfig, defaultImageGenerationModelId: value})}
+                                    placeholder="未配置"
+                                    emptyMessage="暂无生图模型，请先在下方服务商中添加生图模型"
+                                    accentClassName="bg-fuchsia-50 text-fuchsia-700"
+                                    buttonClassName="bg-slate-50 focus:ring-fuchsia-500/20 focus:border-fuchsia-500"
+                                />
+                            </div>
+                            <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                                <ImagePlus className="w-3 h-3"/> 用于提示词库生图；支持 Grsai 和 New API 模型
                             </p>
                         </div>
                     </div>
@@ -379,9 +407,9 @@ export const AISettings = ({
                                                         <button
                                                             type="button"
                                                             onClick={() => handleTestModelConnection(model)}
-                                                            disabled={isTesting}
-                                                            title="测试模型连通性"
-                                                            className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md disabled:cursor-wait disabled:opacity-70 transition-colors"
+                                                            disabled={isTesting || model.type === 'image_generation'}
+                                                            title={model.type === 'image_generation' ? '请在提示词库实际生成图片验证，生成会消耗额度' : '测试模型连通性'}
+                                                            className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md disabled:cursor-not-allowed disabled:opacity-70 transition-colors"
                                                         >
                                                             {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> :
                                                                 <Wifi className="w-3.5 h-3.5"/>}

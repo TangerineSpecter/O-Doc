@@ -1,5 +1,5 @@
-import {useEffect, useMemo, useState} from 'react';
-import {Copy, ImagePlus, Maximize2, Pencil, Star, Trash2, X} from 'lucide-react';
+import {useEffect, useMemo, useRef, useState} from 'react';
+import {Copy, ImagePlus, Loader2, Maximize2, Pencil, Sparkles, Star, Trash2, X} from 'lucide-react';
 import type {PromptTemplate} from '../../api/prompt';
 import {deletePromptTemplate, deletePromptUsage, setPromptCover} from '../../api/prompt';
 import {defaultPromptValues, renderPromptTemplate, type PromptValues} from '../../utils/promptRenderer';
@@ -7,6 +7,7 @@ import {useToast} from '../common/ToastProvider';
 import {Select} from '../common/Select';
 import AuthenticatedResourceImage from '../common/AuthenticatedResourceImage';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
+import {usePromptImageGeneration} from '../../hooks/usePromptImageGeneration';
 
 interface Props {
     template: PromptTemplate | null;
@@ -20,10 +21,17 @@ interface Props {
 export default function PromptDetailDrawer({template, onClose, onChanged, onEdit, onPreviewImage, isLightboxOpen}: Props) {
     const toast = useToast();
     const [values, setValues] = useState<PromptValues>({});
+    const lastTemplateId = useRef<string | null>(null);
+    const generation = usePromptImageGeneration(template?.id || null, onChanged);
     useEscapeDismissal(Boolean(template && !isLightboxOpen), onClose);
 
     useEffect(() => {
-        if (!template) return;
+        if (!template) {
+            lastTemplateId.current = null;
+            return;
+        }
+        if (lastTemplateId.current === template.id) return;
+        lastTemplateId.current = template.id;
         setValues(defaultPromptValues(template.fieldSchema));
     }, [template]);
 
@@ -266,7 +274,7 @@ export default function PromptDetailDrawer({template, onClose, onChanged, onEdit
 
                     {/* 历史效果 - 横向滚动展示 */}
                     <section className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4 shadow-sm">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                                 <h3 className="text-sm font-bold text-slate-800">历史效果</h3>
                                 {usages.length > 0 && (
@@ -278,6 +286,20 @@ export default function PromptDetailDrawer({template, onClose, onChanged, onEdit
                             <div className="flex items-center gap-2">
                                 {usages.length > 0 && (
                                     <span className="text-[11px] text-slate-400">可左右滑动查看</span>
+                                )}
+                                {template.promptType === 'image' && (
+                                    <button
+                                        type="button"
+                                        disabled={generation.status !== 'idle'}
+                                        onClick={() => {
+                                            if (missing.length) return toast.error(`请先填写：${missing.join('、')}`);
+                                            void generation.start(values);
+                                        }}
+                                        className="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1 text-xs font-semibold text-white hover:bg-orange-600 disabled:cursor-wait disabled:opacity-70"
+                                    >
+                                        {generation.status === 'idle' ? <Sparkles className="h-3.5 w-3.5"/> : <Loader2 className="h-3.5 w-3.5 animate-spin"/>}
+                                        {generation.status === 'starting' ? '提交中' : generation.status === 'polling' ? '生成中' : '用默认模型生图'}
+                                    </button>
                                 )}
                                 <button
                                     onClick={() => onEdit(template)}

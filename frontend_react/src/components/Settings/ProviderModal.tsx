@@ -26,6 +26,8 @@ export const ProviderModal = ({isOpen, onClose, onSave, initialData}: ProviderMo
         {value: 'Doubao', label: 'Doubao (豆包)', description: 'Volcengine Ark'},
         {value: 'SiliconFlow', label: 'SiliconFlow (硅基流动)', description: 'https://api.siliconflow.cn/v1'},
         {value: 'Ollama', label: 'Ollama (Local)', description: 'http://localhost:11434/v1'},
+        {value: 'Grsai', label: 'Grsai', description: 'https://grsaiapi.com/v1 · nano-banana'},
+        {value: 'NewAPI', label: 'New API', description: '填写你的 New API 实例地址，通常以 /v1 结尾'},
         {value: 'custom', label: 'Custom', description: 'OpenAI compatible'},
     ];
 
@@ -39,9 +41,13 @@ export const ProviderModal = ({isOpen, onClose, onSave, initialData}: ProviderMo
 
     // 预设的 Base URL 逻辑
     const handleTypeChange = (newType: AIProvider['type']) => {
+        if (newType === 'NewAPI') {
+            setForm({...form, type: newType, baseUrl: ''});
+            return;
+        }
         let defaultBaseUrl = form.baseUrl;
         // 如果用户没填或者填的是旧的默认值，则自动切换 BaseURL
-        if (!form.baseUrl || form.baseUrl.includes('api.') || form.baseUrl.includes('localhost') || form.baseUrl.includes('dashscope')) {
+        if (!form.baseUrl || form.type === 'NewAPI' || form.baseUrl.includes('api.') || form.baseUrl.includes('localhost') || form.baseUrl.includes('dashscope') || form.baseUrl.includes('grsaiapi.com') || form.baseUrl.includes('grsai.dakka.com.cn')) {
             switch (newType) {
                 case 'OpenAi':
                     defaultBaseUrl = 'https://api.openai.com/v1';
@@ -69,6 +75,9 @@ export const ProviderModal = ({isOpen, onClose, onSave, initialData}: ProviderMo
                     break;
                 case 'SiliconFlow':
                     defaultBaseUrl = 'https://api.siliconflow.cn/v1';
+                    break;
+                case 'Grsai':
+                    defaultBaseUrl = 'https://grsaiapi.com/v1';
                     break;
             }
         }

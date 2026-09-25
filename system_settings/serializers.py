@@ -1,3 +1,5 @@
+from urllib.parse import urlsplit
+
 from rest_framework import serializers
 from .models import Agent, AgentActivity, AgentLongTermMemory, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
 
@@ -17,6 +19,18 @@ class AIProviderSerializer(serializers.ModelSerializer):
         model = AIProvider
         fields = ['id', 'name', 'type', 'base_url', 'api_key', 'models']
         read_only_fields = ['id']
+
+    def validate(self, attrs):
+        provider_type = attrs.get('type', self.instance.type if self.instance else None)
+        if provider_type != 'NewAPI':
+            return attrs
+        base_url = str(attrs.get('base_url', self.instance.base_url if self.instance else '') or '').strip().rstrip('/')
+        parsed = urlsplit(base_url)
+        if (parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password
+                or parsed.query or parsed.fragment or (parsed.path and not parsed.path.endswith('/v1'))):
+            raise serializers.ValidationError({'baseUrl': 'New API 地址应填写实例地址或以 /v1 结尾的 API 地址'})
+        attrs['base_url'] = base_url if parsed.path else f'{base_url}/v1'
+        return attrs
 
 class SystemSettingSerializer(serializers.ModelSerializer):
     class Meta:

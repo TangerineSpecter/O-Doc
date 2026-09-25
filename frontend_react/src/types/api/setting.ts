@@ -1,5 +1,5 @@
 // --- 类型定义 ---
-export type ModelType = 'chat' | 'image' | 'embedding' | 'rerank';
+export type ModelType = 'chat' | 'image' | 'image_generation' | 'embedding' | 'rerank';
 
 export interface AIModel {
     id: string;
@@ -22,7 +22,7 @@ export interface AIModelConnectionResult {
 export interface AIProvider {
     id: string;
     name: string;
-    type: 'OpenAi' | 'Google AI' | 'Xiaomi' | 'Qwen' | 'Doubao' | 'DeepSeek' | 'Ollama' | 'SiliconFlow' | 'MiniMax' | 'custom';
+    type: 'OpenAi' | 'Google AI' | 'Xiaomi' | 'Qwen' | 'Doubao' | 'DeepSeek' | 'Ollama' | 'SiliconFlow' | 'MiniMax' | 'Grsai' | 'NewAPI' | 'custom';
     baseUrl: string;
     apiKey: string;
     models: AIModel[];
@@ -32,6 +32,7 @@ export interface SystemAIConfig {
     defaultChatModelId: string;
     simpleChatModelId: string;
     defaultImageModelId: string;
+    defaultImageGenerationModelId: string;
     defaultEmbeddingModelId: string;
     defaultRerankModelId: string;
 }

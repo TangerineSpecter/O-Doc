@@ -21,6 +21,11 @@ export interface PromptUsage {
   id: string; inputValues: Record<string, string | string[] | boolean>; renderedPositive: string; renderedNegative: string;
   modelName: string; note: string; sourceUrl: string; isValid: boolean; deletedAt?: string | null; createdAt: string; resultImages: PromptResultImage[];
 }
+export interface PromptGenerationResponse {
+  status: 'pending' | 'succeeded';
+  taskToken?: string;
+  usage?: PromptUsage;
+}
 export interface PromptTemplate {
   id: string; title: string; description: string; promptType: PromptType; positiveTemplate: string; negativeTemplate: string;
   fieldSchemaVersion: number; fieldSchema: PromptField[]; category: PromptTaxonomy | null; themes: PromptTaxonomy[]; tags: PromptTaxonomy[];

@@ -54,6 +54,7 @@ export const useSettings = () => {
         defaultChatModelId: '',
         simpleChatModelId: '',
         defaultImageModelId: '',
+        defaultImageGenerationModelId: '',
         defaultEmbeddingModelId: '',
         defaultRerankModelId: ''
     });
@@ -102,6 +103,7 @@ export const useSettings = () => {
         defaultChatModelId: config.defaultChatModelId || '',
         simpleChatModelId: config.simpleChatModelId || '',
         defaultImageModelId: config.defaultImageModelId || '',
+        defaultImageGenerationModelId: config.defaultImageGenerationModelId || '',
         defaultEmbeddingModelId: config.defaultEmbeddingModelId || '',
         defaultRerankModelId: config.defaultRerankModelId || ''
     });

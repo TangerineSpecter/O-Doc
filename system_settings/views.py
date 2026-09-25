@@ -238,6 +238,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
             'defaultChatModelId': '',
             'simpleChatModelId': '',
             'defaultImageModelId': '',
+            'defaultImageGenerationModelId': '',
             'defaultEmbeddingModelId': '',
             'defaultRerankModelId': ''
         }

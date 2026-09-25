@@ -1,5 +1,5 @@
 import request from '../utils/request';
-import type {PromptFilters, PromptListResponse, PromptTaxonomies, PromptTemplate, PromptTemplateInput, PromptTrash, PromptUsage} from '../types/api/prompt';
+import type {PromptFilters, PromptGenerationResponse, PromptListResponse, PromptTaxonomies, PromptTemplate, PromptTemplateInput, PromptTrash, PromptUsage} from '../types/api/prompt';
 
 export type {PromptField, PromptFieldOption, PromptFilters, PromptTaxonomies, PromptTemplate, PromptTemplateInput, PromptType, PromptUsage} from '../types/api/prompt';
 
@@ -14,6 +14,10 @@ export const restorePromptTemplate = (id: string) => request.post<any, PromptTem
 export const purgePromptTemplate = (id: string) => request.delete<any, void>(`/prompt/templates/${id}/purge`);
 export const setPromptCover = (id: string, imageId: string | null) => request.put<any, PromptTemplate>(`/prompt/templates/${id}/cover`, {imageId});
 export const createPromptUsage = (id: string, data: {inputValues: Record<string, unknown>; assetIds: string[]; modelName?: string; note?: string; sourceUrl?: string}) => request.post<any, PromptUsage>(`/prompt/templates/${id}/usages`, data);
+export const generatePromptImage = (id: string, inputValues: Record<string, unknown>, signal?: AbortSignal) =>
+  request.post<unknown, PromptGenerationResponse>(`/prompt/templates/${id}/generate`, {inputValues}, {signal, timeout: 150_000});
+export const getPromptGenerationResult = (id: string, taskToken: string, signal?: AbortSignal) =>
+  request.post<unknown, PromptGenerationResponse>(`/prompt/templates/${id}/generate/result`, {taskToken}, {signal, timeout: 90_000});
 export const deletePromptUsage = (id: string) => request.delete<any, void>(`/prompt/usages/${id}`);
 export const restorePromptUsage = (id: string) => request.post<any, PromptUsage>(`/prompt/usages/${id}/restore`);
 export const purgePromptUsage = (id: string) => request.delete<any, void>(`/prompt/usages/${id}/purge`);

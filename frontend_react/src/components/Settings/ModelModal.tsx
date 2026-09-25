@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ModelType } from '../../api/setting';
-import {Eye, Layers, MessageCircle, SearchCheck, X} from 'lucide-react';
+import {Eye, ImagePlus, Layers, MessageCircle, SearchCheck, X} from 'lucide-react';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 interface ModelModalProps {
@@ -14,6 +14,7 @@ export const ModelModal = ({ isOpen, onClose, onSave }: ModelModalProps) => {
     const modelTypeOptions: { type: ModelType; label: string; icon: typeof MessageCircle }[] = [
         {type: 'chat', label: '对话', icon: MessageCircle},
         {type: 'image', label: '图像识别', icon: Eye},
+        {type: 'image_generation', label: '生图', icon: ImagePlus},
         {type: 'embedding', label: '向量', icon: Layers},
         {type: 'rerank', label: '重排', icon: SearchCheck},
     ];

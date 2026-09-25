@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .generation_views import PromptGenerationResultView, PromptGenerationStartView
 from .views import (
     PromptTaxonomyDetailView, PromptTaxonomyListView, PromptTemplateCoverView, PromptTemplateDetailView,
     PromptTemplateListView, PromptTemplatePurgeView, PromptTemplateRestoreView, PromptTrashView,
@@ -13,6 +14,8 @@ urlpatterns = [
     path('templates/<str:template_id>/purge', PromptTemplatePurgeView.as_view()),
     path('templates/<str:template_id>/cover', PromptTemplateCoverView.as_view()),
     path('templates/<str:template_id>/usages', PromptUsageView.as_view()),
+    path('templates/<str:template_id>/generate', PromptGenerationStartView.as_view()),
+    path('templates/<str:template_id>/generate/result', PromptGenerationResultView.as_view()),
     path('usages/<str:usage_id>', PromptUsageDetailView.as_view()),
     path('usages/<str:usage_id>/restore', PromptUsageRestoreView.as_view()),
     path('usages/<str:usage_id>/purge', PromptUsagePurgeView.as_view()),

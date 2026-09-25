@@ -142,6 +142,20 @@ class AIModelViewSet(viewsets.ModelViewSet):
     def test_connection(self, request, pk=None):
         model = self.get_object()
         provider = model.provider
+        if model.type == 'image_generation':
+            return valid_result(
+                msg='请通过实际生图验证模型',
+                data={
+                    'ok': False,
+                    'model_id': model.id,
+                    'model_name': model.name,
+                    'model_type': model.type,
+                    'provider_name': provider.name,
+                    'elapsed_ms': 0,
+                    'detail': '生图请求会消耗额度，请在提示词库使用生图模板验证。',
+                }
+            )
+
         if not provider.base_url:
             return valid_result(msg='连通性检测失败', data='服务商 Base URL 不能为空')
 
@@ -165,7 +179,10 @@ class AIModelViewSet(viewsets.ModelViewSet):
                 )
 
         endpoint, payload = self._model_test_payload(model)
-        api_url = f"{provider.base_url.rstrip('/')}{endpoint}"
+        api_base = provider.base_url.rstrip('/')
+        if provider.type == 'NewAPI' and not api_base.endswith('/v1'):
+            api_base += '/v1'
+        api_url = f"{api_base}{endpoint}"
         headers = {'Content-Type': 'application/json'}
         if provider.api_key:
             headers['Authorization'] = f"Bearer {provider.api_key}"
@@ -260,5 +277,3 @@ class GeoLocationViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return success_result()
-
-
