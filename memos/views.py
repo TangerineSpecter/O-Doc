@@ -182,6 +182,9 @@ class MemoKnowledgeGraphView(APIView):
         try:
             keyword = request.GET.get('keyword', '').strip()
             tag = request.GET.get('tag', '').strip()
+            creator_type = request.GET.get('creator_type', '').strip()
+            creator_id = request.GET.get('creator_id', '').strip()
+            creator_name = request.GET.get('creator_name', '').strip()
             limit = min(int(request.GET.get('limit', 80) or 80), 160)
             threshold = float(request.GET.get('threshold', 0.72) or 0.72)
 
@@ -192,6 +195,13 @@ class MemoKnowledgeGraphView(APIView):
 
             if tag:
                 memos = memos.filter(Q(tag=tag) | Q(tag__startswith=f'{tag}/'))
+
+            if creator_type:
+                memos = memos.filter(creator_type=creator_type)
+            if creator_id:
+                memos = memos.filter(creator_id=creator_id)
+            elif creator_name:
+                memos = memos.filter(creator_name=creator_name)
 
             memo_list = list(memos.order_by('-is_pinned', '-created_at')[:limit])
             RagClient.sync_memos(memo_list)

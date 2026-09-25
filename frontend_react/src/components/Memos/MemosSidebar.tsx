@@ -1,5 +1,5 @@
 import React from 'react';
-import { Hash, Plus, Shuffle } from 'lucide-react';
+import { BarChart2, Clock, FileText, Hash, Pin, Shuffle } from 'lucide-react';
 
 interface MemoTagFilter {
   name: string;
@@ -8,84 +8,118 @@ interface MemoTagFilter {
 }
 
 interface MemosSidebarProps {
-  viewMode: 'feed' | 'graph';
-  content: string;
-  tag: string;
-  saving: boolean;
   visibleMemoCount: number;
+  pinnedMemoCount: number;
+  tagCount: number;
+  latestMemoTime: string;
   totalCharacters: number;
   selectedTag: string;
   normalizedKeyword: string;
   tagFilters: MemoTagFilter[];
-  onViewModeChange: (mode: 'feed' | 'graph') => void;
-  onContentChange: (content: string) => void;
-  onTagChange: (tag: string) => void;
-  onCreate: (event?: React.FormEvent) => void;
   onPickRandomMemo: () => void;
   onSelectedTagChange: (tag: string) => void;
   renderTagLabel: (tagPath: string) => React.ReactNode;
 }
 
 export default function MemosSidebar({
-  content,
-  tag,
-  saving,
   visibleMemoCount,
+  pinnedMemoCount,
+  tagCount,
+  latestMemoTime,
   totalCharacters,
   selectedTag,
   normalizedKeyword,
   tagFilters,
-  onContentChange,
-  onTagChange,
-  onCreate,
   onPickRandomMemo,
   onSelectedTagChange,
   renderTagLabel,
 }: MemosSidebarProps) {
   return (
-    <aside className="lg:sticky lg:top-24">
-      {/* 快速收集卡片（移动端紧凑化） */}
-      <form onSubmit={onCreate} className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4 shadow-sm">
-        <div className="mb-2.5 sm:mb-3 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm sm:text-base font-bold text-slate-900">快速收集</h2>
-            <p className="mt-0.5 text-xs text-slate-500">先记下来，之后再整理成文章或任务。</p>
+    <aside className="lg:sticky lg:top-24 space-y-4">
+      {/* 统计看板卡片：精心设计的核心指标与密度概览 */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50 text-orange-600 border border-orange-100">
+              <BarChart2 className="h-4 w-4" />
+            </span>
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 leading-none">统计看板</h2>
+              <p className="mt-1 text-[11px] text-slate-400 leading-none">闪念流转与聚焦状态</p>
+            </div>
           </div>
-          <span className="rounded-md bg-orange-50 p-1.5 sm:p-2 text-orange-600">
-            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-          </span>
+          {(selectedTag || normalizedKeyword) && (
+            <span className="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-600 border border-orange-100">
+              已过滤
+            </span>
+          )}
         </div>
 
-        <textarea
-          value={content}
-          onChange={(event) => onContentChange(event.target.value)}
-          placeholder="记下一句闪过脑子的东西..."
-          className="min-h-20 sm:min-h-28 lg:min-h-36 w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 sm:px-4 sm:py-3 text-sm leading-6 text-slate-800 outline-none transition focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
-        />
+        {/* 2x2 指标宫格 */}
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* 当前视图 */}
+          <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-2.5 transition hover:bg-slate-50">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-500">当前视图</span>
+              <FileText className="h-3.5 w-3.5 text-slate-400" />
+            </div>
+            <p className="mt-1.5 text-xl font-bold tracking-tight text-slate-900">{visibleMemoCount}</p>
+          </div>
 
-        <div className="mt-2.5 sm:mt-3 flex flex-col gap-2.5 sm:flex-row lg:flex-col xl:flex-row">
-          <div className="relative min-w-0 flex-1">
-            <Hash className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={tag}
-              onChange={(event) => onTagChange(event.target.value)}
-              placeholder="添加标签"
-              className="h-9 sm:h-10 w-full rounded-lg border border-slate-200 bg-white pl-8 sm:pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/15"
+          {/* 置顶焦点 */}
+          <div className="rounded-lg border border-orange-100/80 bg-orange-50/50 p-2.5 transition hover:bg-orange-50/80">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-orange-600">置顶焦点</span>
+              <Pin className="h-3.5 w-3.5 text-orange-500" />
+            </div>
+            <p className="mt-1.5 text-xl font-bold tracking-tight text-orange-600">{pinnedMemoCount}</p>
+          </div>
+
+          {/* 涉及标签 */}
+          <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-2.5 transition hover:bg-slate-50">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-500">涉及标签</span>
+              <Hash className="h-3.5 w-3.5 text-slate-400" />
+            </div>
+            <p className="mt-1.5 text-xl font-bold tracking-tight text-slate-900">{tagCount}</p>
+          </div>
+
+          {/* 最近收集 */}
+          <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-2.5 transition hover:bg-slate-50">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-500">最近收集</span>
+              <Clock className="h-3.5 w-3.5 text-slate-400" />
+            </div>
+            <p className="mt-1.5 truncate text-xs font-bold text-slate-800" title={latestMemoTime}>
+              {latestMemoTime || '暂无'}
+            </p>
+          </div>
+        </div>
+
+        {/* 信息密度与聚焦提示 */}
+        <div className="mt-3.5 border-t border-slate-100 pt-3">
+          <div className="mb-1.5 flex items-center justify-between text-xs">
+            <span className="text-slate-500">碎片字数</span>
+            <span className="font-semibold text-slate-700">{totalCharacters} 字</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-orange-500 transition-all duration-300"
+              style={{ width: `${Math.min(100, Math.max(6, totalCharacters / 20))}%` }}
             />
           </div>
-          <button
-            type="submit"
-            disabled={!content.trim() || saving}
-            className="inline-flex h-9 sm:h-10 items-center justify-center gap-1.5 rounded-lg bg-orange-500 px-4 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-orange-500/20 transition hover:bg-orange-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
-          >
-            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            记录
-          </button>
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+            {selectedTag
+              ? `正在查看「${selectedTag}」标签下的记录。`
+              : normalizedKeyword
+                ? `正在聚焦「${normalizedKeyword}」相关记录。`
+                : '置顶内容固定在顶部，其他闪念按时间流收录。'}
+          </p>
         </div>
-      </form>
+      </div>
 
       {/* 桌面端专属卡片：随机漫步（移动端已提升至顶层工具栏） */}
-      <div className="mt-4 hidden lg:block overflow-hidden rounded-xl border border-orange-100 bg-white shadow-sm">
+      <div className="hidden lg:block overflow-hidden rounded-xl border border-orange-100 bg-white shadow-sm">
         <button
           type="button"
           onClick={onPickRandomMemo}
@@ -107,39 +141,15 @@ export default function MemosSidebar({
         </button>
       </div>
 
-      {/* 桌面端专属卡片：信息密度 */}
-      <div className="mt-4 hidden lg:block rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-bold text-slate-900">信息密度</h2>
-        <div className="mt-3 space-y-3">
-          <div>
-            <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
-              <span>碎片字数</span>
-              <span>{totalCharacters}</span>
-            </div>
-            <div className="h-2 rounded-full bg-slate-100">
-              <div
-                className="h-2 rounded-full bg-orange-500 transition-all"
-                style={{ width: `${Math.min(100, Math.max(8, totalCharacters / 20))}%` }}
-              />
-            </div>
-          </div>
-          <p className="text-xs leading-5 text-slate-500">
-            {selectedTag
-              ? `正在查看「${selectedTag}」下的记录。`
-              : normalizedKeyword ? `正在聚焦「${normalizedKeyword}」相关记录。` : '置顶内容会优先固定在上方，其他闪念按时间收进下方流。'}
-          </p>
-        </div>
-      </div>
-
       {/* 桌面端专属卡片：标签筛选列表（移动端改为顶层横向滑动条） */}
-      <div className="mt-4 hidden lg:block rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="hidden lg:block rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-bold text-slate-900">标签筛选</h2>
           {selectedTag && (
             <button
               type="button"
               onClick={() => onSelectedTagChange('')}
-              className="text-xs font-medium text-slate-400 transition hover:text-violet-600"
+              className="text-xs font-medium text-slate-400 transition hover:text-orange-600"
             >
               清除
             </button>
@@ -156,8 +166,8 @@ export default function MemosSidebar({
                 onClick={() => onSelectedTagChange(selectedTag === item.name ? '' : item.name)}
                 className={`flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition ${
                   selectedTag === item.name
-                    ? 'bg-violet-50 text-violet-700 ring-1 ring-violet-100'
-                    : 'text-slate-600 hover:bg-violet-50/70 hover:text-violet-700'
+                    ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200'
+                    : 'text-slate-600 hover:bg-orange-50/70 hover:text-orange-700'
                 }`}
                 style={{ paddingLeft: `${10 + item.depth * 12}px` }}
               >

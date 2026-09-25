@@ -1,18 +1,24 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import remarkGfm from 'remark-gfm';
 import {
+    Bot,
+    Hash,
     Inbox,
     List,
     Network,
     Pin,
+    Plus,
     Search,
     Shuffle,
     Sparkles,
     ArchiveRestore,
+    User,
+    Users,
 } from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {createMemo, deleteMemo, getMemoKnowledgeGraph, getMemoList, syncMemoVectors, updateMemo} from '../api/memo';
 import type {CreateMemoParams, MemoItem, MemoKnowledgeGraph, MemoGraphNode} from '../types/api/memo';
+import {Select, type SelectOption} from '../components/common/Select';
 import {CodeBlock} from '../components/Article/MarkdownElements';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import {useToast} from '../components/common/ToastProvider';
@@ -22,6 +28,69 @@ import MemoCard from '../components/Memos/MemoCard';
 import MemosSidebar from '../components/Memos/MemosSidebar';
 import RandomWalkModal from '../components/Memos/RandomWalkModal';
 import PageLoading from '../components/common/PageLoading';
+
+interface MemoCreator {
+    key: string;
+    name: string;
+    isAgent: boolean;
+    creatorType: 'agent' | 'user';
+    creatorId: string;
+}
+
+interface MemoCreatorOption extends SelectOption<string> {
+    creatorType?: 'agent' | 'user';
+    creatorId?: string;
+    creatorName?: string;
+}
+
+const getMemoCreator = (memo: MemoItem): MemoCreator => {
+    const source = memo as MemoItem & {
+        agentName?: string;
+        agent_name?: string;
+        agent?: { name?: string };
+        authorType?: 'agent' | 'user';
+        creator_type?: 'agent' | 'user';
+        creator_id?: string;
+        creator_name?: string;
+        createdByType?: 'agent' | 'user';
+        createdByName?: string;
+        user_id?: string;
+        user_name?: string;
+        authorName?: string;
+    };
+    const creatorType = source.creatorType || source.creator_type;
+    const agentName = source.creatorName
+        || source.creator_name
+        || source.agentName
+        || source.agent_name
+        || source.agent?.name;
+    const isAgent = creatorType === 'agent'
+        || Boolean(agentName)
+        || source.authorType === 'agent'
+        || source.createdByType === 'agent';
+    const creatorId = source.creatorId
+        || source.creator_id
+        || (isAgent ? '' : source.userId || source.user_id || '');
+    const name = isAgent
+        ? agentName || creatorId || 'Agent'
+        : source.userName
+            || source.user_name
+            || source.authorName
+            || source.createdByName
+            || source.creatorName
+            || source.creator_name
+            || creatorId
+            || '未知账号';
+
+    const type = isAgent ? 'agent' : 'user';
+    return {
+        key: `${type}:${creatorId || `name:${name}`}`,
+        name,
+        isAgent,
+        creatorType: type,
+        creatorId,
+    };
+};
 
 const remarkSoftLineBreaks = () => {
     const visit = (node: any) => {
@@ -60,6 +129,8 @@ export default function MemosPage() {
     const [tag, setTag] = useState('');
     const [keyword, setKeyword] = useState('');
     const [selectedTag, setSelectedTag] = useState('');
+    const [selectedCreator, setSelectedCreator] = useState('');
+    const [selectedCreatorSnapshot, setSelectedCreatorSnapshot] = useState<MemoCreatorOption | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [editingMemo, setEditingMemo] = useState<MemoItem | null>(null);
     const [editContent, setEditContent] = useState('');
@@ -91,18 +162,60 @@ export default function MemosPage() {
         });
     };
 
+    const creatorFilterOptions = useMemo(() => {
+        const creators = new Map<string, {creator: MemoCreator; count: number}>();
+        memos.forEach(memo => {
+            const creator = getMemoCreator(memo);
+            const current = creators.get(creator.key);
+            creators.set(creator.key, {creator, count: (current?.count || 0) + 1});
+        });
+
+        const options: MemoCreatorOption[] = [
+            {
+                value: '',
+                label: '全部创建人',
+                description: `${memos.length} 条闪念`,
+                icon: <Users className="h-4 w-4 text-slate-500" />,
+            },
+            ...Array.from(creators.values())
+                .sort((left, right) => Number(left.creator.isAgent) - Number(right.creator.isAgent)
+                    || left.creator.name.localeCompare(right.creator.name, 'zh-CN'))
+                .map(({creator, count}) => ({
+                    value: creator.key,
+                    label: `${creator.isAgent ? 'Agent' : '用户'} · ${creator.name}`,
+                    description: `${count} 条闪念`,
+                    creatorType: creator.creatorType,
+                    creatorId: creator.creatorId,
+                    creatorName: creator.name,
+                    icon: creator.isAgent
+                        ? <Bot className="h-4 w-4 text-emerald-600" />
+                        : <User className="h-4 w-4 text-blue-600" />,
+                })),
+        ];
+
+        if (selectedCreator && selectedCreatorSnapshot && !options.some(option => option.value === selectedCreator)) {
+            options.push({...selectedCreatorSnapshot, description: '当前搜索下没有匹配闪念'});
+        }
+
+        return options;
+    }, [memos, selectedCreator, selectedCreatorSnapshot]);
+    const creatorFilteredMemos = useMemo(() => (
+        selectedCreator
+            ? memos.filter(memo => getMemoCreator(memo).key === selectedCreator)
+            : memos
+    ), [memos, selectedCreator]);
     const visibleMemos = useMemo(() => (
         selectedTag
-            ? memos.filter(memo => memo.tag === selectedTag || memo.tag.startsWith(`${selectedTag}/`))
-            : memos
-    ), [memos, selectedTag]);
+            ? creatorFilteredMemos.filter(memo => memo.tag === selectedTag || memo.tag.startsWith(`${selectedTag}/`))
+            : creatorFilteredMemos
+    ), [creatorFilteredMemos, selectedTag]);
     const pinnedMemos = useMemo(() => visibleMemos.filter(memo => memo.isPinned), [visibleMemos]);
     const unpinnedMemos = useMemo(() => visibleMemos.filter(memo => !memo.isPinned), [visibleMemos]);
-    const tagCount = useMemo(() => new Set(memos.map(memo => memo.tag.trim()).filter(Boolean)).size, [memos]);
+    const tagCount = useMemo(() => new Set(creatorFilteredMemos.map(memo => memo.tag.trim()).filter(Boolean)).size, [creatorFilteredMemos]);
     const tagFilters = useMemo(() => {
         const counts = new Map<string, number>();
 
-        memos.forEach(memo => {
+        creatorFilteredMemos.forEach(memo => {
             const normalizedTag = memo.tag.trim();
             if (!normalizedTag) return;
 
@@ -116,9 +229,57 @@ export default function MemosPage() {
         return Array.from(counts.entries())
             .map(([name, count]) => ({name, count, depth: name.split('/').length - 1}))
             .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
-    }, [memos]);
+    }, [creatorFilteredMemos]);
     const totalCharacters = useMemo(() => visibleMemos.reduce((total, memo) => total + memo.content.length, 0), [visibleMemos]);
     const latestMemoTime = visibleMemos[0]?.createdAt ? formatDate(visibleMemos[0].createdAt) : '暂无记录';
+    const visibleGraphData = useMemo(() => {
+        if (!graphData || !selectedCreator) return graphData;
+
+        const memoNodes = graphData.nodes.filter(node => (
+            node.category === 'memo'
+            && node.memo
+            && getMemoCreator(node.memo).key === selectedCreator
+        ));
+        const memoIds = new Set(memoNodes.map(node => node.id));
+        const tagLinks = graphData.links.filter(link => link.relation === '标签' && memoIds.has(link.source));
+        const tagCounts = new Map<string, number>();
+        memoNodes.forEach(node => {
+            const parts = (node.memo?.tag || '').split('/').map(part => part.trim()).filter(Boolean);
+            parts.forEach((_, index) => {
+                const tagPath = parts.slice(0, index + 1).join('/');
+                tagCounts.set(tagPath, (tagCounts.get(tagPath) || 0) + 1);
+            });
+        });
+        const tagIds = new Set(Array.from(tagCounts.keys(), tagPath => `tag:${tagPath}`));
+        const semanticLinks = graphData.links.filter(link => (
+            link.relation !== '标签'
+            && memoIds.has(link.source)
+            && memoIds.has(link.target)
+        ));
+        const tagNodes = graphData.nodes
+            .filter(node => node.category === 'tag' && tagIds.has(node.id))
+            .map(node => {
+                const count = tagCounts.get(node.name) || 0;
+                return {
+                    ...node,
+                    value: count,
+                    symbolSize: 20 + Math.min(18, Math.max(0, count - 1) * 2),
+                };
+            });
+
+        return {
+            nodes: [...memoNodes, ...tagNodes],
+            links: [...tagLinks, ...semanticLinks],
+            stats: {
+                memoCount: memoNodes.length,
+                tagCount: tagNodes.length,
+                semanticLinkCount: semanticLinks.length,
+            },
+        };
+    }, [graphData, selectedCreator]);
+    const visibleSelectedGraphNode = selectedGraphNode
+        ? visibleGraphData?.nodes.find(node => node.id === selectedGraphNode.id) || null
+        : null;
     const normalizedKeyword = keyword.trim();
     const editHasChanges = !!editingMemo && (
         editContent !== editingMemo.content
@@ -139,6 +300,11 @@ export default function MemosPage() {
             const data = await getMemoKnowledgeGraph({
                 keyword: normalizedKeyword || undefined,
                 tag: selectedTag || undefined,
+                creator_type: selectedCreatorSnapshot?.creatorType,
+                creator_id: selectedCreatorSnapshot?.creatorId || undefined,
+                creator_name: selectedCreatorSnapshot?.creatorType === 'agent' && !selectedCreatorSnapshot.creatorId
+                    ? selectedCreatorSnapshot.creatorName
+                    : undefined,
                 limit: 100,
                 threshold: 0.72,
             });
@@ -213,7 +379,7 @@ export default function MemosPage() {
             fetchKnowledgeGraph();
         }, 220);
         return () => window.clearTimeout(timer);
-    }, [viewMode, keyword, selectedTag]);
+    }, [viewMode, keyword, selectedTag, selectedCreator]);
 
     const handleCreate = async (e?: React.FormEvent) => {
         e?.preventDefault();
@@ -282,51 +448,8 @@ export default function MemosPage() {
     };
 
     const getMemoAuthorMeta = (memo: MemoItem) => {
-        const source = memo as MemoItem & {
-            agentName?: string;
-            agent_name?: string;
-            agent?: { name?: string };
-            authorType?: 'agent' | 'user';
-            creatorType?: 'agent' | 'user';
-            creator_type?: 'agent' | 'user';
-            creatorId?: string;
-            creator_id?: string;
-            creatorName?: string;
-            creator_name?: string;
-            createdByType?: 'agent' | 'user';
-            userId?: string;
-            user_id?: string;
-            userName?: string;
-            user_name?: string;
-            authorName?: string;
-            createdByName?: string;
-        };
-
-        const creatorType = source.creatorType || source.creator_type;
-        const agentName = source.creatorName
-            || source.creator_name
-            || source.agentName
-            || source.agent_name
-            || source.agent?.name;
-        const isAgent = creatorType === 'agent'
-            || Boolean(agentName)
-            || source.authorType === 'agent'
-            || source.createdByType === 'agent';
-
-        return {
-            name: isAgent
-                ? (agentName || source.creatorId || source.creator_id || 'Agent')
-                : (source.userName
-                    || source.user_name
-                    || source.authorName
-                    || source.createdByName
-                    || source.creatorId
-                    || source.creator_id
-                    || source.userId
-                    || source.user_id
-                    || '未知账号'),
-            isAgent,
-        };
+        const {name, isAgent} = getMemoCreator(memo);
+        return {name, isAgent};
     };
 
     const renderTagLabel = (tagPath: string) => {
@@ -604,8 +727,8 @@ export default function MemosPage() {
                             </div>
                         </div>
 
-                        <div className="flex w-full items-center gap-2 lg:w-auto">
-                            <div className="relative min-w-0 flex-1 lg:w-80 lg:flex-none">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center w-full lg:w-auto">
+                            <div className="relative min-w-0 flex-1 sm:w-56 lg:w-64 xl:w-72 sm:flex-none">
                                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-slate-400"/>
                                 <input
                                     value={keyword}
@@ -614,60 +737,75 @@ export default function MemosPage() {
                                     className="h-9 sm:h-10 w-full rounded-full border border-slate-200 bg-slate-50 pl-8 sm:pl-9 pr-3 text-xs sm:text-sm outline-none transition hover:bg-white focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
                                 />
                             </div>
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <div className="min-w-0 flex-1 sm:w-44 xl:w-48 sm:flex-none">
+                                    <Select
+                                        value={selectedCreator}
+                                        options={creatorFilterOptions}
+                                        onChange={(value) => {
+                                            setSelectedCreator(value);
+                                            setSelectedCreatorSnapshot(value
+                                                ? creatorFilterOptions.find(option => option.value === value) || null
+                                                : null);
+                                        }}
+                                        showSelectedDescription={false}
+                                        buttonClassName={`!h-9 sm:!h-10 !min-h-9 sm:!min-h-10 !py-1 px-3 text-xs sm:text-sm transition-colors ${
+                                            selectedCreator
+                                                ? 'border-orange-300 bg-orange-50/70 font-medium text-orange-800 shadow-sm shadow-orange-500/10'
+                                                : 'bg-white hover:border-slate-300 text-slate-700'
+                                        }`}
+                                        menuClassName="right-0 w-60 z-30"
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/recycle')}
+                                    className="inline-flex h-9 sm:h-10 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-orange-200 hover:text-orange-700 sm:text-sm"
+                                >
+                                    <ArchiveRestore className="h-4 w-4"/>回收站
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 快速收集：占用一整行 */}
+                    <form onSubmit={handleCreate} className="mt-3.5 sm:mt-4">
+                        <textarea
+                            value={content}
+                            onChange={(event) => setContent(event.target.value)}
+                            onKeyDown={(event) => {
+                                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                                    event.preventDefault();
+                                    if (content.trim() && !saving) {
+                                        handleCreate();
+                                    }
+                                }
+                            }}
+                            placeholder="记下一句闪过脑子的东西... (按 Cmd/Ctrl + Enter 快速记录)"
+                            className="min-h-20 sm:min-h-24 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 sm:px-4 sm:py-3 text-sm leading-6 text-slate-800 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
+                        />
+
+                        <div className="mt-2.5 flex items-center gap-2.5 sm:gap-3">
+                            <div className="relative min-w-0 flex-1">
+                                <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    value={tag}
+                                    onChange={(event) => setTag(event.target.value)}
+                                    placeholder="添加标签"
+                                    className="h-9 sm:h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs sm:text-sm text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-slate-300 hover:bg-white focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
+                                />
+                            </div>
+
                             <button
-                                type="button"
-                                onClick={() => navigate('/recycle')}
-                                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-orange-200 hover:text-orange-700 sm:text-sm"
+                                type="submit"
+                                disabled={!content.trim() || saving}
+                                className="inline-flex h-9 sm:h-10 items-center justify-center gap-1.5 rounded-lg bg-orange-500 px-5 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-orange-500/20 transition hover:bg-orange-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 shrink-0"
                             >
-                                <ArchiveRestore className="h-4 w-4"/>回收站
+                                <Plus className="h-4 w-4" />
+                                <span>{saving ? '记录中...' : '记录'}</span>
                             </button>
                         </div>
-                    </div>
-
-                    {/* 核心指标统计：移动端收拢为单行一体化数据条，桌面端保持标准 4 宫格 */}
-                    <div className="mt-3 sm:mt-5">
-                        {/* 移动端极简收拢条 (单行仅约 40px 高度，彻底解决大块留白问题) */}
-                        <div className="grid grid-cols-4 items-center rounded-xl border border-slate-100 bg-slate-50/90 py-2 divide-x divide-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)] sm:hidden">
-                            <div className="flex flex-col items-center justify-center px-1">
-                                <span className="text-[10px] text-slate-400">全部</span>
-                                <span className="mt-0.5 text-sm font-bold text-slate-900 leading-none">{visibleMemos.length}</span>
-                            </div>
-                            <div className="flex flex-col items-center justify-center px-1">
-                                <span className="text-[10px] text-orange-500 font-medium">置顶</span>
-                                <span className="mt-0.5 text-sm font-bold text-orange-600 leading-none">{pinnedMemos.length}</span>
-                            </div>
-                            <div className="flex flex-col items-center justify-center px-1">
-                                <span className="text-[10px] text-slate-400">标签</span>
-                                <span className="mt-0.5 text-sm font-bold text-slate-900 leading-none">{tagCount}</span>
-                            </div>
-                            <div className="flex flex-col items-center justify-center px-1 min-w-0">
-                                <span className="text-[10px] text-slate-400">最近</span>
-                                <span className="mt-0.5 text-[11px] font-semibold text-slate-700 truncate w-full text-center leading-none" title={latestMemoTime}>
-                                    {latestMemoTime.replace(/(\d+)月(\d+)日/, '$1-$2')}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* 桌面端独立卡片 (>= sm) */}
-                        <div className="hidden sm:grid sm:grid-cols-4 gap-3">
-                            <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                                <p className="text-xs text-slate-500">当前视图</p>
-                                <p className="mt-1 text-lg font-bold text-slate-900">{visibleMemos.length}</p>
-                            </div>
-                            <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
-                                <p className="text-xs text-orange-600">置顶焦点</p>
-                                <p className="mt-1 text-lg font-bold text-orange-700">{pinnedMemos.length}</p>
-                            </div>
-                            <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                                <p className="text-xs text-slate-500">标签</p>
-                                <p className="mt-1 text-lg font-bold text-slate-900">{tagCount}</p>
-                            </div>
-                            <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                                <p className="text-xs text-slate-500">最近收集</p>
-                                <p className="mt-1 truncate text-sm font-semibold text-slate-800">{latestMemoTime}</p>
-                            </div>
-                        </div>
-                    </div>
+                    </form>
 
                     {/* 视图模式切换 */}
                     <div className="mt-4 border-t border-slate-100 pt-3.5">
@@ -722,7 +860,7 @@ export default function MemosPage() {
                                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
                             >
-                                全部 ({memos.length})
+                                全部 ({creatorFilteredMemos.length})
                             </button>
                             {tagFilters.map(item => (
                                 <button
@@ -749,10 +887,10 @@ export default function MemosPage() {
                     /* 知识图谱模式：全屏展示，彻底隐藏图2（快速收集、漫步、密度、标签），让图谱占据全屏 */
                     <section className="w-full">
                         <KnowledgeGraphPanel
-                            graphData={graphData}
+                            graphData={visibleGraphData}
                             graphLoading={graphLoading}
                             vectorSyncing={vectorSyncing}
-                            selectedGraphNode={selectedGraphNode}
+                            selectedGraphNode={visibleSelectedGraphNode}
                             graphDetailCollapsed={graphDetailCollapsed}
                             markdownComponents={markdownComponents}
                             remarkPlugins={[remarkSoftLineBreaks, remarkGfm]}
@@ -770,19 +908,14 @@ export default function MemosPage() {
                     /* 信息流模式：桌面端左右分栏，移动端紧凑排布 */
                     <div className="grid gap-5 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-start">
                         <MemosSidebar
-                            viewMode={viewMode}
-                            content={content}
-                            tag={tag}
-                            saving={saving}
                             visibleMemoCount={visibleMemos.length}
+                            pinnedMemoCount={pinnedMemos.length}
+                            tagCount={tagCount}
+                            latestMemoTime={latestMemoTime}
                             totalCharacters={totalCharacters}
                             selectedTag={selectedTag}
                             normalizedKeyword={normalizedKeyword}
                             tagFilters={tagFilters}
-                            onViewModeChange={setViewMode}
-                            onContentChange={setContent}
-                            onTagChange={setTag}
-                            onCreate={handleCreate}
                             onPickRandomMemo={pickRandomMemo}
                             onSelectedTagChange={setSelectedTag}
                             renderTagLabel={renderTagLabel}
@@ -796,8 +929,8 @@ export default function MemosPage() {
                                     <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600">
                                         <Sparkles className="h-7 w-7"/>
                                     </div>
-                                    <p className="font-semibold text-slate-800">{normalizedKeyword || selectedTag ? '没有找到相关碎片' : '这里还没有碎片'}</p>
-                                    <p className="mt-1 text-sm text-slate-400">{normalizedKeyword || selectedTag ? '换个关键词或标签，或者记录一条新的。' : '写下第一条，它会自然落到焦点流里。'}</p>
+                                    <p className="font-semibold text-slate-800">{normalizedKeyword || selectedTag || selectedCreator ? '没有找到相关碎片' : '这里还没有碎片'}</p>
+                                    <p className="mt-1 text-sm text-slate-400">{normalizedKeyword || selectedTag || selectedCreator ? '换个关键词、标签或创建人，或者记录一条新的。' : '写下第一条，它会自然落到焦点流里。'}</p>
                                 </div>
                             ) : (
                                 <div className="space-y-6 animate-in fade-in duration-200">

@@ -59,6 +59,9 @@ export interface MemoKnowledgeGraph {
 
 export interface MemoKnowledgeGraphParams extends MemoListParams {
     tag?: string;
+    creator_type?: 'agent' | 'user';
+    creator_id?: string;
+    creator_name?: string;
     limit?: number;
     threshold?: number;
 }
