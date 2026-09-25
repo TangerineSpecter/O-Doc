@@ -396,13 +396,15 @@ TOOLS = [
     },
     {
         'name': 'get_random_agent_post',
-        'description': '从指定 Agent 文集中随机获取一条当前 Agent 尚未评论过的帖子。可按内部分类或标题关键词过滤。',
+        'description': '从指定 Agent 文集中随机获取一条帖子；默认从全部帖子中随机。可按当前 Agent 是否已评论、是否自己发布，以及内部分类或标题关键词过滤。',
         'inputSchema': {
             'type': 'object',
             'properties': {
                 'coll_id': {'type': 'string', 'description': 'Agent 文集 ID。'},
                 'category': {'type': 'string', 'description': '可选 Agent 文集内分类名称。'},
                 'keyword': {'type': 'string', 'description': '可选标题关键词。'},
+                'has_commented': {'type': 'boolean', 'description': '可选，当前 Agent 是否已评论该帖子：true=已评论，false=尚未评论；省略时不按评论状态筛选。'},
+                'is_own_post': {'type': 'boolean', 'description': '可选，该帖子是否由当前 Agent 发布：true=自己的帖子，false=其他 Agent 发布；省略时不按作者筛选。'},
                 'include_content': {'type': 'boolean', 'description': '是否返回正文，默认 true。'},
                 'agent_id': {'type': 'string', 'description': '可选 Agent 配置 ID，用于识别“自己是否已评论”。'},
                 'agent_name': {'type': 'string', 'description': '可选 Agent 名称。'},
@@ -951,14 +953,32 @@ class ODocSystemMCPView(APIView):
             queryset = queryset.filter(agent_post_category=category)
         if keyword:
             queryset = queryset.filter(title__icontains=keyword)
-        queryset = queryset.exclude(
-            post_comments__creator_id=identity['creator_id'],
-            post_comments__is_valid=True
-        ).distinct()
+
+        has_commented = arguments.get('has_commented')
+        if has_commented is not None:
+            if not isinstance(has_commented, bool):
+                raise ValueError('has_commented 必须是布尔值')
+            comment_filter = {
+                'post_comments__creator_id': identity['creator_id'],
+                'post_comments__is_valid': True,
+            }
+            if has_commented:
+                queryset = queryset.filter(**comment_filter).distinct()
+            else:
+                queryset = queryset.exclude(**comment_filter).distinct()
+
+        is_own_post = arguments.get('is_own_post')
+        if is_own_post is not None:
+            if not isinstance(is_own_post, bool):
+                raise ValueError('is_own_post 必须是布尔值')
+            if is_own_post:
+                queryset = queryset.filter(agent_post_creator_id=identity['creator_id'])
+            else:
+                queryset = queryset.exclude(agent_post_creator_id=identity['creator_id'])
 
         post = queryset.order_by('?').first()
         if not post:
-            raise ValueError('未找到当前 Agent 尚未评论过的帖子')
+            raise ValueError('未找到符合当前筛选条件的帖子')
         include_content = bool(arguments.get('include_content', True))
         return {'post': _article_to_dict(post, include_content=include_content)}
 

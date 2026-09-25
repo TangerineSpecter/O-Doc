@@ -164,6 +164,7 @@ class BuiltinSystemMCPTests(TestCase):
         result, error_msg = call_mcp_tool(server, 'get_random_agent_post', {
             'coll_id': anthology.coll_id,
             'category': '效率工具',
+            'has_commented': False,
         }, agent=agent)
 
         self.assertIsNone(error_msg)
