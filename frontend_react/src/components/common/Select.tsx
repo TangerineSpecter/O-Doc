@@ -1,5 +1,7 @@
-import {useEffect, useId, useRef, useState} from 'react';
+import {useEffect, useId, useLayoutEffect, useRef, useState} from 'react';
+import {createPortal} from 'react-dom';
 import {Check, ChevronDown} from 'lucide-react';
+import type {CSSProperties} from 'react';
 
 export interface SelectOption<T extends string> {
     value: T;
@@ -18,6 +20,8 @@ interface SelectProps<T extends string> {
     buttonClassName?: string;
     menuClassName?: string;
     showSelectedDescription?: boolean;
+    menuPlacement?: 'auto' | 'top' | 'bottom';
+    menuPortal?: boolean;
 }
 
 export function Select<T extends string>({
@@ -30,9 +34,13 @@ export function Select<T extends string>({
     buttonClassName = '',
     menuClassName = '',
     showSelectedDescription = true,
+    menuPlacement = 'auto',
+    menuPortal = false,
 }: SelectProps<T>) {
     const [open, setOpen] = useState(false);
+    const [portalStyle, setPortalStyle] = useState<CSSProperties>({});
     const rootRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
     const listboxId = useId();
     const selected = options.find(option => option.value === value);
 
@@ -40,7 +48,7 @@ export function Select<T extends string>({
         if (!open) return;
 
         const closeOnOutside = (event: MouseEvent) => {
-            if (!rootRef.current?.contains(event.target as Node)) {
+            if (!rootRef.current?.contains(event.target as Node) && !menuRef.current?.contains(event.target as Node)) {
                 setOpen(false);
             }
         };
@@ -60,6 +68,36 @@ export function Select<T extends string>({
             document.removeEventListener('keydown', closeOnEscape);
         };
     }, [open]);
+
+    useLayoutEffect(() => {
+        if (!open || !menuPortal) return;
+
+        const updatePosition = () => {
+            const rect = rootRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const expectedHeight = Math.min(288, options.length * 44 + 12);
+            const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - 8);
+            const spaceAbove = Math.max(0, rect.top - 8);
+            const openAbove = menuPlacement === 'top'
+                || (menuPlacement === 'auto' && spaceBelow < expectedHeight && spaceAbove > spaceBelow);
+            const availableSpace = openAbove ? spaceAbove : spaceBelow;
+            const maxHeight = Math.max(72, Math.min(288, availableSpace));
+            const menuHeight = Math.min(expectedHeight, maxHeight);
+            const left = Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8));
+            const top = openAbove
+                ? Math.max(8, rect.top - menuHeight - 8)
+                : Math.min(rect.bottom + 8, window.innerHeight - menuHeight - 8);
+            setPortalStyle({top, left, width: Math.min(rect.width, window.innerWidth - 16), maxHeight});
+        };
+
+        updatePosition();
+        window.addEventListener('resize', updatePosition);
+        window.addEventListener('scroll', updatePosition, true);
+        return () => {
+            window.removeEventListener('resize', updatePosition);
+            window.removeEventListener('scroll', updatePosition, true);
+        };
+    }, [menuPlacement, menuPortal, open, options.length]);
 
     return (
         <div ref={rootRef} className="relative">
@@ -87,11 +125,14 @@ export function Select<T extends string>({
                 <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}/>
             </button>
 
-            {open && (
-                <div
+            {open && (() => {
+                const menu = (
+                    <div
+                    ref={menuRef}
                     id={listboxId}
                     role="listbox"
-                    className={`absolute z-30 mt-2 max-h-72 min-w-full overflow-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150 ${menuClassName}`}
+                    style={menuPortal ? portalStyle : undefined}
+                    className={`${menuPortal ? 'fixed z-[200]' : `absolute z-30 min-w-full ${menuPlacement === 'top' ? 'bottom-full !mt-0 mb-2' : 'mt-2'}`} max-h-72 overflow-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150 ${menuClassName}`}
                 >
                     {options.length === 0 && (
                         <div className="flex min-h-20 items-center justify-center rounded-md px-3 py-4 text-center text-xs leading-5 text-slate-400">
@@ -128,8 +169,10 @@ export function Select<T extends string>({
                             </button>
                         );
                     })}
-                </div>
-            )}
+                    </div>
+                );
+                return menuPortal ? createPortal(menu, document.body) : menu;
+            })()}
         </div>
     );
 }

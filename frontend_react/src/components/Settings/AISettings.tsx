@@ -292,7 +292,7 @@ export const AISettings = ({
                                 />
                             </div>
                             <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                                <ImagePlus className="w-3 h-3"/> 用于提示词库生图；支持 Grsai 和 New API 模型
+                                <ImagePlus className="w-3 h-3"/> 用于提示词库生图和生成文章配图；支持 Grsai 和 New API 模型
                             </p>
                         </div>
                     </div>

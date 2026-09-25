@@ -105,6 +105,7 @@ export const mapEditorCategory = (item: { categoryId: string; name: string; them
 
 const COMMANDS_CONFIG: Omit<CommandItem, 'icon'>[] = [
     {id: 'image', label: '图片', value: '', desc: '上传并插入图片 (Max 5MB)'},
+    {id: 'resourceImage', label: '资源库图片', value: '', desc: '从已有图片中选择并插入'},
     {id: 'imageLink', label: '图片链接', value: '', desc: '通过URL插入图片'},
     {id: 'video', label: '视频', value: '', desc: '插入视频地址'},
     {
@@ -148,6 +149,7 @@ const COMMANDS_CONFIG: Omit<CommandItem, 'icon'>[] = [
 export const getCommandsWithIcons = (): CommandItem[] => {
     const icons: Record<string, ReactNode> = {
         image: <ImageIcon size={18}/>,
+        resourceImage: <ImageIcon size={18}/>,
         imageLink: <ImageIcon size={18}/>,
         video: <VideoIcon size={18}/>,
         chart: <BarChart2 size={18}/>,

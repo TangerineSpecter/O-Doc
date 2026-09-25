@@ -7,6 +7,9 @@ import {createArticle, getArticleDetail, getArticlesByAnthology, updateArticle} 
 import {createCategory, getCategoryList} from '../api/category';
 import {useToast} from '../components/common/ToastProvider';
 import {uploadResource} from '../api/resources';
+import {useArticleIllustrationGeneration} from './useArticleIllustrationGeneration';
+import {insertArticleIllustration, resolveIllustrationInsertionIndex} from './editor/articleIllustrationInsertion';
+import type {ImageGenerationRequestOptions} from '../types/api/prompt';
 import {AIConfigError, continueWritingWithAI, generateTagsWithAI, generateTitleWithAI, polishArticleWithAI} from '../api/ai';
 import {
     createVideoEmbedMarkup,
@@ -67,6 +70,8 @@ export const useEditor = () => {
 
     // Toast
     const toast = useToast();
+    const articleIllustrationGeneration = useArticleIllustrationGeneration();
+    const pendingIllustrationInsertionRef = useRef<{content: string; start: number; end: number} | null>(null);
 
     // State: Meta
     const [categories, setCategories] = useState<Category[]>([]);
@@ -89,6 +94,7 @@ export const useEditor = () => {
     const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
     const [isPreviewMode, setIsPreviewMode] = useState(false);
     const [isImageLinkModalOpen, setIsImageLinkModalOpen] = useState(false);
+    const [isResourceImagePickerOpen, setIsResourceImagePickerOpen] = useState(false);
     const [isVideoLinkModalOpen, setIsVideoLinkModalOpen] = useState(false);
     const [showAiLineHint, setShowAiLineHint] = useState(false);
     const [aiLineHintPosition, setAiLineHintPosition] = useState({top: 0, left: 0});
@@ -268,6 +274,39 @@ export const useEditor = () => {
             textarea.setSelectionRange(newEnd, newEnd);
             setShowBubbleMenu(false); // 应用后隐藏菜单
         }, 0);
+    };
+
+    const openIllustrationSettingsForSelection = async () => {
+        const textarea = textareaRef.current;
+        if (!textarea || articleIllustrationGeneration.status !== 'idle') return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const sourceContent = textarea.value;
+        const selectedText = sourceContent.slice(start, end).trim();
+        if (!selectedText) {
+            toast.error('请先选中需要配图的文章内容');
+            return;
+        }
+
+        setShowBubbleMenu(false);
+        pendingIllustrationInsertionRef.current = {content: sourceContent, start, end};
+        const settingsLoaded = await articleIllustrationGeneration.openSettings(selectedText);
+        if (!settingsLoaded) pendingIllustrationInsertionRef.current = null;
+    };
+
+    const generateIllustrationForSelection = async (options: ImageGenerationRequestOptions) => {
+        const insertion = pendingIllustrationInsertionRef.current;
+        if (!insertion || articleIllustrationGeneration.status !== 'idle') return;
+
+        const asset = await articleIllustrationGeneration.generate(options);
+        pendingIllustrationInsertionRef.current = null;
+        if (!asset) return;
+
+        setContent(currentContent => {
+            const insertionIndex = resolveIllustrationInsertionIndex(currentContent, insertion);
+            return insertArticleIllustration(currentContent, insertionIndex, asset.imageUrl);
+        });
     };
 
     const insertTextAtCursor = (text: string, cursorOffset = 0) => {
@@ -500,6 +539,17 @@ export const useEditor = () => {
             setIsImageLinkModalOpen(true);
             return;
         }
+        if (cmd.id === 'resourceImage') {
+            const textarea = textareaRef.current;
+            if (!textarea) return;
+            const insertPosition = slashIndex;
+            const selectionEnd = textarea.selectionEnd;
+            closeMenu();
+            setContent(prev => prev.substring(0, insertPosition) + prev.substring(selectionEnd));
+            setLinkInsertPosition(insertPosition);
+            setIsResourceImagePickerOpen(true);
+            return;
+        }
         if (cmd.id === 'video') {
             const textarea = textareaRef.current;
             if (!textarea) return;
@@ -550,6 +600,22 @@ export const useEditor = () => {
     const handleImageLinkCancel = () => {
         setLinkInsertPosition(null);
         setIsImageLinkModalOpen(false);
+    };
+
+    const handleResourceImageSelect = (resourceId: string) => {
+        const markdown = `![资源库图片](/api/resource/view/${resourceId})`;
+        if (linkInsertPosition !== null) {
+            insertTextAtPosition(markdown, linkInsertPosition);
+        } else {
+            insertTextAtCursor(markdown);
+        }
+        setLinkInsertPosition(null);
+        setIsResourceImagePickerOpen(false);
+    };
+
+    const handleResourceImagePickerClose = () => {
+        setLinkInsertPosition(null);
+        setIsResourceImagePickerOpen(false);
     };
 
     const handleVideoLinkConfirm = (url: string) => {
@@ -1008,11 +1074,21 @@ export const useEditor = () => {
         tags,
         attachments, setAttachments,
         isSaving, isPreviewMode, isUploadingAttachment,
-        isImageLinkModalOpen, isVideoLinkModalOpen,
+        isImageLinkModalOpen, isResourceImagePickerOpen, isVideoLinkModalOpen,
         showMenu, menuPosition, selectedIndex, setSelectedIndex,
         commands,
         showBubbleMenu,
         bubbleMenuPosition,
+        isGeneratingArticleIllustration: articleIllustrationGeneration.status !== 'idle',
+        canStopArticleIllustration: articleIllustrationGeneration.status === 'polling',
+        onStopArticleIllustration: articleIllustrationGeneration.stopPolling,
+        isArticleIllustrationSettingsOpen: articleIllustrationGeneration.isSettingsOpen,
+        isLoadingArticleIllustrationSettings: articleIllustrationGeneration.isLoadingSettings,
+        articleIllustrationSettings: articleIllustrationGeneration.settings,
+        onCloseArticleIllustrationSettings: () => {
+            pendingIllustrationInsertionRef.current = null;
+            articleIllustrationGeneration.closeSettings();
+        },
         showAiLineHint,
         aiLineHintPosition,
         isAiContinueOpen,
@@ -1022,6 +1098,8 @@ export const useEditor = () => {
         isAiContinuing,
         handleSelectionChange,
         applyFormat,
+        onGenerateArticleIllustration: openIllustrationSettingsForSelection,
+        onConfirmArticleIllustrationGeneration: generateIllustrationForSelection,
         // Actions
         onSave: handleSave,
         onTogglePreview: handleTogglePreview,
@@ -1044,6 +1122,8 @@ export const useEditor = () => {
         // Image Link Actions
         onImageLinkConfirm: handleImageLinkConfirm,
         onImageLinkCancel: handleImageLinkCancel,
+        onResourceImageSelect: handleResourceImageSelect,
+        onResourceImagePickerClose: handleResourceImagePickerClose,
         // Video Link Actions
         onVideoLinkConfirm: handleVideoLinkConfirm,
         onVideoLinkCancel: handleVideoLinkCancel,

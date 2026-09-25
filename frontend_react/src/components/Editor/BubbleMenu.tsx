@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-    Bold, Italic, Underline, Highlighter, Waves, 
+    Bold, Italic, Underline, Highlighter, Waves, ImagePlus, Loader2,
     Strikethrough, Code 
 } from 'lucide-react';
 
@@ -15,9 +15,11 @@ interface BubbleMenuProps {
     isOpen: boolean;
     position: { top: number; left: number };
     onFormat: (type: string) => void;
+    onGenerateIllustration: () => void;
+    isGeneratingIllustration: boolean;
 }
 
-export const BubbleMenu = ({ isOpen, position, onFormat }: BubbleMenuProps) => {
+export const BubbleMenu = ({ isOpen, position, onFormat, onGenerateIllustration, isGeneratingIllustration }: BubbleMenuProps) => {
     if (!isOpen) return null;
 
     const items = [
@@ -59,6 +61,24 @@ export const BubbleMenu = ({ isOpen, position, onFormat }: BubbleMenuProps) => {
                     </button>
                 );
             })}
+
+            <div className="w-px h-4 bg-white/20 mx-1" />
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onGenerateIllustration();
+                }}
+                disabled={isGeneratingIllustration}
+                className="p-1.5 hover:bg-white/20 rounded-md transition-colors relative group disabled:cursor-wait disabled:opacity-70"
+                title={isGeneratingIllustration ? '正在生成文章配图…' : '生成文章配图'}
+                aria-label="生成文章配图"
+                aria-busy={isGeneratingIllustration}
+            >
+                {isGeneratingIllustration
+                    ? <Loader2 size={14} className="animate-spin text-orange-300" />
+                    : <ImagePlus size={14} className="text-orange-400" />}
+            </button>
             
             {/* 小三角箭头 */}
             <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45"></div>

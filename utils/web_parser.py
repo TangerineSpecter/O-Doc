@@ -239,6 +239,15 @@ def _validate_fetch_url(url):
     return urlunsplit((scheme, parsed.netloc, parsed.path or '/', parsed.query, ''))
 
 
+def is_public_remote_url(url: str) -> bool:
+    """Whether an external URL passes the same public-target checks as downloads."""
+    try:
+        _validate_fetch_url(url)
+    except WebParserError:
+        return False
+    return True
+
+
 def _read_response_body(response, max_bytes, size_error, byte_budget=None):
     headers = getattr(response, 'headers', {}) or {}
     content_length = headers.get('Content-Length')

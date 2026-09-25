@@ -1,9 +1,15 @@
+import uuid
+
 from django.db import models
 
 from utils.id_generator import (
     generate_prompt_result_image_id, generate_prompt_taxonomy_id, generate_prompt_template_id,
     generate_prompt_template_tag_id, generate_prompt_template_theme_id, generate_prompt_usage_id,
 )
+
+
+def generate_pending_article_illustration_id() -> str:
+    return uuid.uuid4().hex
 
 
 class PromptTaxonomyBase(models.Model):
@@ -40,6 +46,27 @@ class PromptTag(PromptTaxonomyBase):
     class Meta(PromptTaxonomyBase.Meta):
         db_table = 'prompt_tags'
         constraints = [models.UniqueConstraint(fields=['user_id', 'name'], name='prompt_tag_user_name_unique')]
+
+
+class PendingArticleIllustration(models.Model):
+    """A generated image URL kept locally until its bytes can be saved as an Asset."""
+
+    id = models.CharField(max_length=32, primary_key=True, default=generate_pending_article_illustration_id, editable=False)
+    user_id = models.CharField(max_length=50, db_index=True)
+    task_id = models.CharField(max_length=128)
+    model_id = models.CharField(max_length=32, blank=True, default='')
+    provider_type = models.CharField(max_length=20, default='Grsai')
+    status = models.CharField(max_length=20, default='download_pending')
+    image_url = models.URLField(max_length=2048, blank=True, default='')
+    preview_allowed = models.BooleanField(default=False)
+    error_message = models.CharField(max_length=200, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'pending_article_illustrations'
+        ordering = ['-created_at']
+        constraints = [models.UniqueConstraint(fields=['user_id', 'task_id'], name='pending_article_illustration_task_unique')]
 
 
 class PromptTemplate(models.Model):

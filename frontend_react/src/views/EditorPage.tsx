@@ -2,9 +2,11 @@ import Article from './Article';
 import {ArticleTemplatePicker} from '../components/Editor/ArticleTemplatePicker';
 import {EditorHeader} from '../components/Editor/EditorHeader';
 import {SaveArticleTemplateModal} from '../components/Editor/SaveArticleTemplateModal';
+import ImageGenerationSettingsModal from '../components/common/ImageGenerationSettingsModal';
 import {EditorMetaBar} from '../components/Editor/EditorMetaBar';
 import {SlashMenu} from '../components/Editor/SlashMenu';
 import ImageLinkModal from '../components/common/ImageLinkModal';
+import ResourceImagePickerModal from '../components/Editor/ResourceImagePickerModal';
 import VideoLinkModal from '../components/common/VideoLinkModal';
 import {useEditor} from '../hooks/useEditor';
 import {BubbleMenu} from '../components/Editor/BubbleMenu';
@@ -144,11 +146,19 @@ export default function EditorPage() {
         isPreviewMode, onTogglePreview, onBack,
         isUploadingAttachment,
         isImageLinkModalOpen, onImageLinkConfirm, onImageLinkCancel,
+        isResourceImagePickerOpen, onResourceImageSelect, onResourceImagePickerClose,
         isVideoLinkModalOpen, onVideoLinkConfirm, onVideoLinkCancel,
         showMenu, menuPosition, commands, selectedIndex, setSelectedIndex, onExecuteCommand,
         onImageUpload, onTextChange, onKeyDown, onPaste,
         showBubbleMenu,
         bubbleMenuPosition,
+        isGeneratingArticleIllustration,
+        canStopArticleIllustration,
+        onStopArticleIllustration,
+        isArticleIllustrationSettingsOpen,
+        isLoadingArticleIllustrationSettings,
+        articleIllustrationSettings,
+        onCloseArticleIllustrationSettings,
         showAiLineHint,
         aiLineHintPosition,
         isAiContinueOpen,
@@ -158,6 +168,8 @@ export default function EditorPage() {
         isAiContinuing,
         handleSelectionChange,
         applyFormat,
+        onGenerateArticleIllustration,
+        onConfirmArticleIllustrationGeneration,
         onTextAreaFocus,
         onTextAreaScroll,
         onCloseAiContinue,
@@ -428,11 +440,19 @@ export default function EditorPage() {
                             <SlashMenu isOpen={showMenu} position={menuPosition} commands={commands}
                                        selectedIndex={selectedIndex} onSelect={onExecuteCommand}
                                        setSelectedIndex={setSelectedIndex}/>
-                            <BubbleMenu isOpen={showBubbleMenu} position={bubbleMenuPosition} onFormat={applyFormat}/>
+                            <BubbleMenu
+                                isOpen={showBubbleMenu}
+                                position={bubbleMenuPosition}
+                                onFormat={applyFormat}
+                                onGenerateIllustration={onGenerateArticleIllustration}
+                                isGeneratingIllustration={isGeneratingArticleIllustration}
+                            />
 
                             <div
                                 className={`h-8 border-t border-slate-50 flex items-center justify-center text-[10px] text-slate-400 bg-white shrink-0 z-20 transition-all duration-500 ${isPolishing ? 'opacity-0' : 'opacity-100'}`}>
-                                Markdown 编辑模式 · 字数 {content.length}
+                                {isGeneratingArticleIllustration
+                                    ? <span className="inline-flex items-center gap-1.5 text-orange-600"><Loader2 className="h-3 w-3 animate-spin"/>正在为选中内容生成文章配图…</span>
+                                    : <>Markdown 编辑模式 · 字数 {content.length}</>}
                             </div>
                         </div>
                     </div>
@@ -450,7 +470,22 @@ export default function EditorPage() {
             </div>
 
             <ImageLinkModal isOpen={isImageLinkModalOpen} onClose={onImageLinkCancel} onConfirm={onImageLinkConfirm}/>
+            <ResourceImagePickerModal isOpen={isResourceImagePickerOpen} onClose={onResourceImagePickerClose} onSelect={onResourceImageSelect}/>
             <VideoLinkModal isOpen={isVideoLinkModalOpen} onClose={onVideoLinkCancel} onConfirm={onVideoLinkConfirm}/>
+            <ImageGenerationSettingsModal
+                isOpen={isArticleIllustrationSettingsOpen}
+                isLoading={isLoadingArticleIllustrationSettings}
+                isGenerating={isGeneratingArticleIllustration}
+                canStop={canStopArticleIllustration}
+                onStop={onStopArticleIllustration}
+                settings={articleIllustrationSettings}
+                title="生成文章配图"
+                purposeLabel="文章配图"
+                purposeBadge="正文插图"
+                purposeDescription="根据选中的文章内容生成一张插入正文的配图，不是文章封面或海报。"
+                onClose={onCloseArticleIllustrationSettings}
+                onGenerate={onConfirmArticleIllustrationGeneration}
+            />
             <ConfirmationModal
                 isOpen={isPolishConfirmOpen} onClose={onPolishCancel} onConfirm={onPolishConfirm}
                 title="✨AI 润色"

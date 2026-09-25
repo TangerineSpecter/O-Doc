@@ -12,6 +12,7 @@ import {
     BookOpen, Maximize2, Sparkles
 } from 'lucide-react';
 import ImageLightboxModal from '../components/common/ImageLightboxModal';
+import PendingArticleIllustrations from '../components/Resources/PendingArticleIllustrations';
 
 import {getResources, deleteResource, downloadResource, ResourceItem, GetResourcesParams, FormattedSize} from '../api/resources';
 import {formatFileSize} from '@/utils/format';
@@ -766,6 +767,13 @@ export default function ResourcesPage() {
                         )}
                     </div>
                 </div>
+
+                {(activeTab === 'all' || activeTab === 'image') && !showMissingOnly && !debouncedSearchQuery && (
+                    <PendingArticleIllustrations onSaved={() => {
+                        filterVersion.current += 1;
+                        void fetchResources(1);
+                    }}/>
+                )}
 
                 {/* File Grid */}
                 {isLoading && visibleData.length === 0 ? (

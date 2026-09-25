@@ -1,5 +1,5 @@
 import request from '../utils/request';
-import type {PromptFilters, PromptGenerationResponse, PromptListResponse, PromptTaxonomies, PromptTemplate, PromptTemplateInput, PromptTrash, PromptUsage} from '../types/api/prompt';
+import type {ArticleIllustrationResponse, ImageGenerationRequestOptions, ImageGenerationSettings, PendingArticleIllustration, PromptFilters, PromptGenerationResponse, PromptListResponse, PromptTaxonomies, PromptTemplate, PromptTemplateInput, PromptTrash, PromptUsage} from '../types/api/prompt';
 
 export type {PromptField, PromptFieldOption, PromptFilters, PromptTaxonomies, PromptTemplate, PromptTemplateInput, PromptType, PromptUsage} from '../types/api/prompt';
 
@@ -18,6 +18,18 @@ export const generatePromptImage = (id: string, inputValues: Record<string, unkn
   request.post<unknown, PromptGenerationResponse>(`/prompt/templates/${id}/generate`, {inputValues}, {signal, timeout: 150_000});
 export const getPromptGenerationResult = (id: string, taskToken: string, signal?: AbortSignal) =>
   request.post<unknown, PromptGenerationResponse>(`/prompt/templates/${id}/generate/result`, {taskToken}, {signal, timeout: 90_000});
+export const getArticleIllustrationGenerationSettings = () =>
+  request.get<unknown, ImageGenerationSettings>('/prompt/article-illustration/options');
+export const generateArticleIllustration = (selectedText: string, generationOptions: ImageGenerationRequestOptions, signal?: AbortSignal) =>
+  request.post<unknown, ArticleIllustrationResponse>('/prompt/article-illustration/generate', {selectedText, generationOptions}, {signal, timeout: 150_000});
+export const getArticleIllustrationResult = (taskToken: string, signal?: AbortSignal) =>
+  request.post<unknown, ArticleIllustrationResponse>('/prompt/article-illustration/result', {taskToken}, {signal, timeout: 90_000});
+export const getPendingArticleIllustrations = () =>
+  request.get<unknown, PendingArticleIllustration[]>('/prompt/article-illustration/pending');
+export const retryPendingArticleIllustration = (pendingId: string) =>
+  request.post<unknown, ArticleIllustrationResponse>(`/prompt/article-illustration/pending/${pendingId}`, {}, {timeout: 90_000});
+export const discardPendingArticleIllustration = (pendingId: string) =>
+  request.delete<unknown, void>(`/prompt/article-illustration/pending/${pendingId}`);
 export const deletePromptUsage = (id: string) => request.delete<any, void>(`/prompt/usages/${id}`);
 export const restorePromptUsage = (id: string) => request.post<any, PromptUsage>(`/prompt/usages/${id}/restore`);
 export const purgePromptUsage = (id: string) => request.delete<any, void>(`/prompt/usages/${id}/purge`);

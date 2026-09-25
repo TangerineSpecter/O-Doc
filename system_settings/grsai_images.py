@@ -117,15 +117,18 @@ class GrsaiImageClient:
             return GrsaiImageResult(task_id=task_id, status='pending')
         raise GrsaiImageError('Grsai 返回的生成状态不完整')
 
-    def generate(self, prompt: str) -> GrsaiImageResult:
-        data = self._request('POST', 'generate', payload={
+    def generate(self, prompt: str, *, generation_options: dict | None = None) -> GrsaiImageResult:
+        payload = {
             'model': self.model_name,
             'prompt': prompt,
             'images': [],
-            'aspectRatio': '1:1',
-            'imageSize': '1K',
             'replyType': 'json',
-        })
+        }
+        if generation_options is None:
+            payload.update({'aspectRatio': '1:1', 'imageSize': '1K'})
+        else:
+            payload.update(generation_options)
+        data = self._request('POST', 'generate', payload=payload)
         return self._parse_result(data)
 
     def get_result(self, task_id: str) -> GrsaiImageResult:

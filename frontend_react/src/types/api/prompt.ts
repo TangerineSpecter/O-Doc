@@ -26,6 +26,46 @@ export interface PromptGenerationResponse {
   taskToken?: string;
   usage?: PromptUsage;
 }
+export interface ArticleIllustrationAsset { id: string; imageUrl: string; }
+export interface ImageGenerationOption { value: string; label: string; }
+export interface ImageGenerationSettings {
+  provider: string;
+  modelName: string;
+  mode: 'image_size' | 'pixel_dimensions' | 'fixed' | 'automatic';
+  aspectRatioOptions: ImageGenerationOption[];
+  imageSizeOptions: ImageGenerationOption[];
+  imageSizeOptionsByAspectRatio: Record<string, ImageGenerationOption[]>;
+  defaultAspectRatio: string;
+  defaultImageSize: string;
+  customDimensions: {
+    enabled: boolean;
+    maxEdge: number;
+    step: number;
+    minPixels: number;
+    maxPixels: number;
+    maxAspectRatio: number;
+  };
+  description: string;
+}
+export interface ImageGenerationRequestOptions {
+  aspectRatio?: string;
+  imageSize?: string;
+  customDimensions?: { width: number; height: number };
+}
+export interface ArticleIllustrationResponse {
+  status: 'pending' | 'download_pending' | 'succeeded';
+  taskToken?: string;
+  pendingId?: string;
+  asset?: ArticleIllustrationAsset;
+}
+export interface PendingArticleIllustration {
+  id: string;
+  status: 'generating' | 'download_pending';
+  imageUrl: string;
+  previewAllowed: boolean;
+  errorMessage: string;
+  createdAt: string;
+}
 export interface PromptTemplate {
   id: string; title: string; description: string; promptType: PromptType; positiveTemplate: string; negativeTemplate: string;
   fieldSchemaVersion: number; fieldSchema: PromptField[]; category: PromptTaxonomy | null; themes: PromptTaxonomy[]; tags: PromptTaxonomy[];
