@@ -22,6 +22,7 @@ from ai_assistant.prompts import (
 )
 from ai_assistant.whiteboard_insight import extract_json_object, normalize_insight_payload
 from system_settings.models import Agent, MCPServer, Skill
+from system_settings.agent_prompts import build_agent_system_prompt
 from utils.ai_service import AIService
 from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
 from utils.rag_client import RagClient
@@ -89,6 +90,7 @@ class ChatView(APIView):
                         system_prompt = agent.prompt
                     else:
                         system_prompt = CHAT_SYSTEM_PROMPT
+                    system_prompt = build_agent_system_prompt(system_prompt)
                     if isinstance(agent.skills, list):
                         agent_skill_ids.extend(agent.skills)
                     if isinstance(agent.mcp_servers, list):

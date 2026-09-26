@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'assets.apps.AssetsConfig',
     'prompts.apps.PromptsConfig',
     'system_settings',
+    'system_logs.apps.SystemLogsConfig',
     'ai_assistant',
     'rag.apps.RagConfig',
     'message.apps.MessageConfig',
@@ -97,6 +98,7 @@ REST_FRAMEWORK = {
 }
 
 MIDDLEWARE = [
+    'system_logs.middleware.DiagnosticMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'djangorestframework_camel_case.middleware.CamelCaseMiddleWare',
@@ -232,3 +234,10 @@ CHROMA_DB_PATH = Path(os.getenv('ODOC_CHROMA_PATH', str(BASE_DIR / 'chroma_data'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Local diagnostics excluded from WebDAV business snapshots.
+SYSTEM_LOG_DIR = os.environ.get("ODOC_SYSTEM_LOG_DIR", str(BASE_DIR / "runtime" / "system_logs"))
+
+# Django/pytest runners must not write diagnostic events to the deployment log directory.
+import sys as _diagnostic_sys
+SYSTEM_LOG_ENABLED = not any(arg == "test" or "pytest" in arg or "unittest" in arg for arg in _diagnostic_sys.argv)

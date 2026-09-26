@@ -1,4 +1,5 @@
 import logging
+from system_logs.context import diagnostic_operation
 import os
 import socket
 import threading
@@ -23,6 +24,7 @@ from utils.mcp_client import (
 )
 from .builtin_skills import AGENT_POST_MARKDOWN_SKILL_KEY, read_agent_post_markdown_guide
 from .agent_activity import create_work_activity, friendly_tool_action, record_tool_activity, update_work_activity
+from .agent_prompts import build_agent_system_prompt
 from .models import Agent, AgentActivity, AgentRunRecord, AgentTask, MCPServer, Skill, SystemSetting
 from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial_delay_seconds
 
@@ -212,6 +214,7 @@ class AgentTaskScheduler:
 
         return None
 
+    @diagnostic_operation('agent_task')
     def _run_task(
             self,
             task,
@@ -355,6 +358,7 @@ class AgentTaskScheduler:
             logger.exception('Agent task failed: %s', task.id)
         return record
 
+    @diagnostic_operation('agent_task')
     def _run_task_for_agent(self, record, task, agent, previous_content='', prompt_override=''):
         agent_started = timezone.now()
         create_work_activity(record, agent)
@@ -846,7 +850,9 @@ class AgentTaskScheduler:
         current_time = now.strftime('%Y-%m-%d %H:%M:%S')
         parts = []
         if agent and agent.prompt:
-            parts.append(f"当前 Agent：{agent.name}\n{agent.prompt}")
+            parts.append(build_agent_system_prompt(
+                f"当前 Agent：{agent.name}\n{agent.prompt}", conversation=False,
+            ))
         else:
             parts.append(CHAT_SYSTEM_PROMPT)
 

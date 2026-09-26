@@ -1,3 +1,4 @@
+import { createDiagnosticId, reportDiagnostic } from './diagnostics';
 import {ResultEnum} from '@/constants/httpEnum';
 import axios, {
     AxiosInstance,
@@ -51,6 +52,7 @@ service.interceptors.request.use(
             config.headers.Authorization = `Token ${token}`;
         }
 
+        if (!config.url?.includes('/system/logs/')) config.headers['X-Request-ID'] = createDiagnosticId();
         return config;
     },
     (error: CustomAxiosError) => {
@@ -90,12 +92,16 @@ service.interceptors.response.use(
                 window.location.href = '/login';
             }
 
-            return Promise.reject(new Error(errorMessage));
+            const businessError = Object.assign(new Error(errorMessage), { diagnosticHandled: true });
+            if ([500, 5001, 5002, 5003, 600, 6002, 6003, 6004].includes(res.code)) reportDiagnostic({ errorType: 'system_error', module: 'network', path: `/api${response.config.url || ''}`, requestId: response.headers['x-request-id'] || response.config.headers['X-Request-ID'], operation: response.config.method }, businessError);
+            return Promise.reject(businessError);
         }
     },
     (error: CustomAxiosError) => {
         // 超出 2xx 范围的状态码都会触发该函数
         // 安全获取错误信息
+        Object.assign(error, { diagnosticHandled: true });
+        if (!axios.isCancel(error) && (!error.response || error.response.status >= 500)) reportDiagnostic({ errorType: error.code === 'ECONNABORTED' ? 'timeout' : error.response ? 'http' : 'network', module: 'network', path: `/api${error.config?.url || ''}`, requestId: String(error.response?.headers['x-request-id'] || error.config?.headers['X-Request-ID'] || ''), httpStatus: error.response?.status, operation: error.config?.method }, error);
         let errorMsg = '网络请求错误';
         if (error.response) {
             // --- 针对 Blob 类型的错误处理优化 ---

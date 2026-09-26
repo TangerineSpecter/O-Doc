@@ -45,6 +45,13 @@ def error_result(error: ErrorCode = ErrorCode.PARAM_ERROR, data=None, status=Non
     :param status: 可选 HTTP 状态码；未指定时保持既有响应行为
     :return: JsonResponse
     """
+    if error in {ErrorCode.SYSTEM_ERROR, ErrorCode.DATABASE_ERROR, ErrorCode.NETWORK_ERROR,
+                 ErrorCode.AI_SERVICE_ERROR, ErrorCode.WEBDEV_ERROR,
+                 ErrorCode.WEBDEV_DOWNLOAD_FAIL, ErrorCode.WEBDEV_UPLOAD_FAIL, ErrorCode.WEBDEV_LOGIN_FAIL}:
+        import sys
+        from system_logs.capture import capture, request_context
+        if not request_context.get().get('exclude'):
+            capture(error.message, exc=sys.exc_info()[1], business_code=error.code)
     if error == ErrorCode.SYSTEM_ERROR and data is not None:
         # Most callers reach this branch from an active ``except`` block. Log the
         # traceback server-side, but never expose database, path, or provider

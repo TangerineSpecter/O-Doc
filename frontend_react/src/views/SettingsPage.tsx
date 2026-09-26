@@ -1,3 +1,5 @@
+import { SystemLogs } from '../components/Settings/SystemLogs';
+import { useAuth } from '../contexts/AuthContext';
 import React, { useState } from 'react';
 import {useSearchParams} from 'react-router-dom';
 import { Save, Bot, CalendarClock, Code2, Cpu, Info, MapPin, RefreshCw, Settings, WandSparkles } from 'lucide-react';
@@ -30,10 +32,12 @@ import { ModelModal } from '../components/Settings/ModelModal';
 import { LocationSettings } from '../components/Settings/LocationSettings';
 import { AboutSettings } from '../components/Settings/AboutSettings';
 
-type SettingsTab = 'ai' | 'agent' | 'mcp' | 'skill' | 'sync' | 'schedule' | 'location' | 'general' | 'about';
-const SETTINGS_TABS: SettingsTab[] = ['ai', 'agent', 'mcp', 'skill', 'sync', 'schedule', 'location', 'general', 'about'];
+type SettingsTab = 'ai' | 'agent' | 'mcp' | 'skill' | 'sync' | 'schedule' | 'location' | 'general' | 'about' | 'logs';
+const SETTINGS_TABS: SettingsTab[] = ['ai', 'agent', 'mcp', 'skill', 'sync', 'schedule', 'location', 'general', 'about', 'logs'];
 
 export default function SettingsPage() {
+    const { userInfo } = useAuth();
+    const isAdministrator = Boolean(userInfo?.isSuperuser);
     const [searchParams] = useSearchParams();
     const initialTab = searchParams.get('tab');
     const [activeTab, setActiveTab] = useState<SettingsTab>(
@@ -189,7 +193,7 @@ export default function SettingsPage() {
                 return;
             }
 
-            if (activeTab === 'about') {
+            if ((activeTab === 'about' || activeTab === 'logs')) {
                 toast.info('关于页面无需保存');
                 return;
             }
@@ -285,7 +289,7 @@ export default function SettingsPage() {
                 </div>
                 <button
                     onClick={handleSaveChanges}
-                    disabled={isSaving || headerSaving || activeTab === 'about'}
+                    disabled={isSaving || headerSaving || (activeTab === 'about' || activeTab === 'logs')}
                     className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-medium transition-colors shadow-sm disabled:opacity-70"
                 >
                     {isSaving || headerSaving ? (
@@ -293,7 +297,7 @@ export default function SettingsPage() {
                     ) : (
                         <Save className="w-4 h-4" />
                     )}
-                    {activeTab === 'about' ? '无需保存' : '保存更改'}
+                    {(activeTab === 'about' || activeTab === 'logs') ? '无需保存' : '保存更改'}
                 </button>
             </div>
 
@@ -309,11 +313,13 @@ export default function SettingsPage() {
                     <TabButton id="schedule" label="定时设置" icon={<CalendarClock className="w-4 h-4" />} />
                     <TabButton id="location" label="地理位置" icon={<MapPin className="w-4 h-4" />} />
                     <TabButton id="general" label="常规设置" icon={<Settings className="w-4 h-4" />} />
+                    {isAdministrator && <TabButton id="logs" label="系统日志" icon={<Info className="w-4 h-4" />} />}
                     <TabButton id="about" label="关于" icon={<Info className="w-4 h-4" />} />
                 </div>
 
                 {/* Content */}
                 <div className="md:col-span-3">
+                    {activeTab === 'logs' && (isAdministrator ? <SystemLogs /> : <p className="text-sm text-slate-500">仅管理员可以查看系统日志。</p>)}
                     {activeTab === 'ai' && (
                         <AISettings
                             providers={providers}

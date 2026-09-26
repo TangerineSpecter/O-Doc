@@ -1,3 +1,4 @@
+import { diagnosticFetch } from '@/utils/diagnostics';
 import React, {useEffect, useRef, useState} from 'react';
 import {ArrowLeft, Bookmark, BookmarkCheck, BookOpen, ChevronLeft, ChevronRight, ChevronUp, Download, List, Loader2, X} from 'lucide-react';
 import {getBookProgress, saveBookProgress, type BookItem} from '../../api/anthology';
@@ -311,7 +312,7 @@ function paginatePlainText(content: string, pageWidth: number, pageHeight: numbe
 
 async function fetchBookBlob(bookId: string) {
     const token = getAuthToken();
-    const response = await fetch(`/api/anthology/book/${bookId}/file`, {
+    const response = await diagnosticFetch(`/api/anthology/book/${bookId}/file`, {
         headers: token ? {Authorization: `Token ${token}`} : undefined,
     });
     if (!response.ok) throw new Error('图书下载失败');

@@ -2,6 +2,7 @@ import base64
 from io import BytesIO
 import json
 import logging
+from system_logs.context import diagnostic_operation
 import mimetypes
 import os
 import re
@@ -176,6 +177,7 @@ class ArticlePolisher:
         self.article_id = article_id
         self.source_url = ""
 
+    @diagnostic_operation('article', resource_attr='article_id')
     def run(self):
         # 线程中确保数据库连接正常
         close_old_connections()

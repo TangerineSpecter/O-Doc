@@ -26,6 +26,7 @@ from assets.media_views import serve_legacy_media
 urlpatterns = [
     path('', TemplateView.as_view(template_name='index.html')),
     path('api/health/', health_check),
+    path('api/system/logs/', include('system_logs.urls')),
     path('api/', include('user.urls')),
     path('api/anthology/', include('anthology.urls')),  # 文集接口
     path('api/book-analysis/', include('book_analysis.urls')),

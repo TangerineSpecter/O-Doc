@@ -1,3 +1,4 @@
+import { diagnosticFetch } from '@/utils/diagnostics';
 import request from '../utils/request';
 import {getAuthToken} from '../utils/authStorage';
 
@@ -158,7 +159,7 @@ export const generateImageDescription = async (data: GenerateImageDescriptionPar
     if (data.imageUrl) body.append('imageUrl', data.imageUrl);
   }
 
-  const response = await fetch('/api/article/image/generate-description', {
+  const response = await diagnosticFetch('/api/article/image/generate-description', {
     method: 'POST',
     headers: data.imageFile
       ? {...(token ? {Authorization: `Token ${token}`} : {})}

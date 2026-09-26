@@ -1,3 +1,4 @@
+import { diagnosticReader, diagnosticFetch } from '@/utils/diagnostics';
 import request from '../utils/request';
 import {getAuthToken} from '../utils/authStorage';
 import type {BiographyDetail, BiographyOutline, BiographyResult, BookAnalysisStatus, BookInspection, ChapterGuide, ExecutionPage, GraphFilters, PagedChapters, ReadingGraph, ReadingMode, ReadingNode, ReadingRun, SourceEvidence} from '../types/bookAnalysis';
@@ -33,13 +34,13 @@ export function readingError(error: unknown): string {
 export interface AskCallbacks {onAnswer: (text: string) => void; onSources: (sources: SourceEvidence[], method: string) => void}
 export async function askBook(id: string, question: string, chapterId: string, nodeId: string, signal: AbortSignal, callbacks: AskCallbacks, revisionId = '', throughChapter?: number): Promise<void> {
     const token = getAuthToken();
-    const response = await fetch(`/api${base(id)}/ask`, {method: 'POST', headers: {'Content-Type': 'application/json', ...(token ? {Authorization: `Token ${token}`} : {})}, body: JSON.stringify({question, ...(chapterId ? {chapterId} : {}), ...(nodeId ? {nodeId} : {}), revisionId, throughChapter}), signal});
+    const response = await diagnosticFetch(`/api${base(id)}/ask`, {method: 'POST', headers: {'Content-Type': 'application/json', ...(token ? {Authorization: `Token ${token}`} : {})}, body: JSON.stringify({question, ...(chapterId ? {chapterId} : {}), ...(nodeId ? {nodeId} : {}), revisionId, throughChapter}), signal});
     if (!response.ok) {
         const result = await response.json().catch(() => ({})) as {msg?: string};
         throw new Error(result.msg || '问答请求失败');
     }
     if (!response.body) throw new Error('当前浏览器不支持流式回答');
-    const reader = response.body.getReader();
+    const reader = diagnosticReader(response)!;
     const decoder = new TextDecoder();
     let buffer = '', complete = false;
     const consume = (frame: string) => {

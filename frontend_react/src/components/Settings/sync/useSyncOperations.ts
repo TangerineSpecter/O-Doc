@@ -1,3 +1,4 @@
+import { diagnosticFetch } from '@/utils/diagnostics';
 import { useEffect, useRef, useState } from "react";
 import {
   cancelWebDavSync,
@@ -209,7 +210,7 @@ export const useSyncOperations = ({
     setLogs([`🚀 开始${direction === "upload" ? "上传" : "下载"}同步任务...`]);
     setProgress(0);
     try {
-      const response = await fetch(
+      const response = await diagnosticFetch(
         `/api/settings/config/sync_${direction === "upload" ? "to" : "from"}_webdav/`,
         {
           method: "POST",

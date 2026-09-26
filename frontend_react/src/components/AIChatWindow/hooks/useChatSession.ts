@@ -1,3 +1,4 @@
+import { diagnosticReader, diagnosticFetch, reportDiagnostic } from '@/utils/diagnostics';
 // frontend_react/src/components/AIChatWindow/hooks/useChatSession.ts
 
 import { useState, useEffect, useRef } from 'react';
@@ -566,7 +567,7 @@ export const useChatSession = ({
 
             activateWaitingSteps(requestConversationKey);
 
-            const response = await fetch('/api/ai/chat/', {
+            const response = await diagnosticFetch('/api/ai/chat/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -600,7 +601,7 @@ export const useChatSession = ({
 
             if (!response.body) throw new Error("No response body");
 
-            const reader = response.body.getReader();
+            const reader = diagnosticReader(response)!;
             const decoder = new TextDecoder();
             let fullText = '';
             let buffer = '';
@@ -645,6 +646,7 @@ export const useChatSession = ({
                     const content = normalizeStreamContent(event.content);
 
                     if (event.type === 'error') {
+                        reportDiagnostic({ errorType: 'stream', module: 'stream', requestId: response.headers.get('X-Request-ID') || '', path: '/api/ai/chat/' });
                         throw new Error(content || 'AI 服务异常，请检查配置');
                     }
 

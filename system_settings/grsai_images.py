@@ -6,6 +6,9 @@ from urllib.parse import urlsplit, urlunsplit
 
 import requests
 
+from system_logs.ai import model_operation
+from system_logs.capture import capture
+
 from .models import AIModel, SystemSetting
 
 
@@ -81,6 +84,12 @@ class GrsaiImageClient:
         except requests.RequestException as exc:
             raise GrsaiImageError('无法连接 Grsai 服务，请检查服务地址') from exc
 
+        if response.status_code >= 400:
+            capture('生图模型接口失败', module='ai',
+                    http_status=response.status_code, provider_http_status=response.status_code,
+                    reason=f'模型服务返回 HTTP {response.status_code}',
+                    error_type=f'http_{response.status_code}',
+                    model_name=self.model_name, provider_name='Grsai')
         if response.status_code in (401, 403):
             raise GrsaiImageError('Grsai API Key 无效或无权使用当前模型', status_code=400)
         if response.status_code == 429:
@@ -117,6 +126,7 @@ class GrsaiImageClient:
             return GrsaiImageResult(task_id=task_id, status='pending')
         raise GrsaiImageError('Grsai 返回的生成状态不完整')
 
+    @model_operation
     def generate(self, prompt: str, *, generation_options: dict | None = None) -> GrsaiImageResult:
         payload = {
             'model': self.model_name,
@@ -131,6 +141,7 @@ class GrsaiImageClient:
         data = self._request('POST', 'generate', payload=payload)
         return self._parse_result(data)
 
+    @model_operation
     def get_result(self, task_id: str) -> GrsaiImageResult:
         if not TASK_ID_RE.fullmatch(task_id):
             raise GrsaiImageError('Grsai 任务 ID 无效', status_code=400)

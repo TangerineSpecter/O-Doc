@@ -19,6 +19,7 @@ from system_settings.agent_memory import (
     store_short_term_memory,
 )
 from system_settings.models import Agent, AgentIMMessage, SystemSetting
+from system_settings.agent_prompts import build_agent_system_prompt
 from utils.ai_service import AIService
 from utils.mcp_client import (
     call_mcp_tool,
@@ -189,7 +190,9 @@ def _process_feishu_record(record_id):
 
 
 def _build_agent_reply(agent, user_text, record):
-    system_prompt = agent.prompt or '你是一个可靠的文档协作 Agent。请简洁、准确地回复用户。'
+    system_prompt = build_agent_system_prompt(
+        agent.prompt or '你是一个可靠的文档协作 Agent。请简洁、准确地回复用户。'
+    )
     system_prompt += (
         '\n\n当前消息来自飞书 IM 通道。请直接回复用户需要的内容；'
         '不要提及后台处理流程，除非用户询问。'

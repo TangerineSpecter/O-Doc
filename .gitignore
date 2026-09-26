@@ -52,3 +52,5 @@ deploy/.env
 *.sln
 *.sw?
 .trae/
+
+/runtime/system_logs/

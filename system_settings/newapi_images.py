@@ -8,6 +8,9 @@ from urllib.parse import urljoin, urlsplit
 
 import requests
 
+from system_logs.ai import model_operation
+from system_logs.capture import capture
+
 from .grsai_images import GrsaiImageError
 from .models import AIModel
 
@@ -42,6 +45,7 @@ class NewApiImageClient:
         self.api_key = provider.api_key
         self.model_name = model.name
 
+    @model_operation
     def generate(self, prompt: str) -> NewApiImageResult:
         try:
             with requests.post(
@@ -50,6 +54,12 @@ class NewApiImageClient:
                 headers={'Authorization': f'Bearer {self.api_key}', 'Content-Type': 'application/json'},
                 timeout=(10, 120), allow_redirects=False, stream=True,
             ) as response:
+                if response.status_code >= 400:
+                    capture('生图模型接口失败', module='ai',
+                            http_status=response.status_code, provider_http_status=response.status_code,
+                            reason=f'模型服务返回 HTTP {response.status_code}',
+                            error_type=f'http_{response.status_code}',
+                            model_name=self.model_name, provider_name='NewAPI')
                 if response.status_code in (401, 403):
                     raise GrsaiImageError('New API 的 API Key 无效或无权使用当前模型')
                 if response.status_code == 429:

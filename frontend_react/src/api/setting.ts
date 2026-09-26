@@ -1,3 +1,4 @@
+import { diagnosticFetch } from '@/utils/diagnostics';
 import request from '../utils/request';
 import {getAuthToken} from '../utils/authStorage';
 import type {
@@ -307,7 +308,7 @@ export const restoreSyncHistory = (snapshotId: string) => request.post<any, {sna
 
 export const downloadLocalBackupFile = async () => {
     const token = getAuthToken();
-    const response = await fetch('/api/settings/config/export_local_backup/', {
+    const response = await diagnosticFetch('/api/settings/config/export_local_backup/', {
         method: 'POST',
         headers: token ? {Authorization: `Token ${token}`} : {},
     });

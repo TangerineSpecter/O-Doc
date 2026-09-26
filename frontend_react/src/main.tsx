@@ -1,3 +1,5 @@
+import DiagnosticBoundary from './components/common/DiagnosticBoundary';
+import { installRuntimeDiagnostics } from './utils/diagnostics';
 // frontend_react/src/main.tsx
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -8,6 +10,8 @@ import { setupPreventZoom } from './utils/preventZoom.ts';
 
 applyAppFont(getStoredAppFont());
 setupPreventZoom();
+const disposeDiagnostics = installRuntimeDiagnostics();
+if (import.meta.hot) import.meta.hot.dispose(disposeDiagnostics);
 
 async function enableMocking() {
   // Mock 数据只在显式开启时启用，避免开发联调时拦截真实后端接口。
@@ -26,7 +30,7 @@ async function enableMocking() {
 enableMocking().then(() => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <App />
+      <DiagnosticBoundary><App /></DiagnosticBoundary>
     </StrictMode>,
   );
 });

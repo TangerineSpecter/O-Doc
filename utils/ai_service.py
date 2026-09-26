@@ -1,3 +1,4 @@
+from system_logs.ai import model_operation, observe_config
 # utils/ai_service.py
 import logging
 import re
@@ -68,6 +69,7 @@ class AIService:
         return extra_body
 
     @staticmethod
+    @observe_config
     def get_default_client_config(use_simple_model=False):
         """获取系统默认的 AI 配置"""
         try:
@@ -105,6 +107,7 @@ class AIService:
             raise e
 
     @staticmethod
+    @observe_config
     def get_client_config_for_model(model_id):
         """按模型 ID 获取 AI 客户端配置。"""
         try:
@@ -127,6 +130,7 @@ class AIService:
             raise e
 
     @staticmethod
+    @observe_config
     def get_default_image_client_config():
         """获取系统默认的图像识别模型配置"""
         try:
@@ -153,6 +157,7 @@ class AIService:
             raise e
 
     @classmethod
+    @model_operation
     def chat_completion(cls, prompt, use_simple_model=False, *, bounded=False, json_output=False, max_tokens=4096):
         """执行 AI 对话"""
         if bounded:
@@ -206,6 +211,7 @@ class AIService:
             raise e
 
     @classmethod
+    @model_operation
     def chat_completion_messages(cls, messages, model_id=None):
         """执行非流式多轮对话，可指定模型。"""
         try:
@@ -236,6 +242,7 @@ class AIService:
             raise e
 
     @classmethod
+    @model_operation
     def chat_completion_with_tools(cls, prompt, tools, tool_executor, on_tool_call=None, model_id=None, use_simple_model=False, max_rounds=5):
         """执行支持 OpenAI-compatible tool calls 的 AI 对话。"""
         return cls.chat_completion_messages_with_tools(
@@ -249,6 +256,7 @@ class AIService:
         )
 
     @classmethod
+    @model_operation
     def chat_completion_messages_with_tools(
             cls,
             messages,
@@ -342,6 +350,7 @@ class AIService:
             return str(result)
 
     @classmethod
+    @model_operation
     def image_description(cls, image_data_url, title='', location=''):
         """基于图片和元信息生成图片描述。"""
         try:
@@ -383,6 +392,7 @@ class AIService:
             raise e
 
     @classmethod
+    @model_operation
     def image_visual_fingerprint(cls, image_data_url):
         """为图片检索提取客观画面特征，不覆盖图片介绍。"""
         config = cls.get_default_image_client_config()
@@ -408,6 +418,7 @@ class AIService:
             cls._raise_authentication_error(exc, config)
 
     @classmethod
+    @model_operation
     def describe_image_for_agent(cls, image_data_url):
         """用系统图像识别模型描述已保存的图片，供 Agent 阅读。"""
         config = cls.get_default_image_client_config()
@@ -453,6 +464,7 @@ class AIService:
         return THINK_BLOCK_RE.sub('', content).strip()
 
     @classmethod
+    @model_operation
     def stream_chat_completion(cls, messages, include_thinking=False, use_simple_model=False):
         """流式对话 (用于前端 Chat 界面)"""
         stream = None

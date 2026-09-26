@@ -157,6 +157,10 @@ def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int, e
         try:
             return _drive(config, parameters, deadline, metadata)
         except Exception as exc:
+            from system_logs.capture import capture
+            capture('大模型请求尝试失败', module='ai', exc=exc, attempt=request_attempt,
+                    model_request_id=metadata['request_id'], provider_name=config.get('provider_name', ''),
+                    model_name=config.get('model_name', ''), sdk_retries=0)
             error_type = 'output_limit' if isinstance(exc, AIOutputTruncated) else 'timeout' if isinstance(exc, (TimeoutError, APIConnectionError)) and 'Timeout' in type(exc).__name__ else type(exc).__name__
             emit_ai_event('model_request_failed', '本次模型请求未完成', 'warning' if _json_unsupported(exc) else 'error', **metadata, error_type=error_type)
             if use_json and _json_unsupported(exc):

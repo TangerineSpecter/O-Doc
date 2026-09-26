@@ -6,6 +6,11 @@ from utils.response_utils import valid_result
 
 
 def custom_exception_handler(exc, context):
+    if not getattr(exc, 'status_code', None) or getattr(exc, 'status_code', 0) >= 500:
+        from system_logs.capture import capture, request_context
+        if not request_context.get().get('exclude'):
+            capture('接口处理异常', exc=exc)
+
     if isinstance(exc, serializers.ValidationError):
         detail = exc.detail
         msg = ErrorCode.PARAM_ERROR.message

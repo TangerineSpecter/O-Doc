@@ -1,5 +1,6 @@
 """Durable, cross-process task claims and chapter-level publication."""
 import logging
+from system_logs.context import diagnostic_operation
 import threading
 import uuid
 from datetime import timedelta
@@ -212,6 +213,7 @@ def digest_chapter(chapter, payloads: list[dict], mode: str) -> dict:
     return {'summary': summary, 'points': [item for p in payloads for item in p['points']], 'qa': [item for p in payloads for item in p['qa']], 'inspiration': [item for p in payloads for item in p['inspiration']] if mode == 'knowledge' else [], 'reflections': [item for p in payloads for item in p.get('reflections', [])] if mode == 'biography' else [], 'insights': [item for p in payloads for item in p.get('insights', [])] if mode == 'biography' else [], 'flow': flow, 'omitted_candidates': sum(p.get('omitted_candidates', 0) for p in payloads) if mode == 'biography' else 0, 'node_ids': list(dict.fromkeys(n['canonical_id'] for p in payloads for n in p['nodes']))}
 
 
+@diagnostic_operation('book_analysis')
 def process_run(run, token: str):
     check_run(run, token)
     previous_id = BookAnalysis.objects.get(book=run.book).published_revision

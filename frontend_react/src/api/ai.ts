@@ -1,3 +1,4 @@
+import { diagnosticReader, diagnosticFetch, reportDiagnostic } from '@/utils/diagnostics';
 // frontend_react/src/api/ai.ts
 import {getAuthToken} from '../utils/authStorage';
 
@@ -127,7 +128,7 @@ ${truncatedContent}`;
 export const polishArticleWithAI = async (content: string): Promise<string> => {
     try {
         const token = getAuthToken();
-        const response = await fetch('/api/article/polish', {
+        const response = await diagnosticFetch('/api/article/polish', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -231,7 +232,7 @@ const parseAIErrorResponse = async (response: Response) => {
 
 export const generateWhiteboardDigest = async (boardBrief: string): Promise<WhiteboardInsightDigest> => {
     const token = getAuthToken();
-    const response = await fetch('/api/ai/whiteboard/insight/', {
+    const response = await diagnosticFetch('/api/ai/whiteboard/insight/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -262,7 +263,7 @@ export const streamWhiteboardAnswer = async (
     signal?: AbortSignal,
 ): Promise<string> => {
     const token = getAuthToken();
-    const response = await fetch('/api/ai/whiteboard/insight/', {
+    const response = await diagnosticFetch('/api/ai/whiteboard/insight/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -281,7 +282,7 @@ export const streamWhiteboardAnswer = async (
         await parseAIErrorResponse(response);
     }
 
-    const reader = response.body?.getReader();
+    const reader = diagnosticReader(response);
     const decoder = new TextDecoder();
     let resultText = '';
     let buffer = '';
@@ -291,6 +292,7 @@ export const streamWhiteboardAnswer = async (
         try {
             const event = JSON.parse(line);
             if (event.type === 'error') {
+                        reportDiagnostic({ errorType: 'stream', module: 'stream', requestId: response.headers.get('X-Request-ID') || '', path: '/api/ai/chat/' });
                 const message = event.content || 'AI 服务异常，请检查配置';
                 if (String(message).includes('No default model configured') || String(message).includes('default model')) {
                     throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
@@ -349,7 +351,7 @@ const throwAIConfigErrorIfMatched = (message: string) => {
 
 const fetchAIResponse = async (prompt: string, options?: { useSimpleModel?: boolean }): Promise<string> => {
     const token = getAuthToken();
-    const response = await fetch('/api/ai/chat/', {
+    const response = await diagnosticFetch('/api/ai/chat/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -381,7 +383,7 @@ const fetchAIResponse = async (prompt: string, options?: { useSimpleModel?: bool
         throw new Error('AI 请求失败');
     }
 
-    const reader = response.body?.getReader();
+    const reader = diagnosticReader(response);
     const decoder = new TextDecoder();
     let resultText = '';
     let buffer = '';
@@ -392,6 +394,7 @@ const fetchAIResponse = async (prompt: string, options?: { useSimpleModel?: bool
         try {
             const event = JSON.parse(line);
             if (event.type === 'error') {
+                        reportDiagnostic({ errorType: 'stream', module: 'stream', requestId: response.headers.get('X-Request-ID') || '', path: '/api/ai/chat/' });
                 resultText += `\n\n[System Error]: ${event.content || ''}`;
                 return;
             }
