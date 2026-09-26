@@ -6,6 +6,10 @@ import {CanvasRenderer} from 'echarts/renderers';
 import type {EChartsOption} from 'echarts';
 import type {AgentRelationEdge, AgentRelationGraph, AgentRelationNode} from '../../types/api/setting';
 import WorldDialog from './WorldDialog';
+import {Network, Users} from 'lucide-react';
+import {circularRelationAvatar} from '../../utils/relationAvatar';
+import {escapeRelationText as escapeXml, relationNodeTooltip} from '../../utils/relationTooltip';
+import './AgentRelationTooltip.css';
 
 echarts.use([GraphChart, TooltipComponent, CanvasRenderer]);
 
@@ -30,17 +34,8 @@ const firstGlyph = (value: string) => Array.from(value.trim())[0] || '人';
 
 const isImageAvatar = (avatar?: string) => Boolean(avatar && /^(https?:|data:|\/)/.test(avatar));
 
-const escapeXml = (value: string) => value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-
 const nodeSymbol = (node: AgentRelationNode) => {
-    if (isImageAvatar(node.avatar)) {
-        return `image://${node.avatar}`;
-    }
-    const glyph = node.avatar?.trim() ? firstGlyph(node.avatar) : firstGlyph(node.name);
+    const glyph = !isImageAvatar(node.avatar) && node.avatar?.trim() ? firstGlyph(node.avatar) : firstGlyph(node.name);
     const fill = node.status === 'running' ? '#3b82f6' : '#fb923c';
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="31" fill="${fill}"/><text x="32" y="41" text-anchor="middle" font-size="28" font-family="sans-serif" fill="#ffffff">${escapeXml(glyph)}</text></svg>`;
     return `image://data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
@@ -58,15 +53,23 @@ export default function AgentRelationCard({
     const chartRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (!chartRef.current || !graph?.nodes.length) return undefined;
+        if (!chartRef.current || loading || error || !graph?.nodes.length) return undefined;
         const chart = echarts.init(chartRef.current);
         const option: EChartsOption = {
             tooltip: {
                 trigger: 'item',
+                renderMode: 'html',
+                confine: true,
+                backgroundColor: '#ffffff',
+                borderColor: '#e2e8f0',
+                borderWidth: 1,
+                padding: 10,
+                extraCssText: 'border-radius:12px;box-shadow:0 8px 28px rgba(15,23,42,0.12);max-width:calc(100% - 12px);',
                 formatter: (params) => {
-                    const item = params as {dataType?: string; data?: {name?: string; value?: number}};
+                    const item = params as {dataType?: string; data?: {id?: string}};
                     if (item.dataType !== 'node') return '';
-                    return `${escapeXml(item.data?.name || '')} · 创作力 ${item.data?.value ?? 0}`;
+                    const node = graph.nodes.find(node => node.id === item.data?.id);
+                    return node ? relationNodeTooltip(node) : '';
                 },
             },
             series: [{
@@ -74,15 +77,16 @@ export default function AgentRelationCard({
                 layout: 'force',
                 roam: true,
                 draggable: true,
-                force: {repulsion: 220, edgeLength: 110},
-                label: {show: true, position: 'bottom', fontSize: 11, color: '#334155', formatter: '{b}'},
-                lineStyle: {curveness: 0.15, width: 2},
+                force: {repulsion: 420, edgeLength: 160, gravity: 0.08},
+                label: {show: true, position: 'bottom', fontSize: 12, color: '#334155', formatter: '{b}'},
+                lineStyle: {curveness: 0.15, width: 3, opacity: 0.65},
                 data: graph.nodes.map(node => ({
                     id: node.id,
                     name: node.name,
                     value: node.creativity,
                     symbol: nodeSymbol(node),
-                    symbolSize: 42 + Math.round(node.creativity / 8),
+                    symbolSize: 54 + Math.round(node.creativity / 8),
+                    emphasis: {label: {fontWeight: 'bold' as const}},
                 })),
                 links: graph.edges.map(edge => ({
                     source: edge.sourceId,
@@ -92,6 +96,19 @@ export default function AgentRelationCard({
             }],
         };
         chart.setOption(option);
+        let disposed = false;
+        // Keep nodes visible while images load; failed images retain the circular name avatar.
+        void Promise.all(graph.nodes.map(node => isImageAvatar(node.avatar) ? circularRelationAvatar(node.avatar) : Promise.resolve(null))).then(symbols => {
+            if (disposed) return;
+            chart.setOption({series: [{data: graph.nodes.map((node, index) => ({
+                id: node.id,
+                name: node.name,
+                value: node.creativity,
+                symbol: symbols[index] || nodeSymbol(node),
+                symbolSize: 54 + Math.round(node.creativity / 8),
+                emphasis: {label: {fontWeight: 'bold' as const}},
+            }))}]});
+        });
         chart.on('click', params => {
             if (params.dataType === 'node') {
                 const node = params.data as {id?: string};
@@ -105,23 +122,41 @@ export default function AgentRelationCard({
             }
         });
         const onResize = () => chart.resize();
+        const observer = new ResizeObserver(onResize);
+        observer.observe(chartRef.current);
         window.addEventListener('resize', onResize);
         return () => {
+            disposed = true;
             window.removeEventListener('resize', onResize);
+            observer.disconnect();
             chart.dispose();
         };
-    }, [graph, onSelectAgent, onSelectEdge]);
+    }, [graph, loading, error, onSelectAgent, onSelectEdge]);
 
     return (
-        <WorldDialog title="关系图谱" description="点圆点筛选该居民的动态，点连线查看双方好感。" onClose={onClose}>
+        <WorldDialog size="wide" title="关系图谱" description="点击节点查看居民动态，点击连线查看双方好感。" onClose={onClose}>
             {loading ? <p className="py-16 text-center text-xs text-slate-400">正在整理最近的互动...</p> : null}
             {error ? <p className="py-12 text-center text-xs text-red-600">{error}</p> : null}
             {!loading && !error && graph && !graph.nodes.length ? (
                 <p className="py-16 text-center text-xs text-slate-400">还没有居民。</p>
             ) : null}
-            {!loading && !error && graph?.nodes.length ? <div ref={chartRef} className="h-[58vh] min-h-72 w-full"/> : null}
-            {!loading && !error && graph?.nodes.length && !graph.edges.length ? (
-                <p className="text-center text-xs text-slate-400">还没有互动，彼此仍是陌生。</p>
+            {!loading && !error && graph?.nodes.length ? (
+                <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-4 text-slate-500">
+                            <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5"/><b className="text-slate-800">{graph.nodes.length}</b> 位居民</span>
+                            <span className="flex items-center gap-1.5"><Network className="h-3.5 w-3.5"/><b className="text-slate-800">{graph.edges.length}</b> 条关系</span>
+                        </div>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500">最近 30 天</span>
+                    </div>
+                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60">
+                        <div ref={chartRef} className="h-[min(60vh,620px)] min-h-64 w-full"/>
+                        <div className="flex flex-wrap justify-center gap-4 border-t border-slate-100 bg-white px-3 py-3">
+                            {Object.entries(TIER_COLOR).map(([tier, color]) => <span key={tier} className="flex items-center gap-1.5 text-[11px] text-slate-500"><span className="h-1.5 w-4 rounded-full" style={{backgroundColor: color}}/>{tier}</span>)}
+                        </div>
+                    </div>
+                    <p className="text-center text-[11px] text-slate-500">{graph.edges.length ? '点击头像查看动态 · 点击连线查看双方好感 · 可拖动和缩放' : '暂无互动连线 · 点击节点查看动态 · 可拖动和缩放'}</p>
+                </div>
             ) : null}
             {selectedEdge ? (
                 <div className="mt-3 rounded-xl bg-orange-50/80 px-3 py-2 text-xs text-slate-600">

@@ -7,9 +7,10 @@ interface WorldDialogProps {
     description?: string;
     onClose: () => void;
     children: ReactNode;
+    size?: 'default' | 'wide';
 }
 
-export default function WorldDialog({title, description, onClose, children}: WorldDialogProps) {
+export default function WorldDialog({title, description, onClose, children, size = 'default'}: WorldDialogProps) {
     useEscapeDismissal(true, () => {
         onClose();
         return true;
@@ -22,7 +23,7 @@ export default function WorldDialog({title, description, onClose, children}: Wor
                 role="dialog"
                 aria-modal="true"
                 aria-label={title}
-                className="relative flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                className={`relative flex max-h-[88vh] w-full ${size === 'wide' ? 'max-w-6xl' : 'max-w-3xl'} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}
             >
                 <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
                     <div>
