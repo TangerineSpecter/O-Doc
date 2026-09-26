@@ -533,6 +533,35 @@ TOOLS = [
         },
     },
     {
+        'name': 'observe_photo',
+        'description': '观察图片文集中的一张照片，返回画面事实和创建人自己写的标题、焦段、描述。不打分，不评价。使用系统图像识别模型，不使用 Agent 的对话模型。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'image_id': {'type': 'string', 'description': '图片文集中的图片 ID。'},
+            },
+            'required': ['image_id'],
+        },
+    },
+    {
+        'name': 'submit_photo_review',
+        'description': '提交当前 Agent 对一张照片的评价和六项分数。同一 Agent 对同一张照片再次提交会覆盖。每项分数是 0 到 10、步进 0.5。综合分由服务端计算。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'image_id': {'type': 'string', 'description': '图片文集中的图片 ID。'},
+                'commentary': {'type': 'string', 'description': '评语，最多 2000 字。'},
+                'theme': {'type': 'number', 'description': '主题，0 到 10，步进 0.5。'},
+                'composition': {'type': 'number', 'description': '构图，0 到 10，步进 0.5。'},
+                'idea': {'type': 'number', 'description': '思想，0 到 10，步进 0.5。'},
+                'light': {'type': 'number', 'description': '光影，0 到 10，步进 0.5。'},
+                'color': {'type': 'number', 'description': '色彩，0 到 10，步进 0.5。'},
+                'focus': {'type': 'number', 'description': '对焦，0 到 10，步进 0.5。'},
+            },
+            'required': ['image_id', 'commentary', 'theme', 'composition', 'idea', 'light', 'color', 'focus'],
+        },
+    },
+    {
         'name': 'describe_image',
         'description': '使用系统设置的图像识别模型，客观描述图片文集中已有的一张图片。不使用 Agent 的对话模型，也不能生图。',
         'inputSchema': {
@@ -568,8 +597,9 @@ VISIBLE_ACTIVITY_TOOL_NAMES = {'list_agent_activities'}
 VISIBLE_ANTHOLOGY_TOOL_NAMES = ANTHOLOGY_TOOL_NAMES
 VISIBLE_COMMENT_TOOL_NAMES = {'create_article_annotation', 'list_article_annotations', 'add_article_annotation_comment', 'delete_article_annotation_comment'}
 VISIBLE_VISION_TOOL_NAMES = {'describe_image'}
+VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES = {'observe_photo', 'submit_photo_review'}
 VISIBLE_IMAGE_GENERATION_TOOL_NAMES = {'get_illustration_options'}
-VISIBLE_TOOL_NAMES -= VISIBLE_VISION_TOOL_NAMES | VISIBLE_IMAGE_GENERATION_TOOL_NAMES
+VISIBLE_TOOL_NAMES -= VISIBLE_VISION_TOOL_NAMES | VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES | VISIBLE_IMAGE_GENERATION_TOOL_NAMES
 
 
 def _summary_source(content):
@@ -594,6 +624,7 @@ def get_system_mcp_tools_for_scope(tool_scope):
         'agent_activities': VISIBLE_ACTIVITY_TOOL_NAMES,
         'comments': VISIBLE_COMMENT_TOOL_NAMES,
         'vision': VISIBLE_VISION_TOOL_NAMES,
+        'photo_observation': VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES,
         'image_generation': VISIBLE_IMAGE_GENERATION_TOOL_NAMES,
     }
     tool_names = tool_names_by_scope.get(tool_scope, VISIBLE_TOOL_NAMES)
@@ -788,6 +819,10 @@ class ODocSystemMCPView(APIView):
             return self._delete_article_annotation_comment(arguments)
         if name == 'describe_image':
             return self._describe_image(arguments)
+        if name == 'observe_photo':
+            return self._observe_photo(arguments)
+        if name == 'submit_photo_review':
+            return self._submit_photo_review(arguments)
         if name == 'get_illustration_options':
             return self._illustration_options()
         raise ValueError(f'未知 Tool：{name}')
@@ -1033,6 +1068,16 @@ class ODocSystemMCPView(APIView):
         except AIAuthenticationError as exc:
             raise ValueError(str(exc)) from exc
         return {'image_id': image_id, 'description': description}
+
+    def _observe_photo(self, arguments):
+        from article.photo_observation import observe_photo
+
+        return observe_photo(arguments.get('image_id'))
+
+    def _submit_photo_review(self, arguments):
+        from article.photo_observation import submit_photo_review
+
+        return submit_photo_review(arguments, self.agent_context)
 
     @staticmethod
     def _illustration_options():

@@ -29,6 +29,8 @@ BUILTIN_SYSTEM_MCP_SCOPES = {
     'Agent 动态 MCP': 'agent_activities',
     '评论 MCP': 'comments',
     '识图 MCP': 'vision',
+    '照片 MCP': 'photo_observation',
+    '照片观察 MCP': 'photo_observation',
     '生图 MCP': 'image_generation',
 }
 

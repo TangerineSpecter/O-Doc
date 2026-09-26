@@ -204,6 +204,11 @@ def generate_skill_id() -> str:
     return generate_unique_id("skill")
 
 
+def generate_image_review_id() -> str:
+    """生成带 irev 前缀的照片评价 ID。"""
+    return generate_unique_id("irev")
+
+
 # 为地理位置生成带 loc 前缀的 ID
 def generate_location_id() -> str:
     """

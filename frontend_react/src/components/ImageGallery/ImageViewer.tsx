@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import ImageReviewBar from './ImageReviewBar';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import {
   Aperture,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 
 interface ImageData {
+  imageId?: string;
   imageUrl: string;
   title: string;
   description?: string;
@@ -665,6 +667,7 @@ export default function ImageViewer({
                     </span>
                   )}
                 </div>
+                <ImageReviewBar imageId={currentImage.imageId} className="mt-2" />
               </div>
 
               {/* EXIF 与 标签 徽章胶囊区 */}
@@ -902,6 +905,7 @@ export default function ImageViewer({
               {/* 桌面端信息区沿用移动端改版前的宽松排版 */}
               <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                 <div className="space-y-6">
+                  <ImageReviewBar imageId={currentImage.imageId} />
                   {currentImage.description && (
                     <section>
                       <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">

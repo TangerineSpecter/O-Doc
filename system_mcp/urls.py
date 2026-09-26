@@ -11,6 +11,7 @@ urlpatterns = [
     path('agent-activities/', ODocSystemMCPView.as_view(tool_scope='agent_activities'), name='system-mcp-agent-activities'),
     path('comments/', ODocSystemMCPView.as_view(tool_scope='comments'), name='system-mcp-comments'),
     path('vision/', ODocSystemMCPView.as_view(tool_scope='vision'), name='system-mcp-vision'),
+    path('photo-observation/', ODocSystemMCPView.as_view(tool_scope='photo_observation'), name='system-mcp-photo-observation'),
     path('image-generation/', ODocSystemMCPView.as_view(tool_scope='image_generation'), name='system-mcp-image-generation'),
     path('', ODocSystemMCPView.as_view(), name='system-mcp'),
 ]

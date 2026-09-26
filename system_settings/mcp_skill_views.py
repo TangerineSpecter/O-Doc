@@ -12,12 +12,14 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from system_settings.models import Agent, MCPServer, Skill, SystemSetting
+from system_settings.mcp_builtin_compat import rename_photo_mcp
 from system_settings.serializers import MCPServerSerializer, SkillSerializer
 from utils.error_codes import ErrorCode
 from utils.response_utils import error_result, success_result
 
 
 SYSTEM_MCP_CONFIG_KEY = 'system_mcp_config'
+SKIPPED_SCANNED_MCP_NAMES = frozenset({'node_repl', 'computer-use', 'cua_repl'})
 
 
 def _generate_system_mcp_api_key():
@@ -94,6 +96,12 @@ def _vision_mcp_tools():
     return _system_mcp_tools(VISIBLE_VISION_TOOL_NAMES)
 
 
+def _photo_observation_mcp_tools():
+    from system_mcp.views import VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES
+
+    return _system_mcp_tools(VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES)
+
+
 def _image_generation_mcp_tools():
     from system_mcp.views import VISIBLE_IMAGE_GENERATION_TOOL_NAMES
 
@@ -121,6 +129,7 @@ def _sync_builtin_system_mcp_server(request, value, name, endpoint, description,
 
 
 def _sync_scanned_system_mcp_servers(request, value):
+    rename_photo_mcp()
     _sync_builtin_system_mcp_server(
         request,
         value,
@@ -180,6 +189,14 @@ def _sync_scanned_system_mcp_servers(request, value):
     _sync_builtin_system_mcp_server(
         request,
         value,
+        '照片 MCP',
+        '/api/system-mcp/photo-observation/',
+        'O-Doc 内置系统 MCP。观察图片文集中的照片，并保存 Agent 提交的评价和分数。不替代识图 MCP 的画面描述。',
+        _photo_observation_mcp_tools(),
+    )
+    _sync_builtin_system_mcp_server(
+        request,
+        value,
         '生图 MCP',
         '/api/system-mcp/image-generation/',
         'O-Doc 内置系统 MCP。绑定后，Agent 发帖可按正文标记排队配图，比例可选，分辨率固定 1K。',
@@ -194,7 +211,12 @@ class MCPServerViewSet(viewsets.ModelViewSet):
     serializer_class = MCPServerSerializer
 
     def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
+        rename_photo_mcp()
+        queryset = self.filter_queryset(self.get_queryset()).exclude(
+            source='system',
+            name__in=SKIPPED_SCANNED_MCP_NAMES,
+            description__startswith='扫描自 ',
+        )
         serializer = self.get_serializer(queryset, many=True)
         return success_result(serializer.data)
 
@@ -359,7 +381,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
     @staticmethod
     def _should_skip_scanned_server(server):
         command = server.get('command') or ''
-        if server.get('name') == 'node_repl' or os.path.basename(command) == 'node_repl':
+        if server.get('name') in SKIPPED_SCANNED_MCP_NAMES or os.path.basename(command) == 'node_repl':
             return True
         return False
 
@@ -529,6 +551,25 @@ class MCPServerViewSet(viewsets.ModelViewSet):
         }
 
     @classmethod
+    def _builtin_photo_observation_server(cls, request):
+        from system_mcp.views import VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES
+
+        value = cls._ensure_system_mcp_value()
+        return {
+            'name': '照片 MCP',
+            'transport': 'streamableHttp',
+            'command': '',
+            'args': [],
+            'url': request.build_absolute_uri('/api/system-mcp/photo-observation/'),
+            'headers': {'Authorization': f"Bearer {value.get('apiKey', '')}"},
+            'env': {},
+            'source': 'system',
+            'enabled': bool(value.get('enabled', True)),
+            'description': 'O-Doc 内置系统 MCP。观察图片文集中的照片，并保存 Agent 提交的评价和分数。不替代识图 MCP 的画面描述。',
+            'tools': cls._format_builtin_tools(VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES),
+        }
+
+    @classmethod
     def _builtin_image_generation_server(cls, request):
         from system_mcp.views import VISIBLE_IMAGE_GENERATION_TOOL_NAMES
 
@@ -609,6 +650,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def scan(self, request):
+        rename_photo_mcp()
         builtin_servers = [
             self._builtin_memo_server(request),
             self._builtin_anthology_server(request),
@@ -617,6 +659,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             self._builtin_activity_server(request),
             self._builtin_comment_server(request),
             self._builtin_vision_server(request),
+            self._builtin_photo_observation_server(request),
             self._builtin_image_generation_server(request),
         ]
         builtin_names = {server['name'] for server in builtin_servers}

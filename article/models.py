@@ -13,6 +13,7 @@ from utils.id_generator import (
     generate_article_post_rating_id,
     generate_article_version_id,
     generate_image_id,
+    generate_image_review_id,
 )
 
 
@@ -557,6 +558,52 @@ class Image(models.Model):
         if not self.tags:
             return []
         return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
+
+
+class ImageReview(models.Model):
+    """Agent 对一张照片的评价。随图片业务记录进入同步快照。"""
+
+    review_id = models.CharField(
+        max_length=32,
+        primary_key=True,
+        default=generate_image_review_id,
+        editable=False,
+        verbose_name='评价 ID',
+        db_comment='照片评价 ID',
+    )
+    image = models.ForeignKey(
+        Image,
+        related_name='reviews',
+        on_delete=models.CASCADE,
+        db_column='image_id',
+        verbose_name='照片',
+        db_comment='所属照片 ID',
+    )
+    agent_key = models.CharField(max_length=40, verbose_name='Agent 标识', db_comment='提交评价的 Agent ID')
+    agent_name = models.CharField(max_length=50, verbose_name='Agent 名称', db_comment='提交时的 Agent 名称')
+    commentary = models.TextField(verbose_name='评语', db_comment='评价正文')
+    score_theme = models.DecimalField(max_digits=3, decimal_places=1, verbose_name='主题', db_comment='主题分，0 到 10，步进 0.5')
+    score_composition = models.DecimalField(max_digits=3, decimal_places=1, verbose_name='构图', db_comment='构图分，0 到 10，步进 0.5')
+    score_idea = models.DecimalField(max_digits=3, decimal_places=1, verbose_name='思想', db_comment='思想分，0 到 10，步进 0.5')
+    score_light = models.DecimalField(max_digits=3, decimal_places=1, verbose_name='光影', db_comment='光影分，0 到 10，步进 0.5')
+    score_color = models.DecimalField(max_digits=3, decimal_places=1, verbose_name='色彩', db_comment='色彩分，0 到 10，步进 0.5')
+    score_focus = models.DecimalField(max_digits=3, decimal_places=1, verbose_name='对焦', db_comment='对焦分，0 到 10，步进 0.5')
+    overall = models.DecimalField(max_digits=3, decimal_places=1, verbose_name='综合分', db_comment='六项平均后对齐到 0.5')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间', db_comment='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间', db_comment='更新时间')
+
+    class Meta:
+        db_table = 'image_reviews'
+        db_table_comment = '照片评价表'
+        verbose_name = '照片评价'
+        verbose_name_plural = verbose_name
+        ordering = ['updated_at', 'review_id']
+        constraints = [
+            models.UniqueConstraint(fields=['image', 'agent_key'], name='uniq_image_review_agent'),
+        ]
+
+    def __str__(self):
+        return f'{self.agent_name} · {self.overall}'
 
 
 class ImageVisualIndex(models.Model):

@@ -1047,6 +1047,7 @@ export default function ImageAnthologyPage({ onNavigate, collId, title, openImag
       <ImageViewer
         isOpen={viewerGlobalIndex !== null && activeViewerImage !== null}
         image={activeViewerImage ? {
+          imageId: activeViewerImage.imageId,
           imageUrl: activeViewerImage.imageUrl,
           title: activeViewerImage.title,
           description: activeViewerImage.description,

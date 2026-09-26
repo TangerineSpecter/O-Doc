@@ -101,6 +101,33 @@ export const getImageDetail = (imageId: string) => {
   return request.get<any, Image>(`/article/image/detail/${imageId}`);
 };
 
+export interface ImageReviewScores {
+  theme: number;
+  composition: number;
+  idea: number;
+  light: number;
+  color: number;
+  focus: number;
+}
+
+export interface ImageReview {
+  reviewId: string;
+  agentName: string;
+  commentary: string;
+  overall: number;
+  scores: ImageReviewScores;
+  updatedAt?: string;
+}
+
+export interface ImageReviewSummary {
+  overall: number | null;
+  count: number;
+  reviews: ImageReview[];
+}
+
+export const getImageReviews = (imageId: string, signal?: AbortSignal) =>
+  request.get<any, ImageReviewSummary>(`/article/image/reviews/${imageId}`, {signal});
+
 export const createImage = (data: CreateImageParams) => {
   return request.post<any, Image>('/article/image/create', data);
 };

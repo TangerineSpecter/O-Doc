@@ -19,6 +19,7 @@ from article.views import (
     ImageCreateView, ImageUpdateView, ImageDeleteView, ImageGroupCreateView, ImageGroupUpdateView, ImageGroupDeleteView,
     ImageDescriptionGenerateView
 )
+from article.photo_review_views import ImageReviewListView
 from article.version_views import ArticleVersionDetailView, ArticleVersionListView, ArticleVersionRestoreView
 
 urlpatterns = [
@@ -86,6 +87,7 @@ urlpatterns = [
 
     # 图片详情
     path('image/detail/<str:image_id>', ImageDetailView.as_view(), name='image-detail'),
+    path('image/reviews/<str:image_id>', ImageReviewListView.as_view(), name='image-reviews'),
 
     # 创建图片
     path('image/create', ImageCreateView.as_view(), name='create-image'),
