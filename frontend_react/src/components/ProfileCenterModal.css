@@ -1,0 +1,11 @@
+.profile-role-plaque {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #e7dcc4;
+  border-radius: 4px;
+  color: #92733c;
+  background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / 70%) 48%, transparent 66%), linear-gradient(120deg, #fffefa, #f8f4eb);
+  box-shadow: 0 1px 2px rgb(146 115 60 / 5%);
+}

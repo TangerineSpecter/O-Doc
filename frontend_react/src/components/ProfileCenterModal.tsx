@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { Camera, Loader2, LockKeyhole, Mail, ShieldCheck, UserRound, X } from 'lucide-react';
+import { Camera, Crown, Loader2, LockKeyhole, Mail, ShieldCheck, UserRound, X } from 'lucide-react';
 import { changePassword, updateUserProfile, uploadUserAvatar } from '../api/user';
 import type { UserInfo } from '../types/api/user';
 import { useToast } from './common/ToastProvider';
 import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
+import './ProfileCenterModal.css';
 
 interface ProfileCenterModalProps {
     isOpen: boolean;
@@ -173,7 +174,10 @@ export default function ProfileCenterModal({
                                 </button>
                             </div>
                             <p className="mt-3 text-sm font-semibold text-slate-900">{userInfo.nickname || userInfo.username}</p>
-                            <p className="mt-1 text-xs text-slate-500">身份：{userInfo.roleName}</p>
+                            <div className="profile-role-plaque mt-2.5 max-w-full gap-1.5 px-2.5 py-1 text-[11px] leading-4">
+                                <Crown aria-hidden="true" strokeWidth={1.5} className="h-3.5 w-3.5 shrink-0 text-[#b39251]" />
+                                <span className="min-w-0 truncate font-semibold tracking-[0.06em]" title={userInfo.roleName}><span className="sr-only">身份：</span>{userInfo.roleName}</span>
+                            </div>
                         </div>
 
                         <div className="mt-2 space-y-1">
@@ -222,7 +226,8 @@ export default function ProfileCenterModal({
                                                 {userInfo.nickname || userInfo.username}
                                             </span>
                                             {userInfo.roleName && (
-                                                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">
+                                                <span className="profile-role-plaque max-w-full gap-1.5 px-2 py-0.5 text-[10px] font-semibold tracking-wider">
+                                                    <Crown aria-hidden="true" strokeWidth={1.5} className="h-3 w-3 shrink-0 text-[#b39251]" />
                                                     {userInfo.roleName}
                                                 </span>
                                             )}
