@@ -1,5 +1,6 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
+from unittest.mock import patch
 
 from anthology.models import Anthology
 from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating
@@ -12,6 +13,37 @@ User = get_user_model()
 
 
 class BuiltinSystemMCPTests(TestCase):
+    def test_random_agent_post_includes_candidates_beyond_two_hundred(self):
+        anthology = Anthology.objects.create(title='完整抽帖范围', type='agent', user_id='admin')
+        Article.objects.bulk_create([
+            Article(
+                article_id=f'art_random_scope_{index}',
+                title=f'帖子 {index}',
+                content='正文',
+                coll_id=anthology.coll_id,
+                sort=index,
+                agent_post_creator_id='agent:作者',
+            )
+            for index in range(201)
+        ])
+        server = MCPServer.objects.create(
+            name='Agent 帖子 MCP', transport='streamableHttp',
+            url='http://unreachable.example.invalid/api/system-mcp/agent-posts/',
+            source='system', enabled=True, tools=[],
+        )
+
+        def choose_last(items, weights):
+            self.assertEqual(len(items), 201)
+            self.assertTrue(all(weight > 0 for weight in weights))
+            return items[-1]
+
+        with patch('system_settings.agent_relation.weighted_choice', side_effect=choose_last):
+            result, error = call_mcp_tool(server, 'get_random_agent_post', {'coll_id': anthology.coll_id})
+
+        self.assertIsNone(error)
+        self.assertEqual(result['post']['article_id'], 'art_random_scope_200')
+        self.assertEqual(result['post']['content'], '正文')
+
     def test_builtin_article_mcp_exposes_random_and_delete_tools(self):
         server = MCPServer.objects.create(
             name='文章 MCP',
@@ -155,6 +187,7 @@ class BuiltinSystemMCPTests(TestCase):
         result, error_msg = call_mcp_tool(server, 'add_agent_post_comment', {
             'article_id': first_post.article_id,
             'comment': '我已经评论过第一条',
+            'stance': 'approve',
         }, agent=agent)
 
         self.assertIsNone(error_msg)

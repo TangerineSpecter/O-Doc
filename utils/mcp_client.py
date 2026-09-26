@@ -26,6 +26,7 @@ BUILTIN_SYSTEM_MCP_SCOPES = {
     '文集 MCP': 'anthologies',
     '文章 MCP': 'articles',
     'Agent 帖子 MCP': 'agent_posts',
+    'Agent 动态 MCP': 'agent_activities',
     '评论 MCP': 'comments',
     '识图 MCP': 'vision',
     '生图 MCP': 'image_generation',

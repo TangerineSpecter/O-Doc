@@ -383,6 +383,7 @@ class AgentTaskScheduler:
                         agent=agent,
                         previous_content=previous_content,
                         prompt_override=prompt_override,
+                        tool_names=[entry.get('tool_name') for entry in tool_context['tool_map'].values()],
                     ),
                     tool_context['tools'],
                     execute_tool,
@@ -838,7 +839,7 @@ class AgentTaskScheduler:
             outputs.append(f"## {agent_name}\n\n{content}")
         return "\n\n---\n\n".join(outputs)
 
-    def _build_prompt(self, task, has_mcp_tools=False, agent=None, previous_content='', prompt_override=''):
+    def _build_prompt(self, task, has_mcp_tools=False, agent=None, previous_content='', prompt_override='', tool_names=None):
         agent = agent or task.agent
         now = _local_now()
         today = now.strftime('%Y-%m-%d')
@@ -864,6 +865,10 @@ class AgentTaskScheduler:
         if post_markdown_guide:
             parts.append(post_markdown_guide)
 
+        relation_note = self._relation_behavior_note(agent, tool_names or [])
+        if relation_note:
+            parts.append(relation_note)
+
         parts.append(
             "你正在执行一个定时 Agent 任务。请直接输出最终内容，不要描述执行过程。\n"
             + f"当前日期：{today}\n"
@@ -874,6 +879,21 @@ class AgentTaskScheduler:
             + f"任务提示词：{prompt_override or task.prompt or '请根据 Agent 职责完成本次任务。'}"
         )
         return "\n\n".join(parts)
+
+    @staticmethod
+    def _relation_behavior_note(agent, tool_names):
+        if not agent:
+            return ''
+        from system_settings.agent_relation import creativity_behavior_line, stance_behavior_line
+        from system_settings.models import AgentCreativity
+        snapshot = AgentCreativity.objects.filter(agent=agent).first()
+        lines = [creativity_behavior_line(snapshot.score if snapshot else 0)]
+        names = set(tool_names or [])
+        if names.intersection({'add_agent_post_comment', 'rate_agent_post'}):
+            lines.append(stance_behavior_line())
+        if 'list_agent_activities' in names:
+            lines.append('如果任务要总结今天、本周或最近做过的事，先调用 list_agent_activities。没有返回的互动不要写成已经发生。')
+        return '\n'.join(lines)
 
     @staticmethod
     def _get_skill_prompts(agent):

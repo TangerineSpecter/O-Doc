@@ -10,6 +10,7 @@ import type {
     AgentRunRecordConfig,
     AgentActivityListResult,
     AgentActivityType,
+    AgentRelationGraph,
     AgentWorldSummary,
     AgentTaskConfig,
     AgentTaskExecutionMode,
@@ -230,6 +231,8 @@ export const getAgentActivities = (params: {
 } = {}, signal?: AbortSignal) => request.get<unknown, AgentActivityListResult>('/settings/agent-activities/', {params, signal});
 
 export const getAgentWorldSummary = (signal?: AbortSignal) => request.get<unknown, AgentWorldSummary>('/settings/agent-activities/today-summary/', {signal});
+
+export const getAgentRelations = (signal?: AbortSignal) => request.get<unknown, AgentRelationGraph>('/settings/agent-relations/', {signal});
 
 export const getMCPServers = () => request.get<MCPServerConfig[]>('/settings/mcp-servers/');
 

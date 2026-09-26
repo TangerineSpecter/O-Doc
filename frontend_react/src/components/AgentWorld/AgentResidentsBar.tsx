@@ -1,4 +1,4 @@
-import { Bot, Sparkles, Users } from 'lucide-react';
+import { Bot, Network, Sparkles, UserRound, Users } from 'lucide-react';
 import type { AgentWorldAgentStatus } from '../../types/api/setting';
 import AgentAvatar from './AgentAvatar';
 
@@ -6,16 +6,34 @@ interface AgentResidentsProps {
     agents: AgentWorldAgentStatus[];
     selectedAgentId: string;
     onSelectAgent: (agentId: string) => void;
+    onOpenRelation?: () => void;
+    onOpenAttributes?: () => void;
 }
 
 /**
  * 移动端专用的横向平滑滚动居民状态条
  * 位于首屏顶部（Hero 下方、动态列表上方），让用户无需翻滚到最底端即可一眼感知 Agent 状态并直接进行筛选
  */
+function ResidentActions({onOpenRelation, onOpenAttributes}: Pick<AgentResidentsProps, 'onOpenRelation' | 'onOpenAttributes'>) {
+    if (!onOpenRelation && !onOpenAttributes) return null;
+    return (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+            <button type="button" onClick={onOpenRelation} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-orange-200 hover:text-orange-700">
+                <Network className="h-3.5 w-3.5"/>关系图谱
+            </button>
+            <button type="button" onClick={onOpenAttributes} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-orange-200 hover:text-orange-700">
+                <UserRound className="h-3.5 w-3.5"/>属性
+            </button>
+        </div>
+    );
+}
+
 export function AgentResidentsMobileBar({
     agents,
     selectedAgentId,
     onSelectAgent,
+    onOpenRelation,
+    onOpenAttributes,
 }: AgentResidentsProps) {
     const totalActivities = agents.reduce((sum, agent) => sum + (agent.todayCount || 0), 0);
     const activeAgentsCount = agents.filter(a => a.status === 'running').length;
@@ -105,6 +123,7 @@ export function AgentResidentsMobileBar({
                     );
                 })}
             </div>
+            <ResidentActions onOpenRelation={onOpenRelation} onOpenAttributes={onOpenAttributes}/>
         </section>
     );
 }
@@ -116,6 +135,8 @@ export function AgentResidentsSidebar({
     agents,
     selectedAgentId,
     onSelectAgent,
+    onOpenRelation,
+    onOpenAttributes,
 }: AgentResidentsProps) {
     return (
         <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-20">
@@ -173,6 +194,7 @@ export function AgentResidentsSidebar({
                     </button>
                 ))}
             </div>
+            <ResidentActions onOpenRelation={onOpenRelation} onOpenAttributes={onOpenAttributes}/>
         </aside>
     );
 }

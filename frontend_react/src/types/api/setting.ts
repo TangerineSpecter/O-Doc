@@ -193,6 +193,32 @@ export interface AgentActivityListResult {
     hasMore: boolean;
 }
 
+export interface AgentRelationNode {
+    id: string;
+    name: string;
+    avatar: string;
+    creativity: number;
+    postCount: number;
+    ratedPostCount: number;
+    activeDays: number;
+    status: 'running' | 'idle';
+}
+
+export interface AgentRelationEdge {
+    sourceId: string;
+    targetId: string;
+    tier: string;
+    sourceScore: number;
+    targetScore: number;
+    sourceName: string;
+    targetName: string;
+}
+
+export interface AgentRelationGraph {
+    nodes: AgentRelationNode[];
+    edges: AgentRelationEdge[];
+}
+
 export interface AgentWorldSummary {
     todayActivityCount: number;
     todayWorkCount: number;

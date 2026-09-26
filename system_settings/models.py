@@ -14,6 +14,8 @@ from utils.id_generator import (
     generate_agent_task_id,
     generate_agent_run_id,
     generate_agent_activity_id,
+    generate_agent_affinity_id,
+    generate_agent_creativity_id,
     generate_mcp_server_id,
     generate_skill_id,
     generate_location_id,
@@ -768,6 +770,12 @@ class AgentActivity(models.Model):
     artifact_article_id = models.CharField(max_length=80, blank=True, default='', verbose_name='文章 ID', db_comment='关联文章 ID')
     artifact_coll_id = models.CharField(max_length=80, blank=True, default='', verbose_name='文集 ID', db_comment='关联文集 ID')
     artifact_title = models.CharField(max_length=255, blank=True, default='', verbose_name='作品标题', db_comment='关联文章标题快照')
+    action = models.CharField(max_length=20, blank=True, default='', verbose_name='动作', db_comment='publish、comment、rate、annotate、annotate_reply')
+    stance = models.CharField(max_length=20, blank=True, default='', verbose_name='立场', db_comment='approve、neutral、disapprove')
+    counterpart_type = models.CharField(max_length=20, blank=True, default='', verbose_name='对方类型', db_comment='agent 或 user')
+    counterpart_id = models.CharField(max_length=80, blank=True, default='', verbose_name='对方标识', db_comment='对方 Agent 或用户标识快照')
+    counterpart_name = models.CharField(max_length=120, blank=True, default='', verbose_name='对方名称', db_comment='对方名称快照')
+    score_delta_basis = models.CharField(max_length=20, blank=True, default='', verbose_name='计分依据', db_comment='评论立场或评分原值')
     metadata = models.JSONField(default=dict, blank=True, verbose_name='展示元数据', db_comment='脱敏后的展示扩展信息')
     occurred_at = models.DateTimeField(default=timezone.now, verbose_name='发生时间', db_comment='动态发生时间')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -780,7 +788,51 @@ class AgentActivity(models.Model):
         indexes = [
             models.Index(fields=['activity_type', '-occurred_at'], name='idx_agent_act_type_time'),
             models.Index(fields=['agent', '-occurred_at'], name='idx_agent_act_agent_time'),
+            models.Index(fields=['action', 'counterpart_id', '-occurred_at'], name='idx_agent_act_action_peer'),
         ]
+
+
+class AgentAffinity(models.Model):
+    """一对 Agent 在最近 30 天互动上的有向好感度。"""
+
+    id = models.CharField(max_length=40, primary_key=True, default=generate_agent_affinity_id)
+    actor = models.ForeignKey(Agent, related_name='affinities_out', on_delete=models.CASCADE)
+    counterpart = models.ForeignKey(Agent, related_name='affinities_in', on_delete=models.CASCADE)
+    score = models.PositiveSmallIntegerField(default=0, verbose_name='好感度', db_comment='0-100')
+    band = models.CharField(max_length=20, default='初识', verbose_name='单方等级', db_comment='只看这一方向分数的等级，用于滞后')
+    tier = models.CharField(max_length=20, default='初识', verbose_name='关系等级', db_comment='结合双方后的展示等级')
+    event_count = models.PositiveIntegerField(default=0, verbose_name='窗口内事件数', db_comment='最近 30 天计入的互动数')
+    computed_at = models.DateTimeField(default=timezone.now, verbose_name='计算时间', db_comment='最近一次重算时间')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'sys_agent_affinity'
+        db_table_comment = 'Agent 好感度快照'
+        constraints = [
+            models.UniqueConstraint(fields=['actor', 'counterpart'], name='uniq_agent_affinity_pair'),
+        ]
+        indexes = [
+            models.Index(fields=['counterpart', 'tier'], name='idx_agent_affinity_peer'),
+        ]
+
+
+class AgentCreativity(models.Model):
+    """Agent 最近 30 天的创作力快照。"""
+
+    id = models.CharField(max_length=40, primary_key=True, default=generate_agent_creativity_id)
+    agent = models.OneToOneField(Agent, related_name='creativity', on_delete=models.CASCADE)
+    score = models.PositiveSmallIntegerField(default=0, verbose_name='创作力', db_comment='0-100')
+    post_count = models.PositiveIntegerField(default=0, verbose_name='发帖数', db_comment='窗口内发帖数')
+    rated_post_count = models.PositiveIntegerField(default=0, verbose_name='获评帖数', db_comment='窗口内被他人评分的帖数')
+    active_days = models.PositiveSmallIntegerField(default=0, verbose_name='活跃天数', db_comment='窗口内有发帖的天数')
+    computed_at = models.DateTimeField(default=timezone.now, verbose_name='计算时间', db_comment='最近一次重算时间')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'sys_agent_creativity'
+        db_table_comment = 'Agent 创作力快照'
 
 
 class GeoLocation(models.Model):

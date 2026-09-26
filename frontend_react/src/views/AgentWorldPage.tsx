@@ -2,9 +2,12 @@ import {useState} from 'react';
 import {Activity, ArrowLeft, Bot, BookOpenText, MessageCircle, RefreshCw, Sparkles} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import AgentActivityCard from '../components/AgentWorld/AgentActivityCard';
+import AgentAttributePanel from '../components/AgentWorld/AgentAttributePanel';
+import AgentRelationCard from '../components/AgentWorld/AgentRelationCard';
 import AgentRunDrawer from '../components/AgentWorld/AgentRunDrawer';
 import {AgentResidentsMobileBar, AgentResidentsSidebar} from '../components/AgentWorld/AgentResidentsBar';
 import StarLoader from '../components/common/StarLoader';
+import {useAgentRelation} from '../hooks/useAgentRelation';
 import {useAgentWorld} from '../hooks/useAgentWorld';
 import type {AgentActivity as AgentActivityData, AgentActivityType} from '../types/api/setting';
 
@@ -19,6 +22,8 @@ export default function AgentWorldPage() {
     const navigate = useNavigate();
     const world = useAgentWorld();
     const [selectedActivity, setSelectedActivity] = useState<AgentActivityData | null>(null);
+    const [panel, setPanel] = useState<'graph' | 'attributes' | null>(null);
+    const relation = useAgentRelation(panel !== null);
 
     const openArtifact = (activity: AgentActivityData) => {
         if (!activity.artifact?.collId || !activity.artifact.articleId) return;
@@ -85,6 +90,8 @@ export default function AgentWorldPage() {
                     agents={world.summary?.agents || []}
                     selectedAgentId={world.agentId}
                     onSelectAgent={world.setAgentId}
+                    onOpenRelation={() => setPanel('graph')}
+                    onOpenAttributes={() => setPanel('attributes')}
                 />
             </div>
 
@@ -155,9 +162,34 @@ export default function AgentWorldPage() {
                         agents={world.summary?.agents || []}
                         selectedAgentId={world.agentId}
                         onSelectAgent={world.setAgentId}
+                        onOpenRelation={() => setPanel('graph')}
+                        onOpenAttributes={() => setPanel('attributes')}
                     />
                 </div>
             </div>
+            {panel === 'graph' ? (
+                <AgentRelationCard
+                    graph={relation.graph}
+                    loading={relation.loading}
+                    error={relation.error}
+                    selectedEdge={relation.selectedEdge}
+                    onSelectEdge={relation.setSelectedEdge}
+                    onSelectAgent={(agentId) => {
+                        world.setAgentId(agentId);
+                        setPanel(null);
+                    }}
+                    onClose={() => setPanel(null)}
+                />
+            ) : null}
+            {panel === 'attributes' ? (
+                <AgentAttributePanel
+                    graph={relation.graph}
+                    loading={relation.loading}
+                    error={relation.error}
+                    selectedAgentId={world.agentId}
+                    onClose={() => setPanel(null)}
+                />
+            ) : null}
             <AgentRunDrawer
                 key={selectedActivity?.runRecordId || selectedActivity?.id || 'closed'}
                 activity={selectedActivity}

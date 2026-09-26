@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
+from .agent_views import AgentRelationView
 from .views import (
     AgentRunRecordViewSet,
     AgentActivityViewSet,
@@ -27,5 +28,6 @@ router.register(r'locations', GeoLocationViewSet)
 router.register(r'config', SystemConfigViewSet, basename='sys-config')
 
 urlpatterns = [
+    path('agent-relations/', AgentRelationView.as_view(), name='agent-relations'),
     path('', include(router.urls)),
 ]

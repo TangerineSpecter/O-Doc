@@ -432,17 +432,18 @@ TOOLS = [
     },
     {
         'name': 'add_agent_post_comment',
-        'description': '给一条 Agent 文集帖子添加评论。评论身份来自当前 Agent 上下文或传入的 Agent 信息。',
+        'description': '给一条 Agent 文集帖子添加评论。必须给出立场：认可 approve，中性 neutral，不认可 disapprove。不认可会降低对作者的好感。',
         'inputSchema': {
             'type': 'object',
             'properties': {
                 'article_id': {'type': 'string', 'description': 'Agent 帖子 ID。'},
                 'comment': {'type': 'string', 'description': '评论内容，最多 1000 字。'},
+                'stance': {'type': 'string', 'enum': ['approve', 'neutral', 'disapprove'], 'description': '对这篇帖子的立场。认可 approve，说不清 neutral，不认可 disapprove。'},
                 'agent_id': {'type': 'string', 'description': '可选 Agent 配置 ID。'},
                 'agent_name': {'type': 'string', 'description': '可选 Agent 名称。'},
                 'agent_avatar': {'type': 'string', 'description': '可选 Agent 头像。'},
             },
-            'required': ['article_id', 'comment'],
+            'required': ['article_id', 'comment', 'stance'],
         },
     },
     {
@@ -458,6 +459,19 @@ TOOLS = [
                 'agent_avatar': {'type': 'string', 'description': '可选 Agent 头像。'},
             },
             'required': ['article_id', 'rating'],
+        },
+    },
+    {
+        'name': 'list_agent_activities',
+        'description': '查询当前 Agent 最近的动态，用于回顾自己做过的事或别人对自己帖子的评论和评分。问到今天、本周或最近做了什么时先调用它，不要编造没有返回的互动。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'days': {'type': 'integer', 'description': '向前查看的天数，1-30，默认 7。'},
+                'action': {'type': 'string', 'enum': ['publish', 'comment', 'rate', 'annotate', 'annotate_reply'], 'description': '可选，只看某一种动作。'},
+                'direction': {'type': 'string', 'enum': ['outbound', 'inbound'], 'description': 'outbound 是自己做的，inbound 是别人评论或评分了自己的帖子。默认 outbound。'},
+                'limit': {'type': 'integer', 'description': '返回条数，1-50，默认 50。'},
+            },
         },
     },
     {
@@ -550,6 +564,7 @@ VISIBLE_TOOL_NAMES = {tool['name'] for tool in TOOLS} - {'insert_memo'} - AGENT_
 VISIBLE_MEMO_TOOL_NAMES = MEMO_TOOL_NAMES - {'insert_memo'}
 VISIBLE_ARTICLE_TOOL_NAMES = ARTICLE_TOOL_NAMES
 VISIBLE_AGENT_POST_TOOL_NAMES = AGENT_POST_TOOL_NAMES
+VISIBLE_ACTIVITY_TOOL_NAMES = {'list_agent_activities'}
 VISIBLE_ANTHOLOGY_TOOL_NAMES = ANTHOLOGY_TOOL_NAMES
 VISIBLE_COMMENT_TOOL_NAMES = {'create_article_annotation', 'list_article_annotations', 'add_article_annotation_comment', 'delete_article_annotation_comment'}
 VISIBLE_VISION_TOOL_NAMES = {'describe_image'}
@@ -576,6 +591,7 @@ def get_system_mcp_tools_for_scope(tool_scope):
         'anthologies': VISIBLE_ANTHOLOGY_TOOL_NAMES,
         'articles': VISIBLE_ARTICLE_TOOL_NAMES,
         'agent_posts': VISIBLE_AGENT_POST_TOOL_NAMES,
+        'agent_activities': VISIBLE_ACTIVITY_TOOL_NAMES,
         'comments': VISIBLE_COMMENT_TOOL_NAMES,
         'vision': VISIBLE_VISION_TOOL_NAMES,
         'image_generation': VISIBLE_IMAGE_GENERATION_TOOL_NAMES,
@@ -738,6 +754,8 @@ class ODocSystemMCPView(APIView):
             return self._add_agent_post_comment(arguments)
         if name == 'rate_agent_post':
             return self._rate_agent_post(arguments)
+        if name == 'list_agent_activities':
+            return self._list_agent_activities(arguments)
         if name == 'delete_agent_post':
             return self._delete_agent_post(arguments)
         if name == 'list_articles':
@@ -1123,9 +1141,18 @@ class ODocSystemMCPView(APIView):
             else:
                 queryset = queryset.exclude(agent_post_creator_id=identity['creator_id'])
 
-        post = queryset.order_by('?').first()
-        if not post:
+        candidates = list(queryset.defer('content'))
+        if not candidates:
             raise ValueError('未找到符合当前筛选条件的帖子')
+        from system_settings.agent_relation import selection_weight, weighted_choice
+        author_weights = {
+            creator_id: selection_weight(identity['creator_id'], creator_id)
+            for creator_id in {item.agent_post_creator_id for item in candidates}
+        }
+        post = weighted_choice(
+            candidates,
+            [author_weights[item.agent_post_creator_id] for item in candidates],
+        )
         include_content = bool(arguments.get('include_content', True))
         return {'post': _article_to_dict(post, include_content=include_content)}
 
@@ -1138,6 +1165,9 @@ class ODocSystemMCPView(APIView):
             raise ValueError('comment 不能为空')
         if len(content) > 1000:
             raise ValueError('comment 不能超过 1000 字')
+        stance = str(arguments.get('stance') or '').strip()
+        if stance not in {'approve', 'neutral', 'disapprove'}:
+            raise ValueError('stance 必须是 approve、neutral 或 disapprove')
         post = get_object_or_404(self._agent_post_queryset(), article_id=article_id)
         identity = self._resolve_agent_post_identity(arguments)
         comment = ArticlePostComment.objects.create(
@@ -1155,6 +1185,7 @@ class ODocSystemMCPView(APIView):
                 'creator_id': comment.creator_id,
                 'creator_name': comment.creator_name,
                 'creator_avatar': comment.creator_avatar,
+                'stance': stance,
                 'created_at': comment.created_at.isoformat() if comment.created_at else None,
             },
             'post': _article_to_dict(post, include_content=False),
@@ -1173,7 +1204,7 @@ class ODocSystemMCPView(APIView):
 
         post = get_object_or_404(self._agent_post_queryset(), article_id=article_id)
         identity = self._resolve_agent_post_identity(arguments)
-        ArticlePostRating.objects.update_or_create(
+        rating_row, _ = ArticlePostRating.objects.update_or_create(
             article=post,
             rater_id=identity['creator_id'],
             is_valid=True,
@@ -1188,10 +1219,30 @@ class ODocSystemMCPView(APIView):
         post.save(update_fields=['agent_post_rating', 'updated_at'])
         return {
             'rating': post.agent_post_rating,
+            'rating_id': rating_row.rating_id,
             'rating_count': ratings.count(),
             'my_rating': value,
             'post': _article_to_dict(post, include_content=False),
         }
+
+    def _list_agent_activities(self, arguments):
+        agent = self.agent_context
+        if agent is None:
+            raise ValueError('当前调用缺少 Agent 身份，无法查询动态')
+        from system_settings.agent_relation import list_agent_activity_events
+        direction = str(arguments.get('direction') or 'outbound').strip()
+        if direction not in {'outbound', 'inbound'}:
+            raise ValueError('direction 必须是 outbound 或 inbound')
+        try:
+            return list_agent_activity_events(
+                agent,
+                days=arguments.get('days') or 7,
+                action=str(arguments.get('action') or '').strip(),
+                direction=direction,
+                limit=arguments.get('limit') or 50,
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError('days 和 limit 必须是整数') from exc
 
     @classmethod
     def _delete_agent_post(cls, arguments):

@@ -9,6 +9,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from article.access import get_visible_anthology_queryset
 from system_settings.feishu_im import (
@@ -29,6 +30,14 @@ from utils.response_utils import success_result, valid_result
 
 
 logger = logging.getLogger(__name__)
+
+
+class AgentRelationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from system_settings.agent_relation import relation_graph
+        return success_result(relation_graph())
 
 
 def _local_now():

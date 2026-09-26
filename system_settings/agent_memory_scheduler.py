@@ -12,6 +12,17 @@ from .sync_scheduler import _env_flag, _is_server_process, get_scheduler_initial
 
 logger = logging.getLogger(__name__)
 
+
+def _refresh_agent_relations():
+    try:
+        from system_settings.agent_relation import backfill_relation_events, recompute_all_relations
+        backfill_relation_events()
+        recompute_all_relations()
+    except Exception:
+        logger.exception('Agent relation recompute failed')
+        return '重算好感度和创作力失败'
+    return '已重算好感度和创作力'
+
 RUNTIME_KEY = 'system_agent_memory_runtime'
 
 
@@ -116,6 +127,7 @@ class AgentMemoryScheduler:
             self._save_runtime(last_run_date=run_date)
 
         result = safe_promote_due_short_term_memories()
+        relation_summary = _refresh_agent_relations()
         self._save_runtime(
             status='success',
             runner_id=self.runner_id,
@@ -123,6 +135,7 @@ class AgentMemoryScheduler:
             last_summary=[
                 f"晋升长期记忆 {result.get('promoted_count', 0)} 条",
                 f"清理过期短期记忆 {result.get('expired_count', 0)} 条",
+                relation_summary,
             ],
         )
 

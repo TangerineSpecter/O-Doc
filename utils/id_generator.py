@@ -137,6 +137,16 @@ def generate_agent_activity_id() -> str:
     return generate_unique_id("act")
 
 
+def generate_agent_affinity_id() -> str:
+    """生成带 aff 前缀的 Agent 好感度快照 ID。"""
+    return generate_unique_id("aff")
+
+
+def generate_agent_creativity_id() -> str:
+    """生成带 acr 前缀的 Agent 创作力快照 ID。"""
+    return generate_unique_id("acr")
+
+
 def generate_agent_im_message_id() -> str:
     """
     生成带 aim 前缀的 Agent IM 消息记录 ID

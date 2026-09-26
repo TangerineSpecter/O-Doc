@@ -82,6 +82,12 @@ def _agent_post_mcp_tools():
     return _system_mcp_tools(VISIBLE_AGENT_POST_TOOL_NAMES)
 
 
+def _activity_mcp_tools():
+    from system_mcp.views import VISIBLE_ACTIVITY_TOOL_NAMES
+
+    return _system_mcp_tools(VISIBLE_ACTIVITY_TOOL_NAMES)
+
+
 def _vision_mcp_tools():
     from system_mcp.views import VISIBLE_VISION_TOOL_NAMES
 
@@ -146,6 +152,14 @@ def _sync_scanned_system_mcp_servers(request, value):
         '/api/system-mcp/agent-posts/',
         'O-Doc 内置系统 MCP，仅提供 Agent 文集帖子的创建、查询和删除工具。',
         _agent_post_mcp_tools(),
+    )
+    _sync_builtin_system_mcp_server(
+        request,
+        value,
+        'Agent 动态 MCP',
+        '/api/system-mcp/agent-activities/',
+        'O-Doc 内置系统 MCP，只提供当前 Agent 的动态查询，用于回顾一段时间内做过的事。',
+        _activity_mcp_tools(),
     )
     _sync_builtin_system_mcp_server(
         request,
@@ -477,6 +491,25 @@ class MCPServerViewSet(viewsets.ModelViewSet):
         }
 
     @classmethod
+    def _builtin_activity_server(cls, request):
+        from system_mcp.views import VISIBLE_ACTIVITY_TOOL_NAMES
+
+        value = cls._ensure_system_mcp_value()
+        return {
+            'name': 'Agent 动态 MCP',
+            'transport': 'streamableHttp',
+            'command': '',
+            'args': [],
+            'url': request.build_absolute_uri('/api/system-mcp/agent-activities/'),
+            'headers': {'Authorization': f"Bearer {value.get('apiKey', '')}"},
+            'env': {},
+            'source': 'system',
+            'enabled': bool(value.get('enabled', True)),
+            'description': 'O-Doc 内置系统 MCP，只提供当前 Agent 的动态查询，用于回顾一段时间内做过的事。',
+            'tools': cls._format_builtin_tools(VISIBLE_ACTIVITY_TOOL_NAMES),
+        }
+
+    @classmethod
     def _builtin_vision_server(cls, request):
         from system_mcp.views import VISIBLE_VISION_TOOL_NAMES
 
@@ -581,6 +614,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             self._builtin_anthology_server(request),
             self._builtin_article_server(request),
             self._builtin_agent_post_server(request),
+            self._builtin_activity_server(request),
             self._builtin_comment_server(request),
             self._builtin_vision_server(request),
             self._builtin_image_generation_server(request),
