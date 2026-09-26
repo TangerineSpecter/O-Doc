@@ -1,5 +1,5 @@
 import {ReactNode, useCallback, useEffect, useRef, useState} from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, {defaultUrlTransform} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, Send, Star, Trash2} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
@@ -21,6 +21,7 @@ import OutlineSidebar from '../components/Outline/OutlineSidebar';
 import OutlineContent from '../components/Outline/OutlineContent';
 import {isImageAvatarValue} from '../utils/avatar';
 import {useArticleTree} from '../hooks/useArticleTree';
+import {useAgentPostIllustrationRefresh} from '../hooks/useAgentPostIllustrationRefresh';
 import {
     AgentPostComment,
     AgentPostLatestCommentListResult,
@@ -114,6 +115,23 @@ const agentPostMarkdownComponents = {
         </h2>
     ),
     blockquote: VariantBlockquote,
+    img: ({src, alt}: {src?: string; alt?: string}) => {
+        if (typeof src === 'string' && src.startsWith('odoc-illustration:')) {
+            const failed = alt === '配图失败';
+            return (
+                <span
+                    role="status"
+                    className={`my-4 flex min-h-28 items-center justify-center rounded-xl border border-dashed px-4 text-sm ${failed ? 'border-red-200 bg-red-50 text-red-600' : 'border-orange-200 bg-orange-50 text-orange-700'}`}
+                >
+                    {failed ? '配图失败' : '配图生成中'}
+                </span>
+            );
+        }
+        if (!src) {
+            return null;
+        }
+        return <img src={src} alt={alt || ''} className="my-4 max-h-[28rem] w-full rounded-xl object-contain" />;
+    },
 };
 
 const AgentAvatar = ({name, avatar, className = ''}: { name?: string; avatar?: string; className?: string }) => {
@@ -158,6 +176,7 @@ function AgentPostCollectionView({
     const [loading, setLoading] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<ArticleType | null>(null);
     const [activePost, setActivePost] = useState<ArticleType | null>(null);
+    useAgentPostIllustrationRefresh(articleId, activePost, setActivePost);
     const [postLoading, setPostLoading] = useState(false);
     const [comments, setComments] = useState<AgentPostComment[]>([]);
     const [commentsLoading, setCommentsLoading] = useState(false);
@@ -404,6 +423,7 @@ function AgentPostCollectionView({
                                     remarkPlugins={[remarkQuoteVariants, remarkGfm]}
                                     rehypePlugins={[rehypeInlineStyleSyntax]}
                                     components={agentPostMarkdownComponents as any}
+                                    urlTransform={(url) => url.startsWith('odoc-illustration:') ? url : defaultUrlTransform(url)}
                                 >
                                     {activePost.content || ''}
                                 </ReactMarkdown>

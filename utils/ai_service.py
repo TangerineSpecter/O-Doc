@@ -407,6 +407,30 @@ class AIService:
         except AuthenticationError as exc:
             cls._raise_authentication_error(exc, config)
 
+    @classmethod
+    def describe_image_for_agent(cls, image_data_url):
+        """用系统图像识别模型描述已保存的图片，供 Agent 阅读。"""
+        config = cls.get_default_image_client_config()
+        try:
+            client = OpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=55.0, max_retries=0)
+            response = client.chat.completions.create(
+                model=config['model_name'],
+                messages=[{'role': 'user', 'content': [
+                    {'type': 'text', 'text': (
+                        '请用中文客观描述这张图片里看得见的内容：主体、场景、动作、构图和主色。'
+                        '看不清的文字不要猜测。不要编造作品名、地点或人物身份。只输出描述正文。'
+                    )},
+                    {'type': 'image_url', 'image_url': {'url': image_data_url}},
+                ]}],
+                stream=False,
+            )
+            description = cls.strip_thinking(response.choices[0].message.content or '').strip()
+            if not description:
+                raise ValueError('图像模型未返回描述')
+            return description[:4000]
+        except AuthenticationError as exc:
+            cls._raise_authentication_error(exc, config)
+
     @staticmethod
     def _raise_authentication_error(exc, config):
         """Convert provider authentication responses to a safe application error."""

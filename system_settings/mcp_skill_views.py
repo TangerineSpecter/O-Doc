@@ -82,6 +82,18 @@ def _agent_post_mcp_tools():
     return _system_mcp_tools(VISIBLE_AGENT_POST_TOOL_NAMES)
 
 
+def _vision_mcp_tools():
+    from system_mcp.views import VISIBLE_VISION_TOOL_NAMES
+
+    return _system_mcp_tools(VISIBLE_VISION_TOOL_NAMES)
+
+
+def _image_generation_mcp_tools():
+    from system_mcp.views import VISIBLE_IMAGE_GENERATION_TOOL_NAMES
+
+    return _system_mcp_tools(VISIBLE_IMAGE_GENERATION_TOOL_NAMES)
+
+
 def _sync_builtin_system_mcp_server(request, value, name, endpoint, description, tools):
     server = MCPServer.objects.filter(name=name).first()
     if not server:
@@ -142,6 +154,22 @@ def _sync_scanned_system_mcp_servers(request, value):
         '/api/system-mcp/comments/',
         'O-Doc 内置系统 MCP，仅提供文章文集的划线批注和评论工具。',
         _comment_mcp_tools(),
+    )
+    _sync_builtin_system_mcp_server(
+        request,
+        value,
+        '识图 MCP',
+        '/api/system-mcp/vision/',
+        'O-Doc 内置系统 MCP，使用系统图像识别模型描述图片文集中的已有图片。',
+        _vision_mcp_tools(),
+    )
+    _sync_builtin_system_mcp_server(
+        request,
+        value,
+        '生图 MCP',
+        '/api/system-mcp/image-generation/',
+        'O-Doc 内置系统 MCP。绑定后，Agent 发帖可按正文标记排队配图，比例可选，分辨率固定 1K。',
+        _image_generation_mcp_tools(),
     )
 
 
@@ -448,6 +476,44 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             'tools': cls._format_builtin_tools(VISIBLE_AGENT_POST_TOOL_NAMES),
         }
 
+    @classmethod
+    def _builtin_vision_server(cls, request):
+        from system_mcp.views import VISIBLE_VISION_TOOL_NAMES
+
+        value = cls._ensure_system_mcp_value()
+        return {
+            'name': '识图 MCP',
+            'transport': 'streamableHttp',
+            'command': '',
+            'args': [],
+            'url': request.build_absolute_uri('/api/system-mcp/vision/'),
+            'headers': {'Authorization': f"Bearer {value.get('apiKey', '')}"},
+            'env': {},
+            'source': 'system',
+            'enabled': bool(value.get('enabled', True)),
+            'description': 'O-Doc 内置系统 MCP，使用系统图像识别模型描述图片文集中的已有图片。',
+            'tools': cls._format_builtin_tools(VISIBLE_VISION_TOOL_NAMES),
+        }
+
+    @classmethod
+    def _builtin_image_generation_server(cls, request):
+        from system_mcp.views import VISIBLE_IMAGE_GENERATION_TOOL_NAMES
+
+        value = cls._ensure_system_mcp_value()
+        return {
+            'name': '生图 MCP',
+            'transport': 'streamableHttp',
+            'command': '',
+            'args': [],
+            'url': request.build_absolute_uri('/api/system-mcp/image-generation/'),
+            'headers': {'Authorization': f"Bearer {value.get('apiKey', '')}"},
+            'env': {},
+            'source': 'system',
+            'enabled': bool(value.get('enabled', True)),
+            'description': 'O-Doc 内置系统 MCP。绑定后，Agent 发帖可按正文标记排队配图，比例可选，分辨率固定 1K。',
+            'tools': cls._format_builtin_tools(VISIBLE_IMAGE_GENERATION_TOOL_NAMES),
+        }
+
     @staticmethod
     def _extract_servers(payload, source_path):
         if not isinstance(payload, dict):
@@ -516,6 +582,8 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             self._builtin_article_server(request),
             self._builtin_agent_post_server(request),
             self._builtin_comment_server(request),
+            self._builtin_vision_server(request),
+            self._builtin_image_generation_server(request),
         ]
         builtin_names = {server['name'] for server in builtin_servers}
         scanned = [*builtin_servers, *self._scan_local_configs()]

@@ -12,6 +12,10 @@ def generate_pending_article_illustration_id() -> str:
     return uuid.uuid4().hex
 
 
+def generate_agent_post_illustration_id() -> str:
+    return uuid.uuid4().hex
+
+
 class PromptTaxonomyBase(models.Model):
     """提示词页内部使用的可管理词典。"""
 
@@ -67,6 +71,40 @@ class PendingArticleIllustration(models.Model):
         db_table = 'pending_article_illustrations'
         ordering = ['-created_at']
         constraints = [models.UniqueConstraint(fields=['user_id', 'task_id'], name='pending_article_illustration_task_unique')]
+
+
+class AgentPostIllustration(models.Model):
+    """本机帖子配图任务。不进入 WebDAV；入库后的资源和帖子正文按原规则同步。"""
+
+    STATUS_QUEUED = 'queued'
+    STATUS_GENERATING = 'generating'
+    STATUS_DOWNLOAD_PENDING = 'download_pending'
+    STATUS_SUCCEEDED = 'succeeded'
+    STATUS_FAILED = 'failed'
+
+    id = models.CharField(max_length=32, primary_key=True, default=generate_agent_post_illustration_id, editable=False)
+    user_id = models.CharField(max_length=50, db_index=True)
+    article_id = models.CharField(max_length=32, db_index=True)
+    prompt = models.TextField(blank=True, default='')
+    aspect_ratio = models.CharField(max_length=20, blank=True, default='16:9')
+    image_size = models.CharField(max_length=8, default='1K')
+    status = models.CharField(max_length=20, default=STATUS_QUEUED, db_index=True)
+    model_id = models.CharField(max_length=40, blank=True, default='')
+    provider_type = models.CharField(max_length=20, blank=True, default='')
+    provider_task_id = models.CharField(max_length=128, blank=True, default='')
+    image_url = models.URLField(max_length=2048, blank=True, default='')
+    asset_id = models.CharField(max_length=32, blank=True, default='')
+    error_message = models.CharField(max_length=200, blank=True, default='')
+    generate_attempts = models.PositiveSmallIntegerField(default=0)
+    download_attempts = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(null=True, blank=True)
+    generating_started_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'agent_post_illustrations'
+        ordering = ['created_at']
 
 
 class PromptTemplate(models.Model):

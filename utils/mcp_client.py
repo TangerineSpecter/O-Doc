@@ -27,6 +27,8 @@ BUILTIN_SYSTEM_MCP_SCOPES = {
     '文章 MCP': 'articles',
     'Agent 帖子 MCP': 'agent_posts',
     '评论 MCP': 'comments',
+    '识图 MCP': 'vision',
+    '生图 MCP': 'image_generation',
 }
 
 AGENT_IDENTITY_TOOL_NAMES = {'create_article_annotation', 'add_article_annotation_comment', 'create_agent_post'}

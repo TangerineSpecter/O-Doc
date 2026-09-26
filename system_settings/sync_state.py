@@ -16,6 +16,7 @@ LOCAL_ONLY_MODEL_LABELS = frozenset({
     'book_analysis.executionevent',
     'article.imagevisualindex', 'article.imageindexjob', 'article.imageindexlease',
     'prompts.pendingarticleillustration',
+    'prompts.agentpostillustration',
 })
 _local = threading.local()
 

@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from copy import deepcopy
 from hmac import compare_digest
 
@@ -349,12 +350,23 @@ TOOLS = [
     },
     {
         'name': 'create_agent_post',
-        'description': '在 Agent 文集中创建一条卡片帖子。用于 Agent 通过 MCP 发布标题、摘要和正文；账号端只展示和删除帖子。',
+        'description': (
+            '在 Agent 文集中创建一条卡片帖子。用于 Agent 通过 MCP 发布标题、摘要和正文；账号端只展示和删除帖子。'
+            '已绑定生图 MCP 时，可在正文任意位置插入配图标记。帖子会立即保存，图片由后台生成后替换占位符。'
+            '默认一张，任务写明两张时最多两张。分辨率固定 1K，不要等待图片地址，也不要声称图片已经可见。'
+        ),
         'inputSchema': {
             'type': 'object',
             'properties': {
                 'title': {'type': 'string', 'description': '帖子标题。'},
-                'content': {'type': 'string', 'description': '帖子正文，Markdown 格式。'},
+                'content': {
+                    'type': 'string',
+                    'description': (
+                        '帖子正文，Markdown 格式。需要配图时，在希望出现图片的位置单独写入：'
+                        '{{illustration ratio="16:9"}}根据周围段落总结的画面简述{{/illustration}}。'
+                        'ratio 可选，默认 16:9。不要填写分辨率。'
+                    ),
+                },
                 'summary': {'type': 'string', 'description': '帖子摘要，最多 300 字；不传则从正文自动截取。'},
                 'coll_id': {'type': 'string', 'description': '所属 Agent 文集 ID。'},
                 'category': {'type': 'string', 'description': 'Agent 文集内分类名称，仅用于文集内顶部筛选，不进入全局分类管理。'},
@@ -365,6 +377,10 @@ TOOLS = [
                 'permission': {'type': 'string', 'enum': ['public', 'private'], 'description': '帖子权限。'},
                 'sort': {'type': 'integer', 'description': '排序值。'},
                 'source_url': {'type': 'string', 'description': '可选来源 URL。'},
+                'skip_illustration': {
+                    'type': 'boolean',
+                    'description': '任务明确不要配图时传 true。已绑定生图 MCP 且未传时，正文没有配图标记会自动在第一段后配一张图。',
+                },
             },
             'required': ['title', 'content', 'coll_id', 'category'],
         },
@@ -502,6 +518,25 @@ TOOLS = [
             'required': ['comment_id'],
         },
     },
+    {
+        'name': 'describe_image',
+        'description': '使用系统设置的图像识别模型，客观描述图片文集中已有的一张图片。不使用 Agent 的对话模型，也不能生图。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'image_id': {'type': 'string', 'description': '图片文集中的图片 ID。'},
+            },
+            'required': ['image_id'],
+        },
+    },
+    {
+        'name': 'get_illustration_options',
+        'description': (
+            '查看当前系统生图模型可供 Agent 使用的画面比例。发帖时把配图标记写进 create_agent_post 的正文，'
+            '不要调用本工具生图，也不要等待图片文件。分辨率固定为 1K。'
+        ),
+        'inputSchema': {'type': 'object', 'properties': {}},
+    },
 ]
 
 MEMO_TOOL_NAMES = {'insert_memo', 'create_memo', 'list_memos', 'get_memo', 'update_memo', 'delete_memo'}
@@ -517,6 +552,21 @@ VISIBLE_ARTICLE_TOOL_NAMES = ARTICLE_TOOL_NAMES
 VISIBLE_AGENT_POST_TOOL_NAMES = AGENT_POST_TOOL_NAMES
 VISIBLE_ANTHOLOGY_TOOL_NAMES = ANTHOLOGY_TOOL_NAMES
 VISIBLE_COMMENT_TOOL_NAMES = {'create_article_annotation', 'list_article_annotations', 'add_article_annotation_comment', 'delete_article_annotation_comment'}
+VISIBLE_VISION_TOOL_NAMES = {'describe_image'}
+VISIBLE_IMAGE_GENERATION_TOOL_NAMES = {'get_illustration_options'}
+VISIBLE_TOOL_NAMES -= VISIBLE_VISION_TOOL_NAMES | VISIBLE_IMAGE_GENERATION_TOOL_NAMES
+
+
+def _summary_source(content):
+    return re.sub(r'!\[[^\]]*\]\(odoc-illustration:[^)]+\)', ' ', content or '')
+
+
+def _argument_flag(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {'1', 'true', 'yes'}
+    return False
 
 
 def get_system_mcp_tools_for_scope(tool_scope):
@@ -527,6 +577,8 @@ def get_system_mcp_tools_for_scope(tool_scope):
         'articles': VISIBLE_ARTICLE_TOOL_NAMES,
         'agent_posts': VISIBLE_AGENT_POST_TOOL_NAMES,
         'comments': VISIBLE_COMMENT_TOOL_NAMES,
+        'vision': VISIBLE_VISION_TOOL_NAMES,
+        'image_generation': VISIBLE_IMAGE_GENERATION_TOOL_NAMES,
     }
     tool_names = tool_names_by_scope.get(tool_scope, VISIBLE_TOOL_NAMES)
     tools = deepcopy([tool for tool in TOOLS if tool['name'] in tool_names])
@@ -716,6 +768,10 @@ class ODocSystemMCPView(APIView):
             return self._add_article_annotation_comment(arguments)
         if name == 'delete_article_annotation_comment':
             return self._delete_article_annotation_comment(arguments)
+        if name == 'describe_image':
+            return self._describe_image(arguments)
+        if name == 'get_illustration_options':
+            return self._illustration_options()
         raise ValueError(f'未知 Tool：{name}')
 
     @staticmethod
@@ -885,6 +941,16 @@ class ODocSystemMCPView(APIView):
         if rating and not 1 <= rating <= 10:
             raise ValueError('rating 必须是 1 到 10 的整数')
         identity = self._resolve_agent_post_identity(arguments)
+        from prompts.agent_post_illustration import create_illustration_jobs, prepare_post_illustrations
+
+        content, illustration_specs, illustration_notes = prepare_post_illustrations(
+            content=content,
+            title=title,
+            enabled=self._agent_can_illustrate(),
+            skip=_argument_flag(arguments.get('skip_illustration')),
+        )
+        if not content.strip():
+            raise ValueError('content 不能为空')
         try:
             with transaction.atomic():
                 article = Article.objects.create(
@@ -895,7 +961,7 @@ class ODocSystemMCPView(APIView):
                     permission=permission,
                     sort=int(arguments.get('sort') or 0),
                     source_url=str(arguments.get('source_url') or '').strip() or None,
-                    post_summary=_build_summary(content, arguments.get('summary')),
+                    post_summary=_build_summary(_summary_source(content), arguments.get('summary')),
                     agent_post_creator_id=identity['creator_id'],
                     agent_post_creator_name=identity['creator_name'],
                     agent_post_creator_avatar=identity['creator_avatar'],
@@ -903,10 +969,80 @@ class ODocSystemMCPView(APIView):
                     agent_post_rating=rating,
                     is_rag_synced=False,
                 )
+                illustrations = create_illustration_jobs(
+                    article=article, user_id=anthology.user_id, specs=illustration_specs,
+                )
                 _refresh_anthology(coll_id)
         except IntegrityError:
             raise ValueError('同一文集下帖子标题已存在')
-        return {'post': _article_to_dict(article)}
+        payload = {'post': _article_to_dict(article)}
+        if illustrations or illustration_notes:
+            payload['illustrations'] = illustrations
+            payload['illustration_message'] = ''.join(illustration_notes)
+        return payload
+
+    def _agent_can_illustrate(self):
+        agent = self.agent_context
+        server_ids = agent.mcp_servers if agent is not None and isinstance(agent.mcp_servers, list) else []
+        if not server_ids:
+            return False
+        from system_settings.models import MCPServer
+        return MCPServer.objects.filter(
+            id__in=server_ids, name='生图 MCP', source='system', enabled=True,
+        ).exists()
+
+    @staticmethod
+    def _describe_image(arguments):
+        image_id = str(arguments.get('image_id') or '').strip()
+        if not image_id:
+            raise ValueError('image_id 不能为空')
+        from article.image_service import build_image_data_url
+        from article.models import Image
+        from utils.ai_service import AIAuthenticationError, AIService
+
+        image = Image.objects.filter(image_id=image_id, is_valid=True).first()
+        if image is None:
+            raise ValueError('图片不存在')
+        image_data_url = build_image_data_url(image.image_url)
+        if not image_data_url:
+            raise ValueError('图片文件不存在或无法读取')
+        try:
+            description = AIService.describe_image_for_agent(image_data_url)
+        except ValueError as exc:
+            if str(exc) == 'No default image model configured':
+                raise ValueError('请先在设置中选择默认图像识别模型') from exc
+            raise
+        except AIAuthenticationError as exc:
+            raise ValueError(str(exc)) from exc
+        return {'image_id': image_id, 'description': description}
+
+    @staticmethod
+    def _illustration_options():
+        from system_settings.grsai_images import GrsaiImageError, get_default_image_generation_model
+        from system_settings.image_generation_options import get_image_generation_profile
+
+        try:
+            model = get_default_image_generation_model()
+        except GrsaiImageError as exc:
+            return {'configured': False, 'image_size': '1K', 'max_images': 2, 'message': str(exc)}
+        profile = get_image_generation_profile(model)
+        supports_1k = profile.mode == 'automatic' or '1K' in profile.image_sizes or not profile.image_sizes
+        ratios = list(profile.aspect_ratios) or ['16:9']
+        message = '把标记写入 create_agent_post 的正文。帖子会立即发布，图片稍后补上。不要传分辨率。'
+        if profile.mode == 'automatic':
+            message += '当前生图接口不接收分辨率参数。'
+        elif not supports_1k:
+            message += '当前默认生图模型不支持 1K，Agent 不会改用更高分辨率。'
+        return {
+            'configured': True,
+            'supports_1k': supports_1k,
+            'image_size': '1K',
+            'max_images': 2,
+            'default_aspect_ratio': '16:9' if '16:9' in ratios else ratios[0],
+            'aspect_ratios': ratios,
+            'marker_example': '{{illustration ratio="16:9"}}\n根据周围段落总结的画面简述\n{{/illustration}}',
+            'message': message,
+        }
 
     @staticmethod
     def _agent_post_queryset():

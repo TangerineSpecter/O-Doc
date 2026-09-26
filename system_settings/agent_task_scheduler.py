@@ -121,6 +121,7 @@ class AgentTaskScheduler:
             return
 
         try:
+            self._advance_post_illustrations()
             try:
                 tasks = list(AgentTask.objects.select_related('agent').filter(
                     enabled=True,
@@ -139,6 +140,13 @@ class AgentTaskScheduler:
                     self._run_task(task, trigger='定时任务')
         finally:
             self._run_lock.release()
+
+    def _advance_post_illustrations(self):
+        try:
+            from prompts.agent_post_illustration import process_due_illustrations
+            process_due_illustrations()
+        except Exception:
+            logger.exception('Agent post illustration recovery failed')
 
     def run_manual_task(self, task_id):
         try:

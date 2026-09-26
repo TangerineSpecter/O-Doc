@@ -40,7 +40,10 @@ GPT_IMAGE_DIMENSIONS = {
 SCENE_DEFAULTS = {
     # Inline editorial artwork reads best as a landscape image in article bodies.
     'article_illustration': {'aspect_ratio': '16:9', 'image_size': '1K'},
+    'agent_post_illustration': {'aspect_ratio': '16:9', 'image_size': '1K'},
 }
+
+AGENT_POST_IMAGE_SIZE = '1K'
 
 
 @dataclass(frozen=True)
@@ -165,6 +168,33 @@ def resolve_image_generation_request(model: AIModel, options: object, *, scene: 
     if profile.mode == 'fixed':
         return {'aspectRatio': ratio, 'quality': profile.quality}
     return {}
+
+
+def resolve_agent_post_illustration_request(model: AIModel, aspect_ratio: str) -> tuple[dict, str, str]:
+    """Resolve an agent illustration at 1K.
+
+    Returns provider options, the ratio actually used, and a note when the
+    requested ratio is replaced. Higher resolutions are never sent.
+    """
+    profile = get_image_generation_profile(model)
+    requested = (aspect_ratio or '').strip() or '16:9'
+    if profile.mode == 'automatic':
+        return {}, requested, ''
+    if profile.image_sizes and AGENT_POST_IMAGE_SIZE not in profile.image_sizes:
+        raise ValueError('当前默认生图模型不支持 1K，Agent 不使用更高分辨率')
+
+    ratios = profile.aspect_ratios
+    applied = requested
+    note = ''
+    if ratios and requested not in ratios:
+        applied = '16:9' if '16:9' in ratios else ratios[0]
+        note = f'比例 {requested} 不受当前生图模型支持，已改用 {applied}'
+    options = resolve_image_generation_request(
+        model,
+        {'aspect_ratio': applied, 'image_size': AGENT_POST_IMAGE_SIZE},
+        scene='agent_post_illustration',
+    )
+    return options, applied, note
 
 
 def _validate_custom_dimensions(value: object) -> tuple[int, int]:
