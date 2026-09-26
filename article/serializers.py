@@ -249,12 +249,12 @@ class ArticleSerializer(serializers.ModelSerializer):
             'mind_map', 'post_summary', 'agent_post_creator_id',
             'agent_post_creator_name', 'agent_post_creator_avatar',
             'agent_post_category', 'agent_post_rating', 'agent_post_rating_count',
-            'my_agent_post_rating', 'post_comment_count'
+            'my_agent_post_rating', 'post_comment_count', 'agent_post_has_been_read'
         ]
         # 只读字段
         read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'tag_details', 'category_detail',
                             'parent_detail', 'attachments', 'is_polishing', 'is_rag_synced', 'last_rag_synced_at',
-                            'mind_map', 'agent_post_rating_count', 'my_agent_post_rating', 'post_comment_count']
+                            'mind_map', 'agent_post_rating_count', 'my_agent_post_rating', 'post_comment_count', 'agent_post_has_been_read']
 
         validators = [
             UniqueTogetherValidator(

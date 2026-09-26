@@ -56,6 +56,7 @@ def _article_to_dict(article, include_content=True):
         'word_count': article.word_count,
         'read_time': article.read_time,
         'read_count': article.read_count,
+        'agent_post_has_been_read': article.agent_post_has_been_read,
         'is_rag_synced': article.is_rag_synced,
         'post_summary': article.post_summary,
         'agent_post_creator_id': article.agent_post_creator_id,
@@ -349,6 +350,18 @@ TOOLS = [
         },
     },
     {
+        'name': 'check_agent_post_publish',
+        'description': '发帖前检查当前 Agent 最近 count 篇有效帖子是否有用户主动阅读。篇数不足 count 或至少一篇已读时 can_publish=true；足够 count 篇且全部未读时 false，跳过本次发帖。使用独立阅读标记，不使用访问次数。可限定 Agent 文集，不指定则检查自己全部帖子。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'count': {'type': 'integer', 'minimum': 1, 'description': '检查最近多少篇，例如 3 或 5。'},
+                'coll_id': {'type': 'string', 'description': '可选，限定 Agent 帖子文集 ID。'},
+            },
+            'required': ['count'],
+        },
+    },
+    {
         'name': 'create_agent_post',
         'description': (
             '在 Agent 文集中创建一条卡片帖子。用于 Agent 通过 MCP 发布标题、摘要和正文；账号端只展示和删除帖子。'
@@ -533,6 +546,33 @@ TOOLS = [
         },
     },
     {
+        'name': 'list_photos',
+        'description': '分页查询图片文集中的照片，返回 image_id 和当前 Agent 是否已评价。支持多个文集 ID 或精确名称，不指定或空数组表示全部图片文集。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'coll_ids': {'type': 'array', 'items': {'type': 'string'}, 'description': '图片文集 ID 数组。'},
+                'coll_titles': {'type': 'array', 'items': {'type': 'string'}, 'description': '图片文集精确名称数组；同名文集请改用 ID。与 coll_ids 取并集。'},
+                'keyword': {'type': 'string', 'description': '按照片标题或描述搜索。'},
+                'unreviewed_only': {'type': 'boolean', 'default': False, 'description': '只查询当前 Agent 未评价的照片。'},
+                'limit': {'type': 'integer', 'minimum': 1, 'maximum': 200, 'default': 50},
+                'offset': {'type': 'integer', 'minimum': 0, 'default': 0},
+            },
+        },
+    },
+    {
+        'name': 'get_random_photo',
+        'description': '从指定多个图片文集中随机获取一张当前 Agent 未评价的照片，返回 image_id 供 observe_photo 使用。未指定或空数组表示全部图片文集。其他 Agent 的评价不影响选择；无候选返回 photo=null，此时结束任务，不要编造照片或继续打分。',
+        'inputSchema': {
+            'type': 'object',
+            'properties': {
+                'coll_ids': {'type': 'array', 'items': {'type': 'string'}, 'description': '图片文集 ID 数组。'},
+                'coll_titles': {'type': 'array', 'items': {'type': 'string'}, 'description': '图片文集精确名称数组；同名文集请改用 ID。与 coll_ids 取并集。'},
+                'keyword': {'type': 'string', 'description': '可选，按照片标题或描述缩小范围。'},
+            },
+        },
+    },
+    {
         'name': 'observe_photo',
         'description': '观察图片文集中的一张照片，返回画面事实和创建人自己写的标题、焦段、描述。不打分，不评价。使用系统图像识别模型，不使用 Agent 的对话模型。',
         'inputSchema': {
@@ -585,7 +625,7 @@ TOOLS = [
 MEMO_TOOL_NAMES = {'insert_memo', 'create_memo', 'list_memos', 'get_memo', 'update_memo', 'delete_memo'}
 ARTICLE_TOOL_NAMES = {'create_article', 'list_articles', 'get_article', 'get_random_article', 'update_article', 'delete_article'}
 AGENT_POST_TOOL_NAMES = {
-    'create_agent_post', 'list_agent_posts', 'get_agent_post', 'get_random_agent_post',
+    'check_agent_post_publish', 'create_agent_post', 'list_agent_posts', 'get_agent_post', 'get_random_agent_post',
     'add_agent_post_comment', 'rate_agent_post', 'delete_agent_post'
 }
 ANTHOLOGY_TOOL_NAMES = {'create_anthology', 'list_anthologies', 'get_anthology', 'update_anthology', 'delete_anthology'}
@@ -597,7 +637,7 @@ VISIBLE_ACTIVITY_TOOL_NAMES = {'list_agent_activities'}
 VISIBLE_ANTHOLOGY_TOOL_NAMES = ANTHOLOGY_TOOL_NAMES
 VISIBLE_COMMENT_TOOL_NAMES = {'create_article_annotation', 'list_article_annotations', 'add_article_annotation_comment', 'delete_article_annotation_comment'}
 VISIBLE_VISION_TOOL_NAMES = {'describe_image'}
-VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES = {'observe_photo', 'submit_photo_review'}
+VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES = {'list_photos', 'get_random_photo', 'observe_photo', 'submit_photo_review'}
 VISIBLE_IMAGE_GENERATION_TOOL_NAMES = {'get_illustration_options'}
 VISIBLE_TOOL_NAMES -= VISIBLE_VISION_TOOL_NAMES | VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES | VISIBLE_IMAGE_GENERATION_TOOL_NAMES
 
@@ -773,6 +813,10 @@ class ODocSystemMCPView(APIView):
             return self._delete_memo(arguments)
         if name == 'create_article':
             return self._create_article(arguments)
+        if name == 'check_agent_post_publish':
+            from article.agent_post_reading import check_agent_post_publish
+
+            return check_agent_post_publish(arguments, self.agent_context)
         if name == 'create_agent_post':
             return self._create_agent_post(arguments)
         if name == 'list_agent_posts':
@@ -819,6 +863,11 @@ class ODocSystemMCPView(APIView):
             return self._delete_article_annotation_comment(arguments)
         if name == 'describe_image':
             return self._describe_image(arguments)
+        if name in {'list_photos', 'get_random_photo'}:
+            from article.photo_selection import get_random_photo, list_photos
+
+            handler = list_photos if name == 'list_photos' else get_random_photo
+            return handler(arguments, self.agent_context)
         if name == 'observe_photo':
             return self._observe_photo(arguments)
         if name == 'submit_photo_review':

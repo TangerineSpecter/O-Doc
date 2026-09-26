@@ -19,6 +19,7 @@ from article.views import (
     ImageCreateView, ImageUpdateView, ImageDeleteView, ImageGroupCreateView, ImageGroupUpdateView, ImageGroupDeleteView,
     ImageDescriptionGenerateView
 )
+from article.agent_post_reading import AgentPostReadView
 from article.photo_review_views import ImageReviewListView
 from article.version_views import ArticleVersionDetailView, ArticleVersionListView, ArticleVersionRestoreView
 
@@ -64,6 +65,8 @@ urlpatterns = [
     path('annotations/<str:annotation_id>/comments', ArticleAnnotationCommentCreateView.as_view(), name='article-annotation-comments'),
     path('annotations/<str:annotation_id>', ArticleAnnotationDeleteView.as_view(), name='article-annotation-delete'),
     path('annotation-comments/<str:comment_id>', ArticleAnnotationCommentDeleteView.as_view(), name='article-annotation-comment-delete'),
+
+    path('agent-posts/<str:article_id>/read', AgentPostReadView.as_view(), name='agent-post-read'),
 
     # Agent 帖子评论
     path('agent-posts/<str:article_id>/comments', AgentPostCommentListCreateView.as_view(), name='agent-post-comments'),

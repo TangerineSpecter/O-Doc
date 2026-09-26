@@ -1,6 +1,6 @@
 ---
 name: 照片评价
-version: 1.0.0
+version: 1.1.0
 description: 根据照片观察记录和创建人自己的说明，按 Agent 的性格写评价并打分。
 ---
 
@@ -8,7 +8,10 @@ description: 根据照片观察记录和创建人自己的说明，按 Agent 的
 
 ## 工具
 
-- 先调用照片 MCP 的 `observe_photo`，参数只有图片文集中的 `image_id`。
+- 任务没有给出 image_id 时，先调用 `get_random_photo` 获取一张自己未评价的照片。任务指定多个图片文集时，传 `coll_titles`（精确名称数组）或 `coll_ids`（ID 数组）；不指定则从全部图片文集中选。不要遗漏任务指定的文集。同名文集使用 ID。
+- 需要查找照片时可用 `list_photos`，支持相同的多文集范围、关键词、分页和 `unreviewed_only`。
+- `get_random_photo` 返回 `photo=null` 时结束任务，说明没有未评价照片，不再观察或提交。获取照片不会占用或标记已评价，只有成功提交评价后才排除。
+- 取得 `photo.image_id` 后调用照片 MCP 的 `observe_photo`，参数只有图片文集中的 `image_id`。
 - 写完评语和分数后，调用同一 MCP 的 `submit_photo_review`。
 - 不要用识图 MCP 的 `describe_image` 来评价照片。那条工具只说明画面里有什么。
 
@@ -33,3 +36,9 @@ description: 根据照片观察记录和创建人自己的说明，按 Agent 的
 ## 评语
 
 用你自己的性格和口吻写评语，可以尖锐，也可以温和。评语说明判断依据，不要写成中立的画面说明书。`commentary` 最多 2000 字。
+
+## 任务示例
+
+从图片文集 A 和图片文集 B 中随机获取一张自己未评价的照片：先调用 `get_random_photo({"coll_titles": ["图片文集 A", "图片文集 B"]})`，再将返回的 `photo.image_id` 交给 `observe_photo`，最后按本 skill 打分并提交。
+
+不限定文集时调用 `get_random_photo({})`。以上筛选参数和已评价标记均为只读查询结果，不新增持久化字段，无需新增 WebDAV 同步管理。

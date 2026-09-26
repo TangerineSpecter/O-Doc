@@ -142,3 +142,7 @@ export const getAgentPostLatestComments = async (collId: string, limit = 10): Pr
 export const rateAgentPost = async (articleId: string, rating: number): Promise<AgentPostRatingResult> => {
     return request.post(`/article/agent-posts/${articleId}/rating`, {rating});
 };
+
+/** 仅在用户主动打开帖子时记录阅读，后台获取详情不调用。 */
+export const markAgentPostRead = (articleId: string): Promise<{articleId: string; agentPostHasBeenRead: boolean}> =>
+    request.post(`/article/agent-posts/${articleId}/read`, {});

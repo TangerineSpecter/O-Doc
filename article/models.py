@@ -126,6 +126,10 @@ class Article(models.Model):
         db_comment="Agent 帖子文集内分类"
     )
 
+    agent_post_has_been_read = models.BooleanField(
+        default=False, help_text='用户主动打开过 Agent 帖子；不由阅读次数推导',
+    )
+
     agent_post_rating = models.PositiveSmallIntegerField(
         default=0,
         help_text="Agent 帖子评分，1-10 分，0 表示未评分",

@@ -22,6 +22,7 @@ export interface Article {
     isValid: boolean;
     permission: 'public' | 'private';
     readCount: number;
+    agentPostHasBeenRead?: boolean;
     wordCount?: number;
     readTime?: number;
     categoryId?: string;

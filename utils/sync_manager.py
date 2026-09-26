@@ -1421,6 +1421,15 @@ class SyncManager:
                 # A legacy/v1 manifest has no per-row state; absence is never treated as deletion.
                 item = local_map.get(key) or remote_map.get(key)
             if item is not None:
+                # 阅读是累积事实，不能被另一设备的标题/评分更新清空。
+                # 仅合并标记，其余字段及删除墓碑仍按原记录规则处理。
+                if item.get('model') == 'article.article' and any(
+                    candidate and (candidate.get('fields') or {}).get('agent_post_has_been_read') is True
+                    for candidate in (base_data.get(key), local_map.get(key), remote_map.get(key))
+                ) and (item.get('fields') or {}).get('agent_post_has_been_read') is not True:
+                    item = {**item, 'fields': {**(item.get('fields') or {}), 'agent_post_has_been_read': True}}
+                    # 合成记录必须有匹配的修订哈希，避免下一轮误判变化。
+                    result_revisions[key] = {**winner, 'hash': canonical_hash(item['fields'])}
                 result.append(item)
                 if key not in base_data:
                     summary['created'] += 1

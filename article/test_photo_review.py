@@ -59,13 +59,46 @@ class PhotoObservationTests(APITestCase):
         self.assertIsNone(error_msg)
         self.assertEqual([tool['name'] for tool in tools], ['describe_image'])
 
-    def test_photo_mcp_exposes_observe_and_submit_only(self):
+    def test_photo_mcp_exposes_selection_observe_and_submit(self):
         tools, error_msg = fetch_mcp_tools(self.server)
         self.assertIsNone(error_msg)
-        self.assertEqual([tool['name'] for tool in tools], ['observe_photo', 'submit_photo_review'])
+        self.assertEqual([tool['name'] for tool in tools], ['list_photos', 'get_random_photo', 'observe_photo', 'submit_photo_review'])
         system_names = {tool['name'] for tool in get_system_mcp_tools_for_scope('system')}
         self.assertNotIn('observe_photo', system_names)
         self.assertNotIn('submit_photo_review', system_names)
+
+    def test_selection_scopes_and_agent_reviews(self):
+        def call(name, arguments, agent=None):
+            result, error = call_mcp_tool(self.server, name, arguments, agent=agent or self.agent_a)
+            self.assertIsNone(error)
+            return result
+
+        result = call('list_photos', {'coll_titles': ['照片', '别人的照片'], 'limit': 1})
+        self.assertEqual(result['total'], 2)
+        self.assertTrue(result['has_more'])
+        call('submit_photo_review', self._scores('评过了'))
+        self.assertIsNone(call('get_random_photo', {'coll_ids': ['photos']})['photo'])
+        self.assertEqual(call('get_random_photo', {}, self.agent_b)['photo']['reviewed_by_me'], False)
+        self.assertEqual(call('get_random_photo', {'coll_titles': ['照片', '别人的照片']})['photo']['image_id'], 'photo-hidden')
+        self.assertEqual(call('get_random_photo', {'coll_ids': []})['photo']['image_id'], 'photo-hidden')
+        listed = call('list_photos', {'unreviewed_only': True})
+        self.assertEqual([item['image_id'] for item in listed['photos']], ['photo-hidden'])
+        self.hidden.is_valid = False
+        self.hidden.save()
+        self.assertIsNone(call('get_random_photo', {})['photo'])
+
+    def test_selection_rejects_invalid_scope_and_missing_agent(self):
+        for arguments in ({'coll_ids': ['missing']}, {'coll_titles': ['不存在']}, {'coll_ids': 'photos'}):
+            result, error = call_mcp_tool(self.server, 'get_random_photo', arguments, agent=self.agent_a)
+            self.assertIsNone(result)
+            self.assertTrue(error)
+        result, error = call_mcp_tool(self.server, 'get_random_photo', {})
+        self.assertIsNone(result)
+        self.assertIn('已绑定的 Agent', error)
+        Anthology.objects.create(coll_id='duplicate', title='照片', type='image', user_id='other')
+        result, error = call_mcp_tool(self.server, 'get_random_photo', {'coll_titles': ['照片']}, agent=self.agent_a)
+        self.assertIsNone(result)
+        self.assertIn('重复', error)
 
     def test_parse_observation_keeps_six_sections(self):
         sections = parse_observation(OBSERVATION)

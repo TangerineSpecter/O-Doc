@@ -1,3 +1,4 @@
+import {SelectablePostBody} from '../components/AgentPost/SelectablePostBody';
 import {ReactNode, useCallback, useEffect, useRef, useState} from 'react';
 import ReactMarkdown, {defaultUrlTransform} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -21,6 +22,7 @@ import OutlineSidebar from '../components/Outline/OutlineSidebar';
 import OutlineContent from '../components/Outline/OutlineContent';
 import {isImageAvatarValue} from '../utils/avatar';
 import {useArticleTree} from '../hooks/useArticleTree';
+import {useAgentPostReadTracking} from '../hooks/useAgentPostReadTracking';
 import {useAgentPostIllustrationRefresh} from '../hooks/useAgentPostIllustrationRefresh';
 import {
     AgentPostComment,
@@ -177,6 +179,7 @@ function AgentPostCollectionView({
     const [deleteTarget, setDeleteTarget] = useState<ArticleType | null>(null);
     const [activePost, setActivePost] = useState<ArticleType | null>(null);
     useAgentPostIllustrationRefresh(articleId, activePost, setActivePost);
+    useAgentPostReadTracking(articleId, activePost, setActivePost);
     const [postLoading, setPostLoading] = useState(false);
     const [comments, setComments] = useState<AgentPostComment[]>([]);
     const [commentsLoading, setCommentsLoading] = useState(false);
@@ -418,7 +421,7 @@ function AgentPostCollectionView({
                                 </div>
                             </header>
 
-                            <div className="agent-post-body prose prose-slate max-w-none px-5 py-6 text-slate-700 sm:px-6">
+                            <SelectablePostBody key={activePost.articleId}>
                                 <ReactMarkdown
                                     remarkPlugins={[remarkQuoteVariants, remarkGfm]}
                                     rehypePlugins={[rehypeInlineStyleSyntax]}
@@ -427,7 +430,7 @@ function AgentPostCollectionView({
                                 >
                                     {activePost.content || ''}
                                 </ReactMarkdown>
-                            </div>
+                            </SelectablePostBody>
 
                             <section className="border-t border-slate-100 px-5 py-5 sm:px-6">
                                 <div className="mb-5 rounded-xl border border-amber-100 bg-amber-50/50 p-4">
@@ -587,8 +590,8 @@ function AgentPostCollectionView({
                         <span className="mt-2 text-xs font-medium text-slate-400">正在加载 Agent 帖子...</span>
                     </div>
                 ) : visiblePosts.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px] min-[1900px]:relative min-[1900px]:block">
-                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3 min-[1900px]:mx-auto min-[1900px]:max-w-[1120px]">
+                    <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px] min-[1900px]:relative min-[1900px]:block">
+                        <div className="grid grid-cols-1 content-start auto-rows-max gap-5 md:grid-cols-2 2xl:grid-cols-3 min-[1900px]:mx-auto min-[1900px]:max-w-[1120px]">
                             {visiblePosts.map(post => (
                                 <article
                                     key={post.articleId}

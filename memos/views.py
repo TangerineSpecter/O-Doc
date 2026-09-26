@@ -13,16 +13,10 @@ from utils.rag_client import RagClient
 from utils.response_utils import success_result, error_result
 from .models import Memo
 from .serializers import MemoSerializer
+from .vector_sync import schedule_memo_vector_sync
 
 
 logger = logging.getLogger(__name__)
-
-
-def sync_memo_vector_safely(memo):
-    try:
-        RagClient.add_memo(memo)
-    except Exception:
-        logger.exception('Failed to synchronize memo vector: memo_id=%s', memo.memo_id)
 
 
 def get_current_user_memo_queryset(request):
@@ -57,7 +51,7 @@ class MemoCreateView(APIView):
         serializer = MemoSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         memo = serializer.save()
-        sync_memo_vector_safely(memo)
+        schedule_memo_vector_sync(str(memo.memo_id))
         return success_result(data=MemoSerializer(memo).data)
 
 
@@ -78,7 +72,7 @@ class MemoUpdateView(APIView):
             serializer = MemoSerializer(memo, data=request.data, partial=True, context={'request': request})
             serializer.is_valid(raise_exception=True)
             updated_memo = serializer.save()
-            sync_memo_vector_safely(updated_memo)
+            schedule_memo_vector_sync(str(updated_memo.memo_id))
             return success_result(data=MemoSerializer(updated_memo).data)
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))

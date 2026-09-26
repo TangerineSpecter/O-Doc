@@ -191,7 +191,7 @@ def _sync_scanned_system_mcp_servers(request, value):
         value,
         '照片 MCP',
         '/api/system-mcp/photo-observation/',
-        'O-Doc 内置系统 MCP。观察图片文集中的照片，并保存 Agent 提交的评价和分数。不替代识图 MCP 的画面描述。',
+        'O-Doc 内置系统 MCP。支持查询照片、从多个图片文集随机选取当前 Agent 未评价的照片，观察照片并保存评价和分数。不替代识图 MCP 的画面描述。',
         _photo_observation_mcp_tools(),
     )
     _sync_builtin_system_mcp_server(
@@ -565,7 +565,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             'env': {},
             'source': 'system',
             'enabled': bool(value.get('enabled', True)),
-            'description': 'O-Doc 内置系统 MCP。观察图片文集中的照片，并保存 Agent 提交的评价和分数。不替代识图 MCP 的画面描述。',
+            'description': 'O-Doc 内置系统 MCP。支持查询照片、从多个图片文集随机选取当前 Agent 未评价的照片，观察照片并保存评价和分数。不替代识图 MCP 的画面描述。',
             'tools': cls._format_builtin_tools(VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES),
         }
 

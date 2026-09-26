@@ -169,6 +169,8 @@ class RagClient:
     @classmethod
     def add_memo(cls, memo):
         """添加或更新一条闪念到向量库"""
+        from memos.models import Memo
+
         content = (memo.content or '').strip()
         if not content:
             return 0
@@ -178,6 +180,10 @@ class RagClient:
             logger.warning('Memo vector generation returned no embeddings: memo_id=%s', memo.memo_id)
             return 0
 
+        # Embedding 期间可能被删除或编辑，不写回过期内容。
+        current = Memo.objects.filter(memo_id=memo.memo_id, is_valid=True).first()
+        if current is None or current.updated_at != memo.updated_at:
+            return 0
         collection = cls.get_memo_collection()
         collection.upsert(
             documents=[content],
@@ -192,6 +198,11 @@ class RagClient:
             }],
             ids=[str(memo.memo_id)]
         )
+        # 删除可能发生在前一次检查与 upsert 之间。删除接口也会清理
+        # 向量；这里覆盖删除清理先完成、旧任务随后写入的顺序。
+        if not Memo.objects.filter(memo_id=memo.memo_id, is_valid=True).exists():
+            collection.delete(ids=[str(memo.memo_id)])
+            return 0
         return 1
 
     @classmethod
