@@ -49,6 +49,40 @@ class AgentViewSet(viewsets.ModelViewSet):
     queryset = Agent.objects.select_related('model', 'model__provider').all()
     serializer_class = AgentSerializer
 
+    @action(detail=False, methods=['post'], url_path='describe-avatar', permission_classes=[IsAuthenticated])
+    def describe_avatar(self, request):
+        from .agent_prompt_generation import DescribeAgentAvatarSerializer, describe_avatar
+        serializer = DescribeAgentAvatarSerializer(data=request.data)
+        if not serializer.is_valid():
+            return valid_result(msg='请提供有效的头像资源', data=serializer.errors, status=400)
+        return success_result(describe_avatar(request, serializer.validated_data['avatar']))
+
+    @action(detail=False, methods=['post'], url_path='generate-prompt', permission_classes=[IsAuthenticated])
+    def generate_prompt(self, request):
+        from .agent_prompt_generation import AgentPromptOutputError, GenerateAgentPromptSerializer, describe_avatar, generate_agent_prompt
+        serializer = GenerateAgentPromptSerializer(data=request.data)
+        if not serializer.is_valid():
+            message = next(iter(serializer.errors.values()))[0]
+            return valid_result(msg=str(message), data=serializer.errors, status=400)
+        data = dict(serializer.validated_data)
+        avatar_used, warning = bool(data['avatar_description']), ''
+        if data['reference_avatar']:
+            vision = describe_avatar(request, data['avatar'])
+            data['avatar_description'] = vision['description']
+            avatar_used, warning = vision['avatar_used'], vision['warning']
+        try:
+            result = generate_agent_prompt(data)
+        except AgentPromptOutputError as exc:
+            return valid_result(msg=str(exc), status=502)
+        except ValueError as exc:
+            if str(exc) == 'No default model configured':
+                return valid_result(msg='请先选择对话模型或配置系统默认对话模型', status=400)
+            return valid_result(msg='角色设定生成不完整，请检查模型配置或重试', status=502)
+        except Exception:
+            logger.exception('Agent prompt generation failed')
+            return valid_result(msg='生成失败，请检查模型配置或稍后重试', status=502)
+        return success_result({**result, 'avatar_used': avatar_used, 'warning': warning})
+
     @staticmethod
     def _sync_feishu_im_connection(agent_id):
         def sync_connection():

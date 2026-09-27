@@ -50,6 +50,7 @@ import {useRandomTaskProgress} from './agent/useRandomTaskProgress';
 import {useAgentMemories} from './agent/useAgentMemories';
 import {useAgentAvatarUpload} from './agent/useAgentAvatarUpload';
 import {isImageAvatarValue} from '@/utils/avatar';
+import {AgentPromptGenerator} from './agent/AgentPromptGenerator';
 
 interface AgentSettingsProps {
     agents: AgentConfig[];
@@ -1766,8 +1767,9 @@ export const AgentSettings = ({
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-700">提示词</label>
+                                <AgentPromptGenerator key={form.id || 'new-agent'} name={form.name} avatar={form.avatar} modelId={form.model} prompt={form.prompt} avatarUploading={avatarUploading} onApply={prompt => setForm(prev => ({...prev, prompt}))}/>
                                 <textarea
+                                    id="agent-prompt"
                                     value={form.prompt}
                                     onChange={event => setForm({...form, prompt: event.target.value})}
                                     rows={7}
