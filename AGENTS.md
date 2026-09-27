@@ -17,5 +17,9 @@
 - 通用下拉选择组件：`frontend_react/src/components/common/Select.tsx`
 - UI 视觉规范：`docs/UI设计规范文档.md`
 
+# 前端开发规范与红线
+- **【严禁原生下拉】全系统严禁直接使用 HTML 原生 `<select>` 标签**。所有表单输入、筛选条、设置面板和弹窗中的下拉框，必须统一使用 `frontend_react/src/components/common/Select.tsx`，模态弹窗（Modal）中应显式配置 `menuPortal={true}` 避免被滚动条截断。
+- **【视觉一致性】**：设置面板与管理列表页面必须严格遵从 `docs/UI设计规范文档.md`，使用白底大圆角卡片（`bg-white rounded-2xl border border-slate-200 p-6 shadow-sm`）、胶囊分段控制器和模态弹窗，严禁散落裸露标题或在列表下方展开破坏布局的内嵌表单。
+
 # 注意事项
 - 系统中有WebDev的同步逻辑，如果新增数据和字段，需确认是否在WebDev中同步管理，确保数据有被同步。

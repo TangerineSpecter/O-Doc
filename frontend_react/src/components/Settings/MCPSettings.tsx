@@ -373,34 +373,34 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-2 bg-orange-50 text-orange-600 rounded-lg shrink-0">
                             <Code2 className="w-5 h-5"/>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                             <h3 className="font-bold text-slate-800">MCP 设置</h3>
                             <p className="text-xs text-slate-500 mt-1">扫描本机已配置 MCP，也可以接入外部 MCP 服务；Tavily 搜索会作为系统默认角色资料源识别。</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                         <button
                             onClick={handleScan}
                             disabled={scanning}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-orange-600 hover:border-orange-200 rounded-lg text-xs font-medium transition-all shadow-sm disabled:opacity-60"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-orange-600 hover:border-orange-200 rounded-lg text-xs font-medium transition-all shadow-sm disabled:opacity-60 whitespace-nowrap shrink-0"
                         >
                             {scanning ? (
-                                <div className="w-3.5 h-3.5 rounded-full border-2 border-orange-200 border-t-orange-500 animate-spin"/>
+                                <div className="w-3.5 h-3.5 rounded-full border-2 border-orange-200 border-t-orange-500 animate-spin shrink-0"/>
                             ) : (
-                                <Radar className="w-3.5 h-3.5"/>
+                                <Radar className="w-3.5 h-3.5 shrink-0"/>
                             )}
                             扫描系统 MCP
                         </button>
                         <button
                             onClick={openCreateModal}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20 whitespace-nowrap shrink-0"
                         >
-                            <Plus className="w-3.5 h-3.5"/>
+                            <Plus className="w-3.5 h-3.5 shrink-0"/>
                             接入外部 MCP
                         </button>
                     </div>

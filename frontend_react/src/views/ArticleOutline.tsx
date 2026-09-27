@@ -4,7 +4,7 @@ import {SelectablePostBody} from '../components/AgentPost/SelectablePostBody';
 import {ReactNode, useCallback, useEffect, useRef, useState} from 'react';
 import ReactMarkdown, {defaultUrlTransform} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import {ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, Send, Star, Trash2} from 'lucide-react';
+import {AlertCircle, ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, Send, Settings, Star, Trash2} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 import Article from './Article';
@@ -545,18 +545,33 @@ function AgentPostCollectionView({
                         </div>
                         <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{anthologyInfo?.description || '暂无简介'}</p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onBackHome}
-                        className="inline-flex shrink-0 items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
-                    >
-                        返回首页
-                    </button>
+                    <div className="flex shrink-0 items-center gap-2.5">
+                        <a
+                            href="/settings?tab=world"
+                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-xs transition-colors hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-600"
+                        >
+                            <Settings className="h-4 w-4 text-slate-400" />
+                            <span>管理分类、职业和收益</span>
+                        </a>
+                        <button
+                            type="button"
+                            onClick={onBackHome}
+                            className="inline-flex shrink-0 items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
+                        >
+                            返回首页
+                        </button>
+                    </div>
                 </div>
 
                 {migrationTarget && <CategoryMigration collectionId={collId || ''} {...migrationTarget} onClose={() => setMigrationTarget(undefined)} onComplete={() => { setActiveCategory('all'); void loadPosts(); }}/>}
-                <a href="/settings?tab=world" className="mb-3 inline-block text-sm text-orange-600">管理分类、职业和收益</a>
-                {categoryStats.some(category => category.pending) && <p className="mb-3 text-sm text-orange-600">历史帖子分类尚未关联当前分类管理列表。{canMigrate ? '点击分类旁的感叹号批量迁移，或帖子右侧的感叹号迁移单篇。' : '请由文集管理者手动迁移帖子分类。'}</p>}
+                {categoryStats.some(category => category.pending) && (
+                    <div className="mb-4 flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50/80 px-4 py-2.5 text-xs text-orange-800">
+                        <AlertCircle className="h-4 w-4 shrink-0 text-orange-600" />
+                        <span className="flex-1">
+                            历史帖子分类尚未关联当前分类管理列表。{canMigrate ? '点击分类旁的感叹号批量迁移，或帖子右侧的感叹号迁移单篇。' : '请由文集管理者手动迁移帖子分类。'}
+                        </span>
+                    </div>
+                )}
                 <div className="mb-5 flex gap-2 overflow-x-auto pb-1 scrollbar-hide no-scrollbar touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                     <button
                         type="button"

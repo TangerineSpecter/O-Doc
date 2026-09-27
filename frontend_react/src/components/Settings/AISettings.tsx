@@ -308,9 +308,9 @@ export const AISettings = ({
                     </h3>
                     <button
                         onClick={() => onOpenProviderModal()}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-orange-600 hover:border-orange-200 rounded-lg text-xs font-medium transition-all shadow-sm"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-orange-600 hover:border-orange-200 rounded-lg text-xs font-medium transition-all shadow-sm whitespace-nowrap shrink-0"
                     >
-                        <Plus className="w-3.5 h-3.5"/> 添加服务商
+                        <Plus className="w-3.5 h-3.5 shrink-0"/> 添加服务商
                     </button>
                 </div>
 

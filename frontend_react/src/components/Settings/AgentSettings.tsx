@@ -733,18 +733,18 @@ export const AgentSettings = ({
                         {activeView === 'list' && (
                             <button
                                 onClick={openCreateModal}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20 whitespace-nowrap shrink-0"
                             >
-                                <Plus className="w-3.5 h-3.5"/>
+                                <Plus className="w-3.5 h-3.5 shrink-0"/>
                                 创建 Agent
                             </button>
                         )}
                         {activeView === 'tasks' && (
                             <button
                                 onClick={openCreateTaskModal}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20 whitespace-nowrap shrink-0"
                             >
-                                <Plus className="w-3.5 h-3.5"/>
+                                <Plus className="w-3.5 h-3.5 shrink-0"/>
                                 新建任务
                             </button>
                         )}
@@ -1744,8 +1744,9 @@ export const AgentSettings = ({
                                 </div>
                             </div>
 
+                            <ProfessionSelect value={form.profession} onChange={profession => setForm({...form, profession})}/>
+
                             <div className="space-y-2">
-                                <ProfessionSelect value={form.profession} onChange={profession => setForm({...form, profession})}/>
                                 <label className="text-sm font-semibold text-slate-700">名字</label>
                                 <input
                                     value={form.name}

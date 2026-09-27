@@ -102,9 +102,9 @@ export const SkillSettings = ({skills, onSave, onDelete}: SkillSettingsProps) =>
                 </div>
                 <button
                     onClick={openCreateModal}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-white shadow-sm shadow-orange-500/20 transition-colors hover:bg-orange-600 active:bg-orange-700"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-white shadow-sm shadow-orange-500/20 transition-colors hover:bg-orange-600 active:bg-orange-700 whitespace-nowrap shrink-0"
                 >
-                    <Plus className="h-4 w-4"/>
+                    <Plus className="h-4 w-4 shrink-0"/>
                     创建技能
                 </button>
             </div>

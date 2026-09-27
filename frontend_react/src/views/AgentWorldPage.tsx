@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import {Activity, ArrowLeft, Bot, BookOpenText, MessageCircle, RefreshCw, Sparkles} from 'lucide-react';
+import {Activity, ArrowLeft, Bot, BookOpenText, MessageCircle, RefreshCw, Settings, Sparkles} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import AgentActivityCard from '../components/AgentWorld/AgentActivityCard';
 import AgentAttributePanel from '../components/AgentWorld/AgentAttributePanel';
@@ -43,13 +43,22 @@ export default function AgentWorldPage() {
 
     return (
         <main className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
-            <button
-                type="button"
-                onClick={() => navigate('/')}
-                className="mb-2.5 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 transition-colors hover:bg-white hover:text-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/20 sm:mb-3 sm:px-2.5 sm:py-2"
-            >
-                <ArrowLeft className="h-4 w-4"/>返回文集
-            </button>
+            <div className="mb-2.5 flex items-center justify-between sm:mb-3">
+                <button
+                    type="button"
+                    onClick={() => navigate('/')}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 transition-colors hover:bg-white hover:text-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/20 sm:px-2.5 sm:py-2"
+                >
+                    <ArrowLeft className="h-4 w-4"/>返回文集
+                </button>
+                <a
+                    href="/settings?tab=world"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 shadow-xs transition-colors hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-600 sm:px-3 sm:py-1.5"
+                >
+                    <Settings className="h-3.5 w-3.5 text-slate-400" />
+                    <span>分类、职业与收益管理</span>
+                </a>
+            </div>
 
             {/* 顶部 Header / 概览区：移动端紧凑收拢，桌面端大气展开 */}
             <section className="overflow-hidden rounded-2xl border border-orange-100 bg-gradient-to-br from-white via-orange-50/30 to-amber-50 p-3.5 shadow-xs sm:p-6 sm:shadow-sm">
@@ -84,7 +93,6 @@ export default function AgentWorldPage() {
                 </div>
             </section>
 
-            <a href="/settings?tab=world" className="mx-4 my-2 inline-block text-sm text-orange-600">分类、职业与收益管理</a>
             {/* 移动端专属居民状态横滑栏：置顶于动态流上方，随时可横滑感知与点击筛选 (< lg) */}
             <div className="mt-3 lg:hidden">
                 <AgentResidentsMobileBar

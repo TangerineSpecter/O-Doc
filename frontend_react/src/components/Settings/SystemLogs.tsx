@@ -3,6 +3,7 @@ import { RefreshCw, Download, Trash2, AlertTriangle } from 'lucide-react';
 import { useSystemLogs } from '@/hooks/useSystemLogs';
 import { SystemLogDetail } from './SystemLogDetail';
 import ConfirmationModal from '@/components/common/ConfirmationModal';
+import { Select } from '@/components/common/Select';
 
 const time = (value: number | null) => value ? new Date(value * 1000).toLocaleString() : '暂无';
 const button = 'inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-40';
@@ -21,7 +22,23 @@ export function SystemLogs() {
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-slate-900">系统日志</h2><p className="mt-1 text-sm text-slate-500">汇总本机异常，日志不参与云端同步。</p></div><button className={button} disabled={logs.loading || logs.busy} onClick={() => void logs.refresh()}><RefreshCw className="h-4 w-4" />刷新</button></div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">{[['最近 24 小时异常', logs.overview?.recent ?? '—'], ['最近异常', time(logs.overview?.latest ?? null)], ['日志占用', logs.overview ? `${(logs.overview.bytes / 1024 / 1024).toFixed(2)} MB / ${logs.overview.policy.maxMb} MB` : '—']].map(([label, value]) => <div key={label} className="rounded-2xl border border-slate-100 bg-white p-4"><p className="text-xs text-slate-500">{label}</p><p className="mt-2 break-words text-sm font-semibold text-slate-800">{value}</p></div>)}</div>
         <form className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4" onSubmit={event => { event.preventDefault(); void logs.savePolicy(days, mb).then(saved => { if (saved) setPolicyDraft(null); }); }}><span className="text-sm text-slate-600">自动保留</span><label className="flex items-center gap-2 text-sm"><input aria-label="保留天数" type="number" min={1} max={3650} required className={`${input} w-20`} value={days} onChange={e => setPolicyDraft({ days: Number(e.target.value), mb })} />天</label><label className="flex items-center gap-2 text-sm">最多<input aria-label="空间上限" type="number" min={1} max={10240} required className={`${input} w-24`} value={mb} onChange={e => setPolicyDraft({ days, mb: Number(e.target.value) })} />MB</label><button className={button} disabled={logs.busy}>保存策略</button><p className="w-full text-xs text-slate-400">超出期限或容量时优先清理最旧记录。调整策略可能立即清理日志。</p></form>
-        <div className="flex flex-wrap gap-2"><input className={`${input} w-full sm:flex-1`} aria-label="搜索日志" placeholder="搜索标题或异常类型" value={logs.query.q} onChange={e => filter('q', e.target.value)} /><select className={input} aria-label="日志模块" value={logs.query.module} onChange={e => filter('module', e.target.value)}><option value="">全部模块</option>{logs.overview?.modules.map(module => <option key={module}>{module}</option>)}</select><input className={input} aria-label="开始时间" type="datetime-local" onChange={e => filter('since', e.target.value)} /><input className={input} aria-label="结束时间" type="datetime-local" onChange={e => filter('until', e.target.value)} /></div>
+        <div className="flex flex-wrap items-center gap-2">
+            <input className={`${input} w-full sm:flex-1`} aria-label="搜索日志" placeholder="搜索标题或异常类型" value={logs.query.q} onChange={e => filter('q', e.target.value)} />
+            <div className="w-full sm:w-44">
+                <Select
+                    value={logs.query.module || ''}
+                    options={[
+                        { value: '', label: '全部模块' },
+                        ...(logs.overview?.modules.map(module => ({ value: module, label: module })) || []),
+                    ]}
+                    onChange={value => filter('module', value)}
+                    placeholder="全部模块"
+                    buttonClassName="h-10 text-xs rounded-xl"
+                />
+            </div>
+            <input className={input} aria-label="开始时间" type="datetime-local" onChange={e => filter('since', e.target.value)} />
+            <input className={input} aria-label="结束时间" type="datetime-local" onChange={e => filter('until', e.target.value)} />
+        </div>
         <div className="flex flex-wrap items-center gap-2"><button className={button} disabled={!selected.length || logs.busy} onClick={() => void logs.download(selected)}><Download className="h-4 w-4" />下载选中</button><button className={`${button} text-red-600`} disabled={!selected.length || logs.busy} onClick={() => setConfirmation({ ids: selected })}><Trash2 className="h-4 w-4" />删除选中</button><button className={`${button} text-red-600`} disabled={!logs.overview?.total || logs.busy} onClick={() => setConfirmation({ ids: null })}>清空全部</button><span className="text-xs text-slate-500">共 {logs.page.total} 条</span></div>
         {logs.detailLoading && <p role="status" className="text-sm text-slate-500">正在加载异常明细…</p>}
         {logs.error && <p role="alert" className="flex items-center gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-600"><AlertTriangle className="h-4 w-4" />{logs.error}</p>}

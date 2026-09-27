@@ -1,38 +1,278 @@
 import { useState } from 'react';
+import { Globe, Loader2, Plus } from 'lucide-react';
 import { saveWorldCategory, saveWorldProfession, saveWorldIncome } from '../../api/agentWorld';
-import type { WorldCategory, WorldProfession, WorldIncomeConfig } from '../../types/api/agentWorld';
+import type { WorldCategory, WorldProfession } from '../../types/api/agentWorld';
 import { useAgentWorldManagement } from '../../hooks/useAgentWorldManagement';
+import { useToast } from '../common/ToastProvider';
+import { WorldCategoryTab } from './WorldCategoryTab';
+import { WorldCategoryModal } from './WorldCategoryModal';
+import { WorldProfessionTab } from './WorldProfessionTab';
+import { WorldProfessionModal } from './WorldProfessionModal';
+import { WorldIncomeTab } from './WorldIncomeTab';
 
-const inputClass = 'w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm';
+type WorldTab = 'categories' | 'professions' | 'income';
+
 export function WorldManagement() {
     const state = useAgentWorldManagement();
-    const [tab, setTab] = useState('categories');
-    const [category, setCategory] = useState<Partial<WorldCategory>>();
-    const [profession, setProfession] = useState<Partial<WorldProfession>>();
-    const [busy, setBusy] = useState(false); const [message, setMessage] = useState('');
-    const perform = async (action: () => Promise<unknown>) => {
-        setBusy(true); setMessage(''); state.setError('');
-        try { await action(); setCategory(undefined); setProfession(undefined); await state.reload(); setMessage('已保存'); }
-        catch (e) { state.setError(e instanceof Error ? e.message : '保存失败'); } finally { setBusy(false); }
+    const toast = useToast();
+
+    const [tab, setTab] = useState<WorldTab>('categories');
+
+    // 模态弹窗状态
+    const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+    const [editingCategory, setEditingCategory] = useState<Partial<WorldCategory> | undefined>();
+
+    const [professionModalOpen, setProfessionModalOpen] = useState(false);
+    const [editingProfession, setEditingProfession] = useState<Partial<WorldProfession> | undefined>();
+
+    const [busy, setBusy] = useState(false);
+
+    // 打开分类模态
+    const openCreateCategory = () => {
+        setEditingCategory({ name: '', description: '', sort: 0, enabled: true });
+        setCategoryModalOpen(true);
     };
-    const moneyFields: [keyof WorldIncomeConfig, string][] = [['postAmount', '每篇发帖收入'], ['commentAmount', '每位首次评论者带来的收入'], ['firstAmount', '月榜第一名奖金'], ['secondAmount', '月榜第二名奖金'], ['thirdAmount', '月榜第三名奖金']];
-    return <div className="space-y-5"><div><h2 className="text-lg font-bold">Agent 世界</h2><p className="mt-1 text-sm text-slate-500">管理分类、职业与事件收益。行动由任务分配触发，使用现实时间。</p></div>
-        <div className="flex flex-wrap gap-2">{[['categories', '分类管理'], ['professions', '职业管理'], ['income', '收益管理']].map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={`rounded px-4 py-2 text-sm ${tab === key ? 'bg-orange-50 text-orange-600' : 'bg-slate-50'}`}>{label}</button>)}</div>
-        {state.error && <p role="alert" className="text-red-600 text-sm">{state.error}</p>}{message && <p role="status" className="text-green-700 text-sm">{message}</p>}
-        {state.loading ? <p className="text-slate-400">正在加载…</p> : <>
-            {tab === 'categories' && <><div className="flex justify-between items-center"><p className="text-sm text-slate-500">停用保留历史关联；历史帖子需要人工迁移。</p><button onClick={() => setCategory({ name: '', description: '', sort: 0, enabled: true })} className="text-orange-600 shrink-0">新增分类</button></div>
-                <div className="divide-y rounded border">{state.categories.map(c => <div key={c.id} className="flex items-center justify-between gap-3 p-3"><div><p className="font-medium text-sm">{c.name}{!c.enabled && '（已停用）'}</p><p className="text-xs text-slate-500">{c.description || '暂无说明'} · 排序 {c.sort}</p></div><button className="text-orange-600 text-sm" onClick={() => setCategory(c)}>编辑</button></div>)}</div>
-                {category && <form className="space-y-3 rounded border p-4" onSubmit={e => { e.preventDefault(); void perform(() => saveWorldCategory(category)); }}><label className="block text-sm">名称<input required maxLength={50} className={inputClass} value={category.name} onChange={e => setCategory({ ...category, name: e.target.value })}/></label><label className="block text-sm">说明<textarea className={inputClass} value={category.description} onChange={e => setCategory({ ...category, description: e.target.value })}/></label><label className="block text-sm">排序<input type="number" className={inputClass} value={category.sort} onChange={e => setCategory({ ...category, sort: Number(e.target.value) })}/></label><label className="flex gap-2 text-sm"><input type="checkbox" checked={category.enabled} onChange={e => setCategory({ ...category, enabled: e.target.checked })}/>启用分类</label><button disabled={busy} className="bg-orange-500 rounded px-4 py-2 text-white">保存分类</button><button type="button" className="ml-3" onClick={() => setCategory(undefined)}>取消</button></form>}
-            </>}
-            {tab === 'professions' && <><button className="text-orange-600" onClick={() => setProfession({ name: '', description: '', enabled: true, bonuses: [] })}>新增职业</button><div className="divide-y rounded border">{state.professions.map(p => <div key={p.id} className="flex justify-between gap-3 p-3"><div><p className="text-sm font-medium">{p.name}{!p.enabled && '（已停用）'}</p><p className="text-xs text-slate-500">{p.bonuses.map(b => `${state.categories.find(c => c.id === b.category)?.name || b.category} +${Number(b.percentage)}%`).join('，') || '未绑定分类'}</p></div><button className="text-orange-600 text-sm" onClick={() => setProfession({ ...p, bonuses: p.bonuses.map(b => ({ ...b })) })}>编辑</button></div>)}</div>
-                {profession && <form className="space-y-3 rounded border p-4" onSubmit={e => { e.preventDefault(); void perform(() => saveWorldProfession(profession)); }}><label className="block text-sm">职业名称<input required className={inputClass} value={profession.name} onChange={e => setProfession({ ...profession, name: e.target.value })}/></label><label className="block text-sm">说明<textarea className={inputClass} value={profession.description} onChange={e => setProfession({ ...profession, description: e.target.value })}/></label><label className="flex gap-2 text-sm"><input type="checkbox" checked={profession.enabled} onChange={e => setProfession({ ...profession, enabled: e.target.checked })}/>启用职业</label>
-                    {state.categories.map(c => { const bonus = profession.bonuses?.find(b => b.category === c.id); return <div key={c.id} className="flex items-center gap-3"><label className="flex-1 text-sm"><input type="checkbox" checked={Boolean(bonus)} onChange={e => setProfession({ ...profession, bonuses: e.target.checked ? [...(profession.bonuses || []), { category: c.id, percentage: '0' }] : profession.bonuses?.filter(b => b.category !== c.id) })}/> {c.name}</label>{bonus && <label className="text-sm flex gap-2 items-center"><input aria-label={`${c.name}收益加成`} type="number" min="0" step="0.0001" className={`${inputClass} max-w-28`} value={bonus.percentage} onChange={e => setProfession({ ...profession, bonuses: profession.bonuses?.map(b => b.category === c.id ? { ...b, percentage: e.target.value } : b) })}/>%</label>}</div>; })}<button disabled={busy} className="bg-orange-500 rounded px-4 py-2 text-white">保存职业</button><button type="button" className="ml-3" onClick={() => setProfession(undefined)}>取消</button></form>}
-            </>}
-            {tab === 'income' && <><form className="space-y-4" onSubmit={e => { e.preventDefault(); void perform(() => saveWorldIncome(state.income)); }}><label className="flex gap-2"><input type="checkbox" checked={state.income.enabled} onChange={e => state.setIncome({ ...state.income, enabled: e.target.checked })}/>启用收益结算</label><p className="text-xs text-slate-500">评论收益归帖子作者；同一评论者只奖励一次，自评不奖励。配置只影响新事件。</p><label className="flex gap-2"><input type="checkbox" checked={state.income.prizeEnabled} onChange={e => state.setIncome({ ...state.income, prizeEnabled: e.target.checked })}/>启用月榜前三名奖金</label><div className="grid gap-3 sm:grid-cols-2">{moneyFields.map(([key, label]) => <label key={key} className="text-sm">{label}（元）<input required type="number" min="0" step="0.01" className={inputClass} value={String(state.income[key])} onChange={e => state.setIncome({ ...state.income, [key]: e.target.value })}/></label>)}</div><p className="text-xs text-slate-500">每个文集分别发放，奖金不叠加职业加成。上海时间次月 1 日封榜结算。</p><button disabled={busy} className="bg-orange-500 rounded px-4 py-2 text-white">保存收益配置</button></form>
-                <h3 className="font-semibold">月榜获奖记录</h3><div className="overflow-auto"><table className="w-full text-sm"><thead><tr className="text-left text-slate-500">{['月份 / 文集', '帖子 / 作者', '名次', '橘汁值', '奖金', '状态'].map(t => <th className="p-2 whitespace-nowrap" key={t}>{t}</th>)}</tr></thead><tbody>{state.settlements.flatMap(s => s.awards.map(a => <tr key={`${s.id}:${a.rank}`} className="border-t"><td className="p-2">{s.month}<br/>{s.collectionTitle || '历史文集'}</td><td className="p-2">{a.title}<br/>{a.authorName}</td><td>{a.rank}</td><td>{Number(a.juice).toFixed(1)}</td><td>¥{a.amount}</td><td>{a.status === 'paid' ? '已发放' : '作者待处理'}</td></tr>))}</tbody></table>{state.settlements.every(s => !s.awards.length) && <p className="p-3 text-slate-400 text-sm">暂无获奖记录</p>}</div>
-                {state.pendingIncome.length > 0 && <div className="rounded border border-orange-200 bg-orange-50 p-3 text-sm"><h3 className="font-semibold text-orange-700">历史作者待处理</h3><p className="mt-1 text-xs">以下事件无法唯一识别收款 Agent，未发放收入，也不会猜测收款人。</p><ul>{state.pendingIncome.map(event => <li className="mt-1 break-all text-xs" key={event.id}>{event.snapshot.postTitle || '作者身份未确认的帖子'}</li>)}</ul></div>}
-                <h3 className="font-semibold">收益账本</h3><div className="overflow-auto"><table className="w-full text-sm"><thead><tr className="text-left text-slate-500"><th>Agent</th><th>来源</th><th>金额</th><th>时间</th></tr></thead><tbody>{state.ledger.map(l => <tr key={l.id} className="border-t"><td className="py-2">{l.agentName}</td><td>{{ opening: '期初', post: '发帖', comment: '收到评论', prize: '月榜奖金' }[l.kind] || l.kind}</td><td>¥{l.amount}</td><td>{new Date(l.createdAt).toLocaleString()}</td></tr>)}</tbody></table></div>
-            </>}
-        </>}
-    </div>;
+
+    const openEditCategory = (c: WorldCategory) => {
+        setEditingCategory(c);
+        setCategoryModalOpen(true);
+    };
+
+    // 打开职业模态
+    const openCreateProfession = () => {
+        setEditingProfession({ name: '', description: '', enabled: true, bonuses: [] });
+        setProfessionModalOpen(true);
+    };
+
+    const openEditProfession = (p: WorldProfession) => {
+        setEditingProfession({
+            ...p,
+            bonuses: p.bonuses ? p.bonuses.map(b => ({ ...b })) : [],
+        });
+        setProfessionModalOpen(true);
+    };
+
+    // 保存分类
+    const handleSaveCategory = async (categoryData: Partial<WorldCategory>) => {
+        setBusy(true);
+        state.setError('');
+        try {
+            await saveWorldCategory(categoryData);
+            setCategoryModalOpen(false);
+            setEditingCategory(undefined);
+            await state.reload();
+            toast.success(categoryData.id ? '分类修改已保存' : '分类创建成功');
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : '保存分类失败';
+            state.setError(msg);
+            toast.error(msg);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    // 保存职业
+    const handleSaveProfession = async (professionData: Partial<WorldProfession>) => {
+        setBusy(true);
+        state.setError('');
+        try {
+            await saveWorldProfession(professionData);
+            setProfessionModalOpen(false);
+            setEditingProfession(undefined);
+            await state.reload();
+            toast.success(professionData.id ? '职业修改已保存' : '职业创建成功');
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : '保存职业失败';
+            state.setError(msg);
+            toast.error(msg);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    // 保存收益规则
+    const handleSaveIncome = async () => {
+        setBusy(true);
+        state.setError('');
+        try {
+            await saveWorldIncome(state.income);
+            await state.reload();
+            toast.success('收益配置已保存');
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : '保存收益配置失败';
+            state.setError(msg);
+            toast.error(msg);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            {/* 顶层头部卡片 - 对齐 AgentSettings 与 AISettings 风格 */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
+                            <Globe className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-slate-800">Agent 世界</h3>
+                            <p className="text-xs text-slate-500 mt-1">
+                                管理分类、职业与事件收益。行动由任务分配触发，使用现实时间。
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                        {/* 胶囊分段控制器 */}
+                        <div className="flex rounded-lg bg-slate-100 p-1">
+                            <button
+                                type="button"
+                                onClick={() => setTab('categories')}
+                                className={`min-w-20 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                                    tab === 'categories'
+                                        ? 'bg-white text-slate-900 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                分类管理
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setTab('professions')}
+                                className={`min-w-20 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                                    tab === 'professions'
+                                        ? 'bg-white text-slate-900 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                职业管理
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setTab('income')}
+                                className={`min-w-20 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                                    tab === 'income'
+                                        ? 'bg-white text-slate-900 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                收益管理
+                            </button>
+                        </div>
+
+                        {/* 主要操作按钮 */}
+                        {tab === 'categories' && (
+                            <button
+                                type="button"
+                                onClick={openCreateCategory}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20 whitespace-nowrap shrink-0"
+                            >
+                                <Plus className="w-3.5 h-3.5 shrink-0" />
+                                新增分类
+                            </button>
+                        )}
+
+                        {tab === 'professions' && (
+                            <button
+                                type="button"
+                                onClick={openCreateProfession}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20 whitespace-nowrap shrink-0"
+                            >
+                                <Plus className="w-3.5 h-3.5 shrink-0" />
+                                新增职业
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* 错误提示条 */}
+            {state.error && (
+                <div
+                    role="alert"
+                    className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between"
+                >
+                    <span>{state.error}</span>
+                    <button
+                        type="button"
+                        onClick={() => state.setError('')}
+                        className="text-red-500 hover:text-red-700 text-xs font-medium ml-2"
+                    >
+                        关闭
+                    </button>
+                </div>
+            )}
+
+            {/* 内容区域 */}
+            {state.loading ? (
+                <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center shadow-sm">
+                    <Loader2 className="w-8 h-8 text-orange-500 animate-spin mx-auto mb-3" />
+                    <p className="text-xs text-slate-400">正在加载数据…</p>
+                </div>
+            ) : (
+                <>
+                    {tab === 'categories' && (
+                        <WorldCategoryTab
+                            categories={state.categories}
+                            onEdit={openEditCategory}
+                        />
+                    )}
+
+                    {tab === 'professions' && (
+                        <WorldProfessionTab
+                            professions={state.professions}
+                            categories={state.categories}
+                            onEdit={openEditProfession}
+                        />
+                    )}
+
+                    {tab === 'income' && (
+                        <WorldIncomeTab
+                            income={state.income}
+                            setIncome={state.setIncome}
+                            settlements={state.settlements}
+                            pendingIncome={state.pendingIncome}
+                            ledger={state.ledger}
+                            busy={busy}
+                            onSave={handleSaveIncome}
+                        />
+                    )}
+                </>
+            )}
+
+            {/* 分类新增/编辑模态弹窗 */}
+            {categoryModalOpen && (
+                <WorldCategoryModal
+                    key={editingCategory?.id || 'new'}
+                    category={editingCategory}
+                    saving={busy}
+                    onClose={() => {
+                        if (!busy) {
+                            setCategoryModalOpen(false);
+                            setEditingCategory(undefined);
+                        }
+                    }}
+                    onSave={handleSaveCategory}
+                />
+            )}
+
+            {/* 职业新增/编辑模态弹窗 */}
+            {professionModalOpen && (
+                <WorldProfessionModal
+                    key={editingProfession?.id || 'new'}
+                    profession={editingProfession}
+                    categories={state.categories}
+                    saving={busy}
+                    onClose={() => {
+                        if (!busy) {
+                            setProfessionModalOpen(false);
+                            setEditingProfession(undefined);
+                        }
+                    }}
+                    onSave={handleSaveProfession}
+                />
+            )}
+        </div>
+    );
 }

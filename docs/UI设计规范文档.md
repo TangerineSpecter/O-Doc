@@ -190,7 +190,8 @@ className="p-1.5 rounded-md text-slate-400 hover:bg-slate-50 hover:text-slate-60
 - 次级操作用 slate 文本 + hover 浅底。
 - 危险操作用红色，不要用橘色表达删除。
 - 图标优先使用 `lucide-react`。
-- 按钮内图标尺寸常用 `w-4 h-4`，小按钮用 `w-3.5 h-3.5`。
+- 按钮内图标尺寸常用 `w-4 h-4`，小按钮用 `w-3.5 h-3.5`，图标应配置 `shrink-0` 防止被挤压变形。
+- **【严禁文字换行】所有操作按钮必须显式配置 `whitespace-nowrap shrink-0`**，严禁因外层宽度不足或多语言中英文混合而在空格处产生文字折行（例如变成两行“接入外部 \n MCP”）。外层操作栏容器应配合 `flex-wrap` 或响应式布局。
 
 ### 5.3 表单
 
@@ -275,9 +276,11 @@ className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-bet
 
 ### 5.6 下拉选择器
 
-表单、筛选条、工具栏、设置项中的单选下拉，优先使用 `frontend_react/src/components/common/Select.tsx`，不要直接使用原生 `<select>`。原生 `<select>` 只能在极简临时页面或浏览器默认行为确实必要时使用。
+**【强制规范】全系统严禁使用 HTML 原生 `<select>` 标签。** 原生 `<select>` 在 macOS / iOS 等系统中会唤起操作系统底层的深色/灰色原生控件，彻底破坏系统的视觉一致性与体验。
 
-基础用法：
+所有表单输入、筛选过滤条、操作工具栏、设置面板、模态弹窗中的单选下拉，**必须统一使用 `frontend_react/src/components/common/Select.tsx`**。
+
+基础表单 / 设置项用法：
 
 ```tsx
 <Select
@@ -285,6 +288,9 @@ className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-bet
   options={options}
   onChange={setValue}
   placeholder="请选择"
+  accentClassName="bg-orange-50 text-orange-700"
+  buttonClassName="bg-slate-50"
+  menuPortal={true} // 模态弹窗内强烈建议开启，防止被 overflow-y-auto 截断
 />
 ```
 
@@ -302,12 +308,11 @@ className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex justify-bet
 
 规则：
 
-- 下拉选择器必须有明确的选中态，选中项右侧使用 `Check` 图标。
-- 菜单列表较长时必须设置 `max-h` 和 `overflow-y-auto`，避免溢出屏幕。
-- 位于弹窗底部、聊天输入区、页面底部工具栏时，优先让菜单向上展开，例如 `bottom-full mb-2`。
-- 工具栏下拉高度应与相邻按钮一致，常用 `h-[31px]` 或跟随局部按钮高度。
-- 菜单层级应高于所在弹窗内容，必要时使用 `z-[120]` 等局部层级。
-- 文本过长时使用 `truncate`，不要让按钮宽度被内容撑开。
+- **禁止原生**：严禁直接使用 HTML 原生 `<select>` 和 `<option>`。
+- **弹窗适配**：位于模态框（Modal）或带有 `overflow-y-auto` 容器内时，必须指定 `menuPortal={true}`，确保弹出菜单通过 Portal 挂载至顶层，不被视口截断。
+- **选中状态**：下拉选择器必须有明确的选中态，高亮背景使用 `bg-orange-50 text-orange-700`，选中项右侧显示 `Check` 图标。
+- **菜单限制**：菜单列表较长时自动限制 `max-h` 并启用平滑滚动。
+- **文本溢出**：选项文本与选中项文本过长时必须设置 `truncate`。
 
 ### 5.7 选项卡 / 可选卡片
 
