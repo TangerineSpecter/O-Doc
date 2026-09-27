@@ -133,7 +133,7 @@ export default function AgentRunDrawer({activity, onClose}: {activity: AgentActi
     if (!activity) return null;
 
     const drawerContent = (
-        <div className="fixed inset-0 z-[130] flex flex-col justify-end animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[130] flex flex-col items-center justify-end animate-in fade-in duration-200 md:justify-center md:p-6">
             {/* 磨砂遮罩背景 */}
             <div
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
@@ -141,21 +141,23 @@ export default function AgentRunDrawer({activity, onClose}: {activity: AgentActi
                 aria-hidden="true"
             />
 
-            {/* 底部抽屉容器 */}
+            {/* 移动端底部抽屉；桌面端改为居中的详情对话框 */}
             <div
                 ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="agent-run-drawer-title"
                 tabIndex={-1}
-                className={`relative z-10 mx-auto flex w-full max-w-4xl flex-col overflow-hidden border-t border-x border-slate-200/80 bg-white shadow-2xl transition-all duration-300 ease-out ${
-                    isExpanded ? 'h-full max-h-screen rounded-t-none' : 'h-[75vh] rounded-t-3xl'
+                className={`relative z-10 mx-auto flex w-full max-w-4xl flex-col overflow-hidden border-t border-x border-slate-200/80 bg-white shadow-2xl transition-all duration-300 ease-out md:border md:rounded-3xl ${
+                    isExpanded
+                        ? 'h-full max-h-screen rounded-t-none md:h-[calc(100vh_-_3rem)] md:max-w-[90vw]'
+                        : 'h-[75vh] rounded-t-3xl md:h-[min(86vh,900px)] md:max-w-[1200px]'
                 }`}
             >
                 {/* 顶部拖动手柄与“点击铺满/收起”控制条（与消息中心一致） */}
                 <div
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="flex shrink-0 cursor-pointer select-none flex-col items-center border-b border-slate-100/70 bg-slate-50/60 pb-1 pt-2.5 transition-colors hover:bg-slate-100/60"
+                    className="flex shrink-0 cursor-pointer select-none flex-col items-center border-b border-slate-100/70 bg-slate-50/60 pb-1 pt-2.5 transition-colors hover:bg-slate-100/60 md:hidden"
                 >
                     <div className="h-1 w-10 rounded-full bg-slate-300"/>
                     <button
@@ -306,10 +308,24 @@ export default function AgentRunDrawer({activity, onClose}: {activity: AgentActi
                             </div>
 
                             {/* 任务说明/摘要 */}
-                            {(record.summary || activity.summary) && (
+                            {(record.summary || activity.summary || activeAgentRun?.modelName) && (
                                 <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 text-xs leading-relaxed text-slate-600 shadow-xs sm:p-4">
-                                    <span className="font-bold text-slate-800">任务摘要：</span>
-                                    {record.summary || activity.summary}
+                                    {(record.summary || activity.summary) && (
+                                        <div>
+                                            <span className="font-bold text-slate-800">任务摘要：</span>
+                                            {record.summary || activity.summary}
+                                        </div>
+                                    )}
+                                    {activeAgentRun?.modelName && (
+                                        <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-slate-100 pt-2.5">
+                                            <span className="shrink-0 text-[11px] font-semibold text-slate-400">
+                                                模型名称 (Model ID)
+                                            </span>
+                                            <code className="break-all font-mono text-xs font-medium text-slate-700" title={activeAgentRun.modelName}>
+                                                {activeAgentRun.modelName}
+                                            </code>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

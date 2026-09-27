@@ -238,6 +238,7 @@ export interface AgentRunAgentConfig {
     agent: string;
     agentName: string;
     agentAvatar?: string;
+    modelName?: string;
     status: AgentRunStatus;
     summary: string;
     content?: string;

@@ -235,6 +235,7 @@ class AgentTaskScheduler:
                 'agent': agent.id,
                 'agentName': agent.name,
                 'agentAvatar': agent.avatar,
+                'modelName': ((agent.model.name or '').strip() or '未知') if agent.model else '未知',
                 'status': 'running',
                 'summary': '等待执行',
                 'duration': '',
@@ -470,7 +471,7 @@ class AgentTaskScheduler:
     def _run_configured_followups(self, task, record, results):
         if not task.followup_enabled or not task.followup_agent_id:
             return
-        target_agent = Agent.objects.filter(id=task.followup_agent_id).first()
+        target_agent = Agent.objects.select_related('model').filter(id=task.followup_agent_id).first()
         if not target_agent:
             return
 
@@ -808,7 +809,7 @@ class AgentTaskScheduler:
         if not agent_ids:
             return []
 
-        agents = {agent.id: agent for agent in Agent.objects.filter(id__in=agent_ids)}
+        agents = {agent.id: agent for agent in Agent.objects.select_related('model').filter(id__in=agent_ids)}
         return [agents[agent_id] for agent_id in agent_ids if agent_id in agents]
 
     @staticmethod
