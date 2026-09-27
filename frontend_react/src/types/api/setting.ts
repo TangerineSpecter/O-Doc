@@ -95,6 +95,17 @@ export type SaveAgentLongTermMemoryParams = Pick<AgentLongTermMemoryConfig, 'mem
 };
 
 export type AgentTaskScheduleType = 'daily' | 'weekly' | 'monthly' | 'interval';
+export type AgentTaskRandomPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export interface AgentTaskRandomProgress {
+    periodStart: string;
+    periodEnd: string;
+    mode: AgentTaskExecutionMode;
+    targetCount: number;
+    nextExecutionAt: string | null;
+    status: 'scheduled' | 'running' | 'retrying' | 'complete';
+    configPending: boolean;
+    agents: {agentId: string; agentName: string; target: number; successCount: number; unavailable?: boolean}[];
+}
 export type AgentTaskNotifyPlatform = 'feishu';
 export type AgentTaskExecutionMode = 'parallel' | 'serial';
 export type AgentTaskFollowupAction = 'review' | 'continue_research';
@@ -112,6 +123,11 @@ export interface AgentTaskConfig {
     trigger: string;
     schedule: string;
     scheduleType: AgentTaskScheduleType;
+    scheduleMode?: 'fixed' | 'random';
+    randomPeriod?: AgentTaskRandomPeriod;
+    randomCount?: number;
+    randomAllocations?: {agentId: string; count: number}[];
+    randomProgress?: AgentTaskRandomProgress | null;
     scheduleTime: string;
     scheduleWeekday: string;
     scheduleMonthDay: string;
@@ -129,7 +145,7 @@ export interface AgentTaskConfig {
     updatedAt?: string;
 }
 
-export type SaveAgentTaskConfigParams = Omit<AgentTaskConfig, 'id' | 'agentName' | 'agentNames' | 'createdAt' | 'updatedAt'> & {
+export type SaveAgentTaskConfigParams = Omit<AgentTaskConfig, 'id' | 'agentName' | 'agentNames' | 'randomProgress' | 'createdAt' | 'updatedAt'> & {
     id?: string;
 };
 
@@ -140,6 +156,7 @@ export interface AgentRunRecordConfig {
     agent?: string | null;
     agentName: string;
     agentRuns?: AgentRunAgentConfig[];
+    randomContext?: {planId: string; periodStart: string; periodEnd: string; slot: number; leaseToken: string} | Record<string, never>;
     trigger: string;
     status: AgentRunStatus;
     startedAt: string;

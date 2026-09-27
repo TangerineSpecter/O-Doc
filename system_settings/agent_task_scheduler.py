@@ -132,8 +132,12 @@ class AgentTaskScheduler:
             except (OperationalError, ProgrammingError):
                 return
 
-            now = _local_now()
             for task in tasks:
+                now = _local_now()
+                from .agent_random_schedule import has_active_random_period, run_random_task
+                if task.schedule_mode == 'random' or has_active_random_period(task, now):
+                    run_random_task(self, task, now)
+                    continue
                 if self._is_due(task, now):
                     _scheduler_log(
                         f"due task detected: id={task.id}, name={task.name}, "
@@ -225,6 +229,7 @@ class AgentTaskScheduler:
             followup_depth=0,
             prompt_override='',
             task_name_override='',
+            random_context=None,
     ):
         started = timezone.now()
         agents = agents_override if agents_override is not None else self._get_task_agents(task)
@@ -249,6 +254,7 @@ class AgentTaskScheduler:
             agent=primary_agent,
             agent_name=self._format_agent_names(agents),
             agent_runs=agent_runs,
+            random_context=random_context or {},
             trigger=trigger,
             status='running',
             summary='任务开始执行',
@@ -666,6 +672,14 @@ class AgentTaskScheduler:
             return
 
         for record in interrupted_records:
+            if record.random_context:
+                from .models import AgentRandomRuntime
+                if AgentRandomRuntime.objects.filter(
+                    task_id=record.task_id,
+                    lease_token=record.random_context.get('lease_token', ''),
+                    lease_until__gt=timezone.now(),
+                ).exists():
+                    continue
             duration_seconds = max(0, int((timezone.now() - record.started_at).total_seconds()))
             record.status = 'failed'
             record.duration = self._format_duration(duration_seconds)

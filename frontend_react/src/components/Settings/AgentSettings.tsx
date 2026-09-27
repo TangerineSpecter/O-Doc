@@ -42,6 +42,11 @@ import type {
 import {useToast} from '../common/ToastProvider';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
+import type {AgentTaskRandomPeriod} from '@/types/api/setting';
+import {RandomTaskScheduleFields} from './agent/RandomTaskScheduleFields';
+import {RandomTaskProgress} from './agent/RandomTaskProgress';
+import {randomPeriodLabels, resolveAllocations} from './agent/randomTaskSchedule';
+import {useRandomTaskProgress} from './agent/useRandomTaskProgress';
 import {useAgentMemories} from './agent/useAgentMemories';
 import {useAgentAvatarUpload} from './agent/useAgentAvatarUpload';
 import {isImageAvatarValue} from '@/utils/avatar';
@@ -85,6 +90,10 @@ type AgentTaskForm = {
     trigger: string;
     schedule: string;
     scheduleType: AgentTaskScheduleType;
+    scheduleMode: 'fixed' | 'random';
+    randomPeriod: AgentTaskRandomPeriod;
+    randomCount: string;
+    randomAllocations: Record<string, number>;
     scheduleTime: string;
     scheduleWeekday: string;
     scheduleMonthDay: string;
@@ -148,6 +157,7 @@ export const AgentSettings = ({
                                   onDelete,
                               }: AgentSettingsProps) => {
     const [activeView, setActiveView] = useState<AgentView>('list');
+    const {progressByTask, refreshFailed} = useRandomTaskProgress(tasks, activeView === 'tasks');
     const [modalOpen, setModalOpen] = useState(false);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
     const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
@@ -186,6 +196,10 @@ export const AgentSettings = ({
         trigger: '定时任务',
         schedule: '每天 09:00',
         scheduleType: 'daily',
+        scheduleMode: 'fixed',
+        randomPeriod: 'daily',
+        randomCount: '1',
+        randomAllocations: {},
         scheduleTime: '09:00',
         scheduleWeekday: '1',
         scheduleMonthDay: '1',
@@ -241,7 +255,9 @@ export const AgentSettings = ({
     }, [agents]);
     const executionModeOptions: SettingsSelectOption<AgentTaskExecutionMode>[] = [
         {value: 'parallel', label: '并行执行', description: '多个 Agent 同时执行，适合独立产出和快速对比'},
-        {value: 'serial', label: '串行执行', description: '按选择顺序执行，后一个 Agent 会参考前一个结果'},
+        {value: 'serial', label: '串行执行', description: taskForm.scheduleMode === 'random' && taskForm.trigger === '定时任务'
+            ? '按分配次数轮流执行，每次由一个 Agent 独立完成'
+            : '按选择顺序执行，后一个 Agent 会参考前一个结果'},
     ];
     const taskTriggerOptions: SettingsSelectOption<string>[] = [
         {value: '定时任务', label: '定时任务'},
@@ -325,6 +341,10 @@ export const AgentSettings = ({
             trigger: '定时任务',
             schedule: '每天 09:00',
             scheduleType: 'daily',
+            scheduleMode: 'fixed',
+            randomPeriod: 'daily',
+            randomCount: '1',
+            randomAllocations: {},
             scheduleTime: '09:00',
             scheduleWeekday: '1',
             scheduleMonthDay: '1',
@@ -354,6 +374,10 @@ export const AgentSettings = ({
             enabled: task.enabled,
             prompt: task.prompt || '',
             scheduleType: task.scheduleType || 'daily',
+            scheduleMode: task.scheduleMode || 'fixed',
+            randomPeriod: task.randomPeriod || 'daily',
+            randomCount: String(task.randomCount ?? 1),
+            randomAllocations: Object.fromEntries((task.randomAllocations || []).map(item => [item.agentId, item.count])),
             scheduleTime: task.scheduleTime || '09:00',
             scheduleWeekday: task.scheduleWeekday || '1',
             scheduleMonthDay: task.scheduleMonthDay || '1',
@@ -424,6 +448,19 @@ export const AgentSettings = ({
     };
 
     const handleTaskSubmit = async () => {
+        if (taskForm.trigger === '定时任务' && taskForm.scheduleMode === 'random') {
+            const count = Number(taskForm.randomCount);
+            if (!Number.isSafeInteger(count) || count < 1 || count > 10000) {
+                toast.warning('目标次数须为 1 到 10000 之间的整数');
+                return;
+            }
+            const allocations = resolveAllocations(taskForm.agents, count, taskForm.randomAllocations);
+            const total = Object.values(allocations).reduce((sum, value) => sum + value, 0);
+            if (taskForm.executionMode === 'serial' && (Object.values(allocations).some(value => !Number.isSafeInteger(value) || value < 0) || total < 1 || total > count)) {
+                toast.warning('Agent 分配次数须为非负整数，合计大于 0 且不能超过任务总次数');
+                return;
+            }
+        }
         if (!taskForm.name.trim() || !taskForm.prompt.trim()) {
             toast.warning('请填写任务名称和任务目标');
             return;
@@ -432,7 +469,7 @@ export const AgentSettings = ({
             toast.warning('请至少选择一个 Agent');
             return;
         }
-        if (!isManualTask && taskForm.scheduleType === 'interval' && (!taskForm.intervalMinutes || Number(taskForm.intervalMinutes) < 1)) {
+        if (!isManualTask && taskForm.scheduleMode !== 'random' && taskForm.scheduleType === 'interval' && (!taskForm.intervalMinutes || Number(taskForm.intervalMinutes) < 1)) {
             toast.warning('请填写大于 0 的间隔分钟数');
             return;
         }
@@ -456,8 +493,14 @@ export const AgentSettings = ({
             agents: taskForm.agents,
             executionMode: taskForm.executionMode,
             trigger: taskForm.trigger,
-            schedule: isManualTask ? '手动执行' : buildTaskSchedule(taskForm),
+            schedule: isManualTask ? '手动执行' : taskForm.scheduleMode === 'random' && taskForm.trigger === '定时任务'
+                ? `${randomPeriodLabels[taskForm.randomPeriod]}随机 · ${taskForm.executionMode === 'parallel' ? '每个 Agent' : '合计'} ${taskForm.randomCount} 次`
+                : buildTaskSchedule(taskForm),
             scheduleType: taskForm.scheduleType,
+            scheduleMode: taskForm.trigger === '定时任务' ? taskForm.scheduleMode : 'fixed',
+            randomPeriod: taskForm.randomPeriod,
+            randomCount: Number(taskForm.randomCount) || 1,
+            randomAllocations: taskForm.executionMode === 'serial' ? Object.entries(taskForm.randomAllocations).map(([agentId, count]) => ({agentId, count})) : [],
             scheduleTime: taskForm.scheduleTime,
             scheduleWeekday: taskForm.scheduleWeekday,
             scheduleMonthDay: taskForm.scheduleMonthDay,
@@ -564,7 +607,7 @@ export const AgentSettings = ({
             } else {
                 selected.add(agentId);
             }
-            return {...prev, agents: Array.from(selected)};
+            return {...prev, agents: Array.from(selected), randomAllocations: {}};
         });
     };
     const toggleAgentRunExpanded = (agentId: string) => {
@@ -763,6 +806,8 @@ export const AgentSettings = ({
 	                                            周期
 	                                        </div>
 	                                        <p className="truncate">{task.trigger === '手动执行' ? '手动执行' : task.schedule}</p>
+                                            <RandomTaskProgress progress={progressByTask[task.id]} enabled={task.enabled}/>
+                                            {refreshFailed && task.scheduleMode === 'random' && <p className="mt-1 text-xs text-red-600">进度刷新失败，稍后自动重试</p>}
 	                                    </div>
                                 </div>
 
@@ -1170,7 +1215,7 @@ export const AgentSettings = ({
                                     <SettingsSelect
                                         value={taskForm.executionMode}
                                         options={executionModeOptions}
-                                        onChange={executionMode => setTaskForm({...taskForm, executionMode})}
+                                        onChange={executionMode => setTaskForm({...taskForm, executionMode, randomAllocations: {}})}
                                         buttonClassName="bg-slate-50"
                                     />
                                 </div>
@@ -1189,7 +1234,19 @@ export const AgentSettings = ({
                                 </div>
                             </div>
 
-                            {!isManualTask && (
+                            {taskForm.trigger === '定时任务' && <div className="space-y-2">
+                                <label className="text-sm font-semibold text-slate-700">调度方式</label>
+                                <SettingsSelect value={taskForm.scheduleMode} options={[{value: 'fixed', label: '固定时间 / 间隔'}, {value: 'random', label: '周期随机'}]} onChange={scheduleMode => setTaskForm({...taskForm, scheduleMode})}/>
+                            </div>}
+                            {taskForm.trigger === '定时任务' && taskForm.scheduleMode === 'random' && <RandomTaskScheduleFields
+                                period={taskForm.randomPeriod} count={taskForm.randomCount} mode={taskForm.executionMode}
+                                agents={taskForm.agents.map(id => ({id, name: agents.find(agent => agent.id === id)?.name || id}))}
+                                allocations={taskForm.randomAllocations}
+                                onPeriodChange={randomPeriod => setTaskForm({...taskForm, randomPeriod})}
+                                onCountChange={randomCount => setTaskForm({...taskForm, randomCount})}
+                                onAllocationsChange={randomAllocations => setTaskForm({...taskForm, randomAllocations})}
+                            />}
+                            {!isManualTask && !(taskForm.trigger === '定时任务' && taskForm.scheduleMode === 'random') && (
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                     <div className="space-y-2">
                                         <label className="text-sm font-semibold text-slate-700">执行周期</label>

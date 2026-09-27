@@ -1,4 +1,5 @@
 from urllib.parse import urlsplit
+from django.db import transaction
 
 from rest_framework import serializers
 from .models import Agent, AgentActivity, AgentLongTermMemory, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
@@ -294,7 +295,29 @@ class SkillSerializer(serializers.ModelSerializer):
         return value
 
 
+class AgentRandomAllocationsField(serializers.Field):
+    """以列表传输 Agent ID，避免驼峰转换器修改字典中的动态 ID 键。"""
+
+    def to_representation(self, value):
+        return [{'agent_id': agent_id, 'count': count} for agent_id, count in value.items()]
+
+    def to_internal_value(self, data):
+        if not isinstance(data, list):
+            raise serializers.ValidationError('Agent 次数分配必须为列表')
+        result = {}
+        for item in data:
+            if not isinstance(item, dict) or not isinstance(item.get('agent_id'), str) or not item['agent_id']:
+                raise serializers.ValidationError('请提供有效的 Agent ID')
+            if item['agent_id'] in result or type(item.get('count')) is not int or item['count'] < 0:
+                raise serializers.ValidationError('Agent 不可重复，分配次数须为非负整数')
+            result[item['agent_id']] = item['count']
+        return result
+
+
 class AgentTaskSerializer(serializers.ModelSerializer):
+    random_allocations = AgentRandomAllocationsField(required=False)
+    random_count = serializers.IntegerField(min_value=1, max_value=10000, required=False)
+    random_progress = serializers.SerializerMethodField()
     agent_name = serializers.CharField(source='agent.name', read_only=True)
     agents = serializers.ListField(
         child=serializers.CharField(),
@@ -317,6 +340,7 @@ class AgentTaskSerializer(serializers.ModelSerializer):
             'trigger',
             'schedule',
             'schedule_type',
+            'schedule_mode', 'random_period', 'random_count', 'random_allocations', 'random_progress',
             'schedule_time',
             'schedule_weekday',
             'schedule_month_day',
@@ -343,6 +367,34 @@ class AgentTaskSerializer(serializers.ModelSerializer):
             return []
         agents = {agent.id: agent.name for agent in Agent.objects.filter(id__in=ids)}
         return [agents[agent_id] for agent_id in ids if agent_id in agents]
+
+    def get_random_progress(self, obj):
+        from .agent_random_schedule import progress
+        return progress(obj)
+
+    @transaction.atomic
+    def create(self, validated_data):
+        task = super().create(validated_data)
+        from .agent_random_schedule import initialize_runtime
+        initialize_runtime(task)
+        return task
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        task = super().update(instance, validated_data)
+        from .agent_random_schedule import initialize_runtime
+        initialize_runtime(task)
+        return task
+
+    def validate_random_count(self, value):
+        if value < 1:
+            raise serializers.ValidationError('执行次数必须为正整数')
+        return value
+
+    def validate_random_allocations(self, value):
+        if not isinstance(value, dict) or any(type(count) is not int or count < 0 for count in value.values()):
+            raise serializers.ValidationError('Agent 分配次数必须为非负整数')
+        return value
 
     def validate_name(self, value):
         value = value.strip()
@@ -378,6 +430,21 @@ class AgentTaskSerializer(serializers.ModelSerializer):
         elif selected_agent and not getattr(self.instance, 'agent_ids', None):
             attrs['agent_ids'] = [selected_agent.id]
 
+        mode = attrs.get('schedule_mode', getattr(self.instance, 'schedule_mode', 'fixed'))
+        if mode == 'random':
+            trigger = attrs.get('trigger', getattr(self.instance, 'trigger', '定时任务'))
+            if trigger != '定时任务':
+                raise serializers.ValidationError({'schedule_mode': '周期随机仅适用于定时任务'})
+            count = attrs.get('random_count', getattr(self.instance, 'random_count', 1))
+            allocations = attrs.get('random_allocations', getattr(self.instance, 'random_allocations', {}))
+            ids = attrs.get('agent_ids', getattr(self.instance, 'agent_ids', [])) or ([selected_agent.id] if selected_agent else [])
+            execution_mode = attrs.get('execution_mode', getattr(self.instance, 'execution_mode', 'parallel'))
+            if allocations and execution_mode == 'serial':
+                if set(allocations) - set(ids):
+                    raise serializers.ValidationError({'random_allocations': '分配包含未选择的 Agent'})
+                if not 0 < sum(allocations.values()) <= count:
+                    raise serializers.ValidationError({'random_allocations': '分配总次数必须大于 0 且不能超过任务总次数'})
+
         notify_enabled = attrs.get('notify_enabled', getattr(self.instance, 'notify_enabled', False))
         notify_webhook_url = attrs.get('notify_webhook_url', getattr(self.instance, 'notify_webhook_url', ''))
         if notify_enabled and not notify_webhook_url:
@@ -403,6 +470,7 @@ class AgentRunRecordSerializer(serializers.ModelSerializer):
             'agent',
             'agent_name',
             'agent_runs',
+            'random_context',
             'trigger',
             'status',
             'started_at',
@@ -416,7 +484,7 @@ class AgentRunRecordSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'parent_record', 'source_agent', 'followup_depth', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'random_context', 'parent_record', 'source_agent', 'followup_depth', 'created_at', 'updated_at']
 
 
 class AgentActivitySerializer(serializers.ModelSerializer):

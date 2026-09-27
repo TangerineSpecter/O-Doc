@@ -626,6 +626,11 @@ class AgentTask(models.Model):
     trigger = models.CharField(max_length=40, default='定时任务', verbose_name='触发方式', db_comment='触发方式')
     schedule = models.CharField(max_length=80, blank=True, default='', verbose_name='执行周期展示', db_comment='执行周期展示')
     schedule_type = models.CharField(max_length=20, choices=SCHEDULE_TYPES, default='daily', verbose_name='执行周期类型', db_comment='执行周期类型')
+    schedule_mode = models.CharField(max_length=20, choices=[('fixed', '固定调度'), ('random', '周期随机')], default='fixed')
+    random_period = models.CharField(max_length=20, choices=[('daily', '每天'), ('weekly', '每周'), ('monthly', '每月'), ('yearly', '每年')], default='daily')
+    random_count = models.PositiveIntegerField(default=1)
+    random_allocations = models.JSONField(default=dict, blank=True)
+    random_cycle_snapshot = models.JSONField(default=dict, blank=True)
     schedule_time = models.CharField(max_length=10, blank=True, default='09:00', verbose_name='执行时间', db_comment='执行时间 HH:mm')
     schedule_weekday = models.CharField(max_length=2, blank=True, default='1', verbose_name='执行星期', db_comment='执行星期 0-6')
     schedule_month_day = models.CharField(max_length=2, blank=True, default='1', verbose_name='执行日期', db_comment='每月执行日期')
@@ -667,6 +672,18 @@ class AgentTask(models.Model):
         return self.name
 
 
+class AgentRandomRuntime(models.Model):
+    """本机随机计划和执行租约，不进入 WebDAV 快照。"""
+
+    task = models.OneToOneField(AgentTask, primary_key=True, on_delete=models.CASCADE, related_name='random_runtime')
+    state = models.JSONField(default=dict)
+    lease_token = models.CharField(max_length=40, blank=True, default='')
+    lease_until = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'sys_agent_random_runtime'
+
+
 class AgentRunRecord(models.Model):
     """Agent 任务执行记录"""
 
@@ -704,6 +721,7 @@ class AgentRunRecord(models.Model):
     )
     agent_name = models.CharField(max_length=50, blank=True, default='', verbose_name='Agent 名称', db_comment='Agent 名称快照')
     agent_runs = models.JSONField(default=list, blank=True, verbose_name='Agent 执行明细', db_comment='多 Agent 执行明细')
+    random_context = models.JSONField(default=dict, blank=True)
     trigger = models.CharField(max_length=40, default='定时任务', verbose_name='触发方式', db_comment='触发方式')
     status = models.CharField(max_length=20, choices=STATUS_TYPES, default='running', verbose_name='状态', db_comment='执行状态')
     duration = models.CharField(max_length=40, blank=True, default='', verbose_name='耗时', db_comment='耗时展示')
