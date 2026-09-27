@@ -84,6 +84,7 @@ export default function AgentWorldPage() {
                 </div>
             </section>
 
+            <a href="/settings?tab=world" className="mx-4 my-2 inline-block text-sm text-orange-600">分类、职业与收益管理</a>
             {/* 移动端专属居民状态横滑栏：置顶于动态流上方，随时可横滑感知与点击筛选 (< lg) */}
             <div className="mt-3 lg:hidden">
                 <AgentResidentsMobileBar

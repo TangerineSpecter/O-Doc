@@ -22,11 +22,11 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         '/api': {
-          target: 'http://localhost:11800',
+          target: process.env.ODOC_API_PROXY || 'http://localhost:11800',
           changeOrigin: true
         },
         '/media': {
-          target: 'http://localhost:11800',
+          target: process.env.ODOC_API_PROXY || 'http://localhost:11800',
           changeOrigin: true
         }
       }

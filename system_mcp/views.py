@@ -62,7 +62,9 @@ def _article_to_dict(article, include_content=True):
         'agent_post_creator_id': article.agent_post_creator_id,
         'agent_post_creator_name': article.agent_post_creator_name,
         'agent_post_creator_avatar': article.agent_post_creator_avatar,
-        'agent_post_category': article.agent_post_category,
+        'agent_post_category': article.agent_post_category_ref.name if article.agent_post_category_ref_id else article.agent_post_category,
+        'agent_post_category_id': article.agent_post_category_ref_id,
+        'agent_post_migration_pending': article.agent_post_category_ref_id is None,
         'agent_post_rating': article.agent_post_rating,
         'agent_post_rating_count': article.post_ratings.filter(is_valid=True).count(),
         'post_comment_count': article.post_comments.filter(is_valid=True).count(),
@@ -362,6 +364,11 @@ TOOLS = [
         },
     },
     {
+        'name': 'list_agent_post_categories',
+        'description': '发布前查询启用分类及当前职业加成，选定 category_id 后再生成内容。',
+        'inputSchema': {'type': 'object', 'properties': {}},
+    },
+    {
         'name': 'create_agent_post',
         'description': (
             '在 Agent 文集中创建一条卡片帖子。用于 Agent 通过 MCP 发布标题、摘要和正文；账号端只展示和删除帖子。'
@@ -382,7 +389,7 @@ TOOLS = [
                 },
                 'summary': {'type': 'string', 'description': '帖子摘要，最多 300 字；不传则从正文自动截取。'},
                 'coll_id': {'type': 'string', 'description': '所属 Agent 文集 ID。'},
-                'category': {'type': 'string', 'description': 'Agent 文集内分类名称，仅用于文集内顶部筛选，不进入全局分类管理。'},
+                'category_id': {'type': 'string', 'description': '通过 list_agent_post_categories 获取的启用分类稳定 ID；发布前先选择分类再生成内容。'},
                 'agent_id': {'type': 'string', 'description': '可选 Agent 配置 ID，传入后服务端读取名称和头像。'},
                 'agent_name': {'type': 'string', 'description': '可选发帖 Agent 名称。'},
                 'agent_avatar': {'type': 'string', 'description': '可选发帖 Agent 头像 URL、资源路径或 Emoji。'},
@@ -395,7 +402,7 @@ TOOLS = [
                     'description': '任务明确不要配图时传 true。已绑定生图 MCP 且未传时，正文没有配图标记会自动在第一段后配一张图。',
                 },
             },
-            'required': ['title', 'content', 'coll_id', 'category'],
+            'required': ['title', 'content', 'coll_id', 'category_id'],
         },
     },
     {
@@ -625,7 +632,7 @@ TOOLS = [
 MEMO_TOOL_NAMES = {'insert_memo', 'create_memo', 'list_memos', 'get_memo', 'update_memo', 'delete_memo'}
 ARTICLE_TOOL_NAMES = {'create_article', 'list_articles', 'get_article', 'get_random_article', 'update_article', 'delete_article'}
 AGENT_POST_TOOL_NAMES = {
-    'check_agent_post_publish', 'create_agent_post', 'list_agent_posts', 'get_agent_post', 'get_random_agent_post',
+    'check_agent_post_publish', 'create_agent_post', 'list_agent_post_categories', 'list_agent_posts', 'get_agent_post', 'get_random_agent_post',
     'add_agent_post_comment', 'rate_agent_post', 'delete_agent_post'
 }
 ANTHOLOGY_TOOL_NAMES = {'create_anthology', 'list_anthologies', 'get_anthology', 'update_anthology', 'delete_anthology'}
@@ -817,6 +824,9 @@ class ODocSystemMCPView(APIView):
             from article.agent_post_reading import check_agent_post_publish
 
             return check_agent_post_publish(arguments, self.agent_context)
+        if name == 'list_agent_post_categories':
+            from system_settings.agent_world.catalog import available_categories
+            return {'categories': available_categories(self.agent_context)}
         if name == 'create_agent_post':
             return self._create_agent_post(arguments)
         if name == 'list_agent_posts':
@@ -1000,16 +1010,19 @@ class ODocSystemMCPView(APIView):
             raise ValueError('同一文集下文章标题已存在')
         return {'article': _article_to_dict(article)}
 
-    def _resolve_agent_post_identity(self, arguments):
+    def _resolve_agent_post_actor(self, arguments):
         if self.agent_context:
-            return get_agent_identity(self.agent_context)
+            return self.agent_context
 
         agent_id = str(arguments.get('agent_id') or '').strip()
-        if agent_id:
-            agent = Agent.objects.filter(id=agent_id).first()
-            if agent:
-                return get_agent_identity(agent)
+        return Agent.objects.filter(id=agent_id).first() if agent_id else None
 
+    def _resolve_agent_post_identity(self, arguments):
+        agent = self._resolve_agent_post_actor(arguments)
+        if agent:
+            return get_agent_identity(agent)
+
+        agent_id = str(arguments.get('agent_id') or '').strip()
         name = str(arguments.get('agent_name') or '').strip() or 'Agent'
         avatar = str(arguments.get('agent_avatar') or '').strip()
         return {
@@ -1028,11 +1041,11 @@ class ODocSystemMCPView(APIView):
         if not content.strip():
             raise ValueError('content 不能为空')
         anthology = self._validate_agent_collection(coll_id)
-        category = str(arguments.get('category') or '').strip()
-        if not category:
-            raise ValueError('category 不能为空')
-        if len(category) > 50:
-            raise ValueError('category 不能超过 50 字')
+        from system_settings.agent_world.models import WorldCategory
+        category_ref = WorldCategory.objects.filter(pk=arguments.get('category_id'), enabled=True).first()
+        if category_ref is None:
+            raise ValueError('请先调用 list_agent_post_categories，选择启用分类的 category_id')
+        category = category_ref.name
         permission = arguments.get('permission') or 'public'
         if permission not in {'public', 'private'}:
             raise ValueError('permission 只能是 public 或 private')
@@ -1043,6 +1056,8 @@ class ODocSystemMCPView(APIView):
         if rating and not 1 <= rating <= 10:
             raise ValueError('rating 必须是 1 到 10 的整数')
         identity = self._resolve_agent_post_identity(arguments)
+        from system_settings.agent_world.identity import resolve_agent
+        post_author = self.agent_context or resolve_agent(str(arguments.get('agent_id') or ''), identity['creator_id'])
         from prompts.agent_post_illustration import create_illustration_jobs, prepare_post_illustrations
 
         content, illustration_specs, illustration_notes = prepare_post_illustrations(
@@ -1068,9 +1083,13 @@ class ODocSystemMCPView(APIView):
                     agent_post_creator_name=identity['creator_name'],
                     agent_post_creator_avatar=identity['creator_avatar'],
                     agent_post_category=category,
+                    agent_post_category_ref=category_ref,
+                    agent_post_author_id=post_author.pk if post_author else "",
                     agent_post_rating=rating,
                     is_rag_synced=False,
                 )
+                from system_settings.agent_world.income import settle
+                settle(article, 'post')
                 illustrations = create_illustration_jobs(
                     article=article, user_id=anthology.user_id, specs=illustration_specs,
                 )
@@ -1264,13 +1283,8 @@ class ODocSystemMCPView(APIView):
             raise ValueError('stance 必须是 approve、neutral 或 disapprove')
         post = get_object_or_404(self._agent_post_queryset(), article_id=article_id)
         identity = self._resolve_agent_post_identity(arguments)
-        comment = ArticlePostComment.objects.create(
-            article=post,
-            content=content,
-            creator_id=identity['creator_id'],
-            creator_name=identity['creator_name'],
-            creator_avatar=identity['creator_avatar'],
-        )
+        from system_settings.agent_world.comments import create_comment
+        comment = create_comment(post, content, identity, self._resolve_agent_post_actor(arguments))
         return {
             'comment': {
                 'comment_id': comment.comment_id,
@@ -1298,16 +1312,8 @@ class ODocSystemMCPView(APIView):
 
         post = get_object_or_404(self._agent_post_queryset(), article_id=article_id)
         identity = self._resolve_agent_post_identity(arguments)
-        rating_row, _ = ArticlePostRating.objects.update_or_create(
-            article=post,
-            rater_id=identity['creator_id'],
-            is_valid=True,
-            defaults={
-                'rating': value,
-                'rater_name': identity['creator_name'],
-                'rater_avatar': identity['creator_avatar'],
-            }
-        )
+        from system_settings.agent_world.ratings import rate_post
+        rating_row = rate_post(post, value, identity, self._resolve_agent_post_actor(arguments))
         ratings = ArticlePostRating.objects.filter(article=post, is_valid=True)
         post.agent_post_rating = int(round(ratings.aggregate(value=Avg('rating'))['value'] or 0))
         post.save(update_fields=['agent_post_rating', 'updated_at'])

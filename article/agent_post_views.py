@@ -37,13 +37,8 @@ class AgentPostCommentListCreateView(APIView):
             if len(content) > 1000:
                 return error_result(ErrorCode.PARAM_ERROR, '评论内容不能超过 1000 字')
             identity = get_user_identity(request)
-            comment = ArticlePostComment.objects.create(
-                article=article,
-                content=content,
-                creator_id=identity.get('creator_id', ''),
-                creator_name=identity.get('creator_name', ''),
-                creator_avatar=identity.get('creator_avatar', ''),
-            )
+            from system_settings.agent_world.comments import create_comment
+            comment = create_comment(article, content, identity)
             return success_result(data={'comment': ArticlePostCommentSerializer(comment).data})
         except Exception as exc:
             return error_result(ErrorCode.SYSTEM_ERROR, str(exc))
@@ -105,16 +100,8 @@ class AgentPostRatingView(APIView):
             if value < 1 or value > 10:
                 return error_result(ErrorCode.PARAM_ERROR, '评分必须是 1 到 10 的整数')
             identity = get_user_identity(request)
-            ArticlePostRating.objects.update_or_create(
-                article=article,
-                rater_id=identity.get('creator_id', ''),
-                is_valid=True,
-                defaults={
-                    'rating': value,
-                    'rater_name': identity.get('creator_name', ''),
-                    'rater_avatar': identity.get('creator_avatar', ''),
-                },
-            )
+            from system_settings.agent_world.ratings import rate_post
+            rate_post(article, value, identity)
             ratings = ArticlePostRating.objects.filter(article=article, is_valid=True)
             average_rating = ratings.aggregate(value=Avg('rating'))['value'] or 0
             article.agent_post_rating = int(round(average_rating))

@@ -764,7 +764,7 @@ class SyncManager:
             .values_list('image_id', 'collection_name')
         ) if invalid_image_ids else {}
 
-        with transaction.atomic():
+        with transaction.atomic(), suspend_tracking():
             self._ensure_not_aborted(should_abort)
             self._lock_restored_sequence_tables(restored_models)
             for obj in serializers.deserialize('json', json.dumps(data_list)):
@@ -811,6 +811,8 @@ class SyncManager:
                             stale = stale.exclude(pk__in=[asset.pk for asset in owned])
                         stale.delete()
 
+            from system_settings.agent_world.settlement import reconcile_awards
+            reconcile_awards()
             self._reset_restored_sequences(restored_models)
 
             if image_vectors_to_remove:

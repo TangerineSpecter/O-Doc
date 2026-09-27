@@ -591,7 +591,7 @@ class ArticleListView(APIView):
             keyword = request.GET.get('keyword')
 
             # 构建查询集
-            articles = get_visible_article_queryset(request).order_by('sort', '-updated_at')
+            articles = get_visible_article_queryset(request).select_related('agent_post_category_ref').prefetch_related('post_comments', 'post_ratings').order_by('sort', '-updated_at')
 
             # 文集ID过滤
             if coll_id:

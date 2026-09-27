@@ -4,6 +4,7 @@ import random
 from datetime import timedelta
 
 from django.utils import timezone
+from django.db.models import Q
 
 from article.models import Article, ArticlePostComment, ArticlePostRating
 from system_settings.models import Agent, AgentActivity, AgentAffinity, AgentCreativity
@@ -21,6 +22,8 @@ def agent_creator_id(agent):
 
 def agent_from_creator_id(creator_id):
     creator_id = str(creator_id or '')
+    if creator_id.startswith('agent-id:'):
+        return Agent.objects.filter(pk=creator_id[9:]).first()
     if not creator_id.startswith('agent:'):
         return None
     return Agent.objects.filter(name=creator_id.split(':', 1)[1]).first()
@@ -159,12 +162,13 @@ def refresh_creativity(agent):
     start = window_start()
     posts = list(Article.objects.filter(
         is_valid=True,
-        agent_post_creator_id=agent_creator_id(agent),
         created_at__gte=start,
+    ).filter(
+        Q(agent_post_author_id=agent.pk) | Q(agent_post_author_id='', agent_post_creator_id=agent_creator_id(agent)),
     ))
     post_ids = [post.article_id for post in posts]
     ratings = ArticlePostRating.objects.filter(article_id__in=post_ids, is_valid=True).exclude(
-        rater_id=agent_creator_id(agent),
+        Q(actor_agent_id=agent.pk) | Q(rater_id=agent_creator_id(agent)),
     )
     rated_post_ids = set(ratings.values_list('article_id', flat=True))
     rating_values = list(ratings.values_list('rating', flat=True))
@@ -223,7 +227,7 @@ def backfill_relation_events():
     """把已有评论和评分补成动态。旧评论没有立场，按中性记。"""
     comments = ArticlePostComment.objects.filter(is_valid=True).select_related('article')
     for comment in comments:
-        actor = agent_from_creator_id(comment.creator_id)
+        actor = Agent.objects.filter(pk=comment.actor_agent_id).first() if comment.actor_agent_id else agent_from_creator_id(comment.creator_id)
         if not actor or not comment.article_id:
             continue
         _upsert_historical_activity(
@@ -241,7 +245,7 @@ def backfill_relation_events():
         )
     ratings = ArticlePostRating.objects.filter(is_valid=True).select_related('article')
     for rating in ratings:
-        actor = agent_from_creator_id(rating.rater_id)
+        actor = Agent.objects.filter(pk=rating.actor_agent_id).first() if rating.actor_agent_id else agent_from_creator_id(rating.rater_id)
         if not actor or not rating.article_id:
             continue
         stance = stance_for_rating(rating.rating)
@@ -263,7 +267,7 @@ def backfill_relation_events():
 def relation_graph():
     backfill_relation_events()
     recompute_all_relations()
-    agents = list(Agent.objects.all())
+    agents = list(Agent.objects.select_related("profession").all())
     creativity = {item.agent_id: item for item in AgentCreativity.objects.all()}
     running_ids = set(AgentActivity.objects.filter(status='running').exclude(agent_id=None).values_list('agent_id', flat=True))
     nodes = []
@@ -274,6 +278,7 @@ def relation_graph():
             'name': agent.name,
             'avatar': agent.avatar,
             'money': format(agent.money, '.2f'),
+            'profession_name': agent.profession.name if agent.profession else '',
             'creativity': snapshot.score if snapshot else 0,
             'post_count': snapshot.post_count if snapshot else 0,
             'rated_post_count': snapshot.rated_post_count if snapshot else 0,

@@ -886,6 +886,9 @@ class AgentTaskScheduler:
         if post_markdown_guide:
             parts.append(post_markdown_guide)
 
+        if "create_agent_post" in (tool_names or []):
+            parts.append("发帖前必须先调用 list_agent_post_categories，选择启用的 category_id，再生成该类型内容；职业匹配仅供选择参考，不能创建自由文本分类。")
+
         relation_note = self._relation_behavior_note(agent, tool_names or [])
         if relation_note:
             parts.append(relation_note)

@@ -46,7 +46,7 @@ def _local_now():
 
 
 class AgentViewSet(viewsets.ModelViewSet):
-    queryset = Agent.objects.select_related('model', 'model__provider').all()
+    queryset = Agent.objects.select_related('model', 'model__provider', 'profession').all()
     serializer_class = AgentSerializer
 
     @action(detail=False, methods=['post'], url_path='describe-avatar', permission_classes=[IsAuthenticated])

@@ -40,6 +40,7 @@ class SystemSettingSerializer(serializers.ModelSerializer):
 
 
 class AgentSerializer(serializers.ModelSerializer):
+    profession_name = serializers.CharField(source="profession.name", read_only=True, default="")
     model_detail = AIModelSerializer(source='model', read_only=True)
 
     class Meta:
@@ -51,7 +52,7 @@ class AgentSerializer(serializers.ModelSerializer):
             'model',
             'model_detail',
             'prompt',
-            'money',
+            'money', 'profession', 'profession_name',
             'mcp_servers',
             'skills',
             'feishu_im_enabled',
@@ -63,6 +64,10 @@ class AgentSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'model_detail', 'money', 'created_at', 'updated_at']
+
+    @transaction.atomic
+    def create(self, validated_data):
+        return super().create(validated_data)
 
     def validate_name(self, value):
         value = value.strip()

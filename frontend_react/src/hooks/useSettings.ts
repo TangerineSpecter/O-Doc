@@ -307,6 +307,7 @@ export const useSettings = () => {
         try {
             const payload = {
                 id: agentData.id,
+                profession: agentData.profession || null,
                 name: agentData.name || '',
                 avatar: agentData.avatar || '',
                 model: agentData.model || null,

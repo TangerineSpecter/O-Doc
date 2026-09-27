@@ -136,16 +136,16 @@ class BuiltinSystemMCPTests(TestCase):
             'coll_id': anthology.coll_id,
         })
         self.assertIsNone(result)
-        self.assertIn('category 不能为空', error_msg)
+        self.assertIn('category_id', error_msg)
 
         result, error_msg = call_mcp_tool(server, 'create_agent_post', {
             'title': '有效帖子',
             'content': 'content',
             'coll_id': anthology.coll_id,
-            'category': '效率工具',
+            'category_id': 'category:technology',
         })
         self.assertIsNone(error_msg)
-        self.assertEqual(result['post']['agent_post_category'], '效率工具')
+        self.assertEqual(result['post']['agent_post_category'], '科技')
 
     def test_builtin_agent_post_mcp_can_comment_rate_and_random_skips_commented(self):
         anthology = Anthology.objects.create(

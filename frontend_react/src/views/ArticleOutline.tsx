@@ -1,3 +1,5 @@
+import { CategoryMigration, MigrationAlert } from "../components/AgentWorld/CategoryMigration";
+import { PostRanking } from "../components/AgentWorld/PostRanking";
 import {SelectablePostBody} from '../components/AgentPost/SelectablePostBody';
 import {ReactNode, useCallback, useEffect, useRef, useState} from 'react';
 import ReactMarkdown, {defaultUrlTransform} from 'react-markdown';
@@ -174,6 +176,7 @@ function AgentPostCollectionView({
     onBackHome?: () => void;
     canManage: boolean;
 }) {
+    const canMigrate = canManage && anthologyInfo?.canManage === true;
     const [posts, setPosts] = useState<ArticleType[]>([]);
     const [loading, setLoading] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<ArticleType | null>(null);
@@ -186,25 +189,20 @@ function AgentPostCollectionView({
     const [commentDraft, setCommentDraft] = useState('');
     const [commentSubmitting, setCommentSubmitting] = useState(false);
     const [activeCategory, setActiveCategory] = useState('all');
+    const [migrationTarget, setMigrationTarget] = useState<{oldCategory: string; postId?: string}>();
     const [ratingSubmitting, setRatingSubmitting] = useState(false);
     const [latestComments, setLatestComments] = useState<AgentPostLatestCommentListResult['comments']>([]);
     const toast = useToast();
 
-    const categoryStats = posts.reduce<Array<{ name: string; count: number }>>((acc, post) => {
-        const name = post.agentPostCategory?.trim() || '未分类';
-        const found = acc.find(item => item.name === name);
+    const categoryKey = (post: ArticleType) => post.agentPostCategoryId || `legacy:${post.agentPostCategory || ''}`;
+    const categoryStats = posts.reduce<Array<{ key: string; name: string; oldCategory: string; pending: boolean; count: number }>>((acc, post) => {
+        const key = categoryKey(post);
+        const found = acc.find(item => item.key === key);
         if (found) found.count += 1;
-        else acc.push({name, count: 1});
+        else acc.push({key, name: post.agentPostCategoryName || post.agentPostCategory || '未分类', oldCategory: post.agentPostCategory || '', pending: !post.agentPostCategoryId, count: 1});
         return acc;
     }, []);
-
-    const visiblePosts = activeCategory === 'all'
-        ? posts
-        : posts.filter(post => (post.agentPostCategory?.trim() || '未分类') === activeCategory);
-
-    const commentRankPosts = [...posts]
-        .sort((a, b) => (b.postCommentCount || 0) - (a.postCommentCount || 0))
-        .slice(0, 5);
+    const visiblePosts = activeCategory === 'all' ? posts : posts.filter(post => categoryKey(post) === activeCategory);
 
     const truncateText = (value?: string, max = 56) => {
         const text = (value || '').replace(/\s+/g, ' ').trim();
@@ -556,6 +554,9 @@ function AgentPostCollectionView({
                     </button>
                 </div>
 
+                {migrationTarget && <CategoryMigration collectionId={collId || ''} {...migrationTarget} onClose={() => setMigrationTarget(undefined)} onComplete={() => { setActiveCategory('all'); void loadPosts(); }}/>}
+                <a href="/settings?tab=world" className="mb-3 inline-block text-sm text-orange-600">管理分类、职业和收益</a>
+                {categoryStats.some(category => category.pending) && <p className="mb-3 text-sm text-orange-600">历史帖子分类尚未关联当前分类管理列表。{canMigrate ? '点击分类旁的感叹号批量迁移，或帖子右侧的感叹号迁移单篇。' : '请由文集管理者手动迁移帖子分类。'}</p>}
                 <div className="mb-5 flex gap-2 overflow-x-auto pb-1 scrollbar-hide no-scrollbar touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                     <button
                         type="button"
@@ -569,18 +570,10 @@ function AgentPostCollectionView({
                         全部 {posts.length}
                     </button>
                     {categoryStats.map(category => (
-                        <button
-                            key={category.name}
-                            type="button"
-                            onClick={() => setActiveCategory(category.name)}
-                            className={`shrink-0 rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
-                                activeCategory === category.name
-                                    ? 'border-red-400 bg-white text-slate-900 shadow-sm'
-                                    : 'border-slate-200 bg-white/80 text-slate-600 hover:border-slate-300 hover:bg-white'
-                            }`}
-                        >
-                            {category.name} {category.count}
-                        </button>
+                        <div key={category.key} className={`flex shrink-0 items-center rounded-lg border bg-white ${activeCategory === category.key ? 'border-red-400' : 'border-slate-200'}`}>
+                            <button type="button" onClick={() => setActiveCategory(category.key)} className="px-4 py-2 text-sm text-slate-600">{category.name} {category.count}</button>
+                            {canMigrate && category.pending && <MigrationAlert onClick={() => setMigrationTarget({oldCategory: category.oldCategory})}/>}
+                        </div>
                     ))}
                 </div>
 
@@ -603,7 +596,7 @@ function AgentPostCollectionView({
                                             <h2 className="truncate text-base font-bold leading-6 text-slate-900">{post.title}</h2>
                                             <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-400">
                                                 <span className="inline-flex max-w-[8rem] items-center rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 font-medium text-orange-700">
-                                                    <span className="truncate">{post.agentPostCategory || '未分类'}</span>
+                                                    <span className="truncate">{post.agentPostCategoryName || post.agentPostCategory || '未分类'}</span>
                                                 </span>
                                                 <span className="inline-flex items-center gap-1">
                                                     <MessageCircle className="h-3.5 w-3.5" />
@@ -615,6 +608,7 @@ function AgentPostCollectionView({
                                                 </span>
                                             </div>
                                         </div>
+                                        {canMigrate && !post.agentPostCategoryId && <MigrationAlert onClick={() => setMigrationTarget({oldCategory: post.agentPostCategory || '', postId: post.articleId})}/>}
                                         {canManage && (
                                             <button
                                                 type="button"
@@ -647,41 +641,7 @@ function AgentPostCollectionView({
                         </div>
 
                         <aside className="space-y-5 min-[1900px]:absolute min-[1900px]:left-[calc(50%+584px)] min-[1900px]:top-0 min-[1900px]:w-[360px]">
-                            <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
-                                <div className="border-b border-slate-100 px-5 py-4">
-                                    <h2 className="text-lg font-bold text-red-700">评论排行榜</h2>
-                                </div>
-                                <div className="divide-y divide-slate-100">
-                                    {commentRankPosts.length > 0 ? commentRankPosts.map((post, index) => (
-                                        <button
-                                            key={post.articleId}
-                                            type="button"
-                                            onClick={() => onNavigate?.('article', {collId, articleId: post.articleId})}
-                                            className="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-orange-50/50"
-                                        >
-                                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
-                                                index === 0
-                                                    ? 'bg-yellow-300 text-orange-800'
-                                                    : index === 1
-                                                        ? 'bg-slate-200 text-slate-600'
-                                                        : index === 2
-                                                            ? 'bg-orange-200 text-orange-800'
-                                                            : 'text-slate-400'
-                                            }`}>
-                                                {index + 1}
-                                            </span>
-                                            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{post.title}</span>
-                                            <span className="inline-flex shrink-0 items-center gap-1 text-sm text-slate-500">
-                                                <MessageCircle className="h-4 w-4" />
-                                                {post.postCommentCount || 0}
-                                            </span>
-                                        </button>
-                                    )) : (
-                                        <div className="px-5 py-8 text-center text-sm text-slate-400">暂无评论数据</div>
-                                    )}
-                                </div>
-                            </section>
-
+                            <PostRanking collectionId={collId || ''} refreshKey={posts} onOpen={articleId => onNavigate?.('article', {collId, articleId})}/>
                             <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
                                 <div className="border-b border-slate-100 px-5 py-4">
                                     <h2 className="text-lg font-bold text-red-700">最新评论</h2>

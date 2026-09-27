@@ -59,7 +59,11 @@ class AnthologyDetailView(APIView):
         # 使用序列化器将文集对象转换为JSON格式
         json_data = AnthologySerializer(anthology).data
 
-        # 使用统一的成功响应格式，使用预定义的成功错误码
+        # HiddenField 不返回所属用户；前端管理入口使用服务端计算的权限。
+        json_data['can_manage'] = bool(
+            request.user.is_authenticated
+            and anthology.user_id == get_current_user_identifier(request)
+        )
         return success_result(json_data)
 
 

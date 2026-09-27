@@ -7,6 +7,7 @@ class SystemSettingsConfig(AppConfig):
 
     def ready(self):
         from . import sync_signals  # noqa: F401
+        from .agent_world import history  # noqa: F401
         from .builtin_skills import start_builtin_skill_sync
         from .agent_task_scheduler import start_agent_task_scheduler
         from .agent_memory_scheduler import start_agent_memory_scheduler
@@ -15,6 +16,8 @@ class SystemSettingsConfig(AppConfig):
         from .runtime_tracker import start_runtime_tracker
         from .feishu_im_ws import start_feishu_im_ws_manager
 
+        from .agent_world.worker import start_world_worker
+        start_world_worker()
         start_builtin_skill_sync()
         start_agent_task_scheduler()
         start_agent_memory_scheduler()

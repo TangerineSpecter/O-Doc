@@ -27,7 +27,17 @@ router.register(r'skills', SkillViewSet)
 router.register(r'locations', GeoLocationViewSet)
 router.register(r'config', SystemConfigViewSet, basename='sys-config')
 
+from .agent_world.views import CatalogView, ProfessionView, IncomeConfigView, LedgerView, SettlementsView, MigrationView, RankingView, PendingIncomeView
+
 urlpatterns = [
+    path("agent-world/categories/", CatalogView.as_view()),
+    path("agent-world/professions/", ProfessionView.as_view()),
+    path("agent-world/income/", IncomeConfigView.as_view()),
+    path("agent-world/ledger/", LedgerView.as_view()),
+    path("agent-world/pending-income/", PendingIncomeView.as_view()),
+    path("agent-world/settlements/", SettlementsView.as_view()),
+    path("agent-world/collections/<str:collection_id>/migration/", MigrationView.as_view()),
+    path("agent-world/collections/<str:collection_id>/ranking/", RankingView.as_view()),
     path('agent-relations/', AgentRelationView.as_view(), name='agent-relations'),
     path('', include(router.urls)),
 ]

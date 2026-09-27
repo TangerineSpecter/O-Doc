@@ -169,6 +169,7 @@ class SyncEntityState(models.Model):
 
 
 class Agent(models.Model):
+    profession = models.ForeignKey("system_settings.WorldProfession", null=True, blank=True, on_delete=models.SET_NULL)
     """可配置的 AI Agent"""
 
     id = models.CharField(
@@ -901,3 +902,5 @@ class GeoLocation(models.Model):
 
     def __str__(self):
         return f"{self.country} - {self.city}"
+
+from .agent_world.models import (WorldCategory, WorldProfession, WorldProfessionCategory, WorldIncomeConfig, WorldLedger, WorldIncomeEvent, WorldChange, WorldCategoryMigration, WorldMonthSettlement)  # noqa: E402,F401

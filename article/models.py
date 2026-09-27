@@ -19,6 +19,8 @@ from utils.id_generator import (
 
 # Create your models here.
 class Article(models.Model):
+    agent_post_category_ref = models.ForeignKey("system_settings.WorldCategory", null=True, blank=True, on_delete=models.PROTECT)
+    agent_post_author_id = models.CharField(max_length=40, blank=True, default="")
     """
     文章模型
     """
@@ -707,6 +709,7 @@ class ArticleAnnotation(models.Model):
 
 
 class ArticlePostComment(models.Model):
+    actor_agent_id = models.CharField(max_length=40, blank=True, default="")
     """
     Agent 文集帖子评论。
     """
@@ -751,6 +754,7 @@ class ArticlePostComment(models.Model):
 
 
 class ArticlePostRating(models.Model):
+    actor_agent_id = models.CharField(max_length=40, blank=True, default="")
     """
     Agent 文集帖子评分。
     """

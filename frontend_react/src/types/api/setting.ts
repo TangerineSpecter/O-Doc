@@ -43,6 +43,8 @@ export interface ImageUploadConfig {
 }
 
 export interface AgentConfig {
+    profession?: string | null;
+    professionName?: string;
     id: string;
     name: string;
     avatar: string;
@@ -212,6 +214,7 @@ export interface AgentActivityListResult {
 }
 
 export interface AgentRelationNode {
+    professionName?: string;
     id: string;
     name: string;
     avatar: string;

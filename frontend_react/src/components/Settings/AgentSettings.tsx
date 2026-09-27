@@ -1,3 +1,4 @@
+import { ProfessionSelect } from "../AgentWorld/ProfessionSelect";
 import {useEffect, useMemo, useState} from 'react';
 import {
     Activity,
@@ -67,6 +68,7 @@ interface AgentSettingsProps {
 }
 
 type AgentForm = {
+    profession?: string | null;
     id?: string;
     name: string;
     avatar: string;
@@ -398,6 +400,7 @@ export const AgentSettings = ({
         clearAvatarPreview();
         setForm({
             id: agent.id,
+            profession: agent.profession,
             name: agent.name,
             avatar: agent.avatar || '',
             model: agent.model || '',
@@ -428,6 +431,7 @@ export const AgentSettings = ({
         setSaving(true);
         const success = await onSave({
             id: form.id,
+            profession: form.profession || null,
             name: form.name.trim(),
             avatar: form.avatar.trim(),
             model: form.model || null,
@@ -911,7 +915,7 @@ export const AgentSettings = ({
                                     <AgentAvatar agent={agent} size="lg"/>
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                            <h4 className="truncate text-base font-bold text-slate-900">{agent.name}</h4>
+                                            <h4 className="truncate text-base font-bold text-slate-900">{agent.name}{agent.professionName ? ` · ${agent.professionName}` : ''}</h4>
                                             <span className="truncate text-xs text-slate-400">
                                                 {agent.modelDetail?.name || '未绑定模型'}
                                             </span>
@@ -1205,7 +1209,7 @@ export const AgentSettings = ({
                                                     <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selected ? 'border-orange-500 bg-orange-500' : 'border-slate-300 bg-white'}`}>
                                                         {selected && <CheckCircle2 className="h-3 w-3 text-white"/>}
                                                     </span>
-                                                    <span className="truncate font-medium">{agent.name}</span>
+                                                    <span className="truncate font-medium">{agent.name}{agent.professionName ? ` · ${agent.professionName}` : ''}</span>
                                                 </button>
                                             );
                                         })}
@@ -1741,6 +1745,7 @@ export const AgentSettings = ({
                             </div>
 
                             <div className="space-y-2">
+                                <ProfessionSelect value={form.profession} onChange={profession => setForm({...form, profession})}/>
                                 <label className="text-sm font-semibold text-slate-700">名字</label>
                                 <input
                                     value={form.name}
