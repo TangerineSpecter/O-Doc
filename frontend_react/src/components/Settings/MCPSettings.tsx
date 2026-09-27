@@ -27,6 +27,7 @@ type MCPForm = {
     command: string;
     argsText: string;
     url: string;
+    tavilyApiKey: string;
     headerRows: MCPHeaderRow[];
     description: string;
     enabled: boolean;
@@ -46,6 +47,7 @@ const defaultForm: MCPForm = {
     command: '',
     argsText: '',
     url: '',
+    tavilyApiKey: '',
     headerRows: [
         {id: 'header_authorization', key: 'Authorization', value: '', enabled: true},
         {id: 'header_content_type', key: 'Content-Type', value: 'application/json', enabled: true},
@@ -109,6 +111,17 @@ const getStoredTools = (server?: MCPServerConfig): MCPToolConfig[] => {
     return server.tools;
 };
 
+const isTavilySystemServer = (server?: MCPServerConfig) =>
+    server?.source === 'system' && server.name === 'Tavily 搜索';
+
+const getHeader = (headers: Record<string, string> = {}, name: string) => {
+    const entry = Object.entries(headers).find(([key]) => key.toLowerCase() === name.toLowerCase());
+    return entry?.[1] || '';
+};
+
+const extractTavilyApiKey = (headers: Record<string, string> = {}) =>
+    getHeader(headers, 'Authorization').replace(/^Bearer\s+/i, '').trim();
+
 export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}: MCPSettingsProps) => {
     const [modalOpen, setModalOpen] = useState(false);
     const [form, setForm] = useState<MCPForm>(defaultForm);
@@ -157,6 +170,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
             command: server.command || '',
             argsText: (server.args || []).join('\n'),
             url: server.url || '',
+            tavilyApiKey: isTavilySystemServer(server) ? extractTavilyApiKey(server.headers) : '',
             headerRows: headersToRows(server.headers),
             description: server.description || '',
             enabled: server.enabled,
@@ -169,6 +183,10 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
         if (!form.name.trim()) return;
         setSaving(true);
         const currentServer = servers.find(server => server.id === form.id);
+        const tavilySystemServer = isTavilySystemServer(currentServer);
+        const headers = tavilySystemServer
+            ? (form.tavilyApiKey.trim() ? {Authorization: normalizeHeaderValue('Authorization', form.tavilyApiKey)} : {})
+            : rowsToHeaders(form.headerRows) as unknown as Record<string, string>;
         const success = await onSave({
             id: form.id,
             name: form.name.trim(),
@@ -176,14 +194,14 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
             command: form.command.trim(),
             args: parseArgs(form.argsText),
             url: form.url.trim(),
-            headers: rowsToHeaders(form.headerRows) as unknown as Record<string, string>,
+            headers,
             env: {},
             source: currentServer?.source || 'external',
             enabled: form.enabled,
             availableInChat: form.availableInChat,
             description: form.description.trim(),
             tools: form.id ? getStoredTools(currentServer) : [],
-            validateConnection: true,
+            validateConnection: !tavilySystemServer || form.enabled,
         });
         setSaving(false);
         if (success) setModalOpen(false);
@@ -269,6 +287,9 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
             headerRows: prev.headerRows.filter(row => row.id !== rowId),
         }));
     };
+
+    const editingServer = servers.find(server => server.id === form.id);
+    const tavilySystemServer = isTavilySystemServer(editingServer);
 
     return (
         <div className="space-y-6">
@@ -523,22 +544,44 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
                                 <input
                                     value={form.name}
                                     onChange={event => setForm({...form, name: event.target.value})}
+                                    disabled={tavilySystemServer}
                                     placeholder="如：filesystem"
-                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm disabled:bg-slate-50 disabled:text-slate-500"
                                 />
                             </div>
 
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">传输方式</label>
-                                <SettingsSelect
-                                    value={form.transport}
-                                    options={transportOptions}
-                                    onChange={value => setForm({...form, transport: value})}
-                                    accentClassName="bg-orange-50 text-orange-700"
-                                />
+                                {tavilySystemServer ? (
+                                    <div className="flex h-11 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
+                                        Streamable HTTP（系统默认）
+                                    </div>
+                                ) : (
+                                    <SettingsSelect
+                                        value={form.transport}
+                                        options={transportOptions}
+                                        onChange={value => setForm({...form, transport: value})}
+                                        accentClassName="bg-orange-50 text-orange-700"
+                                    />
+                                )}
                             </div>
 
-                            {form.transport === 'stdio' ? (
+                            {tavilySystemServer ? (
+                                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 space-y-3">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-slate-700">Tavily API Key</label>
+                                        <input
+                                            type="password"
+                                            value={form.tavilyApiKey}
+                                            onChange={event => setForm({...form, tavilyApiKey: event.target.value})}
+                                            placeholder="tvly-..."
+                                            autoComplete="off"
+                                            className="w-full h-11 px-3 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-mono"
+                                        />
+                                    </div>
+                                    <p className="text-xs leading-5 text-slate-500">服务地址、传输方式、Content-Type 和 Bearer 前缀由系统管理，只需填写 Tavily API Key。留空并关闭 MCP 可暂停检索。</p>
+                                </div>
+                            ) : form.transport === 'stdio' ? (
                                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
                                     <div className="space-y-2">
                                         <label className="text-sm font-semibold text-slate-700">启动命令</label>

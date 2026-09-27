@@ -37,6 +37,24 @@ BUILTIN_SYSTEM_MCP_SCOPES = {
 AGENT_IDENTITY_TOOL_NAMES = {'create_article_annotation', 'add_article_annotation_comment', 'create_agent_post'}
 
 
+def normalize_mcp_headers(mcp_server):
+    """Apply provider-specific header defaults without changing generic MCP configs."""
+    headers = dict(getattr(mcp_server, 'headers', None) or {})
+    haystack = ' '.join(
+        str(getattr(mcp_server, field, '') or '')
+        for field in ('name', 'url', 'description')
+    ).lower()
+    if 'tavily' not in haystack:
+        return headers
+    for key, value in list(headers.items()):
+        if key.lower() != 'authorization' or not isinstance(value, str):
+            continue
+        token = value.strip()
+        if token.lower().startswith('tvly-'):
+            headers[key] = f'Bearer {token}'
+    return headers
+
+
 def hide_agent_identity_parameters(parameters, tool_name):
     if tool_name not in AGENT_IDENTITY_TOOL_NAMES or not isinstance(parameters, dict):
         return parameters
@@ -587,7 +605,7 @@ def call_mcp_tool(mcp_server, tool_name, arguments=None, timeout=30, agent=None)
     if mcp_server.transport == 'streamableHttp':
         return call_streamable_http_tool(
             url=mcp_server.url,
-            headers=mcp_server.headers or {},
+            headers=normalize_mcp_headers(mcp_server),
             tool_name=tool_name,
             arguments=arguments or {},
             timeout=timeout,
@@ -614,7 +632,7 @@ def fetch_mcp_tools(mcp_server):
         # so we unify their handling with our smart HTTP client.
         return fetch_sse_tools(
             url=mcp_server.url,
-            headers=mcp_server.headers or {}
+            headers=normalize_mcp_headers(mcp_server)
         )
     
     return [], f"不支持的传输方式: {transport}"
