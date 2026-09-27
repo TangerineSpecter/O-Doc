@@ -4,6 +4,7 @@ import Checkbox from '@/components/common/Checkbox';
 import {isImageAvatarValue} from '@/utils/avatar';
 import type {CharacterType} from '@/types/api/agentPrompt';
 import {useAgentPromptGeneration} from './useAgentPromptGeneration';
+import {PromptEditorModal} from './PromptEditorModal';
 
 interface Props {
     name: string;
@@ -37,12 +38,15 @@ export function AgentPromptGenerator({name, avatar, modelId, prompt, avatarUploa
     return <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
             <label htmlFor="agent-prompt" className="text-sm font-semibold text-slate-700">提示词</label>
-            <button type="button" onClick={() => {
-                if (!open && !characterName.trim()) setCharacterName(name);
-                setOpen(!open);
-            }} aria-expanded={open} className="inline-flex items-center gap-1.5 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100">
-                <Sparkles className="h-3.5 w-3.5"/>{open ? '收起生成面板' : '生成角色提示词'}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+                <PromptEditorModal name={name} value={prompt} onChange={onApply}/>
+                <button type="button" onClick={() => {
+                    if (!open && !characterName.trim()) setCharacterName(name);
+                    setOpen(!open);
+                }} aria-expanded={open} className="inline-flex items-center gap-1.5 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100">
+                    <Sparkles className="h-3.5 w-3.5"/>{open ? '收起生成面板' : '生成角色提示词'}
+                </button>
+            </div>
         </div>
         {open && <section className="space-y-4 rounded-xl border border-orange-100 bg-orange-50/40 p-4" aria-label="角色提示词生成">
             <p className="text-xs leading-5 text-slate-500">填写角色信息，生成包含性格、人格倾向和相处方式的角色卡。预览后再应用。</p>

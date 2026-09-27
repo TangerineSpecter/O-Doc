@@ -1773,7 +1773,7 @@ export const AgentSettings = ({
                                     value={form.prompt}
                                     onChange={event => setForm({...form, prompt: event.target.value})}
                                     rows={7}
-                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm leading-6 resize-y"
+                                    className="w-full resize-none px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm leading-6"
                                     placeholder="描述这个 Agent 的角色、工作方式、边界和输出风格"
                                 />
                             </div>
