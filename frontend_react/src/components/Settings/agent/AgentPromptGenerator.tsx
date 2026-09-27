@@ -1,5 +1,6 @@
 import {useState} from 'react';
 import {Loader2, Sparkles, Undo2} from 'lucide-react';
+import Checkbox from '@/components/common/Checkbox';
 import {isImageAvatarValue} from '@/utils/avatar';
 import type {CharacterType} from '@/types/api/agentPrompt';
 import {useAgentPromptGeneration} from './useAgentPromptGeneration';
@@ -60,10 +61,15 @@ export function AgentPromptGenerator({name, avatar, modelId, prompt, avatarUploa
             <label className="block space-y-1.5 text-xs font-medium text-slate-600">补充要求（可选）
                 <textarea className={fieldClass} rows={2} value={requirements} maxLength={4000} onChange={event => setRequirements(event.target.value)} placeholder="如：ISTJ 倾向，慢热但关心人；也可补充剧情阶段或角色资料"/>
             </label>
-            <label className="flex items-center gap-2 text-xs text-slate-600">
-                <input type="checkbox" checked={referenceAvatar && imageAvatar} disabled={!imageAvatar || avatarUploading} onChange={event => setReferenceAvatar(event.target.checked)}/>
-                参考当前头像{!imageAvatar && <span className="text-slate-400">（上传图片后可用）</span>}
-            </label>
+            <Checkbox
+                checked={referenceAvatar && imageAvatar}
+                disabled={!imageAvatar || avatarUploading}
+                onChange={setReferenceAvatar}
+                label={<>参考当前头像{!imageAvatar && <span className="text-slate-400">（上传图片后可用）</span>}</>}
+                labelClassName="text-xs text-slate-600"
+                className="gap-2"
+                size="md"
+            />
             <p className="text-[11px] text-slate-400">{modelId ? '使用当前选择的对话模型' : '使用系统默认对话模型'}；头像仅用于辅助描述外观。</p>
             <button type="button" disabled={!valid || busy || avatarUploading} onClick={() => void generation.generate()} className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50">
                 {busy && <Loader2 className="h-3.5 w-3.5 animate-spin"/>}

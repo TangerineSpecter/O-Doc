@@ -218,6 +218,17 @@ className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ou
 - 必填星号使用 `text-red-500`。
 - 表单禁用态使用 `opacity-50` 或 `opacity-70 cursor-not-allowed`。
 
+#### 复选框
+
+- 优先复用 `frontend_react/src/components/common/Checkbox.tsx`，保持橘色选中态、统一尺寸和键盘焦点样式。
+- 确实需要原生 `<input type="checkbox">` 时，至少设置 `accent-orange-500` 和可见的橘色焦点态；不要保留浏览器默认的蓝色选中样式。
+
+#### 数字输入框
+
+- 数字输入框沿用普通输入框的 `rounded-lg`、`border-slate-200`、`text-sm` 和橘色焦点态。若输入框外包有按钮，焦点样式加在外层，并使用 `focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/20`。
+- 不依赖浏览器原生步进箭头提供主要的增减操作。需要点击增减时，用与输入框连成一体的自定义减号/加号按钮；按钮使用 slate 图标，悬停使用 `hover:bg-orange-50 hover:text-orange-600`，并按 `min`、`max` 禁用越界操作。
+- 隐藏原生数字步进箭头时，保留键盘输入能力；自定义按钮应提供描述明确的 `aria-label`，数值边界仍通过输入框的 `min`、`max`、`step` 声明。
+
 ### 5.4 弹窗
 
 遮罩：

@@ -1,6 +1,7 @@
 import type {AgentTaskRandomPeriod, AgentTaskExecutionMode} from '@/types/api/setting';
 import {SettingsSelect} from '../SettingsSelect';
 import {randomPeriodLabels, resolveAllocations} from './randomTaskSchedule';
+import {RandomTaskNumberInput} from './RandomTaskNumberInput';
 
 interface Props {
     period: AgentTaskRandomPeriod;
@@ -24,14 +25,14 @@ export function RandomTaskScheduleFields({period, count, mode, agents, allocatio
             </label>
             <label className="space-y-2 text-sm font-semibold text-slate-700">
                 <span>{mode === 'parallel' ? '每个 Agent 的目标次数' : '任务总次数'}</span>
-                <input aria-label="随机执行目标次数" type="number" min="1" max="10000" step="1" value={count} onChange={event => onCountChange(event.target.value)} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"/>
+                <RandomTaskNumberInput ariaLabel="随机执行目标次数" value={count} onChange={onCountChange} min={1} max={10000} className="h-10 w-full"/>
             </label>
         </div>
         <div className="space-y-2">
             {agents.map(agent => <div key={agent.id} className="flex items-center justify-between gap-3 text-sm">
                 <span className="truncate text-slate-700">{agent.name}</span>
                 {mode === 'parallel' ? <span className="shrink-0 text-orange-700">每周期 {count || '0'} 次</span> :
-                    <input aria-label={`${agent.name} 分配次数`} type="number" min="0" step="1" value={targets[agent.id]} onChange={event => onAllocationsChange({...targets, [agent.id]: Number(event.target.value)})} className="h-9 w-24 rounded-lg border border-slate-200 bg-white px-3"/>}
+                    <RandomTaskNumberInput ariaLabel={`${agent.name} 分配次数`} value={targets[agent.id]} onChange={value => onAllocationsChange({...targets, [agent.id]: Number(value)})} min={0} className="h-9 w-28 shrink-0"/>}
             </div>)}
         </div>
         {mode === 'serial' && <p className={`text-xs ${total > Number(count) || total <= 0 ? 'text-red-600' : 'text-slate-500'}`}>已分配 {total} / {count || 0} 次。每次轮流执行一个 Agent，未分配的次数不执行。</p>}
