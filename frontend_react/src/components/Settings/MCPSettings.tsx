@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useState} from 'react';
-import {ChevronDown, Code2, Copy, Edit2, KeyRound, Plus, Radar, RefreshCw, Trash2, Wrench, X} from 'lucide-react';
+import {ChevronDown, Code2, Copy, Edit2, Eye, EyeOff, KeyRound, Plus, Radar, RefreshCw, Trash2, Wrench, X} from 'lucide-react';
 import {
     getSystemMCPConfig,
     regenerateSystemMCPKey,
@@ -128,6 +128,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
     const [saving, setSaving] = useState(false);
     const [scanning, setScanning] = useState(false);
     const [refreshingServerId, setRefreshingServerId] = useState<string | null>(null);
+    const [showTavilyApiKey, setShowTavilyApiKey] = useState(false);
     const [expandedServerIds, setExpandedServerIds] = useState<string[]>([]);
     const [toolOverrides, setToolOverrides] = useState<Record<string, MCPToolConfig[]>>({});
     const [systemMCPConfig, setSystemMCPConfig] = useState<SystemMCPConfig | null>(null);
@@ -159,6 +160,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
 
     const openCreateModal = () => {
         setForm({...defaultForm, headerRows: defaultForm.headerRows.map(row => ({...row}))});
+        setShowTavilyApiKey(false);
         setModalOpen(true);
     };
 
@@ -176,6 +178,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
             enabled: server.enabled,
             availableInChat: server.availableInChat ?? false,
         });
+        setShowTavilyApiKey(false);
         setModalOpen(true);
     };
 
@@ -570,14 +573,25 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
                                 <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 space-y-3">
                                     <div className="space-y-2">
                                         <label className="text-sm font-semibold text-slate-700">Tavily API Key</label>
-                                        <input
-                                            type="password"
-                                            value={form.tavilyApiKey}
-                                            onChange={event => setForm({...form, tavilyApiKey: event.target.value})}
-                                            placeholder="tvly-..."
-                                            autoComplete="off"
-                                            className="w-full h-11 px-3 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-mono"
-                                        />
+                                        <div className="relative">
+                                            <input
+                                                type={showTavilyApiKey ? 'text' : 'password'}
+                                                value={form.tavilyApiKey}
+                                                onChange={event => setForm({...form, tavilyApiKey: event.target.value})}
+                                                placeholder="tvly-..."
+                                                autoComplete="off"
+                                                className="w-full h-11 px-3 pr-11 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-mono"
+                                            />
+                                            <button
+                                                type="button"
+                                                aria-label={showTavilyApiKey ? '隐藏 API Key' : '显示 API Key'}
+                                                title={showTavilyApiKey ? '隐藏 API Key' : '显示 API Key'}
+                                                onClick={() => setShowTavilyApiKey(value => !value)}
+                                                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-400 transition-colors hover:text-blue-600"
+                                            >
+                                                {showTavilyApiKey ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}
+                                            </button>
+                                        </div>
                                     </div>
                                     <p className="text-xs leading-5 text-slate-500">服务地址、传输方式、Content-Type 和 Bearer 前缀由系统管理，只需填写 Tavily API Key。留空并关闭 MCP 可暂停检索。</p>
                                 </div>
