@@ -8,6 +8,7 @@ export interface AgentPromptInput {
     requirements: string;
     avatar: string;
     referenceAvatar: boolean;
+    researchCharacter: boolean;
     avatarDescription?: string;
     modelId: string;
 }
@@ -23,5 +24,6 @@ export interface AgentPromptResult {
     prompt: string;
     question: string;
     avatarUsed: boolean;
+    researchUsed?: boolean;
     warning: string;
 }

@@ -98,13 +98,64 @@ class AgentPromptGenerationTests(SimpleTestCase):
             with self.assertRaises(ValueError):
                 render_generated_prompt(invalid)
         body = ready_result()
-        body['sections']['speech'] = '## 语气参考\n示例'
+        body['sections']['age'] = '## 语气参考\n示例'
         with self.assertRaises(ValueError):
             render_generated_prompt(json.dumps(body))
         body = ready_result()
         body['sections']['personality_type'] = '内向认真'
         with self.assertRaises(ValueError):
             render_generated_prompt(json.dumps(body))
+
+    def test_research_character_uses_configured_tavily_mcp(self):
+        server = SimpleNamespace(
+            name='tavily搜索',
+            url='https://mcp.tavily.com/mcp/',
+            description='外部 Tavily 搜索',
+            tools=[{'name': 'tavily_search', 'enabled': True}],
+        )
+        data = {
+            'character_type': 'existing',
+            'character_name': '菲伦',
+            'source': '葬送的芙莉莲',
+            'description': '',
+            'requirements': '',
+            'avatar_description': '',
+            'model_id': '',
+            'research_character': True,
+        }
+        with patch('system_settings.agent_prompt_generation.MCPServer.objects.filter') as servers, \
+                patch('system_settings.agent_prompt_generation.AIService.get_client_config_for_model', return_value={'model_name': 'test'}), \
+                patch('system_settings.agent_prompt_generation.call_mcp_tool', return_value=({'results': [
+                    {'title': '菲伦资料', 'url': 'https://example.com/fern', 'content': '沉静可靠的人类魔法使。'},
+                ]}, None)) as call_tool, \
+                patch('system_settings.agent_prompt_generation.complete', return_value=json.dumps(ready_result(), ensure_ascii=False)) as completion:
+            servers.return_value.order_by.return_value = [server]
+            result = generate_agent_prompt(data)
+
+        self.assertTrue(result['research_used'])
+        self.assertEqual(result['research_warning'], '')
+        call_tool.assert_called_once()
+        self.assertIn('菲伦资料', completion.call_args.args[1])
+
+    def test_research_without_tavily_falls_back_with_warning(self):
+        data = {
+            'character_type': 'existing',
+            'character_name': '未知角色',
+            'source': '未知作品',
+            'description': '',
+            'requirements': '',
+            'avatar_description': '',
+            'model_id': '',
+            'research_character': True,
+        }
+        with patch('system_settings.agent_prompt_generation.MCPServer.objects.filter') as servers, \
+                patch('system_settings.agent_prompt_generation.AIService.get_client_config_for_model', return_value={'model_name': 'test'}), \
+                patch('system_settings.agent_prompt_generation.complete', return_value=json.dumps(ready_result(), ensure_ascii=False)):
+            servers.return_value.order_by.return_value = []
+            result = generate_agent_prompt(data)
+
+        self.assertFalse(result['research_used'])
+        self.assertIn('Tavily', result['research_warning'])
 
     def test_provider_error_is_safe_and_missing_default_is_actionable(self):
         data = {'character_type': 'original', 'character_name': '测试', 'description': '魔法使'}

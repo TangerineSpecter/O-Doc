@@ -59,10 +59,12 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
             await page.getByLabel('角色出处', {exact: true}).fill('葬送的芙莉莲');
             await page.locator('input[type=file]').setInputFiles({name: 'avatar.png', mimeType: 'image/png', buffer: png});
             await page.getByText('头像已上传', {exact: true}).waitFor();
+            await page.getByRole('checkbox', {name: /联网检索角色资料/}).check();
             await page.getByRole('button', {name: '开始生成', exact: true}).click();
             await page.locator('#agent-prompt-preview').waitFor();
             assert.equal(visionCalls, 1);
             assert.equal(generationRequests.at(-1).avatarDescription, '紫色头发与紫色眼睛');
+            assert.equal(generationRequests.at(-1).researchCharacter, true);
             assert.equal(await page.locator('#agent-prompt').inputValue(), originalPrompt, 'preview must not overwrite draft');
             await page.locator('#agent-prompt-preview').fill('');
             assert.equal(await page.locator('#agent-prompt-preview').count(), 1, 'clearing preview must keep editor visible');

@@ -4,7 +4,7 @@ import type {AgentPromptInput} from '@/types/api/agentPrompt';
 
 interface GenerationState {
     signature: string;
-    phase: 'idle' | 'avatar' | 'generation';
+    phase: 'idle' | 'avatar' | 'research' | 'generation';
     preview: string;
     hasPreview: boolean;
     warning: string;
@@ -56,7 +56,7 @@ export const useAgentPromptGeneration = (input: AgentPromptInput, enabled: boole
                 }
             }
             if (!current()) return;
-            update({warning: avatarWarning, phase: 'generation'});
+            update({warning: avatarWarning, phase: input.researchCharacter ? 'research' : 'generation'});
             const result = await generateAgentPrompt({...input, referenceAvatar: false, avatarDescription}, controller.signal);
             if (!current()) return;
             update({warning: [avatarWarning, result.warning].filter(Boolean).join(' ')});

@@ -6,6 +6,7 @@ import tomllib
 from types import SimpleNamespace
 
 from django.db import transaction
+from django.db.models import Q
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -20,6 +21,10 @@ from utils.response_utils import error_result, success_result
 
 SYSTEM_MCP_CONFIG_KEY = 'system_mcp_config'
 SKIPPED_SCANNED_MCP_NAMES = frozenset({'node_repl', 'computer-use', 'cua_repl'})
+TAVILY_MCP_NAME = 'Tavily 搜索'
+TAVILY_MCP_DEFAULT_URL = 'https://mcp.tavily.com/mcp/'
+TAVILY_MCP_DESCRIPTION = '系统默认角色资料检索源；生成角色提示词时可选择联网检索。'
+TAVILY_MCP_LEGACY_NAMES = frozenset({'tavily搜索', 'tavily 搜索'})
 
 
 def _generate_system_mcp_api_key():
@@ -108,6 +113,62 @@ def _image_generation_mcp_tools():
     return _system_mcp_tools(VISIBLE_IMAGE_GENERATION_TOOL_NAMES)
 
 
+def _is_tavily_server_config(server):
+    haystack = ' '.join(
+        str(server.get(field, '') or '')
+        for field in ('name', 'url', 'description')
+    ).lower()
+    return 'tavily' in haystack
+
+
+def _normalize_tavily_mcp_server():
+    """将已有的 Tavily 外部配置升级为系统默认项，保留 ID、密钥和 Tools。"""
+    with transaction.atomic():
+        candidates = list(
+            MCPServer.objects.select_for_update().filter(
+                Q(name__iexact=TAVILY_MCP_NAME)
+                | Q(name__in=TAVILY_MCP_LEGACY_NAMES)
+                | Q(name__icontains='tavily')
+                | Q(url__icontains='mcp.tavily.com')
+                | Q(description__icontains='tavily')
+            ).order_by('created_at', 'id')
+        )
+        if not candidates:
+            return None
+
+        # 优先使用已经规范化的条目；否则选择最早的已配置条目，避免更换 ID 让 Agent 绑定失效。
+        server = next((item for item in candidates if item.name == TAVILY_MCP_NAME), candidates[0])
+        update_fields = []
+        if server.name != TAVILY_MCP_NAME and not MCPServer.objects.filter(name=TAVILY_MCP_NAME).exclude(pk=server.pk).exists():
+            server.name = TAVILY_MCP_NAME
+            update_fields.append('name')
+        if server.source != 'system':
+            server.source = 'system'
+            update_fields.append('source')
+        if server.transport != 'streamableHttp':
+            server.transport = 'streamableHttp'
+            update_fields.append('transport')
+        if server.url == '':
+            server.url = TAVILY_MCP_DEFAULT_URL
+            update_fields.append('url')
+        if server.command:
+            server.command = ''
+            update_fields.append('command')
+        if server.args:
+            server.args = []
+            update_fields.append('args')
+        if server.env:
+            server.env = {}
+            update_fields.append('env')
+        if not server.description or server.description.strip() in {'搜索工具', 'Tavily 搜索'}:
+            server.description = TAVILY_MCP_DESCRIPTION
+            update_fields.append('description')
+        if update_fields:
+            update_fields.append('updated_at')
+            server.save(update_fields=update_fields)
+        return server
+
+
 def _sync_builtin_system_mcp_server(request, value, name, endpoint, description, tools):
     server = MCPServer.objects.filter(name=name).first()
     if not server:
@@ -130,6 +191,7 @@ def _sync_builtin_system_mcp_server(request, value, name, endpoint, description,
 
 def _sync_scanned_system_mcp_servers(request, value):
     rename_photo_mcp()
+    _normalize_tavily_mcp_server()
     _sync_builtin_system_mcp_server(
         request,
         value,
@@ -212,6 +274,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         rename_photo_mcp()
+        _normalize_tavily_mcp_server()
         queryset = self.filter_queryset(self.get_queryset()).exclude(
             source='system',
             name__in=SKIPPED_SCANNED_MCP_NAMES,
@@ -588,6 +651,25 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             'tools': cls._format_builtin_tools(VISIBLE_IMAGE_GENERATION_TOOL_NAMES),
         }
 
+    @classmethod
+    def _builtin_tavily_server(cls):
+        configured = _normalize_tavily_mcp_server()
+        return {
+            'name': TAVILY_MCP_NAME,
+            'transport': 'streamableHttp',
+            'command': '',
+            'args': [],
+            'url': configured.url if configured and configured.url else TAVILY_MCP_DEFAULT_URL,
+            'headers': configured.headers if configured else {},
+            'env': {},
+            'source': 'system',
+            # 没有用户配置密钥时只展示占位条目，避免每次扫描都发起失败请求。
+            'enabled': configured.enabled if configured else False,
+            'available_in_chat': configured.available_in_chat if configured else False,
+            'description': configured.description if configured and configured.description else TAVILY_MCP_DESCRIPTION,
+            'tools': configured.tools if configured else [],
+        }
+
     @staticmethod
     def _extract_servers(payload, source_path):
         if not isinstance(payload, dict):
@@ -652,6 +734,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
     def scan(self, request):
         rename_photo_mcp()
         builtin_servers = [
+            self._builtin_tavily_server(),
             self._builtin_memo_server(request),
             self._builtin_anthology_server(request),
             self._builtin_article_server(request),
@@ -663,7 +746,13 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             self._builtin_image_generation_server(request),
         ]
         builtin_names = {server['name'] for server in builtin_servers}
-        scanned = [*builtin_servers, *self._scan_local_configs()]
+        scanned = [
+            *builtin_servers,
+            *[
+                server for server in self._scan_local_configs()
+                if server['name'] not in builtin_names and not _is_tavily_server_config(server)
+            ],
+        ]
         saved = []
         from utils.mcp_client import fetch_mcp_tools
         for server in scanned:
@@ -769,5 +858,3 @@ class SkillViewSet(viewsets.ModelViewSet):
                 agent.skills = [item for item in agent.skills if item != skill_id]
                 agent.save(update_fields=['skills', 'updated_at'])
         return success_result()
-
-

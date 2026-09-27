@@ -178,7 +178,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
             url: form.url.trim(),
             headers: rowsToHeaders(form.headerRows) as unknown as Record<string, string>,
             env: {},
-            source: 'external',
+            source: currentServer?.source || 'external',
             enabled: form.enabled,
             availableInChat: form.availableInChat,
             description: form.description.trim(),
@@ -356,7 +356,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
                         </div>
                         <div>
                             <h3 className="font-bold text-slate-800">MCP 设置</h3>
-                            <p className="text-xs text-slate-500 mt-1">扫描本机已配置 MCP，也可以接入外部 MCP 服务。</p>
+                            <p className="text-xs text-slate-500 mt-1">扫描本机已配置 MCP，也可以接入外部 MCP 服务；Tavily 搜索会作为系统默认角色资料源识别。</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -405,7 +405,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
                                             {server.transport === 'streamableHttp' ? 'streamableHttp' : server.transport}
                                         </span>
                                         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${server.source === 'system' ? 'border-blue-100 bg-blue-50 text-blue-600' : 'border-emerald-100 bg-emerald-50 text-emerald-600'}`}>
-                                            {server.source === 'system' ? '系统扫描' : '外部接入'}
+                                            {server.source === 'system' ? (server.name === 'Tavily 搜索' ? '系统默认' : '系统扫描') : '外部接入'}
                                         </span>
                                         {server.availableInChat && (
                                             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">

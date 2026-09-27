@@ -81,7 +81,13 @@ class AgentViewSet(viewsets.ModelViewSet):
         except Exception:
             logger.exception('Agent prompt generation failed')
             return valid_result(msg='生成失败，请检查模型配置或稍后重试', status=502)
-        return success_result({**result, 'avatar_used': avatar_used, 'warning': warning})
+        research_warning = result.pop('research_warning', '')
+        warnings = ' '.join(item for item in (warning, research_warning) if item)
+        return success_result({
+            **result,
+            'avatar_used': avatar_used,
+            'warning': warnings,
+        })
 
     @staticmethod
     def _sync_feishu_im_connection(agent_id):

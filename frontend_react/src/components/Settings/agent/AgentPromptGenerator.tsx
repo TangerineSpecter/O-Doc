@@ -25,11 +25,13 @@ export function AgentPromptGenerator({name, avatar, modelId, prompt, avatarUploa
     const [description, setDescription] = useState('');
     const [requirements, setRequirements] = useState('');
     const [referenceAvatar, setReferenceAvatar] = useState(true);
+    const [researchCharacter, setResearchCharacter] = useState(false);
     const [undo, setUndo] = useState<{before: string; applied: string} | null>(null);
     const imageAvatar = isImageAvatarValue(avatar);
     const generation = useAgentPromptGeneration({
         characterType, characterName, source, description, requirements, avatar, modelId,
         referenceAvatar: referenceAvatar && imageAvatar,
+        researchCharacter: characterType === 'existing' && researchCharacter,
     }, open);
     const busy = generation.phase !== 'idle';
     const valid = characterName.trim() && (characterType === 'existing' ? source.trim() : description.trim());
@@ -74,10 +76,19 @@ export function AgentPromptGenerator({name, avatar, modelId, prompt, avatarUploa
                 className="gap-2"
                 size="md"
             />
-            <p className="text-[11px] text-slate-400">{modelId ? '使用当前选择的对话模型' : '使用系统默认对话模型'}；头像仅用于辅助描述外观。</p>
+            <Checkbox
+                checked={researchCharacter && characterType === 'existing'}
+                disabled={characterType !== 'existing' || busy}
+                onChange={setResearchCharacter}
+                label={<>联网检索角色资料<span className="text-slate-400">（Tavily）</span></>}
+                labelClassName="text-xs text-slate-600"
+                className="gap-2"
+                size="md"
+            />
+            <p className="text-[11px] text-slate-400">{modelId ? '使用当前选择的对话模型' : '使用系统默认对话模型'}；头像仅用于辅助描述外观。勾选联网检索后，会先查找已配置的 Tavily MCP；未配置时仍会继续生成。</p>
             <button type="button" disabled={!valid || busy || avatarUploading} onClick={() => void generation.generate()} className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50">
                 {busy && <Loader2 className="h-3.5 w-3.5 animate-spin"/>}
-                {generation.phase === 'avatar' ? '正在识别头像…' : generation.phase === 'generation' ? '正在生成角色设定…' : generation.hasPreview ? '重新生成' : '开始生成'}
+                {generation.phase === 'avatar' ? '正在识别头像…' : generation.phase === 'research' ? '正在检索角色资料…' : generation.phase === 'generation' ? '正在生成角色设定…' : generation.hasPreview ? '重新生成' : '开始生成'}
             </button>
             <div aria-live="polite" className="space-y-2 text-xs leading-5">
                 {generation.warning && <p className="text-amber-700">{generation.warning}</p>}
