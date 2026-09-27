@@ -171,6 +171,11 @@ def _normalize_tavily_mcp_server():
 
 def _sync_builtin_system_mcp_server(request, value, name, endpoint, description, tools):
     server = MCPServer.objects.filter(name=name).first()
+    if server is None and name == 'Agent 信息 MCP':
+        server = MCPServer.objects.filter(name='Agent 动态 MCP').first()
+        if server:
+            server.name = name
+            server.save(update_fields=['name', 'updated_at'])
     if not server:
         return
     server.url = request.build_absolute_uri(endpoint)
@@ -227,9 +232,9 @@ def _sync_scanned_system_mcp_servers(request, value):
     _sync_builtin_system_mcp_server(
         request,
         value,
-        'Agent 动态 MCP',
+        'Agent 信息 MCP',
         '/api/system-mcp/agent-activities/',
-        'O-Doc 内置系统 MCP，只提供当前 Agent 的动态查询，用于回顾一段时间内做过的事。',
+        'O-Doc 内置系统 MCP，查询当前 Agent 的职业、分类收益加成和历史动态。',
         _activity_mcp_tools(),
     )
     _sync_builtin_system_mcp_server(
@@ -581,7 +586,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
 
         value = cls._ensure_system_mcp_value()
         return {
-            'name': 'Agent 动态 MCP',
+            'name': 'Agent 信息 MCP',
             'transport': 'streamableHttp',
             'command': '',
             'args': [],
@@ -590,7 +595,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             'env': {},
             'source': 'system',
             'enabled': bool(value.get('enabled', True)),
-            'description': 'O-Doc 内置系统 MCP，只提供当前 Agent 的动态查询，用于回顾一段时间内做过的事。',
+            'description': 'O-Doc 内置系统 MCP，查询当前 Agent 的职业、分类收益加成和历史动态。',
             'tools': cls._format_builtin_tools(VISIBLE_ACTIVITY_TOOL_NAMES),
         }
 

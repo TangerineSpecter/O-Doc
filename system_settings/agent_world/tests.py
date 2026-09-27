@@ -41,6 +41,24 @@ class AgentWorldTests(TestCase):
         self.assertEqual(WorldLedger.objects.get(kind='comment').amount, Decimal('2.00'))
         self.assertEqual(row.snapshot['percentage'], '12.5000')
 
+    def test_category_and_self_profession_queries_are_separate(self):
+        from system_mcp.views import get_system_mcp_tools_for_scope
+        from .catalog import available_categories, current_profession
+        self.assertTrue(all(set(c) == {'id', 'name', 'description'} for c in available_categories()))
+        result = current_profession(self.agent)
+        self.assertEqual(result['profession']['id'], self.profession.pk)
+        self.assertEqual(result['category_bonuses'][0]['bonus_percentage'], '12.5000')
+        self.profession.enabled = False
+        self.profession.save()
+        result = current_profession(self.agent)
+        self.assertEqual(result['category_bonuses'][0]['bonus_percentage'], '0')
+        self.assertEqual(current_profession(self.other)['profession'], None)
+        with self.assertRaises(ValueError):
+            current_profession(None)
+        names = {tool['name'] for tool in get_system_mcp_tools_for_scope('agent_activities')}
+        self.assertIn('get_agent_profession', names)
+        self.assertNotIn('list_agent_post_categories', names)
+
     def test_user_repeat_self_and_agent_repeat(self):
         self.comment(); self.comment()
         self.comment('agent:作者', self.agent)

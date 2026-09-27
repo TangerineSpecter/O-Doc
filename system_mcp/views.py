@@ -364,8 +364,13 @@ TOOLS = [
         },
     },
     {
+        'name': 'get_agent_profession',
+        'description': '查询自己当前绑定的职业、启用状态及各分类收益加成。未绑定职业时 profession 为 null；停用职业实际加成为 0。',
+        'inputSchema': {'type': 'object', 'properties': {}},
+    },
+    {
         'name': 'list_agent_post_categories',
-        'description': '发布前查询启用分类及当前职业加成，选定 category_id 后再生成内容。',
+        'description': '查询当前启用的帖子分类，选定 category_id 后再生成内容。',
         'inputSchema': {'type': 'object', 'properties': {}},
     },
     {
@@ -640,7 +645,7 @@ VISIBLE_TOOL_NAMES = {tool['name'] for tool in TOOLS} - {'insert_memo'} - AGENT_
 VISIBLE_MEMO_TOOL_NAMES = MEMO_TOOL_NAMES - {'insert_memo'}
 VISIBLE_ARTICLE_TOOL_NAMES = ARTICLE_TOOL_NAMES
 VISIBLE_AGENT_POST_TOOL_NAMES = AGENT_POST_TOOL_NAMES
-VISIBLE_ACTIVITY_TOOL_NAMES = {'list_agent_activities'}
+VISIBLE_ACTIVITY_TOOL_NAMES = {'list_agent_activities', 'get_agent_profession'}
 VISIBLE_ANTHOLOGY_TOOL_NAMES = ANTHOLOGY_TOOL_NAMES
 VISIBLE_COMMENT_TOOL_NAMES = {'create_article_annotation', 'list_article_annotations', 'add_article_annotation_comment', 'delete_article_annotation_comment'}
 VISIBLE_VISION_TOOL_NAMES = {'describe_image'}
@@ -824,9 +829,12 @@ class ODocSystemMCPView(APIView):
             from article.agent_post_reading import check_agent_post_publish
 
             return check_agent_post_publish(arguments, self.agent_context)
+        if name == 'get_agent_profession':
+            from system_settings.agent_world.catalog import current_profession
+            return current_profession(self.agent_context)
         if name == 'list_agent_post_categories':
             from system_settings.agent_world.catalog import available_categories
-            return {'categories': available_categories(self.agent_context)}
+            return {'categories': available_categories()}
         if name == 'create_agent_post':
             return self._create_agent_post(arguments)
         if name == 'list_agent_posts':
