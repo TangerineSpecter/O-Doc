@@ -50,6 +50,7 @@ class AgentSerializer(serializers.ModelSerializer):
             'model',
             'model_detail',
             'prompt',
+            'money',
             'mcp_servers',
             'skills',
             'feishu_im_enabled',
@@ -60,7 +61,7 @@ class AgentSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'model_detail', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'model_detail', 'money', 'created_at', 'updated_at']
 
     def validate_name(self, value):
         value = value.strip()

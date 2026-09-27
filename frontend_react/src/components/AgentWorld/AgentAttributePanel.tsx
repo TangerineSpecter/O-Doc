@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import type {AgentRelationEdge, AgentRelationGraph, AgentRelationNode} from '../../types/api/setting';
 import AgentAvatar from './AgentAvatar';
 import WorldDialog from './WorldDialog';
-import {ChevronDown, MessageSquare, CalendarDays, FileText, Sparkles} from 'lucide-react';
+import {ChevronDown, MessageSquare, CalendarDays, FileText, Sparkles, Wallet} from 'lucide-react';
 
 interface AgentAttributePanelProps {
     graph: AgentRelationGraph | null;
@@ -58,6 +58,10 @@ function AttributeRow({node, relations, expanded, onToggle}: {
                         <span key={label} className="flex flex-col items-center gap-1.5"><span className="text-base font-semibold tabular-nums text-slate-700">{value}</span><span className="flex items-center gap-1 text-[10px] text-slate-500"><Icon className="h-3 w-3"/>{label}</span></span>
                     ))}
                 </span>
+                <span className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-orange-100 bg-orange-50/60 px-3 py-2.5">
+                    <span className="flex min-w-0 items-center gap-2 text-xs font-medium text-orange-700"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-orange-600"><Wallet className="h-3.5 w-3.5"/></span><span className="truncate">金钱余额</span></span>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums tracking-tight text-slate-800">¥{Number(node.money).toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </span>
                 <span className="mt-4 flex items-center justify-between text-[11px]"><span className="text-slate-400">{relations.length ? `${relations.length} 位互动居民` : '暂无互动记录'}</span><span className="text-orange-600">{expanded ? '收起好感' : '查看好感'}</span></span>
             </button>
             {expanded ? (
@@ -91,7 +95,7 @@ export default function AgentAttributePanel({graph, loading, error, selectedAgen
     });
 
     return (
-        <WorldDialog title="居民属性" description="从创作到互动，看看每位居民最近 30 天的生活。" onClose={onClose}>
+        <WorldDialog title="居民属性" description="创作与互动按近 30 天统计，并显示当前金钱余额。" onClose={onClose}>
             {loading ? <p className="py-16 text-center text-xs text-slate-400">正在计算属性...</p> : null}
             {error ? <p className="py-12 text-center text-xs text-red-600">{error}</p> : null}
             {!loading && !error && !nodes.length ? <p className="py-16 text-center text-xs text-slate-400">还没有居民。</p> : null}

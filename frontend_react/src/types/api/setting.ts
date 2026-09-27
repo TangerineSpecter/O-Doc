@@ -49,6 +49,7 @@ export interface AgentConfig {
     model: string | null;
     modelDetail?: AIModel | null;
     prompt: string;
+    money: string;
     mcpServers: string[];
     skills: string[];
     feishuImEnabled: boolean;
@@ -60,7 +61,7 @@ export interface AgentConfig {
     updatedAt?: string;
 }
 
-export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'modelDetail' | 'createdAt' | 'updatedAt'> & {
+export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'modelDetail' | 'money' | 'createdAt' | 'updatedAt'> & {
     id?: string;
 };
 
@@ -197,6 +198,7 @@ export interface AgentRelationNode {
     id: string;
     name: string;
     avatar: string;
+    money: string;
     creativity: number;
     postCount: number;
     ratedPostCount: number;

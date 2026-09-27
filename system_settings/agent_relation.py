@@ -273,6 +273,7 @@ def relation_graph():
             'id': agent.id,
             'name': agent.name,
             'avatar': agent.avatar,
+            'money': format(agent.money, '.2f'),
             'creativity': snapshot.score if snapshot else 0,
             'post_count': snapshot.post_count if snapshot else 0,
             'rated_post_count': snapshot.rated_post_count if snapshot else 0,

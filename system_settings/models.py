@@ -1,4 +1,6 @@
 # system_settings/models.py
+from decimal import Decimal
+
 from django.db import models
 from django.utils import timezone
 
@@ -198,6 +200,14 @@ class Agent(models.Model):
     )
 
     prompt = models.TextField(blank=True, default='', verbose_name='提示词', db_comment='提示词')
+
+    money = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('10000.00'),
+        verbose_name='金钱',
+        db_comment='Agent 金钱余额，精确到分'
+    )
 
     mcp_servers = models.JSONField(
         default=list,
