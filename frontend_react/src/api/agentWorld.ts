@@ -1,6 +1,13 @@
 import request from '../utils/request';
 import type { WorldCategory, WorldProfession, WorldIncomeConfig, WorldRanking, WorldLedger, WorldSettlement, MigrationPreview, WorldPendingIncome } from '../types/api/agentWorld';
 const base = '/settings/agent-world';
+export const getWorldFinanceLedger = (
+    agentId?: string,
+    signal?: AbortSignal,
+) => request.get<never, WorldLedger[]>(
+    base + '/ledger/',
+    {params: {agentId, direction: 'flow'}, signal},
+);
 export const getWorldCategories = () => request.get<never, WorldCategory[]>(`${base}/categories/`);
 export const saveWorldCategory = (value: Partial<WorldCategory>) => request.post<never, WorldCategory>(`${base}/categories/`, value);
 export const getWorldProfessions = () => request.get<never, WorldProfession[]>(`${base}/professions/`);

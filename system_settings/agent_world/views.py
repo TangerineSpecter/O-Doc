@@ -54,8 +54,16 @@ class LedgerView(APIView):
 
     def get(self, request):
         rows = WorldLedger.objects.order_by('-created_at')
-        if request.GET.get('agent_id'):
-            rows = rows.filter(agent_id=request.GET['agent_id'])
+        agent_id = request.GET.get('agent_id') or request.GET.get('agentId')
+        if agent_id:
+            rows = rows.filter(agent_id=agent_id)
+        direction = request.GET.get('direction')
+        if direction == 'flow':
+            rows = rows.exclude(kind='opening').exclude(amount=0)
+        elif direction == 'income':
+            rows = rows.filter(amount__gt=0).exclude(kind='opening')
+        elif direction == 'expense':
+            rows = rows.filter(amount__lt=0)
         return success_result(LedgerSerializer(rows[:200], many=True).data)
 
 

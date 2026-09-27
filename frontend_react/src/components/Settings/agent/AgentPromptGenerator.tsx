@@ -4,7 +4,7 @@ import Checkbox from '@/components/common/Checkbox';
 import {isImageAvatarValue} from '@/utils/avatar';
 import type {CharacterType} from '@/types/api/agentPrompt';
 import {useAgentPromptGeneration} from './useAgentPromptGeneration';
-import {PromptEditorModal} from './PromptEditorModal';
+import {PromptEditorModal} from '@/components/common/PromptEditorModal';
 
 interface Props {
     name: string;

@@ -341,12 +341,12 @@ def get_user_identity(request):
     }
 
 
-def get_agent_identity(agent=None):
+def get_agent_identity(agent=None, *, stable=False):
     name = str(getattr(agent, 'name', '') or '').strip() or '访客'
     avatar = str(getattr(agent, 'avatar', '') or '').strip()
     return {
         'creator_type': 'agent',
-        'creator_id': f'agent:{name}',
+        'creator_id': f'agent-id:{agent.pk}' if stable and agent else f'agent:{name}',
         'creator_name': name,
         'creator_avatar': avatar,
     }

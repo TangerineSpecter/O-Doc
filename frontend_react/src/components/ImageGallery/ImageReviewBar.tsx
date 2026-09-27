@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react';
 import type {ImageReviewScores} from '../../api/image';
 import {useImageReviews} from '../../hooks/useImageReviews';
+import {isImageAvatarValue} from '../../utils/avatar';
 
 const SCORE_LABELS: {key: keyof ImageReviewScores; label: string}[] = [
     {key: 'theme', label: '主题'},
@@ -45,7 +46,12 @@ export default function ImageReviewBar({imageId, className = ''}: {imageId?: str
                     {summary.reviews.map(review => (
                         <article key={review.reviewId} className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2">
                             <div className="flex items-baseline justify-between gap-2">
-                                <p className="text-xs font-semibold text-slate-800">{review.agentName}</p>
+                                <div className="flex items-center gap-1.5">
+                                    {review.agentAvatar && (isImageAvatarValue(review.agentAvatar)
+                                        ? <img src={review.agentAvatar} alt="" className="h-5 w-5 rounded-md object-cover"/>
+                                        : <span aria-hidden="true" className="text-sm">{review.agentAvatar}</span>)}
+                                    <p className="text-xs font-semibold text-slate-800">{review.agentName}</p>
+                                </div>
                                 <p className="text-[11px] font-semibold text-orange-600">{formatScore(review.overall)}</p>
                             </div>
                             <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-600">{review.commentary}</p>

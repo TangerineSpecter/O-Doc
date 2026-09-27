@@ -107,7 +107,7 @@ def submit_photo_review(arguments, agent):
         scores[field_name] = parse_score(arguments.get(argument_name), label)
     overall = overall_score(scores.values())
     agent_name = str(getattr(agent, 'name', '') or '').strip() or 'Agent'
-    defaults = {'agent_name': agent_name[:50], 'commentary': commentary, 'overall': overall, **scores}
+    defaults = {'agent_name': agent_name[:50], 'agent_avatar': str(getattr(agent, 'avatar', '') or ''), 'commentary': commentary, 'overall': overall, **scores}
     review, _created = ImageReview.objects.update_or_create(
         image=image,
         agent_key=agent_key,
@@ -199,6 +199,7 @@ def _review_payload(review):
     return {
         'review_id': review.review_id,
         'agent_name': review.agent_name,
+        'agent_avatar': review.agent_avatar,
         'commentary': review.commentary,
         'overall': score_number(review.overall),
         'scores': {argument_name: score_number(getattr(review, field_name)) for argument_name, field_name, _label in SCORE_FIELDS},

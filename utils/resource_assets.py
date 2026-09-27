@@ -172,9 +172,42 @@ def get_prompt_resource_usage(resource_ids=None):
 
 
 def is_asset_used_by_agent(resource_id):
-    from system_settings.models import Agent
+    from system_settings.models import Agent, AgentActivity
+    from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating, ImageReview
 
-    return Agent.objects.filter(avatar=get_resource_view_url(resource_id)).exists()
+    url = get_resource_view_url(resource_id)
+    return (
+        Agent.objects.filter(avatar=url).exists()
+        or AgentActivity.objects.filter(metadata__agentSnapshot__avatar=url).exists()
+        or Article.objects.filter(agent_post_creator_avatar=url).exists()
+        or ArticlePostComment.objects.filter(creator_avatar=url).exists()
+        or ArticlePostRating.objects.filter(rater_avatar=url).exists()
+        or ArticleAnnotation.objects.filter(creator_avatar=url).exists()
+        or ArticleAnnotationComment.objects.filter(creator_avatar=url).exists()
+        or ImageReview.objects.filter(agent_avatar=url).exists()
+    )
+
+
+def is_asset_used_by_visible_author(resource_id, visible_articles, visible_coll_ids, *, include_work=False):
+    """历史头像的读取权限取决于所属内容，不能复用全量删除保护。"""
+    from system_settings.models import Agent, AgentActivity
+    from article.models import ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating, ImageReview
+    from django.db.models import Q
+
+    url = get_resource_view_url(resource_id)
+    visible_activities = Q(artifact_article_id__in=visible_articles.values_list('pk', flat=True))
+    if include_work:
+        visible_activities |= Q(activity_type='work')
+    return (
+        Agent.objects.filter(avatar=url).exists()
+        or visible_articles.filter(agent_post_creator_avatar=url).exists()
+        or ArticlePostComment.objects.filter(creator_avatar=url, article__in=visible_articles).exists()
+        or ArticlePostRating.objects.filter(rater_avatar=url, article__in=visible_articles).exists()
+        or ArticleAnnotation.objects.filter(creator_avatar=url, article__in=visible_articles).exists()
+        or ArticleAnnotationComment.objects.filter(creator_avatar=url, annotation__article__in=visible_articles).exists()
+        or ImageReview.objects.filter(agent_avatar=url, image__is_valid=True, image__coll_id__in=visible_coll_ids).exists()
+        or AgentActivity.objects.filter(visible_activities, metadata__agentSnapshot__avatar=url).exists()
+    )
 
 
 def is_asset_used_by_prompt(resource_id):

@@ -4,6 +4,7 @@ import random
 from datetime import timedelta
 
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Q
 
 from article.models import Article, ArticlePostComment, ArticlePostRating
@@ -411,6 +412,8 @@ def _kept_affinity_ids(pair_keys):
 
 def _upsert_historical_activity(*, event_key, actor, article, action, stance, basis, title, summary, artifact_kind, artifact_id, occurred_at):
     counterpart_type, counterpart_id, counterpart_name = _counterpart_for(actor, article)
+    if action == 'comment' and artifact_kind == 'articleComment':
+        _reconcile_comment_activity(event_key, actor, artifact_id, counterpart_type, counterpart_id, counterpart_name)
     AgentActivity.objects.get_or_create(
         event_key=event_key,
         defaults={
@@ -434,6 +437,63 @@ def _upsert_historical_activity(*, event_key, actor, article, action, stance, ba
             'occurred_at': occurred_at or timezone.now(),
         },
     )
+
+
+@transaction.atomic
+def _reconcile_comment_activity(event_key, actor, comment_id, counterpart_type, counterpart_id, counterpart_name):
+    """按评论身份兼容旧动态，保留已有主键和执行过程关联。"""
+    Agent.objects.select_for_update().get(pk=actor.pk)
+    candidates = list(AgentActivity.objects.select_for_update().filter(
+        agent=actor, artifact_kind='articleComment', artifact_id=comment_id,
+    ).filter(
+        Q(event_key=event_key)
+        | Q(event_key=f'legacy:post-comment:{comment_id}')
+        | (Q(event_key__startswith='run:') & Q(event_key__contains=':tool:'))
+    ).order_by('created_at', 'id'))
+    if not candidates:
+        return
+    kept = next((item for item in candidates if item.event_key == event_key), candidates[0])
+    changed = []
+    if kept.event_key != event_key:
+        kept.event_key = event_key
+        changed.append('event_key')
+    # 已按评论键记录的立场等业务字段不被中性的历史补录覆盖。
+    for field in ('run_record_id', 'action', 'stance', 'counterpart_type',
+                  'counterpart_id', 'counterpart_name', 'score_delta_basis'):
+        if not getattr(kept, field):
+            value = next((getattr(item, field) for item in candidates if getattr(item, field)), None)
+            if value:
+                setattr(kept, field, value)
+                changed.append(field.removesuffix('_id') if field == 'run_record_id' else field)
+    if not kept.action:
+        kept.action = 'comment'
+        changed.append('action')
+    if not kept.stance:
+        kept.stance = 'neutral'
+        changed.append('stance')
+    if not kept.score_delta_basis:
+        kept.score_delta_basis = kept.stance
+        changed.append('score_delta_basis')
+    for field, value in (
+        ('counterpart_type', counterpart_type), ('counterpart_id', counterpart_id),
+        ('counterpart_name', counterpart_name),
+    ):
+        if not getattr(kept, field) and value:
+            setattr(kept, field, value)
+            changed.append(field)
+    metadata = {}
+    for item in candidates:
+        if isinstance(item.metadata, dict):
+            metadata.update(item.metadata)
+    if isinstance(kept.metadata, dict):
+        metadata.update(kept.metadata)
+    if kept.metadata != metadata:
+        kept.metadata = metadata
+        changed.append('metadata')
+    if changed:
+        kept.save(update_fields=[*set(changed), 'updated_at'])
+    # ORM 删除会记录同步墓碑，避免旧快照将多余动态带回来。
+    AgentActivity.objects.filter(pk__in=[item.pk for item in candidates if item.pk != kept.pk]).delete()
 
 
 def _counterpart_for(actor, article):

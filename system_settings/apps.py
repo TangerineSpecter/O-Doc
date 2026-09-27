@@ -7,6 +7,7 @@ class SystemSettingsConfig(AppConfig):
 
     def ready(self):
         from . import sync_signals  # noqa: F401
+        from . import agent_history  # noqa: F401
         from .agent_world import history  # noqa: F401
         from .builtin_skills import start_builtin_skill_sync
         from .agent_task_scheduler import start_agent_task_scheduler

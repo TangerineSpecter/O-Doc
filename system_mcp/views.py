@@ -1560,7 +1560,7 @@ class ODocSystemMCPView(APIView):
         return {'anthology': _anthology_to_dict(anthology)}
 
     def _get_annotation_agent_identity(self):
-        return get_agent_identity(self.agent_context)
+        return get_agent_identity(self.agent_context, stable=True)
 
     def _create_article_annotation(self, arguments):
         article_id = str(arguments.get('article_id') or '').strip()

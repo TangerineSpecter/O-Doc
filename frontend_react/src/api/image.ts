@@ -114,6 +114,7 @@ export interface ImageReviewScores {
 export interface ImageReview {
   reviewId: string;
   agentName: string;
+  agentAvatar?: string;
   commentary: string;
   overall: number;
   scores: ImageReviewScores;

@@ -12,6 +12,8 @@ AGENT_POST_MARKDOWN_SKILL_KEY = 'odoc_agent_post_markdown_guide'
 AGENT_POST_MARKDOWN_GUIDE_PATH = Path(__file__).resolve().parent.parent / 'docs' / 'config' / 'agent_post_markdown_guide.md'
 PHOTO_REVIEW_SKILL_KEY = 'odoc_photo_review'
 PHOTO_REVIEW_SKILL_PATH = Path(__file__).resolve().parent.parent / 'docs' / 'config' / 'photo_review_skill.md'
+TRAVEL_JOURNAL_SKILL_KEY = 'odoc_travel_journal'
+TRAVEL_JOURNAL_SKILL_PATH = Path(__file__).resolve().parent.parent / 'docs' / 'config' / 'travel_journal_skill.md'
 _sync_timer_started = False
 DEFAULT_AGENT_POST_MARKDOWN_SKILL_META = {
     'name': 'O-Doc Markdown 格式指南',
@@ -77,6 +79,16 @@ BUILTIN_SKILL_SPECS = (
             'version': '1.0.0',
         },
         'manifest_kind': 'photo_review',
+    },
+    {
+        'skill_key': TRAVEL_JOURNAL_SKILL_KEY,
+        'path': TRAVEL_JOURNAL_SKILL_PATH,
+        'fallback_meta': {
+            'name': '旅行游记',
+            'description': '根据旅行经历、购物选择和历史心得，结合 Agent 自己的性格写旅行帖子。',
+            'version': '1.0.0',
+        },
+        'manifest_kind': 'travel_journal',
     },
 )
 

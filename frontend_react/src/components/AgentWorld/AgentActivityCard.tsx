@@ -1,4 +1,5 @@
-import {ArrowUpRight, BookOpenText, CircleAlert, LoaderCircle, MessageCircle, Sparkles, Terminal} from 'lucide-react';
+import {useState, useRef, useEffect} from 'react';
+import {ArrowUpRight, BookOpenText, ChevronDown, ChevronUp, CircleAlert, LoaderCircle, MessageCircle, Sparkles, Terminal} from 'lucide-react';
 import type {AgentActivity} from '../../types/api/setting';
 import AgentAvatar from './AgentAvatar';
 
@@ -65,9 +66,26 @@ export default function AgentActivityCard({
                     : '完成了任务'
     );
 
+    const [expanded, setExpanded] = useState(false);
+    const [canExpand, setCanExpand] = useState(false);
+    const textRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const el = textRef.current;
+        if (!el || expanded) return;
+        const measure = () => {
+            const lineHeight = Number.parseFloat(window.getComputedStyle(el).lineHeight);
+            setCanExpand(el.scrollHeight > Math.round(lineHeight * 2) + 1);
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [activity.summary, activity.type, expanded]);
+
     return (
-        <article className="group relative rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md">
-            <div className="flex gap-3 sm:gap-3.5">
+        <article className="group relative rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 shadow-2xs transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md">
+            <div className="flex gap-2.5 sm:gap-3">
                 {/* Agent 头像与微角标 */}
                 <div className="relative shrink-0 self-start">
                     <div className="transition-transform duration-200 group-hover:scale-105">
@@ -97,7 +115,7 @@ export default function AgentActivityCard({
 
                     {/* 动作与目标指示行 */}
                     {isWork ? (
-                        <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
                             {activity.status === 'running' && (
                                 <span className="relative flex h-2 w-2">
                                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"/>
@@ -107,7 +125,7 @@ export default function AgentActivityCard({
                             <span className="font-medium text-slate-600">{activity.title}</span>
                         </div>
                     ) : (
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
                             <span className="font-medium text-slate-600">{actionLabel}</span>
                             {targetArticleTitle && (
                                 <>
@@ -131,51 +149,161 @@ export default function AgentActivityCard({
                         </div>
                     )}
 
-                    {/* 场景分流展示 */}
-                    {/* 1. 文章批注/互动场景：言论气泡 (Quote Bubble) */}
+                    {/* 1. 文章批注/互动场景：言论气泡 (Quote Bubble) - 默认收拢为两行(CSS Float让位)，展开后收起放右下角 */}
                     {isInteraction && activity.summary && (
-                        <div className="relative mt-2.5 rounded-r-xl border border-slate-150 border-l-[3px] border-l-orange-400 bg-slate-50/60 p-3 pl-3.5 font-sans sm:mt-3 sm:p-3.5 sm:pl-4">
-                            <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-700 sm:text-sm">
-                                {activity.summary}
-                            </p>
+                        <div className="relative mt-2 rounded-r-xl border border-slate-200/80 border-l-[3px] border-l-orange-400 bg-slate-50 p-2.5 pl-3 font-sans sm:mt-2.5 sm:p-3 sm:pl-3.5">
+                            <div
+                                ref={textRef}
+                                className={`text-xs leading-[20px] text-slate-700 sm:text-sm sm:leading-[22px] ${
+                                    expanded ? 'whitespace-pre-wrap' : 'max-h-[40px] sm:max-h-[44px] overflow-hidden'
+                                }`}
+                            >
+                                {!expanded && canExpand && (
+                                    <>
+                                        <div className="float-right h-[20px] sm:h-[22px] w-0" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setExpanded(true)}
+                                            className="float-right clear-both ml-1 inline-flex items-center gap-0.5 text-[11px] font-medium text-orange-600 hover:text-orange-700 select-none"
+                                        >
+                                            <span>... 展开全文</span>
+                                            <ChevronDown className="h-3 w-3" />
+                                        </button>
+                                    </>
+                                )}
+                                <span className="break-words">{activity.summary}</span>
+                            </div>
+                            {expanded && canExpand && (
+                                <div className="mt-1 flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpanded(false)}
+                                        className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium text-orange-600 transition-colors hover:bg-orange-100/60 hover:text-orange-700 select-none"
+                                    >
+                                        <span>收起</span>
+                                        <ChevronUp className="h-3 w-3" />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {/* 2. 作品发布场景：文章预览卡片 */}
                     {isPublication && (
                         <div
-                            onClick={() => activity.artifact && onOpenArtifact(activity)}
-                            className="group/pub mt-2.5 cursor-pointer rounded-xl border border-slate-200/80 bg-slate-50/40 p-3 transition-colors hover:border-orange-200/80 hover:bg-orange-50/30 sm:mt-3 sm:p-3.5"
+                            className="group/pub mt-2 rounded-xl border border-slate-200/80 bg-slate-50/40 p-2.5 transition-colors hover:border-orange-200/80 hover:bg-orange-50/30 sm:mt-2.5 sm:p-3"
                         >
-                            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 transition-colors group-hover/pub:text-orange-600">
+                            <div
+                                onClick={() => activity.artifact && onOpenArtifact(activity)}
+                                className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-800 transition-colors group-hover/pub:text-orange-600"
+                            >
                                 <BookOpenText className="h-3.5 w-3.5 shrink-0 text-orange-500"/>
                                 <span className="truncate">{targetArticleTitle || activity.title}</span>
                             </div>
                             {activity.summary && (
-                                <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-slate-500">
-                                    {activity.summary}
-                                </p>
+                                <>
+                                    <div
+                                        ref={textRef}
+                                        className={`mt-1 text-xs leading-[20px] text-slate-500 ${
+                                            expanded ? 'whitespace-pre-wrap' : 'max-h-[40px] overflow-hidden'
+                                        }`}
+                                    >
+                                        {!expanded && canExpand && (
+                                            <>
+                                                <div className="float-right h-[20px] w-0" />
+                                                <button
+                                                    type="button"
+                                                    onClick={e => {
+                                                        e.stopPropagation();
+                                                        setExpanded(true);
+                                                    }}
+                                                    className="float-right clear-both ml-1 inline-flex items-center gap-0.5 text-[11px] font-medium text-orange-600 hover:text-orange-700 select-none"
+                                                >
+                                                    <span>... 展开全文</span>
+                                                    <ChevronDown className="h-3 w-3" />
+                                                </button>
+                                            </>
+                                        )}
+                                        <span className="break-words">{activity.summary}</span>
+                                    </div>
+                                    {expanded && canExpand && (
+                                        <div className="mt-1 flex justify-end">
+                                            <button
+                                                type="button"
+                                                onClick={e => {
+                                                    e.stopPropagation();
+                                                    setExpanded(false);
+                                                }}
+                                                className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium text-orange-600 transition-colors hover:bg-orange-100/60 hover:text-orange-700 select-none"
+                                            >
+                                                <span>收起</span>
+                                                <ChevronUp className="h-3 w-3" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     )}
 
                     {/* 3. 后台任务场景：任务进度与控制台输出预览 */}
                     {isWork && (
-                        <div className="mt-2.5 space-y-2 sm:mt-3">
+                        <div className="mt-2 space-y-1.5 sm:mt-2.5">
                             {activity.summary && (
-                                <p className="text-xs leading-relaxed text-slate-600 sm:text-sm">
-                                    {activity.summary}
-                                </p>
+                                <>
+                                    <div
+                                        ref={textRef}
+                                        className={`text-xs leading-[20px] text-slate-600 sm:text-sm sm:leading-[22px] ${
+                                            expanded ? 'whitespace-pre-wrap' : 'max-h-[40px] sm:max-h-[44px] overflow-hidden'
+                                        }`}
+                                    >
+                                        {!expanded && canExpand && (
+                                            <>
+                                                <div className="float-right h-[20px] sm:h-[22px] w-0" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpanded(true)}
+                                                    className="float-right clear-both ml-1 inline-flex items-center gap-0.5 text-[11px] font-medium text-orange-600 hover:text-orange-700 select-none"
+                                                >
+                                                    <span>... 展开全文</span>
+                                                    <ChevronDown className="h-3 w-3" />
+                                                </button>
+                                            </>
+                                        )}
+                                        <span className="break-words">{activity.summary}</span>
+                                    </div>
+                                    {expanded && canExpand && (
+                                        <div className="mt-1 flex justify-end">
+                                            <button
+                                                type="button"
+                                                onClick={() => setExpanded(false)}
+                                                className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium text-orange-600 transition-colors hover:bg-orange-100/60 hover:text-orange-700 select-none"
+                                            >
+                                                <span>收起</span>
+                                                <ChevronUp className="h-3 w-3" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
                             )}
                             {activity.outputPreview && (
-                                <div className="rounded-xl border border-slate-200/80 bg-slate-900 px-3 py-2.5 font-mono text-[11px] leading-relaxed text-slate-200 shadow-inner">
-                                    <div className="mb-1.5 flex items-center justify-between border-b border-slate-800 pb-1 text-[10px] text-slate-400">
+                                <div className="rounded-xl border border-slate-200/80 bg-slate-900 px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-200 shadow-inner">
+                                    <div className="mb-1 flex items-center justify-between border-b border-slate-800 pb-1 text-[10px] text-slate-400">
                                         <span>输出预览</span>
-                                        <span className="rounded bg-slate-800 px-1.5 py-0.5 font-sans text-[9px] text-slate-300">
-                                            {activity.status === 'running' ? 'RUNNING' : 'LOG'}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setExpanded(!expanded)}
+                                                className="text-[10px] text-orange-400 hover:text-orange-300 transition-colors"
+                                            >
+                                                {expanded ? '收起预览' : '展开预览'}
+                                            </button>
+                                            <span className="rounded bg-slate-800 px-1.5 py-0.5 font-sans text-[9px] text-slate-300">
+                                                {activity.status === 'running' ? 'RUNNING' : 'LOG'}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <pre className="line-clamp-4 whitespace-pre-wrap font-mono text-slate-300">
+                                    <pre className={`whitespace-pre-wrap font-mono text-slate-300 ${expanded ? '' : 'line-clamp-2'}`}>
                                         {activity.outputPreview}
                                     </pre>
                                 </div>
@@ -184,25 +312,25 @@ export default function AgentActivityCard({
                     )}
 
                     {/* 底部操作栏 */}
-                    <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
                         <div className="flex flex-wrap items-center gap-2">
                             {activity.artifact && (
                                 <button
                                     type="button"
                                     onClick={() => onOpenArtifact(activity)}
-                                    className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200/80 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 shadow-2xs transition-all hover:border-orange-500 hover:bg-orange-500 hover:text-white active:scale-95"
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200/80 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 shadow-2xs transition-all hover:border-orange-500 hover:bg-orange-500 hover:text-white active:scale-95"
                                 >
                                     <span>{activity.type === 'publication' ? '阅读全文' : '查看原文'}</span>
-                                    <ArrowUpRight className="h-3.5 w-3.5"/>
+                                    <ArrowUpRight className="h-3 w-3"/>
                                 </button>
                             )}
                             {activity.runRecordId && (
                                 <button
                                     type="button"
                                     onClick={() => onOpenRun(activity)}
-                                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/70 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-800 active:scale-95"
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/70 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-800 active:scale-95"
                                 >
-                                    <Terminal className="h-3.5 w-3.5 text-slate-400"/>
+                                    <Terminal className="h-3 w-3 text-slate-400"/>
                                     <span>{activity.type === 'work' ? '查看完整输出' : '查看执行过程'}</span>
                                 </button>
                             )}

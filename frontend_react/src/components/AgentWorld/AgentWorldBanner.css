@@ -1,0 +1,17 @@
+@keyframes agent-world-status-orbit {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.agent-world-banner__status-orbit {
+    animation: agent-world-status-orbit 7s linear infinite;
+    transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .agent-world-banner__status-orbit,
+    .agent-world-banner__bot .ai-peeking-eyes {
+        animation: none !important;
+    }
+}

@@ -508,7 +508,8 @@ class AgentActivitySerializer(serializers.ModelSerializer):
 
     def get_agent(self, obj):
         if not obj.agent:
-            return {'id': '', 'name': '已删除的 Agent', 'avatar': ''}
+            from .agent_history import historical_activity_author
+            return historical_activity_author(obj)
         return {'id': obj.agent.id, 'name': obj.agent.name, 'avatar': obj.agent.avatar}
 
     def get_output_preview(self, obj):

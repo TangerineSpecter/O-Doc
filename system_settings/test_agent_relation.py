@@ -10,6 +10,7 @@ from article.models import Article, ArticlePostComment, ArticlePostRating
 from system_settings.agent_activity import record_post_comment, record_post_rating, record_tool_activity
 from system_settings.agent_relation import (
     apply_affinity_event,
+    backfill_relation_events,
     creativity_score,
     directional_band,
     display_tier,
@@ -18,7 +19,7 @@ from system_settings.agent_relation import (
     replay_affinity,
 )
 from system_settings.agent_views import AgentRelationView
-from system_settings.models import Agent, AgentActivity, AgentAffinity, AgentRunRecord, AgentTask, MCPServer
+from system_settings.models import Agent, AgentActivity, AgentAffinity, AgentRunRecord, AgentTask, MCPServer, SyncEntityState
 from utils.mcp_client import call_mcp_tool
 
 
@@ -154,3 +155,70 @@ class AgentRelationFlowTests(TestCase):
         AgentActivity.objects.create(event_key='work-only', activity_type='work', agent=self.reader, title='开始任务')
         result = list_agent_activity_events(self.reader, days=7)
         self.assertEqual(result['count'], 0)
+
+    def test_backfill_reuses_legacy_comment_activity_and_run_record(self):
+        comment = ArticlePostComment.objects.create(
+            article=self.article, content='旧评论', creator_id='agent:读者', creator_name='读者',
+        )
+        old = AgentActivity.objects.create(
+            event_key=f'run:{self.record.pk}:agent:{self.reader.pk}:tool:6',
+            activity_type='interaction', agent=self.reader, run_record=self.record,
+            artifact_kind='articleComment', artifact_id=comment.pk,
+            artifact_article_id=self.article.pk, artifact_coll_id=self.collection.pk,
+            title='旧动态', summary=comment.content,
+        )
+        backfill_relation_events()
+        backfill_relation_events()
+        old.refresh_from_db()
+        self.assertEqual(old.event_key, f'comment:{comment.pk}')
+        self.assertEqual(old.run_record_id, self.record.pk)
+        self.assertEqual(old.action, 'comment')
+        self.assertEqual(old.counterpart_id, 'agent:作者')
+        self.assertEqual(AgentActivity.objects.filter(artifact_id=comment.pk).count(), 1)
+
+    def test_backfill_merges_duplicate_but_preserves_canonical_stance_and_id(self):
+        comment = ArticlePostComment.objects.create(
+            article=self.article, content='同一条评论', creator_id='agent:读者', creator_name='读者',
+        )
+        canonical = record_post_comment(self.reader, self.article, {
+            'comment_id': comment.pk, 'content': comment.content,
+        }, 'approve')
+        old = AgentActivity.objects.create(
+            event_key=f'run:{self.record.pk}:agent:{self.reader.pk}:tool:6',
+            activity_type='interaction', agent=self.reader, run_record=self.record,
+            artifact_kind='articleComment', artifact_id=comment.pk, title='旧动态',
+            metadata={'toolSequence': 6},
+        )
+        backfill_relation_events()
+        backfill_relation_events()
+        canonical.refresh_from_db()
+        self.assertEqual(canonical.stance, 'approve')
+        self.assertEqual(canonical.run_record_id, self.record.pk)
+        self.assertEqual(canonical.metadata['toolSequence'], 6)
+        self.assertFalse(AgentActivity.objects.filter(pk=old.pk).exists())
+        self.assertTrue(SyncEntityState.objects.get(
+            model_label='system_settings.agentactivity', object_pk=old.pk,
+        ).is_deleted)
+        self.assertEqual(AgentActivity.objects.filter(artifact_id=comment.pk).count(), 1)
+
+    def test_backfill_keeps_distinct_comments_with_identical_content(self):
+        for _ in range(2):
+            ArticlePostComment.objects.create(
+                article=self.article, content='内容相同', creator_id='agent:读者', creator_name='读者',
+            )
+        backfill_relation_events()
+        self.assertEqual(AgentActivity.objects.filter(action='comment').count(), 2)
+
+    def test_backfill_reuses_migration_comment_key(self):
+        comment = ArticlePostComment.objects.create(
+            article=self.article, content='迁移评论', creator_id='agent:读者', creator_name='读者',
+        )
+        old = AgentActivity.objects.create(
+            event_key=f'legacy:post-comment:{comment.pk}', agent=self.reader,
+            activity_type='interaction', artifact_kind='articleComment', artifact_id=comment.pk,
+            title='迁移动态',
+        )
+        backfill_relation_events()
+        old.refresh_from_db()
+        self.assertEqual(old.event_key, f'comment:{comment.pk}')
+        self.assertEqual(AgentActivity.objects.filter(artifact_id=comment.pk).count(), 1)

@@ -22,6 +22,7 @@ from utils.resource_assets import (
     get_image_resource_usage,
     get_prompt_resource_usage,
     is_asset_used_by_agent,
+    is_asset_used_by_visible_author,
     is_asset_used_by_article,
     is_asset_used_by_image,
     is_asset_used_by_prompt,
@@ -71,7 +72,10 @@ def can_read_asset(request, asset):
             image_url=f'/api/resource/view/{asset.id}'
         ).exists()
 
-    if is_asset_used_by_agent(asset.id):
+    if is_asset_used_by_visible_author(
+        asset.id, visible_articles, visible_coll_ids,
+        include_work=bool(request.user and request.user.is_authenticated),
+    ):
         return True
 
     if is_asset_used_by_prompt(asset.id):

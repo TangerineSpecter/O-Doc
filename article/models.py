@@ -587,6 +587,7 @@ class ImageReview(models.Model):
     )
     agent_key = models.CharField(max_length=40, verbose_name='Agent 标识', db_comment='提交评价的 Agent ID')
     agent_name = models.CharField(max_length=50, verbose_name='Agent 名称', db_comment='提交时的 Agent 名称')
+    agent_avatar = models.CharField(max_length=500, blank=True, default='', db_comment='Agent 历史头像快照')
     commentary = models.TextField(verbose_name='评语', db_comment='评价正文')
     score_theme = models.DecimalField(max_digits=3, decimal_places=1, verbose_name='主题', db_comment='主题分，0 到 10，步进 0.5')
     score_composition = models.DecimalField(max_digits=3, decimal_places=1, verbose_name='构图', db_comment='构图分，0 到 10，步进 0.5')

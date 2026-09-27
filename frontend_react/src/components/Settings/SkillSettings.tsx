@@ -2,6 +2,7 @@ import {useState} from 'react';
 import {BookOpenCheck, Edit2, Plus, ShieldCheck, Sparkles, Trash2, X} from 'lucide-react';
 import type {SkillConfig} from '@/api/setting';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
+import {PromptEditorModal} from '@/components/common/PromptEditorModal';
 
 interface SkillSettingsProps {
     skills: SkillConfig[];
@@ -225,14 +226,24 @@ export const SkillSettings = ({skills, onSave, onDelete}: SkillSettingsProps) =>
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-700">技能提示词</label>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <label htmlFor="skill-prompt" className="text-sm font-semibold text-slate-700">技能提示词</label>
+                                    <PromptEditorModal
+                                        name={form.name}
+                                        subject="技能"
+                                        value={form.prompt}
+                                        readOnly={form.isSystem}
+                                        onChange={prompt => setForm(prev => ({...prev, prompt}))}
+                                    />
+                                </div>
                                 <textarea
+                                    id="skill-prompt"
                                     value={form.prompt}
                                     onChange={event => setForm({...form, prompt: event.target.value})}
                                     disabled={form.isSystem}
                                     rows={6}
                                     placeholder="写清楚技能目标、输入要求、输出格式和边界"
-                                    className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-6 transition-all disabled:bg-slate-50 disabled:text-slate-500 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                    className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-6 transition-all disabled:bg-slate-50 disabled:text-slate-500 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                                 />
                             </div>
 
