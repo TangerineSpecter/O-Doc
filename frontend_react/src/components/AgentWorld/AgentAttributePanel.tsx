@@ -3,6 +3,7 @@ import type {AgentRelationEdge, AgentRelationGraph, AgentRelationNode} from '../
 import AgentAvatar from './AgentAvatar';
 import WorldDialog from './WorldDialog';
 import {ChevronDown, MessageSquare, CalendarDays, FileText, Sparkles, Wallet, Battery} from 'lucide-react';
+import ProfessionBadge from './ProfessionBadge';
 
 interface AgentAttributePanelProps {
     graph: AgentRelationGraph | null;
@@ -42,9 +43,15 @@ function AttributeRow({node, relations, expanded, onToggle}: {
             <button type="button" onClick={onToggle} aria-expanded={expanded} className="w-full p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-400">
                 <span className="flex items-center gap-3">
                     <AgentAvatar name={node.name} avatar={node.avatar} size="md"/>
-                    <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-slate-800">{node.name}</span><span className="text-xs text-slate-500">{node.professionName || '无职业'}</span>
-                        <span className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500"><span className={`h-1.5 w-1.5 rounded-full ${node.status === 'running' ? 'bg-lime-500' : 'bg-slate-300'}`}/>{node.status === 'running' ? '正在活动' : '休息中'}</span>
+                    <span className="min-w-0 flex-1 space-y-1 block">
+                        <span className="flex items-center gap-1.5 flex-wrap">
+                            <span className="truncate text-sm font-semibold text-slate-800">{node.name}</span>
+                            <ProfessionBadge professionName={node.professionName} size="sm" showEmpty={true} emptyText="无职业"/>
+                        </span>
+                        <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                            <span className={`h-1.5 w-1.5 rounded-full ${node.status === 'running' ? 'bg-lime-500 ring-2 ring-lime-200/60' : 'bg-slate-300'}`}/>
+                            {node.status === 'running' ? '正在活动' : '休息中'}
+                        </span>
                     </span>
                     <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`}/>
                 </span>

@@ -8,9 +8,15 @@ export const escapeRelationText = (value: string) => value
 
 export function relationNodeTooltip(node: AgentRelationNode): string {
     const running = node.status === 'running';
+    const professionBadge = node.professionName
+        ? `<span class="relation-tooltip__profession">${escapeRelationText(node.professionName)}</span>`
+        : '';
     return `<div class="relation-tooltip">
         <div class="relation-tooltip__header">
-            <strong class="relation-tooltip__name">${escapeRelationText(node.name)}</strong>
+            <div class="relation-tooltip__identity">
+                <strong class="relation-tooltip__name">${escapeRelationText(node.name)}</strong>
+                ${professionBadge}
+            </div>
             <span class="relation-tooltip__status"><i class="${running ? 'is-running' : ''}"></i>${running ? '正在活动' : '休息中'}</span>
         </div>
         <div class="relation-tooltip__score"><span>创作力</span><strong>${node.creativity}<small>/ 100</small></strong></div>

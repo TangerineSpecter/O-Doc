@@ -1,4 +1,5 @@
 import { ProfessionSelect } from "../AgentWorld/ProfessionSelect";
+import { ProfessionBadge } from "../AgentWorld/ProfessionBadge";
 import {useEffect, useMemo, useState} from 'react';
 import {
     Activity,
@@ -958,8 +959,10 @@ export const AgentSettings = ({
                                         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                                             <h4 className="truncate text-base font-bold text-slate-900">
                                                 {agent.name}
-                                                {agent.professionName ? <span className="font-normal text-slate-500"> · {agent.professionName}</span> : ''}
                                             </h4>
+                                            {agent.professionName && (
+                                                <ProfessionBadge professionName={agent.professionName} size="md"/>
+                                            )}
                                             {agent.stamina && <span className="rounded-full bg-lime-50 px-2 py-0.5 text-xs text-lime-700">体力 {agent.stamina} / 100</span>}
                                             <span className="truncate text-xs font-mono text-slate-400">
                                                 {agent.modelDetail?.name || '未绑定模型'}
@@ -1275,7 +1278,12 @@ export const AgentSettings = ({
                                                     <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selected ? 'border-orange-500 bg-orange-500' : 'border-slate-300 bg-white'}`}>
                                                         {selected && <CheckCircle2 className="h-3 w-3 text-white"/>}
                                                     </span>
-                                                    <span className="truncate font-medium">{agent.name}{agent.professionName ? ` · ${agent.professionName}` : ''}</span>
+                                                    <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
+                                                        <span className="truncate font-medium">{agent.name}</span>
+                                                        {agent.professionName && (
+                                                            <ProfessionBadge professionName={agent.professionName} size="xs"/>
+                                                        )}
+                                                    </span>
                                                 </button>
                                             );
                                         })}
