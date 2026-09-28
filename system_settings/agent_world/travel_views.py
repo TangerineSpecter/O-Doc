@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from utils.drf_utils import get_current_user_identifier
 from utils.response_utils import success_result, valid_result
+from system_settings.models import Agent
 from .execution import execution_lease
 from .travel_models import TravelJourney, TravelNode, TravelRuntime, AgentInventoryItem
 from .travel_publication import insert_photo
@@ -17,9 +18,14 @@ class JourneySerializer(serializers.ModelSerializer):
 
 
 class InventorySerializer(serializers.ModelSerializer):
+    actor_name = serializers.SerializerMethodField()
+
+    def get_actor_name(self, item):
+        return self.context.get('actor_names', {}).get(item.actor_id, item.actor_name)
+
     class Meta:
         model = AgentInventoryItem
-        fields = ['id', 'actor_id', 'name', 'kind', 'quantity', 'source', 'created_at']
+        fields = ['id', 'actor_id', 'actor_name', 'origin_actor_id', 'origin_actor_name', 'rarity', 'value', 'name', 'kind', 'quantity', 'source', 'created_at']
 
 
 class TravelListView(APIView):
@@ -41,7 +47,9 @@ class InventoryView(APIView):
         actor = request.GET.get('agent_id') or request.GET.get('agentId')
         if actor:
             rows = rows.filter(actor_id=actor)
-        return success_result(InventorySerializer(rows[:200], many=True).data)
+        items = list(rows[:200])
+        names = dict(Agent.objects.filter(pk__in={item.actor_id for item in items}).values_list('pk', 'name'))
+        return success_result(InventorySerializer(items, many=True, context={'actor_names': names}).data)
 
 
 class TravelDetailView(APIView):
@@ -88,7 +96,7 @@ class TravelDetailView(APIView):
                     if not row.article_id:
                         raise ValueError('日记尚未发布')
                     photo = dict(row.snapshot.get('photo', {}))
-                    if photo.get('status') == 'inserted':
+                    if photo.get('status') == 'inserted' and operation != 'regenerate_image':
                         raise ValueError('图片已插入，无需再次处理')
                     if operation == 'abandon_image':
                         photo['status'] = 'abandoned'
@@ -103,9 +111,11 @@ class TravelDetailView(APIView):
                     elif operation == 'regenerate_image':
                         if request.data.get('confirm_charge') is not True:
                             raise ValueError('重新生成可能再次计费，需明确确认')
-                        if photo.get('status') not in ['manual', 'abandoned']:
+                        if photo.get('status') not in ['manual', 'abandoned', 'inserted']:
                             raise ValueError('图片仍在处理中，请查询原任务')
-                        photo = {'status': 'pending', 'attempt': photo.get('attempt', 0)+1, 'insertion_position': 'end'}
+                        row.snapshot = {**row.snapshot, 'photo_history': [*row.snapshot.get('photo_history', []), photo]}
+                        photo = {'status': 'pending', 'attempt': photo.get('attempt', 0)+1, 'insertion_position': 'end',
+                            'previous_image_url': photo.get('image_url') if photo.get('status') == 'inserted' else photo.get('previous_image_url')}
                     else:
                         if not photo.get('task_id') and not photo.get('request'):
                             photo['status'] = 'pending'
@@ -114,7 +124,7 @@ class TravelDetailView(APIView):
                     row.snapshot = {**row.snapshot, 'photo': photo}
                     row.save(update_fields=['snapshot', 'updated_at'])
                     runtime.authorized = True
-                    TravelRuntime.objects.update_or_create(pk=f'{row.pk}:photo', defaults={'photo_started_at': None, 'next_at': timezone.now()})
+                    TravelRuntime.objects.update_or_create(pk=f'{row.pk}:photo', defaults={'authorized': True, 'photo_started_at': None, 'next_at': timezone.now()})
                 runtime.save(update_fields=['authorized', 'attempts', 'next_at'])
             except ValueError as exc:
                 return valid_result(str(exc), status=400)

@@ -7,6 +7,7 @@ from .models import WorldLedger
 from .income import ensure_opening
 from .execution import stamina
 from .travel_models import TravelJourney, AgentInventoryItem
+from .inventory_attributes import RARITIES
 
 
 def _charge(agent, key, amount, kind, snapshot):
@@ -62,8 +63,14 @@ def purchase(journey, basket):
             raise ValueError('商品或数量越界')
         seen.add(key_id)
         item = goods[key_id]
+        rarity = item.get('rarity', 'common')
+        value = Decimal(str(item.get('value', item['price'])))
+        if rarity not in RARITIES or not value.is_finite() or value < 0:
+            raise ValueError('纪念品属性无效')
         amount += Decimal(item['price'])*count
         items.append(AgentInventoryItem(id=f'{row.pk}:{key_id}', actor_id=row.actor_id, owner_id=row.owner_id, name=item['name'], quantity=count,
+            actor_name=row.snapshot.get('agent_name', ''), origin_actor_id=row.actor_id,
+            origin_actor_name=row.snapshot.get('agent_name', ''), rarity=rarity, value=value,
             source={'journey_id': row.pk, 'destination': row.snapshot['selected'], 'unit_price': item['price'], 'description': item['description']}))
     if amount > Decimal(row.snapshot['selection']['shopping_budget']):
         raise ValueError('超过本次购物预算')

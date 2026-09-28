@@ -15,8 +15,9 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import {getAgentRunRecord} from '../../api/setting';
-import type {AgentActivity, AgentRunRecordConfig} from '../../types/api/setting';
+import {useAgentRunRecord} from '../../hooks/useAgentRunRecord';
+import {TravelExecutionProgress} from './TravelExecutionProgress';
+import type {AgentActivity} from '../../types/api/setting';
 import StarLoader from '../common/StarLoader';
 import AgentAvatar from './AgentAvatar';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
@@ -38,8 +39,7 @@ const formatTimeOnly = (value?: string) => {
 };
 
 export default function AgentRunDrawer({activity, onClose}: {activity: AgentActivity | null; onClose: () => void}) {
-    const [record, setRecord] = useState<AgentRunRecordConfig | null>(null);
-    const [error, setError] = useState('');
+    const {record, error} = useAgentRunRecord(activity?.runRecordId);
     const [isExpanded, setIsExpanded] = useState(false);
     const [copied, setCopied] = useState(false);
     useEscapeDismissal(Boolean(activity), onClose);
@@ -49,25 +49,6 @@ export default function AgentRunDrawer({activity, onClose}: {activity: AgentActi
     // 加载执行结果详情
     const runRecordId = activity?.runRecordId;
     const isLoading = Boolean(runRecordId && record?.id !== runRecordId && !error);
-
-    useEffect(() => {
-        let active = true;
-        if (!runRecordId) return;
-
-        getAgentRunRecord(runRecordId)
-            .then(result => {
-                if (active) setRecord(result);
-            })
-            .catch(loadError => {
-                if (active) {
-                    setError(loadError instanceof Error ? loadError.message : '加载执行结果失败');
-                }
-            });
-
-        return () => {
-            active = false;
-        };
-    }, [runRecordId]);
 
     // 键盘支持与焦点管理
     useEffect(() => {
@@ -261,6 +242,7 @@ export default function AgentRunDrawer({activity, onClose}: {activity: AgentActi
 
                     {!isLoading && record && (
                         <>
+                            {record.travelProgress && <TravelExecutionProgress progress={record.travelProgress}/>}
                             {/* 1. 运行核心指标看板 */}
                             <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-xs sm:grid-cols-4 sm:p-4">
                                 <div className="space-y-1">
@@ -269,7 +251,7 @@ export default function AgentRunDrawer({activity, onClose}: {activity: AgentActi
                                         {currentStatus === 'running' ? (
                                             <>
                                                 <LoaderCircle className="h-3.5 w-3.5 animate-spin text-blue-500"/>
-                                                <span className="text-blue-600">正在运行</span>
+                                                <span className="text-blue-600">{record.travelProgress?.status === 'waiting' ? '等待重试' : record.travelProgress?.status === 'paused' ? '已暂停' : '正在运行'}</span>
                                             </>
                                         ) : currentStatus === 'failed' ? (
                                             <>

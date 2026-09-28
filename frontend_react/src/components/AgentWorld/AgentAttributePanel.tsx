@@ -2,7 +2,8 @@ import {useEffect, useState} from 'react';
 import type {AgentRelationEdge, AgentRelationGraph, AgentRelationNode} from '../../types/api/setting';
 import AgentAvatar from './AgentAvatar';
 import WorldDialog from './WorldDialog';
-import {ChevronDown, MessageSquare, CalendarDays, FileText, Sparkles, Wallet, Battery} from 'lucide-react';
+import {ChevronDown, MessageSquare, CalendarDays, FileText, Sparkles, Wallet, Battery, Package} from 'lucide-react';
+import {AgentInventoryDialog} from './AgentInventoryDialog';
 import ProfessionBadge from './ProfessionBadge';
 
 interface AgentAttributePanelProps {
@@ -30,11 +31,12 @@ const relationsFor = (agentId: string, edges: AgentRelationEdge[]): RelationRow[
     return [];
 });
 
-function AttributeRow({node, relations, expanded, onToggle}: {
+function AttributeRow({node, relations, expanded, onToggle, onOpenInventory}: {
     node: AgentRelationNode;
     relations: RelationRow[];
     expanded: boolean;
     onToggle: () => void;
+    onOpenInventory: () => void;
 }) {
     const stamina = node.stamina == null ? null : Number(node.stamina);
     const energy = stamina != null && Number.isFinite(stamina) ? Math.max(0, Math.min(100, stamina)) : null;
@@ -80,6 +82,10 @@ function AttributeRow({node, relations, expanded, onToggle}: {
                 </span>
                 <span className="mt-4 flex items-center justify-between text-[11px]"><span className="text-slate-400">{relations.length ? `${relations.length} 位互动居民` : '暂无互动记录'}</span><span className="text-orange-600">{expanded ? '收起好感' : '查看好感'}</span></span>
             </button>
+            <div className="mx-4 mb-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <span className="flex items-center gap-2 text-xs text-slate-600"><Package className="h-3.5 w-3.5"/>持有物 <b className="tabular-nums text-slate-800">{node.inventoryCount ?? 0}</b> 件</span>
+                <button type="button" onClick={onOpenInventory} aria-label={`打开${node.name}的背包`} className="rounded-lg px-2 py-1 text-xs font-medium text-orange-600 hover:bg-orange-100">打开背包</button>
+            </div>
             {expanded ? (
                 <div className="border-t border-orange-100 px-3 py-2">
                     {relations.length ? relations.map(relation => (
@@ -99,6 +105,7 @@ function AttributeRow({node, relations, expanded, onToggle}: {
 
 export default function AgentAttributePanel({graph, loading, error, selectedAgentId, onClose}: AgentAttributePanelProps) {
     const [expandedId, setExpandedId] = useState(selectedAgentId);
+    const [inventoryAgent, setInventoryAgent] = useState<AgentRelationNode | null>(null);
 
     useEffect(() => {
         setExpandedId(selectedAgentId);
@@ -124,9 +131,11 @@ export default function AgentAttributePanel({graph, loading, error, selectedAgen
                         relations={relationsFor(node.id, graph?.edges || [])}
                         expanded={expandedId === node.id}
                         onToggle={() => setExpandedId(current => current === node.id ? '' : node.id)}
+                        onOpenInventory={() => setInventoryAgent(node)}
                     />
                 )) : null}
             </div>
+            {inventoryAgent && <AgentInventoryDialog agentId={inventoryAgent.id} name={inventoryAgent.name} onClose={() => setInventoryAgent(null)}/>}
         </WorldDialog>
     );
 }

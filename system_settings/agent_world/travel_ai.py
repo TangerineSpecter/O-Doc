@@ -24,9 +24,10 @@ def ask(journey, instruction, context, validate, *, skill=''):
                 raise ValueError('输出必须是 JSON 对象')
             return validate(value)
         except (ValueError, TypeError, KeyError) as exc:
+            reason = 'JSON 格式无效' if isinstance(exc, json.JSONDecodeError) else str(exc)[:200]
             if attempt:
-                raise ValueError('旅行模型输出未通过校验') from exc
-            text += '\n上次格式无效，请只使用规定的候选 ID、字段与资料引用。'
+                raise ValueError(f'旅行模型输出未通过校验：{reason}') from exc
+            text += f'\n上次校验失败：{reason}。请修正这一问题，只使用规定的候选 ID、字段与资料引用。'
 
 
 def local_materials(journey, destination, *, force_refresh=False):

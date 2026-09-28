@@ -8,6 +8,9 @@ export interface TravelJourney {
     id: string; actorId: string; status: string; phase: string; articleId: string;
     departedAt: string | null; returnedAt: string | null; createdAt: string;
     snapshot: {
+        config?: TravelConfig;
+        destinationNote?: string;
+        debugPurchase?: {items: {id: string; name: string; quantity: number; value: string}[]};
         agentName: string; selected?: Destination; candidates: Destination[];
         selection?: {reason: string; shoppingBudget: string}; skipReason?: string;
         visits?: {site: {name: string}; choice: string; reaction: string}[];
@@ -20,5 +23,5 @@ export interface TravelJourney {
     };
     nodes?: {id: string; kind: string; status: string; error: string}[];
 }
-export interface InventoryItem {id: string; actorId: string; name: string; quantity: number; source: {destination?: Destination; unitPrice?: string}}
+export interface InventoryItem {id: string; actorId: string; actorName: string; originActorId: string; originActorName: string; rarity: string; value: string; name: string; quantity: number; source: {destination?: Destination; unitPrice?: string; debug?: boolean}}
 export type TravelOperation = 'pause' | 'resume' | 'end' | 'query_image' | 'regenerate_image' | 'use_image' | 'abandon_image';

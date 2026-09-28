@@ -1,12 +1,14 @@
 import random
+from django.db.models import Q
 from .travel_models import TravelDestination, TravelJourney
 
 
 def candidates(agent, recent_count=3):
-    recent = list(TravelJourney.objects.filter(actor_id=agent.pk, arrived_at__isnull=False)
+    history = TravelJourney.objects.filter(actor_id=agent.pk, arrived_at__isnull=False).filter(Q(snapshot__destination_scope__isnull=True) | ~Q(snapshot__destination_scope__in=['region', 'unconfirmed']))
+    recent = list(history
                   .order_by('-arrived_at').values_list('destination_id', flat=True)[:recent_count])
     rows = list(TravelDestination.objects.filter(enabled=True).values('id', 'country_code', 'country', 'region', 'city', 'price'))
-    visited = set(TravelJourney.objects.filter(actor_id=agent.pk, arrived_at__isnull=False).values_list('destination_id', flat=True))
+    visited = set(history.values_list('destination_id', flat=True))
     pools = {}
     for row in rows:
         if row['id'] not in recent:

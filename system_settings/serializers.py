@@ -578,6 +578,21 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
 
 
 class AgentRunRecordSerializer(serializers.ModelSerializer):
+    travel_progress = serializers.SerializerMethodField()
+
+    def get_travel_progress(self, record):
+        journey_id = (record.random_context or {}).get('journey_id')
+        if not journey_id or getattr(self.context.get('view'), 'action', 'retrieve') != 'retrieve':
+            return None
+        from .agent_world.travel_models import TravelJourney, TravelRuntime
+        journey = TravelJourney.objects.filter(pk=journey_id).first()
+        if not journey:
+            return None
+        runtime = TravelRuntime.objects.filter(pk=journey_id).first()
+        return {'journey_id': journey_id, 'status': journey.status, 'phase': journey.phase,
+            'updated_at': journey.updated_at, 'next_at': runtime.next_at if runtime else None,
+            'attempts': runtime.attempts if runtime else 0, 'authorized': bool(runtime and runtime.authorized)}
+
     class Meta:
         model = AgentRunRecord
         fields = [
@@ -588,6 +603,7 @@ class AgentRunRecordSerializer(serializers.ModelSerializer):
             'agent_name',
             'agent_runs',
             'random_context',
+            'travel_progress',
             'trigger',
             'status',
             'started_at',

@@ -91,6 +91,8 @@ class ChatView(APIView):
                     else:
                         system_prompt = CHAT_SYSTEM_PROMPT
                     system_prompt = build_agent_system_prompt(system_prompt)
+                    from system_settings.agent_world.travel_memory import travel_memory_context
+                    system_prompt += '\n\n' + travel_memory_context(agent)
                     if isinstance(agent.skills, list):
                         agent_skill_ids.extend(agent.skills)
                     if isinstance(agent.mcp_servers, list):

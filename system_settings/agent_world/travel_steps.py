@@ -7,6 +7,7 @@ from .travel_ai import ask, local_materials, text, sourced_items
 from .travel_config import bound_skill
 from .travel_models import TravelNode, TravelJourney
 from .travel_settlement import depart, purchase
+from .inventory_attributes import souvenir_attributes
 
 EVENTS = [
     {'type': 'negative', 'description': '模拟遭遇：原计划的入口临时关闭，你扑了个空。', 'choices': ['改去下一站', '在附近散步', '稍作休息']},
@@ -53,6 +54,7 @@ def advance(journey):
             state.setdefault('previews', []).append({'destination_id': city['id'], **intro, 'sources': sources})
             next_phase = 'choose' if len(state['previews']) == len(state['candidates']) else 'preview'
     elif phase == 'choose':
+        from .travel_memory import recent_travel_context
         def validate(v):
             reason = text(v, 'reason', 1000)
             if v.get('destination_id') == 'skip':
@@ -63,7 +65,7 @@ def advance(journey):
                 raise ValueError('所选路线或购物预算超过余额')
             return {'destination_id': selected['id'], 'reason': reason, 'shopping_budget': str(budget.quantize(Decimal('.01')))}
         selection = decide(journey, node, '自主决定旅行或本次不去。返回 {"destination_id":"候选ID或skip","reason":"原因","shopping_budget":0}。购物预算是上限，不提前扣除。',
-            {'candidates': state['candidates'], 'previews': state['previews'], 'balance': str(agent.money)}, validate)
+            {'candidates': state['candidates'], 'previews': state['previews'], 'balance': str(agent.money), 'past_travels': recent_travel_context(agent)}, validate)
         state['selection'] = selection
         if selection['destination_id'] == 'skip':
             journey.status, next_phase = 'skipped', 'done'
@@ -96,7 +98,8 @@ def advance(journey):
             lower = max(1, int((base*Decimal('.01')/10).to_integral_value(rounding=ROUND_CEILING)))
             upper = max(lower, int((base*Decimal('.1')/10).to_integral_value(rounding=ROUND_FLOOR)))
             units = random.randint(lower, upper)
-            goods.append({**item, 'id': str(i+1), 'price': str(units*10)})
+            price = str(units*10)
+            goods.append({**item, 'id': str(i+1), 'price': price, **souvenir_attributes(price)})
         state['goods'] = goods
         next_phase = 'depart'
     elif phase == 'depart':
@@ -174,6 +177,9 @@ def advance(journey):
     with transaction.atomic():
         journey.snapshot, journey.phase = state, next_phase
         journey.save()
+        if journey.status == 'completed':
+            from .travel_memory import remember_travel
+            remember_travel(journey)
         node.status = 'skipped' if journey.status == 'skipped' else 'success'
         node.save(update_fields=['status', 'updated_at'])
     return journey

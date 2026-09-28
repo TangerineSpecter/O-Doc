@@ -1,5 +1,6 @@
 """GeoNames 城市模板导出与回填文件校验，不写入业务数据库。"""
 import csv
+import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -8,6 +9,20 @@ from zipfile import ZipFile
 from io import TextIOWrapper
 
 HEADERS = ('城市ID', '国家代码', '国家', '省/州', '城市', '城市原名', '价格', '启用')
+CITY_NAME_CORRECTIONS = {
+    '5884051': 'Alliston', '4366476': '蘭道斯敦', '4938048': 'Grafton',
+    '4995197': '哈姆特拉米克', '2317397': '班顿杜', '1805093': '旧县镇',
+}
+# 不把片区、已经不存在的地点及多个聚落集合当作独立旅行目的地。
+EXCLUDED_FEATURE_CODES = frozenset({'PPLX', 'PPLH', 'PPLCH', 'PPLQ', 'PPLW', 'PPLS'})
+# 原始主名本身仍指向县/区且未确认具体城镇，暂不作为自动旅行候选。
+UNCONFIRMED_SETTLEMENT_IDS = frozenset({'6089125', '7931312', '12492660', '12492669', '12326384', '1620919'})
+
+
+def administrative_alias(name: str, country_code: str) -> bool:
+    return bool(re.search(r'(省|自治区|自治州|行政区|地区|居委会|县|郡)$', name)
+        or country_code == 'TH' and name.endswith('府')
+        or country_code == 'US' and name.endswith('州'))
 
 
 @dataclass(frozen=True)
@@ -16,6 +31,7 @@ class City:
     name: str
     country_code: str
     region_code: str
+    feature_code: str
 
 
 def read_cities(path: Path) -> list[City]:
@@ -28,7 +44,7 @@ def read_cities(path: Path) -> list[City]:
             if fields[0] in seen:
                 raise ValueError(f'城市数据重复 ID：{fields[0]}')
             seen.add(fields[0])
-            cities.append(City(fields[0], fields[1], fields[8], fields[10]))
+            cities.append(City(fields[0], fields[1], fields[8], fields[10], fields[7]))
     if not cities:
         raise ValueError('城市数据为空')
     return cities
@@ -56,7 +72,7 @@ def read_regions(path: Path) -> dict[str, tuple[str, str]]:
     return regions
 
 
-def read_chinese_names(path: Path, wanted: set[str]) -> dict[str, str]:
+def read_chinese_names(path: Path, wanted: set[str], *, city_countries: dict[str, str] | None = None) -> dict[str, str]:
     """仅选中文且非历史/俗称的别名；优先官方首选名，缺失时保留原名。"""
     selected = {}
     scores = {}
@@ -71,6 +87,8 @@ def read_chinese_names(path: Path, wanted: set[str]) -> dict[str, str]:
                     raise ValueError('中文别名数据格式不正确')
                 _, source_id, language, name, preferred, short, colloquial, historic = fields[:8]
                 if source_id not in wanted or language not in {'zh', 'zh-CN', 'zh-Hans'} or not name:
+                    continue
+                if city_countries and source_id in city_countries and administrative_alias(name, city_countries[source_id]):
                     continue
                 if historic == '1' or colloquial == '1':
                     continue
@@ -92,7 +110,7 @@ def export_city_template(data_dir: Path, output: Path) -> dict:
     wanted = {city.source_id for city in cities}
     wanted.update(value[1] for value in countries.values())
     wanted.update(value[1] for value in regions.values())
-    names = read_chinese_names(data_dir / 'alternateNamesV2.zip', wanted)
+    names = read_chinese_names(data_dir / 'alternateNamesV2.zip', wanted, city_countries={city.source_id: city.country_code for city in cities})
     rows = []
     for city in cities:
         if city.country_code not in countries:
@@ -103,8 +121,9 @@ def export_city_template(data_dir: Path, output: Path) -> dict:
             '城市ID': city.source_id, '国家代码': city.country_code,
             '国家': _spreadsheet_text(names.get(country_id, country)),
             '省/州': _spreadsheet_text(names.get(region_id, region)),
-            '城市': _spreadsheet_text(names.get(city.source_id, city.name)),
-            '城市原名': _spreadsheet_text(city.name), '价格': '', '启用': '1',
+            '城市': _spreadsheet_text(CITY_NAME_CORRECTIONS.get(city.source_id, names.get(city.source_id, city.name))),
+            '城市原名': _spreadsheet_text('Bandundu' if city.source_id == '2317397' else city.name), '价格': '',
+            '启用': '0' if city.feature_code in EXCLUDED_FEATURE_CODES or city.source_id in UNCONFIRMED_SETTLEMENT_IDS else '1',
         })
     rows.sort(key=lambda row: (row['国家代码'], row['省/州'], row['城市'], int(row['城市ID'])))
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -3,9 +3,9 @@
   "dataVersion": "simulation-v1",
   "currency": "世界币",
   "inputTemplate": "travel_cities_template.csv",
-  "inputTemplateSha256": "ca1f6f92a98ef1bfdcb07ecb127b514b5324334e8ec9ed69fbeb168947489076",
+  "inputTemplateSha256": "9597be166bd820d9533caf4adcc48a38e3e34c6d35fc6d3a776b7c5acef8bad7",
   "outputCsv": "travel_cities_seed.csv",
-  "outputCsvSha256": "9edfae47fee91e847545434c5bb67346ddc2a590ef05926fba978034df824988",
+  "outputCsvSha256": "467d64ff6f500ef2a7ed4fa67dd960df59869206191e7f3978ac3d918f014e14",
   "pricingAssumptions": "travel_price_assumptions.json",
   "pricingAssumptionsSha256": "058f0e5e29dfc80f43c088d64ba1653cfaba76fa05dc3fc85abcd489b0b428b1",
   "rows": 34146,
@@ -942,5 +942,31 @@
       "country": "CA"
     }
   },
-  "limitations": "娱乐模拟总价；185 个主要城市单独判断，其余按 AI 国家基价、城市人口档和首都修正批量估算，未逐城查证现实价格。"
+  "limitations": "娱乐模拟总价；185 个主要城市单独判断，其余按 AI 国家基价、城市人口档和首都修正批量估算，未逐城查证现实价格。",
+  "nameCorrections": {
+    "5884051": "Alliston"
+  },
+  "cityCleanup": {
+    "version": "city-cleanup-v1",
+    "nameCorrections": 34,
+    "disabledRows": 2430,
+    "enabledRows": 31716,
+    "excludedFeatureCodes": [
+      "PPLCH",
+      "PPLH",
+      "PPLQ",
+      "PPLS",
+      "PPLW",
+      "PPLX"
+    ],
+    "unconfirmedIds": [
+      "12326384",
+      "12492660",
+      "12492669",
+      "1620919",
+      "6089125",
+      "7931312"
+    ],
+    "manifest": "system_settings/migrations/data/0041_travel_city_cleanup.json"
+  }
 }

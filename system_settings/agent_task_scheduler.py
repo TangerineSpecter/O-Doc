@@ -695,6 +695,11 @@ class AgentTaskScheduler:
             return
 
         for record in interrupted_records:
+            journey_id = (record.random_context or {}).get('journey_id')
+            if journey_id:
+                from .agent_world.travel_models import TravelJourney
+                if TravelJourney.objects.filter(pk=journey_id).exists():
+                    continue
             if record.random_context:
                 from .models import AgentRandomRuntime
                 if AgentRandomRuntime.objects.filter(
@@ -893,6 +898,10 @@ class AgentTaskScheduler:
             ))
         else:
             parts.append(CHAT_SYSTEM_PROMPT)
+
+        if agent:
+            from .agent_world.travel_memory import travel_memory_context
+            parts.append(travel_memory_context(agent))
 
         skill_prompts = self._get_skill_prompts(agent)
         if skill_prompts:

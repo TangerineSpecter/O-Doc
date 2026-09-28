@@ -76,6 +76,11 @@ class AgentInventoryItem(models.Model):
     id = models.CharField(primary_key=True, max_length=140)
     actor_id = models.CharField(max_length=40, db_index=True)
     owner_id = models.CharField(max_length=40, default='')
+    actor_name = models.CharField(max_length=50, blank=True, default='')
+    origin_actor_id = models.CharField(max_length=40, blank=True, default='')
+    origin_actor_name = models.CharField(max_length=50, blank=True, default='')
+    rarity = models.CharField(max_length=16, default='common', choices=[('common', '普通'), ('uncommon', '精良'), ('rare', '稀有'), ('epic', '史诗'), ('legendary', '传说')])
+    value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     name = models.CharField(max_length=200)
     kind = models.CharField(max_length=24, default='souvenir')
     quantity = models.PositiveIntegerField()
@@ -84,7 +89,8 @@ class AgentInventoryItem(models.Model):
 
     class Meta:
         app_label = 'system_settings'
-        constraints = [models.CheckConstraint(condition=models.Q(quantity__gt=0), name='inventory_quantity_positive')]
+        constraints = [models.CheckConstraint(condition=models.Q(quantity__gt=0), name='inventory_quantity_positive'),
+            models.CheckConstraint(condition=models.Q(value__gte=0), name='inventory_value_nonnegative')]
 
 
 class TravelRuntime(models.Model):

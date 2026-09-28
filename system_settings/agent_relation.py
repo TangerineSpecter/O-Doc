@@ -265,8 +265,10 @@ def backfill_relation_events():
         )
 
 
-def relation_graph():
+def relation_graph(owner_id=None):
     from .agent_world.execution import stamina
+    from .agent_world.travel_models import AgentInventoryItem
+    from django.db.models import Sum
 
     backfill_relation_events()
     recompute_all_relations()
@@ -274,6 +276,10 @@ def relation_graph():
     creativity = {item.agent_id: item for item in AgentCreativity.objects.all()}
     running_ids = set(AgentActivity.objects.filter(status='running').exclude(agent_id=None).values_list('agent_id', flat=True))
     nodes = []
+    inventory = AgentInventoryItem.objects.all()
+    if owner_id is not None:
+        inventory = inventory.filter(owner_id=owner_id)
+    inventory_counts = dict(inventory.values('actor_id').annotate(total=Sum('quantity')).values_list('actor_id', 'total'))
     for agent in agents:
         snapshot = creativity.get(agent.id)
         nodes.append({
@@ -281,6 +287,7 @@ def relation_graph():
             'name': agent.name,
             'avatar': agent.avatar,
             'money': format(agent.money, '.2f'),
+            'inventory_count': inventory_counts.get(agent.id, 0),
             'stamina': format(stamina(agent), '.1f'),
             'profession_name': agent.profession.name if agent.profession else '',
             'creativity': snapshot.score if snapshot else 0,

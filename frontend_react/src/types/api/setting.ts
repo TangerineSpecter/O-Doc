@@ -162,6 +162,7 @@ export type SaveAgentTaskConfigParams = Omit<AgentTaskConfig, 'id' | 'agentName'
 };
 
 export interface AgentRunRecordConfig {
+    travelProgress?: {journeyId: string; status: string; phase: string; updatedAt: string; nextAt: string | null; attempts: number; authorized: boolean} | null;
     id: string;
     task?: string | null;
     taskName: string;
@@ -224,6 +225,7 @@ export interface AgentActivityListResult {
 }
 
 export interface AgentRelationNode {
+    inventoryCount?: number;
     professionName?: string;
     id: string;
     name: string;

@@ -239,13 +239,13 @@ def tick(scheduler):
         status='failed', summary='执行中断，本机会结束', current_action='执行已中断', updated_at=timezone.now(),
     )
     runtime, _ = WorldActionRuntime.objects.get_or_create(pk='world')
-    if not runtime.enabled:
-        return
     with execution_lease(WorldActionRuntime, {'pk': 'world'}) as token:
         if not token:
             return
         from .travel_runner import tick_travel
-        tick_travel(scheduler, token)
+        tick_travel(scheduler, token, manual_only=not runtime.enabled)
+        if not runtime.enabled:
+            return
         # 恢复可能继续检索、写作和发布，同样受本机开关与世界执行锁约束。
         publications = WorldAction.objects.filter(status='claimed', updated_at__lt=stale, task__task_kind='post_publish').select_related('task')
         for pending in publications[:20]:

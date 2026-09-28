@@ -29,10 +29,39 @@
       "sha256": "498798fcc3df8a4715db07b4c22dd503c8aae5c4fa804da637af0229eab4ad91"
     }
   ],
-  "csv_sha256": "ca1f6f92a98ef1bfdcb07ecb127b514b5324334e8ec9ed69fbeb168947489076",
+  "csv_sha256": "9597be166bd820d9533caf4adcc48a38e3e34c6d35fc6d3a776b7c5acef8bad7",
   "city_rows": 34146,
   "country_or_territory_codes": 244,
-  "cities_with_chinese_alias": 11219,
+  "cities_with_chinese_alias": 11197,
   "unfilled_prices": 34146,
-  "scope": "GeoNames cities15000 populated places; not an exhaustive administrative city registry"
+  "scope": "GeoNames cities15000 settlements; city sections, historical/abandoned/destroyed places, grouped places and unconfirmed administrative labels disabled",
+  "nameCorrections": {
+    "5884051": {
+      "city": "Alliston",
+      "reason": "中文别名误用了所属省名安大略；保留GeoNames居民点原名"
+    }
+  },
+  "cityCleanup": {
+    "version": "city-cleanup-v1",
+    "nameCorrections": 34,
+    "disabledRows": 2430,
+    "enabledRows": 31716,
+    "excludedFeatureCodes": [
+      "PPLCH",
+      "PPLH",
+      "PPLQ",
+      "PPLS",
+      "PPLW",
+      "PPLX"
+    ],
+    "unconfirmedIds": [
+      "12326384",
+      "12492660",
+      "12492669",
+      "1620919",
+      "6089125",
+      "7931312"
+    ],
+    "manifest": "system_settings/migrations/data/0041_travel_city_cleanup.json"
+  }
 }

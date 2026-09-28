@@ -239,6 +239,45 @@ class TravelTests(TestCase):
         self.assertEqual(AgentInventoryItem.objects.get().quantity, 2)
         self.assertEqual(WorldLedger.objects.filter(kind='souvenir').count(), 1)
 
+    def test_souvenir_attributes_survive_owner_change_and_role_rename(self):
+        row = self.journey('buy')
+        row.snapshot['goods'][0].update(rarity='rare', value='180')
+        row.save()
+        depart(row)
+        purchase(row, [{'id': '1', 'quantity': 2}])
+        item = AgentInventoryItem.objects.get()
+        self.assertEqual((item.rarity, item.value), ('rare', Decimal('180')))
+        self.assertEqual((item.origin_actor_id, item.origin_actor_name), (self.agent.pk, '旅行者'))
+        item.actor_id, item.actor_name = 'next-owner', '下一位买家'
+        item.save(update_fields=['actor_id', 'actor_name'])
+        self.agent.name = '改名后的角色'; self.agent.save()
+        item.refresh_from_db()
+        self.assertEqual((item.origin_actor_id, item.origin_actor_name), (self.agent.pk, '旅行者'))
+        response = self.client.get('/api/settings/agent-world/inventory/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['data'][0]['origin_actor_name'], '旅行者')
+
+    def test_invalid_souvenir_attributes_do_not_charge_or_create_items(self):
+        row = self.journey('buy'); depart(row)
+        for attrs in [{'rarity': 'invalid'}, {'value': '-10'}, {'value': 'NaN'}]:
+            row.snapshot['goods'][0].update(rarity='common', value='100')
+            row.snapshot['goods'][0].update(attrs); row.save()
+            with self.assertRaises(ValueError): purchase(row, [{'id': '1', 'quantity': 1}])
+        self.assertFalse(AgentInventoryItem.objects.exists())
+        self.assertFalse(WorldLedger.objects.filter(kind='souvenir').exists())
+
+    def test_resident_inventory_count_sums_quantities_and_scopes_account(self):
+        from system_settings.agent_relation import relation_graph
+        row = self.journey('buy'); depart(row)
+        purchase(row, [{'id': '1', 'quantity': 2}, {'id': '2', 'quantity': 1}])
+        AgentInventoryItem.objects.create(id='other-account', actor_id=self.agent.pk, owner_id='other', name='不可读取的物品', quantity=8)
+        graph = relation_graph(owner_id='admin')
+        node = next(node for node in graph['nodes'] if node['id'] == self.agent.pk)
+        self.assertEqual(node['inventory_count'], 3)
+        self.assertEqual(len(self.client.get('/api/settings/agent-world/inventory/', {'agentId': self.agent.pk}).data['data']), 2)
+        empty = self.client.get('/api/settings/agent-world/inventory/', {'agentId': 'missing-agent'})
+        self.assertEqual(empty.data['data'], [])
+
     def test_invalid_baskets_and_budget_do_not_partially_commit(self):
         row = self.journey('buy'); depart(row)
         for basket in [[{'id': 'bad', 'quantity': 1}], [{'id': '1', 'quantity': 4}], [{'id': '1', 'quantity': 1}, {'id': '1', 'quantity': 1}], [{'id': '2', 'quantity': 3}]]:
@@ -397,6 +436,70 @@ class TravelTests(TestCase):
         with patch('system_settings.agent_world.travel_runner.advance') as run:
             tick(None); run.assert_not_called()
 
+    def test_restart_does_not_mark_recoverable_trip_failed(self):
+        from system_settings.agent_task_scheduler import AgentTaskScheduler
+        from system_settings.models import AgentRunRecord
+        row = self.journey(status='waiting')
+        start_activity(row, manual=True)
+        record = WorldAction.objects.get(pk=row.pk).record
+        AgentRunRecord.objects.filter(pk=record.pk).update(updated_at=timezone.now()-timedelta(hours=4))
+        AgentTaskScheduler()._mark_interrupted_runs()
+        record.refresh_from_db()
+        self.assertEqual(record.status, 'running')
+        self.assertFalse(any(step['title'] == '执行中断' for step in record.steps))
+
+    def test_execution_detail_exposes_retry_queue_without_syncing_runtime(self):
+        from system_settings.serializers import AgentRunRecordSerializer
+        row = self.journey(status='waiting')
+        start_activity(row, manual=True)
+        next_at = timezone.now()+timedelta(minutes=5)
+        TravelRuntime.objects.create(pk=row.pk, authorized=True, attempts=2, next_at=next_at)
+        record = WorldAction.objects.get(pk=row.pk).record
+        data = AgentRunRecordSerializer(record).data['travel_progress']
+        self.assertEqual((data['status'], data['attempts'], data['next_at']), ('waiting', 2, next_at))
+        self.assertEqual(record.random_context, {'journey_id': row.pk})
+
+    def test_validation_failure_is_explained_and_sent_back_for_correction(self):
+        from .travel_ai import ask
+        row = self.journey()
+        def validate(value):
+            raise ValueError('当地素材的依据必须是来源中的原文片段')
+        with patch('system_settings.agent_world.travel_ai.complete', return_value='{}') as model:
+            with self.assertRaisesRegex(ValueError, '旅行模型输出未通过校验：当地素材的依据'):
+                ask(row, '整理行程', {}, validate)
+            self.assertIn('当地素材的依据必须是来源中的原文片段', model.call_args.args[1])
+
+    def test_manual_trip_continues_with_world_switch_off_without_new_opportunities(self):
+        from .action_runner import tick
+        manual = self.journey()
+        start_activity(manual, manual=True)
+        TravelRuntime.objects.create(pk=manual.pk, authorized=True)
+        automatic = self.journey()
+        start_activity(automatic)
+        TravelRuntime.objects.create(pk=automatic.pk, authorized=True)
+        synced = self.journey()
+        start_activity(synced, manual=True)
+        TravelRuntime.objects.create(pk=synced.pk, authorized=False)
+        WorldActionRuntime.objects.create(pk='world', enabled=False)
+        with patch('system_settings.agent_world.travel_runner.advance') as advance_node, patch('system_settings.agent_world.travel_runner.take_due') as take:
+            tick(None)
+            advance_node.assert_called_once()
+            self.assertEqual(advance_node.call_args.args[0].pk, manual.pk)
+            take.assert_not_called()
+
+    def test_travel_activity_exposes_saved_nodes_and_candidate_progress(self):
+        row = self.journey()
+        row.snapshot['previews'] = [{'destination_id': '1'}]
+        row.save()
+        start_activity(row, manual=True)
+        TravelNode.objects.create(pk=f'{row.pk}:preview-0', journey=row, kind='preview', input=self.city,
+            result={'feature': '成都美食'}, status='pending')
+        update_activity(row)
+        record = WorldAction.objects.get(pk=row.pk).record
+        self.assertIn('准备候选目的地（1/1）', record.summary)
+        self.assertEqual(record.steps[0]['title'], '准备候选目的地：中国 · 成都')
+        self.assertEqual(record.steps[0]['status'], 'success')
+
     def test_same_title_can_publish_distinct_journeys(self):
         first = self.journey('publish')
         first.snapshot['draft'] = {'title': '同名日记', 'content': '第一趟旅行'}; first.save()
@@ -414,7 +517,151 @@ class TravelTests(TestCase):
             recover_photo(row); generate.assert_not_called()
         row.refresh_from_db(); self.assertEqual(row.snapshot['photo']['status'], 'manual')
 
+    def test_photo_submission_preserves_avatar_style_when_prompt_model_omits_it(self):
+        scene = Skill.objects.create(name='旅行场景照', skill_key='odoc_travel_scene_photo', prompt='沿用头像画风')
+        self.agent.skills = [self.skill.pk, scene.pk]
+        self.agent.mcp_servers = [self.server.pk]; self.agent.save()
+        self.server.tools = [{'name': 'generate_image', 'enabled': True}]; self.server.save()
+        row = self.journey(status='completed'); row.article_id = 'post'
+        row.snapshot.update(draft={'photo_scene': '在地标前留影'}, photo={'status': 'pending'})
+        row.save()
+        options = {'configured': True, 'supports_reference_images': True,
+            'agent_reference_images': {'avatar': 'avatar-resource', 'full_body': 'body-resource'}}
+        with patch('system_settings.agent_world.travel_publication.image_generation_options', return_value=options), \
+                patch('system_settings.agent_world.travel_steps.decide', return_value={'prompt': '角色在地标前留影'}), \
+                patch('system_settings.agent_world.travel_publication.generate_image', return_value={'status': 'generating', 'task_id': 'a'*32}) as generate:
+            recover_photo(row)
+        request = generate.call_args.args[0]
+        self.assertEqual(request['reference_image_ids'], ['avatar-resource', 'body-resource'])
+        self.assertIn('参考图 1 是头像', request['prompt'])
+        self.assertIn('头身比例', request['prompt'])
+        row.refresh_from_db()
+        self.assertEqual(row.snapshot['photo']['request'], request)
+
     def test_restore_discards_remote_image_lease(self):
         data = [{'model':'prompts.imagegenerationtask', 'pk':'a'*32, 'fields':{'lease_until':'remote-lock'}}]
         SyncManager._restore_device_local_user_fields(data)
         self.assertIsNone(data[0]['fields']['lease_until'])
+
+
+    def test_travel_memory_is_idempotent_and_excludes_debug_items(self):
+        from .travel_memory import remember_travel, recent_travel_context
+        row = self.journey('done', status='completed', departed_at=timezone.now(), returned_at=timezone.now())
+        row.snapshot.update(shopping={'basket': [], 'reason': '不买'}, debug_purchase={'items': [{'name': '调试礼盒'}]},
+                            ended_early=True, destination_scope='region')
+        row.save()
+        memory = remember_travel(row)
+        self.assertEqual(remember_travel(row).pk, memory.pk)
+        self.assertIn('未购买', memory.content)
+        self.assertIn('具体城市未确认', memory.content)
+        self.assertIn('提前结束', memory.content)
+        self.assertNotIn('调试礼盒', memory.content)
+        self.assertEqual(len(recent_travel_context(self.agent)), 1)
+        memory.status = 'archived'; memory.save()
+        remember_travel(row)
+        self.assertEqual(recent_travel_context(self.agent), [])
+        self.assertIsNone(remember_travel(self.journey(status='skipped')))
+
+    def test_history_without_scope_keeps_real_city_visits(self):
+        row = self.journey(arrived_at=timezone.now())
+        TravelDestination.objects.create(pk='1', country='中国', country_code='CN', city='成都', price=20000)
+        self.assertEqual(candidates(self.agent, recent_count=0)[0]['visited'], True)
+        row.snapshot['destination_scope'] = 'region'; row.save()
+        self.assertEqual(candidates(self.agent, recent_count=0)[0]['visited'], False)
+
+    def test_successful_photo_can_regenerate_with_charge_confirmation(self):
+        row = self.journey()
+        row.snapshot['draft'] = {'title': '旅行', 'content': '原文'}; row.save()
+        publish_journal(row); row.refresh_from_db()
+        insert_photo(row, '/old.png')
+        path = f'/api/settings/agent-world/travel/{row.pk}/'
+        self.assertEqual(self.client.post(path, {'action': 'regenerate_image'}, format='json').status_code, 400)
+        response = self.client.post(path, {'action': 'regenerate_image', 'confirm_charge': True}, format='json')
+        self.assertEqual(response.status_code, 200)
+        row.refresh_from_db()
+        self.assertEqual(row.snapshot['photo']['previous_image_url'], '/old.png')
+        self.assertEqual(row.snapshot['photo_history'][0]['image_url'], '/old.png')
+        insert_photo(row, '/new.png')
+        content = Article.objects.get(pk=row.article_id).content
+        self.assertEqual(content, '原文\n\n![旅行场景照](/new.png)')
+        insert_photo(row, '/new.png')
+        self.assertEqual(Article.objects.get(pk=row.article_id).content, content)
+
+    def test_regenerated_photo_keeps_manual_edits(self):
+        row = self.journey()
+        row.snapshot['draft'] = {'title': '旅行', 'content': '原文'}; row.save()
+        publish_journal(row); row.refresh_from_db()
+        insert_photo(row, '/old.png')
+        Article.objects.filter(pk=row.article_id).update(content='手动编辑\n\n![旅行场景照](/old.png)')
+        self.client.post(f'/api/settings/agent-world/travel/{row.pk}/', {'action': 'regenerate_image', 'confirm_charge': True}, format='json')
+        row.refresh_from_db(); insert_photo(row, '/new.png')
+        self.assertEqual(row.snapshot['photo']['status'], 'manual')
+        self.assertEqual(Article.objects.get(pk=row.article_id).content, '手动编辑\n\n![旅行场景照](/old.png)')
+
+    def test_legacy_photo_hash_supports_replacement(self):
+        row = self.journey()
+        row.snapshot['draft'] = {'title': '旅行', 'content': '原文'}; row.save()
+        publish_journal(row); row.refresh_from_db()
+        Article.objects.filter(pk=row.article_id).update(content='原文\n\n![旅行场景照](/old.png)')
+        row.snapshot['photo'] = {'status': 'pending', 'previous_image_url': '/old.png'}; row.save()
+        insert_photo(row, '/new.png')
+        self.assertEqual(Article.objects.get(pk=row.article_id).content, '原文\n\n![旅行场景照](/new.png)')
+
+
+    def test_role_memory_recall_does_not_expose_other_users_or_agents(self):
+        from types import SimpleNamespace
+        from system_settings.models import AgentLongTermMemory
+        from system_settings.agent_memory import get_long_term_memories_for_record
+        global_memory = AgentLongTermMemory.objects.create(agent=self.agent, scope='agent', content='自身旅行')
+        AgentLongTermMemory.objects.create(agent=self.agent, sender_id='other-user', content='其他用户私事')
+        other_agent = Agent.objects.create(name='另一个角色')
+        AgentLongTermMemory.objects.create(agent=other_agent, scope='agent', content='另一角色经历')
+        for record in [SimpleNamespace(sender_id='current-user', chat_id='chat'), SimpleNamespace(sender_id='', chat_id='chat')]:
+            self.assertEqual([m.pk for m in get_long_term_memories_for_record(self.agent, record)], [global_memory.pk])
+
+    def test_task_context_loads_and_prompt_contains_travel_memory(self):
+        from system_settings.agent_task_scheduler import AgentTaskScheduler
+        from .travel_memory import remember_travel
+        row = self.journey('done', status='completed', departed_at=timezone.now(), returned_at=timezone.now())
+        memory = remember_travel(row)
+        scheduler = object.__new__(AgentTaskScheduler)
+        with patch.object(scheduler, '_append_agent_run_step'):
+            context = scheduler._append_agent_context_steps(None, self.task, agent=self.agent)
+        self.assertEqual(context['tools'], [])
+        self.assertEqual(context['agent'], self.agent)
+        prompt = scheduler._build_prompt(self.task, agent=self.agent)
+        self.assertIn(memory.title, prompt)
+        self.assertIn(memory.content, prompt)
+
+    def test_manual_photo_operations_continue_for_automatic_trip_with_world_off(self):
+        from .action_runner import tick
+        WorldActionRuntime.objects.create(pk='world', enabled=False)
+        for operation in ['regenerate_image', 'query_image']:
+            with self.subTest(operation=operation):
+                row = self.journey('done', status='completed', article_id='photo-test-article')
+                row.snapshot['photo'] = ({'status': 'inserted', 'image_url': '/old.png'} if operation == 'regenerate_image'
+                    else {'status': 'manual', 'task_id': 'existing-provider-task'})
+                row.save()
+                start_activity(row, manual=False)
+                result = self.client.post(f'/api/settings/agent-world/travel/{row.pk}/',
+                    {'action': operation, 'confirm_charge': True}, format='json')
+                self.assertEqual(result.status_code, 200)
+                self.assertTrue(TravelRuntime.objects.get(pk=f'{row.pk}:photo').authorized)
+                self.assertEqual(WorldAction.objects.get(pk=row.pk).record.trigger, '定时任务')
+                with patch('system_settings.agent_world.travel_runner.recover_photo') as recover, patch('system_settings.agent_world.travel_runner.take_due') as take:
+                    tick(None)
+                    self.assertIn(row.pk, [call.args[0].pk for call in recover.call_args_list])
+                    take.assert_not_called()
+
+    def test_world_off_skips_automatic_and_synced_photo_queues_without_local_authority(self):
+        from .action_runner import tick
+        WorldActionRuntime.objects.create(pk='world', enabled=False)
+        for main_authority, photo_authority in [(True, False), (False, True)]:
+            row = self.journey('done', status='completed', article_id='photo-test-article')
+            row.snapshot['photo'] = {'status': 'pending'}; row.save()
+            start_activity(row, manual=False)
+            TravelRuntime.objects.create(pk=row.pk, authorized=main_authority)
+            TravelRuntime.objects.create(pk=f'{row.pk}:photo', authorized=photo_authority)
+        with patch('system_settings.agent_world.travel_runner.recover_photo') as recover:
+            tick(None)
+            recover.assert_not_called()

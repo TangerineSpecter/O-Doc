@@ -58,14 +58,21 @@ def insert_photo(journey, image_url):
     article = Article.objects.select_for_update().filter(pk=row.article_id, is_valid=True,
         agent_post_author_id=row.actor_id, coll_id=state['config']['collection_id']).first()
     photo['image_url'] = image_url
-    if article is None or content_hash(article.content) != state['published_content_hash']:
+    old_markdown = '\n\n![旅行场景照](' + (photo.get('previous_image_url') or '') + ')'
+    matches = article is not None and content_hash(article.content) == state['published_content_hash']
+    if article is not None and photo.get('previous_image_url') and article.content.endswith(old_markdown):
+        matches = matches or content_hash(article.content[:-len(old_markdown)]) == state['published_content_hash']
+    if not matches:
         photo['status'], photo['error'] = 'manual', '原帖已删除或正文有人工修改，请手动插入图片'
     else:
         create_article_version(article, source='travel_photo', operator_id=row.owner_id)
+        if photo.get('previous_image_url') and article.content.endswith(old_markdown):
+            article.content = article.content[:-len(old_markdown)]
         article.content += '\n\n![旅行场景照](' + image_url + ')'
         article.is_rag_synced = False
         article.save(update_fields=['content', 'is_rag_synced', 'updated_at'])
         photo['status'] = 'inserted'
+        state['published_content_hash'] = content_hash(article.content)
     state['photo'] = photo
     row.snapshot = state
     row.save(update_fields=['snapshot', 'updated_at'])
@@ -111,10 +118,17 @@ def recover_photo(journey):
             node, _ = TravelNode.objects.get_or_create(pk=f'{journey.pk}:photo-{photo.get("attempt", 0)}', defaults={'journey': journey, 'kind': 'photo'})
             def validate(v):
                 return {'prompt': text(v, 'prompt', 8000)}
-            prompt = decide(journey, node, '只生成生图提示词，返回 {"prompt":"..."}。按参考图顺序说明用途，保持二次元角色；只表现已发生片段，单张完整画面。角色卡只摘外观，不发送完整人格。',
+            prompt = decide(journey, node, '只生成生图提示词，返回 {"prompt":"..."}。按参考图顺序说明用途。头像固定身份及人物画风：最终提示词必须要求沿用头像的头身比例、脸型、五官画法、描边粗细、色块与阴影方式，不能仅匹配发色和瞳色；头像为Q版时保持Q版，不能转为常规动漫少女比例。全身图默认补充服装配饰，不覆盖头像画风；任务明确指定其他版本时遵从。未看到参考图片时不要猜测画风，直接要求生图模型按头像还原。只表现已发生片段，单张完整画面。角色卡只摘外观，不发送完整人格。',
                 {'scene': state['draft']['photo_scene'], 'journey': state, 'reference_images': options.get('agent_reference_images', {}), 'appearance': {'avatar': journey.agent.avatar, 'full_body': journey.agent.full_body_image}}, validate, skill.prompt)
             if not photo.get('request'):
-                photo['request'] = {'prompt': prompt['prompt'], 'reference_image_ids': refs,
+                avatar = options.get('agent_reference_images', {}).get('avatar')
+                style = ''
+                if avatar in refs:
+                    style = (f'\n人物画风约束：参考图 {refs.index(avatar)+1} 是头像。除任务明确指定更换画风外，'
+                        '严格沿用此头像的头身比例、脸型、五官画法、描边粗细、色块与阴影方式；'
+                        '不能只匹配发色和瞳色。头像是Q版时保持大头短身、圆脸、简化小手与原有描边，'
+                        '不改成常规动漫少女比例。其他参考图补充服装、配饰，背景可以更细致，不改变人物画法。')
+                photo['request'] = {'prompt': prompt['prompt'] + style, 'reference_image_ids': refs,
                     'request_id': f'travel:{journey.pk}:{photo.get("attempt", 0)}'}
                 if options.get('default_aspect_ratio'):
                     photo['request']['aspect_ratio'] = options['default_aspect_ratio']

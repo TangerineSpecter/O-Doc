@@ -106,3 +106,34 @@ class TravelCityCsvTests(SimpleTestCase):
             archive.writestr('cities15000.txt', '1002\tIncomplete\n')
         with self.assertRaises(ValueError):
             export_city_template(self.root, self.root / 'invalid.csv')
+
+    def test_city_alias_selection_rejects_administrative_names_but_keeps_region_names(self):
+        with ZipFile(self.aliases, 'w') as archive:
+            archive.writestr('alternateNamesV2.txt', '\n'.join([
+                '1\t1001\tzh\t广东省\t1\t\t\t',
+                '2\t1001\tzh\t深圳\t\t\t\t',
+                '3\t200\tzh\t广东省\t1\t\t\t',
+            ]) + '\n')
+        names = read_chinese_names(self.aliases, {'1001', '200'}, city_countries={'1001': 'CN'})
+        self.assertEqual(names, {'1001': '深圳', '200': '广东省'})
+
+    def test_export_disables_sections_and_historical_places_without_dropping_ids(self):
+        lines = []
+        for index, code in enumerate(['PPLX', 'PPLH', 'PPLQ', 'PPLW', 'PPLS', 'PPLA', 'PPLC', 'PPL', 'PPLG']):
+            fields = city_line(str(2000+index), f'Place{index}').split('\t')
+            fields[7] = code; lines.append('\t'.join(fields))
+        with ZipFile(self.root / 'cities15000.zip', 'w') as archive:
+            archive.writestr('cities15000.txt', '\n'.join(lines))
+        _, rows = self._rows()
+        flags = {r['城市ID']: r['启用'] for r in rows}
+        self.assertEqual(len(rows), len(lines))
+        self.assertTrue(all(flags[str(2000+i)] == '0' for i in range(5)))
+        self.assertTrue(all(flags[str(2000+i)] == '1' for i in range(5, 9)))
+
+    def test_same_city_region_name_is_not_automatically_disabled(self):
+        with ZipFile(self.aliases, 'w') as archive:
+            archive.writestr('alternateNamesV2.txt', '1\t1001\tzh\t重庆市\t1\t\t\t\n2\t200\tzh\t重庆市\t1\t\t\t\n')
+        _, rows = self._rows()
+        row = next(r for r in rows if r['城市ID'] == '1001')
+        self.assertEqual(row['城市'], row['省/州'])
+        self.assertEqual(row['启用'], '1')

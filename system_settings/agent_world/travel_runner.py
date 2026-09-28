@@ -4,8 +4,9 @@ import logging
 import uuid
 from datetime import timedelta
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
-from system_settings.models import AgentTask, AgentExecutionLease, WorldActionRuntime
+from system_settings.models import AgentTask, AgentExecutionLease, WorldActionRuntime, WorldAction
 from .action_schedule import select_agent, take_due
 from .execution import execution_lease
 from .travel_models import TravelJourney, TravelRuntime, TravelNode
@@ -94,15 +95,24 @@ def process_journey(journey):
             runtime.save(update_fields=['attempts', 'next_at'])
 
 
-def tick_travel(scheduler, token):
+def tick_travel(scheduler, token, *, manual_only=False):
     authorized = TravelRuntime.objects.filter(authorized=True).values_list('id', flat=True)
-    for journey in TravelJourney.objects.filter(pk__in=authorized, status__in=['active', 'waiting']).select_related('agent', 'task')[:20]:
+    manual_trips = WorldAction.objects.filter(record__trigger='手动执行').values_list('id', flat=True)
+    active_authorized = authorized.filter(id__in=manual_trips) if manual_only else authorized
+    for journey in TravelJourney.objects.filter(pk__in=active_authorized, status__in=['active', 'waiting']).select_related('agent', 'task')[:20]:
         if journey.task and journey.task.enabled:
             process_journey(journey)
-    for journey in TravelJourney.objects.filter(pk__in=authorized, status='completed', snapshot__photo__status__in=['pending', 'generating']).select_related('agent')[:20]:
+    photos = TravelJourney.objects.filter(pk__in=authorized, status='completed', snapshot__photo__status__in=['pending', 'generating'])
+    if manual_only:
+        # 补图的人工授权独立于原旅行触发方式；本机授权不会随业务记录同步。
+        photo_keys = TravelRuntime.objects.filter(authorized=True, id__endswith=':photo').values_list('id', flat=True)
+        photos = photos.filter(Q(pk__in=manual_trips) | Q(pk__in=[key[:-6] for key in photo_keys]))
+    for journey in photos.select_related('agent')[:20]:
         with execution_lease(TravelRuntime, {'pk': journey.pk}) as photo_token:
             if photo_token and journey.agent:
                 recover_photo(journey)
+    if manual_only:
+        return
     for task in AgentTask.objects.filter(task_kind='travel', enabled=True, trigger='定时任务'):
         key = take_due(task)
         if key:

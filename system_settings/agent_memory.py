@@ -5,6 +5,7 @@ import os
 from datetime import timedelta
 
 from django.db import OperationalError, ProgrammingError
+from django.db.models import Q
 from django.utils import timezone
 
 from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentLongTermMemory, AgentShortTermMemory
@@ -102,7 +103,7 @@ def build_memory_context(agent, record, user_text):
         if content:
             messages.append({
                 'role': 'system',
-                'content': f'以下是这个用户与当前 Agent 的长期记忆。仅在与当前问题相关时使用：\n{content}',
+                'content': f'以下是当前 Agent 的角色经历及与当前对话相关的长期记忆。仅在与当前问题相关时使用：\n{content}',
             })
 
     if recalled_short_memories:
@@ -126,9 +127,9 @@ def get_long_term_memories_for_record(agent, record, limit=DEFAULT_LONG_TERM_LIM
         status=AgentLongTermMemory.STATUS_ACTIVE,
     )
     if record.sender_id:
-        queryset = base_queryset.filter(sender_id=record.sender_id)
+        queryset = base_queryset.filter(Q(sender_id=record.sender_id) | Q(scope='agent', sender_id='', chat_id=''))
     else:
-        queryset = base_queryset.filter(sender_id='', chat_id=record.chat_id or '')
+        queryset = base_queryset.filter(Q(sender_id='', chat_id=record.chat_id or '') | Q(scope='agent', sender_id='', chat_id=''))
 
     memories = list(queryset.order_by('-confidence', '-updated_at')[:limit])
     if memories:

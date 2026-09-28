@@ -83,3 +83,31 @@ class TravelSeedTests(TestCase):
             start_travel_initialization()
             initialize.assert_not_called()
             thread.assert_not_called()
+
+    def test_city_cleanup_preserves_custom_prices_names_and_travel_history(self):
+        import importlib
+        import json
+        from types import SimpleNamespace
+        from django.apps import apps
+        from .agent_world.travel_models import TravelJourney
+        migration = importlib.import_module('system_settings.migrations.0041_travel_city_cleanup')
+        manifest = json.loads((Path(migration.__file__).parent / 'data/0041_travel_city_cleanup.json').read_text())
+        bad = TravelDestination.objects.create(pk='4366476', city='马里兰州', original_name='Randallstown',
+            country_code='US', country='美国', region='马里兰州', price=7777, enabled=False)
+        edited = TravelDestination.objects.create(pk='4938048', city='用户自定义名字', original_name='Grafton',
+            country_code='US', country='美国', price=8888)
+        disabled_id = manifest['disabled_ids'][0]
+        blocked = TravelDestination.objects.create(pk=disabled_id, city='片区', country='测试', country_code='CN', price=1234)
+        journey = TravelJourney.objects.create(pk='old-trip', actor_id='deleted-agent', owner_id='admin', destination_id=bad.pk,
+            snapshot={'selected': {'id': bad.pk, 'city': '马里兰州'}, 'draft': {'content': '原游记'}})
+        migration.clean_destinations(apps, SimpleNamespace(connection=SimpleNamespace(alias='default')))
+        bad.refresh_from_db(); edited.refresh_from_db(); blocked.refresh_from_db(); journey.refresh_from_db()
+        self.assertEqual(bad.city, '蘭道斯敦')
+        self.assertEqual(bad.price, 7777)
+        self.assertFalse(bad.enabled)
+        self.assertEqual(edited.city, '用户自定义名字')
+        self.assertFalse(blocked.enabled)
+        self.assertEqual(blocked.price, 1234)
+        self.assertEqual(journey.snapshot['selected']['city'], '马里兰州')
+        self.assertEqual(journey.snapshot['draft']['content'], '原游记')
+        self.assertEqual(journey.snapshot['destination_scope'], 'unconfirmed')
