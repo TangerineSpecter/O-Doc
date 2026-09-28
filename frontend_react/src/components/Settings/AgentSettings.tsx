@@ -52,6 +52,7 @@ import {useAgentMemories} from './agent/useAgentMemories';
 import {useAgentAvatarUpload} from './agent/useAgentAvatarUpload';
 import {isImageAvatarValue} from '@/utils/avatar';
 import {AgentPromptGenerator} from './agent/AgentPromptGenerator';
+import {PromptEditorModal} from '@/components/common/PromptEditorModal';
 
 interface AgentSettingsProps {
     agents: AgentConfig[];
@@ -1427,14 +1428,23 @@ export const AgentSettings = ({
                                 )}
                             </div>
 
-	                            <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-700">任务提示词</label>
+                            <div className="space-y-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <label htmlFor="task-prompt" className="text-sm font-semibold text-slate-700">任务提示词</label>
+                                    <PromptEditorModal
+                                        name={taskForm.name}
+                                        subject="任务"
+                                        value={taskForm.prompt}
+                                        onChange={prompt => setTaskForm({...taskForm, prompt})}
+                                    />
+                                </div>
                                 <textarea
+                                    id="task-prompt"
                                     value={taskForm.prompt}
                                     onChange={event => setTaskForm({...taskForm, prompt: event.target.value})}
                                     rows={5}
                                     placeholder="写清楚这个任务要做什么、参考哪些来源、输出格式和注意事项"
-                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm leading-6 resize-y"
+                                    className="w-full resize-none px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm leading-6"
                                 />
                             </div>
 

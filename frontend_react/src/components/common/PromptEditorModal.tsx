@@ -7,7 +7,7 @@ interface Props {
     name: string;
     value: string;
     onChange: (value: string) => void;
-    subject?: 'Agent' | '技能';
+    subject?: 'Agent' | '技能' | '任务';
     readOnly?: boolean;
 }
 
@@ -40,7 +40,7 @@ export function PromptEditorModal({name, value, onChange, subject = 'Agent', rea
                     <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
                         <div className="min-w-0">
                             <h2 id={titleId} className="text-base font-bold text-slate-900">{readOnly ? '查看提示词' : '编辑提示词'}</h2>
-                            <p className="mt-1 truncate text-xs text-slate-500">{name ? `${subject}：${name}` : subject === 'Agent' ? '编辑 Agent 的角色、工作方式和输出要求' : '编辑技能的目标、输入要求、输出格式和边界'}</p>
+                            <p className="mt-1 truncate text-xs text-slate-500">{name ? `${subject}：${name}` : subject === 'Agent' ? '编辑 Agent 的角色、工作方式和输出要求' : subject === '任务' ? '编辑任务目标、参考来源和输出要求' : '编辑技能的目标、输入要求、输出格式和边界'}</p>
                         </div>
                         <button type="button" aria-label="关闭" onClick={close} className="shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
                             <X className="h-4 w-4"/>
@@ -53,12 +53,12 @@ export function PromptEditorModal({name, value, onChange, subject = 'Agent', rea
                             value={value}
                             readOnly={readOnly}
                             onChange={event => onChange(event.target.value)}
-                            placeholder={subject === 'Agent' ? '描述这个 Agent 的角色、工作方式、边界和输出风格' : '写清楚技能目标、输入要求、输出格式和边界'}
+                            placeholder={subject === 'Agent' ? '描述这个 Agent 的角色、工作方式、边界和输出风格' : subject === '任务' ? '写清楚这个任务要做什么、参考哪些来源、输出格式和注意事项' : '写清楚技能目标、输入要求、输出格式和边界'}
                             className="min-h-[45vh] w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-7 text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                         />
                     </div>
                     <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-3 sm:px-6">
-                        <p className="text-xs text-slate-500">{readOnly ? '系统技能提示词由内置文档管理，此处仅供查看。' : `内容会同步到提示词框，关闭后仍需保存${subject === 'Agent' ? ' Agent' : '技能'}。`}当前 {value.length} 字</p>
+                        <p className="text-xs text-slate-500">{readOnly ? '系统技能提示词由内置文档管理，此处仅供查看。' : `内容会同步到提示词框，关闭后仍需保存${subject === 'Agent' ? ' Agent' : subject === '任务' ? '任务' : '技能'}。`}当前 {value.length} 字</p>
                         <button type="button" onClick={close} className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-600">完成</button>
                     </footer>
                 </section>
