@@ -1,12 +1,29 @@
-import WorldDialog from './WorldDialog';
-import {InventoryItemCard} from './InventoryItemCard';
+import {useEffect, useRef} from 'react';
+import {createPortal} from 'react-dom';
+import {InventoryBackpack} from './InventoryBackpack';
 import {useAgentInventory} from '../../hooks/useAgentInventory';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 
 export function AgentInventoryDialog({agentId, name, onClose}: {agentId: string; name: string; onClose: () => void}) {
     const data = useAgentInventory(agentId);
-    const count = data.items.reduce((sum, item) => sum + item.quantity, 0);
-    return <WorldDialog title={`${name}的背包`} description={data.loading ? '正在读取持有物…' : `持有 ${count} 件物品 · ${data.items.length} 条物品记录`} onClose={onClose}>
-        <button type="button" onClick={data.reload} className="mb-4 rounded-lg px-3 py-1.5 text-xs text-orange-600 hover:bg-orange-50">刷新背包</button>
-        {data.loading ? <p className="py-12 text-center text-sm text-slate-400">正在打开背包…</p> : data.error ? <p className="py-8 text-sm text-red-600">{data.error}</p> : data.items.length ? <div className="grid gap-3 sm:grid-cols-2">{data.items.map(item => <InventoryItemCard key={item.id} item={item}/>)}</div> : <p className="py-12 text-center text-sm text-slate-400">背包空空的，旅行时可以购买纪念品。</p>}
-    </WorldDialog>;
+    const panel = useRef<HTMLDivElement>(null);
+    useEscapeDismissal(true, () => {onClose(); return true;});
+    useEffect(() => {
+        const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        panel.current?.focus();
+        return () => previous?.focus();
+    }, []);
+    return createPortal(<div className="inventory-backpack-modal">
+        <button type="button" aria-label="关闭背包" className="inventory-backpack-backdrop" onClick={onClose}/>
+        <div ref={panel} role="dialog" aria-modal="true" aria-label={`${name}的背包`} tabIndex={-1} className="inventory-backpack-dialog"
+            onKeyDown={event => {
+                if (event.key !== 'Tab') return;
+                const buttons = Array.from(panel.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') || []);
+                const first = buttons[0], last = buttons[buttons.length - 1];
+                if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) {event.preventDefault(); last?.focus();}
+                else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panel.current)) {event.preventDefault(); first?.focus();}
+            }}>
+            <InventoryBackpack items={data.items} name={name} onClose={onClose} onRefresh={data.reload} loading={data.loading} error={data.error}/>
+        </div>
+    </div>, document.body);
 }
