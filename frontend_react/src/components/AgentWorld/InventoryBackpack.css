@@ -29,34 +29,481 @@
 .inventory-backpack-message {grid-column:1/-1;display:grid;place-items:center;min-height:160px;padding:12px;color:#e2dcb8;text-align:center;font-size:12px;overflow-wrap:anywhere}
 .inventory-backpack-hint {margin:8px 0 0;text-align:center;font-size:12px;line-height:1.7;color:#847861}
 .inventory-backpack-dialog .inventory-backpack-hint {color:#d8d0bd}
-.inventory-item-details {position:absolute;z-index:4;left:58%;top:24%;width:302px;max-width:90%;padding:22px;max-height:72%;overflow-y:auto;background:#f4efe1;background-image:radial-gradient(ellipse at 100% 0%,color-mix(in srgb,var(--quality) 15%,transparent),transparent 65%),repeating-linear-gradient(0deg,#90744305 0 1px,transparent 1px 4px);border:1px solid #d3c6aa;border-top-color:#e7dec9;border-radius:3px 15px 15px 3px;box-shadow:0 15px 35px #29271830,3px 3px 0 #e0d6bd,4px 4px 0 #b6a887;color:#443b2f}
-.inventory-item-details::before {content:'';position:absolute;left:0;top:24px;bottom:24px;width:5px;background:var(--quality);border-radius:2px}
-.inventory-item-dismiss {position:absolute;top:15px;right:10px;display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;background:none;color:#89795f;cursor:pointer}
-.inventory-item-dismiss:focus-visible {outline:2px solid #89795f;border-radius:4px}
-.inventory-item-topline {display:flex;align-items:center;justify-content:space-between;padding-right:17px;margin-bottom:20px;color:#958571;font-size:10px;letter-spacing:2px}
-.inventory-item-grade {font-size:10px;letter-spacing:1px;padding:4px 9px;border:1px solid color-mix(in srgb,var(--quality) 55%,#59482c);background:color-mix(in srgb,var(--quality) 65%,#faf4e3);color:#3f3528;border-radius:3px}
-.inventory-item-hero {display:flex;gap:14px;align-items:center;margin-bottom:20px}
-.inventory-item-hero>:last-child {min-width:0}
-.inventory-item-emblem {flex:none;display:grid;place-items:center;width:61px;height:66px;clip-path:polygon(10% 0,90% 0,100% 12%,100% 83%,50% 100%,0 83%,0 12%);background:linear-gradient(145deg,color-mix(in srgb,var(--quality) 50%,#faf2d1),color-mix(in srgb,var(--quality) 60%,#766249));color:#403727;font-family:'Songti SC','STSong',serif;font-size:33px;text-shadow:0 1px #ffffff70}
-.inventory-item-category {margin:0 0 5px;font-size:10px;color:#a28e71;letter-spacing:2px}
-.inventory-item-hero h3 {margin:0;font-family:'Songti SC','STSong',serif;font-size:19px;line-height:1.4;color:#443c2d;letter-spacing:1px;overflow-wrap:anywhere}
-.inventory-item-value {display:flex;flex-wrap:wrap;align-items:baseline;gap:7px;padding:14px 0;border-top:1px solid #d7cbb5;border-bottom:1px solid #d7cbb5;margin-bottom:16px}
-.inventory-item-value>span {font-size:10px;color:#96846a;margin-right:auto}
-.inventory-item-value strong {font-family:Georgia,serif;font-size:25px;font-weight:400;color:#776038}
-.inventory-item-value small {font-size:9px;color:#96846a}
-.inventory-item-description {margin:0 0 12px;font-size:11px;line-height:1.8;color:#9c8e78;overflow-wrap:anywhere}
-.inventory-item-details dl {margin:0}
-.inventory-item-details dl>div {display:flex;justify-content:space-between;gap:12px;padding:8px 0;font-size:11px}
-.inventory-item-details dt {flex-shrink:0;color:#a3957e}
-.inventory-item-details dd {margin:0;text-align:right;color:#554c3c;overflow-wrap:anywhere;min-width:0}
-.inventory-item-details dl>.inventory-item-owner {border-top:1px dashed #d9cdb5;margin-top:7px;padding-top:14px}
-.inventory-item-debug {margin:12px 0 0;font-size:11px;color:#956b38}
+.inventory-item-details {
+    position: absolute;
+    z-index: 10;
+    left: 56%;
+    top: 12%;
+    width: 336px;
+    max-width: calc(100% - 24px);
+    height: auto;
+    overflow: visible;
+    padding: 18px 18px 14px;
+    border-radius: 14px;
+    background: #fdfaf2;
+    background-image:
+        radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--quality-glow) 25%, #ffffff 75%), transparent 60%),
+        radial-gradient(ellipse at 100% 100%, #ebd7b538, transparent 55%),
+        radial-gradient(ellipse at 0% 100%, #e2cdab38, transparent 50%),
+        repeating-linear-gradient(0deg, rgba(144, 116, 67, 0.025) 0, rgba(144, 116, 67, 0.025) 1px, transparent 1px, transparent 4px);
+    border: 1.5px solid #c8b288;
+    box-shadow:
+        0 24px 48px -8px rgba(22, 17, 10, 0.58),
+        0 10px 20px -4px rgba(22, 17, 10, 0.32),
+        inset 0 0 0 1px #fffcf5,
+        inset 0 0 24px rgba(184, 150, 96, 0.12);
+    color: #443725;
+    animation: relicDossierEnter 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes relicDossierEnter {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.relic-inner-frame {
+    position: absolute;
+    inset: 6px;
+    border: 1px solid rgba(197, 174, 134, 0.55);
+    border-radius: 9px;
+    pointer-events: none;
+}
+.relic-inner-frame::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border: 1px dashed rgba(197, 174, 134, 0.35);
+    border-radius: 7px;
+}
+
+.relic-corner {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+    z-index: 2;
+}
+.relic-corner::before, .relic-corner::after {
+    content: '';
+    position: absolute;
+    background: #bfa577;
+}
+.relic-corner-tl {top: 8px; left: 8px}
+.relic-corner-tl::before {top: 0; left: 0; width: 8px; height: 2px}
+.relic-corner-tl::after {top: 0; left: 0; width: 2px; height: 8px}
+
+.relic-corner-tr {top: 8px; right: 8px}
+.relic-corner-tr::before {top: 0; right: 0; width: 8px; height: 2px}
+.relic-corner-tr::after {top: 0; right: 0; width: 2px; height: 8px}
+
+.relic-corner-bl {bottom: 8px; left: 8px}
+.relic-corner-bl::before {bottom: 0; left: 0; width: 8px; height: 2px}
+.relic-corner-bl::after {bottom: 0; left: 0; width: 2px; height: 8px}
+
+.relic-corner-br {bottom: 8px; right: 8px}
+.relic-corner-br::before {bottom: 0; right: 0; width: 8px; height: 2px}
+.relic-corner-br::after {bottom: 0; right: 0; width: 2px; height: 8px}
+
+.inventory-item-header {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(199, 178, 140, 0.45);
+    flex-wrap: nowrap;
+}
+.inventory-item-header-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.relic-dossier-pill {
+    font-size: 8px;
+    letter-spacing: 1px;
+    font-weight: 700;
+    color: #9f8c6e;
+    white-space: nowrap;
+}
+.relic-dossier-heading {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #4b3e2e;
+    font-family: 'FZPingXianYaSong', 'Songti SC', 'STSong', serif;
+    white-space: nowrap;
+}
+.inventory-item-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.relic-rarity-seal {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2.5px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    background: var(--quality-bg);
+    color: var(--quality-text);
+    border: 1px solid var(--quality-border);
+    box-shadow: 0 1px 4px var(--quality-glow), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.relic-rarity-sparkle {
+    color: var(--quality-accent);
+    flex-shrink: 0;
+}
+.relic-rarity-text {
+    white-space: nowrap;
+}
+.inventory-item-dismiss {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid #bf9f64;
+    background: linear-gradient(135deg, #c7a46c, #7d592f);
+    color: #fcf1d4;
+    box-shadow: 0 2px 4px rgba(26, 18, 9, 0.4), inset 0 1px 1px #fae7ba;
+    cursor: pointer;
+    transition: filter 0.2s, transform 0.2s;
+    flex-shrink: 0;
+}
+.inventory-item-dismiss:hover {
+    filter: brightness(1.2);
+    transform: rotate(90deg);
+}
+.inventory-item-dismiss:active {
+    transform: scale(0.92);
+}
+.inventory-item-dismiss:focus-visible {
+    outline: 2px solid #ecd89d;
+    outline-offset: 2px;
+}
+
+.inventory-item-hero {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.inventory-item-emblem-wrapper {
+    position: relative;
+    flex-shrink: 0;
+}
+.inventory-item-emblem {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    background: radial-gradient(circle at 40% 30%, color-mix(in srgb, var(--quality) 48%, #282117), #14120e 95%);
+    border: 2px solid #c4a76c;
+    box-shadow:
+        0 4px 10px rgba(33, 23, 11, 0.4),
+        inset 0 0 0 1.5px rgba(255, 238, 195, 0.35),
+        inset 0 0 12px var(--quality-glow);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.relic-emblem-char {
+    font-family: 'FZPingXianYaSong', 'Songti SC', 'STSong', serif;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    color: #faeed0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.85), 0 0 10px var(--quality-glow);
+}
+.relic-emblem-shine {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 50%);
+}
+.inventory-item-hero-meta {
+    min-width: 0;
+    flex: 1;
+}
+.inventory-item-badge-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 3px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: #967f62;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.inventory-item-title {
+    margin: 0;
+    font-family: 'FZPingXianYaSong', 'Songti SC', 'STSong', serif;
+    font-size: 15.5px;
+    line-height: 1.38;
+    min-height: calc(15.5px * 1.38 * 2);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: #382c1e;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    overflow-wrap: anywhere;
+}
+
+.inventory-item-valuation-card {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 11px;
+    margin-bottom: 10px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, rgba(244, 235, 215, 0.85), rgba(235, 222, 196, 0.65));
+    border: 1px solid #d5be94;
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.8), 0 1px 3px rgba(38, 28, 14, 0.08);
+}
+.relic-val-label-group {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.relic-val-icon-wrap {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e3c588, #9c7538);
+    color: #fff9e6;
+    box-shadow: inset 0 1px 1px #fff0b8, 0 1px 2px rgba(35, 24, 10, 0.25);
+    flex-shrink: 0;
+}
+.relic-val-label-texts {
+    display: flex;
+    flex-direction: column;
+    white-space: nowrap;
+}
+.relic-val-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #634f36;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+.relic-val-sub {
+    font-size: 7px;
+    letter-spacing: 1px;
+    color: #9d876d;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.relic-val-amount-group {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.relic-val-number {
+    font-family: Georgia, 'FZPingXianYaSong', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #7b5820;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+    white-space: nowrap;
+}
+.relic-val-unit {
+    font-size: 9px;
+    color: #8c7353;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.inventory-item-chronicle {
+    position: relative;
+    z-index: 3;
+    margin-bottom: 10px;
+    padding: 8px 11px;
+    border-radius: 6px;
+    background: rgba(239, 230, 210, 0.45);
+    border-left: 2.5px solid #b89c6c;
+}
+.relic-chronicle-header {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 5px;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #8e7658;
+    white-space: nowrap;
+}
+.inventory-item-description {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.65;
+    color: #5d4e3a;
+    font-family: 'Songti SC', 'STSong', serif;
+    overflow-wrap: anywhere;
+}
+
+.relic-dossier-list {
+    position: relative;
+    z-index: 3;
+    margin: 0 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.relic-dossier-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    padding: 2px 0;
+}
+.relic-dossier-key {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #8f7960;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.relic-dossier-line {
+    flex: 1;
+    min-width: 8px;
+    border-bottom: 1px dotted rgba(193, 172, 137, 0.7);
+    margin-bottom: 2px;
+}
+.relic-dossier-value {
+    margin: 0;
+    color: #403424;
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.relic-dossier-pill-val {
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: rgba(226, 212, 187, 0.55);
+    color: #4f3f2a;
+    font-size: 10.5px;
+    white-space: nowrap;
+}
+.relic-dossier-dest {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.relic-dossier-row-highlight {
+    background: linear-gradient(90deg, rgba(234, 219, 189, 0.45), transparent);
+    padding: 4px 6px;
+    border-radius: 5px;
+    margin-top: 2px;
+}
+.relic-owner-name {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #6d4b1a;
+    white-space: nowrap;
+}
+.relic-owner-shield {
+    color: #a47a32;
+    flex-shrink: 0;
+}
+
+.relic-footer {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed rgba(199, 178, 140, 0.55);
+}
+.relic-verified-stamp {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 3px 6px;
+    border: 1px solid rgba(175, 147, 98, 0.5);
+    border-radius: 4px;
+    transform: rotate(-2deg);
+    opacity: 0.75;
+    user-select: none;
+    pointer-events: none;
+    white-space: nowrap;
+}
+.relic-verified-stamp span {
+    font-size: 6.5px;
+    letter-spacing: 1px;
+    font-weight: 700;
+    color: #9e855f;
+    line-height: 1;
+    white-space: nowrap;
+}
+.relic-verified-stamp strong {
+    font-size: 7.5px;
+    letter-spacing: 1.2px;
+    color: #846738;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+.relic-debug-stamp {
+    display: inline-block;
+    padding: 2px 7px;
+    border: 1px dashed #b24736;
+    border-radius: 4px;
+    background: rgba(238, 118, 98, 0.1);
+    color: #9c2e1f;
+    font-size: 9.5px;
+    font-weight: 600;
+    transform: rotate(1deg);
+    white-space: nowrap;
+}
+
 @container (min-width:760px) {
-    .inventory-backpack-stage {transform:translateX(-70px)}
-    .inventory-item-details {left:93%}
+    .inventory-backpack-stage {transform:translateX(-90px)}
+    .inventory-item-details {left:94%; top:8%; width:336px}
 }
 @container (max-width:500px) {
-    .inventory-item-details {left:8%;width:84%;top:20%;max-height:78%;padding:18px}
+    .inventory-item-details {left:4%; width:92%; top:6%; padding:15px 14px}
     .inventory-backpack-slots {gap:4px;padding:7px}
     .inventory-backpack-nameplate h2 {letter-spacing:1px}
     .inventory-backpack-nameplate p {font-size:6px;letter-spacing:1px}
@@ -65,3 +512,4 @@
     .inventory-backpack-tools {gap:5px}
     .inventory-backpack-tool {width:24px;height:24px}
 }
+

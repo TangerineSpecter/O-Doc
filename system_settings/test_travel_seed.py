@@ -111,3 +111,34 @@ class TravelSeedTests(TestCase):
         self.assertEqual(journey.snapshot['selected']['city'], '马里兰州')
         self.assertEqual(journey.snapshot['draft']['content'], '原游记')
         self.assertEqual(journey.snapshot['destination_scope'], 'unconfirmed')
+
+    def test_price_reduction_is_idempotent_preserves_custom_prices_and_fixed_quotes(self):
+        import importlib
+        import json
+        from types import SimpleNamespace
+        from django.apps import apps
+        from .agent_world.travel_models import TravelJourney
+        migration = importlib.import_module('system_settings.migrations.0042_reduce_travel_prices')
+        groups = json.loads((Path(migration.__file__).parent / 'data/0042_travel_price_reduction.json').read_text())
+        ids = groups['8700']
+        city = TravelDestination.objects.create(pk=ids[0], city='城市', country='测试', country_code='CA', price=8700)
+        custom = TravelDestination.objects.create(pk=ids[1], city='人工定价', country='测试', country_code='CA', price=7777, enabled=False)
+        snapshot = {'selected': {'id': city.pk, 'price': '8700'}, 'goods': [{'price': '820'}]}
+        journey = TravelJourney.objects.create(pk='fixed-quote', actor_id='agent', owner_id='owner', destination_id=city.pk, snapshot=snapshot)
+        schema_editor = SimpleNamespace(connection=SimpleNamespace(alias='default'))
+        migration.reduce_default_prices(apps, schema_editor)
+        migration.reduce_default_prices(apps, schema_editor)
+        city.refresh_from_db(); custom.refresh_from_db(); journey.refresh_from_db()
+        self.assertEqual(city.price, Decimal('2175'))
+        self.assertEqual(custom.price, Decimal('7777'))
+        self.assertFalse(custom.enabled)
+        self.assertEqual(journey.snapshot, snapshot)
+
+    def test_current_seed_matches_frozen_price_reduction(self):
+        import json
+        manifest = Path(__file__).parent / 'migrations/data/0042_travel_price_reduction.json'
+        expected = {key: Decimal(old) * Decimal('.25') for old, keys in json.loads(manifest.read_text()).items() for key in keys}
+        seed = Path(__file__).parent.parent / 'docs/data/travel_cities_seed.csv'
+        with seed.open(encoding='utf-8-sig', newline='') as stream:
+            actual = {row['城市ID']: Decimal(row['价格']) for row in csv.DictReader(stream)}
+        self.assertEqual(actual, expected)

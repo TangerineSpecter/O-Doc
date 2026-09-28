@@ -20,6 +20,8 @@ chroma_data/*
 **/migrations/*
 !**/migrations/__init__.py
 !**/migrations/[0-9][0-9][0-9][0-9]_*.py
+!system_settings/migrations/data/
+!system_settings/migrations/data/*.json
 
 # Python compiled cache
 # 忽略所有 __pycache__ 目录
