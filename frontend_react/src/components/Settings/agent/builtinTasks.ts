@@ -17,3 +17,8 @@ export const defaultPostPublishTask: AgentTaskConfig = {
     ...defaultPostInteractionTask, taskKind: 'post_publish', name: '自主选题并发帖',
     scheduleMode: 'random', schedule: '每天随机 · 1 次发帖机会',
 };
+
+export const defaultTravelTask: AgentTaskConfig = {
+    ...defaultPostInteractionTask, taskKind: 'travel', name: '旅行',
+    scheduleMode: 'random', randomPeriod: 'weekly', schedule: '每周随机 · 1 次旅行机会',
+};

@@ -172,12 +172,13 @@ def get_prompt_resource_usage(resource_ids=None):
 
 
 def is_asset_used_by_agent(resource_id):
+    from django.db.models import Q
     from system_settings.models import Agent, AgentActivity
     from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating, ImageReview
 
     url = get_resource_view_url(resource_id)
     return (
-        Agent.objects.filter(avatar=url).exists()
+        Agent.objects.filter(Q(avatar=url) | Q(full_body_image=url)).exists()
         or AgentActivity.objects.filter(metadata__agentSnapshot__avatar=url).exists()
         or Article.objects.filter(agent_post_creator_avatar=url).exists()
         or ArticlePostComment.objects.filter(creator_avatar=url).exists()
@@ -218,21 +219,20 @@ def is_asset_used_by_prompt(resource_id):
 
 def get_agent_resource_usage(resource_ids=None):
     from system_settings.models import Agent
+    from django.db.models import Q
 
     prefix = RESOURCE_VIEW_PREFIX
-    queryset = Agent.objects.filter(avatar__startswith=prefix)
+    queryset = Agent.objects.filter(Q(avatar__startswith=prefix) | Q(full_body_image__startswith=prefix))
 
     usage = {}
-    for agent in queryset.only('id', 'name', 'avatar'):
-        resource_id = extract_resource_id_from_view_url(agent.avatar)
-        if not resource_id:
-            continue
-        if resource_ids is not None and resource_id not in resource_ids:
-            continue
-        usage.setdefault(resource_id, {
-            'id': agent.id,
-            'title': agent.name,
-        })
+    for agent in queryset.only('id', 'name', 'avatar', 'full_body_image'):
+        for image_url in (agent.avatar, agent.full_body_image):
+            resource_id = extract_resource_id_from_view_url(image_url)
+            if not resource_id:
+                continue
+            if resource_ids is not None and resource_id not in resource_ids:
+                continue
+            usage.setdefault(resource_id, {'id': agent.id, 'title': agent.name})
 
     return usage
 

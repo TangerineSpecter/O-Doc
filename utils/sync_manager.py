@@ -222,6 +222,8 @@ class SyncManager:
         user_label = get_user_model()._meta.label_lower
         for item in data_list:
             fields = item.get('fields') or {}
+            if item.get('model') == 'prompts.imagegenerationtask':
+                fields.pop('lease_until', None)
             if item.get('model') == user_label:
                 fields.pop('email', None)
             elif item.get('model') == 'user.userprofile':
@@ -237,9 +239,15 @@ class SyncManager:
         from user.models import UserProfile
         local_nicknames = dict(UserProfile.objects.values_list('userid', 'nickname'))
 
+        from prompts.models import ImageGenerationTask
+        local_image_leases = dict(ImageGenerationTask.objects.values_list('pk', 'lease_until'))
+
         user_label = User._meta.label_lower
         for item in data_list:
             fields = item.get('fields') or {}
+            if item.get('model') == 'prompts.imagegenerationtask':
+                lease = local_image_leases.get(str(item.get('pk')))
+                fields['lease_until'] = lease.isoformat() if lease else None
             if item.get('model') == user_label:
                 username = fields.get('username')
                 if username in local_emails:

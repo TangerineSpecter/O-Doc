@@ -16,6 +16,31 @@ def generate_agent_post_illustration_id() -> str:
     return uuid.uuid4().hex
 
 
+class ImageGenerationTask(models.Model):
+    """通用生图请求快照与恢复状态。"""
+
+    id = models.CharField(max_length=32, primary_key=True, default=generate_pending_article_illustration_id, editable=False)
+    user_id = models.CharField(max_length=50, default='admin')
+    agent_key = models.CharField(max_length=40, blank=True, default='')
+    request_id = models.CharField(max_length=80)
+    input_hash = models.CharField(max_length=64)
+    request_data = models.JSONField(default=dict)
+    model_id = models.CharField(max_length=32)
+    provider_type = models.CharField(max_length=20)
+    status = models.CharField(max_length=32, default='submitting')
+    provider_task_id = models.CharField(max_length=128, blank=True, default='')
+    image_url = models.TextField(blank=True, default='')
+    asset_id = models.CharField(max_length=32, blank=True, default='')
+    error_message = models.CharField(max_length=200, blank=True, default='')
+    lease_until = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'image_generation_tasks'
+        constraints = [models.UniqueConstraint(fields=['user_id', 'agent_key', 'request_id'], name='image_generation_request_unique')]
+
+
 class PromptTaxonomyBase(models.Model):
     """提示词页内部使用的可管理词典。"""
 

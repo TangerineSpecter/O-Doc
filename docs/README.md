@@ -25,6 +25,7 @@
 - [Agent 周期随机任务说明](./agents/Agent周期随机任务说明.md)
 - [Agent 角色提示词生成说明](./agents/Agent角色提示词生成说明.md)
 - [Agent 世界生活模拟规划方案](./agents/Agent世界生活模拟规划方案.md)
+- [Agent 旅行工作流一期说明](./agents/Agent旅行工作流一期说明.md)
 
 ## 外部服务接入
 

@@ -51,6 +51,7 @@ import {randomPeriodLabels, resolveAllocations} from './agent/randomTaskSchedule
 import {useRandomTaskProgress} from './agent/useRandomTaskProgress';
 import {useAgentMemories} from './agent/useAgentMemories';
 import {useAgentAvatarUpload} from './agent/useAgentAvatarUpload';
+import {AgentFullBodyImageField} from './agent/AgentFullBodyImageField';
 import {isImageAvatarValue} from '@/utils/avatar';
 import {AgentPromptGenerator} from './agent/AgentPromptGenerator';
 import {PromptEditorModal} from '@/components/common/PromptEditorModal';
@@ -59,7 +60,9 @@ import {SystemTaskScheduleFields} from './agent/SystemTaskScheduleFields';
 import {WorldRunnerSwitch} from './agent/WorldRunnerSwitch';
 import {SystemTaskProgress} from './agent/SystemTaskProgress';
 import {BuiltinPostTaskCard} from './agent/BuiltinPostTaskCard';
-import {defaultPostInteractionTask, defaultPostPublishTask} from './agent/builtinTasks';
+import {defaultPostInteractionTask, defaultPostPublishTask, defaultTravelTask} from './agent/builtinTasks';
+import {TravelTaskFields} from './agent/TravelTaskFields';
+import {emptyTravelConfig, type TravelConfig} from '@/types/api/travel';
 import {PostPublishFields} from './agent/PostPublishFields';
 import {PostPublishPreviewModal} from './agent/PostPublishPreviewModal';
 import {emptyPublishConfig} from './agent/publishDefaults';
@@ -86,6 +89,7 @@ type AgentForm = {
     id?: string;
     name: string;
     avatar: string;
+    fullBodyImage: string;
     model: string;
     prompt: string;
     mcpServers: string[];
@@ -100,8 +104,9 @@ type AgentForm = {
 type AgentView = 'list' | 'tasks' | 'records';
 
 type AgentTaskForm = {
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel';
     publishConfig?: AgentPublishConfig;
+    travelConfig?: TravelConfig;
     postCollectionIds?: string[];
     postCategoryIds?: string[];
     id?: string;
@@ -186,11 +191,13 @@ export const AgentSettings = ({
     const [expandedAgentRuns, setExpandedAgentRuns] = useState<Record<string, boolean>>({});
     const [, setElapsedTick] = useState(0);
     const [saving, setSaving] = useState(false);
+    const [fullBodyUploading, setFullBodyUploading] = useState(false);
     const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
     const toast = useToast();
     const [form, setForm] = useState<AgentForm>({
         name: '',
         avatar: '',
+        fullBodyImage: '',
         model: '',
         prompt: DEFAULT_PROMPT,
         mcpServers: [],
@@ -334,18 +341,21 @@ export const AgentSettings = ({
         return `每 ${task.intervalMinutes || '1'} 分钟`;
     };
 
-    const isSystemTask = taskForm.taskKind === 'post_interaction' || taskForm.taskKind === 'post_publish';
+    const isSystemTask = ['post_interaction', 'post_publish', 'travel'].includes(taskForm.taskKind || '');
+    const isTravelTask = taskForm.taskKind === 'travel';
+    const builtinTravelTask = tasks.find(task => task.taskKind === 'travel') || defaultTravelTask;
     const isPublishTask = taskForm.taskKind === 'post_publish';
     const builtinPublishTask = tasks.find(task => task.taskKind === 'post_publish') || defaultPostPublishTask;
     const isManualTask = taskForm.trigger === '手动执行';
     const builtinPostTask = tasks.find(task => task.taskKind === 'post_interaction') || defaultPostInteractionTask;
-    const customTasks = tasks.filter(task => !['post_interaction', 'post_publish'].includes(task.taskKind || 'custom'));
+    const customTasks = tasks.filter(task => !['post_interaction', 'post_publish', 'travel'].includes(task.taskKind || 'custom'));
 
     const openCreateModal = () => {
         clearAvatarPreview();
         setForm({
             name: '',
             avatar: '',
+            fullBodyImage: '',
             model: modelOptions[0]?.value || '',
             prompt: DEFAULT_PROMPT,
             mcpServers: [],
@@ -395,6 +405,7 @@ export const AgentSettings = ({
             id: task.id,
             taskKind: task.taskKind || 'custom',
             publishConfig: task.publishConfig || emptyPublishConfig(),
+            travelConfig: task.travelConfig || emptyTravelConfig(),
             postCollectionIds: task.postCollectionIds || [],
             postCategoryIds: task.postCategoryIds || [],
             name: task.name,
@@ -433,6 +444,7 @@ export const AgentSettings = ({
             profession: agent.profession,
             name: agent.name,
             avatar: agent.avatar || '',
+            fullBodyImage: agent.fullBodyImage || '',
             model: agent.model || '',
             prompt: agent.prompt || '',
             mcpServers: agent.mcpServers || [],
@@ -452,6 +464,7 @@ export const AgentSettings = ({
     }, [modalOpen, form.model, modelOptions]);
 
     const handleSubmit = async () => {
+        if (avatarUploading || fullBodyUploading || saving) return;
         if (!form.name.trim()) return;
         if (form.feishuImEnabled && (!form.feishuAppId.trim() || !form.feishuAppSecret.trim())) {
             toast.warning('请填写飞书 App ID 和 App Secret');
@@ -466,6 +479,7 @@ export const AgentSettings = ({
             profession: form.profession || null,
             name: form.name.trim(),
             avatar: form.avatar.trim(),
+            fullBodyImage: form.fullBodyImage.trim(),
             model: form.model || null,
             prompt: form.prompt.trim(),
             mcpServers: form.mcpServers,
@@ -531,6 +545,7 @@ export const AgentSettings = ({
             id: taskForm.id,
             taskKind: taskForm.taskKind || 'custom',
             publishConfig: isPublishTask ? taskForm.publishConfig : undefined,
+            travelConfig: isTravelTask ? taskForm.travelConfig : undefined,
             postCollectionIds: taskForm.postCollectionIds || [],
             postCategoryIds: taskForm.postCategoryIds || [],
             name: taskForm.name.trim(),
@@ -812,6 +827,12 @@ export const AgentSettings = ({
                         onConfigure={() => openEditTaskModal(builtinPublishTask)}
                         onToggle={() => toggleTaskEnabled(builtinPublishTask.id)}
                         onRun={() => runTaskNow(builtinPublishTask.id)} onPreview={() => setPreviewTask(builtinPublishTask)}/>
+                    <BuiltinPostTaskCard task={builtinTravelTask} agentNames={getTaskAgentNames(builtinTravelTask)}
+                        running={!!builtinTravelTask.id && runningTaskId === builtinTravelTask.id}
+                        progress={worldProgressByTask[builtinTravelTask.id]}
+                        onConfigure={() => openEditTaskModal(builtinTravelTask)}
+                        onToggle={() => toggleTaskEnabled(builtinTravelTask.id)}
+                        onRun={() => runTaskNow(builtinTravelTask.id)}/>
                     {customTasks.length === 0 ? (
                         <div className="text-center py-14 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
                             <CalendarClock className="w-8 h-8 mx-auto mb-3 text-slate-300"/>
@@ -1264,9 +1285,9 @@ export const AgentSettings = ({
                         <div className="max-h-[72vh] space-y-5 overflow-y-auto p-6">
                             <p className="text-xs text-orange-600">{isSystemTask ? `内置系统任务 · ${taskForm.name}` : '自定义任务'}</p>
                             {isSystemTask && <>
-                                <>{isPublishTask ? <PostPublishFields value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
+                                <>{isTravelTask ? <TravelTaskFields value={taskForm.travelConfig || emptyTravelConfig()} servers={mcpServers} onChange={travelConfig => setTaskForm({...taskForm, travelConfig})}/> : isPublishTask ? <PostPublishFields value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
                                     onCollectionsChange={postCollectionIds => setTaskForm({...taskForm, postCollectionIds})} onCategoriesChange={postCategoryIds => setTaskForm({...taskForm, postCategoryIds})}/>}</>
-                                {!isManualTask && <SystemTaskScheduleFields publish={isPublishTask} mode={taskForm.scheduleMode} period={taskForm.randomPeriod} count={taskForm.randomCount} interval={taskForm.intervalMinutes}
+                                {!isManualTask && <SystemTaskScheduleFields publish={isPublishTask} travel={isTravelTask} mode={taskForm.scheduleMode} period={taskForm.randomPeriod} count={taskForm.randomCount} interval={taskForm.intervalMinutes}
                                     onChange={patch => setTaskForm({...taskForm, ...patch})}/>}
                             </>}
 
@@ -1848,6 +1869,11 @@ export const AgentSettings = ({
                                 </div>
                             </div>
 
+                            <AgentFullBodyImageField
+                                value={form.fullBodyImage}
+                                onChange={fullBodyImage => setForm(prev => ({...prev, fullBodyImage}))}
+                                onUploadingChange={setFullBodyUploading}
+                            />
                             <ProfessionSelect value={form.profession} onChange={profession => setForm({...form, profession})}/>
                             <PostInteractionScopeFields supplemental collectionIds={form.postCollectionIds || []} categoryIds={form.postCategoryIds || []}
                                 onCollectionsChange={postCollectionIds => setForm({...form, postCollectionIds})} onCategoriesChange={postCategoryIds => setForm({...form, postCategoryIds})}/>
@@ -2043,7 +2069,7 @@ export const AgentSettings = ({
                             </button>
                             <button
                                 onClick={handleSubmit}
-                                disabled={saving || !form.name.trim()}
+                                disabled={saving || avatarUploading || fullBodyUploading || !form.name.trim()}
                                 className="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 active:bg-orange-700 rounded-lg transition-colors shadow-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {saving ? (

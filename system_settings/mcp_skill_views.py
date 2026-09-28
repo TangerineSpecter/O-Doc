@@ -25,6 +25,7 @@ TAVILY_MCP_NAME = 'Tavily 搜索'
 TAVILY_MCP_DEFAULT_URL = 'https://mcp.tavily.com/mcp/'
 TAVILY_MCP_DESCRIPTION = '系统默认角色资料检索源；生成角色提示词时可选择联网检索。'
 TAVILY_MCP_LEGACY_NAMES = frozenset({'tavily搜索', 'tavily 搜索'})
+IMAGE_GENERATION_MCP_DESCRIPTION = 'O-Doc 内置系统 MCP。支持通用文字生图、Grsai 参考图生图、能力查询和任务结果恢复；保留帖子标记自动配图。具体场景与画风由 Skill 提供。'
 
 
 def _generate_system_mcp_api_key():
@@ -266,7 +267,7 @@ def _sync_scanned_system_mcp_servers(request, value):
         value,
         '生图 MCP',
         '/api/system-mcp/image-generation/',
-        'O-Doc 内置系统 MCP。绑定后，Agent 发帖可按正文标记排队配图，比例可选，分辨率固定 1K。',
+        IMAGE_GENERATION_MCP_DESCRIPTION,
         _image_generation_mcp_tools(),
     )
 
@@ -652,7 +653,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             'env': {},
             'source': 'system',
             'enabled': bool(value.get('enabled', True)),
-            'description': 'O-Doc 内置系统 MCP。绑定后，Agent 发帖可按正文标记排队配图，比例可选，分辨率固定 1K。',
+            'description': IMAGE_GENERATION_MCP_DESCRIPTION,
             'tools': cls._format_builtin_tools(VISIBLE_IMAGE_GENERATION_TOOL_NAMES),
         }
 

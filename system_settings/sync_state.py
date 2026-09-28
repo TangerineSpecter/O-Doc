@@ -11,6 +11,8 @@ DEVICE_SETTING_KEY = 'system_sync_v2_device'
 # A normal SHA-256 hash is hexadecimal; this marker fits the existing 64-character field.
 PERMANENT_DELETE_HASH_PREFIX = '!'
 LOCAL_ONLY_MODEL_LABELS = frozenset({
+    'system_settings.travelruntime', 'system_settings.travelmaterialcache',
+    'system_settings.travelseedstate',
     'system_settings.agentexecutionlease', 'system_settings.worldactionruntime',
     'system_settings.agentrandomruntime',
     'system_settings.syncentitystate', 'book_analysis.sourcecache',

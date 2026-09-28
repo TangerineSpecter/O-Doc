@@ -51,6 +51,7 @@ export interface AgentConfig {
     id: string;
     name: string;
     avatar: string;
+    fullBodyImage?: string;
     model: string | null;
     modelDetail?: AIModel | null;
     prompt: string;
@@ -118,8 +119,9 @@ export type AgentRunStatus = 'success' | 'failed' | 'running';
 export type AgentRunStepStatus = AgentRunStatus | 'info';
 
 export interface AgentTaskConfig {
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel';
     publishConfig?: import('./agentPublish').AgentPublishConfig;
+    travelConfig?: import('./travel').TravelConfig;
     postCollectionIds?: string[];
     postCategoryIds?: string[];
     worldProgress?: {targetCount: number | null; processedCount: number; missedCount: number; nextExecutionAt: string | null; configPending: boolean} | null;

@@ -25,6 +25,7 @@ from article.annotation_service import (
 from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating
 from memos.models import Memo
 from system_settings.models import Agent, SystemSetting
+from .image_generation_tools import IMAGE_GENERATION_TOOLS
 
 
 PROTOCOL_VERSION = '2025-06-18'
@@ -634,6 +635,8 @@ TOOLS = [
     },
 ]
 
+TOOLS.extend(IMAGE_GENERATION_TOOLS)
+
 MEMO_TOOL_NAMES = {'insert_memo', 'create_memo', 'list_memos', 'get_memo', 'update_memo', 'delete_memo'}
 ARTICLE_TOOL_NAMES = {'create_article', 'list_articles', 'get_article', 'get_random_article', 'update_article', 'delete_article'}
 AGENT_POST_TOOL_NAMES = {
@@ -650,7 +653,7 @@ VISIBLE_ANTHOLOGY_TOOL_NAMES = ANTHOLOGY_TOOL_NAMES
 VISIBLE_COMMENT_TOOL_NAMES = {'create_article_annotation', 'list_article_annotations', 'add_article_annotation_comment', 'delete_article_annotation_comment'}
 VISIBLE_VISION_TOOL_NAMES = {'describe_image'}
 VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES = {'list_photos', 'get_random_photo', 'observe_photo', 'submit_photo_review'}
-VISIBLE_IMAGE_GENERATION_TOOL_NAMES = {'get_illustration_options'}
+VISIBLE_IMAGE_GENERATION_TOOL_NAMES = {'get_illustration_options', *(tool['name'] for tool in IMAGE_GENERATION_TOOLS)}
 VISIBLE_TOOL_NAMES -= VISIBLE_VISION_TOOL_NAMES | VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES | VISIBLE_IMAGE_GENERATION_TOOL_NAMES
 
 
@@ -892,6 +895,13 @@ class ODocSystemMCPView(APIView):
             return self._submit_photo_review(arguments)
         if name == 'get_illustration_options':
             return self._illustration_options()
+        if name == 'get_image_generation_options':
+            from .image_generation import image_generation_options
+            return image_generation_options(self.agent_context)
+        if name in {'generate_image', 'get_image_generation_result'}:
+            from .image_generation_tasks import generate_image, get_image_generation_result
+            handler = generate_image if name == 'generate_image' else get_image_generation_result
+            return handler(arguments, self.agent_context)
         raise ValueError(f'未知 Tool：{name}')
 
     @staticmethod

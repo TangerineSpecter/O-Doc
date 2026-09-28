@@ -310,6 +310,7 @@ export const useSettings = () => {
                 profession: agentData.profession || null,
                 name: agentData.name || '',
                 avatar: agentData.avatar || '',
+                fullBodyImage: agentData.fullBodyImage || '',
                 model: agentData.model || null,
                 prompt: agentData.prompt || '',
                 mcpServers: agentData.mcpServers || [],
@@ -399,7 +400,7 @@ export const useSettings = () => {
                 }
                 return [data, ...prev];
             });
-            toast.success(['post_interaction', 'post_publish'].includes(taskData.taskKind || '') ? '系统任务配置已保存' : taskData.id ? '任务已更新' : '任务已创建');
+            toast.success(['post_interaction', 'post_publish', 'travel'].includes(taskData.taskKind || '') ? '系统任务配置已保存' : taskData.id ? '任务已更新' : '任务已创建');
             return true;
         } catch (error) {
             toast.error('保存任务失败');

@@ -234,6 +234,9 @@ class AgentTaskScheduler:
             task_name_override='',
             random_context=None,
     ):
+        if task.task_kind == 'travel':
+            from .agent_world.travel_runner import run_travel_opportunity
+            return run_travel_opportunity(task, self, manual=trigger == '手动执行')
         if task.task_kind == 'post_publish':
             from .agent_world.publish_runner import run_publish_opportunity
             return run_publish_opportunity(task, self, manual=trigger == '手动执行')

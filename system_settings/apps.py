@@ -9,6 +9,8 @@ class SystemSettingsConfig(AppConfig):
         from . import sync_signals  # noqa: F401
         from . import agent_history  # noqa: F401
         from .agent_world import history  # noqa: F401
+        from .agent_world.travel_startup import start_travel_initialization
+        start_travel_initialization()
         from .builtin_skills import start_builtin_skill_sync
         from .agent_task_scheduler import start_agent_task_scheduler
         from .agent_memory_scheduler import start_agent_memory_scheduler

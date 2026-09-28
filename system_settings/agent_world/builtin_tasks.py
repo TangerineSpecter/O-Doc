@@ -4,4 +4,6 @@ POST_INTERACTION_NAME = '阅读帖子并评论打分'
 
 POST_PUBLISH_ID = 'builtin-post-publish'
 POST_PUBLISH_NAME = '自主选题并发帖'
-SYSTEM_TASK_KINDS = ('post_interaction', 'post_publish')
+TRAVEL_ID = 'builtin-travel'
+TRAVEL_NAME = '旅行'
+SYSTEM_TASK_KINDS = ('post_interaction', 'post_publish', 'travel')

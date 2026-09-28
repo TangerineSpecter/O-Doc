@@ -23,7 +23,7 @@ export function BuiltinPostTaskCard({task, agentNames, running, progress, onConf
             </div>
             <span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-600">内置系统任务</span>
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-slate-500">{task.taskKind === 'post_publish' ? '根据角色和分类素材规则自主选题，搜索核实后发布；没有合适内容可以跳过。' : '随机阅读范围内自己未评论过的其他居民帖子，根据角色性格评论并打分。'}</p>
+        <p className="mt-2 text-xs leading-relaxed text-slate-500">{task.taskKind === 'travel' ? '自主选择目的地，体验景点、美食与旅途趣事，购买纪念品并留下图文日记。' : task.taskKind === 'post_publish' ? '根据角色和分类素材规则自主选题，搜索核实后发布；没有合适内容可以跳过。' : '随机阅读范围内自己未评论过的其他居民帖子，根据角色性格评论并打分。'}</p>
         <div className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
             <div className="rounded-xl bg-slate-50 p-3"><p className="font-medium text-slate-700">参与 Agent</p><p className="mt-1 text-slate-500">{agentNames.length ? agentNames.join('、') : '尚未绑定 Agent'}</p></div>
             <div className="rounded-xl bg-slate-50 p-3"><p className="font-medium text-slate-700">行动频率</p><p className="mt-1 text-slate-500">{task.schedule}</p><SystemTaskProgress progress={progress}/></div>

@@ -1,6 +1,7 @@
 import {useState} from 'react';
 import {Activity, ArrowLeft, Bot, BookOpenText, CircleDollarSign, MessageCircle, RefreshCw, Settings, Sparkles} from 'lucide-react';
-import {useNavigate} from 'react-router-dom';
+import {useNavigate, useSearchParams} from 'react-router-dom';
+import AgentTravelPanel from '../components/AgentWorld/AgentTravelPanel';
 import AgentActivityCard from '../components/AgentWorld/AgentActivityCard';
 import AgentAttributePanel from '../components/AgentWorld/AgentAttributePanel';
 import AgentWorldBanner from '../components/AgentWorld/AgentWorldBanner';
@@ -14,20 +15,22 @@ import {useAgentWorld} from '../hooks/useAgentWorld';
 import {useAgentWorldFinance} from '../hooks/useAgentWorldFinance';
 import type {AgentActivity as AgentActivityData, AgentActivityType} from '../types/api/setting';
 
-type AgentWorldFilter = AgentActivityType | 'all' | 'finance';
+type AgentWorldFilter = AgentActivityType | 'all' | 'finance' | 'travel';
 
 const filters: Array<{value: AgentWorldFilter; label: string; icon: typeof Activity}> = [
     {value: 'all', label: '全部', icon: Sparkles},
     {value: 'publication', label: '作品', icon: BookOpenText},
     {value: 'interaction', label: '互动', icon: MessageCircle},
     {value: 'work', label: '工作', icon: Activity},
+    {value: 'travel', label: '旅行', icon: BookOpenText},
     {value: 'finance', label: '收支', icon: CircleDollarSign},
 ];
 
 export default function AgentWorldPage() {
     const navigate = useNavigate();
+    const [query] = useSearchParams();
     const world = useAgentWorld();
-    const [activeFilter, setActiveFilter] = useState<AgentWorldFilter>('all');
+    const [activeFilter, setActiveFilter] = useState<AgentWorldFilter>(query.has('travel') ? 'travel' : 'all');
     const finance = useAgentWorldFinance(world.agentId, activeFilter === 'finance');
     const [selectedActivity, setSelectedActivity] = useState<AgentActivityData | null>(null);
     const [panel, setPanel] = useState<'graph' | 'attributes' | null>(null);
@@ -126,7 +129,7 @@ export default function AgentWorldPage() {
                                         type="button"
                                         onClick={() => {
                                             setActiveFilter(filter.value);
-                                            if (filter.value !== 'finance') world.setType(filter.value);
+                                            if (filter.value !== 'finance' && filter.value !== 'travel') world.setType(filter.value);
                                         }}
                                         className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors sm:gap-1.5 sm:px-3 sm:py-2 ${
                                             active
@@ -152,7 +155,7 @@ export default function AgentWorldPage() {
                         </button>
                     </div>
 
-                    {activeFilter === 'finance' ? (
+                    {activeFilter === 'travel' ? <AgentTravelPanel agentId={world.agentId} journeyId={query.get('travel') || undefined}/> : activeFilter === 'finance' ? (
                         <AgentFinanceFeed
                             entries={finance.entries}
                             selectedAgentId={world.agentId}

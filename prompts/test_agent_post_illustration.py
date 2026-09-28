@@ -13,6 +13,7 @@ from system_settings.agent_task_scheduler import AgentTaskScheduler
 from system_settings.grsai_images import GrsaiImageError, GrsaiImageResult
 from system_settings.image_generation_options import resolve_agent_post_illustration_request
 from system_settings.models import AIModel, AIProvider, Agent, MCPServer, SystemSetting
+from system_settings.agent_world.models import WorldCategory
 from system_settings.sync_state import LOCAL_ONLY_MODEL_LABELS
 from utils.ai_service import AIService
 from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
@@ -54,6 +55,7 @@ class AgentPostIllustrationMCPTests(TestCase):
             url='http://unreachable.example.invalid/api/system-mcp/agent-posts/',
         )
         self.agent = Agent.objects.create(name='配图作者', mcp_servers=[self.image_server.id])
+        self.category = WorldCategory.objects.create(name='配图测试分类', enabled=True)
         self.anthology = Anthology.objects.create(
             coll_id='coll_illust', title='Agent 文集', type='agent', user_id='admin',
         )
@@ -63,7 +65,7 @@ class AgentPostIllustrationMCPTests(TestCase):
             'title': extra.pop('title', '今日新闻'),
             'content': content,
             'coll_id': self.anthology.coll_id,
-            'category': '新闻',
+            'category_id': self.category.pk,
             **extra,
         }
         return call_mcp_tool(self.post_server, 'create_agent_post', payload, agent=self.agent)

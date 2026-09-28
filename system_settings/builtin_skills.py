@@ -14,6 +14,8 @@ PHOTO_REVIEW_SKILL_KEY = 'odoc_photo_review'
 PHOTO_REVIEW_SKILL_PATH = Path(__file__).resolve().parent.parent / 'docs' / 'config' / 'photo_review_skill.md'
 TRAVEL_JOURNAL_SKILL_KEY = 'odoc_travel_journal'
 TRAVEL_JOURNAL_SKILL_PATH = Path(__file__).resolve().parent.parent / 'docs' / 'config' / 'travel_journal_skill.md'
+TRAVEL_SCENE_PHOTO_SKILL_KEY = 'odoc_travel_scene_photo'
+TRAVEL_SCENE_PHOTO_SKILL_PATH = Path(__file__).resolve().parent.parent / 'docs' / 'config' / 'travel_scene_photo_skill.md'
 _sync_timer_started = False
 DEFAULT_AGENT_POST_MARKDOWN_SKILL_META = {
     'name': 'O-Doc Markdown 格式指南',
@@ -89,6 +91,16 @@ BUILTIN_SKILL_SPECS = (
             'version': '1.0.0',
         },
         'manifest_kind': 'travel_journal',
+    },
+    {
+        'skill_key': TRAVEL_SCENE_PHOTO_SKILL_KEY,
+        'path': TRAVEL_SCENE_PHOTO_SKILL_PATH,
+        'fallback_meta': {
+            'name': '旅行场景照',
+            'description': '根据 Agent 形象和旅行片段生成二次元场景照，供游记配图。',
+            'version': '1.0.0',
+        },
+        'manifest_kind': 'travel_scene_photo',
     },
 )
 

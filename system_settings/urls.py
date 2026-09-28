@@ -28,8 +28,12 @@ router.register(r'locations', GeoLocationViewSet)
 router.register(r'config', SystemConfigViewSet, basename='sys-config')
 
 from .agent_world.views import CatalogView, ProfessionView, IncomeConfigView, LedgerView, SettlementsView, MigrationView, RankingView, PendingIncomeView
+from .agent_world.travel_views import TravelListView, TravelDetailView, InventoryView
 
 urlpatterns = [
+    path('agent-world/travel/', TravelListView.as_view()),
+    path('agent-world/travel/<str:journey_id>/', TravelDetailView.as_view()),
+    path('agent-world/inventory/', InventoryView.as_view()),
     path("agent-world/categories/", CatalogView.as_view()),
     path("agent-world/professions/", ProfessionView.as_view()),
     path("agent-world/income/", IncomeConfigView.as_view()),

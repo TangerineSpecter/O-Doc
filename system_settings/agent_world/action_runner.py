@@ -231,7 +231,7 @@ def tick(scheduler):
                 logger.exception('发帖通知恢复失败 action=%s', publication.pk)
     # 崩溃后不重做模型选择；已提交事实由上面的恢复逻辑完成后续处理。
     stale = timezone.now() - timedelta(minutes=15)
-    interrupted = WorldAction.objects.filter(status='claimed', updated_at__lt=stale).exclude(task__task_kind='post_publish')
+    interrupted = WorldAction.objects.filter(status='claimed', updated_at__lt=stale).exclude(task__task_kind__in=['post_publish', 'travel'])
     record_ids = list(interrupted.values_list('record_id', flat=True))
     interrupted.update(status='failed', result={'reason': '执行中断，本机会结束'})
     AgentRunRecord.objects.filter(pk__in=record_ids, status='running').update(status='failed', summary='执行中断，本机会结束', updated_at=timezone.now())
@@ -244,6 +244,8 @@ def tick(scheduler):
     with execution_lease(WorldActionRuntime, {'pk': 'world'}) as token:
         if not token:
             return
+        from .travel_runner import tick_travel
+        tick_travel(scheduler, token)
         # 恢复可能继续检索、写作和发布，同样受本机开关与世界执行锁约束。
         publications = WorldAction.objects.filter(status='claimed', updated_at__lt=stale, task__task_kind='post_publish').select_related('task')
         for pending in publications[:20]:

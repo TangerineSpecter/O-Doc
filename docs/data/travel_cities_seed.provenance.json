@@ -1,0 +1,946 @@
+{
+  "preparedAt": "2026-09-28T07:50:34.053Z",
+  "dataVersion": "simulation-v1",
+  "currency": "世界币",
+  "inputTemplate": "travel_cities_template.csv",
+  "inputTemplateSha256": "ca1f6f92a98ef1bfdcb07ecb127b514b5324334e8ec9ed69fbeb168947489076",
+  "outputCsv": "travel_cities_seed.csv",
+  "outputCsvSha256": "9edfae47fee91e847545434c5bb67346ddc2a590ef05926fba978034df824988",
+  "pricingAssumptions": "travel_price_assumptions.json",
+  "pricingAssumptionsSha256": "058f0e5e29dfc80f43c088d64ba1653cfaba76fa05dc3fc85abcd489b0b428b1",
+  "rows": 34146,
+  "minimumPrice": 2100,
+  "maximumPrice": 23000,
+  "pricingMethods": {
+    "ai_country_profile_and_city_size": 33961,
+    "ai_city_override": 185
+  },
+  "resolvedCityOverrides": {
+    "161325": {
+      "price": 8500,
+      "name": "Arusha",
+      "country": "TZ"
+    },
+    "184745": {
+      "price": 7000,
+      "name": "Nairobi",
+      "country": "KE"
+    },
+    "264371": {
+      "price": 10500,
+      "name": "Athens",
+      "country": "GR"
+    },
+    "290030": {
+      "price": 12000,
+      "name": "Doha",
+      "country": "QA"
+    },
+    "292223": {
+      "price": 14000,
+      "name": "Dubai",
+      "country": "AE"
+    },
+    "292968": {
+      "price": 12000,
+      "name": "Abu Dhabi",
+      "country": "AE"
+    },
+    "323777": {
+      "price": 6500,
+      "name": "Antalya",
+      "country": "TR"
+    },
+    "360502": {
+      "price": 6000,
+      "name": "Luxor",
+      "country": "EG"
+    },
+    "360630": {
+      "price": 5500,
+      "name": "Cairo",
+      "country": "EG"
+    },
+    "498817": {
+      "price": 8000,
+      "name": "Saint Petersburg",
+      "country": "RU"
+    },
+    "524901": {
+      "price": 8500,
+      "name": "Moscow",
+      "country": "RU"
+    },
+    "658225": {
+      "price": 14500,
+      "name": "Helsinki",
+      "country": "FI"
+    },
+    "745044": {
+      "price": 7000,
+      "name": "Istanbul",
+      "country": "TR"
+    },
+    "993800": {
+      "price": 6500,
+      "name": "Johannesburg",
+      "country": "ZA"
+    },
+    "1151254": {
+      "price": 4200,
+      "name": "Phuket",
+      "country": "TH"
+    },
+    "1153671": {
+      "price": 2600,
+      "name": "Chiang Mai",
+      "country": "TH"
+    },
+    "1261481": {
+      "price": 3800,
+      "name": "New Delhi",
+      "country": "IN"
+    },
+    "1269515": {
+      "price": 3800,
+      "name": "Jaipur",
+      "country": "IN"
+    },
+    "1275339": {
+      "price": 4500,
+      "name": "Mumbai",
+      "country": "IN"
+    },
+    "1279259": {
+      "price": 3800,
+      "name": "Agra",
+      "country": "IN"
+    },
+    "1280737": {
+      "price": 6500,
+      "name": "Lhasa",
+      "country": "CN"
+    },
+    "1282898": {
+      "price": 4200,
+      "name": "Pokhara",
+      "country": "NP"
+    },
+    "1283240": {
+      "price": 3800,
+      "name": "Kathmandu",
+      "country": "NP"
+    },
+    "1529102": {
+      "price": 5000,
+      "name": "Urumqi",
+      "country": "CN"
+    },
+    "1566083": {
+      "price": 3000,
+      "name": "Ho Chi Minh City",
+      "country": "VN"
+    },
+    "1580541": {
+      "price": 3400,
+      "name": "Hoi An",
+      "country": "VN"
+    },
+    "1581130": {
+      "price": 2800,
+      "name": "Hanoi",
+      "country": "VN"
+    },
+    "1583992": {
+      "price": 3200,
+      "name": "Da Nang",
+      "country": "VN"
+    },
+    "1609350": {
+      "price": 2800,
+      "name": "Bangkok",
+      "country": "TH"
+    },
+    "1614295": {
+      "price": 3200,
+      "name": "Pattaya",
+      "country": "TH"
+    },
+    "1621177": {
+      "price": 3000,
+      "name": "Yogyakarta",
+      "country": "ID"
+    },
+    "1622846": {
+      "price": 5000,
+      "name": "Ubud",
+      "country": "ID"
+    },
+    "1642911": {
+      "price": 3500,
+      "name": "Jakarta",
+      "country": "ID"
+    },
+    "1645528": {
+      "price": 4800,
+      "name": "Denpasar",
+      "country": "ID"
+    },
+    "1651944": {
+      "price": 2800,
+      "name": "Vientiane",
+      "country": "LA"
+    },
+    "1655559": {
+      "price": 3500,
+      "name": "Luang Prabang",
+      "country": "LA"
+    },
+    "1668341": {
+      "price": 6000,
+      "name": "Taipei",
+      "country": "TW"
+    },
+    "1668399": {
+      "price": 5000,
+      "name": "Taichung",
+      "country": "TW"
+    },
+    "1673820": {
+      "price": 4800,
+      "name": "Kaohsiung",
+      "country": "TW"
+    },
+    "1692685": {
+      "price": 4500,
+      "name": "Puerto Princesa",
+      "country": "PH"
+    },
+    "1701668": {
+      "price": 3800,
+      "name": "Manila",
+      "country": "PH"
+    },
+    "1717512": {
+      "price": 4200,
+      "name": "Cebu City",
+      "country": "PH"
+    },
+    "1733432": {
+      "price": 4200,
+      "name": "Kota Kinabalu",
+      "country": "MY"
+    },
+    "1734759": {
+      "price": 3000,
+      "name": "Malacca",
+      "country": "MY"
+    },
+    "1735106": {
+      "price": 3200,
+      "name": "George Town",
+      "country": "MY"
+    },
+    "1735161": {
+      "price": 3500,
+      "name": "Kuala Lumpur",
+      "country": "MY"
+    },
+    "1784658": {
+      "price": 3000,
+      "name": "Zhengzhou",
+      "country": "CN"
+    },
+    "1786657": {
+      "price": 3300,
+      "name": "Yinchuan",
+      "country": "CN"
+    },
+    "1787093": {
+      "price": 3800,
+      "name": "Yantai",
+      "country": "CN"
+    },
+    "1787227": {
+      "price": 3300,
+      "name": "Yangzhou",
+      "country": "CN"
+    },
+    "1788852": {
+      "price": 4200,
+      "name": "Xining",
+      "country": "CN"
+    },
+    "1790437": {
+      "price": 3800,
+      "name": "Zhuhai",
+      "country": "CN"
+    },
+    "1790645": {
+      "price": 4800,
+      "name": "Xiamen",
+      "country": "CN"
+    },
+    "1790923": {
+      "price": 3800,
+      "name": "Wuxi",
+      "country": "CN"
+    },
+    "1791247": {
+      "price": 3500,
+      "name": "Wuhan",
+      "country": "CN"
+    },
+    "1791388": {
+      "price": 3800,
+      "name": "Wenzhou",
+      "country": "CN"
+    },
+    "1792359": {
+      "price": 4500,
+      "name": "Huangshan",
+      "country": "CN"
+    },
+    "1792947": {
+      "price": 3800,
+      "name": "Tianjin",
+      "country": "CN"
+    },
+    "1793511": {
+      "price": 3000,
+      "name": "Taiyuan",
+      "country": "CN"
+    },
+    "1795270": {
+      "price": 2800,
+      "name": "Shijiazhuang",
+      "country": "CN"
+    },
+    "1795565": {
+      "price": 4800,
+      "name": "Shenzhen",
+      "country": "CN"
+    },
+    "1795940": {
+      "price": 2800,
+      "name": "Shantou",
+      "country": "CN"
+    },
+    "1796236": {
+      "price": 6500,
+      "name": "Shanghai",
+      "country": "CN"
+    },
+    "1796556": {
+      "price": 6500,
+      "name": "Sanya",
+      "country": "CN"
+    },
+    "1797353": {
+      "price": 3500,
+      "name": "Quanzhou",
+      "country": "CN"
+    },
+    "1797929": {
+      "price": 4200,
+      "name": "Qingdao",
+      "country": "CN"
+    },
+    "1799397": {
+      "price": 3500,
+      "name": "Ningbo",
+      "country": "CN"
+    },
+    "1799869": {
+      "price": 3000,
+      "name": "Nanning",
+      "country": "CN"
+    },
+    "1799962": {
+      "price": 4200,
+      "name": "Nanjing",
+      "country": "CN"
+    },
+    "1801792": {
+      "price": 3300,
+      "name": "Luoyang",
+      "country": "CN"
+    },
+    "1804430": {
+      "price": 3500,
+      "name": "Lanzhou",
+      "country": "CN"
+    },
+    "1804651": {
+      "price": 4000,
+      "name": "Kunming",
+      "country": "CN"
+    },
+    "1805753": {
+      "price": 3300,
+      "name": "Jinan",
+      "country": "CN"
+    },
+    "1806776": {
+      "price": 2800,
+      "name": "Huizhou",
+      "country": "CN"
+    },
+    "1808926": {
+      "price": 5000,
+      "name": "Hangzhou",
+      "country": "CN"
+    },
+    "1809078": {
+      "price": 4000,
+      "name": "Haikou",
+      "country": "CN"
+    },
+    "1809461": {
+      "price": 3500,
+      "name": "Guiyang",
+      "country": "CN"
+    },
+    "1809498": {
+      "price": 4200,
+      "name": "Guilin",
+      "country": "CN"
+    },
+    "1809858": {
+      "price": 4500,
+      "name": "Guangzhou",
+      "country": "CN"
+    },
+    "1810821": {
+      "price": 3500,
+      "name": "Fuzhou",
+      "country": "CN"
+    },
+    "1811103": {
+      "price": 3200,
+      "name": "Foshan",
+      "country": "CN"
+    },
+    "1812545": {
+      "price": 3200,
+      "name": "Dongguan",
+      "country": "CN"
+    },
+    "1813171": {
+      "price": 4500,
+      "name": "Zhangjiajie",
+      "country": "CN"
+    },
+    "1813253": {
+      "price": 5000,
+      "name": "Lijiang",
+      "country": "CN"
+    },
+    "1814087": {
+      "price": 4200,
+      "name": "Dalian",
+      "country": "CN"
+    },
+    "1814093": {
+      "price": 4800,
+      "name": "Dali",
+      "country": "CN"
+    },
+    "1814906": {
+      "price": 4000,
+      "name": "Chongqing",
+      "country": "CN"
+    },
+    "1815286": {
+      "price": 5000,
+      "name": "Chengdu",
+      "country": "CN"
+    },
+    "1815577": {
+      "price": 3300,
+      "name": "Changsha",
+      "country": "CN"
+    },
+    "1816670": {
+      "price": 6500,
+      "name": "Beijing",
+      "country": "CN"
+    },
+    "1819729": {
+      "price": 8000,
+      "name": "Hong Kong",
+      "country": "HK"
+    },
+    "1821274": {
+      "price": 7500,
+      "name": "Macau",
+      "country": "MO"
+    },
+    "1821306": {
+      "price": 3000,
+      "name": "Phnom Penh",
+      "country": "KH"
+    },
+    "1822214": {
+      "price": 3500,
+      "name": "Siem Reap",
+      "country": "KH"
+    },
+    "1835848": {
+      "price": 8500,
+      "name": "Seoul",
+      "country": "KR"
+    },
+    "1838524": {
+      "price": 7500,
+      "name": "Busan",
+      "country": "KR"
+    },
+    "1846266": {
+      "price": 8000,
+      "name": "Jeju City",
+      "country": "KR"
+    },
+    "1850147": {
+      "price": 10500,
+      "name": "Tokyo",
+      "country": "JP"
+    },
+    "1853909": {
+      "price": 8500,
+      "name": "Osaka",
+      "country": "JP"
+    },
+    "1856035": {
+      "price": 8500,
+      "name": "Naha",
+      "country": "JP"
+    },
+    "1857910": {
+      "price": 9500,
+      "name": "Kyoto",
+      "country": "JP"
+    },
+    "1862415": {
+      "price": 7800,
+      "name": "Hiroshima",
+      "country": "JP"
+    },
+    "1863967": {
+      "price": 7500,
+      "name": "Fukuoka",
+      "country": "JP"
+    },
+    "1880252": {
+      "price": 10000,
+      "name": "Singapore",
+      "country": "SG"
+    },
+    "1886760": {
+      "price": 4200,
+      "name": "Suzhou",
+      "country": "CN"
+    },
+    "2034937": {
+      "price": 3500,
+      "name": "Shenyang",
+      "country": "CN"
+    },
+    "2036892": {
+      "price": 3500,
+      "name": "Hohhot",
+      "country": "CN"
+    },
+    "2037013": {
+      "price": 4500,
+      "name": "Harbin",
+      "country": "CN"
+    },
+    "2037799": {
+      "price": 3200,
+      "name": "Datong",
+      "country": "CN"
+    },
+    "2038180": {
+      "price": 3500,
+      "name": "Changchun",
+      "country": "CN"
+    },
+    "2063523": {
+      "price": 13000,
+      "name": "Perth",
+      "country": "AU"
+    },
+    "2128295": {
+      "price": 9000,
+      "name": "Sapporo",
+      "country": "JP"
+    },
+    "2147714": {
+      "price": 15000,
+      "name": "Sydney",
+      "country": "AU"
+    },
+    "2158177": {
+      "price": 14000,
+      "name": "Melbourne",
+      "country": "AU"
+    },
+    "2172797": {
+      "price": 14500,
+      "name": "Cairns",
+      "country": "AU"
+    },
+    "2174003": {
+      "price": 12500,
+      "name": "Brisbane",
+      "country": "AU"
+    },
+    "2179537": {
+      "price": 12500,
+      "name": "Wellington",
+      "country": "NZ"
+    },
+    "2192362": {
+      "price": 12500,
+      "name": "Christchurch",
+      "country": "NZ"
+    },
+    "2193733": {
+      "price": 13500,
+      "name": "Auckland",
+      "country": "NZ"
+    },
+    "2267057": {
+      "price": 10500,
+      "name": "Lisbon",
+      "country": "PT"
+    },
+    "2510911": {
+      "price": 9500,
+      "name": "Sevilla",
+      "country": "ES"
+    },
+    "2514256": {
+      "price": 10000,
+      "name": "Malaga",
+      "country": "ES"
+    },
+    "2542997": {
+      "price": 6000,
+      "name": "Marrakesh",
+      "country": "MA"
+    },
+    "2553604": {
+      "price": 5500,
+      "name": "Casablanca",
+      "country": "MA"
+    },
+    "2618425": {
+      "price": 17000,
+      "name": "Copenhagen",
+      "country": "DK"
+    },
+    "2640729": {
+      "price": 12500,
+      "name": "Oxford",
+      "country": "GB"
+    },
+    "2643123": {
+      "price": 11500,
+      "name": "Manchester",
+      "country": "GB"
+    },
+    "2643743": {
+      "price": 17000,
+      "name": "London",
+      "country": "GB"
+    },
+    "2650225": {
+      "price": 13500,
+      "name": "Edinburgh",
+      "country": "GB"
+    },
+    "2656173": {
+      "price": 12500,
+      "name": "Bath",
+      "country": "GB"
+    },
+    "2657896": {
+      "price": 22000,
+      "name": "Zurich",
+      "country": "CH"
+    },
+    "2659811": {
+      "price": 21000,
+      "name": "Luzern",
+      "country": "CH"
+    },
+    "2660646": {
+      "price": 22000,
+      "name": "Geneva",
+      "country": "CH"
+    },
+    "2661552": {
+      "price": 20000,
+      "name": "Bern",
+      "country": "CH"
+    },
+    "2673730": {
+      "price": 15500,
+      "name": "Stockholm",
+      "country": "SE"
+    },
+    "2735943": {
+      "price": 9500,
+      "name": "Porto",
+      "country": "PT"
+    },
+    "2759794": {
+      "price": 14500,
+      "name": "Amsterdam",
+      "country": "NL"
+    },
+    "2761369": {
+      "price": 13500,
+      "name": "Vienna",
+      "country": "AT"
+    },
+    "2766824": {
+      "price": 14000,
+      "name": "Salzburg",
+      "country": "AT"
+    },
+    "2867714": {
+      "price": 14000,
+      "name": "Munich",
+      "country": "DE"
+    },
+    "2911298": {
+      "price": 12000,
+      "name": "Hamburg",
+      "country": "DE"
+    },
+    "2925533": {
+      "price": 12500,
+      "name": "Frankfurt am Main",
+      "country": "DE"
+    },
+    "2950159": {
+      "price": 12000,
+      "name": "Berlin",
+      "country": "DE"
+    },
+    "2988507": {
+      "price": 16500,
+      "name": "Paris",
+      "country": "FR"
+    },
+    "2990440": {
+      "price": 14000,
+      "name": "Nice",
+      "country": "FR"
+    },
+    "2995469": {
+      "price": 11500,
+      "name": "Marseille",
+      "country": "FR"
+    },
+    "2996944": {
+      "price": 11500,
+      "name": "Lyon",
+      "country": "FR"
+    },
+    "3031582": {
+      "price": 12000,
+      "name": "Bordeaux",
+      "country": "FR"
+    },
+    "3054643": {
+      "price": 7500,
+      "name": "Budapest",
+      "country": "HU"
+    },
+    "3067696": {
+      "price": 8500,
+      "name": "Prague",
+      "country": "CZ"
+    },
+    "3117735": {
+      "price": 11500,
+      "name": "Madrid",
+      "country": "ES"
+    },
+    "3128760": {
+      "price": 12500,
+      "name": "Barcelona",
+      "country": "ES"
+    },
+    "3133895": {
+      "price": 23000,
+      "name": "Tromso",
+      "country": "NO"
+    },
+    "3143244": {
+      "price": 20000,
+      "name": "Oslo",
+      "country": "NO"
+    },
+    "3161732": {
+      "price": 20500,
+      "name": "Bergen",
+      "country": "NO"
+    },
+    "3164603": {
+      "price": 15500,
+      "name": "Venice",
+      "country": "IT"
+    },
+    "3169070": {
+      "price": 13500,
+      "name": "Rome",
+      "country": "IT"
+    },
+    "3172394": {
+      "price": 10500,
+      "name": "Naples",
+      "country": "IT"
+    },
+    "3173435": {
+      "price": 14000,
+      "name": "Milan",
+      "country": "IT"
+    },
+    "3176959": {
+      "price": 13500,
+      "name": "Florence",
+      "country": "IT"
+    },
+    "3369157": {
+      "price": 8500,
+      "name": "Cape Town",
+      "country": "ZA"
+    },
+    "3413829": {
+      "price": 22000,
+      "name": "Reykjavik",
+      "country": "IS"
+    },
+    "3435910": {
+      "price": 9500,
+      "name": "Buenos Aires",
+      "country": "AR"
+    },
+    "3448439": {
+      "price": 8500,
+      "name": "Sao Paulo",
+      "country": "BR"
+    },
+    "3451190": {
+      "price": 10000,
+      "name": "Rio de Janeiro",
+      "country": "BR"
+    },
+    "3530597": {
+      "price": 8500,
+      "name": "Mexico City",
+      "country": "MX"
+    },
+    "3531673": {
+      "price": 11000,
+      "name": "Cancun",
+      "country": "MX"
+    },
+    "3936456": {
+      "price": 7500,
+      "name": "Lima",
+      "country": "PE"
+    },
+    "3941584": {
+      "price": 9000,
+      "name": "Cusco",
+      "country": "PE"
+    },
+    "4140963": {
+      "price": 16000,
+      "name": "Washington",
+      "country": "US"
+    },
+    "4164138": {
+      "price": 17000,
+      "name": "Miami",
+      "country": "US"
+    },
+    "4167147": {
+      "price": 16000,
+      "name": "Orlando",
+      "country": "US"
+    },
+    "4887398": {
+      "price": 15000,
+      "name": "Chicago",
+      "country": "US"
+    },
+    "4930956": {
+      "price": 16500,
+      "name": "Boston",
+      "country": "US"
+    },
+    "5128581": {
+      "price": 20000,
+      "name": "New York City",
+      "country": "US"
+    },
+    "5368361": {
+      "price": 17500,
+      "name": "Los Angeles",
+      "country": "US"
+    },
+    "5391959": {
+      "price": 18500,
+      "name": "San Francisco",
+      "country": "US"
+    },
+    "5506956": {
+      "price": 15000,
+      "name": "Las Vegas",
+      "country": "US"
+    },
+    "5809844": {
+      "price": 16000,
+      "name": "Seattle",
+      "country": "US"
+    },
+    "5856195": {
+      "price": 22000,
+      "name": "Honolulu",
+      "country": "US"
+    },
+    "5913490": {
+      "price": 11500,
+      "name": "Calgary",
+      "country": "CA"
+    },
+    "6077243": {
+      "price": 11500,
+      "name": "Montreal",
+      "country": "CA"
+    },
+    "6167865": {
+      "price": 13500,
+      "name": "Toronto",
+      "country": "CA"
+    },
+    "6173331": {
+      "price": 14000,
+      "name": "Vancouver",
+      "country": "CA"
+    },
+    "6325494": {
+      "price": 12000,
+      "name": "Quebec",
+      "country": "CA"
+    }
+  },
+  "limitations": "娱乐模拟总价；185 个主要城市单独判断，其余按 AI 国家基价、城市人口档和首都修正批量估算，未逐城查证现实价格。"
+}

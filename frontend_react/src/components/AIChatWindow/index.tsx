@@ -290,7 +290,7 @@ export const AIChatWindow = ({
 
                 <div className="flex min-w-0 flex-1 flex-col h-full">
                     {/* Header */}
-                    <div className="flex items-center justify-between px-3.5 py-3 sm:px-6 sm:py-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur-sm shrink-0">
+                    <div className="flex items-center justify-between px-3.5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 sm:px-6 sm:py-4 sm:pt-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur-sm shrink-0">
                         <div className="min-w-0 flex items-center gap-2 sm:gap-3 text-slate-800">
                             {/* 移动端返回按钮 */}
                             <button
@@ -398,36 +398,38 @@ export const AIChatWindow = ({
                     />
 
                     {/* Footer 输入框及状态面板区域 */}
-                    <div className="p-3 sm:p-5 bg-white border-t border-slate-100 shrink-0">
-                        {!activeAgent && (
-                            <ChatSettingsToolbar
-                                assistantMode={assistantMode}
-                                selectedMcpIds={selectedMcpIds}
-                                mcpOptions={mcpOptions}
-                                mcpPanelOpen={mcpPanelOpen}
-                                setMcpPanelOpen={setMcpPanelOpen}
-                                setModeWithSideEffects={setModeWithSideEffects}
-                                toggleMcp={toggleMcp}
-                                useKb={useKb}
-                                setUseKb={setUseKb}
-                                selectedCollId={selectedCollId}
-                                setSelectedCollId={setSelectedCollId}
-                                anthologyOptions={anthologyOptions}
-                                chatSkills={chatSkills}
-                                selectedSkillIds={selectedSkillIds}
-                                toggleChatSkill={toggleChatSkill}
-                                skillPanelOpen={skillPanelOpen}
-                                setSkillPanelOpen={setSkillPanelOpen}
-                                useThinking={useThinking}
-                                setUseThinking={setUseThinking}
+                    <div className="px-3 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-6 sm:py-3.5 bg-white border-t border-slate-100 shrink-0">
+                        <div className="max-w-4xl mx-auto w-full">
+                            {!activeAgent && (
+                                <ChatSettingsToolbar
+                                    assistantMode={assistantMode}
+                                    selectedMcpIds={selectedMcpIds}
+                                    mcpOptions={mcpOptions}
+                                    mcpPanelOpen={mcpPanelOpen}
+                                    setMcpPanelOpen={setMcpPanelOpen}
+                                    setModeWithSideEffects={setModeWithSideEffects}
+                                    toggleMcp={toggleMcp}
+                                    useKb={useKb}
+                                    setUseKb={setUseKb}
+                                    selectedCollId={selectedCollId}
+                                    setSelectedCollId={setSelectedCollId}
+                                    anthologyOptions={anthologyOptions}
+                                    chatSkills={chatSkills}
+                                    selectedSkillIds={selectedSkillIds}
+                                    toggleChatSkill={toggleChatSkill}
+                                    skillPanelOpen={skillPanelOpen}
+                                    setSkillPanelOpen={setSkillPanelOpen}
+                                    useThinking={useThinking}
+                                    setUseThinking={setUseThinking}
+                                />
+                            )}
+                            <ChatInput
+                                input={input}
+                                setInput={setInput}
+                                isLoading={isLoading}
+                                onSend={inputSendHandler}
                             />
-                        )}
-                        <ChatInput
-                            input={input}
-                            setInput={setInput}
-                            isLoading={isLoading}
-                            onSend={inputSendHandler}
-                        />
+                        </div>
                     </div>
                 </div>
             </div>

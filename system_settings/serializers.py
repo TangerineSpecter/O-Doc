@@ -52,6 +52,7 @@ class AgentSerializer(PostScopeValidation, serializers.ModelSerializer):
             'id',
             'name',
             'avatar',
+            'full_body_image',
             'model',
             'model_detail',
             'prompt',
@@ -81,6 +82,25 @@ class AgentSerializer(PostScopeValidation, serializers.ModelSerializer):
         value = value.strip()
         if not value:
             raise serializers.ValidationError("Agent 名称不能为空")
+        return value
+
+    def validate_full_body_image(self, value):
+        from assets.models import Asset
+        from utils.resource_assets import extract_resource_id_from_view_url, get_resource_view_url
+
+        value = value.strip()
+        if not value:
+            return ''
+        resource_id = extract_resource_id_from_view_url(value)
+        if not resource_id or value != get_resource_view_url(resource_id):
+            raise serializers.ValidationError('请选择已上传的形象参考图')
+        request = self.context.get('request')
+        if request is None or not request.user.is_authenticated:
+            raise serializers.ValidationError('请登录后配置形象参考图')
+        from utils.drf_utils import get_current_user_identifier
+        if not Asset.objects.filter(pk=resource_id, file_type='image', is_valid=True,
+                                    uploader=get_current_user_identifier(request)).exists():
+            raise serializers.ValidationError('形象参考图不存在或不属于当前用户')
         return value
 
     def validate_mcp_servers(self, value):
@@ -346,7 +366,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         fields = [
             'id',
             'name',
-            'task_kind', 'publish_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
+            'task_kind', 'publish_config', 'travel_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
             'agent',
             'agent_name',
             'agents',
@@ -384,23 +404,23 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         return [agents[agent_id] for agent_id in ids if agent_id in agents]
 
     def get_random_progress(self, obj):
-        if obj.task_kind in ('post_interaction', 'post_publish'):
+        if obj.task_kind in ('post_interaction', 'post_publish', 'travel'):
             return None
         from .agent_random_schedule import progress
         return progress(obj)
 
     def get_world_progress(self, obj):
-        if obj.task_kind not in ('post_interaction', 'post_publish'):
+        if obj.task_kind not in ('post_interaction', 'post_publish', 'travel'):
             return None
         from .agent_world.action_schedule import progress
         return progress(obj)
 
     @transaction.atomic
     def create(self, validated_data):
-        if validated_data.get('task_kind') in ('post_interaction', 'post_publish'):
-            from .agent_world.builtin_tasks import POST_INTERACTION_ID, POST_PUBLISH_ID
+        if validated_data.get('task_kind') in ('post_interaction', 'post_publish', 'travel'):
+            from .agent_world.builtin_tasks import POST_INTERACTION_ID, POST_PUBLISH_ID, TRAVEL_ID
             kind = validated_data['task_kind']
-            builtin_id = POST_PUBLISH_ID if kind == 'post_publish' else POST_INTERACTION_ID
+            builtin_id = {'post_publish': POST_PUBLISH_ID, 'post_interaction': POST_INTERACTION_ID, 'travel': TRAVEL_ID}[kind]
             # 兼容此前保存的配置；首次保存采用固定标识，重复提交不创建第二个入口。
             task = AgentTask.objects.select_for_update().filter(task_kind=kind).first()
             if task is None:
@@ -422,7 +442,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
 
     @staticmethod
     def initialize_task(task):
-        if task.task_kind in ('post_interaction', 'post_publish'):
+        if task.task_kind in ('post_interaction', 'post_publish', 'travel'):
             from .agent_world.action_schedule import initialize
             initialize(task)
         else:
@@ -454,9 +474,9 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         kind = attrs.get('task_kind', getattr(self.instance, 'task_kind', 'custom'))
         if self.instance and kind != self.instance.task_kind:
             raise serializers.ValidationError({'task_kind': '已有任务不能改变类型，请新建任务'})
-        if kind in ('post_interaction', 'post_publish'):
-            from .agent_world.builtin_tasks import POST_INTERACTION_NAME, POST_PUBLISH_NAME
-            attrs['name'] = POST_PUBLISH_NAME if kind == 'post_publish' else POST_INTERACTION_NAME
+        if kind in ('post_interaction', 'post_publish', 'travel'):
+            from .agent_world.builtin_tasks import POST_INTERACTION_NAME, POST_PUBLISH_NAME, TRAVEL_NAME
+            attrs['name'] = {'post_publish': POST_PUBLISH_NAME, 'post_interaction': POST_INTERACTION_NAME, 'travel': TRAVEL_NAME}[kind]
             if self.instance is None:
                 attrs.setdefault('enabled', False)
             attrs.update(execution_mode='serial', random_allocations={}, followup_enabled=False, followup_agent=None)
@@ -464,6 +484,10 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
                 raise serializers.ValidationError({'trigger': '系统任务仅支持自动调度或手动执行'})
             if attrs.get('schedule_mode', getattr(self.instance, 'schedule_mode', 'fixed')) == 'fixed':
                 attrs['schedule_type'] = 'interval'
+        if kind == 'travel' and self.instance is None:
+            attrs.setdefault('schedule_mode', 'random')
+            attrs.setdefault('random_period', 'weekly')
+            attrs.setdefault('random_count', 1)
         if kind == 'post_publish':
             if self.instance is None:
                 attrs.setdefault('schedule_mode', 'random')
@@ -524,6 +548,20 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
                 if not 0 < sum(allocations.values()) <= count:
                     raise serializers.ValidationError({'random_allocations': '分配总次数必须大于 0 且不能超过任务总次数'})
 
+        if kind == 'travel':
+            from .agent_world.travel_config import TravelConfigSerializer
+            from utils.drf_utils import get_current_user_identifier
+            request = self.context.get('request')
+            saved = getattr(self.instance, 'travel_config', {})
+            if self.instance and attrs.get('enabled') is False and attrs.get('travel_config', saved) == saved:
+                attrs['travel_config'] = saved
+            else:
+                config = TravelConfigSerializer(data=attrs.get('travel_config', saved), context={
+                    'previous': saved, 'owner_id': get_current_user_identifier(request) if request else None,
+                    'enabled': attrs.get('enabled', getattr(self.instance, 'enabled', False)),
+                    'agent_ids': attrs.get('agent_ids', getattr(self.instance, 'agent_ids', []))})
+                config.is_valid(raise_exception=True)
+                attrs['travel_config'] = config.validated_data
         notify_enabled = attrs.get('notify_enabled', getattr(self.instance, 'notify_enabled', False))
         notify_webhook_url = attrs.get('notify_webhook_url', getattr(self.instance, 'notify_webhook_url', ''))
         if notify_enabled and not notify_webhook_url:

@@ -3,14 +3,18 @@ import {useEffect, useRef, useState} from 'react';
 import {uploadResource} from '@/api/resources';
 import {useToast} from '../../common/ToastProvider';
 
-export const useAgentAvatarUpload = (onUploaded: (avatarUrl: string) => void) => {
+export const useAgentAvatarUpload = (onUploaded: (avatarUrl: string) => void, label = '头像') => {
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('');
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const avatarPreviewObjectUrlRef = useRef<string | null>(null);
     const toast = useToast();
+    const uploadVersion = useRef(0);
+    const mounted = useRef(true);
+    const uploadInFlight = useRef(false);
 
     const clearAvatarPreview = () => {
+        uploadVersion.current += 1;
         if (avatarPreviewObjectUrlRef.current) {
             URL.revokeObjectURL(avatarPreviewObjectUrlRef.current);
             avatarPreviewObjectUrlRef.current = null;
@@ -24,31 +28,41 @@ export const useAgentAvatarUpload = (onUploaded: (avatarUrl: string) => void) =>
         setAvatarPreviewUrl(url);
     };
 
-    useEffect(() => () => {
-        if (avatarPreviewObjectUrlRef.current) {
-            URL.revokeObjectURL(avatarPreviewObjectUrlRef.current);
-        }
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+            uploadVersion.current += 1;
+            if (avatarPreviewObjectUrlRef.current) URL.revokeObjectURL(avatarPreviewObjectUrlRef.current);
+        };
     }, []);
 
     const handleAvatarUpload = async (file?: File) => {
-        if (!file) return;
+        if (!file || uploadInFlight.current) return;
         if (!file.type.startsWith('image/')) {
-            toast.warning('请选择图片文件作为头像');
+            toast.warning(`请选择图片文件作为${label}`);
             return;
         }
 
         setAvatarUploading(true);
+        uploadInFlight.current = true;
+        const version = ++uploadVersion.current;
         const localPreviewUrl = URL.createObjectURL(file);
         try {
             const response = await uploadResource(file, 'image');
+            if (!mounted.current || version !== uploadVersion.current) {
+                URL.revokeObjectURL(localPreviewUrl);
+                return;
+            }
             onUploaded(`/api/resource/view/${response.id}`);
             setLocalAvatarPreview(localPreviewUrl);
-            toast.success('头像已上传');
+            toast.success(`${label}已上传`);
         } catch {
             URL.revokeObjectURL(localPreviewUrl);
-            toast.error('头像上传失败');
+            if (mounted.current && version === uploadVersion.current) toast.error(`${label}上传失败`);
         } finally {
-            setAvatarUploading(false);
+            uploadInFlight.current = false;
+            if (mounted.current) setAvatarUploading(false);
             if (avatarInputRef.current) avatarInputRef.current.value = '';
         }
     };

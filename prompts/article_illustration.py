@@ -116,7 +116,8 @@ def remember_pending_article_illustration(*, user_id: str, task_id: str, image_u
     return pending
 
 
-def save_article_illustration(*, image: GeneratedImage, user_id: str, task_id: str = '') -> ArticleIllustrationAssetData:
+def save_article_illustration(*, image: GeneratedImage, user_id: str, task_id: str = '',
+                             original_name: str = '文章配图') -> ArticleIllustrationAssetData:
     if task_id:
         existing = get_saved_article_illustration(task_id=task_id, user_id=user_id)
         if existing:
@@ -142,7 +143,7 @@ def save_article_illustration(*, image: GeneratedImage, user_id: str, task_id: s
             asset = Asset.objects.create(
                 id=asset_id,
                 name=filename,
-                original_name=f'文章配图{image.extension}',
+                original_name=f'{original_name}{image.extension}',
                 file_type='image',
                 file_size=len(image.content),
                 file_path=os.path.join('image', filename),

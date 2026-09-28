@@ -192,6 +192,12 @@ class Agent(models.Model):
         db_comment='头像，可存储 URL、Emoji 或静态资源路径'
     )
 
+    full_body_image = models.CharField(
+        max_length=255, blank=True, default='',
+        verbose_name='全身形象参考图',
+        db_comment='角色全身立绘或设定拆解图的资源地址，随 Agent 配置同步'
+    )
+
     model = models.ForeignKey(
         AIModel,
         related_name='agents',
@@ -588,7 +594,8 @@ class Skill(models.Model):
 class AgentTask(models.Model):
     """Agent 任务配置"""
 
-    task_kind = models.CharField(max_length=40, choices=[('custom', '自定义任务'), ('post_interaction', '阅读帖子并评论打分'), ('post_publish', '自主选题并发帖')], default='custom')
+    task_kind = models.CharField(max_length=40, choices=[('custom', '自定义任务'), ('post_interaction', '阅读帖子并评论打分'), ('post_publish', '自主选题并发帖'), ('travel', '旅行')], default='custom')
+    travel_config = models.JSONField(default=dict, blank=True)
     post_collection_ids = models.JSONField(default=list, blank=True)
     post_category_ids = models.JSONField(default=list, blank=True)
     world_state = models.JSONField(default=dict, blank=True)
@@ -947,3 +954,4 @@ class GeoLocation(models.Model):
         return f"{self.country} - {self.city}"
 
 from .agent_world.models import (WorldCategory, WorldProfession, WorldProfessionCategory, WorldIncomeConfig, WorldLedger, WorldIncomeEvent, WorldChange, WorldCategoryMigration, WorldMonthSettlement)  # noqa: E402,F401
+from .agent_world.travel_models import TravelDestination, TravelSeedState, TravelJourney, TravelNode, AgentInventoryItem, TravelRuntime, TravelMaterialCache  # noqa: E402,F401

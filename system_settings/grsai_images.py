@@ -14,7 +14,7 @@ from .models import AIModel, SystemSetting
 
 TASK_ID_RE = re.compile(r'^[A-Za-z0-9_-]{1,128}$')
 PENDING_STATUSES = {'pending', 'processing', 'queued', 'running', 'submitted', 'in_progress'}
-FAILED_STATUSES = {'failed', 'error', 'cancelled', 'canceled'}
+FAILED_STATUSES = {'failed', 'error', 'cancelled', 'canceled', 'violation'}
 
 
 class GrsaiImageError(Exception):
@@ -127,12 +127,13 @@ class GrsaiImageClient:
         raise GrsaiImageError('Grsai 返回的生成状态不完整')
 
     @model_operation
-    def generate(self, prompt: str, *, generation_options: dict | None = None) -> GrsaiImageResult:
+    def generate(self, prompt: str, *, generation_options: dict | None = None,
+                 reference_images: list[str] | None = None, asynchronous: bool = False) -> GrsaiImageResult:
         payload = {
             'model': self.model_name,
             'prompt': prompt,
-            'images': [],
-            'replyType': 'json',
+            'images': reference_images or [],
+            'replyType': 'async' if asynchronous else 'json',
         }
         if generation_options is None:
             payload.update({'aspectRatio': '1:1', 'imageSize': '1K'})
