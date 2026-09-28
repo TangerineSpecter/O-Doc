@@ -29,7 +29,12 @@ export function InventoryBackpack({items, name = '旅行者', onClose, onRefresh
         <div className="inventory-backpack-stage">
             <div className="inventory-backpack">
                 <InventoryBackpackSkin/>
-                <div className="inventory-backpack-nameplate"><h2>{name}的行囊</h2><p>TRAVELER’S COLLECTION</p></div>
+                <div className="inventory-backpack-nameplate">
+                    <span className="nameplate-top-emblem" aria-hidden="true">✦</span>
+                    <h2>{name}的行囊</h2>
+                    <div className="nameplate-divider" aria-hidden="true" />
+                    <p>TRAVELER’S COLLECTION</p>
+                </div>
                 <div className="inventory-backpack-tools">
                     {onRefresh && <button type="button" onClick={onRefresh} disabled={loading} className="inventory-backpack-tool" aria-label="刷新背包"><RefreshCw size={14}/></button>}
                     {onClose && <button type="button" onClick={onClose} className="inventory-backpack-tool" aria-label="关闭面板"><X size={16}/></button>}
