@@ -63,6 +63,7 @@ import {BuiltinPostTaskCard} from './agent/BuiltinPostTaskCard';
 import {defaultPostInteractionTask, defaultPostPublishTask, defaultTravelTask} from './agent/builtinTasks';
 import {TravelTaskFields} from './agent/TravelTaskFields';
 import {emptyTravelConfig, type TravelConfig} from '@/types/api/travel';
+import {travelConfigError} from '@/utils/agentTaskValidation';
 import {PostPublishFields} from './agent/PostPublishFields';
 import {PostPublishPreviewModal} from './agent/PostPublishPreviewModal';
 import {emptyPublishConfig} from './agent/publishDefaults';
@@ -499,6 +500,13 @@ export const AgentSettings = ({
     };
 
     const handleTaskSubmit = async () => {
+        if (isTravelTask) {
+            const error = travelConfigError(taskForm.travelConfig);
+            if (error) {
+                toast.warning(error);
+                return;
+            }
+        }
         if (taskForm.trigger === '定时任务' && taskForm.scheduleMode === 'random') {
             const count = Number(taskForm.randomCount);
             if (!Number.isSafeInteger(count) || count < 1 || count > 10000) {

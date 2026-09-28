@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useToast} from '../components/common/ToastProvider';
+import {agentTaskSaveError} from '../utils/agentTaskValidation';
 import {
     AgentConfig,
     AgentRunRecordConfig,
@@ -368,6 +369,7 @@ export const useSettings = () => {
                 executionMode: taskData.executionMode || 'parallel',
                 taskKind: taskData.taskKind || 'custom',
                 publishConfig: taskData.publishConfig,
+                travelConfig: taskData.travelConfig,
                 postCollectionIds: taskData.postCollectionIds || [],
                 postCategoryIds: taskData.postCategoryIds || [],
                 trigger: taskData.trigger || '定时任务',
@@ -403,7 +405,7 @@ export const useSettings = () => {
             toast.success(['post_interaction', 'post_publish', 'travel'].includes(taskData.taskKind || '') ? '系统任务配置已保存' : taskData.id ? '任务已更新' : '任务已创建');
             return true;
         } catch (error) {
-            toast.error('保存任务失败');
+            toast.error(agentTaskSaveError(error));
             return false;
         } finally {
             setIsSaving(false);
