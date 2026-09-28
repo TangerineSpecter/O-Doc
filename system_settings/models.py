@@ -169,6 +169,8 @@ class SyncEntityState(models.Model):
 
 
 class Agent(models.Model):
+    post_collection_ids = models.JSONField(default=list, blank=True)
+    post_category_ids = models.JSONField(default=list, blank=True)
     profession = models.ForeignKey("system_settings.WorldProfession", null=True, blank=True, on_delete=models.SET_NULL)
     """可配置的 AI Agent"""
 
@@ -586,6 +588,11 @@ class Skill(models.Model):
 class AgentTask(models.Model):
     """Agent 任务配置"""
 
+    task_kind = models.CharField(max_length=40, choices=[('custom', '自定义任务'), ('post_interaction', '阅读帖子并评论打分')], default='custom')
+    post_collection_ids = models.JSONField(default=list, blank=True)
+    post_category_ids = models.JSONField(default=list, blank=True)
+    world_state = models.JSONField(default=dict, blank=True)
+
     SCHEDULE_TYPES = [
         ('daily', '每天'),
         ('weekly', '每周'),
@@ -683,6 +690,40 @@ class AgentRandomRuntime(models.Model):
 
     class Meta:
         db_table = 'sys_agent_random_runtime'
+
+
+class AgentExecutionLease(models.Model):
+    """所有任务共享的本机 Agent 执行锁；不进入同步。"""
+    agent = models.OneToOneField(Agent, primary_key=True, on_delete=models.CASCADE)
+    token = models.CharField(max_length=40, blank=True, default='')
+    until = models.DateTimeField(null=True, blank=True)
+
+
+class WorldActionRuntime(models.Model):
+    """本机自动执行开关和世界执行锁；导入配置不会启用另一设备。"""
+    id = models.CharField(primary_key=True, max_length=40, default='world')
+    enabled = models.BooleanField(default=False)
+    token = models.CharField(max_length=40, blank=True, default='')
+    until = models.DateTimeField(null=True, blank=True)
+
+
+class WorldAction(models.Model):
+    """稳定机会及体力消费事实；体力通过成功记录按现实时间重放。"""
+    id = models.CharField(primary_key=True, max_length=64)
+    task = models.ForeignKey(AgentTask, null=True, on_delete=models.SET_NULL)
+    agent = models.ForeignKey(Agent, null=True, on_delete=models.SET_NULL)
+    actor_id = models.CharField(max_length=40, blank=True)
+    record = models.OneToOneField('AgentRunRecord', null=True, on_delete=models.SET_NULL)
+    status = models.CharField(max_length=20, default='claimed')
+    result = models.JSONField(default=dict, blank=True)
+    energy_cost = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    consumed_at = models.DateTimeField(null=True)
+    effects_done = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['actor_id', 'consumed_at'], name='world_action_actor_time')]
 
 
 class AgentRunRecord(models.Model):

@@ -5,7 +5,7 @@ import type {AgentTaskConfig} from '@/types/api/setting';
 export function useRandomTaskProgress(tasks: AgentTaskConfig[], visible: boolean) {
     const [liveTasks, setLiveTasks] = useState<AgentTaskConfig[]>([]);
     const [refreshFailed, setRefreshFailed] = useState(false);
-    const hasRandom = tasks.some(task => task.scheduleMode === 'random' || task.randomProgress);
+    const hasRandom = tasks.some(task => task.scheduleMode === 'random' || task.randomProgress || task.taskKind === 'post_interaction');
     useEffect(() => {
         if (!visible || !hasRandom) return;
         let stopped = false;
@@ -29,5 +29,8 @@ export function useRandomTaskProgress(tasks: AgentTaskConfig[], visible: boolean
     return {refreshFailed, progressByTask: Object.fromEntries(tasks.map(task => {
         const live = liveTasks.find(item => item.id === task.id && item.updatedAt === task.updatedAt);
         return [task.id, live ? live.randomProgress : task.randomProgress];
+    })), worldProgressByTask: Object.fromEntries(tasks.map(task => {
+        const live = liveTasks.find(item => item.id === task.id && item.updatedAt === task.updatedAt);
+        return [task.id, live ? live.worldProgress : task.worldProgress];
     }))};
 }

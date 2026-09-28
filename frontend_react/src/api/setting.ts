@@ -216,6 +216,9 @@ export const saveAgentTask = (data: SaveAgentTaskConfigParams) => {
     return request.post<AgentTaskConfig>('/settings/agent-tasks/', data);
 };
 
+export const getWorldRunner = () => request.get<never, {enabled: boolean}>('/settings/agent-tasks/world_runner/');
+export const setWorldRunner = (enabled: boolean) => request.post<never, {enabled: boolean}>('/settings/agent-tasks/world_runner/', {enabled});
+
 export const deleteAgentTask = (id: string) => request.delete(`/settings/agent-tasks/${id}/`);
 
 export const runAgentTaskNow = (id: string) => request.post(`/settings/agent-tasks/${id}/run_now/`);

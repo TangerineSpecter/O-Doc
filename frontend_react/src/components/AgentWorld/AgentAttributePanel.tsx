@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import type {AgentRelationEdge, AgentRelationGraph, AgentRelationNode} from '../../types/api/setting';
 import AgentAvatar from './AgentAvatar';
 import WorldDialog from './WorldDialog';
-import {ChevronDown, MessageSquare, CalendarDays, FileText, Sparkles, Wallet} from 'lucide-react';
+import {ChevronDown, MessageSquare, CalendarDays, FileText, Sparkles, Wallet, Battery} from 'lucide-react';
 
 interface AgentAttributePanelProps {
     graph: AgentRelationGraph | null;
@@ -35,6 +35,8 @@ function AttributeRow({node, relations, expanded, onToggle}: {
     expanded: boolean;
     onToggle: () => void;
 }) {
+    const stamina = node.stamina == null ? null : Number(node.stamina);
+    const energy = stamina != null && Number.isFinite(stamina) ? Math.max(0, Math.min(100, stamina)) : null;
     return (
         <div className={`overflow-hidden rounded-2xl border transition-colors ${expanded ? 'border-orange-200 bg-orange-50/30' : 'border-slate-200 bg-white hover:border-orange-200'}`}>
             <button type="button" onClick={onToggle} aria-expanded={expanded} className="w-full p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-400">
@@ -52,6 +54,13 @@ function AttributeRow({node, relations, expanded, onToggle}: {
                 </span>
                 <span className="mt-2 block h-1 overflow-hidden rounded-full bg-slate-100">
                     <span className="block h-full rounded-full bg-orange-400" style={{width: `${Math.max(0, Math.min(100, node.creativity))}%`}}/>
+                </span>
+                <span className="mt-4 flex items-end justify-between" title="每小时恢复 5 点，成功评论并打分消耗 10 点">
+                    <span className="flex items-center gap-1.5 text-xs text-slate-500"><Battery className="h-3.5 w-3.5 text-lime-600"/>体力</span>
+                    <span className="text-2xl font-bold tabular-nums tracking-tight text-slate-800">{energy == null ? '—' : Number(energy.toFixed(1))}<span className="ml-1 text-[11px] font-normal text-slate-400">/ 100</span></span>
+                </span>
+                <span className="mt-2 block h-1 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label={`${node.name}的体力`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={energy ?? undefined}>
+                    <span className={`block h-full rounded-full ${energy != null && energy < 10 ? 'bg-rose-400' : 'bg-lime-500'}`} style={{width: `${energy ?? 0}%`}}/>
                 </span>
                 <span className="mt-4 grid grid-cols-3 divide-x divide-slate-100 rounded-xl bg-slate-50 py-3">
                     {[{label: '发帖', value: node.postCount, icon: FileText}, {label: '获评', value: node.ratedPostCount, icon: MessageSquare}, {label: '活跃天数', value: node.activeDays, icon: CalendarDays}].map(({label, value, icon: Icon}) => (
@@ -95,7 +104,7 @@ export default function AgentAttributePanel({graph, loading, error, selectedAgen
     });
 
     return (
-        <WorldDialog title="居民属性" description="创作与互动按近 30 天统计，并显示当前金钱余额。" onClose={onClose}>
+        <WorldDialog title="居民属性" description="创作与互动按近 30 天统计，并显示当前体力与金钱余额。" onClose={onClose}>
             {loading ? <p className="py-16 text-center text-xs text-slate-400">正在计算属性...</p> : null}
             {error ? <p className="py-12 text-center text-xs text-red-600">{error}</p> : null}
             {!loading && !error && !nodes.length ? <p className="py-16 text-center text-xs text-slate-400">还没有居民。</p> : null}

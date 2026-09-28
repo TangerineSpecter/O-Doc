@@ -1,8 +1,10 @@
 from urllib.parse import urlsplit
+from decimal import Decimal
 from django.db import transaction
 
 from rest_framework import serializers
 from .models import Agent, AgentActivity, AgentLongTermMemory, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
+from .agent_world.scope_validation import PostScopeValidation
 
 class AIModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -39,7 +41,8 @@ class SystemSettingSerializer(serializers.ModelSerializer):
         fields = ['key', 'value']
 
 
-class AgentSerializer(serializers.ModelSerializer):
+class AgentSerializer(PostScopeValidation, serializers.ModelSerializer):
+    stamina = serializers.SerializerMethodField()
     profession_name = serializers.CharField(source="profession.name", read_only=True, default="")
     model_detail = AIModelSerializer(source='model', read_only=True)
 
@@ -53,6 +56,7 @@ class AgentSerializer(serializers.ModelSerializer):
             'model_detail',
             'prompt',
             'money', 'profession', 'profession_name',
+            'post_collection_ids', 'post_category_ids', 'stamina',
             'mcp_servers',
             'skills',
             'feishu_im_enabled',
@@ -64,6 +68,10 @@ class AgentSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'model_detail', 'money', 'created_at', 'updated_at']
+
+    def get_stamina(self, obj):
+        from .agent_world.execution import stamina
+        return str(stamina(obj).quantize(Decimal('0.01')))
 
     @transaction.atomic
     def create(self, validated_data):
@@ -319,7 +327,8 @@ class AgentRandomAllocationsField(serializers.Field):
         return result
 
 
-class AgentTaskSerializer(serializers.ModelSerializer):
+class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
+    world_progress = serializers.SerializerMethodField()
     random_allocations = AgentRandomAllocationsField(required=False)
     random_count = serializers.IntegerField(min_value=1, max_value=10000, required=False)
     random_progress = serializers.SerializerMethodField()
@@ -337,6 +346,7 @@ class AgentTaskSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'name',
+            'task_kind', 'post_collection_ids', 'post_category_ids', 'world_progress',
             'agent',
             'agent_name',
             'agents',
@@ -374,22 +384,48 @@ class AgentTaskSerializer(serializers.ModelSerializer):
         return [agents[agent_id] for agent_id in ids if agent_id in agents]
 
     def get_random_progress(self, obj):
+        if obj.task_kind == 'post_interaction':
+            return None
         from .agent_random_schedule import progress
+        return progress(obj)
+
+    def get_world_progress(self, obj):
+        if obj.task_kind != 'post_interaction':
+            return None
+        from .agent_world.action_schedule import progress
         return progress(obj)
 
     @transaction.atomic
     def create(self, validated_data):
-        task = super().create(validated_data)
-        from .agent_random_schedule import initialize_runtime
-        initialize_runtime(task)
+        if validated_data.get('task_kind') == 'post_interaction':
+            from .agent_world.builtin_tasks import POST_INTERACTION_ID
+            # 兼容此前保存的配置；首次保存采用固定标识，重复提交不创建第二个入口。
+            task = AgentTask.objects.select_for_update().filter(task_kind='post_interaction').first()
+            if task is None:
+                task, created = AgentTask.objects.get_or_create(pk=POST_INTERACTION_ID, defaults=validated_data)
+                if not created:
+                    task = super().update(task, validated_data)
+            else:
+                task = super().update(task, validated_data)
+        else:
+            task = super().create(validated_data)
+        self.initialize_task(task)
         return task
 
     @transaction.atomic
     def update(self, instance, validated_data):
         task = super().update(instance, validated_data)
-        from .agent_random_schedule import initialize_runtime
-        initialize_runtime(task)
+        self.initialize_task(task)
         return task
+
+    @staticmethod
+    def initialize_task(task):
+        if task.task_kind == 'post_interaction':
+            from .agent_world.action_schedule import initialize
+            initialize(task)
+        else:
+            from .agent_random_schedule import initialize_runtime
+            initialize_runtime(task)
 
     def validate_random_count(self, value):
         if value < 1:
@@ -413,6 +449,21 @@ class AgentTaskSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
+        kind = attrs.get('task_kind', getattr(self.instance, 'task_kind', 'custom'))
+        if self.instance and kind != self.instance.task_kind:
+            raise serializers.ValidationError({'task_kind': '已有任务不能改变类型，请新建任务'})
+        if kind == 'post_interaction':
+            from .agent_world.builtin_tasks import POST_INTERACTION_NAME
+            attrs['name'] = POST_INTERACTION_NAME
+            if self.instance is None:
+                attrs.setdefault('enabled', False)
+            attrs.update(execution_mode='serial', random_allocations={}, followup_enabled=False, followup_agent=None)
+            if attrs.get('trigger', getattr(self.instance, 'trigger', '定时任务')) not in ('定时任务', '手动执行'):
+                raise serializers.ValidationError({'trigger': '系统任务仅支持自动调度或手动执行'})
+            if attrs.get('schedule_mode', getattr(self.instance, 'schedule_mode', 'fixed')) == 'fixed':
+                attrs['schedule_type'] = 'interval'
+        if self.instance and attrs.get('schedule_mode', self.instance.schedule_mode) != self.instance.schedule_mode:
+            attrs['world_state'] = {key: value for key, value in (self.instance.world_state or {}).items() if key != 'schedule'}
         agent_ids = attrs.get('agent_ids')
         selected_agent = attrs.get('agent') or getattr(self.instance, 'agent', None)
 

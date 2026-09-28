@@ -124,10 +124,13 @@ class AgentTaskScheduler:
 
         try:
             self._advance_post_illustrations()
+            from .agent_world.action_runner import tick
+            tick(self)
             try:
                 tasks = list(AgentTask.objects.select_related('agent').filter(
                     enabled=True,
                     trigger='定时任务',
+                    task_kind='custom',
                 ))
             except (OperationalError, ProgrammingError):
                 return
@@ -231,6 +234,9 @@ class AgentTaskScheduler:
             task_name_override='',
             random_context=None,
     ):
+        if task.task_kind == 'post_interaction':
+            from .agent_world.action_runner import run_opportunity
+            return run_opportunity(task, self, manual=trigger == '手动执行')
         started = timezone.now()
         agents = agents_override if agents_override is not None else self._get_task_agents(task)
         primary_agent = agents[0] if agents else None
@@ -367,6 +373,17 @@ class AgentTaskScheduler:
 
     @diagnostic_operation('agent_task')
     def _run_task_for_agent(self, record, task, agent, previous_content='', prompt_override=''):
+        from .models import AgentExecutionLease
+        from .agent_world.execution import execution_lease
+        with execution_lease(AgentExecutionLease, {'agent': agent}) as token:
+            if token:
+                return self._run_task_for_agent_body(record, task, agent, previous_content, prompt_override)
+            result = {'agent': agent.pk, 'agentName': agent.name, 'agentAvatar': agent.avatar,
+                      'status': 'failed', 'summary': 'Agent 正在执行其他任务', 'duration': '', 'content': ''}
+            self._finish_agent_run(record, agent.pk, 'failed', result['summary'], '', '')
+            return result
+
+    def _run_task_for_agent_body(self, record, task, agent, previous_content='', prompt_override=''):
         agent_started = timezone.now()
         create_work_activity(record, agent)
         self._append_agent_run_step(record, agent.id, 'running', '开始执行', f"Agent：{agent.name}")

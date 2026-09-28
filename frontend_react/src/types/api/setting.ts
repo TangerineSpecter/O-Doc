@@ -43,6 +43,9 @@ export interface ImageUploadConfig {
 }
 
 export interface AgentConfig {
+    postCollectionIds?: string[];
+    postCategoryIds?: string[];
+    stamina?: string;
     profession?: string | null;
     professionName?: string;
     id: string;
@@ -63,7 +66,7 @@ export interface AgentConfig {
     updatedAt?: string;
 }
 
-export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'modelDetail' | 'money' | 'createdAt' | 'updatedAt'> & {
+export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'modelDetail' | 'money' | 'stamina' | 'createdAt' | 'updatedAt'> & {
     id?: string;
 };
 
@@ -115,6 +118,10 @@ export type AgentRunStatus = 'success' | 'failed' | 'running';
 export type AgentRunStepStatus = AgentRunStatus | 'info';
 
 export interface AgentTaskConfig {
+    taskKind?: 'custom' | 'post_interaction';
+    postCollectionIds?: string[];
+    postCategoryIds?: string[];
+    worldProgress?: {targetCount: number | null; processedCount: number; missedCount: number; nextExecutionAt: string | null; configPending: boolean} | null;
     id: string;
     name: string;
     agent: string;
@@ -147,7 +154,7 @@ export interface AgentTaskConfig {
     updatedAt?: string;
 }
 
-export type SaveAgentTaskConfigParams = Omit<AgentTaskConfig, 'id' | 'agentName' | 'agentNames' | 'randomProgress' | 'createdAt' | 'updatedAt'> & {
+export type SaveAgentTaskConfigParams = Omit<AgentTaskConfig, 'id' | 'agentName' | 'agentNames' | 'randomProgress' | 'worldProgress' | 'createdAt' | 'updatedAt'> & {
     id?: string;
 };
 
@@ -219,6 +226,7 @@ export interface AgentRelationNode {
     name: string;
     avatar: string;
     money: string;
+    stamina?: string;
     creativity: number;
     postCount: number;
     ratedPostCount: number;

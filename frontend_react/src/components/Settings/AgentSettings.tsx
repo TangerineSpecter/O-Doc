@@ -53,6 +53,12 @@ import {useAgentAvatarUpload} from './agent/useAgentAvatarUpload';
 import {isImageAvatarValue} from '@/utils/avatar';
 import {AgentPromptGenerator} from './agent/AgentPromptGenerator';
 import {PromptEditorModal} from '@/components/common/PromptEditorModal';
+import {PostInteractionScopeFields} from './agent/PostInteractionScopeFields';
+import {SystemTaskScheduleFields} from './agent/SystemTaskScheduleFields';
+import {WorldRunnerSwitch} from './agent/WorldRunnerSwitch';
+import {SystemTaskProgress} from './agent/SystemTaskProgress';
+import {BuiltinPostTaskCard} from './agent/BuiltinPostTaskCard';
+import {defaultPostInteractionTask} from './agent/builtinTasks';
 
 interface AgentSettingsProps {
     agents: AgentConfig[];
@@ -69,6 +75,8 @@ interface AgentSettingsProps {
 }
 
 type AgentForm = {
+    postCollectionIds?: string[];
+    postCategoryIds?: string[];
     profession?: string | null;
     id?: string;
     name: string;
@@ -87,6 +95,9 @@ type AgentForm = {
 type AgentView = 'list' | 'tasks' | 'records';
 
 type AgentTaskForm = {
+    taskKind?: 'custom' | 'post_interaction';
+    postCollectionIds?: string[];
+    postCategoryIds?: string[];
     id?: string;
     name: string;
     agents: string[];
@@ -161,7 +172,7 @@ export const AgentSettings = ({
                                   onDelete,
                               }: AgentSettingsProps) => {
     const [activeView, setActiveView] = useState<AgentView>('list');
-    const {progressByTask, refreshFailed} = useRandomTaskProgress(tasks, activeView === 'tasks');
+    const {progressByTask, worldProgressByTask, refreshFailed} = useRandomTaskProgress(tasks, activeView === 'tasks');
     const [modalOpen, setModalOpen] = useState(false);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
     const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
@@ -316,7 +327,10 @@ export const AgentSettings = ({
         return `每 ${task.intervalMinutes || '1'} 分钟`;
     };
 
+    const isSystemTask = taskForm.taskKind === 'post_interaction';
     const isManualTask = taskForm.trigger === '手动执行';
+    const builtinPostTask = tasks.find(task => task.taskKind === 'post_interaction') || defaultPostInteractionTask;
+    const customTasks = tasks.filter(task => task.taskKind !== 'post_interaction');
 
     const openCreateModal = () => {
         clearAvatarPreview();
@@ -370,6 +384,9 @@ export const AgentSettings = ({
         const taskAgentIds = task.agents?.length ? task.agents : (task.agent ? [task.agent] : []);
         setTaskForm({
             id: task.id,
+            taskKind: task.taskKind || 'custom',
+            postCollectionIds: task.postCollectionIds || [],
+            postCategoryIds: task.postCategoryIds || [],
             name: task.name,
             agents: taskAgentIds,
             executionMode: task.executionMode || 'parallel',
@@ -401,6 +418,8 @@ export const AgentSettings = ({
         clearAvatarPreview();
         setForm({
             id: agent.id,
+            postCollectionIds: agent.postCollectionIds || [],
+            postCategoryIds: agent.postCategoryIds || [],
             profession: agent.profession,
             name: agent.name,
             avatar: agent.avatar || '',
@@ -432,6 +451,8 @@ export const AgentSettings = ({
         setSaving(true);
         const success = await onSave({
             id: form.id,
+            postCollectionIds: form.postCollectionIds || [],
+            postCategoryIds: form.postCategoryIds || [],
             profession: form.profession || null,
             name: form.name.trim(),
             avatar: form.avatar.trim(),
@@ -462,12 +483,12 @@ export const AgentSettings = ({
             }
             const allocations = resolveAllocations(taskForm.agents, count, taskForm.randomAllocations);
             const total = Object.values(allocations).reduce((sum, value) => sum + value, 0);
-            if (taskForm.executionMode === 'serial' && (Object.values(allocations).some(value => !Number.isSafeInteger(value) || value < 0) || total < 1 || total > count)) {
+            if (!isSystemTask && taskForm.executionMode === 'serial' && (Object.values(allocations).some(value => !Number.isSafeInteger(value) || value < 0) || total < 1 || total > count)) {
                 toast.warning('Agent 分配次数须为非负整数，合计大于 0 且不能超过任务总次数');
                 return;
             }
         }
-        if (!taskForm.name.trim() || !taskForm.prompt.trim()) {
+        if (!taskForm.name.trim() || (!isSystemTask && !taskForm.prompt.trim())) {
             toast.warning('请填写任务名称和任务目标');
             return;
         }
@@ -494,15 +515,18 @@ export const AgentSettings = ({
 
         const success = await onSaveTask({
             id: taskForm.id,
+            taskKind: taskForm.taskKind || 'custom',
+            postCollectionIds: taskForm.postCollectionIds || [],
+            postCategoryIds: taskForm.postCategoryIds || [],
             name: taskForm.name.trim(),
             agent: taskForm.agents[0],
             agents: taskForm.agents,
-            executionMode: taskForm.executionMode,
+            executionMode: isSystemTask ? 'serial' : taskForm.executionMode,
             trigger: taskForm.trigger,
-            schedule: isManualTask ? '手动执行' : taskForm.scheduleMode === 'random' && taskForm.trigger === '定时任务'
+            schedule: isSystemTask ? (isManualTask ? '手动执行' : taskForm.scheduleMode === 'random' ? `${randomPeriodLabels[taskForm.randomPeriod]}随机 · ${taskForm.randomCount} 次行动机会` : `每 ${taskForm.intervalMinutes} 分钟 · 随机行动`) : isManualTask ? '手动执行' : taskForm.scheduleMode === 'random' && taskForm.trigger === '定时任务'
                 ? `${randomPeriodLabels[taskForm.randomPeriod]}随机 · ${taskForm.executionMode === 'parallel' ? '每个 Agent' : '合计'} ${taskForm.randomCount} 次`
                 : buildTaskSchedule(taskForm),
-            scheduleType: taskForm.scheduleType,
+            scheduleType: isSystemTask ? 'interval' : taskForm.scheduleType,
             scheduleMode: taskForm.trigger === '定时任务' ? taskForm.scheduleMode : 'fixed',
             randomPeriod: taskForm.randomPeriod,
             randomCount: Number(taskForm.randomCount) || 1,
@@ -516,7 +540,7 @@ export const AgentSettings = ({
             notifyEnabled: taskForm.notifyEnabled,
             notifyPlatform: taskForm.notifyPlatform,
             notifyWebhookUrl: taskForm.notifyEnabled ? taskForm.notifyWebhookUrl.trim() : '',
-            followupEnabled: taskForm.followupEnabled,
+            followupEnabled: !isSystemTask && taskForm.followupEnabled,
             followupAgent: taskForm.followupEnabled ? taskForm.followupAgent : null,
             followupAction: taskForm.followupAction,
             followupPrompt: taskForm.followupEnabled ? taskForm.followupPrompt.trim() : '',
@@ -699,34 +723,36 @@ export const AgentSettings = ({
 
     return (
         <div className="space-y-6">
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
+            <div className="bg-white rounded-2xl border border-slate-200 px-5 py-3.5 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
                             <Bot className="w-5 h-5"/>
                         </div>
-                        <div>
-                            <h3 className="font-bold text-slate-800">Agent 管理</h3>
-                            <p className="text-xs text-slate-500 mt-1">创建多个不同职责的 Agent，并分别绑定模型、提示词、MCP、技能和 IM 通道。</p>
+                        <div className="min-w-0">
+                            <h3 className="font-bold text-slate-800 text-sm">Agent 管理</h3>
+                            <p className="text-xs text-slate-500 mt-0.5 truncate max-w-md lg:max-w-lg xl:max-w-xl">
+                                创建多个不同职责的 Agent，并分别绑定模型、提示词、MCP、技能和 IM 通道。
+                            </p>
                         </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                        <div className="flex rounded-lg bg-slate-100 p-1">
+                    <div className="flex shrink-0 items-center gap-2.5">
+                        <div className="flex rounded-lg bg-slate-100 p-0.5 shrink-0">
                             <button
                                 onClick={() => setActiveView('list')}
-                                className={`min-w-20 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-all ${activeView === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${activeView === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Agent 列表
                             </button>
                             <button
                                 onClick={() => setActiveView('tasks')}
-                                className={`min-w-20 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-all ${activeView === 'tasks' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${activeView === 'tasks' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 任务分配
                             </button>
                             <button
                                 onClick={() => setActiveView('records')}
-                                className={`min-w-20 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-all ${activeView === 'records' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${activeView === 'records' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 执行记录
                             </button>
@@ -734,19 +760,21 @@ export const AgentSettings = ({
                         {activeView === 'list' && (
                             <button
                                 onClick={openCreateModal}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20 whitespace-nowrap shrink-0"
+                                title="创建 Agent"
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-xs shadow-orange-500/20 whitespace-nowrap shrink-0 active:scale-95"
                             >
                                 <Plus className="w-3.5 h-3.5 shrink-0"/>
-                                创建 Agent
+                                创建
                             </button>
                         )}
                         {activeView === 'tasks' && (
                             <button
                                 onClick={openCreateTaskModal}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20 whitespace-nowrap shrink-0"
+                                title="新建任务"
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-xs shadow-orange-500/20 whitespace-nowrap shrink-0 active:scale-95"
                             >
                                 <Plus className="w-3.5 h-3.5 shrink-0"/>
-                                新建任务
+                                新建
                             </button>
                         )}
                     </div>
@@ -755,12 +783,20 @@ export const AgentSettings = ({
 
             {activeView === 'tasks' ? (
                 <div className="space-y-3">
-                    {tasks.length === 0 ? (
+                    <WorldRunnerSwitch/>
+                    <BuiltinPostTaskCard task={builtinPostTask}
+                        agentNames={getTaskAgentNames(builtinPostTask)}
+                        running={!!builtinPostTask.id && runningTaskId === builtinPostTask.id}
+                        progress={worldProgressByTask[builtinPostTask.id]}
+                        onConfigure={() => openEditTaskModal(builtinPostTask)}
+                        onToggle={() => toggleTaskEnabled(builtinPostTask.id)}
+                        onRun={() => runTaskNow(builtinPostTask.id)}/>
+                    {customTasks.length === 0 ? (
                         <div className="text-center py-14 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
                             <CalendarClock className="w-8 h-8 mx-auto mb-3 text-slate-300"/>
-                            <p className="text-sm">暂无任务，创建一个定时或手动触发的 Agent 任务。</p>
+                            <p className="text-sm">暂无自定义任务，可按需添加定时或手动触发的任务。</p>
                         </div>
-                    ) : tasks.map(task => {
+                    ) : customTasks.map(task => {
                         const taskAgentNames = getTaskAgentNames(task);
                         const executionModeLabel = task.executionMode === 'serial' ? '串行' : '并行';
                         return (
@@ -813,6 +849,7 @@ export const AgentSettings = ({
 	                                        </div>
 	                                        <p className="truncate">{task.trigger === '手动执行' ? '手动执行' : task.schedule}</p>
                                             <RandomTaskProgress progress={progressByTask[task.id]} enabled={task.enabled}/>
+                                            {task.taskKind === 'post_interaction' && <SystemTaskProgress progress={worldProgressByTask[task.id]}/>}
                                             {refreshFailed && task.scheduleMode === 'random' && <p className="mt-1 text-xs text-red-600">进度刷新失败，稍后自动重试</p>}
 	                                    </div>
                                 </div>
@@ -910,104 +947,123 @@ export const AgentSettings = ({
                         return (
                             <div
                                 key={agent.id}
-                                className="group flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-orange-200 hover:shadow-md sm:flex-row sm:items-center"
+                                className="group relative flex flex-col gap-3.5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-orange-200 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
                             >
-                                <div className="flex min-w-0 flex-1 items-center gap-4">
-                                    <AgentAvatar agent={agent} size="lg"/>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                            <h4 className="truncate text-base font-bold text-slate-900">{agent.name}{agent.professionName ? ` · ${agent.professionName}` : ''}</h4>
-                                            <span className="truncate text-xs text-slate-400">
+                                <div className="flex min-w-0 flex-1 items-start sm:items-center gap-3.5">
+                                    <div className="shrink-0 pt-0.5 sm:pt-0">
+                                        <AgentAvatar agent={agent} size="lg"/>
+                                    </div>
+
+                                    <div className="min-w-0 flex-1 space-y-1.5">
+                                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                                            <h4 className="truncate text-base font-bold text-slate-900">
+                                                {agent.name}
+                                                {agent.professionName ? <span className="font-normal text-slate-500"> · {agent.professionName}</span> : ''}
+                                            </h4>
+                                            {agent.stamina && <span className="rounded-full bg-lime-50 px-2 py-0.5 text-xs text-lime-700">体力 {agent.stamina} / 100</span>}
+                                            <span className="truncate text-xs font-mono text-slate-400">
                                                 {agent.modelDetail?.name || '未绑定模型'}
                                             </span>
                                         </div>
-                                        <div className="group/prompt relative mt-1.5">
-                                            <p className="line-clamp-2 text-sm leading-6 text-slate-600">
+
+                                        <div className="group/prompt relative">
+                                            <p className="line-clamp-1 sm:line-clamp-2 text-xs leading-5 text-slate-600">
                                                 {agent.prompt || '未设置提示词'}
                                             </p>
-                                            <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 hidden w-80 max-w-[min(80vw,28rem)] rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600 shadow-xl shadow-slate-900/10 group-hover/prompt:block">
+                                            <div className="pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-80 max-w-[min(80vw,28rem)] rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600 shadow-xl shadow-slate-900/10 group-hover/prompt:block">
                                                 {agent.prompt || '未设置提示词'}
                                             </div>
                                         </div>
+
+                                        {/* 横向流式能力徽标 */}
+                                        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                                            <div className="inline-flex h-6 min-w-0 items-center gap-1 rounded-md border border-blue-100 bg-blue-50/70 px-2 text-[11px] text-blue-700">
+                                                <BrainCircuit className="h-3 w-3 shrink-0 text-blue-600"/>
+                                                <span className="font-semibold shrink-0">模型</span>
+                                                <span className="truncate max-w-[100px]">
+                                                    {agent.modelDetail?.type === 'chat' ? 'Chat' : (agent.modelDetail?.type || '未配置')}
+                                                </span>
+                                            </div>
+
+                                            <div className="group/mcp relative">
+                                                <div className="inline-flex h-6 min-w-0 cursor-default items-center gap-1 rounded-md border border-emerald-100 bg-emerald-50/70 px-2 text-[11px] text-emerald-700 transition-colors group-hover/mcp:bg-emerald-100/70">
+                                                    <Code2 className="h-3 w-3 shrink-0 text-emerald-600"/>
+                                                    <span className="font-semibold shrink-0">MCP</span>
+                                                    <span className="truncate">{mcpSummary}</span>
+                                                </div>
+                                                {mcpNames.length > 0 && (
+                                                    <div className="absolute left-0 top-full z-30 mt-1.5 hidden w-56 rounded-xl border border-emerald-100 bg-white p-2 text-xs text-slate-600 shadow-xl shadow-slate-900/10 group-hover/mcp:block">
+                                                        <div className="px-2 pb-1.5 font-semibold text-emerald-700">已绑定 MCP ({mcpNames.length})</div>
+                                                        <div className="max-h-48 space-y-1 overflow-auto">
+                                                            {mcpNames.map(name => (
+                                                                <div key={name} className="flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50/70 px-2.5 py-1.5 text-xs text-emerald-800 transition-colors hover:border-emerald-200 hover:bg-emerald-50">
+                                                                    <Code2 className="h-3.5 w-3.5 shrink-0 text-emerald-600"/>
+                                                                    <span className="truncate">{name}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="group/skill relative">
+                                                <div className="inline-flex h-6 min-w-0 cursor-default items-center gap-1 rounded-md border border-orange-100 bg-orange-50/70 px-2 text-[11px] text-orange-700 transition-colors group-hover/skill:bg-orange-100/70">
+                                                    <WandSparkles className="h-3 w-3 shrink-0 text-orange-600"/>
+                                                    <span className="font-semibold shrink-0">技能</span>
+                                                    <span className="truncate">{skillSummary}</span>
+                                                </div>
+                                                {skillNames.length > 0 && (
+                                                    <div className="absolute left-0 top-full z-30 mt-1.5 hidden w-56 rounded-xl border border-orange-100 bg-white p-2 text-xs text-slate-600 shadow-xl shadow-slate-900/10 group-hover/skill:block">
+                                                        <div className="px-2 pb-1.5 font-semibold text-orange-700">已绑定技能 ({skillNames.length})</div>
+                                                        <div className="max-h-48 space-y-1 overflow-auto">
+                                                            {skillNames.map(name => (
+                                                                <div key={name} className="flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50/70 px-2.5 py-1.5 text-xs text-orange-800 transition-colors hover:border-orange-200 hover:bg-orange-50">
+                                                                    <WandSparkles className="h-3.5 w-3.5 shrink-0 text-orange-600"/>
+                                                                    <span className="truncate">{name}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className={`inline-flex h-6 min-w-0 items-center gap-1 rounded-md border px-2 text-[11px] ${
+                                                agent.feishuImEnabled
+                                                    ? 'border-sky-100 bg-sky-50/70 text-sky-700'
+                                                    : 'border-slate-200 bg-slate-50/60 text-slate-400'
+                                            }`}>
+                                                <MessageCircle className={`h-3 w-3 shrink-0 ${agent.feishuImEnabled ? 'text-sky-600' : 'text-slate-400'}`}/>
+                                                <span className="font-semibold shrink-0">飞书</span>
+                                                <span className="truncate">{agent.feishuImEnabled ? '已开启' : '未开启'}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col gap-2 sm:w-36">
-                                    <div className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-2.5 text-xs text-blue-700">
-                                        <BrainCircuit className="h-3.5 w-3.5 shrink-0 text-blue-600"/>
-                                        <span className="shrink-0 font-semibold">模型</span>
-                                        <span className="truncate">
-                                            {agent.modelDetail?.type === 'chat' ? 'Chat' : (agent.modelDetail?.type || '未配置')}
-                                        </span>
-                                    </div>
-                                    <div className="group/mcp relative">
-                                        <div className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 text-xs text-emerald-700">
-                                            <Code2 className="h-3.5 w-3.5 shrink-0 text-emerald-600"/>
-                                            <span className="shrink-0 font-semibold">MCP</span>
-                                            <span className="truncate">{mcpSummary}</span>
-                                        </div>
-                                        {mcpNames.length > 0 && (
-                                            <div className="absolute right-0 top-full z-30 mt-2 hidden w-56 rounded-xl border border-emerald-100 bg-white p-2 text-xs text-slate-600 shadow-xl shadow-slate-900/10 group-hover/mcp:block">
-                                                <div className="px-2 pb-1.5 font-semibold text-emerald-700">已绑定 MCP</div>
-                                                <div className="max-h-48 space-y-1 overflow-auto">
-                                                    {mcpNames.map(name => (
-                                                        <div key={name} className="flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50/70 px-2.5 py-2 text-emerald-800 transition-colors hover:border-emerald-200 hover:bg-emerald-50">
-                                                            <Code2 className="h-3.5 w-3.5 shrink-0 text-emerald-600"/>
-                                                            <span className="truncate">{name}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="group/skill relative">
-                                        <div className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg border border-orange-100 bg-orange-50 px-2.5 text-xs text-orange-700">
-                                            <WandSparkles className="h-3.5 w-3.5 shrink-0 text-orange-600"/>
-                                            <span className="shrink-0 font-semibold">技能</span>
-                                            <span className="truncate">{skillSummary}</span>
-                                        </div>
-                                        {skillNames.length > 0 && (
-                                            <div className="absolute right-0 top-full z-30 mt-2 hidden w-56 rounded-xl border border-orange-100 bg-white p-2 text-xs text-slate-600 shadow-xl shadow-slate-900/10 group-hover/skill:block">
-                                                <div className="px-2 pb-1.5 font-semibold text-orange-700">已绑定技能</div>
-                                                <div className="max-h-48 space-y-1 overflow-auto">
-                                                    {skillNames.map(name => (
-                                                        <div key={name} className="flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50/70 px-2.5 py-2 text-orange-800 transition-colors hover:border-orange-200 hover:bg-orange-50">
-                                                            <WandSparkles className="h-3.5 w-3.5 shrink-0 text-orange-600"/>
-                                                            <span className="truncate">{name}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className={`flex h-8 min-w-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs ${agent.feishuImEnabled ? 'border-sky-100 bg-sky-50 text-sky-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
-                                        <MessageCircle className={`h-3.5 w-3.5 shrink-0 ${agent.feishuImEnabled ? 'text-sky-600' : 'text-slate-400'}`}/>
-                                        <span className="shrink-0 font-semibold">飞书</span>
-                                        <span className="truncate">{agent.feishuImEnabled ? 'IM 已开启' : '未开启'}</span>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center justify-end gap-1 sm:w-9 sm:flex-col sm:justify-center">
+                                <div className="flex shrink-0 items-center justify-end gap-1 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
                                     <button
+                                        type="button"
                                         onClick={() => openMemoryModal(agent)}
-                                        className="p-2 text-slate-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600 rounded-lg"
+                                        className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
                                         title="管理记忆"
                                     >
-                                        <Database className="w-4 h-4"/>
+                                        <Database className="h-4 w-4"/>
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={() => openEditModal(agent)}
-                                        className="p-2 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600 rounded-lg"
+                                        className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
                                         title="编辑 Agent"
                                     >
-                                        <Edit2 className="w-4 h-4"/>
+                                        <Edit2 className="h-4 w-4"/>
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={() => onDelete({type: 'agent', agentId: agent.id})}
-                                        className="p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 rounded-lg"
+                                        className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
                                         title="删除 Agent"
                                     >
-                                        <Trash2 className="w-4 h-4"/>
+                                        <Trash2 className="h-4 w-4"/>
                                     </button>
                                 </div>
                             </div>
@@ -1170,7 +1226,7 @@ export const AgentSettings = ({
                     <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
                         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                             <div>
-                                <h3 className="text-lg font-bold text-slate-900">{taskForm.id ? '编辑任务' : '新建任务'}</h3>
+                                <h3 className="text-lg font-bold text-slate-900">{isSystemTask ? '配置系统任务' : taskForm.id ? '编辑任务' : '新建自定义任务'}</h3>
                                 <p className="mt-1 text-xs text-slate-500">配置 Agent 在什么时机执行什么任务，以及输出到哪里</p>
                             </div>
                             <button
@@ -1182,10 +1238,19 @@ export const AgentSettings = ({
                         </div>
 
                         <div className="max-h-[72vh] space-y-5 overflow-y-auto p-6">
+                            <p className="text-xs text-orange-600">{isSystemTask ? '内置系统任务 · 阅读帖子并评论打分' : '自定义任务'}</p>
+                            {isSystemTask && <>
+                                <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
+                                    onCollectionsChange={postCollectionIds => setTaskForm({...taskForm, postCollectionIds})} onCategoriesChange={postCategoryIds => setTaskForm({...taskForm, postCategoryIds})}/>
+                                {!isManualTask && <SystemTaskScheduleFields mode={taskForm.scheduleMode} period={taskForm.randomPeriod} count={taskForm.randomCount} interval={taskForm.intervalMinutes}
+                                    onChange={patch => setTaskForm({...taskForm, ...patch})}/>}
+                            </>}
+
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">任务名称</label>
                                 <input
                                     value={taskForm.name}
+                                    readOnly={isSystemTask}
                                     onChange={event => setTaskForm({...taskForm, name: event.target.value})}
                                     placeholder="如：每日科技文章写作"
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
@@ -1216,7 +1281,7 @@ export const AgentSettings = ({
                                         })}
                                     </div>
                                 </div>
-                                <div className="space-y-2">
+                                {!isSystemTask && <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-700">执行模式</label>
                                     <SettingsSelect
                                         value={taskForm.executionMode}
@@ -1224,7 +1289,7 @@ export const AgentSettings = ({
                                         onChange={executionMode => setTaskForm({...taskForm, executionMode, randomAllocations: {}})}
                                         buttonClassName="bg-slate-50"
                                     />
-                                </div>
+                                </div>}
                             </div>
 
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1232,7 +1297,7 @@ export const AgentSettings = ({
                                     <label className="text-sm font-semibold text-slate-700">触发方式</label>
                                     <SettingsSelect
                                         value={taskForm.trigger}
-                                        options={taskTriggerOptions}
+                                        options={isSystemTask ? taskTriggerOptions.filter(option => ['定时任务', '手动执行'].includes(option.value)) : taskTriggerOptions}
                                         onChange={trigger => setTaskForm({...taskForm, trigger})}
                                         buttonClassName="bg-slate-50"
                                         showSelectedDescription={false}
@@ -1240,11 +1305,11 @@ export const AgentSettings = ({
                                 </div>
                             </div>
 
-                            {taskForm.trigger === '定时任务' && <div className="space-y-2">
+                            {!isSystemTask && taskForm.trigger === '定时任务' && <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">调度方式</label>
                                 <SettingsSelect value={taskForm.scheduleMode} options={[{value: 'fixed', label: '固定时间 / 间隔'}, {value: 'random', label: '周期随机'}]} onChange={scheduleMode => setTaskForm({...taskForm, scheduleMode})}/>
                             </div>}
-                            {taskForm.trigger === '定时任务' && taskForm.scheduleMode === 'random' && <RandomTaskScheduleFields
+                            {!isSystemTask && taskForm.trigger === '定时任务' && taskForm.scheduleMode === 'random' && <RandomTaskScheduleFields
                                 period={taskForm.randomPeriod} count={taskForm.randomCount} mode={taskForm.executionMode}
                                 agents={taskForm.agents.map(id => ({id, name: agents.find(agent => agent.id === id)?.name || id}))}
                                 allocations={taskForm.randomAllocations}
@@ -1252,7 +1317,7 @@ export const AgentSettings = ({
                                 onCountChange={randomCount => setTaskForm({...taskForm, randomCount})}
                                 onAllocationsChange={randomAllocations => setTaskForm({...taskForm, randomAllocations})}
                             />}
-                            {!isManualTask && !(taskForm.trigger === '定时任务' && taskForm.scheduleMode === 'random') && (
+                            {!isSystemTask && !isManualTask && !(taskForm.trigger === '定时任务' && taskForm.scheduleMode === 'random') && (
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                     <div className="space-y-2">
                                         <label className="text-sm font-semibold text-slate-700">执行周期</label>
@@ -1370,7 +1435,7 @@ export const AgentSettings = ({
                             </div>
 
 
-                            <div className="rounded-xl border border-orange-100 bg-orange-50/50 px-4 py-3">
+                            {!isSystemTask && <div className="rounded-xl border border-orange-100 bg-orange-50/50 px-4 py-3">
                                 <label className="flex cursor-pointer items-center justify-between gap-4">
                                     <div className="flex items-start gap-3">
                                         <div className="mt-0.5 rounded-lg bg-white p-2 text-orange-600 shadow-sm ring-1 ring-orange-100">
@@ -1426,11 +1491,11 @@ export const AgentSettings = ({
                                         </div>
                                     </div>
                                 )}
-                            </div>
+                            </div>}
 
                             <div className="space-y-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <label htmlFor="task-prompt" className="text-sm font-semibold text-slate-700">任务提示词</label>
+                                    <label htmlFor="task-prompt" className="text-sm font-semibold text-slate-700">{isSystemTask ? '补充要求（可选）' : '任务提示词'}</label>
                                     <PromptEditorModal
                                         name={taskForm.name}
                                         subject="任务"
@@ -1475,7 +1540,7 @@ export const AgentSettings = ({
                                 className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-orange-600 active:bg-orange-700"
                             >
                                 <Sparkles className="w-4 h-4"/>
-                                保存任务
+                                {isSystemTask ? '保存配置' : '保存任务'}
                             </button>
                         </div>
                     </div>
@@ -1755,6 +1820,8 @@ export const AgentSettings = ({
                             </div>
 
                             <ProfessionSelect value={form.profession} onChange={profession => setForm({...form, profession})}/>
+                            <PostInteractionScopeFields supplemental collectionIds={form.postCollectionIds || []} categoryIds={form.postCategoryIds || []}
+                                onCollectionsChange={postCollectionIds => setForm({...form, postCollectionIds})} onCategoriesChange={postCategoryIds => setForm({...form, postCategoryIds})}/>
 
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">名字</label>

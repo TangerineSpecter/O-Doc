@@ -266,6 +266,8 @@ def backfill_relation_events():
 
 
 def relation_graph():
+    from .agent_world.execution import stamina
+
     backfill_relation_events()
     recompute_all_relations()
     agents = list(Agent.objects.select_related("profession").all())
@@ -279,6 +281,7 @@ def relation_graph():
             'name': agent.name,
             'avatar': agent.avatar,
             'money': format(agent.money, '.2f'),
+            'stamina': format(stamina(agent), '.1f'),
             'profession_name': agent.profession.name if agent.profession else '',
             'creativity': snapshot.score if snapshot else 0,
             'post_count': snapshot.post_count if snapshot else 0,

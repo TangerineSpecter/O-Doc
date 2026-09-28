@@ -178,8 +178,22 @@ class AgentViewSet(viewsets.ModelViewSet):
 
 
 class AgentTaskViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
     queryset = AgentTask.objects.select_related('agent', 'followup_agent').all()
     serializer_class = AgentTaskSerializer
+
+    @action(detail=False, methods=['get', 'post'])
+    def world_runner(self, request):
+        from .models import WorldActionRuntime
+        runtime, _ = WorldActionRuntime.objects.get_or_create(pk='world')
+        if request.method == 'POST':
+            value = request.data.get('enabled')
+            if type(value) is not bool:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({'enabled': '必须是布尔值'})
+            runtime.enabled = value
+            runtime.save(update_fields=['enabled'])
+        return success_result({'enabled': runtime.enabled})
 
     def list(self, request, *args, **kwargs):
         return success_result(self.get_serializer(self.filter_queryset(self.get_queryset()), many=True).data)
@@ -202,6 +216,9 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         return success_result(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
+        if self.get_object().task_kind == 'post_interaction':
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'detail': '内置系统任务不能删除，请关闭任务'})
         self.perform_destroy(self.get_object())
         return success_result()
 

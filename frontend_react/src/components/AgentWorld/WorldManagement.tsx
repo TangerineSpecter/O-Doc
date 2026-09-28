@@ -109,27 +109,27 @@ export function WorldManagement() {
 
     return (
         <div className="space-y-6">
-            {/* 顶层头部卡片 - 对齐 AgentSettings 与 AISettings 风格 */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
+            {/* 顶层头部卡片 - 对齐 AgentSettings 紧凑单行风格 */}
+            <div className="bg-white rounded-2xl border border-slate-200 px-5 py-3.5 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
                             <Globe className="w-5 h-5" />
                         </div>
-                        <div>
-                            <h3 className="font-bold text-slate-800">Agent 世界</h3>
-                            <p className="text-xs text-slate-500 mt-1">
+                        <div className="min-w-0">
+                            <h3 className="font-bold text-slate-800 text-sm">Agent 世界</h3>
+                            <p className="text-xs text-slate-500 mt-0.5 truncate max-w-md lg:max-w-lg xl:max-w-xl">
                                 管理分类、职业与事件收益。行动由任务分配触发，使用现实时间。
                             </p>
                         </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <div className="flex shrink-0 items-center gap-2.5">
                         {/* 胶囊分段控制器 */}
-                        <div className="flex rounded-lg bg-slate-100 p-1">
+                        <div className="flex rounded-lg bg-slate-100 p-0.5 shrink-0">
                             <button
                                 type="button"
                                 onClick={() => setTab('categories')}
-                                className={`min-w-20 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                                className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${
                                     tab === 'categories'
                                         ? 'bg-white text-slate-900 shadow-sm'
                                         : 'text-slate-500 hover:text-slate-700'
@@ -140,7 +140,7 @@ export function WorldManagement() {
                             <button
                                 type="button"
                                 onClick={() => setTab('professions')}
-                                className={`min-w-20 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                                className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${
                                     tab === 'professions'
                                         ? 'bg-white text-slate-900 shadow-sm'
                                         : 'text-slate-500 hover:text-slate-700'
@@ -151,7 +151,7 @@ export function WorldManagement() {
                             <button
                                 type="button"
                                 onClick={() => setTab('income')}
-                                className={`min-w-20 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                                className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${
                                     tab === 'income'
                                         ? 'bg-white text-slate-900 shadow-sm'
                                         : 'text-slate-500 hover:text-slate-700'
@@ -166,10 +166,11 @@ export function WorldManagement() {
                             <button
                                 type="button"
                                 onClick={openCreateCategory}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20 whitespace-nowrap shrink-0"
+                                title="新增分类"
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-xs shadow-orange-500/20 whitespace-nowrap shrink-0 active:scale-95"
                             >
                                 <Plus className="w-3.5 h-3.5 shrink-0" />
-                                新增分类
+                                新增
                             </button>
                         )}
 
@@ -177,10 +178,11 @@ export function WorldManagement() {
                             <button
                                 type="button"
                                 onClick={openCreateProfession}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-sm shadow-orange-500/20 whitespace-nowrap shrink-0"
+                                title="新增职业"
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-xs shadow-orange-500/20 whitespace-nowrap shrink-0 active:scale-95"
                             >
                                 <Plus className="w-3.5 h-3.5 shrink-0" />
-                                新增职业
+                                新增
                             </button>
                         )}
                     </div>
