@@ -594,7 +594,8 @@ class Skill(models.Model):
 class AgentTask(models.Model):
     """Agent 任务配置"""
 
-    task_kind = models.CharField(max_length=40, choices=[('custom', '自定义任务'), ('post_interaction', '阅读帖子并评论打分'), ('post_publish', '自主选题并发帖'), ('travel', '旅行')], default='custom')
+    task_kind = models.CharField(max_length=40, choices=[('custom', '自定义任务'), ('post_interaction', '阅读帖子并评论打分'), ('post_publish', '自主选题并发帖'), ('travel', '旅行'), ('farm', '农场经营')], default='custom')
+    farm_config = models.JSONField(default=dict, blank=True)
     travel_config = models.JSONField(default=dict, blank=True)
     post_collection_ids = models.JSONField(default=list, blank=True)
     post_category_ids = models.JSONField(default=list, blank=True)
@@ -955,3 +956,5 @@ class GeoLocation(models.Model):
 
 from .agent_world.models import (WorldCategory, WorldProfession, WorldProfessionCategory, WorldIncomeConfig, WorldLedger, WorldIncomeEvent, WorldChange, WorldCategoryMigration, WorldMonthSettlement)  # noqa: E402,F401
 from .agent_world.travel_models import TravelDestination, TravelSeedState, TravelJourney, TravelNode, AgentInventoryItem, TravelRuntime, TravelMaterialCache  # noqa: E402,F401
+
+from .agent_world.farm_models import FarmCatalog, AgentFarm, FarmOperation  # noqa: E402,F401

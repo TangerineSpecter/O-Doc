@@ -27,6 +27,9 @@ from system_settings.sync_state import (
 )
 
 
+from system_settings.agent_world.farm_gate import guarded as farm_sync_guard
+
+
 class SyncError(Exception):
     """同步过程中的显式失败。"""
 
@@ -716,6 +719,7 @@ class SyncManager:
             if os.path.isfile(path):
                 Book.objects.filter(book_id=book.book_id).update(remote_available=True, remote_hash=book.asset.file_hash)
 
+    @farm_sync_guard
     def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None):
         """把快照写回数据库。full_overwrite 用于本地压缩包导入，按备份全量覆盖。"""
         from article.image_search_service import delete_image_vectors
@@ -819,6 +823,8 @@ class SyncManager:
                             stale = stale.exclude(pk__in=[asset.pk for asset in owned])
                         stale.delete()
 
+            from system_settings.agent_world.farm_sync import reconcile_farms
+            reconcile_farms()
             from system_settings.agent_world.settlement import reconcile_awards
             reconcile_awards()
             self._reset_restored_sequences(restored_models)
@@ -836,6 +842,7 @@ class SyncManager:
 
         return len(data_list)
 
+    @farm_sync_guard
     def sync_data_download(self, remote_meta=None, should_abort=None):
         """下载并恢复数据库快照，同时清理本地多余记录。"""
         self._ensure_not_aborted(should_abort)
@@ -1101,6 +1108,7 @@ class SyncManager:
                 "请先升级本机后再导入。"
             )
 
+    @farm_sync_guard
     def build_snapshot_data(self):
         all_data = []
         for model in self._iter_target_models():
@@ -1124,6 +1132,7 @@ class SyncManager:
             if (rel_path := self._book_body_rel_path(book))
         }
 
+    @farm_sync_guard
     def write_local_backup_zip(self, zip_path, source='local-export', runner_id=''):
         data_list = self.build_snapshot_data()
         meta = self.build_snapshot_meta(source=source, runner_id=runner_id)
@@ -1170,6 +1179,7 @@ class SyncManager:
                 Book.objects.filter(book_id=book.book_id).update(local_state='cloud_only')
         return len(copied)
 
+    @farm_sync_guard
     def import_local_backup_zip(self, zip_path, should_abort=None):
         extract_dir = tempfile.mkdtemp(prefix='odoc-backup-')
         try:
@@ -1711,6 +1721,7 @@ class SyncManager:
                     },
                 )
 
+    @farm_sync_guard
     def create_local_safety_backup(self, reason):
         root = os.path.join(str(settings.MEDIA_ROOT), '.sync-v2-safety')
         os.makedirs(root, exist_ok=True)
@@ -1727,6 +1738,7 @@ class SyncManager:
             os.remove(os.path.join(root, rel_path))
         return path
 
+    @farm_sync_guard
     def sync_v2(
         self, *, source='manual', runner_id='', base_snapshot_id='', on_progress=None,
         should_abort=None, recover_owned_remote_lock=False,
@@ -1800,6 +1812,7 @@ class SyncManager:
             )
         return snapshot, summary, safety_backup
 
+    @farm_sync_guard
     def restore_v2_snapshot(self, snapshot_id, *, runner_id=''):
         safety_backup = self.create_local_safety_backup('before-restore')
         with self._remote_sync_lock(runner_id):

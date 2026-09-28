@@ -6,4 +6,6 @@ POST_PUBLISH_ID = 'builtin-post-publish'
 POST_PUBLISH_NAME = '自主选题并发帖'
 TRAVEL_ID = 'builtin-travel'
 TRAVEL_NAME = '旅行'
-SYSTEM_TASK_KINDS = ('post_interaction', 'post_publish', 'travel')
+FARM_ID = 'builtin-farm'
+FARM_NAME = '农场经营'
+SYSTEM_TASK_KINDS = ('post_interaction', 'post_publish', 'travel', 'farm')

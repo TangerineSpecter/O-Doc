@@ -1,3 +1,4 @@
+import {farmItemIcon} from '../Farm/assets';
 import type {CSSProperties} from 'react';
 import {
     X,
@@ -16,12 +17,13 @@ import {inventoryRarities} from './inventoryRarities';
 import {ItemIconImage} from './ItemIconImage';
 
 export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onClose: () => void}) {
+    const isFarm = Boolean(farmItemIcon(item.source.sku || ''));
     const rarity = inventoryRarities[item.rarity] || inventoryRarities.common;
     const value = item.value ?? item.source.unitPrice;
     const number = value ? Number(value) : NaN;
     const displayValue = Number.isFinite(number) ? number.toLocaleString('zh-CN', {maximumFractionDigits: 2}) : '—';
     const firstChar = Array.from(item.name.trim())[0] || '物';
-    const destination = [item.source.destination?.country, item.source.destination?.city].filter(Boolean).join(' · ') || '未明旅途';
+    const destination = [item.source.destination?.country, item.source.destination?.city].filter(Boolean).join(' · ') || (isFarm ? '世界物品' : '未明旅途');
 
     return (
         <section
@@ -73,14 +75,14 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
             <div className="inventory-item-hero">
                 <div className="inventory-item-emblem-wrapper">
                     <div className="inventory-item-emblem" aria-hidden="true">
-                        <ItemIconImage src={item.iconUrl} alt={item.name} className="relative z-10 h-[80%] w-[80%]" fallback={<span className="relic-emblem-char">{firstChar}</span>}/>
+                        <ItemIconImage src={item.iconUrl || (farmItemIcon(item.source.sku || ''))} alt={item.name} className="relative z-10 h-[80%] w-[80%]" fallback={<span className="relic-emblem-char">{firstChar}</span>}/>
                         <div className="relic-emblem-shine" />
                     </div>
                 </div>
                 <div className="inventory-item-hero-meta">
                     <div className="inventory-item-badge-tag">
                         <Compass size={11} />
-                        <span>旅行纪念珍藏</span>
+                        <span>{isFarm ? '经营物品' : '旅行纪念珍藏'}</span>
                     </div>
                     <h3 className="inventory-item-title" title={item.name}>{item.name}</h3>
                 </div>
@@ -130,18 +132,18 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                 <div className="relic-dossier-row">
                     <dt className="relic-dossier-key">
                         <Tag size={12} />
-                        <span>{item.source.debug ? '调试参考单价' : '购入单价'}</span>
+                        <span>{isFarm ? '参考单价' : item.source.debug ? '调试参考单价' : '购入单价'}</span>
                     </dt>
                     <span className="relic-dossier-line" aria-hidden="true" />
                     <dd className="relic-dossier-value">
-                        {item.source.unitPrice ? `${item.source.unitPrice} 世界币` : '—'}
+                        {isFarm ? `${displayValue} 世界币` : item.source.unitPrice ? `${item.source.unitPrice} 世界币` : '—'}
                     </dd>
                 </div>
 
                 <div className="relic-dossier-row">
                     <dt className="relic-dossier-key">
                         <Compass size={12} />
-                        <span>旅行来源</span>
+                        <span>{isFarm ? '物品来源' : '旅行来源'}</span>
                     </dt>
                     <span className="relic-dossier-line" aria-hidden="true" />
                     <dd className="relic-dossier-value relic-dossier-dest" title={destination}>

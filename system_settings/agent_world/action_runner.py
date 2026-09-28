@@ -107,6 +107,9 @@ def commit_feedback(action_id, task, agent, post, feedback, token, *, manual=Fal
 
 
 def repair_effects(action):
+    if action.snapshot.get('farm'):
+        from .farm_runner import finish
+        return finish(action)
     if action.snapshot.get('template_version') and 'config' in action.snapshot:
         from .publish_runner import repair_publication
         return repair_publication(action)
@@ -231,7 +234,7 @@ def tick(scheduler):
                 logger.exception('发帖通知恢复失败 action=%s', publication.pk)
     # 崩溃后不重做模型选择；已提交事实由上面的恢复逻辑完成后续处理。
     stale = timezone.now() - timedelta(minutes=15)
-    interrupted = WorldAction.objects.filter(status='claimed', updated_at__lt=stale).exclude(task__task_kind__in=['post_publish', 'travel'])
+    interrupted = WorldAction.objects.filter(status='claimed', updated_at__lt=stale).exclude(task__task_kind__in=['post_publish', 'travel', 'farm'])
     record_ids = list(interrupted.values_list('record_id', flat=True))
     interrupted.update(status='failed', result={'reason': '执行中断，本机会结束'})
     AgentRunRecord.objects.filter(pk__in=record_ids, status='running').update(status='failed', summary='执行中断，本机会结束', updated_at=timezone.now())
@@ -244,6 +247,8 @@ def tick(scheduler):
             return
         from .travel_runner import tick_travel
         tick_travel(scheduler, token, manual_only=not runtime.enabled)
+        from .farm_runner import tick_farms
+        tick_farms(scheduler, token, runtime.enabled)
         if not runtime.enabled:
             return
         # 恢复可能继续检索、写作和发布，同样受本机开关与世界执行锁约束。

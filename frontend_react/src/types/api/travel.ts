@@ -25,5 +25,5 @@ export interface TravelJourney {
     };
     nodes?: {id: string; kind: string; status: string; error: string}[];
 }
-export interface InventoryItem {id: string; actorId: string; actorName: string; originActorId: string; originActorName: string; rarity: string; value: string; name: string; quantity: number; iconAssetId?: string | null; iconUrl?: string; source: {destination?: Destination; unitPrice?: string; debug?: boolean; description?: string}}
+export interface InventoryItem {kind?: string; id: string; actorId: string; actorName: string; originActorId: string; originActorName: string; rarity: string; value: string; name: string; quantity: number; iconAssetId?: string | null; iconUrl?: string; source: {sku?: string; quality?: string; destination?: Destination; unitPrice?: string; debug?: boolean; description?: string}}
 export type TravelOperation = 'pause' | 'resume' | 'end' | 'query_image' | 'regenerate_image' | 'use_image' | 'abandon_image';

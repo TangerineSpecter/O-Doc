@@ -5,6 +5,7 @@ from django.db import transaction
 from rest_framework import serializers
 from .models import Agent, AgentActivity, AgentLongTermMemory, AgentRunRecord, AgentTask, AIProvider, AIModel, MCPServer, Skill, SystemSetting, GeoLocation
 from .agent_world.scope_validation import PostScopeValidation
+from .agent_world.farm_gate import guarded as farm_guarded
 
 class AIModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -366,7 +367,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         fields = [
             'id',
             'name',
-            'task_kind', 'publish_config', 'travel_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
+            'task_kind', 'publish_config', 'travel_config', 'farm_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
             'agent',
             'agent_name',
             'agents',
@@ -404,23 +405,24 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         return [agents[agent_id] for agent_id in ids if agent_id in agents]
 
     def get_random_progress(self, obj):
-        if obj.task_kind in ('post_interaction', 'post_publish', 'travel'):
+        if obj.task_kind in ('post_interaction', 'post_publish', 'travel', 'farm'):
             return None
         from .agent_random_schedule import progress
         return progress(obj)
 
     def get_world_progress(self, obj):
-        if obj.task_kind not in ('post_interaction', 'post_publish', 'travel'):
+        if obj.task_kind not in ('post_interaction', 'post_publish', 'travel', 'farm'):
             return None
         from .agent_world.action_schedule import progress
         return progress(obj)
 
+    @farm_guarded
     @transaction.atomic
     def create(self, validated_data):
-        if validated_data.get('task_kind') in ('post_interaction', 'post_publish', 'travel'):
-            from .agent_world.builtin_tasks import POST_INTERACTION_ID, POST_PUBLISH_ID, TRAVEL_ID
+        if validated_data.get('task_kind') in ('post_interaction', 'post_publish', 'travel', 'farm'):
+            from .agent_world.builtin_tasks import POST_INTERACTION_ID, POST_PUBLISH_ID, TRAVEL_ID, FARM_ID
             kind = validated_data['task_kind']
-            builtin_id = {'post_publish': POST_PUBLISH_ID, 'post_interaction': POST_INTERACTION_ID, 'travel': TRAVEL_ID}[kind]
+            builtin_id = {'post_publish': POST_PUBLISH_ID, 'post_interaction': POST_INTERACTION_ID, 'travel': TRAVEL_ID, 'farm': FARM_ID}[kind]
             # 兼容此前保存的配置；首次保存采用固定标识，重复提交不创建第二个入口。
             task = AgentTask.objects.select_for_update().filter(task_kind=kind).first()
             if task is None:
@@ -434,6 +436,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         self.initialize_task(task)
         return task
 
+    @farm_guarded
     @transaction.atomic
     def update(self, instance, validated_data):
         task = super().update(instance, validated_data)
@@ -442,9 +445,12 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
 
     @staticmethod
     def initialize_task(task):
-        if task.task_kind in ('post_interaction', 'post_publish', 'travel'):
+        if task.task_kind in ('post_interaction', 'post_publish', 'travel', 'farm'):
             from .agent_world.action_schedule import initialize
             initialize(task)
+            if task.task_kind == 'farm':
+                from .agent_world.farm_service import ensure_farms
+                ensure_farms(task)
         else:
             from .agent_random_schedule import initialize_runtime
             initialize_runtime(task)
@@ -474,9 +480,9 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         kind = attrs.get('task_kind', getattr(self.instance, 'task_kind', 'custom'))
         if self.instance and kind != self.instance.task_kind:
             raise serializers.ValidationError({'task_kind': '已有任务不能改变类型，请新建任务'})
-        if kind in ('post_interaction', 'post_publish', 'travel'):
-            from .agent_world.builtin_tasks import POST_INTERACTION_NAME, POST_PUBLISH_NAME, TRAVEL_NAME
-            attrs['name'] = {'post_publish': POST_PUBLISH_NAME, 'post_interaction': POST_INTERACTION_NAME, 'travel': TRAVEL_NAME}[kind]
+        if kind in ('post_interaction', 'post_publish', 'travel', 'farm'):
+            from .agent_world.builtin_tasks import POST_INTERACTION_NAME, POST_PUBLISH_NAME, TRAVEL_NAME, FARM_NAME
+            attrs['name'] = {'post_publish': POST_PUBLISH_NAME, 'post_interaction': POST_INTERACTION_NAME, 'travel': TRAVEL_NAME, 'farm': FARM_NAME}[kind]
             if self.instance is None:
                 attrs.setdefault('enabled', False)
             attrs.update(execution_mode='serial', random_allocations={}, followup_enabled=False, followup_agent=None)
@@ -484,6 +490,18 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
                 raise serializers.ValidationError({'trigger': '系统任务仅支持自动调度或手动执行'})
             if attrs.get('schedule_mode', getattr(self.instance, 'schedule_mode', 'fixed')) == 'fixed':
                 attrs['schedule_type'] = 'interval'
+        if kind == 'farm':
+            from utils.drf_utils import get_current_user_identifier
+            request = self.context.get('request')
+            owner = get_current_user_identifier(request) if request else getattr(self.instance, 'farm_config', {}).get('owner_id')
+            if not owner:
+                raise serializers.ValidationError({'farm_config': '农场配置需要所属用户'})
+            previous = getattr(self.instance, 'farm_config', {}).get('owner_id')
+            if previous and owner != previous:
+                raise serializers.ValidationError({'farm_config': '无权更改其他用户的农场任务'})
+            attrs['farm_config'] = {'owner_id': owner}
+            if self.instance is None:
+                attrs.setdefault('interval_minutes', 30)
         if kind == 'travel' and self.instance is None:
             attrs.setdefault('schedule_mode', 'random')
             attrs.setdefault('random_period', 'weekly')

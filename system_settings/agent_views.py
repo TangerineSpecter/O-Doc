@@ -207,6 +207,11 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         return success_result(self.get_serializer(self.filter_queryset(self.get_queryset()), many=True).data)
 
     def create(self, request, *args, **kwargs):
+        if request.data.get('task_kind') == 'farm':
+            from utils.drf_utils import get_current_user_identifier
+            existing = AgentTask.objects.filter(task_kind='farm').first()
+            if existing and existing.farm_config.get('owner_id') != get_current_user_identifier(request):
+                return valid_result('无权修改此农场任务', status=403)
         if request.data.get('task_kind') == 'travel':
             from utils.drf_utils import get_current_user_identifier
             existing = AgentTask.objects.filter(task_kind='travel').first()
@@ -230,6 +235,8 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         from utils.drf_utils import get_current_user_identifier
+        if instance.task_kind == 'farm' and instance.farm_config.get('owner_id') != get_current_user_identifier(request):
+            return valid_result('无权修改此农场任务', status=403)
         if instance.task_kind == 'travel' and instance.travel_config.get('owner_id') != get_current_user_identifier(request):
             return valid_result('无权修改此旅行任务', status=403)
         if instance.task_kind == 'post_publish' and instance.publish_config.get('owner_id') != get_current_user_identifier(request):
@@ -241,7 +248,7 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         return success_result(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
-        if self.get_object().task_kind in ('post_interaction', 'post_publish', 'travel'):
+        if self.get_object().task_kind in ('post_interaction', 'post_publish', 'travel', 'farm'):
             return valid_result('内置系统任务不能删除，请关闭任务', status=400)
         self.perform_destroy(self.get_object())
         return success_result()
@@ -273,6 +280,10 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def run_now(self, request, pk=None):
         task = self.get_object()
+        if task.task_kind == 'farm':
+            from utils.drf_utils import get_current_user_identifier
+            if task.farm_config.get('owner_id') != get_current_user_identifier(request):
+                return valid_result('无权运行此农场任务', status=403)
         if task.task_kind == 'travel':
             from article.access import can_manage_anthology
             if not can_manage_anthology(request, task.travel_config.get('collection_id'), 'agent'):

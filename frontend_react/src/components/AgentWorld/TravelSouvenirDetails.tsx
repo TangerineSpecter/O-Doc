@@ -1,19 +1,21 @@
+import {farmItemIcon} from '../Farm/assets';
 import {Coins, Compass, History, Package, User, X} from 'lucide-react';
 import type {InventoryItem} from '../../types/api/travel';
 import {inventoryRarities} from './inventoryRarities';
 import {ItemIconImage} from './ItemIconImage';
 
 export function TravelSouvenirDetails({item, onClose}: {item: InventoryItem; onClose: () => void}) {
+    const isFarm = Boolean(farmItemIcon(item.source.sku || ''));
     const rarity = inventoryRarities[item.rarity] || inventoryRarities.common;
     const value = item.value ?? item.source.unitPrice;
     const number = value ? Number(value) : NaN;
     const displayValue = Number.isFinite(number) ? number.toLocaleString('zh-CN', {maximumFractionDigits: 2}) : '—';
-    const destination = [item.source.destination?.country, item.source.destination?.city].filter(Boolean).join(' · ') || '未明旅途';
+    const destination = [item.source.destination?.country, item.source.destination?.city].filter(Boolean).join(' · ') || (isFarm ? '世界物品' : '未明旅途');
 
     return <section aria-label="物品详情" aria-live="polite" className="max-h-[80vh] min-h-0 w-full min-w-0 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         <header className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
             <div className="flex min-w-0 items-center gap-2">
-                <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg border border-slate-100 bg-slate-50" style={{color: rarity.color}}><ItemIconImage src={item.iconUrl} alt={item.name} className="h-14 w-14" fallback={<Package size={22}/>}/></span>
+                <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg border border-slate-100 bg-slate-50" style={{color: rarity.color}}><ItemIconImage src={item.iconUrl || (farmItemIcon(item.source.sku || ''))} alt={item.name} className="h-14 w-14" fallback={<Package size={22}/>}/></span>
                 <div className="min-w-0">
                     <p className="text-[11px] text-slate-500">物品详情</p>
                     <h3 className="truncate text-sm font-semibold text-slate-800" title={item.name}>{item.name}</h3>
@@ -30,8 +32,8 @@ export function TravelSouvenirDetails({item, onClose}: {item: InventoryItem; onC
         <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
             <div><dt className="flex items-center gap-1 text-[10px] text-slate-500"><Package size={11}/>数量</dt><dd className="mt-0.5 truncate text-xs font-medium text-slate-800">{item.quantity} 件</dd></div>
             <div><dt className="flex items-center gap-1 text-[10px] text-slate-500"><Coins size={11}/>参考价值</dt><dd className="mt-0.5 truncate text-xs font-medium text-slate-800">{displayValue} 世界币</dd></div>
-            <div><dt className="flex items-center gap-1 text-[10px] text-slate-500"><Coins size={11}/>{item.source.debug ? '调试单价' : '购入单价'}</dt><dd className="mt-0.5 truncate text-xs font-medium text-slate-800">{item.source.unitPrice ? `${item.source.unitPrice} 世界币` : '—'}</dd></div>
-            <div><dt className="flex items-center gap-1 text-[10px] text-slate-500"><Compass size={11}/>旅行来源</dt><dd className="mt-0.5 truncate text-xs font-medium text-slate-800" title={destination}>{destination}</dd></div>
+            <div><dt className="flex items-center gap-1 text-[10px] text-slate-500"><Coins size={11}/>{isFarm ? '参考单价' : item.source.debug ? '调试单价' : '购入单价'}</dt><dd className="mt-0.5 truncate text-xs font-medium text-slate-800">{isFarm ? `${displayValue} 世界币` : item.source.unitPrice ? `${item.source.unitPrice} 世界币` : '—'}</dd></div>
+            <div><dt className="flex items-center gap-1 text-[10px] text-slate-500"><Compass size={11}/>{isFarm ? '物品来源' : '旅行来源'}</dt><dd className="mt-0.5 truncate text-xs font-medium text-slate-800" title={destination}>{destination}</dd></div>
             <div><dt className="flex items-center gap-1 text-[10px] text-slate-500"><History size={11}/>原始获得者</dt><dd className="mt-0.5 truncate text-xs font-medium text-slate-800" title={item.originActorId}>{item.originActorName || item.originActorId || '历史记录未提供'}</dd></div>
             <div><dt className="flex items-center gap-1 text-[10px] text-slate-500"><User size={11}/>当前所有者</dt><dd className="mt-0.5 truncate text-xs font-medium text-slate-800" title={item.actorId}>{item.actorName || item.actorId || '未知'}</dd></div>
         </dl>

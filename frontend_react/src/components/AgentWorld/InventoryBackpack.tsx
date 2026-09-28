@@ -1,3 +1,4 @@
+import {farmItemIcon} from '../Farm/assets';
 import {useRef, useState, type CSSProperties} from 'react';
 import {RefreshCw, X} from 'lucide-react';
 import {inventoryRarities} from './inventoryRarities';
@@ -17,7 +18,7 @@ interface InventoryBackpackProps {
     error?: string;
 }
 
-export function InventoryBackpack({items, name = '旅行者', onClose, onRefresh, loading, error}: InventoryBackpackProps) {
+export function InventoryBackpack({items, name = '居民', onClose, onRefresh, loading, error}: InventoryBackpackProps) {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const selected = items.find(item => item.id === selectedId);
     const selectedButton = useRef<HTMLButtonElement | null>(null);
@@ -34,7 +35,7 @@ export function InventoryBackpack({items, name = '旅行者', onClose, onRefresh
                     <span className="nameplate-top-emblem" aria-hidden="true">✦</span>
                     <h2>{name}的行囊</h2>
                     <div className="nameplate-divider" aria-hidden="true" />
-                    <p>TRAVELER’S COLLECTION</p>
+                    <p>RESIDENT’S INVENTORY</p>
                 </div>
                 <div className="inventory-backpack-tools">
                     {onRefresh && <button type="button" onClick={onRefresh} disabled={loading} className="inventory-backpack-tool" aria-label="刷新背包"><RefreshCw size={14}/></button>}
@@ -49,16 +50,16 @@ export function InventoryBackpack({items, name = '旅行者', onClose, onRefresh
                             style={{'--item-color': rarity.color} as CSSProperties}
                             aria-label={`${item.name}，${rarity.label}，${item.quantity} 件`} aria-pressed={selected?.id === item.id}
                             title={`${item.name} · ${rarity.label} · ×${item.quantity}`} onClick={event => {selectedButton.current = event.currentTarget; setSelectedId(item.id);}}>
-                            <ItemIconImage src={item.iconUrl} alt={item.name} className="absolute inset-[12%] h-[76%] w-[76%]" fallback={<span className="inventory-backpack-initial">{Array.from(item.name.trim())[0] || '物'}</span>}/>
+                            <ItemIconImage src={item.iconUrl || (farmItemIcon(item.source.sku || ''))} alt={item.name} className="absolute inset-[12%] h-[76%] w-[76%]" fallback={<span className="inventory-backpack-initial">{Array.from(item.name.trim())[0] || '物'}</span>}/>
                             <span className="inventory-backpack-quantity">{item.quantity}</span>
                             <span className="inventory-backpack-rarity"/>
                         </button>;
                     })}
                 </div>
-                <p className="inventory-backpack-summary">{loading ? '正在读取持有物…' : error ? '读取失败，可点击刷新重试' : `持有 ${count} 件物品 · ${items.length} 种珍藏`}</p>
+                <p className="inventory-backpack-summary">{loading ? '正在读取持有物…' : error ? '读取失败，可点击刷新重试' : `持有 ${count} 件物品 · ${items.length} 种物品`}</p>
             </div>
             {selected && !loading && !error && <InventoryItemDetails item={selected} onClose={closeDetails}/>}
-            <p className="inventory-backpack-hint">{!loading && !error && !items.length ? '行囊里还没有物品，获得的纪念品会收进这里。' : '点击格子，查看这件珍藏的故事'}</p>
+            <p className="inventory-backpack-hint">{!loading && !error && !items.length ? '背包里还没有物品，获得的物品会收进这里。' : '点击格子，查看物品详情'}</p>
         </div>
     </div>;
 }

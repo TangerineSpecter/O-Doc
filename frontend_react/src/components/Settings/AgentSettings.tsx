@@ -60,7 +60,7 @@ import {SystemTaskScheduleFields} from './agent/SystemTaskScheduleFields';
 import {WorldRunnerSwitch} from './agent/WorldRunnerSwitch';
 import {SystemTaskProgress} from './agent/SystemTaskProgress';
 import {BuiltinPostTaskCard} from './agent/BuiltinPostTaskCard';
-import {defaultPostInteractionTask, defaultPostPublishTask, defaultTravelTask} from './agent/builtinTasks';
+import {defaultPostInteractionTask, defaultPostPublishTask, defaultTravelTask, defaultFarmTask} from './agent/builtinTasks';
 import {TravelTaskFields} from './agent/TravelTaskFields';
 import {emptyTravelConfig, type TravelConfig} from '@/types/api/travel';
 import {travelConfigError} from '@/utils/agentTaskValidation';
@@ -105,7 +105,7 @@ type AgentForm = {
 type AgentView = 'list' | 'tasks' | 'records';
 
 type AgentTaskForm = {
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm';
     publishConfig?: AgentPublishConfig;
     travelConfig?: TravelConfig;
     postCollectionIds?: string[];
@@ -342,14 +342,16 @@ export const AgentSettings = ({
         return `每 ${task.intervalMinutes || '1'} 分钟`;
     };
 
-    const isSystemTask = ['post_interaction', 'post_publish', 'travel'].includes(taskForm.taskKind || '');
+    const isSystemTask = ['post_interaction', 'post_publish', 'travel', 'farm'].includes(taskForm.taskKind || '');
+    const isFarmTask = taskForm.taskKind === 'farm';
+    const builtinFarmTask = tasks.find(task => task.taskKind === 'farm') || defaultFarmTask;
     const isTravelTask = taskForm.taskKind === 'travel';
     const builtinTravelTask = tasks.find(task => task.taskKind === 'travel') || defaultTravelTask;
     const isPublishTask = taskForm.taskKind === 'post_publish';
     const builtinPublishTask = tasks.find(task => task.taskKind === 'post_publish') || defaultPostPublishTask;
     const isManualTask = taskForm.trigger === '手动执行';
     const builtinPostTask = tasks.find(task => task.taskKind === 'post_interaction') || defaultPostInteractionTask;
-    const customTasks = tasks.filter(task => !['post_interaction', 'post_publish', 'travel'].includes(task.taskKind || 'custom'));
+    const customTasks = tasks.filter(task => !['post_interaction', 'post_publish', 'travel', 'farm'].includes(task.taskKind || 'custom'));
 
     const openCreateModal = () => {
         clearAvatarPreview();
@@ -841,6 +843,10 @@ export const AgentSettings = ({
                         onConfigure={() => openEditTaskModal(builtinTravelTask)}
                         onToggle={() => toggleTaskEnabled(builtinTravelTask.id)}
                         onRun={() => runTaskNow(builtinTravelTask.id)}/>
+                    <BuiltinPostTaskCard task={builtinFarmTask} agentNames={getTaskAgentNames(builtinFarmTask)}
+                        running={!!builtinFarmTask.id && runningTaskId === builtinFarmTask.id} progress={worldProgressByTask[builtinFarmTask.id]}
+                        onConfigure={() => openEditTaskModal(builtinFarmTask)} onToggle={() => toggleTaskEnabled(builtinFarmTask.id)}
+                        onRun={() => runTaskNow(builtinFarmTask.id)}/>
                     {customTasks.length === 0 ? (
                         <div className="text-center py-14 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
                             <CalendarClock className="w-8 h-8 mx-auto mb-3 text-slate-300"/>
@@ -1293,9 +1299,9 @@ export const AgentSettings = ({
                         <div className="max-h-[72vh] space-y-5 overflow-y-auto p-6">
                             <p className="text-xs text-orange-600">{isSystemTask ? `内置系统任务 · ${taskForm.name}` : '自定义任务'}</p>
                             {isSystemTask && <>
-                                <>{isTravelTask ? <TravelTaskFields value={taskForm.travelConfig || emptyTravelConfig()} servers={mcpServers} imageModels={getModelsByType('image_generation')} onChange={travelConfig => setTaskForm({...taskForm, travelConfig})}/> : isPublishTask ? <PostPublishFields value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
+                                <>{isFarmTask ? <p className="rounded-2xl bg-lime-50 p-4 text-sm leading-relaxed text-slate-600">居民自主购买农资、种植、养殖与升级，共用现有余额。每项成功操作消耗2点体力；旅行时暂停经营。启用后赠送四块耕地。农场规则与角色外观可在农场页面配置。</p> : isTravelTask ? <TravelTaskFields value={taskForm.travelConfig || emptyTravelConfig()} servers={mcpServers} imageModels={getModelsByType('image_generation')} onChange={travelConfig => setTaskForm({...taskForm, travelConfig})}/> : isPublishTask ? <PostPublishFields value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
                                     onCollectionsChange={postCollectionIds => setTaskForm({...taskForm, postCollectionIds})} onCategoriesChange={postCategoryIds => setTaskForm({...taskForm, postCategoryIds})}/>}</>
-                                {!isManualTask && <SystemTaskScheduleFields publish={isPublishTask} travel={isTravelTask} mode={taskForm.scheduleMode} period={taskForm.randomPeriod} count={taskForm.randomCount} interval={taskForm.intervalMinutes}
+                                {!isManualTask && <SystemTaskScheduleFields farm={isFarmTask} publish={isPublishTask} travel={isTravelTask} mode={taskForm.scheduleMode} period={taskForm.randomPeriod} count={taskForm.randomCount} interval={taskForm.intervalMinutes}
                                     onChange={patch => setTaskForm({...taskForm, ...patch})}/>}
                             </>}
 

@@ -31,7 +31,15 @@ from .agent_world.views import CatalogView, ProfessionView, IncomeConfigView, Le
 from .agent_world.travel_views import TravelListView, TravelDetailView, InventoryView
 from .agent_world.item_icon_views import ItemIconListView, ItemIconDetailView, InventoryManageView, InventoryIconView
 
+from .agent_world.farm_views import FarmListView, FarmDetailView, FarmHistoryView, FarmCatalogView
+from .agent_world.item_catalog_views import ItemCatalogView
+
 urlpatterns = [
+    path('agent-world/item-catalog/', ItemCatalogView.as_view()),
+    path("agent-world/farms/", FarmListView.as_view()),
+    path("agent-world/farm-catalog/", FarmCatalogView.as_view()),
+    path("agent-world/farms/<str:farm_id>/", FarmDetailView.as_view()),
+    path("agent-world/farms/<str:farm_id>/history/", FarmHistoryView.as_view()),
     path('agent-world/travel/', TravelListView.as_view()),
     path('agent-world/travel/<str:journey_id>/', TravelDetailView.as_view()),
     path('agent-world/inventory/', InventoryView.as_view()),
