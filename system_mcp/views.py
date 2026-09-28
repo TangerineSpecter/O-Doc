@@ -897,7 +897,9 @@ class ODocSystemMCPView(APIView):
             return self._illustration_options()
         if name == 'get_image_generation_options':
             from .image_generation import image_generation_options
-            return image_generation_options(self.agent_context)
+            if set(arguments) - {'model_id'} or ('model_id' in arguments and not isinstance(arguments['model_id'], str)):
+                raise ValueError('生图选项仅支持可选 model_id 字符串')
+            return image_generation_options(self.agent_context, model_id=arguments.get('model_id'))
         if name in {'generate_image', 'get_image_generation_result'}:
             from .image_generation_tasks import generate_image, get_image_generation_result
             handler = generate_image if name == 'generate_image' else get_image_generation_result

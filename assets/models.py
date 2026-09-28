@@ -22,6 +22,7 @@ class Asset(models.Model):
         ('content', '内容'),
         ('image', '图片文集'),
         ('prompt', '提示词效果'),
+        ('item_icon', '物品图标'),
         ('other', '其他'),
     ]
 

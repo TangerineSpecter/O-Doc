@@ -9,8 +9,9 @@ import { WorldCategoryModal } from './WorldCategoryModal';
 import { WorldProfessionTab } from './WorldProfessionTab';
 import { WorldProfessionModal } from './WorldProfessionModal';
 import { WorldIncomeTab } from './WorldIncomeTab';
+import { WorldItemImages } from './WorldItemImages';
 
-type WorldTab = 'categories' | 'professions' | 'income';
+type WorldTab = 'categories' | 'professions' | 'income' | 'items';
 
 export function WorldManagement() {
     const state = useAgentWorldManagement();
@@ -119,7 +120,7 @@ export function WorldManagement() {
                         <div className="min-w-0">
                             <h3 className="font-bold text-slate-800 text-sm">Agent 世界</h3>
                             <p className="text-xs text-slate-500 mt-0.5 truncate max-w-md lg:max-w-lg xl:max-w-xl">
-                                管理分类、职业与事件收益。行动由任务分配触发，使用现实时间。
+                                管理分类、职业、事件收益与物品图片。
                             </p>
                         </div>
                     </div>
@@ -159,6 +160,7 @@ export function WorldManagement() {
                             >
                                 收益管理
                             </button>
+                            <button type="button" onClick={() => setTab('items')} className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${tab === 'items' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>物品图片</button>
                         </div>
 
                         {/* 主要操作按钮 */}
@@ -240,6 +242,7 @@ export function WorldManagement() {
                             onSave={handleSaveIncome}
                         />
                     )}
+                    {tab === 'items' && <WorldItemImages/>}
                 </>
             )}
 

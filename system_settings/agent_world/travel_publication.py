@@ -109,7 +109,8 @@ def recover_photo(journey):
             bound_tools = MCPServer.objects.filter(pk__in=journey.agent.mcp_servers or [], enabled=True)
             if not skill or not any(any(t.get('name') == 'generate_image' and t.get('enabled', True) for t in (server.tools or [])) for server in bound_tools):
                 raise ValueError('未绑定旅行场景照 Skill 或可用生图 MCP，日记已先发布')
-            options = image_generation_options(journey.agent)
+            model_id = photo.get('request', {}).get('model_id') or state.get('config', {}).get('image_model_id')
+            options = image_generation_options(journey.agent, model_id=model_id)
             if not options.get('configured'):
                 raise ValueError(options.get('message') or '生图模型未配置')
             refs = list(dict.fromkeys(options.get('agent_reference_images', {}).values()))
@@ -121,6 +122,10 @@ def recover_photo(journey):
             prompt = decide(journey, node, '只生成生图提示词，返回 {"prompt":"..."}。按参考图顺序说明用途。头像固定身份及人物画风：最终提示词必须要求沿用头像的头身比例、脸型、五官画法、描边粗细、色块与阴影方式，不能仅匹配发色和瞳色；头像为Q版时保持Q版，不能转为常规动漫少女比例。全身图默认补充服装配饰，不覆盖头像画风；任务明确指定其他版本时遵从。未看到参考图片时不要猜测画风，直接要求生图模型按头像还原。只表现已发生片段，单张完整画面。角色卡只摘外观，不发送完整人格。',
                 {'scene': state['draft']['photo_scene'], 'journey': state, 'reference_images': options.get('agent_reference_images', {}), 'appearance': {'avatar': journey.agent.avatar, 'full_body': journey.agent.full_body_image}}, validate, skill.prompt)
             if not photo.get('request'):
+                sizes = [s['value'] for s in options.get('image_size_options', [])]
+                requested_size = state.get('config', {}).get('image_size', '1K')
+                if sizes and requested_size not in sizes:
+                    raise ValueError(f'当前模型不支持配置的{requested_size}分辨率，请人工处理')
                 avatar = options.get('agent_reference_images', {}).get('avatar')
                 style = ''
                 if avatar in refs:
@@ -130,13 +135,12 @@ def recover_photo(journey):
                         '不改成常规动漫少女比例。其他参考图补充服装、配饰，背景可以更细致，不改变人物画法。')
                 photo['request'] = {'prompt': prompt['prompt'] + style, 'reference_image_ids': refs,
                     'request_id': f'travel:{journey.pk}:{photo.get("attempt", 0)}'}
+                if options.get('model_id'):
+                    photo['request']['model_id'] = options['model_id']
                 if options.get('default_aspect_ratio'):
-                    photo['request']['aspect_ratio'] = options['default_aspect_ratio']
-                sizes = [s['value'] for s in options.get('image_size_options', [])]
-                if sizes and '1K' not in sizes:
-                    raise ValueError('当前模型不支持默认1K，需人工确认分辨率后生图')
-                if '1K' in sizes:
-                    photo['request']['image_size'] = '1K'
+                    photo['request']['aspect_ratio'] = state.get('config', {}).get('image_aspect_ratio', options['default_aspect_ratio'])
+                if sizes:
+                    photo['request']['image_size'] = requested_size
             # 提交前保存参数与幂等键，崩溃后不变更生成意图。
             state['photo'] = photo
             journey.snapshot = state

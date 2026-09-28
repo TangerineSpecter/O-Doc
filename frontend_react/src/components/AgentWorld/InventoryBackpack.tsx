@@ -6,6 +6,7 @@ import {InventoryItemDetails} from './InventoryItemDetails';
 import {InventoryBackpackSkin} from './InventoryBackpackSkin';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import './InventoryBackpack.css';
+import {ItemIconImage} from './ItemIconImage';
 
 interface InventoryBackpackProps {
     items: InventoryItem[];
@@ -48,7 +49,7 @@ export function InventoryBackpack({items, name = '旅行者', onClose, onRefresh
                             style={{'--item-color': rarity.color} as CSSProperties}
                             aria-label={`${item.name}，${rarity.label}，${item.quantity} 件`} aria-pressed={selected?.id === item.id}
                             title={`${item.name} · ${rarity.label} · ×${item.quantity}`} onClick={event => {selectedButton.current = event.currentTarget; setSelectedId(item.id);}}>
-                            <span className="inventory-backpack-initial">{Array.from(item.name.trim())[0] || '物'}</span>
+                            <ItemIconImage src={item.iconUrl} alt={item.name} className="absolute inset-[12%] h-[76%] w-[76%]" fallback={<span className="inventory-backpack-initial">{Array.from(item.name.trim())[0] || '物'}</span>}/>
                             <span className="inventory-backpack-quantity">{item.quantity}</span>
                             <span className="inventory-backpack-rarity"/>
                         </button>;

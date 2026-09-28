@@ -524,19 +524,46 @@ class TravelTests(TestCase):
         self.server.tools = [{'name': 'generate_image', 'enabled': True}]; self.server.save()
         row = self.journey(status='completed'); row.article_id = 'post'
         row.snapshot.update(draft={'photo_scene': '在地标前留影'}, photo={'status': 'pending'})
+        row.snapshot['config'].update(image_model_id='task-image-model', image_aspect_ratio='3:2', image_size='2K')
         row.save()
-        options = {'configured': True, 'supports_reference_images': True,
-            'agent_reference_images': {'avatar': 'avatar-resource', 'full_body': 'body-resource'}}
-        with patch('system_settings.agent_world.travel_publication.image_generation_options', return_value=options), \
+        options = {'configured': True, 'model_id': 'task-image-model', 'supports_reference_images': True,
+            'agent_reference_images': {'avatar': 'avatar-resource', 'full_body': 'body-resource'},
+            'default_aspect_ratio': '1:1', 'image_size_options': [{'value': '1K'}, {'value': '2K'}]}
+        with patch('system_settings.agent_world.travel_publication.image_generation_options', return_value=options) as get_options, \
                 patch('system_settings.agent_world.travel_steps.decide', return_value={'prompt': '角色在地标前留影'}), \
                 patch('system_settings.agent_world.travel_publication.generate_image', return_value={'status': 'generating', 'task_id': 'a'*32}) as generate:
             recover_photo(row)
         request = generate.call_args.args[0]
+        get_options.assert_called_once_with(row.agent, model_id='task-image-model')
+        self.assertEqual(request['model_id'], 'task-image-model')
+        self.assertEqual(request['aspect_ratio'], '3:2')
+        self.assertEqual(request['image_size'], '2K')
         self.assertEqual(request['reference_image_ids'], ['avatar-resource', 'body-resource'])
         self.assertIn('参考图 1 是头像', request['prompt'])
         self.assertIn('头身比例', request['prompt'])
         row.refresh_from_db()
         self.assertEqual(row.snapshot['photo']['request'], request)
+
+    def test_travel_image_model_setting_is_validated(self):
+        from .travel_config import TravelConfigSerializer
+        provider = AIProvider.objects.create(name='image', type='Grsai', base_url='https://example.invalid')
+        model = AIModel.objects.create(provider=provider, name='nano-banana-2', type='image_generation')
+        for value, valid in [('', True), (str(model.pk), True), ('missing', False), (str(self.agent.model_id), False)]:
+            with self.subTest(model_id=value):
+                serializer = TravelConfigSerializer(data={**self.config, 'image_model_id': value}, context={'owner_id': 'admin'})
+                self.assertEqual(serializer.is_valid(), valid, serializer.errors)
+
+    def test_travel_image_size_and_options_endpoint_follow_selected_model(self):
+        from .travel_config import TravelConfigSerializer
+        provider = AIProvider.objects.create(name='image', type='Grsai', base_url='https://example.invalid')
+        for name, valid in [('gpt-image-2', False), ('gpt-image-2.5', True), ('nano-banana-pro', True)]:
+            model = AIModel.objects.create(provider=provider, name=name, type='image_generation')
+            serializer = TravelConfigSerializer(data={**self.config, 'image_model_id': str(model.pk), 'image_aspect_ratio': '3:2', 'image_size': '2K'}, context={'owner_id': 'admin'})
+            self.assertEqual(serializer.is_valid(), valid, serializer.errors)
+            response = self.client.get('/api/prompt/article-illustration/options', {'model_id': str(model.pk), 'scene': 'travel_photo'})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data['data']['default_aspect_ratio'], '1:1')
+            self.assertEqual([item['value'] for item in response.data['data']['image_size_options']], ['1K'] if name == 'gpt-image-2' else ['1K', '2K', '4K'])
 
     def test_restore_discards_remote_image_lease(self):
         data = [{'model':'prompts.imagegenerationtask', 'pk':'a'*32, 'fields':{'lease_until':'remote-lock'}}]

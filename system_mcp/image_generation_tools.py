@@ -3,14 +3,14 @@
 IMAGE_GENERATION_TOOLS = [
     {
         'name': 'get_image_generation_options',
-        'description': '查询默认生图模型支持的比例、分辨率、参考图能力，以及当前 Agent 可用的形象参考资源 ID。不生成图片。',
-        'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+        'description': '查询指定或系统默认生图模型支持的比例、分辨率、参考图能力，以及当前 Agent 可用的形象参考资源 ID。不生成图片。',
+        'inputSchema': {'type': 'object', 'properties': {'model_id': {'type': 'string', 'maxLength': 40, 'description': '可选模型配置 ID；省略时使用系统默认。'}}, 'additionalProperties': False},
         'annotations': {'readOnlyHint': True, 'openWorldHint': False},
     },
     {
         'name': 'generate_image',
         'description': (
-            '使用默认生图模型生成一张图片。prompt 原样传递；可选 reference_image_ids 用于以图生图。'
+            '使用指定或系统默认生图模型生成一张图片。prompt 原样传递；可选 reference_image_ids 用于以图生图。'
             '不会自动选择角色参考或添加画风。返回 task_id 和状态，未完成时调用 get_image_generation_result；'
             '不要反复调用本工具等待出图。同一次生成重试时务必复用 request_id，以避免重复付费。'
             '成功返回 asset_id、image_url 和可插入正文的 Markdown，不会自动发帖。'
@@ -18,6 +18,7 @@ IMAGE_GENERATION_TOOLS = [
         'inputSchema': {
             'type': 'object',
             'properties': {
+                'model_id': {'type': 'string', 'minLength': 1, 'maxLength': 40, 'description': '可选模型配置 ID；省略时使用系统默认。先以同一 ID 查询生图能力。'},
                 'prompt': {'type': 'string', 'minLength': 1, 'maxLength': 8000, 'description': '完整生图提示词，由 Skill 决定内容和画风。'},
                 'reference_image_ids': {'type': 'array', 'items': {'type': 'string', 'minLength': 1}, 'maxItems': 4,
                                         'uniqueItems': True, 'description': '按顺序提供已有图片的资源 ID；省略或空数组表示文生图。当前以图生图仅支持 Grsai。最多 4 张为本工具限制。'},

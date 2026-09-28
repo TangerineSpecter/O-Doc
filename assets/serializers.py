@@ -27,6 +27,11 @@ class AssetSerializer(serializers.ModelSerializer):
     
     def validate(self, attrs):
         """验证数据"""
+        if self.instance and self.instance.source_type == "item_icon":
+            if set(attrs) - {"name"}:
+                raise serializers.ValidationError("物品图标文件不可覆盖，请使用专用图标接口")
+        elif attrs.get("source_type") == "item_icon":
+            raise serializers.ValidationError("请使用专用物品图标上传接口")
         # 确保文件大小为正数
         if 'file_size' in attrs and attrs['file_size'] <= 0:
             raise serializers.ValidationError("文件大小必须大于0")

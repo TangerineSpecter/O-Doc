@@ -5,6 +5,7 @@ import {inventoryRarities} from './inventoryRarities';
 import type {InventoryItem} from '../../types/api/travel';
 import {TravelSouvenirDetails} from './TravelSouvenirDetails';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
+import {ItemIconImage} from './ItemIconImage';
 
 interface TravelSouvenirGridProps {
     items: InventoryItem[];
@@ -48,11 +49,13 @@ export function TravelSouvenirGrid({items, name = '旅行者'}: TravelSouvenirGr
                     const isSelected = selected?.id === item.id;
                     return <button key={item.id} ref={isSelected ? selectedButton : undefined} type="button"
                         className={`relative grid h-11 w-11 place-items-center rounded-lg border bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/30 ${isSelected ? 'border-orange-300 bg-orange-50/40' : 'border-slate-200 hover:border-orange-200 hover:bg-orange-50/30'}`}
+                        style={{borderColor: isSelected ? undefined : `${rarity.color}88`}}
                         aria-label={`${item.name}，${rarity.label}，${item.quantity} 件`} aria-pressed={isSelected}
                         title={`${item.name} · ${rarity.label} · ×${item.quantity}`}
                         onClick={event => {selectedButton.current = event.currentTarget; setSelectedId(item.id);}}>
                         <span className="absolute right-0 top-0 z-10 min-w-4 rounded-full bg-slate-100 px-1 text-[9px] leading-4 text-slate-600">×{item.quantity}</span>
-                        <Package className="h-5 w-5" style={{color: rarity.color}} aria-hidden="true"/>
+                        <span aria-hidden="true" className="absolute bottom-1 left-1 h-1 w-1 rounded-full" style={{backgroundColor: rarity.color}}/>
+                        <ItemIconImage src={item.iconUrl} alt={item.name} className="h-9 w-9" fallback={<Package className="h-5 w-5" style={{color: rarity.color}} aria-hidden="true"/>}/>
                     </button>;
                 })}
                 {Array.from({length: Math.max(0, columnCount * 2 - items.length)}, (_, index) => <span key={`empty-slot-${index}`} className="grid h-11 w-11 place-items-center rounded-lg border border-slate-200/80 bg-slate-50/60" aria-hidden="true"/>)}

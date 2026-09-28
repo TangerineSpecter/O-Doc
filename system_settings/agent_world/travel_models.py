@@ -85,6 +85,7 @@ class AgentInventoryItem(models.Model):
     kind = models.CharField(max_length=24, default='souvenir')
     quantity = models.PositiveIntegerField()
     source = models.JSONField(default=dict)
+    icon_asset_id = models.CharField(max_length=32, null=True, blank=True, default=None)
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:

@@ -54,6 +54,15 @@ class ImageGenerationOptionsTests(TestCase):
             with self.subTest(args=args), self.assertRaises(ValueError):
                 validate_generation_arguments(args)
 
+    def test_explicit_options_do_not_require_a_system_default(self):
+        SystemSetting.objects.filter(key='system_ai_config').update(value={})
+        result, error = call_mcp_tool(self.server, 'get_image_generation_options', {'model_id': str(self.model.pk)})
+        self.assertIsNone(error)
+        self.assertTrue(result['configured'])
+        self.assertEqual(result['model_id'], str(self.model.pk))
+        invalid, error = call_mcp_tool(self.server, 'get_image_generation_options', {'model_id': 'missing'})
+        self.assertFalse(invalid['configured'])
+
 
 class ImageGenerationLifecycleTests(ImageGenerationOptionsTests):
     def setUp(self):
@@ -75,6 +84,32 @@ class ImageGenerationLifecycleTests(ImageGenerationOptionsTests):
     def _submit(self, **kwargs):
         from .image_generation_tasks import generate_image
         return generate_image({'prompt': '角色在铁塔前', 'request_id': 'trip-scene-1', **kwargs})
+
+    def test_explicit_model_is_saved_and_repeated_request_cannot_switch_models(self):
+        from unittest.mock import patch
+        from system_settings.grsai_images import GrsaiImageResult
+        from prompts.models import ImageGenerationTask
+        selected = AIModel.objects.create(provider=self.provider, name='nano-banana-pro', type='image_generation')
+        SystemSetting.objects.filter(key='system_ai_config').update(value={})
+        with patch('system_mcp.image_generation_tasks.GrsaiImageClient') as client:
+            client.return_value.generate.return_value = GrsaiImageResult('explicit-task', 'pending')
+            first = self._submit(model_id=str(selected.pk))
+            again = self._submit(model_id=str(selected.pk))
+            self.assertEqual(first['task_id'], again['task_id'])
+            self.assertEqual(ImageGenerationTask.objects.get().model_id, str(selected.pk))
+            self.assertEqual(client.call_args.args[0].pk, selected.pk)
+            client.return_value.generate.assert_called_once()
+            with self.assertRaises(ValueError):
+                self._submit(model_id=str(self.model.pk))
+
+    def test_invalid_explicit_model_does_not_fall_back_or_submit(self):
+        from unittest.mock import patch
+        from prompts.models import ImageGenerationTask
+        with patch('system_mcp.image_generation_tasks.GrsaiImageClient') as client:
+            with self.assertRaises(ValueError):
+                self._submit(model_id='missing')
+            client.assert_not_called()
+        self.assertFalse(ImageGenerationTask.objects.exists())
 
     def test_async_mcp_submission_query_and_resource_saved_once(self):
         from unittest.mock import patch

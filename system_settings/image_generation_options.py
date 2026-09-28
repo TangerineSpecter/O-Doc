@@ -5,6 +5,15 @@ from dataclasses import dataclass
 from .models import AIModel
 
 
+COMMON_IMAGE_RATIOS = ('1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3')
+
+GPT_IMAGE_2_DIMENSIONS = {
+    '1:1': '1024x1024', '16:9': '1672x941', '9:16': '941x1672',
+    '4:3': '1443x1090', '3:4': '1090x1443', '3:2': '1536x1024',
+    '2:3': '1024x1536', '5:4': '1408x1120', '4:5': '1120x1408',
+    '21:9': '1920x832', '9:21': '832x1920', '2:1': '1792x896', '1:2': '896x1792',
+}
+
 GEMINI_3_IMAGE_RATIOS = (
     '1:1', '1:4', '4:1', '1:8', '8:1', '2:3', '3:2', '3:4', '4:3',
     '4:5', '5:4', '9:16', '16:9', '21:9',
@@ -87,8 +96,8 @@ def get_image_generation_profile(model: AIModel) -> ImageGenerationProfile:
         return ImageGenerationProfile(provider, model.name, 'image_size', ('auto', *ratios), sizes)
 
     if name.startswith('gpt-image-2'):
-        if any(part in name for part in ('-vip', '-flare', '-sunburst')):
-            quality = 'medium'
+        if name.startswith('gpt-image-2.5') or any(part in name for part in ('-vip', '-flare', '-sunburst')):
+            quality = 'auto' if name == 'gpt-image-2.5' else 'medium'
             return ImageGenerationProfile(
                 provider, model.name, 'pixel_dimensions', tuple(GPT_IMAGE_DIMENSIONS),
                 ('1K', '2K', '4K'), custom_dimensions=True, quality=quality,
@@ -101,7 +110,8 @@ def get_image_generation_profile(model: AIModel) -> ImageGenerationProfile:
 def serialize_image_generation_options(model: AIModel, *, scene: str) -> dict:
     profile = get_image_generation_profile(model)
     defaults = SCENE_DEFAULTS.get(scene, {'aspect_ratio': '1:1', 'image_size': '1K'})
-    ratio_values = list(profile.aspect_ratios)
+    ratio_values = ([ratio for ratio in COMMON_IMAGE_RATIOS if ratio in profile.aspect_ratios]
+                    if scene in ('generic', 'travel_photo') else list(profile.aspect_ratios))
     size_values = list(profile.image_sizes)
     default_ratio = defaults['aspect_ratio'] if defaults['aspect_ratio'] in ratio_values else (ratio_values[0] if ratio_values else '')
     default_size = defaults['image_size'] if defaults['image_size'] in size_values else (size_values[0] if size_values else '')
@@ -114,7 +124,7 @@ def serialize_image_generation_options(model: AIModel, *, scene: str) -> dict:
         'image_size_options': [{'value': value, 'label': value} for value in size_values],
         'image_size_options_by_aspect_ratio': {
             ratio: [{'value': size, 'label': size} for size in sizes]
-            for ratio, sizes in GPT_IMAGE_DIMENSIONS.items()
+            for ratio, sizes in GPT_IMAGE_DIMENSIONS.items() if ratio in ratio_values
         } if profile.mode == 'pixel_dimensions' else {},
         'default_aspect_ratio': default_ratio,
         'default_image_size': default_size,
@@ -166,7 +176,7 @@ def resolve_image_generation_request(model: AIModel, options: object, *, scene: 
             raise ValueError('当前画面比例不支持所选分辨率')
         return {'aspectRatio': dimensions, 'quality': profile.quality}
     if profile.mode == 'fixed':
-        return {'aspectRatio': ratio, 'quality': profile.quality}
+        return {'aspectRatio': 'auto' if ratio == 'auto' else GPT_IMAGE_2_DIMENSIONS[ratio], 'quality': profile.quality}
     return {}
 
 

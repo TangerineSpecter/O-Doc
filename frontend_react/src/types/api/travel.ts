@@ -1,6 +1,8 @@
 export interface TravelConfig {
     collectionId: string; categoryId: string; searchServerId: string;
     nodeMinutes: number; recentCities: number; energyCost: number; photoEnabled: boolean;
+    imageModelId?: string;
+    imageAspectRatio?: string; imageSize?: string;
 }
 export const emptyTravelConfig = (): TravelConfig => ({collectionId: '', categoryId: '', searchServerId: '', nodeMinutes: 1, recentCities: 3, energyCost: 20, photoEnabled: true});
 interface Destination {id: string; country: string; city: string; region: string; price: string}
@@ -23,5 +25,5 @@ export interface TravelJourney {
     };
     nodes?: {id: string; kind: string; status: string; error: string}[];
 }
-export interface InventoryItem {id: string; actorId: string; actorName: string; originActorId: string; originActorName: string; rarity: string; value: string; name: string; quantity: number; source: {destination?: Destination; unitPrice?: string; debug?: boolean; description?: string}}
+export interface InventoryItem {id: string; actorId: string; actorName: string; originActorId: string; originActorName: string; rarity: string; value: string; name: string; quantity: number; iconAssetId?: string | null; iconUrl?: string; source: {destination?: Destination; unitPrice?: string; debug?: boolean; description?: string}}
 export type TravelOperation = 'pause' | 'resume' | 'end' | 'query_image' | 'regenerate_image' | 'use_image' | 'abandon_image';

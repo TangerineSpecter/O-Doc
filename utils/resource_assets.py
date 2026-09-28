@@ -178,7 +178,8 @@ def is_asset_used_by_agent(resource_id):
 
     url = get_resource_view_url(resource_id)
     return (
-        Agent.objects.filter(Q(avatar=url) | Q(full_body_image=url)).exists()
+        is_asset_used_by_inventory(resource_id)
+        or Agent.objects.filter(Q(avatar=url) | Q(full_body_image=url)).exists()
         or AgentActivity.objects.filter(metadata__agentSnapshot__avatar=url).exists()
         or Article.objects.filter(agent_post_creator_avatar=url).exists()
         or ArticlePostComment.objects.filter(creator_avatar=url).exists()
@@ -234,7 +235,18 @@ def get_agent_resource_usage(resource_ids=None):
                 continue
             usage.setdefault(resource_id, {'id': agent.id, 'title': agent.name})
 
+    from system_settings.agent_world.travel_models import AgentInventoryItem
+    items = AgentInventoryItem.objects.exclude(icon_asset_id__isnull=True).exclude(icon_asset_id='')
+    if resource_ids is not None:
+        items = items.filter(icon_asset_id__in=resource_ids)
+    for item in items.only('icon_asset_id', 'actor_id', 'actor_name'):
+        usage.setdefault(item.icon_asset_id, {'id': item.actor_id, 'title': item.actor_name or '角色背包'})
     return usage
+
+
+def is_asset_used_by_inventory(resource_id):
+    from system_settings.agent_world.travel_models import AgentInventoryItem
+    return AgentInventoryItem.objects.filter(icon_asset_id=resource_id).exists()
 
 
 def delete_asset_physical_file(asset):
@@ -250,5 +262,19 @@ def delete_asset_physical_file(asset):
 
 
 def delete_asset_record_and_file(asset):
+    # 所有资源删除入口均保留物品引用；此保护不会增加读取权限。
+    if is_asset_used_by_inventory(asset.pk):
+        return False
     delete_asset_physical_file(asset)
     asset.delete()
+    return True
+
+
+def is_asset_referenced(asset):
+    """统一删除保护；不会改变资源读取权限。"""
+    from django.db.models import Q
+    from anthology.models import Book
+    return (asset.is_linked or is_asset_used_by_image(asset.pk)
+            or is_asset_used_by_article(asset.pk) or is_asset_used_by_agent(asset.pk)
+            or is_asset_used_by_prompt(asset.pk)
+            or Book.objects.filter(Q(asset=asset) | Q(cover_asset=asset), is_valid=True).exists())

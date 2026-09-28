@@ -10,13 +10,13 @@ from assets.models import Asset
 from prompts.article_illustration import get_saved_article_illustration, save_article_illustration
 from prompts.generation import _download_generated_images, _validate_image_content
 from prompts.models import ImageGenerationTask
-from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError, get_default_image_generation_model
+from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError
 from system_settings.image_generation_options import resolve_image_generation_request
 from system_settings.models import AIModel, Agent
 from system_settings.newapi_images import NewApiImageClient
 from system_settings.sync_state import canonical_hash
 from utils.resource_assets import get_resource_view_url
-from .image_generation import MCP_USER_ID, supports_references, validate_generation_arguments
+from .image_generation import MCP_USER_ID, resolve_image_model, supports_references, validate_generation_arguments
 from .image_references import load_reference_images
 
 ACTIVE = {'submitting', 'generating', 'download_pending'}
@@ -96,7 +96,7 @@ def generate_image(arguments: object, agent: Agent | None = None) -> dict:
             raise ValueError('相同 request_id 不可用于不同生图参数')
         return _output(existing)
     try:
-        model = get_default_image_generation_model()
+        model = resolve_image_model(data.get('model_id'))
         references = data['reference_image_ids']
         if references and not supports_references(model):
             raise ValueError('当前模型不支持参考图，请选择支持以图生图的 Grsai 模型')

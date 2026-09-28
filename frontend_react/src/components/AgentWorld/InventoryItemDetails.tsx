@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type {InventoryItem} from '../../types/api/travel';
 import {inventoryRarities} from './inventoryRarities';
+import {ItemIconImage} from './ItemIconImage';
 
 export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onClose: () => void}) {
     const rarity = inventoryRarities[item.rarity] || inventoryRarities.common;
@@ -72,7 +73,7 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
             <div className="inventory-item-hero">
                 <div className="inventory-item-emblem-wrapper">
                     <div className="inventory-item-emblem" aria-hidden="true">
-                        <span className="relic-emblem-char">{firstChar}</span>
+                        <ItemIconImage src={item.iconUrl} alt={item.name} className="relative z-10 h-[80%] w-[80%]" fallback={<span className="relic-emblem-char">{firstChar}</span>}/>
                         <div className="relic-emblem-shine" />
                     </div>
                 </div>
@@ -188,4 +189,3 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
         </section>
     );
 }
-

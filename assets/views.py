@@ -5,6 +5,7 @@ import os
 
 from django.conf import settings
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q, Sum
 from django.http import HttpResponse
 from rest_framework.views import APIView
@@ -27,7 +28,7 @@ from utils.resource_assets import (
     is_asset_used_by_image,
     is_asset_used_by_prompt,
 )
-from utils.response_utils import success_result, error_result
+from utils.response_utils import success_result, error_result, valid_result
 from .models import Asset
 from .serializers import AssetSerializer
 
@@ -248,6 +249,8 @@ class ResourceCreateView(APIView):
             if isinstance(data, str):
                 data = json.loads(data)
 
+            if data.get('source_type') == 'item_icon':
+                return valid_result('请使用专用物品图标上传接口', status=400)
             data['uploader'] = get_current_user_identifier(request)
 
             serializer = AssetSerializer(data=data)
@@ -327,12 +330,13 @@ class ResourceUpdateView(APIView):
 class ResourceDeleteView(APIView):
     """删除资源视图"""
 
+    @transaction.atomic
     def delete(self, request, resource_id):
         """删除资源（硬删除 + 物理文件删除）"""
         try:
             current_user_id = get_current_user_identifier(request)
             try:
-                asset = Asset.objects.get(id=resource_id, is_valid=True, uploader=current_user_id)
+                asset = Asset.objects.select_for_update().get(id=resource_id, is_valid=True, uploader=current_user_id)
             except Asset.DoesNotExist:
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
@@ -415,6 +419,8 @@ class ResourceUploadView(APIView):
     def post(self, request):
         """上传资源文件"""
         try:
+            if request.data.get('source_type') == 'item_icon':
+                return valid_result('请使用专用物品图标上传接口', status=400)
             if 'file' not in request.FILES:
                 return error_result(ErrorCode.UPLOAD_RESOURCE_NOT_FOUND)
 

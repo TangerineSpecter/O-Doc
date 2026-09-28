@@ -41,3 +41,6 @@ export const getPromptTaxonomy = async (): Promise<PromptTaxonomies> => {
 export const createPromptTaxonomy = (kind: keyof PromptTaxonomies, data: Partial<PromptTaxonomies[keyof PromptTaxonomies][number]>) => request.post<any, PromptTaxonomies[keyof PromptTaxonomies][number]>(`/prompt/${kind}`, data);
 export const updatePromptTaxonomy = (kind: keyof PromptTaxonomies, id: string, data: Partial<PromptTaxonomies[keyof PromptTaxonomies][number]>) => request.put<any, PromptTaxonomies[keyof PromptTaxonomies][number]>(`/prompt/${kind}/${id}`, data);
 export const deletePromptTaxonomy = (kind: keyof PromptTaxonomies, id: string) => request.delete<any, void>(`/prompt/${kind}/${id}`);
+
+export const getTravelImageGenerationSettings = (modelId?: string) =>
+  request.get<unknown, ImageGenerationSettings>('/prompt/article-illustration/options', {params: {model_id: modelId || undefined, scene: 'travel_photo'}});

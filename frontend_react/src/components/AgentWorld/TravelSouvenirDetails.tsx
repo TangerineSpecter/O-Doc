@@ -1,6 +1,7 @@
 import {Coins, Compass, History, Package, User, X} from 'lucide-react';
 import type {InventoryItem} from '../../types/api/travel';
 import {inventoryRarities} from './inventoryRarities';
+import {ItemIconImage} from './ItemIconImage';
 
 export function TravelSouvenirDetails({item, onClose}: {item: InventoryItem; onClose: () => void}) {
     const rarity = inventoryRarities[item.rarity] || inventoryRarities.common;
@@ -9,10 +10,10 @@ export function TravelSouvenirDetails({item, onClose}: {item: InventoryItem; onC
     const displayValue = Number.isFinite(number) ? number.toLocaleString('zh-CN', {maximumFractionDigits: 2}) : '—';
     const destination = [item.source.destination?.country, item.source.destination?.city].filter(Boolean).join(' · ') || '未明旅途';
 
-    return <section aria-label="物品详情" aria-live="polite" className="h-full min-h-0 w-full min-w-0 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+    return <section aria-label="物品详情" aria-live="polite" className="max-h-[80vh] min-h-0 w-full min-w-0 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         <header className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
             <div className="flex min-w-0 items-center gap-2">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-100 bg-slate-50" style={{color: rarity.color}} aria-hidden="true"><Package size={17}/></span>
+                <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg border border-slate-100 bg-slate-50" style={{color: rarity.color}}><ItemIconImage src={item.iconUrl} alt={item.name} className="h-14 w-14" fallback={<Package size={22}/>}/></span>
                 <div className="min-w-0">
                     <p className="text-[11px] text-slate-500">物品详情</p>
                     <h3 className="truncate text-sm font-semibold text-slate-800" title={item.name}>{item.name}</h3>

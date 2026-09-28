@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError, get_default_image_generation_model
 from system_settings.image_generation_options import resolve_image_generation_request, serialize_image_generation_options
 from system_settings.models import AIModel
+from system_mcp.image_generation import resolve_image_model
 from system_settings.newapi_images import NewApiImageClient
 from utils.drf_utils import get_current_user_identifier
 from utils.error_codes import ErrorCode
@@ -56,8 +57,9 @@ class ArticleIllustrationOptionsView(APIView):
 
     def get(self, request):
         try:
-            model = get_default_image_generation_model()
-            return success_result(serialize_image_generation_options(model, scene='article_illustration'))
+            model = resolve_image_model(request.query_params.get('model_id'))
+            scene = 'travel_photo' if request.query_params.get('scene') == 'travel_photo' else 'article_illustration'
+            return success_result(serialize_image_generation_options(model, scene=scene))
         except GrsaiImageError as exc:
             return valid_result(msg=str(exc), status=exc.status_code)
 

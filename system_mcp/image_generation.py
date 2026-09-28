@@ -6,6 +6,7 @@ from system_settings.grsai_images import GrsaiImageError, get_default_image_gene
 from system_settings.image_generation_options import serialize_image_generation_options
 from utils.resource_assets import extract_resource_id_from_view_url
 from .image_references import MAX_REFERENCE_IMAGES, readable_reference_assets
+from system_settings.models import AIModel
 
 MCP_USER_ID = 'admin'
 
@@ -17,6 +18,7 @@ class GenerateImageInput(serializers.Serializer):
     aspect_ratio = serializers.CharField(max_length=20, required=False)
     image_size = serializers.ChoiceField(choices=['1K', '2K', '4K'], required=False)
     request_id = serializers.CharField(max_length=80, required=False)
+    model_id = serializers.CharField(max_length=40, required=False)
 
     def validate_prompt(self, value):
         if not value.strip():
@@ -33,13 +35,22 @@ def supports_references(model) -> bool:
     return model.provider.type == 'Grsai' and model.name.lower().startswith(('nano-banana', 'gpt-image-2'))
 
 
-def image_generation_options(agent=None) -> dict:
+def resolve_image_model(model_id=None):
+    if not model_id:
+        return get_default_image_generation_model()
+    model = AIModel.objects.select_related('provider').filter(pk=model_id, type='image_generation').first()
+    if not model or model.provider.type not in ('Grsai', 'NewAPI'):
+        raise GrsaiImageError('指定生图模型已失效或不支持，请重新选择', status_code=400)
+    return model
+
+
+def image_generation_options(agent=None, model_id=None) -> dict:
     try:
-        model = get_default_image_generation_model()
+        model = resolve_image_model(model_id)
     except GrsaiImageError as exc:
         return {'configured': False, 'message': str(exc)}
     options = serialize_image_generation_options(model, scene='generic')
-    options.update(configured=True, supports_reference_images=supports_references(model),
+    options.update(configured=True, model_id=str(model.pk), supports_reference_images=supports_references(model),
                    max_reference_images=MAX_REFERENCE_IMAGES if supports_references(model) else 0)
     references = {}
     if agent is not None:

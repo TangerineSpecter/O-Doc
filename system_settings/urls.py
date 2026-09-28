@@ -29,11 +29,16 @@ router.register(r'config', SystemConfigViewSet, basename='sys-config')
 
 from .agent_world.views import CatalogView, ProfessionView, IncomeConfigView, LedgerView, SettlementsView, MigrationView, RankingView, PendingIncomeView
 from .agent_world.travel_views import TravelListView, TravelDetailView, InventoryView
+from .agent_world.item_icon_views import ItemIconListView, ItemIconDetailView, InventoryManageView, InventoryIconView
 
 urlpatterns = [
     path('agent-world/travel/', TravelListView.as_view()),
     path('agent-world/travel/<str:journey_id>/', TravelDetailView.as_view()),
     path('agent-world/inventory/', InventoryView.as_view()),
+    path('agent-world/inventory/manage/', InventoryManageView.as_view()),
+    path('agent-world/inventory/<str:item_id>/icon/', InventoryIconView.as_view()),
+    path('agent-world/item-icons/', ItemIconListView.as_view()),
+    path('agent-world/item-icons/<str:asset_id>/', ItemIconDetailView.as_view()),
     path("agent-world/categories/", CatalogView.as_view()),
     path("agent-world/professions/", ProfessionView.as_view()),
     path("agent-world/income/", IncomeConfigView.as_view()),

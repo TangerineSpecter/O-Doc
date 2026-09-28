@@ -9,6 +9,7 @@ from system_settings.models import Agent
 from .execution import execution_lease
 from .travel_models import TravelJourney, TravelNode, TravelRuntime, AgentInventoryItem
 from .travel_publication import insert_photo
+from assets.models import Asset
 
 
 class JourneySerializer(serializers.ModelSerializer):
@@ -19,13 +20,29 @@ class JourneySerializer(serializers.ModelSerializer):
 
 class InventorySerializer(serializers.ModelSerializer):
     actor_name = serializers.SerializerMethodField()
+    icon_url = serializers.SerializerMethodField()
+
+    def get_icon_url(self, item):
+        valid = self.context.get('icon_assets')
+        if valid is None:
+            valid = set(Asset.objects.filter(pk=item.icon_asset_id, uploader=item.owner_id,
+                source_type='item_icon', file_type='image', is_valid=True).values_list('pk', flat=True))
+        return f'/api/resource/view/{item.icon_asset_id}' if item.icon_asset_id in valid else ''
 
     def get_actor_name(self, item):
         return self.context.get('actor_names', {}).get(item.actor_id, item.actor_name)
 
     class Meta:
         model = AgentInventoryItem
-        fields = ['id', 'actor_id', 'actor_name', 'origin_actor_id', 'origin_actor_name', 'rarity', 'value', 'name', 'kind', 'quantity', 'source', 'created_at']
+        fields = ['id', 'actor_id', 'actor_name', 'origin_actor_id', 'origin_actor_name', 'rarity', 'value', 'name', 'kind', 'quantity', 'source', 'created_at', 'icon_asset_id', 'icon_url']
+
+
+def inventory_context(items, owner):
+    return {
+        'actor_names': dict(Agent.objects.filter(pk__in={item.actor_id for item in items}).values_list('pk', 'name')),
+        'icon_assets': set(Asset.objects.filter(pk__in={item.icon_asset_id for item in items if item.icon_asset_id},
+            uploader=owner, source_type='item_icon', file_type='image', is_valid=True).values_list('pk', flat=True)),
+    }
 
 
 class TravelListView(APIView):
@@ -48,8 +65,8 @@ class InventoryView(APIView):
         if actor:
             rows = rows.filter(actor_id=actor)
         items = list(rows[:200])
-        names = dict(Agent.objects.filter(pk__in={item.actor_id for item in items}).values_list('pk', 'name'))
-        return success_result(InventorySerializer(items, many=True, context={'actor_names': names}).data)
+        return success_result(InventorySerializer(items, many=True,
+            context=inventory_context(items, get_current_user_identifier(request))).data)
 
 
 class TravelDetailView(APIView):

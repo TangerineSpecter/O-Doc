@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useState, type ReactNode} from 'react';
 import {ImageOff} from 'lucide-react';
 import {downloadResource} from '../../api/resources';
 
@@ -12,6 +12,7 @@ interface Props {
     loading?: 'eager' | 'lazy';
     draggable?: boolean;
     fitMode?: ImageFitMode;
+    fallback?: ReactNode;
 }
 
 export default function AuthenticatedResourceImage({
@@ -22,14 +23,16 @@ export default function AuthenticatedResourceImage({
     loading = 'lazy',
     draggable = false,
     fitMode = 'cover',
+    fallback,
 }: Props) {
     const [result, setResult] = useState<{resourceId: string; objectUrl: string; failed: boolean}>({resourceId: '', objectUrl: '', failed: false});
 
     useEffect(() => {
+        const controller = new AbortController();
         let active = true;
         let nextObjectUrl = '';
 
-        void downloadResource(resourceId)
+        void downloadResource(resourceId, controller.signal)
             .then(blob => {
                 if (!active) return;
                 nextObjectUrl = URL.createObjectURL(blob);
@@ -41,13 +44,16 @@ export default function AuthenticatedResourceImage({
 
         return () => {
             active = false;
+            controller.abort();
             if (nextObjectUrl) URL.revokeObjectURL(nextObjectUrl);
         };
     }, [resourceId]);
 
     const objectUrl = result.resourceId === resourceId ? result.objectUrl : '';
     const failed = result.resourceId === resourceId && result.failed;
+    const failImage = () => setResult({resourceId, objectUrl: '', failed: true});
     if (!objectUrl) {
+        if (fallback !== undefined) return <>{fallback}</>;
         return (
             <div className={`${className} flex items-center justify-center bg-slate-50 text-slate-300`} role={failed ? 'img' : undefined} aria-label={failed ? `${alt}加载失败` : undefined}>
                 {failed ? <ImageOff className="h-6 w-6"/> : <span className="h-5 w-5 animate-pulse rounded-md bg-slate-200"/>}
@@ -72,10 +78,11 @@ export default function AuthenticatedResourceImage({
                     className={`relative z-10 h-full w-full object-contain ${imageClassName}`}
                     loading={loading}
                     draggable={draggable}
+                    onError={failImage}
                 />
             </div>
         );
     }
 
-    return <img src={objectUrl} alt={alt} className={className} loading={loading} draggable={draggable}/>;
+    return <img src={objectUrl} alt={alt} className={className} loading={loading} draggable={draggable} onError={failImage}/>;
 }
