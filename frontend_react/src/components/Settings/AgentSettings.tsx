@@ -59,7 +59,11 @@ import {SystemTaskScheduleFields} from './agent/SystemTaskScheduleFields';
 import {WorldRunnerSwitch} from './agent/WorldRunnerSwitch';
 import {SystemTaskProgress} from './agent/SystemTaskProgress';
 import {BuiltinPostTaskCard} from './agent/BuiltinPostTaskCard';
-import {defaultPostInteractionTask} from './agent/builtinTasks';
+import {defaultPostInteractionTask, defaultPostPublishTask} from './agent/builtinTasks';
+import {PostPublishFields} from './agent/PostPublishFields';
+import {PostPublishPreviewModal} from './agent/PostPublishPreviewModal';
+import {emptyPublishConfig} from './agent/publishDefaults';
+import type {AgentPublishConfig} from '@/types/api/agentPublish';
 
 interface AgentSettingsProps {
     agents: AgentConfig[];
@@ -96,7 +100,8 @@ type AgentForm = {
 type AgentView = 'list' | 'tasks' | 'records';
 
 type AgentTaskForm = {
-    taskKind?: 'custom' | 'post_interaction';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish';
+    publishConfig?: AgentPublishConfig;
     postCollectionIds?: string[];
     postCategoryIds?: string[];
     id?: string;
@@ -176,6 +181,7 @@ export const AgentSettings = ({
     const {progressByTask, worldProgressByTask, refreshFailed} = useRandomTaskProgress(tasks, activeView === 'tasks');
     const [modalOpen, setModalOpen] = useState(false);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
+    const [previewTask, setPreviewTask] = useState<AgentTaskConfig | null>(null);
     const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
     const [expandedAgentRuns, setExpandedAgentRuns] = useState<Record<string, boolean>>({});
     const [, setElapsedTick] = useState(0);
@@ -328,10 +334,12 @@ export const AgentSettings = ({
         return `每 ${task.intervalMinutes || '1'} 分钟`;
     };
 
-    const isSystemTask = taskForm.taskKind === 'post_interaction';
+    const isSystemTask = taskForm.taskKind === 'post_interaction' || taskForm.taskKind === 'post_publish';
+    const isPublishTask = taskForm.taskKind === 'post_publish';
+    const builtinPublishTask = tasks.find(task => task.taskKind === 'post_publish') || defaultPostPublishTask;
     const isManualTask = taskForm.trigger === '手动执行';
     const builtinPostTask = tasks.find(task => task.taskKind === 'post_interaction') || defaultPostInteractionTask;
-    const customTasks = tasks.filter(task => task.taskKind !== 'post_interaction');
+    const customTasks = tasks.filter(task => !['post_interaction', 'post_publish'].includes(task.taskKind || 'custom'));
 
     const openCreateModal = () => {
         clearAvatarPreview();
@@ -386,6 +394,7 @@ export const AgentSettings = ({
         setTaskForm({
             id: task.id,
             taskKind: task.taskKind || 'custom',
+            publishConfig: task.publishConfig || emptyPublishConfig(),
             postCollectionIds: task.postCollectionIds || [],
             postCategoryIds: task.postCategoryIds || [],
             name: task.name,
@@ -493,6 +502,10 @@ export const AgentSettings = ({
             toast.warning('请填写任务名称和任务目标');
             return;
         }
+        if (isPublishTask && (!taskForm.publishConfig?.collectionId || !taskForm.publishConfig.searchServerId || !taskForm.publishConfig.rules.length || taskForm.publishConfig.rules.some(rule => !rule.modes.length))) {
+            toast.warning('请选择输出文集、搜索服务和至少一个有效分类及内容方式');
+            return;
+        }
         if (taskForm.agents.length === 0) {
             toast.warning('请至少选择一个 Agent');
             return;
@@ -517,6 +530,7 @@ export const AgentSettings = ({
         const success = await onSaveTask({
             id: taskForm.id,
             taskKind: taskForm.taskKind || 'custom',
+            publishConfig: isPublishTask ? taskForm.publishConfig : undefined,
             postCollectionIds: taskForm.postCollectionIds || [],
             postCategoryIds: taskForm.postCategoryIds || [],
             name: taskForm.name.trim(),
@@ -792,6 +806,12 @@ export const AgentSettings = ({
                         onConfigure={() => openEditTaskModal(builtinPostTask)}
                         onToggle={() => toggleTaskEnabled(builtinPostTask.id)}
                         onRun={() => runTaskNow(builtinPostTask.id)}/>
+                    <BuiltinPostTaskCard task={builtinPublishTask} agentNames={getTaskAgentNames(builtinPublishTask)}
+                        running={!!builtinPublishTask.id && runningTaskId === builtinPublishTask.id}
+                        progress={worldProgressByTask[builtinPublishTask.id]}
+                        onConfigure={() => openEditTaskModal(builtinPublishTask)}
+                        onToggle={() => toggleTaskEnabled(builtinPublishTask.id)}
+                        onRun={() => runTaskNow(builtinPublishTask.id)} onPreview={() => setPreviewTask(builtinPublishTask)}/>
                     {customTasks.length === 0 ? (
                         <div className="text-center py-14 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
                             <CalendarClock className="w-8 h-8 mx-auto mb-3 text-slate-300"/>
@@ -1224,6 +1244,7 @@ export const AgentSettings = ({
                 </div>
             )}
 
+            {previewTask && <PostPublishPreviewModal key={previewTask.id} task={previewTask} agents={agents} onClose={() => setPreviewTask(null)}/>}
             {taskModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
                     <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
@@ -1241,11 +1262,11 @@ export const AgentSettings = ({
                         </div>
 
                         <div className="max-h-[72vh] space-y-5 overflow-y-auto p-6">
-                            <p className="text-xs text-orange-600">{isSystemTask ? '内置系统任务 · 阅读帖子并评论打分' : '自定义任务'}</p>
+                            <p className="text-xs text-orange-600">{isSystemTask ? `内置系统任务 · ${taskForm.name}` : '自定义任务'}</p>
                             {isSystemTask && <>
-                                <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
-                                    onCollectionsChange={postCollectionIds => setTaskForm({...taskForm, postCollectionIds})} onCategoriesChange={postCategoryIds => setTaskForm({...taskForm, postCategoryIds})}/>
-                                {!isManualTask && <SystemTaskScheduleFields mode={taskForm.scheduleMode} period={taskForm.randomPeriod} count={taskForm.randomCount} interval={taskForm.intervalMinutes}
+                                <>{isPublishTask ? <PostPublishFields value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
+                                    onCollectionsChange={postCollectionIds => setTaskForm({...taskForm, postCollectionIds})} onCategoriesChange={postCategoryIds => setTaskForm({...taskForm, postCategoryIds})}/>}</>
+                                {!isManualTask && <SystemTaskScheduleFields publish={isPublishTask} mode={taskForm.scheduleMode} period={taskForm.randomPeriod} count={taskForm.randomCount} interval={taskForm.intervalMinutes}
                                     onChange={patch => setTaskForm({...taskForm, ...patch})}/>}
                             </>}
 

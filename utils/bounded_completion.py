@@ -133,8 +133,8 @@ def _json_unsupported(exc: Exception) -> bool:
     return ('response_format' in message or 'json_object' in message) and any(word in message for word in ('unsupported', 'not support', 'unknown', 'unrecognized', 'not permitted', '不支持'))
 
 
-def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int, extra_body: dict) -> str:
-    deadline = time.monotonic() + DEADLINE_SECONDS
+def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int, extra_body: dict, deadline_seconds: float = DEADLINE_SECONDS) -> str:
+    deadline = time.monotonic() + min(DEADLINE_SECONDS, deadline_seconds)
     network_retries, request_attempt = 0, 0
     use_json = json_output
     while True:

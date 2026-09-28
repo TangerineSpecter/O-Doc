@@ -366,6 +366,7 @@ export const useSettings = () => {
                 agents: agentIds,
                 executionMode: taskData.executionMode || 'parallel',
                 taskKind: taskData.taskKind || 'custom',
+                publishConfig: taskData.publishConfig,
                 postCollectionIds: taskData.postCollectionIds || [],
                 postCategoryIds: taskData.postCategoryIds || [],
                 trigger: taskData.trigger || '定时任务',
@@ -398,7 +399,7 @@ export const useSettings = () => {
                 }
                 return [data, ...prev];
             });
-            toast.success(taskData.taskKind === 'post_interaction' ? '系统任务配置已保存' : taskData.id ? '任务已更新' : '任务已创建');
+            toast.success(['post_interaction', 'post_publish'].includes(taskData.taskKind || '') ? '系统任务配置已保存' : taskData.id ? '任务已更新' : '任务已创建');
             return true;
         } catch (error) {
             toast.error('保存任务失败');

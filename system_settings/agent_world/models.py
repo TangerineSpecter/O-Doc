@@ -13,6 +13,7 @@ class WorldCategory(models.Model):
     id = models.CharField(primary_key=True, max_length=64, default=world_id)
     name = models.CharField(max_length=50)
     description = models.TextField(blank=True)
+    workflow_kind = models.CharField(max_length=20, choices=[("general", "通用发帖"), ("travel", "旅行工作流")], default="general")
     sort = models.IntegerField(default=0)
     enabled = models.BooleanField(default=True)
     updated_at = models.DateTimeField(auto_now=True)

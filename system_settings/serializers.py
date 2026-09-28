@@ -346,7 +346,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         fields = [
             'id',
             'name',
-            'task_kind', 'post_collection_ids', 'post_category_ids', 'world_progress',
+            'task_kind', 'publish_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
             'agent',
             'agent_name',
             'agents',
@@ -384,25 +384,27 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         return [agents[agent_id] for agent_id in ids if agent_id in agents]
 
     def get_random_progress(self, obj):
-        if obj.task_kind == 'post_interaction':
+        if obj.task_kind in ('post_interaction', 'post_publish'):
             return None
         from .agent_random_schedule import progress
         return progress(obj)
 
     def get_world_progress(self, obj):
-        if obj.task_kind != 'post_interaction':
+        if obj.task_kind not in ('post_interaction', 'post_publish'):
             return None
         from .agent_world.action_schedule import progress
         return progress(obj)
 
     @transaction.atomic
     def create(self, validated_data):
-        if validated_data.get('task_kind') == 'post_interaction':
-            from .agent_world.builtin_tasks import POST_INTERACTION_ID
+        if validated_data.get('task_kind') in ('post_interaction', 'post_publish'):
+            from .agent_world.builtin_tasks import POST_INTERACTION_ID, POST_PUBLISH_ID
+            kind = validated_data['task_kind']
+            builtin_id = POST_PUBLISH_ID if kind == 'post_publish' else POST_INTERACTION_ID
             # 兼容此前保存的配置；首次保存采用固定标识，重复提交不创建第二个入口。
-            task = AgentTask.objects.select_for_update().filter(task_kind='post_interaction').first()
+            task = AgentTask.objects.select_for_update().filter(task_kind=kind).first()
             if task is None:
-                task, created = AgentTask.objects.get_or_create(pk=POST_INTERACTION_ID, defaults=validated_data)
+                task, created = AgentTask.objects.get_or_create(pk=builtin_id, defaults=validated_data)
                 if not created:
                     task = super().update(task, validated_data)
             else:
@@ -420,7 +422,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
 
     @staticmethod
     def initialize_task(task):
-        if task.task_kind == 'post_interaction':
+        if task.task_kind in ('post_interaction', 'post_publish'):
             from .agent_world.action_schedule import initialize
             initialize(task)
         else:
@@ -452,9 +454,9 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         kind = attrs.get('task_kind', getattr(self.instance, 'task_kind', 'custom'))
         if self.instance and kind != self.instance.task_kind:
             raise serializers.ValidationError({'task_kind': '已有任务不能改变类型，请新建任务'})
-        if kind == 'post_interaction':
-            from .agent_world.builtin_tasks import POST_INTERACTION_NAME
-            attrs['name'] = POST_INTERACTION_NAME
+        if kind in ('post_interaction', 'post_publish'):
+            from .agent_world.builtin_tasks import POST_INTERACTION_NAME, POST_PUBLISH_NAME
+            attrs['name'] = POST_PUBLISH_NAME if kind == 'post_publish' else POST_INTERACTION_NAME
             if self.instance is None:
                 attrs.setdefault('enabled', False)
             attrs.update(execution_mode='serial', random_allocations={}, followup_enabled=False, followup_agent=None)
@@ -462,6 +464,27 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
                 raise serializers.ValidationError({'trigger': '系统任务仅支持自动调度或手动执行'})
             if attrs.get('schedule_mode', getattr(self.instance, 'schedule_mode', 'fixed')) == 'fixed':
                 attrs['schedule_type'] = 'interval'
+        if kind == 'post_publish':
+            if self.instance is None:
+                attrs.setdefault('schedule_mode', 'random')
+                attrs.setdefault('random_period', 'daily')
+                attrs.setdefault('random_count', 1)
+            from .agent_world.publish_config import PublishConfigSerializer
+            from utils.drf_utils import get_current_user_identifier
+            request = self.context.get('request')
+            saved_config = getattr(self.instance, 'publish_config', {})
+            config_input = attrs.get('publish_config', saved_config)
+            if self.instance and config_input == saved_config and attrs.get('enabled') is False:
+                attrs['publish_config'] = saved_config
+            else:
+                config = PublishConfigSerializer(data=attrs.get('publish_config', getattr(self.instance, 'publish_config', {})),
+                    context={'previous': getattr(self.instance, 'publish_config', {}),
+                             'owner_id': get_current_user_identifier(request) if request else None})
+                try:
+                    config.is_valid(raise_exception=True)
+                except ValueError as exc:
+                    raise serializers.ValidationError({'publish_config': str(exc)}) from exc
+                attrs['publish_config'] = config.validated_data
         if self.instance and attrs.get('schedule_mode', self.instance.schedule_mode) != self.instance.schedule_mode:
             attrs['world_state'] = {key: value for key, value in (self.instance.world_state or {}).items() if key != 'schedule'}
         agent_ids = attrs.get('agent_ids')

@@ -118,7 +118,8 @@ export type AgentRunStatus = 'success' | 'failed' | 'running';
 export type AgentRunStepStatus = AgentRunStatus | 'info';
 
 export interface AgentTaskConfig {
-    taskKind?: 'custom' | 'post_interaction';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish';
+    publishConfig?: import('./agentPublish').AgentPublishConfig;
     postCollectionIds?: string[];
     postCategoryIds?: string[];
     worldProgress?: {targetCount: number | null; processedCount: number; missedCount: number; nextExecutionAt: string | null; configPending: boolean} | null;

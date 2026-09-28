@@ -62,12 +62,12 @@ def take_due(task, now=None) -> str | None:
     return due
 
 
-def select_agent(task, now=None):
+def select_agent(task, now=None, *, cost=INTERACTION_COST, qualifies=None):
     now = now or timezone.now()
     ids = task.agent_ids or ([task.agent_id] if task.agent_id else [])
     agents = {a.pk: a for a in Agent.objects.select_related('model').filter(pk__in=ids)}
     busy = set(AgentExecutionLease.objects.filter(until__gt=now).values_list('agent_id', flat=True))
-    eligible = {key for key, agent in agents.items() if key not in busy and stamina(agent, now) >= INTERACTION_COST}
+    eligible = {key for key, agent in agents.items() if key not in busy and stamina(agent, now) >= cost and (qualifies is None or qualifies(agent))}
     state = dict(task.world_state or {})
     round_state = dict(state.get('round', {}))
     remaining = set(round_state.get('remaining', [])) & eligible

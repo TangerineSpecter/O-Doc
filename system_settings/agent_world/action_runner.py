@@ -107,6 +107,9 @@ def commit_feedback(action_id, task, agent, post, feedback, token, *, manual=Fal
 
 
 def repair_effects(action):
+    if action.snapshot.get('template_version') and 'config' in action.snapshot:
+        from .publish_runner import repair_publication
+        return repair_publication(action)
     if action.status not in ('success', 'skipped', 'failed'):
         return
     status = 'failed' if action.status == 'failed' else 'success'
@@ -219,9 +222,16 @@ def tick(scheduler):
             repair_effects(action)
         except Exception:
             logger.exception('Failed to recover action effects: action=%s', action.pk)
+    from .publish_runner import deliver_notification
+    for publication in WorldAction.objects.filter(status='success', snapshot__notification_pending=True, task__isnull=False).select_related('task', 'record')[:20]:
+        if publication.task_id:
+            try:
+                deliver_notification(publication, scheduler)
+            except Exception:
+                logger.exception('发帖通知恢复失败 action=%s', publication.pk)
     # 崩溃后不重做模型选择；已提交事实由上面的恢复逻辑完成后续处理。
     stale = timezone.now() - timedelta(minutes=15)
-    interrupted = WorldAction.objects.filter(status='claimed', updated_at__lt=stale)
+    interrupted = WorldAction.objects.filter(status='claimed', updated_at__lt=stale).exclude(task__task_kind='post_publish')
     record_ids = list(interrupted.values_list('record_id', flat=True))
     interrupted.update(status='failed', result={'reason': '执行中断，本机会结束'})
     AgentRunRecord.objects.filter(pk__in=record_ids, status='running').update(status='failed', summary='执行中断，本机会结束', updated_at=timezone.now())
@@ -234,7 +244,16 @@ def tick(scheduler):
     with execution_lease(WorldActionRuntime, {'pk': 'world'}) as token:
         if not token:
             return
-        for task in AgentTask.objects.filter(task_kind='post_interaction', enabled=True, trigger='定时任务'):
+        # 恢复可能继续检索、写作和发布，同样受本机开关与世界执行锁约束。
+        publications = WorldAction.objects.filter(status='claimed', updated_at__lt=stale, task__task_kind='post_publish').select_related('task')
+        for pending in publications[:20]:
+            from .publish_runner import run_publish_opportunity
+            run_publish_opportunity(pending.task, scheduler, key=pending.pk, manual=False, locked=token)
+        for task in AgentTask.objects.filter(task_kind__in=['post_interaction', 'post_publish'], enabled=True, trigger='定时任务'):
             key = take_due(task)
             if key:
-                run_opportunity(task, scheduler, key=key, locked=token)
+                if task.task_kind == 'post_publish':
+                    from .publish_runner import run_publish_opportunity
+                    run_publish_opportunity(task, scheduler, key=key, locked=token)
+                else:
+                    run_opportunity(task, scheduler, key=key, locked=token)

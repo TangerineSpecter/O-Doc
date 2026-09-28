@@ -12,3 +12,8 @@ export const defaultPostInteractionTask: AgentTaskConfig = {
     notifyEnabled: false, notifyPlatform: 'feishu', notifyWebhookUrl: '',
     followupEnabled: false, followupAgent: null, followupAction: 'review', followupPrompt: '',
 };
+
+export const defaultPostPublishTask: AgentTaskConfig = {
+    ...defaultPostInteractionTask, taskKind: 'post_publish', name: '自主选题并发帖',
+    scheduleMode: 'random', schedule: '每天随机 · 1 次发帖机会',
+};

@@ -588,10 +588,11 @@ class Skill(models.Model):
 class AgentTask(models.Model):
     """Agent 任务配置"""
 
-    task_kind = models.CharField(max_length=40, choices=[('custom', '自定义任务'), ('post_interaction', '阅读帖子并评论打分')], default='custom')
+    task_kind = models.CharField(max_length=40, choices=[('custom', '自定义任务'), ('post_interaction', '阅读帖子并评论打分'), ('post_publish', '自主选题并发帖')], default='custom')
     post_collection_ids = models.JSONField(default=list, blank=True)
     post_category_ids = models.JSONField(default=list, blank=True)
     world_state = models.JSONField(default=dict, blank=True)
+    publish_config = models.JSONField(default=dict, blank=True)
 
     SCHEDULE_TYPES = [
         ('daily', '每天'),
@@ -716,6 +717,7 @@ class WorldAction(models.Model):
     record = models.OneToOneField('AgentRunRecord', null=True, on_delete=models.SET_NULL)
     status = models.CharField(max_length=20, default='claimed')
     result = models.JSONField(default=dict, blank=True)
+    snapshot = models.JSONField(default=dict, blank=True)
     energy_cost = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     consumed_at = models.DateTimeField(null=True)
     effects_done = models.BooleanField(default=False)

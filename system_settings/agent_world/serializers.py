@@ -4,6 +4,12 @@ from .models import WorldCategory, WorldProfession, WorldProfessionCategory, Wor
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    def validate(self, attrs):
+        from .publish_config import is_travel_name
+        if is_travel_name(attrs.get("name", getattr(self.instance, "name", ""))):
+            attrs["workflow_kind"] = "travel"
+        return attrs
+
     class Meta:
         model = WorldCategory
         fields = '__all__'

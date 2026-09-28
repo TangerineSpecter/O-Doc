@@ -1,4 +1,4 @@
-export interface WorldCategory { id: string; name: string; description: string; sort: number; enabled: boolean }
+export interface WorldCategory { workflowKind?: 'general' | 'travel'; id: string; name: string; description: string; sort: number; enabled: boolean }
 export interface WorldBonus { category: string; percentage: string }
 export interface WorldProfession { id: string; name: string; description: string; enabled: boolean; bonuses: WorldBonus[] }
 export interface WorldIncomeConfig { id?: string; enabled: boolean; postAmount: string; commentAmount: string; prizeEnabled: boolean; firstAmount: string; secondAmount: string; thirdAmount: string }

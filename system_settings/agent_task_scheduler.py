@@ -234,6 +234,9 @@ class AgentTaskScheduler:
             task_name_override='',
             random_context=None,
     ):
+        if task.task_kind == 'post_publish':
+            from .agent_world.publish_runner import run_publish_opportunity
+            return run_publish_opportunity(task, self, manual=trigger == '手动执行')
         if task.task_kind == 'post_interaction':
             from .agent_world.action_runner import run_opportunity
             return run_opportunity(task, self, manual=trigger == '手动执行')
@@ -971,13 +974,13 @@ class AgentTaskScheduler:
         if not task.notify_enabled or not task.notify_webhook_url:
             if record:
                 self._append_run_step(record, 'info', '跳过通知', '任务未启用通知')
-            return
+            return True
 
         if task.notify_platform != 'feishu':
             logger.warning('Unsupported task notification platform: %s', task.notify_platform)
             if record:
                 self._append_run_step(record, 'failed', '通知失败', f"暂不支持通知平台：{task.notify_platform}")
-            return
+            return False
 
         text = f"{task.name} 任务执行完毕"
         try:
@@ -987,11 +990,13 @@ class AgentTaskScheduler:
             if record:
                 self._append_run_step(record, 'success', '飞书通知已发送', text)
             _scheduler_log(f"notification sent: id={task.id}, platform=feishu")
+            return True
         except Exception:
             if record:
                 self._append_run_step(record, 'failed', '飞书通知发送失败', '请检查 Webhook 地址和飞书机器人配置')
             _scheduler_log(f"notification failed: id={task.id}, platform=feishu")
             logger.exception('Agent task notification failed: %s', task.id)
+            return False
 
     @staticmethod
     def _send_feishu_message(webhook_url, text):

@@ -182,6 +182,13 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
     queryset = AgentTask.objects.select_related('agent', 'followup_agent').all()
     serializer_class = AgentTaskSerializer
 
+    @action(detail=False, methods=['get'])
+    def publish_collections(self, request):
+        from anthology.models import Anthology
+        from utils.drf_utils import get_current_user_identifier
+        rows = Anthology.objects.filter(type='agent', is_valid=True, user_id=get_current_user_identifier(request))
+        return success_result([{'coll_id': row.pk, 'title': row.title, 'type': row.type} for row in rows])
+
     @action(detail=False, methods=['get', 'post'])
     def world_runner(self, request):
         from .models import WorldActionRuntime
@@ -199,8 +206,14 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         return success_result(self.get_serializer(self.filter_queryset(self.get_queryset()), many=True).data)
 
     def create(self, request, *args, **kwargs):
+        if request.data.get('task_kind') == 'post_publish':
+            from utils.drf_utils import get_current_user_identifier
+            existing = AgentTask.objects.filter(task_kind='post_publish').first()
+            if existing and existing.publish_config.get('owner_id') != get_current_user_identifier(request):
+                return valid_result('无权修改此发帖任务', status=403)
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return valid_result("任务配置不符合要求", data=serializer.errors, status=400)
         self.perform_create(serializer)
         return success_result(serializer.data)
 
@@ -210,21 +223,52 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
+        from utils.drf_utils import get_current_user_identifier
+        if instance.task_kind == 'post_publish' and instance.publish_config.get('owner_id') != get_current_user_identifier(request):
+            return valid_result('无权修改此发帖任务', status=403)
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return valid_result("任务配置不符合要求", data=serializer.errors, status=400)
         self.perform_update(serializer)
         return success_result(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
-        if self.get_object().task_kind == 'post_interaction':
-            from rest_framework.exceptions import ValidationError
-            raise ValidationError({'detail': '内置系统任务不能删除，请关闭任务'})
+        if self.get_object().task_kind in ('post_interaction', 'post_publish'):
+            return valid_result('内置系统任务不能删除，请关闭任务', status=400)
         self.perform_destroy(self.get_object())
         return success_result()
 
     @action(detail=True, methods=['post'])
+    def preview(self, request, pk=None):
+        from .agent_world.publish_runner import preview
+        from rest_framework import serializers
+        task = self.get_object()
+        if task.task_kind != 'post_publish':
+            return valid_result('仅自主发帖任务支持预览', status=400)
+        class Input(serializers.Serializer):
+            agent_id = serializers.CharField(max_length=40)
+        data = Input(data=request.data)
+        if not data.is_valid():
+            return valid_result('请提供绑定 Agent ID', data=data.errors, status=400)
+        agent = Agent.objects.filter(pk=data.validated_data['agent_id']).first()
+        if not agent or agent.pk not in (task.agent_ids or [task.agent_id]):
+            return valid_result('请选择任务绑定的 Agent', status=400)
+        from article.access import can_manage_anthology
+        if not can_manage_anthology(request, task.publish_config.get('collection_id'), 'agent'):
+            return valid_result('无权管理输出文集', status=403)
+        try:
+            return success_result(preview(task, agent))
+        except Exception:
+            logger.exception('发帖预览失败 task=%s', task.pk)
+            return valid_result('预览失败，请检查搜索或模型配置', status=502)
+
+    @action(detail=True, methods=['post'])
     def run_now(self, request, pk=None):
         task = self.get_object()
+        if task.task_kind == 'post_publish':
+            from article.access import can_manage_anthology
+            if not can_manage_anthology(request, task.publish_config.get('collection_id'), 'agent'):
+                return valid_result('无权管理输出文集', status=403)
         logger.info('Manual agent task requested: id=%s, name=%s', task.id, task.name)
 
         def runner():
