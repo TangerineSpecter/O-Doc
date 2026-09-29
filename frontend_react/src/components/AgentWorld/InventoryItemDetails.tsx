@@ -75,7 +75,7 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
             <div className="inventory-item-hero">
                 <div className="inventory-item-emblem-wrapper">
                     <div className="inventory-item-emblem" aria-hidden="true">
-                        <ItemIconImage src={item.iconUrl || (farmItemIcon(item.source.sku || ''))} alt={item.name} className="relative z-10 h-[80%] w-[80%]" fallback={<span className="relic-emblem-char">{firstChar}</span>}/>
+                        <ItemIconImage src={item.iconUrl || (farmItemIcon(item.source.sku || ''))} alt={item.name} className="relative z-10 h-full w-full object-cover rounded-[11px]" fallback={<span className="relic-emblem-char">{firstChar}</span>}/>
                         <div className="relic-emblem-shine" />
                     </div>
                 </div>
@@ -132,7 +132,7 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                 <div className="relic-dossier-row">
                     <dt className="relic-dossier-key">
                         <Tag size={12} />
-                        <span>{isFarm ? '参考单价' : item.source.debug ? '调试参考单价' : '购入单价'}</span>
+                        <span>{isFarm ? '参考单价' : '购入单价'}</span>
                     </dt>
                     <span className="relic-dossier-line" aria-hidden="true" />
                     <dd className="relic-dossier-value">
@@ -175,18 +175,12 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                 </div>
             </dl>
 
-            {/* 底部收藏印章与调试标记 */}
+            {/* 底部收藏印章 */}
             <div className="relic-footer">
                 <div className="relic-verified-stamp" aria-hidden="true">
                     <span>COLLECTOR'S GUILD</span>
                     <strong>ARCHIVE RECORD</strong>
                 </div>
-
-                {item.source.debug && (
-                    <div className="relic-debug-stamp">
-                        <span>调试补录 · 仅供观测</span>
-                    </div>
-                )}
             </div>
         </section>
     );

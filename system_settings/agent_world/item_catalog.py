@@ -18,8 +18,10 @@ def item_catalog(owner: str) -> list[dict]:
 
     def add(sku, name, category, description, purchase=None, sale=None, quality='normal'):
         asset_id = icon_ids.get(sku)
+        ref_value = purchase if purchase is not None else sale
         entries[sku] = dict(id=sku, sku=sku, name=name, category=category, description=description,
                             purchase_price=purchase, sale_price=sale, quality=quality, quantity=0,
+                            reference_value=ref_value,
                             icon_asset_id=asset_id if asset_id in icon_assets else None,
                             icon_url=f'/api/resource/view/{asset_id}' if asset_id in icon_assets else '')
 
@@ -49,10 +51,15 @@ def item_catalog(owner: str) -> list[dict]:
         destination = source.get('destination') or {}
         identity = inventory_catalog_identity(row['name'], row['rarity'], source)
         if identity not in entries:
+            raw_val = row.get('value')
+            unit_val = source.get('unitPrice')
+            ref_value = raw_val if raw_val is not None else unit_val
             entries[identity] = dict(id='inventory:' + row['id'], sku=sku, name=row['name'],
                 category='souvenir' if row['kind'] == 'souvenir' else 'other',
                 description=source.get('description') or ('来自' + destination['city'] if destination.get('city') else '居民共用背包中的物品。'),
-                purchase_price=None, sale_price=None, quality=row['rarity'], quantity=0,
+                purchase_price=unit_val if unit_val is not None else None,
+                sale_price=None, quality=row['rarity'], quantity=0,
+                reference_value=ref_value,
                 icon_asset_id=row.get('icon_asset_id'), icon_url=row['icon_url'])
         entries[identity]['quantity'] += row['quantity']
     return list(entries.values())
