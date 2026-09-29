@@ -3,7 +3,8 @@ import {MapPin, Package, RefreshCw} from 'lucide-react';
 import {useAgentTravel} from '../../hooks/useAgentTravel';
 import {getTravel} from '../../api/travel';
 import type {TravelJourney} from '../../types/api/travel';
-import TravelDetailDialog, {travelStatus, travelPhase} from './TravelDetailDialog';
+import TravelDetailDialog from './TravelDetailDialog';
+import {travelStatus, travelPhase} from './travelConstants';
 import {useToast} from '../common/ToastProvider';
 import {TravelSouvenirGrid} from './TravelSouvenirGrid';
 

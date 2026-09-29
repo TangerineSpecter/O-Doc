@@ -1,50 +1,206 @@
 import {useState} from 'react';
-import {Link} from 'react-router-dom';
+import {Pause, Play, StopCircle, AlertTriangle} from 'lucide-react';
 import {useTravelDetail} from '../../hooks/useTravelDetail';
 import type {TravelJourney, TravelOperation} from '../../types/api/travel';
 import WorldDialog from './WorldDialog';
-import TravelPhotoPreview from './TravelPhotoPreview';
 import ResourceImagePickerModal from '../Editor/ResourceImagePickerModal';
 import {useToast} from '../common/ToastProvider';
 
-export const travelStatus: Record<string, string> = {active: '旅行进行中', waiting: '等待恢复', manual: '需要人工处理', paused: '已暂停', completed: '已返程', skipped: '本次未出行'};
-export const travelPhase: Record<string, string> = {preview: '准备目的地资料', choose: '选择目的地', plan: '准备行程', depart: '准备出发', food: '当地美食', buy: '纪念品购物', return: '返程', journal: '写旅行日记', publish: '发布日记', done: '完成'};
+import TravelHeaderCard from './TravelHeaderCard';
+import TravelTimeline from './TravelTimeline';
+import TravelJournalCard from './TravelJournalCard';
+import TravelPhotoCard from './TravelPhotoCard';
+import TravelLootCard from './TravelLootCard';
+import TravelSourcesCard from './TravelSourcesCard';
 
-export default function TravelDetailDialog({journey: initial, onClose, onChanged}: {journey: TravelJourney; onClose: () => void; onChanged: () => void}) {
+
+interface TravelDetailDialogProps {
+    journey: TravelJourney;
+    onClose: () => void;
+    onChanged: () => void;
+}
+
+export default function TravelDetailDialog({journey: initial, onClose, onChanged}: TravelDetailDialogProps) {
     const {journey, error, act: updateTravel} = useTravelDetail(initial);
     const [busy, setBusy] = useState(false);
     const [picker, setPicker] = useState(false);
     const [confirmation, setConfirmation] = useState<'end' | 'regenerate_image' | null>(null);
     const toast = useToast();
     const state = journey.snapshot;
+
     const act = async (action: TravelOperation, assetId?: string) => {
         setBusy(true);
-        try {await updateTravel(action, {assetId, confirmCharge: action === 'regenerate_image'}); onChanged(); toast.success('操作已保存');}
-        catch (e) {toast.error(e instanceof Error ? e.message : '操作失败');}
-        finally {setBusy(false); setConfirmation(null);}
+        try {
+            await updateTravel(action, {assetId, confirmCharge: action === 'regenerate_image'});
+            onChanged();
+            toast.success('操作已保存');
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : '操作失败');
+        } finally {
+            setBusy(false);
+            setConfirmation(null);
+        }
     };
-    const button = 'rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:border-orange-200 hover:bg-orange-50 disabled:opacity-50';
-    return <WorldDialog title={`${state.agentName}的旅行`} description="Agent 模拟游记 · 图片为生成插画" onClose={onClose}>
-        <div className="space-y-5">
-            {error && <p role="status" className="text-xs text-amber-700">{error}，稍后自动重试。</p>}
-            <div className="rounded-2xl bg-orange-50 p-4"><p className="font-semibold text-slate-800">{state.selected ? `${state.selected.country} · ${state.selected.city}` : '尚未选择目的地'}</p><p className="mt-1 text-xs text-orange-700">{travelStatus[journey.status]} · {travelPhase[journey.phase] || (journey.phase.startsWith('visit-') ? '景点游览' : '旅途遭遇')}</p>{state.selected && <p className="mt-2 text-sm text-slate-600">旅行总价 {state.selected.price} 世界币{journey.departedAt ? ' · 已结算' : ' · 尚未扣款'}</p>}</div>
-            {state.selection && <p className="text-sm leading-6 text-slate-600">选择理由：{state.selection.reason} · 购物预算 {state.selection.shoppingBudget} 世界币</p>}
-            {state.skipReason && <p className="text-sm text-slate-500">{state.skipReason}</p>}
-            {state.destinationNote && <p className="text-xs leading-5 text-amber-700">{state.destinationNote}</p>}
-            {state.debugPurchase && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><p>本地调试补录 · 未扣余额，不计入角色旅行记忆</p>{state.debugPurchase.items.map(item => <p key={item.id}>{item.name} × {item.quantity} · 参考价值 {item.value} 世界币</p>)}</div>}
-            {state.photo?.status === 'inserted' && <button className={button} disabled={busy} onClick={() => setConfirmation('regenerate_image')}>重新生成场景照</button>}
-            {!['completed', 'skipped'].includes(journey.status) && <div className="flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={() => void act(journey.status === 'paused' || journey.status === 'manual' || journey.status === 'waiting' ? 'resume' : 'pause')}>{['paused', 'manual', 'waiting'].includes(journey.status) ? '恢复旅行' : '暂停旅行'}</button><button className={button} disabled={busy} onClick={() => setConfirmation('end')}>结束旅行</button></div>}
-            {state.visits?.map((visit, i) => <div key={i} className="rounded-xl border border-slate-100 p-3"><p className="text-sm font-medium text-slate-800">{visit.site.name} · {visit.choice}</p><p className="mt-1 text-sm leading-6 text-slate-500">{visit.reaction}</p></div>)}
-            {state.encounters?.map((event, i) => <div key={i} className="rounded-xl bg-slate-50 p-3"><p className="text-sm text-slate-700">{event.description}</p><p className="mt-1 text-sm text-slate-500">{event.choice} · {event.reaction}</p></div>)}
-            {state.food && <p className="text-sm leading-6 text-slate-600">当地美食：{state.food.choice} · {state.food.reaction}</p>}
-            {state.shopping && <div className="space-y-2 text-sm text-slate-600"><p>纪念品：{state.shopping.reason}</p>{state.shopping.basket.map(item => {const good = state.goods?.find(g => g.id === item.id); return <p key={item.id}>{good?.name} × {item.quantity} · {Number(good?.price || 0)*item.quantity} 世界币</p>;})}</div>}
-            {state.draft && <div className="rounded-xl border border-slate-200 p-4"><h3 className="font-semibold text-slate-800">{state.draft.title}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{state.draft.content}</p><p className="mt-3 text-xs text-slate-500">旅行心得：{state.draft.reflection}</p></div>}
-            {journey.articleId && state.config?.collectionId && <Link to={`/article/${encodeURIComponent(state.config.collectionId)}/${encodeURIComponent(journey.articleId)}`} className="inline-block text-sm text-orange-600">打开旅行日记</Link>}
-            {state.photo && <div className="rounded-xl border border-slate-200 p-4"><p className="text-sm font-medium text-slate-700">场景照：{{pending: '等待生成', generating: '正在生成', manual: '需要处理', inserted: '已补入原帖', abandoned: '已放弃'}[state.photo.status] || state.photo.status}</p>{state.photo.error && <p className="mt-2 text-xs leading-5 text-amber-700">{state.photo.error}</p>}<TravelPhotoPreview imageUrl={state.photo.imageUrl}/>{state.photo.status !== 'inserted' && <div className="mt-3 flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={() => void act('query_image')}>恢复查询</button><button className={button} disabled={busy} onClick={() => setConfirmation('regenerate_image')}>重新生成</button><button className={button} disabled={busy} onClick={() => setPicker(true)}>选择已有图片</button><button className={button} disabled={busy} onClick={() => void act('abandon_image')}>放弃配图</button></div>}</div>}
-            {journey.nodes?.filter(node => node.error).map(node => <p key={node.id} className="text-xs text-amber-700">{node.kind}：{node.error}</p>)}
-            {state.sources?.length ? <div className="space-y-1"><p className="text-xs font-medium text-slate-500">地方资料来源</p>{state.sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noreferrer" className="block truncate text-xs text-orange-600">{source.title || source.url}</a>)}</div> : null}
-        </div>
-        {picker && <ResourceImagePickerModal isOpen onClose={() => setPicker(false)} onSelect={id => {setPicker(false); void act('use_image', id);}}/>}
-        {confirmation && <WorldDialog title={confirmation === 'end' ? '结束这次旅行？' : '重新生成场景照？'} onClose={() => setConfirmation(null)}><p className="text-sm leading-6 text-slate-600">{confirmation === 'end' ? '已出发的费用不自动退还，已获得物品保留，并根据已发生经历写日记。' : '新请求可能再次计费；原请求提交结果未知时也可能已经扣费。成功后替换旧场景照并保留旧图，正文有修改时转为人工插入。确认后才提交新请求。'}</p><div className="mt-4 flex justify-end gap-2"><button className={button} onClick={() => setConfirmation(null)}>取消</button><button className="rounded-xl bg-orange-500 px-4 py-2 text-sm text-white disabled:opacity-50" disabled={busy} onClick={() => void act(confirmation)}>确认</button></div></WorldDialog>}
-    </WorldDialog>;
+
+    const isOngoing = !['completed', 'skipped'].includes(journey.status);
+    const isPaused = ['paused', 'manual', 'waiting'].includes(journey.status);
+    const nodeErrors = journey.nodes?.filter(node => Boolean(node.error)) || [];
+
+    const extraPhotos = (state as {photos?: Array<{imageUrl?: string} | string>}).photos;
+    const hasPhotos = Boolean(state.photo || (extraPhotos && extraPhotos.length > 0));
+
+    return (
+        <WorldDialog
+            title={`${state.agentName}的旅行`}
+            description="Agent 模拟游历报告 · 旅行经历与画卷"
+            onClose={onClose}
+            size="wide"
+        >
+            <div className="space-y-5">
+                {/* 错误提示条 */}
+                {error && (
+                    <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                        <span>{error}，稍后自动重试。</span>
+                    </div>
+                )}
+
+                {/* 节点异常排查 */}
+                {nodeErrors.length > 0 && (
+                    <div className="rounded-xl border border-red-200 bg-red-50/70 p-3 text-xs text-red-700 space-y-1">
+                        <p className="font-semibold flex items-center gap-1.5">
+                            <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                            <span>部分执行节点存在异常：</span>
+                        </p>
+                        {nodeErrors.map(node => (
+                            <p key={node.id} className="pl-5 text-slate-600">
+                                <strong>{node.kind}</strong>：{node.error}
+                            </p>
+                        ))}
+                    </div>
+                )}
+
+                {/* 顶部旅行通行证卡片 */}
+                <TravelHeaderCard journey={journey} />
+
+                {/* 主体响应式双栏布局 */}
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+                    {/* 左侧主阅读区 (8列)：足迹时光轴 + 日记长文 */}
+                    <div className="space-y-5 lg:col-span-7 xl:col-span-8">
+                        {/* 游历足迹与见闻 */}
+                        <TravelTimeline snapshot={state} />
+
+                        {/* 深度旅行日记手卷 */}
+                        {state.draft && (
+                            <TravelJournalCard
+                                draft={state.draft}
+                                articleId={journey.articleId}
+                                collectionId={state.config?.collectionId}
+                            />
+                        )}
+                    </div>
+
+                    {/* 右侧边栏 (4列)：操作控制 + 场景照片 + 战利品背包 + 地方资料 */}
+                    <div className="space-y-5 lg:col-span-5 xl:col-span-4">
+                        {/* 进行中旅行操作面板 */}
+                        {isOngoing && (
+                            <div className="rounded-2xl border border-orange-200/80 bg-orange-50/40 p-4 shadow-xs">
+                                <h4 className="text-xs font-bold text-orange-950 mb-2.5">
+                                    旅途控制中枢
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => void act(isPaused ? 'resume' : 'pause')}
+                                        className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-xs font-medium text-orange-700 shadow-2xs hover:bg-orange-50 disabled:opacity-50 transition-colors whitespace-nowrap shrink-0"
+                                    >
+                                        {isPaused ? <Play className="h-3.5 w-3.5 text-orange-600" /> : <Pause className="h-3.5 w-3.5 text-orange-600" />}
+                                        <span>{isPaused ? '恢复旅行' : '暂停旅行'}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => setConfirmation('end')}
+                                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-2xs hover:bg-red-50 disabled:opacity-50 transition-colors whitespace-nowrap shrink-0"
+                                    >
+                                        <StopCircle className="h-3.5 w-3.5 text-red-500" />
+                                        <span>提前结束旅行</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 场景照掠影拍立得（支持 16:9 轮播与点击放大） */}
+                        {hasPhotos && (
+                            <TravelPhotoCard
+                                photo={state.photo}
+                                photos={extraPhotos}
+                                busy={busy}
+                                onRegenerate={() => setConfirmation('regenerate_image')}
+                                onQuery={() => void act('query_image')}
+                                onPick={() => setPicker(true)}
+                                onAbandon={() => void act('abandon_image')}
+                            />
+                        )}
+
+                        {/* 战利品与背包道具 */}
+                        <TravelLootCard
+                            debugPurchase={state.debugPurchase}
+                            shopping={state.shopping}
+                            goods={state.goods}
+                        />
+
+                        {/* 地方资料与参考来源 */}
+                        <TravelSourcesCard sources={state.sources} />
+                    </div>
+                </div>
+            </div>
+
+            {/* 图库已有图片选择器 */}
+            {picker && (
+                <ResourceImagePickerModal
+                    isOpen
+                    onClose={() => setPicker(false)}
+                    onSelect={id => {
+                        setPicker(false);
+                        void act('use_image', id);
+                    }}
+                />
+            )}
+
+            {/* 二次确认操作模态框 */}
+            {confirmation && (
+                <WorldDialog
+                    title={confirmation === 'end' ? '结束这次旅行？' : '重新生成场景照？'}
+                    onClose={() => setConfirmation(null)}
+                >
+                    <div className="space-y-4">
+                        <p className="text-xs leading-relaxed text-slate-600 sm:text-sm">
+                            {confirmation === 'end'
+                                ? '已出发的旅行费用不自动退还，已获得的物品与战利品保留，系统将根据已发生的足迹经历收尾并撰写旅行日记。'
+                                : '重新请求场景插画可能会产生额外的 AI 绘图计费。生成成功后将替换旧图；若正文内容有变动将转为手动提示插入。是否确认重新生成？'}
+                        </p>
+                        <div className="flex justify-end gap-2 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setConfirmation(null)}
+                                className="rounded-lg border border-slate-200 px-3.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 whitespace-nowrap shrink-0"
+                            >
+                                取消
+                            </button>
+                            <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void act(confirmation)}
+                                className="rounded-lg bg-orange-500 px-4 py-1.5 text-xs font-medium text-white shadow-xs shadow-orange-500/20 transition-all hover:bg-orange-600 disabled:opacity-50 whitespace-nowrap shrink-0"
+                            >
+                                确认执行
+                            </button>
+                        </div>
+                    </div>
+                </WorldDialog>
+            )}
+        </WorldDialog>
+    );
 }
