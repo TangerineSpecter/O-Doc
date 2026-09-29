@@ -52,7 +52,7 @@ export default function TravelDetailDialog({journey: initial, onClose, onChanged
     return (
         <WorldDialog
             title={`${state.agentName}的旅行`}
-            description="Agent 模拟游历报告 · 旅行经历与画卷"
+            description="旅行经历与画卷"
             onClose={onClose}
             size="wide"
         >

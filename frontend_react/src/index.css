@@ -663,3 +663,9 @@ canvas:focus,
 [tabindex="-1"]:focus {
   outline: none !important;
 }
+
+/* 全系统多行输入框默认禁用自由改变大小，防止右下角拉伸影响布局美观 */
+textarea {
+  resize: none;
+}
+

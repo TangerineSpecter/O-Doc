@@ -219,6 +219,14 @@ className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ou
 - 必填星号使用 `text-red-500`。
 - 表单禁用态使用 `opacity-50` 或 `opacity-70 cursor-not-allowed`。
 
+#### 多行文本框（Textarea）
+
+- **【严禁自由改变文本域大小】全系统所有多行文本框（`<textarea>`）严禁支持自由改变大小（`resize: none`）**。
+  - 浏览器默认的 `<textarea>` 存在 `resize: both`，会在右下角渲染原生拉伸拖拽手柄，一旦用户拖动会直接破坏卡片容器、设置面板或弹窗的布局；
+  - 全局已在 `frontend_react/src/index.css` 注入 `textarea { resize: none; }` 兜底；
+  - 组件编写时仍应统一显式声明 `resize-none`，保持语义清晰；需要控制可视高度时，使用 `rows`、`min-h`、`max-h` 或平滑自适应滚动，严禁暴露右下角原生调节手柄。
+
+
 #### 复选框
 
 - 优先复用 `frontend_react/src/components/common/Checkbox.tsx`，保持橘色选中态、统一尺寸和键盘焦点样式。
@@ -253,8 +261,16 @@ className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hid
 弹窗结构：
 
 - Header：`px-6 py-4 border-b border-slate-100 bg-slate-50/50`
-- Body：`p-6 space-y-5 max-h-[70vh] overflow-y-auto`
+- Body：`p-6 space-y-5 max-h-[70vh] overflow-y-auto scrollbar-hide`
 - Footer：`px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3`
+
+#### 弹窗内部滚动与滚动条隐藏规范
+
+- **【禁止展示内部原生滚动条】弹窗及内部卡片、列容器等所有区域的内部滚动，严禁展示原生滚动条**。
+  - 原生粗糙的灰黑灰色滚动条会破坏白底大圆角卡片的精致视觉一致性，并在内容动态增减时引发横向挤压抖动；
+  - 内部滚动容器必须统一配置 `scrollbar-hide`（或 `no-scrollbar`），在完全保留鼠标滚轮、触控板双指滑动以及触屏拖动能力的同时，彻底隐去可见的滚动槽和滑块；
+  - **【局部子容器独立滚动优先】多列看板、分栏看板（如生活日程周看板、农场地图等），必须做成局部列内或独立子卡片内部滚动，严禁让整个弹窗 body 发生整体滚动，防止顶部导航栏或筛选操作条被滚出视口**。
+
 
 ### 5.5 下拉菜单
 

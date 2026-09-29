@@ -1,42 +1,31 @@
-import {lazy, Suspense, useCallback, useState} from 'react';
+import {lazy, Suspense, useCallback, useEffect, useState} from 'react';
 import WorldDialog from '../components/AgentWorld/WorldDialog';
 const LifeScheduleDialog = lazy(() => import('../components/AgentLife/LifeScheduleDialog'));
 const MarketDialog = lazy(() => import('../components/Market/MarketDialog'));
 const FarmDialog = lazy(() => import('../components/Farm/FarmDialog'));
 const ItemCatalogDialog = lazy(() => import('../components/AgentWorld/ItemCatalogDialog'));
-import {Activity, ArrowLeft, Bot, BookOpenText, CircleDollarSign, MessageCircle, RefreshCw, Settings, Sparkles, Store} from 'lucide-react';
+import {Activity, ArrowLeft, Bot, BookOpenText, Settings, Store} from 'lucide-react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
-import AgentTravelPanel from '../components/AgentWorld/AgentTravelPanel';
-import AgentActivityCard from '../components/AgentWorld/AgentActivityCard';
+import DailyFeedTimeline from '../components/AgentWorld/DailyFeedTimeline';
 import AgentAttributePanel from '../components/AgentWorld/AgentAttributePanel';
 import AgentWorldBanner from '../components/AgentWorld/AgentWorldBanner';
-import AgentFinanceFeed from '../components/AgentWorld/AgentFinanceFeed';
 import AgentRelationCard from '../components/AgentWorld/AgentRelationCard';
 import AgentRunDrawer from '../components/AgentWorld/AgentRunDrawer';
 import WorldManagementDialog from '../components/AgentWorld/WorldManagementDialog';
 import {AgentResidentsMobileBar, AgentResidentsSidebar} from '../components/AgentWorld/AgentResidentsBar';
-import StarLoader from '../components/common/StarLoader';
 import {useAgentRelation} from '../hooks/useAgentRelation';
 import {useAgentWorld} from '../hooks/useAgentWorld';
-import {useAgentWorldFinance} from '../hooks/useAgentWorldFinance';
+import type {DailyFeedEvent} from '../types/api/dailyFeed';
 import type {AgentActivity as AgentActivityData, AgentActivityType} from '../types/api/setting';
 
-type AgentWorldFilter = AgentActivityType | 'all' | 'finance' | 'travel';
-
-const filters: Array<{value: AgentWorldFilter; label: string; icon: typeof Activity}> = [
-    {value: 'all', label: '全部', icon: Sparkles},
-    {value: 'publication', label: '作品', icon: BookOpenText},
-    {value: 'interaction', label: '互动', icon: MessageCircle},
-    {value: 'travel', label: '旅行', icon: BookOpenText},
-    {value: 'finance', label: '收支', icon: CircleDollarSign},
-    {value: 'work', label: '执行记录', icon: Activity},
-];
-
 const InvestmentDialog = lazy(() => import('../components/Investment/InvestmentDialog'));
+const TravelJourneyDialog = lazy(() => import('../components/AgentWorld/TravelJourneyDialog'));
 
 export default function AgentWorldPage() {
     const navigate = useNavigate();
     const [lifeOpen, setLifeOpen] = useState(false);
+    const [travelArchiveId, setTravelArchiveId] = useState('');
+    const [feedRefreshToken, setFeedRefreshToken] = useState(0);
     const closeLife = useCallback(() => setLifeOpen(false), []);
     const [investmentOpen, setInvestmentOpen] = useState(false);
     const closeInvestment = useCallback(() => setInvestmentOpen(false), []);
@@ -47,28 +36,47 @@ export default function AgentWorldPage() {
     const [catalogOpen, setCatalogOpen] = useState(false);
     const closeCatalog = useCallback(() => setCatalogOpen(false), []);
     const [worldManagementOpen, setWorldManagementOpen] = useState(false);
-    const [query] = useSearchParams();
+    const [query, setQuery] = useSearchParams();
+    const travelQuery = query.get('travel');
+    useEffect(() => {
+        setTravelArchiveId(travelQuery || '');
+    }, [travelQuery]);
+    const closeTravel = () => {
+        setTravelArchiveId('');
+        if (travelQuery) {
+            const next = new URLSearchParams(query);
+            next.delete('travel');
+            setQuery(next, {replace: true});
+        }
+    };
     const world = useAgentWorld();
-    const [activeFilter, setActiveFilter] = useState<AgentWorldFilter>(query.has('travel') ? 'travel' : 'all');
-    const finance = useAgentWorldFinance(world.agentId, activeFilter === 'finance');
+    const [dailySummary, setDailySummary] = useState<{date: string; total: number; actorCounts: Record<string, number>} | null>(null);
+    const updateDailySummary = useCallback((value: {date: string; total: number; actorCounts: Record<string, number>}) => setDailySummary(value), []);
     const [selectedActivity, setSelectedActivity] = useState<AgentActivityData | null>(null);
     const [panel, setPanel] = useState<'graph' | 'attributes' | null>(null);
     const relation = useAgentRelation(panel !== null);
 
-    const openArtifact = (activity: AgentActivityData) => {
-        if (!activity.artifact?.collId || !activity.artifact.articleId) return;
-        const target = activity.artifact.kind === 'articleComment'
-            ? `#comment-${encodeURIComponent(activity.artifact.id)}`
-            : activity.artifact.kind === 'articleAnnotation'
-                ? `#annotation-${encodeURIComponent(activity.artifact.id)}`
-                : '';
-        navigate(`/article/${activity.artifact.collId}/${activity.artifact.articleId}${target}`);
+    const openDailyTarget = (event: DailyFeedEvent) => {
+        const target = event.target;
+        if (!target) return;
+        if (target.kind === 'activity' && target.collId && target.articleId) {
+            const anchor = target.artifactKind === 'articleComment' ? `#comment-${encodeURIComponent(target.artifactId || '')}` : target.artifactKind === 'articleAnnotation' ? `#annotation-${encodeURIComponent(target.artifactId || '')}` : '';
+            navigate(`/article/${target.collId}/${target.articleId}${anchor}`);
+        } else if ((target.kind === 'activity' || target.kind === 'run') && (target.runRecordId || target.kind === 'run')) {
+            setSelectedActivity({id: event.id, type: 'work' as AgentActivityType, status: event.status as AgentActivityData['status'], agent: {id: event.actorId, name: event.actorName, avatar: ''}, title: event.title, summary: event.detail, occurredAt: event.occurredAt, runRecordId: target.runRecordId || target.id});
+        } else if (target.kind === 'travel') setTravelArchiveId(target.id);
+        else if (target.kind === 'farm') setFarmOpen(true);
+        else if (target.kind === 'market') setMarketOpen(true);
+        else if (target.kind === 'investment') setInvestmentOpen(true);
+        else if (target.kind === 'life') setLifeOpen(true);
     };
+
+    const residents = (world.summary?.agents || []).map(agent => ({...agent, todayCount: dailySummary?.actorCounts[agent.id] ?? agent.todayCount}));
 
     const statsData = [
         {
             label: '今日动态',
-            value: world.summary?.todayActivityCount || 0,
+            value: dailySummary?.total ?? world.summary?.todayActivityCount ?? 0,
             icon: Activity,
             color: 'text-slate-800',
             iconColor: 'text-sky-500 bg-sky-50',
@@ -108,7 +116,7 @@ export default function AgentWorldPage() {
                     <button type="button" onClick={() => setCatalogOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600">
                         <BookOpenText className="h-3.5 w-3.5 shrink-0"/>物品图鉴
                     </button>
-                    <button type="button" onClick={() => setLifeOpen(true)} className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">生活日程</button>
+                    <button type="button" onClick={() => setLifeOpen(true)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100">生活日程</button>
                     <button type="button" onClick={() => setInvestmentOpen(true)} className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">股票投资</button>
                     <button type="button" onClick={() => setMarketOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"><Store className="h-3.5 w-3.5 shrink-0"/>世界市场</button>
                     <button type="button" onClick={() => setFarmOpen(true)} className="rounded-lg border border-lime-200 bg-lime-50 px-3 py-1.5 text-xs font-semibold text-lime-700">像素农场</button>
@@ -136,7 +144,7 @@ export default function AgentWorldPage() {
             {/* 移动端专属居民状态横滑栏：置顶于动态流上方，随时可横滑感知与点击筛选 (< lg) */}
             <div className="mt-3 lg:hidden">
                 <AgentResidentsMobileBar
-                    agents={world.summary?.agents || []}
+                    agents={residents}
                     selectedAgentId={world.agentId}
                     onSelectAgent={world.setAgentId}
                     onOpenRelation={() => setPanel('graph')}
@@ -146,82 +154,13 @@ export default function AgentWorldPage() {
 
             <div className="mt-3.5 grid gap-5 lg:mt-5 lg:grid-cols-[minmax(0,1fr)_280px]">
                 <div className="min-w-0">
-                    {/* 动态流类型过滤条与刷新按钮 */}
-                    <div className="mb-3.5 flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xs sm:mb-4 sm:p-2 sm:shadow-sm">
-                        <div className="flex flex-wrap gap-1">
-                            {filters.map(filter => {
-                                const Icon = filter.icon;
-                                const active = activeFilter === filter.value;
-                                return (
-                                    <button
-                                        key={filter.value}
-                                        type="button"
-                                        onClick={() => {
-                                            setActiveFilter(filter.value);
-                                            if (filter.value !== 'finance' && filter.value !== 'travel') world.setType(filter.value);
-                                        }}
-                                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors sm:gap-1.5 sm:px-3 sm:py-2 ${
-                                            active
-                                                ? 'bg-orange-50 text-orange-700'
-                                                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-                                        }`}
-                                    >
-                                        <Icon className="h-3.5 w-3.5"/>{filter.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                if (activeFilter === 'finance') void finance.reload();
-                                else void world.reload();
-                            }}
-                            aria-label={activeFilter === 'finance' ? '刷新收支' : '刷新动态'}
-                            className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 hover:text-orange-600 sm:p-2"
-                        >
-                            <RefreshCw className="h-4 w-4"/>
-                        </button>
-                    </div>
-
-                    {activeFilter === 'travel' ? <AgentTravelPanel agentId={world.agentId} journeyId={query.get('travel') || undefined}/> : activeFilter === 'finance' ? (
-                        <AgentFinanceFeed
-                            entries={finance.entries}
-                            selectedAgentId={world.agentId}
-                            loading={finance.loading}
-                            error={finance.error}
-                        />
-                    ) : world.loading ? (
-                        <div className="flex min-h-72 items-center justify-center rounded-2xl border border-slate-100 bg-white"><StarLoader/></div>
-                    ) : world.error ? (
-                        <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center sm:p-8">
-                            <p className="text-sm text-red-700">{world.error}</p>
-                            <button type="button" onClick={() => void world.reload()} className="mt-3 rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm">重新加载</button>
-                        </div>
-                    ) : world.activities.length ? (
-                        <div className="space-y-3">
-                            {world.activities.map(activity => (
-                                <AgentActivityCard key={activity.id} activity={activity} onOpenRun={setSelectedActivity} onOpenArtifact={openArtifact}/>
-                            ))}
-                            {world.hasMore && (
-                                <button type="button" onClick={() => void world.loadMore()} disabled={world.loadingMore} className="w-full rounded-xl border border-slate-200 bg-white py-3 text-xs font-medium text-slate-500 hover:border-orange-200 hover:text-orange-600 disabled:opacity-60">
-                                    {world.loadingMore ? '正在加载...' : '加载更多动态'}
-                                </button>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center">
-                            <Bot className="h-9 w-9 text-orange-300"/>
-                            <h2 className="mt-3 text-sm font-bold text-slate-700">这里还很安静</h2>
-                            <p className="mt-1 text-xs text-slate-400">运行一个 Agent 任务后，新的动态会出现在这里。</p>
-                        </div>
-                    )}
+                    <DailyFeedTimeline actorId={world.agentId} residents={residents} onOpen={openDailyTarget} onSummary={updateDailySummary} refreshToken={feedRefreshToken}/>
                 </div>
 
                 {/* 桌面端常驻侧边栏 (>= lg) */}
                 <div className="hidden lg:block">
                     <AgentResidentsSidebar
-                        agents={world.summary?.agents || []}
+                        agents={residents}
                         selectedAgentId={world.agentId}
                         onSelectAgent={world.setAgentId}
                         onOpenRelation={() => setPanel('graph')}
@@ -253,6 +192,7 @@ export default function AgentWorldPage() {
                 />
             ) : null}
             {investmentOpen && <Suspense fallback={<WorldDialog title="股票投资" onClose={closeInvestment} size="wide"><p className="p-8 text-center text-slate-500">正在打开投资账户…</p></WorldDialog>}><InvestmentDialog onClose={closeInvestment}/></Suspense>}
+            {travelArchiveId && <Suspense fallback={<WorldDialog title="旅行详情" onClose={closeTravel} manageFocus={false}><p className="p-8 text-center text-slate-500">正在打开旅行详情…</p></WorldDialog>}><TravelJourneyDialog key={travelArchiveId} journeyId={travelArchiveId} onClose={closeTravel} onChanged={() => setFeedRefreshToken(value => value + 1)}/></Suspense>}
             {marketOpen && <Suspense fallback={<WorldDialog title="世界市场" onClose={closeMarket} size="wide"><p className="p-8 text-center text-slate-500">正在打开市场…</p></WorldDialog>}><MarketDialog onClose={closeMarket} residents={world.summary?.agents || []}/></Suspense>}
             {farmOpen&&<Suspense fallback={<WorldDialog title="像素农场" onClose={closeFarm} size="wide" manageFocus={false}><p className="p-8 text-center text-slate-500">正在铺开农场地图…</p></WorldDialog>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></Suspense>}
             {catalogOpen && <Suspense fallback={<WorldDialog title="物品图鉴" onClose={closeCatalog} size="wide" manageFocus={false}><p className="p-8 text-center text-slate-500">正在翻开图鉴…</p></WorldDialog>}><ItemCatalogDialog onClose={closeCatalog}/></Suspense>}

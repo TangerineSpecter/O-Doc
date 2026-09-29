@@ -572,13 +572,20 @@ class TravelTests(TestCase):
 
 
     def test_travel_memory_is_idempotent_and_excludes_debug_items(self):
-        from .travel_memory import remember_travel, recent_travel_context
+        from .travel_memory import remember_travel, recent_travel_context, travel_memory_context
         row = self.journey('done', status='completed', departed_at=timezone.now(), returned_at=timezone.now())
         row.snapshot.update(shopping={'basket': [], 'reason': '不买'}, debug_purchase={'items': [{'name': '调试礼盒'}]},
-                            ended_early=True, destination_scope='region')
+                            ended_early=True, destination_scope='region',
+                            encounters=[{'description': '模拟遭遇：突然下雨了', 'choice': '避雨', 'reaction': '等雨停'}])
         row.save()
         memory = remember_travel(row)
         self.assertEqual(remember_travel(row).pk, memory.pk)
+        self.assertTrue(memory.content.startswith('旅行地点：'))
+        self.assertIn('旅途遭遇：突然下雨了', memory.content)
+        self.assertNotIn('模拟旅行', memory.content)
+        self.assertNotIn('模拟遭遇', memory.content)
+        self.assertIn('Agent 世界内已发生的旅行经历', travel_memory_context(self.agent))
+        self.assertNotIn('模拟旅行', travel_memory_context(self.agent))
         self.assertIn('未购买', memory.content)
         self.assertIn('具体城市未确认', memory.content)
         self.assertIn('提前结束', memory.content)
@@ -588,6 +595,28 @@ class TravelTests(TestCase):
         remember_travel(row)
         self.assertEqual(recent_travel_context(self.agent), [])
         self.assertIsNone(remember_travel(self.journey(status='skipped')))
+
+    def test_legacy_travel_memory_wording_changes_without_overwriting_edits(self):
+        import importlib
+        from django.apps import apps
+        from django.db import connection
+        from types import SimpleNamespace
+        from system_settings.models import AgentLongTermMemory
+        migration = importlib.import_module('system_settings.migrations.0051_reword_travel_memories')
+        original = ('这是一次模拟旅行，地点：中国 · 四川 · 成都。\n'
+                    '模拟遭遇：模拟遭遇：突然下雨；应对：避雨。\n心得：下次还想来。')
+        travel = AgentLongTermMemory.objects.create(agent=self.agent, scope='agent', memory_type='fact',
+                    title='旅行经历：成都', content=original, status='archived', metadata={'source':'travel','journey_id':'old'})
+        personal = AgentLongTermMemory.objects.create(agent=self.agent, scope='agent', memory_type='fact',
+                    title='普通记忆', content=original, metadata={'source':'manual'})
+        editor = SimpleNamespace(connection=connection)
+        migration.apply(apps, editor)
+        migration.apply(apps, editor)
+        travel.refresh_from_db();personal.refresh_from_db()
+        self.assertEqual(travel.content, '旅行地点：中国 · 四川 · 成都。\n旅途遭遇：突然下雨；应对：避雨。\n心得：下次还想来。')
+        self.assertEqual(travel.status, 'archived')
+        self.assertEqual(travel.metadata['journey_id'], 'old')
+        self.assertEqual(personal.content, original)
 
     def test_history_without_scope_keeps_real_city_visits(self):
         row = self.journey(arrived_at=timezone.now())

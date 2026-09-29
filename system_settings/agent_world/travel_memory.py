@@ -11,14 +11,15 @@ def remember_travel(journey):
     place = ' · '.join(dict.fromkeys(filter(None, [city.get('country'), city.get('region'), city.get('city')])))
     if state.get('destination_scope') in {'region', 'unconfirmed'}:
         place += '（历史目的地范围存在歧义，具体城市未确认）'
-    facts = [f'这是一次模拟旅行，地点：{place}。抵达日期：{journey.arrived_at:%Y-%m-%d}。' if journey.arrived_at else f'这是一次模拟旅行，地点：{place}。']
+    facts = [f'旅行地点：{place}。抵达日期：{journey.arrived_at:%Y-%m-%d}。' if journey.arrived_at else f'旅行地点：{place}。']
     for visit in state.get('visits', []):
         facts.append(f"景点：{visit['site']['name']}；选择：{visit['choice']}；感受：{visit.get('reaction', '')}。")
     food = state.get('food', {})
     if food:
         facts.append(f"美食选择：{food.get('choice', '')}；感受：{food.get('reaction', '')}。")
     for event in state.get('encounters', []):
-        facts.append(f"模拟遭遇：{event.get('description', '')}；应对：{event.get('choice', '')}；感受：{event.get('reaction', '')}。")
+        description = str(event.get('description', '')).removeprefix('模拟遭遇：')
+        facts.append(f"旅途遭遇：{description}；应对：{event.get('choice', '')}；感受：{event.get('reaction', '')}。")
     goods = {g['id']: g for g in state.get('goods', [])}
     basket = state.get('shopping', {}).get('basket', [])
     facts.append('购买纪念品：' + ('、'.join(f"{goods[x['id']]['name']}×{x['quantity']}" for x in basket if x['id'] in goods) or '未购买') + '。')
@@ -41,5 +42,5 @@ def travel_memory_context(agent) -> str:
     memories = recent_travel_context(agent)
     if not memories:
         return ''
-    return '以下是你已保存的模拟旅行经历，相关时可自然回忆，不要当作现实旅行事实：\n' + '\n\n'.join(
+    return '以下是你在 Agent 世界内已发生的旅行经历，相关时可以自然回忆；被问及现实世界的亲身经历时应如实区分：\n' + '\n\n'.join(
         memory['title'] + '\n' + memory['content'] for memory in memories)

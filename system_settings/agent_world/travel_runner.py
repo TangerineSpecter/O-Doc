@@ -12,7 +12,7 @@ from .execution import execution_lease
 from .travel_models import TravelJourney, TravelRuntime, TravelNode
 from .travel_candidates import candidates
 from .travel_config import TravelConfigSerializer
-from .travel_steps import advance
+from .travel_steps import advance, record_attempt
 from .travel_notifications import notify
 from .travel_publication import recover_photo
 from .travel_activity import start_activity, update_activity
@@ -99,7 +99,9 @@ def process_journey(journey):
                 journey.refresh_from_db()
                 journey.status = 'waiting' if runtime.attempts <= 3 else 'manual'
                 journey.save(update_fields=['status', 'updated_at'])
-                TravelNode.objects.filter(pk=f'{journey.pk}:{journey.phase}').update(status=journey.status, error=str(exc)[:1000])
+                node = TravelNode.objects.filter(pk=f'{journey.pk}:{journey.phase}').first()
+                if node:
+                    record_attempt(node, 'failed', str(exc)[:1000], node_status=journey.status)
                 update_activity(journey, str(exc))
                 runtime.next_at = timezone.now()+timedelta(minutes=[1, 5, 15][min(runtime.attempts-1, 2)])
                 if journey.status == 'manual':

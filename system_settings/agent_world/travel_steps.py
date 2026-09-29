@@ -10,11 +10,34 @@ from .travel_settlement import depart, purchase
 from .inventory_attributes import souvenir_attributes
 
 EVENTS = [
-    {'type': 'negative', 'description': '模拟遭遇：原计划的入口临时关闭，你扑了个空。', 'choices': ['改去下一站', '在附近散步', '稍作休息']},
-    {'type': 'positive', 'description': '模拟遭遇：路过的人热心地指出一个适合留影的位置。', 'choices': ['接受建议拍照', '道谢后继续游览', '在原处欣赏风景']},
-    {'type': 'neutral', 'description': '模拟遭遇：天气突然转阴，街上起了风。', 'choices': ['找地方避风', '继续慢慢游览', '提前去下一站']},
-    {'type': 'negative', 'description': '模拟遭遇：一只小狗追着你跑了几步。', 'choices': ['停下来保持距离', '绕到另一条路', '向附近的人求助']},
+    {'type': 'negative', 'description': '原计划的入口临时关闭，你扑了个空。', 'choices': ['改去下一站', '在附近散步', '稍作休息']},
+    {'type': 'positive', 'description': '路过的人热心地指出一个适合留影的位置。', 'choices': ['接受建议拍照', '道谢后继续游览', '在原处欣赏风景']},
+    {'type': 'neutral', 'description': '天气突然转阴，街上起了风。', 'choices': ['找地方避风', '继续慢慢游览', '提前去下一站']},
+    {'type': 'negative', 'description': '一只小狗追着你跑了几步。', 'choices': ['停下来保持距离', '绕到另一条路', '向附近的人求助']},
 ]
+
+
+def preserve_legacy_attempt(node):
+    """重试旧节点前保留原状态及时间，避免历史活动被新的更新时间覆盖。"""
+    data = node.input if isinstance(node.input, dict) else {}
+    if 'activity_attempts' not in data and node.status in {'success', 'skipped', 'waiting', 'manual', 'failed'}:
+        data['activity_attempts'] = [{
+            'at': node.updated_at.isoformat(),
+            'status': node.status if node.status in {'success', 'skipped'} else 'failed',
+            'error': node.error,
+        }]
+    node.input = data
+
+
+def record_attempt(node, status, error='', *, node_status=None):
+    """在已有同步节点中追加终态事实；再次执行不会覆盖早先的日期。"""
+    data = node.input if isinstance(node.input, dict) else {}
+    attempts = list(data.get('activity_attempts') or [])
+    attempts.append({'at': timezone.now().isoformat(), 'status': status, 'error': error})
+    node.input = {**data, 'activity_attempts': attempts}
+    node.status = node_status or status
+    node.error = error
+    node.save(update_fields=['input', 'status', 'error', 'updated_at'])
 
 
 def decide(journey, node, instruction, context, validate, skill=''):
@@ -29,6 +52,7 @@ def decide(journey, node, instruction, context, validate, skill=''):
 def advance(journey):
     phase = journey.phase
     node, _ = TravelNode.objects.get_or_create(pk=f'{journey.pk}:{phase}', defaults={'journey': journey, 'kind': phase})
+    preserve_legacy_attempt(node)
     refresh_materials = phase == 'plan' and bool(node.error) and not node.result
     if refresh_materials:
         node.input = {**node.input, 'refresh_materials': True}
@@ -124,7 +148,7 @@ def advance(journey):
             if v.get('choice') not in event['choices']:
                 raise ValueError('遭遇选项无效')
             return {**event, 'choice': v['choice'], 'reaction': text(v, 'reaction')}
-        result = decide(journey, node, '面对已经发生的模拟遭遇选择应对，返回 {"choice":"提供的选项","reaction":"反应"}。没有资金或物品奖励、伤害。', event, validate)
+        result = decide(journey, node, '面对已经发生的旅途遭遇选择应对，返回 {"choice":"提供的选项","reaction":"反应"}。没有资金或物品奖励、伤害。', event, validate)
         state.setdefault('encounters', []).append(result)
         next_phase = f'visit-{index+1}' if index+1 < len(state['plan']['sites']) else 'food'
     elif phase == 'food':
@@ -169,7 +193,7 @@ def advance(journey):
         def validate(v):
             return {'title': text(v, 'title', 180), 'content': text(v, 'content', 30000),
                     'reflection': text(v, 'reflection', 2000), 'photo_scene': text(v, 'photo_scene', 2000)}
-        state['draft'] = decide(journey, node, '为这次实际已发生的模拟旅行写日记，不能拒绝写作，不能把未选美食、未买物品或未游览景点写成经历。返回 {"title":"...","content":"Markdown正文，不放图片占位符","reflection":"心得","photo_scene":"一个已经发生的配图片段"}。',
+        state['draft'] = decide(journey, node, '为这次已经发生的旅行写日记，不能拒绝写作，不能把未选美食、未买物品或未游览景点写成经历。返回 {"title":"...","content":"Markdown正文，不放图片占位符","reflection":"心得","photo_scene":"一个已经发生的配图片段"}。',
                                 {'journey': state, 'ended_early': state.get('ended_early', False)}, validate, skill.prompt)
         next_phase = 'publish'
     elif phase == 'publish':
@@ -186,6 +210,5 @@ def advance(journey):
         if journey.status == 'completed':
             from .travel_memory import remember_travel
             remember_travel(journey)
-        node.status = 'skipped' if journey.status == 'skipped' else 'success'
-        node.save(update_fields=['status', 'updated_at'])
+        record_attempt(node, 'skipped' if journey.status == 'skipped' else 'success')
     return journey

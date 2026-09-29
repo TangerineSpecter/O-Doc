@@ -19,7 +19,7 @@ export default function FarmDialog({initialAgentId, onClose}: {initialAgentId: s
         dialog?.addEventListener('keydown', trap as EventListener);
         return () => {dialog?.removeEventListener('keydown', trap as EventListener); document.body.style.overflow = overflow;};
     }, []);
-    return <WorldDialog title="像素农场" description="播种、照料，等待一场雨。看看居民今天怎样经营。" onClose={onClose} size="wide">
+    return <WorldDialog title="像素农场" description="播种、照料，等待一场雨。看看居民今天怎样经营。" onClose={onClose} size="extra-wide">
         <div ref={panel} tabIndex={-1}><FarmPanel initialAgentId={initialAgentId}/></div>
     </WorldDialog>;
 }

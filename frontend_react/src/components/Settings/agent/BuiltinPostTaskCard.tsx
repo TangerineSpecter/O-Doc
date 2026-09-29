@@ -1,4 +1,15 @@
-import {BookOpen, Settings2, Play} from 'lucide-react';
+import type {ElementType} from 'react';
+import {
+    MessageSquare,
+    Send,
+    Compass,
+    TrendingUp,
+    ShoppingBag,
+    Sprout,
+    Settings2,
+    Play,
+    BookOpen,
+} from 'lucide-react';
 import type {AgentTaskConfig} from '@/types/api/setting';
 
 interface Props {
@@ -12,29 +23,145 @@ interface Props {
     onPreview?: () => void;
 }
 
-export function BuiltinPostTaskCard({task, running, onConfigure, onToggle, onRun, onPreview}: Props) {
+const activityTheme: Record<
+    string,
+    {
+        icon: ElementType;
+        color: string;
+    }
+> = {
+    investment: {
+        icon: TrendingUp,
+        color: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    },
+    market: {
+        icon: ShoppingBag,
+        color: 'bg-amber-50 text-amber-600 border-amber-100',
+    },
+    farm: {
+        icon: Sprout,
+        color: 'bg-lime-50 text-lime-700 border-lime-100',
+    },
+    travel: {
+        icon: Compass,
+        color: 'bg-cyan-50 text-cyan-600 border-cyan-100',
+    },
+    post_publish: {
+        icon: Send,
+        color: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+    },
+    post_interaction: {
+        icon: MessageSquare,
+        color: 'bg-blue-50 text-blue-600 border-blue-100',
+    },
+};
+
+export function BuiltinPostTaskCard({
+    task,
+    running,
+    onConfigure,
+    onToggle,
+    onRun,
+    onPreview,
+}: Props) {
     const configured = Boolean(task.id);
-    return <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-                <BookOpen className="h-4 w-4 shrink-0 text-orange-500"/>
-                <h4 className="text-base font-bold text-slate-900">{task.name}</h4>
+    const theme = (task.taskKind && activityTheme[task.taskKind]) || {
+        icon: BookOpen,
+        color: 'bg-orange-50 text-orange-600 border-orange-100',
+    };
+    const Icon = theme.icon;
+
+    const description =
+        task.taskKind === 'investment'
+            ? '查询市场新闻和行业，按需分析股票，自主买卖或观望。持仓与收益可在股票投资查看。'
+            : task.taskKind === 'market'
+              ? '自主进入市场，购买农资与动物、出售产物或上架商品。进入消耗体力并自由交易。'
+              : task.taskKind === 'farm'
+                ? '自主种植、养殖、照料和升级，在像素农场中观察居民日常。'
+                : task.taskKind === 'travel'
+                  ? '自主选择目的地，体验景点、美食与旅途趣事，购买纪念品并留下图文日记。'
+                  : task.taskKind === 'post_publish'
+                    ? '根据角色和分类素材规则自主选题，搜索核实后发布；没有合适内容可跳过。'
+                    : '随机阅读范围内自己未评论过的其他居民帖子，根据角色性格评论并打分。';
+
+    return (
+        <div className="group relative flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-2xs transition-all duration-200 hover:border-orange-300 hover:shadow-xs">
+            {/* 顶部标题与状态 */}
+            <div>
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <span
+                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border ${theme.color}`}
+                        >
+                            <Icon className="h-3.5 w-3.5" />
+                        </span>
+                        <h4 className="truncate text-xs font-bold text-slate-800">{task.name}</h4>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={configured ? onToggle : onConfigure}
+                        className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium leading-normal transition-colors ${
+                            task.enabled
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
+                        }`}
+                        title={
+                            configured
+                                ? task.enabled
+                                    ? '点击停用能力'
+                                    : '点击启用能力'
+                                : '先配置活动规则，再启用能力'
+                        }
+                    >
+                        {task.enabled && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        )}
+                        <span>{task.enabled ? '启用中' : '已关闭'}</span>
+                    </button>
+                </div>
+
+                {/* 描述文案（紧凑 2 行） */}
+                <p
+                    className="mt-2 text-[11px] leading-relaxed text-slate-500 line-clamp-2"
+                    title={description}
+                >
+                    {description}
+                </p>
             </div>
-            <span className="rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-600">内置系统任务</span>
-        </div>
-        <p className="mt-2 text-xs leading-relaxed text-slate-500">{task.taskKind === 'investment' ? '查询市场新闻和行业，按需分析股票，自主买卖或观望。按最近已发布的收盘价成交，最少1股，持仓与收益可在股票投资查看。' : task.taskKind === 'market' ? '自主进入市场，购买农资与动物、出售产物或上架商品。进入消耗5体力，会话内自由交易并主动离开。' : task.taskKind === 'farm' ? '自主种植、养殖、照料和升级，在像素农场中观察居民的日常。购买种子、饲料、动物及出售产物请配置市场交易任务。' : task.taskKind === 'travel' ? '自主选择目的地，体验景点、美食与旅途趣事，购买纪念品并留下图文日记。' : task.taskKind === 'post_publish' ? '根据角色和分类素材规则自主选题，搜索核实后发布；没有合适内容可以跳过。' : '随机阅读范围内自己未评论过的其他居民帖子，根据角色性格评论并打分。'}</p>
-        <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">由统一生活日程分配居民与时间；此处配置活动能力。市场作为每日准备和按需补给，不占行动次数。</p>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <button type="button" onClick={configured ? onToggle : onConfigure}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${task.enabled ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}
-                title={configured ? (task.enabled ? '停用任务' : '启用任务') : '先配置活动规则，再启用能力'}>
-                {task.enabled ? '启用中' : '已关闭'}
-            </button>
-            <div className="flex flex-wrap items-center gap-2">
-                {configured && onPreview && <button type="button" onClick={onPreview} disabled={running} className="shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs text-slate-600 hover:bg-orange-50 disabled:opacity-50">试运行预览</button>}
-                {configured && <button type="button" onClick={onRun} disabled={running} className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-slate-600 hover:bg-orange-50 hover:text-orange-600 disabled:opacity-50"><Play className="h-3.5 w-3.5"/>{running ? '执行中' : '立即执行'}</button>}
-                <button type="button" onClick={onConfigure} className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600"><Settings2 className="h-3.5 w-3.5"/>配置</button>
+
+            {/* 底部操作工具栏 */}
+            <div className="mt-3 flex items-center justify-end gap-1.5 border-t border-slate-100 pt-2.5">
+                {configured && onPreview && (
+                    <button
+                        type="button"
+                        onClick={onPreview}
+                        disabled={running}
+                        className="inline-flex shrink-0 whitespace-nowrap items-center rounded-md px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-600 disabled:opacity-40"
+                    >
+                        预览
+                    </button>
+                )}
+                {configured && (
+                    <button
+                        type="button"
+                        onClick={onRun}
+                        disabled={running}
+                        className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 shadow-2xs transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:opacity-40"
+                    >
+                        <Play className={`h-3 w-3 ${running ? 'animate-spin text-orange-500' : ''}`} />
+                        <span>{running ? '执行中' : '立即执行'}</span>
+                    </button>
+                )}
+                <button
+                    type="button"
+                    onClick={onConfigure}
+                    className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md bg-orange-500 px-2.5 py-1 text-[11px] font-medium text-white shadow-2xs transition-all hover:bg-orange-600 active:scale-95"
+                >
+                    <Settings2 className="h-3 w-3" />
+                    <span>配置</span>
+                </button>
             </div>
         </div>
-    </section>;
+    );
 }

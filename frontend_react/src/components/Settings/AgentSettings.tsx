@@ -839,45 +839,79 @@ export const AgentSettings = ({
             </div>
 
             {activeView === 'tasks' ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                     <WorldRunnerSwitch agents={agents}/>
-                    <BuiltinPostTaskCard task={builtinPostTask}
-                        agentNames={getTaskAgentNames(builtinPostTask)}
-                        running={!!builtinPostTask.id && runningTaskId === builtinPostTask.id}
-                        progress={worldProgressByTask[builtinPostTask.id]}
-                        onConfigure={() => openEditTaskModal(builtinPostTask)}
-                        onToggle={() => toggleTaskEnabled(builtinPostTask.id)}
-                        onRun={() => runTaskNow(builtinPostTask.id)}/>
-                    <BuiltinPostTaskCard task={builtinPublishTask} agentNames={getTaskAgentNames(builtinPublishTask)}
-                        running={!!builtinPublishTask.id && runningTaskId === builtinPublishTask.id}
-                        progress={worldProgressByTask[builtinPublishTask.id]}
-                        onConfigure={() => openEditTaskModal(builtinPublishTask)}
-                        onToggle={() => toggleTaskEnabled(builtinPublishTask.id)}
-                        onRun={() => runTaskNow(builtinPublishTask.id)} onPreview={() => setPreviewTask(builtinPublishTask)}/>
-                    <BuiltinPostTaskCard task={builtinTravelTask} agentNames={getTaskAgentNames(builtinTravelTask)}
-                        running={!!builtinTravelTask.id && runningTaskId === builtinTravelTask.id}
-                        progress={worldProgressByTask[builtinTravelTask.id]}
-                        onConfigure={() => openEditTaskModal(builtinTravelTask)}
-                        onToggle={() => toggleTaskEnabled(builtinTravelTask.id)}
-                        onRun={() => runTaskNow(builtinTravelTask.id)}/>
-                    <BuiltinPostTaskCard task={builtinInvestmentTask} agentNames={getTaskAgentNames(builtinInvestmentTask)}
-                        running={!!builtinInvestmentTask.id && runningTaskId === builtinInvestmentTask.id} progress={worldProgressByTask[builtinInvestmentTask.id]}
-                        onConfigure={() => openEditTaskModal(builtinInvestmentTask)} onToggle={() => toggleTaskEnabled(builtinInvestmentTask.id)}
-                        onRun={() => runTaskNow(builtinInvestmentTask.id)}/>
-                    <BuiltinPostTaskCard task={builtinMarketTask} agentNames={getTaskAgentNames(builtinMarketTask)}
-                        running={!!builtinMarketTask.id && runningTaskId === builtinMarketTask.id} progress={worldProgressByTask[builtinMarketTask.id]}
-                        onConfigure={() => openEditTaskModal(builtinMarketTask)} onToggle={() => toggleTaskEnabled(builtinMarketTask.id)}
-                        onRun={() => runTaskNow(builtinMarketTask.id)}/>
-                    <BuiltinPostTaskCard task={builtinFarmTask} agentNames={getTaskAgentNames(builtinFarmTask)}
-                        running={!!builtinFarmTask.id && runningTaskId === builtinFarmTask.id} progress={worldProgressByTask[builtinFarmTask.id]}
-                        onConfigure={() => openEditTaskModal(builtinFarmTask)} onToggle={() => toggleTaskEnabled(builtinFarmTask.id)}
-                        onRun={() => runTaskNow(builtinFarmTask.id)}/>
-                    {customTasks.length === 0 ? (
-                        <div className="text-center py-14 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
-                            <CalendarClock className="w-8 h-8 mx-auto mb-3 text-slate-300"/>
-                            <p className="text-sm">暂无自定义任务，可按需添加定时或手动触发的任务。</p>
+
+                    {/* 系统内置活动能力分组 */}
+                    <div className="space-y-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1">
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                                    系统内置活动能力
+                                </h3>
+                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                                    6 项活动
+                                </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                                由统一生活日程分配居民与时间，此处配置各活动能力。市场作为日常准备不占行动次数。
+                            </p>
                         </div>
-                    ) : customTasks.map(task => {
+
+                        {/* 2 列响应式网格 */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <BuiltinPostTaskCard task={builtinPostTask}
+                                agentNames={getTaskAgentNames(builtinPostTask)}
+                                running={!!builtinPostTask.id && runningTaskId === builtinPostTask.id}
+                                progress={worldProgressByTask[builtinPostTask.id]}
+                                onConfigure={() => openEditTaskModal(builtinPostTask)}
+                                onToggle={() => toggleTaskEnabled(builtinPostTask.id)}
+                                onRun={() => runTaskNow(builtinPostTask.id)}/>
+                            <BuiltinPostTaskCard task={builtinPublishTask} agentNames={getTaskAgentNames(builtinPublishTask)}
+                                running={!!builtinPublishTask.id && runningTaskId === builtinPublishTask.id}
+                                progress={worldProgressByTask[builtinPublishTask.id]}
+                                onConfigure={() => openEditTaskModal(builtinPublishTask)}
+                                onToggle={() => toggleTaskEnabled(builtinPublishTask.id)}
+                                onRun={() => runTaskNow(builtinPublishTask.id)} onPreview={() => setPreviewTask(builtinPublishTask)}/>
+                            <BuiltinPostTaskCard task={builtinTravelTask} agentNames={getTaskAgentNames(builtinTravelTask)}
+                                running={!!builtinTravelTask.id && runningTaskId === builtinTravelTask.id}
+                                progress={worldProgressByTask[builtinTravelTask.id]}
+                                onConfigure={() => openEditTaskModal(builtinTravelTask)}
+                                onToggle={() => toggleTaskEnabled(builtinTravelTask.id)}
+                                onRun={() => runTaskNow(builtinTravelTask.id)}/>
+                            <BuiltinPostTaskCard task={builtinInvestmentTask} agentNames={getTaskAgentNames(builtinInvestmentTask)}
+                                running={!!builtinInvestmentTask.id && runningTaskId === builtinInvestmentTask.id} progress={worldProgressByTask[builtinInvestmentTask.id]}
+                                onConfigure={() => openEditTaskModal(builtinInvestmentTask)} onToggle={() => toggleTaskEnabled(builtinInvestmentTask.id)}
+                                onRun={() => runTaskNow(builtinInvestmentTask.id)}/>
+                            <BuiltinPostTaskCard task={builtinMarketTask} agentNames={getTaskAgentNames(builtinMarketTask)}
+                                running={!!builtinMarketTask.id && runningTaskId === builtinMarketTask.id} progress={worldProgressByTask[builtinMarketTask.id]}
+                                onConfigure={() => openEditTaskModal(builtinMarketTask)} onToggle={() => toggleTaskEnabled(builtinMarketTask.id)}
+                                onRun={() => runTaskNow(builtinMarketTask.id)}/>
+                            <BuiltinPostTaskCard task={builtinFarmTask} agentNames={getTaskAgentNames(builtinFarmTask)}
+                                running={!!builtinFarmTask.id && runningTaskId === builtinFarmTask.id} progress={worldProgressByTask[builtinFarmTask.id]}
+                                onConfigure={() => openEditTaskModal(builtinFarmTask)} onToggle={() => toggleTaskEnabled(builtinFarmTask.id)}
+                                onRun={() => runTaskNow(builtinFarmTask.id)}/>
+                        </div>
+                    </div>
+
+                    {/* 自定义计划任务分组 */}
+                    <div className="space-y-2.5 pt-1">
+                        <div className="flex items-center gap-2 px-1">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                                自定义计划任务
+                            </h3>
+                            {customTasks.length > 0 && (
+                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                                    {customTasks.length} 项
+                                </span>
+                            )}
+                        </div>
+                        {customTasks.length === 0 ? (
+                            <div className="text-center py-14 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
+                                <CalendarClock className="w-8 h-8 mx-auto mb-3 text-slate-300"/>
+                                <p className="text-sm">暂无自定义任务，可按需添加定时或手动触发的任务。</p>
+                            </div>
+                        ) : customTasks.map(task => {
                         const taskAgentNames = getTaskAgentNames(task);
                         const executionModeLabel = task.executionMode === 'serial' ? '串行' : '并行';
                         return (
@@ -967,6 +1001,7 @@ export const AgentSettings = ({
                         </div>
                         );
                     })}
+                    </div>
                 </div>
             ) : activeView === 'records' ? (
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
