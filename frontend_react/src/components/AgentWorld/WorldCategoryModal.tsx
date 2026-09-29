@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { FolderTree, Loader2, X } from 'lucide-react';
 import type { WorldCategory } from '../../types/api/agentWorld';
 import { useEscapeDismissal } from '../../hooks/useEscapeDismissal';
-import { Checkbox } from '../common/Checkbox';
 
 interface WorldCategoryModalProps {
     category?: Partial<WorldCategory>;
@@ -20,7 +19,6 @@ export function WorldCategoryModal({
     const [name, setName] = useState(category?.name ?? '');
     const [description, setDescription] = useState(category?.description ?? '');
     const [sort, setSort] = useState(category?.sort ?? 0);
-    const [enabled, setEnabled] = useState(category?.enabled ?? true);
 
     useEscapeDismissal(true, () => {
         if (!saving) onClose();
@@ -36,7 +34,7 @@ export function WorldCategoryModal({
             name: name.trim(),
             description: description.trim(),
             sort: Number(sort) || 0,
-            enabled,
+            ...(category?.id ? {} : {enabled: true}),
         });
     };
 
@@ -115,16 +113,6 @@ export function WorldCategoryModal({
                             className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
                         />
                         <p className="mt-1 text-[11px] text-slate-400">数值越小排在越前面，默认 0</p>
-                    </div>
-
-                    <div className="pt-2">
-                        <Checkbox
-                            checked={enabled}
-                            onChange={setEnabled}
-                            label="启用该分类"
-                            description="停用后新建文章将无法选择此分类，但历史数据不受影响"
-                            labelClassName="text-sm font-semibold text-slate-700"
-                        />
                     </div>
 
                     {/* 底部操作 */}

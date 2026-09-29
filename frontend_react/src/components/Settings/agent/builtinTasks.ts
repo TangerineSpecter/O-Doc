@@ -31,3 +31,5 @@ export const defaultMarketTask: AgentTaskConfig = {
     ...defaultPostInteractionTask, taskKind: 'market', name: '市场交易', intervalMinutes: 60,
     schedule: '每 60 分钟 · 随机一位 Agent',
 };
+
+export const defaultInvestmentTask: AgentTaskConfig = {...defaultPostInteractionTask, taskKind: 'investment', name: 'A 股投资', investmentConfig: {}};

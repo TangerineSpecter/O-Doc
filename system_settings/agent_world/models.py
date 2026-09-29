@@ -28,10 +28,12 @@ class WorldProfession(models.Model):
     name = models.CharField(max_length=50)
     description = models.TextField(blank=True)
     enabled = models.BooleanField(default=True)
+    farm_yield_percentage = models.DecimalField(max_digits=12, decimal_places=4, default=0, validators=[MinValueValidator(0)])
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         app_label = 'system_settings'
+        constraints = [models.CheckConstraint(condition=models.Q(farm_yield_percentage__gte=0), name='world_farm_bonus_nonnegative')]
 
 
 class WorldProfessionCategory(models.Model):

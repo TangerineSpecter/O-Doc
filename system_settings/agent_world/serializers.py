@@ -27,7 +27,7 @@ class ProfessionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WorldProfession
-        fields = ['id', 'name', 'description', 'enabled', 'bonuses']
+        fields = ['id', 'name', 'description', 'enabled', 'bonuses', 'farm_yield_percentage']
         read_only_fields = ['id']
 
     def validate_bonuses(self, value):

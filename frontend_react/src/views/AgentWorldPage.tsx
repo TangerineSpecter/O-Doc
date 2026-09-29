@@ -26,13 +26,17 @@ const filters: Array<{value: AgentWorldFilter; label: string; icon: typeof Activ
     {value: 'all', label: '全部', icon: Sparkles},
     {value: 'publication', label: '作品', icon: BookOpenText},
     {value: 'interaction', label: '互动', icon: MessageCircle},
-    {value: 'work', label: '工作', icon: Activity},
     {value: 'travel', label: '旅行', icon: BookOpenText},
     {value: 'finance', label: '收支', icon: CircleDollarSign},
+    {value: 'work', label: '执行记录', icon: Activity},
 ];
+
+const InvestmentDialog = lazy(() => import('../components/Investment/InvestmentDialog'));
 
 export default function AgentWorldPage() {
     const navigate = useNavigate();
+    const [investmentOpen, setInvestmentOpen] = useState(false);
+    const closeInvestment = useCallback(() => setInvestmentOpen(false), []);
     const [marketOpen, setMarketOpen] = useState(false);
     const closeMarket = useCallback(() => setMarketOpen(false), []);
     const [farmOpen, setFarmOpen] = useState(false);
@@ -101,6 +105,7 @@ export default function AgentWorldPage() {
                     <button type="button" onClick={() => setCatalogOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600">
                         <BookOpenText className="h-3.5 w-3.5 shrink-0"/>物品图鉴
                     </button>
+                    <button type="button" onClick={() => setInvestmentOpen(true)} className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">股票投资</button>
                     <button type="button" onClick={() => setMarketOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"><Store className="h-3.5 w-3.5 shrink-0"/>世界市场</button>
                     <button type="button" onClick={() => setFarmOpen(true)} className="rounded-lg border border-lime-200 bg-lime-50 px-3 py-1.5 text-xs font-semibold text-lime-700">像素农场</button>
                     <button
@@ -241,6 +246,7 @@ export default function AgentWorldPage() {
                     onClose={() => setPanel(null)}
                 />
             ) : null}
+            {investmentOpen && <Suspense fallback={<WorldDialog title="股票投资" onClose={closeInvestment} size="wide"><p className="p-8 text-center text-slate-500">正在打开投资账户…</p></WorldDialog>}><InvestmentDialog onClose={closeInvestment}/></Suspense>}
             {marketOpen && <Suspense fallback={<WorldDialog title="世界市场" onClose={closeMarket} size="wide"><p className="p-8 text-center text-slate-500">正在打开市场…</p></WorldDialog>}><MarketDialog onClose={closeMarket} residents={world.summary?.agents || []}/></Suspense>}
             {farmOpen&&<Suspense fallback={<WorldDialog title="像素农场" onClose={closeFarm} size="wide" manageFocus={false}><p className="p-8 text-center text-slate-500">正在铺开农场地图…</p></WorldDialog>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></Suspense>}
             {catalogOpen && <Suspense fallback={<WorldDialog title="物品图鉴" onClose={closeCatalog} size="wide" manageFocus={false}><p className="p-8 text-center text-slate-500">正在翻开图鉴…</p></WorldDialog>}><ItemCatalogDialog onClose={closeCatalog}/></Suspense>}

@@ -14,6 +14,7 @@ from .inventory_stock import stock_rows, add_stock as add_inventory_stock, take_
 from .models import WorldLedger
 from .income import ensure_opening
 from .execution import stamina
+from .farm_bonus import yield_bonus, add_production
 
 KINDS = ('buy_supply', 'plant', 'water', 'feed', 'harvest', 'collect', 'sell', 'expand', 'build', 'upgrade', 'buy_animal')
 LABELS = dict(zip(KINDS, ('购买农资', '播种', '浇水', '喂养', '收获', '领取畜牧产物', '出售', '扩地', '建造', '升级', '购买动物')))
@@ -30,6 +31,8 @@ def ensure_farms(task):
     if not task.enabled:
         return
     owner = task.farm_config['owner_id']
+    from .investment_service import validate_agents
+    validate_agents(owner, task.agent_ids or [task.agent_id])
     catalog_for(owner)
     for agent in Agent.objects.filter(pk__in=task.agent_ids or [task.agent_id]):
         farm, created = AgentFarm.objects.get_or_create(pk=agent.pk, defaults={'owner_id': owner,
@@ -84,6 +87,7 @@ def perform(farm, op, rules, at, key):
     """返回金额增量与展示结果；仅由 commit_operation 在事务内调用。"""
     state, kind = farm.state, op['kind']
     amount = Decimal(0)
+    bonus = yield_bonus(Agent.objects.select_related('profession').filter(pk=farm.pk).first()) if kind in ('harvest', 'collect') else None
     if kind == 'buy_supply':
         quantity, sku = integer(op.get('quantity')), op.get('sku')
         if sku == 'feed':
@@ -115,10 +119,12 @@ def perform(farm, op, rules, at, key):
         plots = targets(state, op, 'plots')
         if any(not p['crop'] or p['crop']['grown'] < p['crop']['rules']['growth_seconds'] for p in plots):
             raise ValueError('作物尚未成熟')
+        production = []
         for plot in plots:
             crop = plot['crop']; rule = crop['rules']
-            add_stock(farm, 'crop.'+crop['kind'], rule['yield'], rule['name'], 'farm_crop', rule['sale_price'], key)
+            production.append(add_production(farm, 'crop.'+crop['kind'], rule['yield'], rule['name'], 'farm_crop', rule['sale_price'], key, bonus))
             plot['crop'] = None
+        return amount, {'label': LABELS[kind], 'production_bonus': production}
     elif kind == 'feed':
         animals = targets(state, op, 'animals')
         if any(a['fed_until'] >= at + DAY-60 for a in animals):
@@ -133,15 +139,16 @@ def perform(farm, op, rules, at, key):
         animals = targets(state, op, 'animals')
         if any(not a['cycle'].get('result') for a in animals):
             raise ValueError('动物尚无待领取产物')
-        products = []
+        products, production = [], []
         for animal in animals:
             cycle, result = animal['cycle'], animal['cycle']['result']; rule = cycle['rules']
             price = rule['sale_price'] * (3 if result['quality'] == 'gold' else 1)
             name = ('金色' if result['quality'] == 'gold' else '') + rule['product']
-            add_stock(farm, f'product.{animal["kind"]}.{result["quality"]}', result['quantity'], name, 'farm_product', price, key)
-            products.append({'animal_id': animal['id'], 'name': name, **result})
+            entry = add_production(farm, f'product.{animal["kind"]}.{result["quality"]}', result['quantity'], name, 'farm_product', price, key, bonus)
+            production.append(entry)
+            products.append({'animal_id': animal['id'], 'name': name, **result, 'quantity': entry['quantity']})
             animal['cycle'] = {'number': cycle['number']+1, 'grown': 0, 'checked_at': at, 'rules': copy.deepcopy(rules['animals'][animal['kind']])}
-        return amount, {'label': LABELS[kind], 'products': products}
+        return amount, {'label': LABELS[kind], 'products': products, 'production_bonus': production}
     elif kind == 'sell':
         sku = op.get('sku')
         if not isinstance(sku, str) or not sku.startswith(('crop.', 'product.')):

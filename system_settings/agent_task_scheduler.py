@@ -234,6 +234,9 @@ class AgentTaskScheduler:
             task_name_override='',
             random_context=None,
     ):
+        if task.task_kind == 'investment':
+            from .agent_world.investment_runner import run_investment_opportunity
+            return run_investment_opportunity(task, self, manual=trigger == '手动执行')
         if task.task_kind == 'market':
             from .agent_world.market_runner import run_market_opportunity
             return run_market_opportunity(task, self, manual=trigger == '手动执行')
@@ -928,7 +931,7 @@ class AgentTaskScheduler:
             parts.append("发帖前必须先调用 list_agent_post_categories，选择启用的 category_id，再生成该类型内容；不能创建自由文本分类。")
 
         if "get_agent_profession" in (tool_names or []):
-            parts.append("需要了解自己的职业或分类收益加成时，调用 get_agent_profession；职业信息仅供选择参考，按分配任务执行。")
+            parts.append("需要了解自己的职业、帖子收益或农场产量加成时，调用 get_agent_profession；职业信息仅供选择参考，按分配任务执行。")
 
         relation_note = self._relation_behavior_note(agent, tool_names or [])
         if relation_note:

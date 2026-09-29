@@ -53,13 +53,13 @@ def date_value(value):
     return parsed
 
 
-def search(config: dict, query: str, mode: str, days: int, deadline: float) -> list[dict]:
+def search(config: dict, query: str, mode: str, days: int, deadline: float, *, search_depth: str = 'advanced') -> list[dict]:
     server = search_server(config)
     tool = next(t for t in server.tools if t.get('name') in SEARCH_NAMES and t.get('enabled', True))
     schema = tool.get('inputSchema') or tool.get('input_schema') or {}
     properties = schema.get('properties', {})
     args = {'query': query}
-    for key, value in [('max_results', 5), ('search_depth', 'advanced'), ('topic', 'news' if mode == 'news' else 'general'), ('days', days)]:
+    for key, value in [('max_results', 5), ('search_depth', search_depth), ('topic', 'news' if mode == 'news' else 'general'), ('days', days)]:
         spec = properties.get(key, {})
         if key in properties and (key != 'days' or mode == 'news') and ('enum' not in spec or value in spec['enum']):
             args[key] = value

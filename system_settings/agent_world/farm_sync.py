@@ -15,6 +15,8 @@ def reconcile_farms():
         operations = {o.pk: o for o in FarmOperation.objects.filter(farm=farm)}
         if any(k not in operations for k in keys):
             raise SyncError('农场经营记录缺失，已拒绝恢复不完整快照')
+        from .farm_bonus import validate_bonus_chain
+        validate_bonus_chain(farm.state, [operations[k] for k in keys])
         losers = set(operations)-set(keys)
         FarmOperation.objects.filter(pk__in=losers).delete()
         WorldAction.objects.filter(snapshot__farm_energy=True, result__operation_id__in=list(losers)).delete()

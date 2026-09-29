@@ -24,13 +24,14 @@ def present(farm):
     advance_state(state, catalog.seed, now.timestamp())
     for plot in state['plots']:
         plot['wet'] = bool(wet_intervals(catalog.seed, now.timestamp(), now.timestamp() + .001, plot['watered_until']))
-    agent = Agent.objects.filter(pk=farm.pk).first()
+    agent = Agent.objects.select_related('profession').filter(pk=farm.pk).first()
+    from .farm_bonus import yield_bonus
     current = WorldAction.objects.filter(actor_id=farm.pk, snapshot__farm=True, status='claimed').order_by('-created_at').first()
     activity = AgentActivity.objects.filter(run_record_id=current.record_id, status='running').first() if current and current.record_id else None
     return {'id': farm.pk, 'actor_name': agent.name if agent else farm.actor_name, 'appearance': farm.appearance,
         'balance': str(agent.money) if agent else None, 'revision': farm.revision, 'server_time': now,
         'weather': weather(catalog.seed, now.timestamp()), 'hour': now.astimezone(__import__('zoneinfo').ZoneInfo('Asia/Shanghai')).hour,
-        'state': state, 'current_action': activity.current_action if activity else current.record.summary if current and current.record else None,
+        'state': state, 'farm_bonus': yield_bonus(agent), 'current_action': activity.current_action if activity else current.record.summary if current and current.record else None,
         'inventory': [{'id': i.pk, 'name': i.name, 'quantity': i.quantity, 'value': str(i.value), 'sku': i.source.get('sku', ''), 'quality': i.source.get('quality', 'normal')} for i in farm_inventory(farm)]}
 
 

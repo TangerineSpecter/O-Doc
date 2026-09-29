@@ -33,6 +33,7 @@ export function useAgentWorld() {
                     limit: 20,
                     agent: agentId || undefined,
                     type: type === 'all' ? undefined : type,
+                    exclude_type: type === 'all' ? 'work' : undefined,
                 }, controller.signal),
                 getAgentWorldSummary(controller.signal),
             ]);
@@ -63,6 +64,7 @@ export function useAgentWorld() {
                 limit: 20,
                 agent: agentId || undefined,
                 type: type === 'all' ? undefined : type,
+                exclude_type: type === 'all' ? 'work' : undefined,
             }, controller.signal);
             if (controller.signal.aborted) return;
             setActivities(previous => {

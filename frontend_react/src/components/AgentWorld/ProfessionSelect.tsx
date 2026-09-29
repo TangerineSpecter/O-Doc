@@ -43,7 +43,7 @@ export function ProfessionSelect({
             {
                 value: '',
                 label: '无职业',
-                description: '不绑定职业与分类收益加成',
+                description: '不绑定职业与收益、产量加成',
             },
         ];
 

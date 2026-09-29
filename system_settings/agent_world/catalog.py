@@ -10,9 +10,10 @@ def current_profession(agent) -> dict:
     if agent is None:
         raise ValueError('查询自己的职业需要当前 Agent 上下文')
     profession = agent.profession
+    from .farm_bonus import yield_bonus
     if profession is None:
-        return {'profession': None, 'category_bonuses': []}
-    return {'profession': {'id': profession.pk, 'name': profession.name,
+        return {'profession': None, 'category_bonuses': [], 'farm_bonus': yield_bonus(agent)}
+    return {'farm_bonus': yield_bonus(agent), 'profession': {'id': profession.pk, 'name': profession.name,
                            'description': profession.description, 'enabled': profession.enabled},
             'category_bonuses': [
                 {'category_id': b.category_id, 'category_name': b.category.name,

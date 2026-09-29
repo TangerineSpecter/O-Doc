@@ -1,3 +1,4 @@
+import {useWorldCatalogToggle} from '../../hooks/useWorldCatalogToggle';
 import { useEffect, useRef, useState } from 'react';
 import { Globe, Loader2, Plus } from 'lucide-react';
 import { saveWorldCategory, saveWorldProfession, saveWorldIncome } from '../../api/agentWorld';
@@ -16,6 +17,7 @@ type WorldTab = 'categories' | 'professions' | 'income' | 'market';
 export function WorldManagement() {
     const state = useAgentWorldManagement();
     const toast = useToast();
+    const catalogToggle = useWorldCatalogToggle(state.reload);
 
     const [tab, setTab] = useState<WorldTab>('categories');
     const containerRef = useRef<HTMLDivElement>(null);
@@ -227,6 +229,8 @@ export function WorldManagement() {
                         <WorldCategoryTab
                             categories={state.categories}
                             onEdit={openEditCategory}
+                            onToggle={item => void catalogToggle.toggle('category', item.id, item.enabled)}
+                            busyIds={catalogToggle.busyIds}
                         />
                     )}
 
@@ -235,6 +239,8 @@ export function WorldManagement() {
                             professions={state.professions}
                             categories={state.categories}
                             onEdit={openEditProfession}
+                            onToggle={item => void catalogToggle.toggle('profession', item.id, item.enabled)}
+                            busyIds={catalogToggle.busyIds}
                         />
                     )}
 

@@ -37,6 +37,9 @@ def owner_for(agent: Agent) -> str:
 
 
 def validate_market_agents(owner: str, actor_ids: list[str]) -> None:
+    from .investment_models import InvestmentAccount
+    if InvestmentAccount.objects.filter(pk__in=actor_ids).exclude(owner_id=owner).exists():
+        raise ValueError('居民投资账户属于其他账号')
     if AgentFarm.objects.filter(pk__in=actor_ids).exclude(owner_id=owner).exists():
         raise ValueError('居民的农场属于其他账号，不能绑定到此市场')
     for task in AgentTask.objects.filter(task_kind='market').exclude(market_config__owner_id=owner):

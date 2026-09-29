@@ -366,7 +366,7 @@ TOOLS = [
     },
     {
         'name': 'get_agent_profession',
-        'description': '查询自己当前绑定的职业、启用状态及各分类收益加成。未绑定职业时 profession 为 null；停用职业实际加成为 0。',
+        'description': '查询自己当前绑定的职业、启用状态、各帖子分类收益加成及农场产量加成（farm_bonus）。未绑定职业时 profession 为 null；停用职业实际加成为 0。',
         'inputSchema': {'type': 'object', 'properties': {}},
     },
     {

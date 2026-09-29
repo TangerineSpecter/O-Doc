@@ -11,6 +11,8 @@ export const getWorldFinanceLedger = (
 export const getWorldCategories = () => request.get<never, WorldCategory[]>(`${base}/categories/`);
 export const saveWorldCategory = (value: Partial<WorldCategory>) => request.post<never, WorldCategory>(`${base}/categories/`, value);
 export const getWorldProfessions = () => request.get<never, WorldProfession[]>(`${base}/professions/`);
+export interface ProfessionDescriptionInput {name: string; categories: string[]; farmYieldPercentage: string}
+export const generateProfessionDescription = (input: ProfessionDescriptionInput, signal?: AbortSignal) => request.post<never, {description: string}>(`${base}/professions/generate-description/`, input, {signal, timeout: 185_000});
 export const saveWorldProfession = (value: Partial<WorldProfession>) => request.post<never, WorldProfession>(`${base}/professions/`, value);
 export const getWorldIncome = () => request.get<never, WorldIncomeConfig>(`${base}/income/`);
 export const saveWorldIncome = (value: WorldIncomeConfig) => request.post<never, WorldIncomeConfig>(`${base}/income/`, value);

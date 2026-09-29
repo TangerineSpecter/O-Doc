@@ -35,6 +35,22 @@ class ProfessionView(CatalogView):
     serializer = ProfessionSerializer
 
 
+class ProfessionDescriptionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from .profession_description import DescriptionInput, generate_description
+        serializer = DescriptionInput(data=request.data)
+        if not serializer.is_valid():
+            return valid_result('职业资料无效', serializer.errors, status=400)
+        try:
+            return success_result({'description': generate_description(serializer.validated_data)})
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception('职业说明生成失败')
+            return valid_result('职业说明生成失败，请检查默认文本模型配置后重试', status=502)
+
+
 class IncomeConfigView(APIView):
     permission_classes = [IsAuthenticated]
 

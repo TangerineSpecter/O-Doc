@@ -1,4 +1,5 @@
 import type {FarmSelection, FarmState} from '../../types/api/farm';
+import {FarmBonus} from './FarmBonus';
 const animalNames={chicken:'鸡',cow:'牛',sheep:'羊'};
 export function FarmDetails({farm,selection,onSelect}:{farm:FarmState;selection:FarmSelection|null;onSelect:(value:FarmSelection)=>void}) {
     const at=Date.parse(farm.serverTime)/1000;
@@ -8,6 +9,7 @@ export function FarmDetails({farm,selection,onSelect}:{farm:FarmState;selection:
     const remaining=(seconds:number)=>seconds<=0?'已成熟':`${Math.ceil(seconds/60)} 分钟有效生长时间`;
     return <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-base font-bold text-slate-800">农场观察</h2>
+        <FarmBonus farm={farm}/>
         <div aria-live="polite" className="mt-3 min-h-24 rounded-xl bg-lime-50/70 p-4 text-sm leading-6 text-slate-600">
             {plot?<><p className="font-semibold text-slate-800">地块 {Number(plot.id)+1} · {plot.crop?.rules.name || '空地'}</p><p>{plot.crop?remaining(plot.crop.rules.growthSeconds-plot.crop.grown):'等待居民播种'}</p><p>{(plot.wet ?? (plot.wateredUntil>at||farm.weather==='rain'))?'土地湿润':'土地干燥，生长暂停'}</p></>:animal?<><p className="font-semibold text-slate-800">{animalNames[animal.kind]} · {animal.halfHearts/2} / 5 心</p><p>{animal.cycle.result?`待领取：${animal.cycle.result.quality==='gold'?'金色':'普通'}${animal.cycle.rules.product} × ${animal.cycle.result.quantity}`:remaining(animal.cycle.rules.periodSeconds-animal.cycle.grown)}</p><p>{animal.fedUntil>at?'饲料充足':'等待居民喂养，生产暂停'}</p></>:selection?.kind==='building'?<><p className="font-semibold text-slate-800">{selection.id==='coop'?'鸡舍':'牛羊舍'}</p><p>{building?`${building.level} 级 · 可容纳 ${building.capacity} 只`:'尚未建造'}</p></>:<p>选择一块田、一只动物或一座建筑，观察它的成长。居民会按自己的偏好安排经营。</p>}
         </div>

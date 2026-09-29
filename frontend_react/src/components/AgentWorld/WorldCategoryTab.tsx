@@ -1,3 +1,4 @@
+import {CatalogEnabledToggle} from './CatalogEnabledToggle';
 import {
     BookOpen,
     Camera,
@@ -14,6 +15,8 @@ import type { WorldCategory } from '../../types/api/agentWorld';
 interface WorldCategoryTabProps {
     categories: WorldCategory[];
     onEdit: (category: WorldCategory) => void;
+    onToggle: (item: WorldCategory) => void;
+    busyIds: string[];
 }
 
 function getCategoryVisual(name: string) {
@@ -81,7 +84,7 @@ function getCategoryVisual(name: string) {
     };
 }
 
-export function WorldCategoryTab({ categories, onEdit }: WorldCategoryTabProps) {
+export function WorldCategoryTab({ categories, onEdit, onToggle, busyIds }: WorldCategoryTabProps) {
     if (categories.length === 0) {
         return (
             <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
@@ -135,17 +138,7 @@ export function WorldCategoryTab({ categories, onEdit }: WorldCategoryTabProps) 
 
                         {/* 右侧状态与编辑操作 */}
                         <div className="flex items-center gap-2 shrink-0">
-                            {c.enabled ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                    已启用
-                                </span>
-                            ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                                    已停用
-                                </span>
-                            )}
+                            <CatalogEnabledToggle name={c.name} enabled={c.enabled} busy={busyIds.includes(c.id)} onToggle={() => onToggle(c)} />
 
                             <button
                                 type="button"

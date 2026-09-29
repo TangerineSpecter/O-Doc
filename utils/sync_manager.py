@@ -825,6 +825,8 @@ class SyncManager:
 
             from system_settings.agent_world.market_sync import reconcile_market
             reconcile_market()
+            from system_settings.agent_world.investment_sync import reconcile_investments
+            reconcile_investments()
             from system_settings.agent_world.farm_sync import reconcile_farms
             reconcile_farms()
             from system_settings.agent_world.market_sync import end_restored_sessions, refresh_restored_checkpoints

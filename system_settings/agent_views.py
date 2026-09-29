@@ -186,7 +186,7 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         from django.db.models import Q
         from utils.drf_utils import get_current_user_identifier
-        return super().get_queryset().filter(~Q(task_kind='market') | Q(market_config__owner_id=get_current_user_identifier(self.request)))
+        return super().get_queryset().filter(~Q(task_kind='market') | Q(market_config__owner_id=get_current_user_identifier(self.request))).filter(~Q(task_kind='investment') | Q(investment_config__owner_id=get_current_user_identifier(self.request)))
 
     @action(detail=False, methods=['get'])
     def publish_collections(self, request):
@@ -259,7 +259,7 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         return success_result(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
-        if self.get_object().task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market'):
+        if self.get_object().task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment'):
             return valid_result('内置系统任务不能删除，请关闭任务', status=400)
         self.perform_destroy(self.get_object())
         return success_result()
@@ -361,6 +361,9 @@ class AgentActivityViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(agent_id=agent_id)
         if activity_type in {'work', 'publication', 'interaction'}:
             queryset = queryset.filter(activity_type=activity_type)
+        excluded_type = str(request.query_params.get('exclude_type') or '').strip()
+        if excluded_type in {'work', 'publication', 'interaction'}:
+            queryset = queryset.exclude(activity_type=excluded_type)
         if cursor:
             cursor_time, separator, cursor_id = cursor.rpartition('|')
             before = parse_datetime(cursor_time if separator else cursor)

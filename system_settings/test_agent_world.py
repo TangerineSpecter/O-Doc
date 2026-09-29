@@ -120,6 +120,25 @@ class AgentWorldActivityTests(TestCase):
             agent_post_creator_name=self.agent.name,
         )
 
+    def test_execution_logs_can_be_excluded_before_pagination(self):
+        for index, kind in enumerate(['work', 'publication', 'work', 'interaction', 'publication']):
+            AgentActivity.objects.create(event_key=f'feed-filter:{index}', activity_type=kind,
+                status='success', agent=self.agent, title='筛选测试', artifact_coll_id=self.collection.coll_id)
+        view = AgentActivityViewSet.as_view({'get': 'list'})
+        user = User.objects.create_superuser('feed-filter', 'feed@example.invalid', 'test')
+        def fetch(params):
+            request = APIRequestFactory().get('/api/settings/agent-activities/', params)
+            force_authenticate(request, user=user)
+            return view(request).data['data']
+        first = fetch({'exclude_type':'work', 'limit':2})
+        second = fetch({'exclude_type':'work', 'limit':2, 'cursor':first['nextCursor']})
+        self.assertEqual(len(first['items']), 2)
+        self.assertTrue(first['hasMore'])
+        self.assertEqual(len(second['items']), 1)
+        self.assertFalse(second['hasMore'])
+        self.assertTrue(all(row['type'] != 'work' for row in first['items'] + second['items']))
+        self.assertEqual(len(fetch({'type':'work'})['items']), 2)
+
     def test_successful_post_tool_creates_idempotent_publication(self):
         result = {'post': {'article_id': self.article.article_id, 'post_summary': '一条新发现'}}
         record_tool_activity(self.record, self.agent, 'create_agent_post', result, 1)

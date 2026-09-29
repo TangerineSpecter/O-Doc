@@ -1,3 +1,4 @@
+import {CatalogEnabledToggle} from './CatalogEnabledToggle';
 import {
     BookOpen,
     Briefcase,
@@ -9,6 +10,7 @@ import {
     Sparkles,
     TrendingUp,
     Utensils,
+    Sprout,
 } from 'lucide-react';
 import type { WorldCategory, WorldProfession } from '../../types/api/agentWorld';
 
@@ -16,9 +18,14 @@ interface WorldProfessionTabProps {
     professions: WorldProfession[];
     categories: WorldCategory[];
     onEdit: (profession: WorldProfession) => void;
+    onToggle: (item: WorldProfession) => void;
+    busyIds: string[];
 }
 
 function getProfessionVisual(name: string) {
+    if (/农|种植|畜牧/i.test(name)) {
+        return {bg: 'bg-lime-50', text: 'text-lime-600', border: 'border-lime-200/80', badge: 'bg-lime-50 text-lime-700 border-lime-200/80', Icon: Sprout};
+    }
     if (/财经|金融|商业|财富|投资/i.test(name)) {
         return {
             bg: 'bg-amber-50',
@@ -95,6 +102,8 @@ export function WorldProfessionTab({
     professions,
     categories,
     onEdit,
+    onToggle,
+    busyIds,
 }: WorldProfessionTabProps) {
     const getCategoryName = (catId: string) =>
         categories.find(c => c.id === catId)?.name || catId;
@@ -147,11 +156,12 @@ export function WorldProfessionTab({
                                                 className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded border ${visual.badge}`}
                                             >
                                                 <Sparkles className="w-2.5 h-2.5 text-orange-500" />
-                                                <span>{getCategoryName(b.category)}</span>
+                                                <span>{getCategoryName(b.category)}帖子收益</span>
                                                 <span className="font-mono">+{Number(b.percentage)}%</span>
                                             </span>
                                         ))
                                     ) : null}
+                                    {Number(p.farmYieldPercentage) > 0 && <span className="inline-flex items-center gap-1 rounded border border-lime-200 bg-lime-50 px-1.5 py-0.5 text-[10px] font-bold text-lime-700"><Sprout className="h-2.5 w-2.5" />农场产量 +{Number(p.farmYieldPercentage)}%</span>}
                                 </div>
 
                                 <p
@@ -165,17 +175,7 @@ export function WorldProfessionTab({
 
                         {/* 右侧状态与编辑操作 */}
                         <div className="flex items-center gap-2 shrink-0">
-                            {p.enabled ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                    已启用
-                                </span>
-                            ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                                    已停用
-                                </span>
-                            )}
+                            <CatalogEnabledToggle name={p.name} enabled={p.enabled} busy={busyIds.includes(p.id)} onToggle={() => onToggle(p)} />
 
                             <button
                                 type="button"

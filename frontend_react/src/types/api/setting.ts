@@ -119,7 +119,8 @@ export type AgentRunStatus = 'success' | 'failed' | 'running';
 export type AgentRunStepStatus = AgentRunStatus | 'info';
 
 export interface AgentTaskConfig {
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market';
+    investmentConfig?: import('./investment').InvestmentConfig;
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment';
     publishConfig?: import('./agentPublish').AgentPublishConfig;
     travelConfig?: import('./travel').TravelConfig;
     postCollectionIds?: string[];

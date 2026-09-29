@@ -28,6 +28,13 @@ def advance_world_months() -> None:
         from .market_shop import current_batch
         from .market_sessions import cleanup
         cleanup(restart=True)
+        from .investment_worker import tick_values
+        try:
+            tick_values()
+        except (OperationalError, ProgrammingError):
+            logger.debug('投资估值表暂不可用，将重试', exc_info=True)
+        except Exception:
+            logger.exception('投资估值维护失败，将重试；继续市场维护')
         for owner in MarketConfig.objects.values_list('pk', flat=True):
             current_batch(owner)
     except (OperationalError, ProgrammingError):

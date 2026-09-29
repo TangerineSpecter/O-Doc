@@ -1,0 +1,9 @@
+import type {InvestmentPosition} from '../../types/api/investment';
+import {investmentMoney, profitClass} from './presentation';
+export function InvestmentPositions({items, onDetail}: {items: InvestmentPosition[]; onDetail: (code: string) => void}) {
+    return <div className="grid gap-3 md:grid-cols-2">{items.map(p => <article key={p.code} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-slate-800">{p.name}</h3><p className="mt-1 font-mono text-xs text-slate-400">{p.code} · {p.quantity} 股 · 可卖 {p.availableQuantity} 股</p></div><div className={`text-right ${profitClass(p.unrealizedProfit)}`}><p className="text-sm font-bold tabular-nums">{investmentMoney(p.unrealizedProfit)}</p><p className="text-xs tabular-nums">{investmentMoney(p.returnPercent)}%</p></div></div>
+        <dl className="mt-4 grid grid-cols-2 gap-3 text-xs"><div><dt className="text-slate-400">平均成本</dt><dd className="mt-1 font-semibold text-slate-700">{investmentMoney(p.averageCost)}</dd></div><div><dt className="text-slate-400">最近收盘价</dt><dd className="mt-1 font-semibold text-slate-700">{investmentMoney(p.closePrice)}</dd></div><div><dt className="text-slate-400">剩余成本</dt><dd className="mt-1 text-slate-700">{investmentMoney(p.cost)}</dd></div><div><dt className="text-slate-400">参考市值</dt><dd className="mt-1 text-slate-700">{investmentMoney(p.marketValue)}</dd></div></dl>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs"><span className="text-slate-400">估值日期 {p.priceDate || '暂无'} · 首次买入 {p.firstBought}</span><button type="button" onClick={() => onDetail(p.code)} className="font-semibold text-orange-600 hover:text-orange-700">持仓详情</button></div>
+    </article>)}</div>;
+}

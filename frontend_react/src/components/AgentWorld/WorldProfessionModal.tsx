@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Briefcase, Loader2, X } from 'lucide-react';
+import { Briefcase, Loader2, X, Sparkles } from 'lucide-react';
 import type { WorldBonus, WorldCategory, WorldProfession } from '../../types/api/agentWorld';
 import { useEscapeDismissal } from '../../hooks/useEscapeDismissal';
 import { Checkbox } from '../common/Checkbox';
+import {useProfessionDescription} from '../../hooks/useProfessionDescription';
 
 interface WorldProfessionModalProps {
     profession?: Partial<WorldProfession>;
@@ -21,7 +22,8 @@ export function WorldProfessionModal({
 }: WorldProfessionModalProps) {
     const [name, setName] = useState(profession?.name ?? '');
     const [description, setDescription] = useState(profession?.description ?? '');
-    const [enabled, setEnabled] = useState(profession?.enabled ?? true);
+    const [farmYieldPercentage, setFarmYieldPercentage] = useState(profession?.farmYieldPercentage ?? '0');
+    const ai = useProfessionDescription();
     const [bonuses, setBonuses] = useState<WorldBonus[]>(
         () => (profession?.bonuses ? profession.bonuses.map(b => ({ ...b })) : [])
     );
@@ -46,12 +48,13 @@ export function WorldProfessionModal({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name.trim()) return;
+        if (!name.trim() || ai.generating) return;
         await onSave({
             ...(profession?.id ? { id: profession.id } : {}),
             name: name.trim(),
             description: description.trim(),
-            enabled,
+            ...(profession?.id ? {} : {enabled: true}),
+            farmYieldPercentage,
             bonuses,
         });
     };
@@ -75,7 +78,7 @@ export function WorldProfessionModal({
                                 {isEdit ? '编辑职业' : '新增职业'}
                             </h3>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                {isEdit ? '修改职业基本资料与对应的分类收益加成' : '创建新职业并配置该职业发帖与评论的收益加成'}
+                                配置帖子收益与农场产量，两类加成独立生效
                             </p>
                         </div>
                     </div>
@@ -99,6 +102,7 @@ export function WorldProfessionModal({
                         <input
                             type="text"
                             required
+                            disabled={ai.generating}
                             maxLength={50}
                             placeholder="例如：财经分析师、科技博主、旅行摄影师"
                             value={name}
@@ -108,33 +112,39 @@ export function WorldProfessionModal({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                            职业说明
-                        </label>
+                        <div className="mb-1.5 flex items-center justify-between gap-3">
+                            <label htmlFor="profession-description" className="text-xs font-semibold text-slate-700">职业说明</label>
+                            <button type="button" disabled={!name.trim() || saving || ai.generating}
+                                onClick={() => void ai.generate({name: name.trim(), farmYieldPercentage: farmYieldPercentage || '0', categories: categories.filter(c => bonuses.some(b => b.category === c.id)).map(c => c.name)}, setDescription)}
+                                className="inline-flex items-center gap-1 rounded-lg bg-orange-50 px-2 py-1 text-xs font-medium text-orange-600 disabled:opacity-50">
+                                {ai.generating ? <Loader2 className="h-3 w-3 animate-spin"/> : <Sparkles className="h-3 w-3"/>}{ai.generating ? '生成中…' : 'AI生成'}
+                            </button>
+                        </div>
                         <textarea
+                            id="profession-description"
+                            disabled={ai.generating}
                             rows={3}
                             placeholder="简短描述该职业的职责或定位（选填）"
                             value={description}
                             onChange={e => setDescription(e.target.value)}
                             className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all resize-none"
                         />
+                        {ai.error && <p role="alert" className="mt-2 text-xs text-red-600">{ai.error}</p>}
                     </div>
 
-                    <div>
-                        <Checkbox
-                            checked={enabled}
-                            onChange={setEnabled}
-                            label="启用该职业"
-                            description="停用后 Agent 将无法绑定该职业，已绑定的 Agent 历史数据保持不变"
-                            labelClassName="text-sm font-semibold text-slate-700"
-                        />
+                    <div className="rounded-xl border border-lime-200 bg-lime-50/40 p-4">
+                        <label htmlFor="farm-yield-percentage" className="block text-xs font-semibold text-slate-700">农场产量加成 (%)</label>
+                        <input id="farm-yield-percentage" type="number" min="0" step="0.0001" required
+                            value={farmYieldPercentage} onChange={e => setFarmYieldPercentage(e.target.value)}
+                            className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800" />
+                        <p className="mt-2 text-xs leading-5 text-slate-500">0 表示无增产。覆盖作物、鸡蛋、羊毛、牛奶等收获产物；不足1个的加成按居民和具体产物分别累计，品质分别计算。购买、交易、赠送不产生加成。</p>
                     </div>
 
                     {/* 分类收益加成配置 */}
                     <div className="pt-2 border-t border-slate-100">
                         <div className="mb-3">
                             <label className="block text-xs font-semibold text-slate-700">
-                                分类收益加成 (%)
+                                帖子分类收益加成 (%)
                             </label>
                             <p className="text-[11px] text-slate-400 mt-0.5">
                                 勾选要产生加成的分类，并填写百分比数值（如填写 15 表示获得 15% 额外收益）
@@ -211,7 +221,7 @@ export function WorldProfessionModal({
                         </button>
                         <button
                             type="submit"
-                            disabled={saving || !name.trim()}
+                            disabled={saving || ai.generating || !name.trim()}
                             className="flex items-center gap-1.5 px-4 py-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-xl text-xs font-medium transition-all shadow-sm shadow-orange-500/20 disabled:opacity-50"
                         >
                             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}

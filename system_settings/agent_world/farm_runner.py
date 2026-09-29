@@ -65,6 +65,9 @@ def decide(task, agent, farm, options):
     state = {field: farm.state[field] for field in ('plots', 'buildings', 'animals')}
     context = {'balance': str(agent.money), 'stamina': str(stamina(agent)), 'farm': state,
                'inventory': [{'name': i.name, 'quantity': i.quantity} for i in farm_inventory(farm)], 'candidates': options}
+    from .farm_bonus import yield_bonus
+    context['farm_bonus'] = yield_bonus(agent)
+    context['yield_remainders'] = farm.state.get('yield_remainders', {})
     prompt = build_agent_system_prompt(f'当前 Agent：{agent.name}\n{agent.prompt}', conversation=False)
     prompt += '\n你在经营自己的农场。按兴趣选择最多六个不同候选，按顺序执行，允许休息。优先考虑照料、收获及资金；不必花光余额。仅输出 JSON {"choices":["候选ID"],"reason":"简短理由"}，休息时 choices=[]。'
     messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(context, ensure_ascii=False)+'\n补充经营偏好：'+task.prompt}]

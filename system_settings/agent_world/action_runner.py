@@ -273,3 +273,12 @@ def tick(scheduler):
             key = take_due(task)
             if key:
                 run_market_opportunity(task, scheduler, key=key)
+
+    from .investment_models import InvestmentDecision
+    InvestmentDecision.objects.filter(status='running', created_at__lt=timezone.now()-timedelta(minutes=5)).update(status='interrupted', reason='执行中断或超时，本机会结束')
+    if runtime.enabled:
+        from .investment_runner import run_investment_opportunity
+        for task in AgentTask.objects.filter(task_kind='investment', enabled=True, trigger='定时任务'):
+            key = take_due(task)
+            if key:
+                run_investment_opportunity(task, scheduler, key=key)

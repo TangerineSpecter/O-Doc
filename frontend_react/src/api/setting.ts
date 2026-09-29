@@ -232,6 +232,7 @@ export const getAgentActivities = (params: {
     limit?: number;
     agent?: string;
     type?: AgentActivityType;
+    exclude_type?: AgentActivityType;
 } = {}, signal?: AbortSignal) => request.get<unknown, AgentActivityListResult>('/settings/agent-activities/', {params, signal});
 
 export const getAgentWorldSummary = (signal?: AbortSignal) => request.get<unknown, AgentWorldSummary>('/settings/agent-activities/today-summary/', {signal});

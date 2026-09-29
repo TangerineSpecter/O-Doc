@@ -1,7 +1,8 @@
-import {useState, useRef, useEffect} from 'react';
-import {ArrowUpRight, BookOpenText, ChevronDown, ChevronUp, CircleAlert, LoaderCircle, MessageCircle, Sparkles, Terminal} from 'lucide-react';
+import {useState} from 'react';
+import {ArrowUpRight, BookOpenText, CircleAlert, LoaderCircle, MessageCircle, Sparkles, Terminal} from 'lucide-react';
 import type {AgentActivity} from '../../types/api/setting';
 import AgentAvatar from './AgentAvatar';
+import AgentActivitySummary from './AgentActivitySummary';
 
 const formatTime = (value: string) => {
     const date = new Date(value);
@@ -67,21 +68,6 @@ export default function AgentActivityCard({
     );
 
     const [expanded, setExpanded] = useState(false);
-    const [canExpand, setCanExpand] = useState(false);
-    const textRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const el = textRef.current;
-        if (!el || expanded) return;
-        const measure = () => {
-            const lineHeight = Number.parseFloat(window.getComputedStyle(el).lineHeight);
-            setCanExpand(el.scrollHeight > Math.round(lineHeight * 2) + 1);
-        };
-        measure();
-        const observer = new ResizeObserver(measure);
-        observer.observe(el);
-        return () => observer.disconnect();
-    }, [activity.summary, activity.type, expanded]);
 
     return (
         <article className="group relative rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 shadow-2xs transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md">
@@ -149,42 +135,16 @@ export default function AgentActivityCard({
                         </div>
                     )}
 
-                    {/* 1. 文章批注/互动场景：言论气泡 (Quote Bubble) - 默认收拢为两行(CSS Float让位)，展开后收起放右下角 */}
+                    {/* 1. 文章批注/互动场景：言论气泡 (Quote Bubble) - 收起时固定两行高度，按自然文本高度判断是否可展开 */}
                     {isInteraction && activity.summary && (
-                        <div className="relative mt-2 rounded-r-xl border border-slate-200/80 border-l-[3px] border-l-orange-400 bg-slate-50 p-2.5 pl-3 font-sans sm:mt-2.5 sm:p-3 sm:pl-3.5">
-                            <div
-                                ref={textRef}
-                                className={`text-xs leading-[20px] text-slate-700 sm:text-sm sm:leading-[22px] ${
-                                    expanded ? 'whitespace-pre-wrap' : 'max-h-[40px] sm:max-h-[44px] overflow-hidden'
-                                }`}
-                            >
-                                {!expanded && canExpand && (
-                                    <>
-                                        <div className="float-right h-[20px] sm:h-[22px] w-0" />
-                                        <button
-                                            type="button"
-                                            onClick={() => setExpanded(true)}
-                                            className="float-right clear-both ml-1 inline-flex items-center gap-0.5 text-[11px] font-medium text-orange-600 hover:text-orange-700 select-none"
-                                        >
-                                            <span>... 展开全文</span>
-                                            <ChevronDown className="h-3 w-3" />
-                                        </button>
-                                    </>
-                                )}
-                                <span className="break-words">{activity.summary}</span>
-                            </div>
-                            {expanded && canExpand && (
-                                <div className="mt-1 flex justify-end">
-                                    <button
-                                        type="button"
-                                        onClick={() => setExpanded(false)}
-                                        className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium text-orange-600 transition-colors hover:bg-orange-100/60 hover:text-orange-700 select-none"
-                                    >
-                                        <span>收起</span>
-                                        <ChevronUp className="h-3 w-3" />
-                                    </button>
-                                </div>
-                            )}
+                        <div className="relative mt-3 py-0.5 pl-4 font-sans sm:mt-3.5 sm:pl-5">
+                            <span aria-hidden="true" className="absolute bottom-1 left-0 top-1 w-[3px] rounded-full bg-orange-400" />
+                            <AgentActivitySummary
+                                text={activity.summary}
+                                expanded={expanded}
+                                onExpandedChange={setExpanded}
+                                variant="interaction"
+                            />
                         </div>
                     )}
 
@@ -202,45 +162,12 @@ export default function AgentActivityCard({
                             </div>
                             {activity.summary && (
                                 <>
-                                    <div
-                                        ref={textRef}
-                                        className={`mt-1 text-xs leading-[20px] text-slate-500 ${
-                                            expanded ? 'whitespace-pre-wrap' : 'max-h-[40px] overflow-hidden'
-                                        }`}
-                                    >
-                                        {!expanded && canExpand && (
-                                            <>
-                                                <div className="float-right h-[20px] w-0" />
-                                                <button
-                                                    type="button"
-                                                    onClick={e => {
-                                                        e.stopPropagation();
-                                                        setExpanded(true);
-                                                    }}
-                                                    className="float-right clear-both ml-1 inline-flex items-center gap-0.5 text-[11px] font-medium text-orange-600 hover:text-orange-700 select-none"
-                                                >
-                                                    <span>... 展开全文</span>
-                                                    <ChevronDown className="h-3 w-3" />
-                                                </button>
-                                            </>
-                                        )}
-                                        <span className="break-words">{activity.summary}</span>
-                                    </div>
-                                    {expanded && canExpand && (
-                                        <div className="mt-1 flex justify-end">
-                                            <button
-                                                type="button"
-                                                onClick={e => {
-                                                    e.stopPropagation();
-                                                    setExpanded(false);
-                                                }}
-                                                className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium text-orange-600 transition-colors hover:bg-orange-100/60 hover:text-orange-700 select-none"
-                                            >
-                                                <span>收起</span>
-                                                <ChevronUp className="h-3 w-3" />
-                                            </button>
-                                        </div>
-                                    )}
+                                    <AgentActivitySummary
+                                        text={activity.summary}
+                                        expanded={expanded}
+                                        onExpandedChange={setExpanded}
+                                        variant="publication"
+                                    />
                                 </>
                             )}
                         </div>
@@ -251,39 +178,12 @@ export default function AgentActivityCard({
                         <div className="mt-2 space-y-1.5 sm:mt-2.5">
                             {activity.summary && (
                                 <>
-                                    <div
-                                        ref={textRef}
-                                        className={`text-xs leading-[20px] text-slate-600 sm:text-sm sm:leading-[22px] ${
-                                            expanded ? 'whitespace-pre-wrap' : 'max-h-[40px] sm:max-h-[44px] overflow-hidden'
-                                        }`}
-                                    >
-                                        {!expanded && canExpand && (
-                                            <>
-                                                <div className="float-right h-[20px] sm:h-[22px] w-0" />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setExpanded(true)}
-                                                    className="float-right clear-both ml-1 inline-flex items-center gap-0.5 text-[11px] font-medium text-orange-600 hover:text-orange-700 select-none"
-                                                >
-                                                    <span>... 展开全文</span>
-                                                    <ChevronDown className="h-3 w-3" />
-                                                </button>
-                                            </>
-                                        )}
-                                        <span className="break-words">{activity.summary}</span>
-                                    </div>
-                                    {expanded && canExpand && (
-                                        <div className="mt-1 flex justify-end">
-                                            <button
-                                                type="button"
-                                                onClick={() => setExpanded(false)}
-                                                className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium text-orange-600 transition-colors hover:bg-orange-100/60 hover:text-orange-700 select-none"
-                                            >
-                                                <span>收起</span>
-                                                <ChevronUp className="h-3 w-3" />
-                                            </button>
-                                        </div>
-                                    )}
+                                    <AgentActivitySummary
+                                        text={activity.summary}
+                                        expanded={expanded}
+                                        onExpandedChange={setExpanded}
+                                        variant="work"
+                                    />
                                 </>
                             )}
                             {activity.outputPreview && (
