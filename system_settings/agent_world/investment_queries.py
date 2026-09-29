@@ -16,18 +16,6 @@ def positions(account):
     rows = []
     day = local_day().isoformat()
     quotes = {c.pk.removeprefix('investment-value:'):c.payload for c in InvestmentCache.objects.filter(pk__in=['investment-value:'+code for code in account.positions])}
-    same_day_buys = {}
-    same_day_codes = {code for code, position in account.positions.items() if position.get('last_bought') == day}
-    if same_day_codes:
-        buys = InvestmentTrade.objects.filter(
-            actor_id=account.pk, owner_id=account.owner_id, operation__code__in=same_day_codes,
-            operation__day=day, operation__side='buy',
-        ).values_list('operation', 'result')
-        for operation, result in buys.iterator():
-            purchase = same_day_buys.setdefault(operation['code'], {'quantity': 0, 'cost': Decimal(0)})
-            quantity = operation['quantity']
-            purchase['quantity'] += quantity
-            purchase['cost'] += Decimal(result['price']) * quantity
     pending = set(account.positions)
     if pending:
         prices = InvestmentTrade.objects.filter(actor_id=account.pk, owner_id=account.owner_id, operation__code__in=pending).order_by('-result__price_date','-created_at','-pk').values_list('operation__code','result__price','result__price_date')
@@ -41,15 +29,9 @@ def positions(account):
     for code, p in account.positions.items():
         q = quotes.get(code)
         cost = Decimal(p['cost'])
-        same_day_purchase = same_day_buys.get(code)
-        same_day_quantity = same_day_purchase['quantity'] if same_day_purchase else 0
-        same_day_cost = same_day_purchase['cost'] if same_day_quantity else Decimal(0)
-        remaining_quantity = p['quantity'] - same_day_quantity
-        remaining_cost = cost - same_day_cost
         close = Decimal(q['price']) if q else None
-        # There is no post-fill close observation for shares bought on this date.
-        market = (close*remaining_quantity + same_day_cost) if close is not None else None
-        unrealized = (close*remaining_quantity - remaining_cost) if close is not None else None
+        market = close*p['quantity'] if close is not None else None
+        unrealized = market-cost if market is not None else None
         rows.append({'code':code, **p, 'available_quantity':sum(l['quantity'] for l in p['lots'] if l['available_on']<=day),
                      'average_cost':str(cost/p['quantity']), 'close_price':q['price'] if q else None, 'price_date':q['date'] if q else None,
                      'market_value':str(market) if market is not None else None, 'unrealized_profit':str(unrealized) if unrealized is not None else None,

@@ -1,4 +1,5 @@
 """进入时只结算一次体力；失效会话关闭后不会重新启动。"""
+from .life_scope import allowed as life_allowed
 import os
 import hashlib
 import uuid
@@ -24,6 +25,9 @@ def check_mcp():
 def owner_for(agent: Agent) -> str:
     if not agent or not Agent.objects.filter(pk=agent.pk).exists():
         raise ValueError('市场操作需要当前有效 Agent 上下文')
+    from .life_models import LifeProfile
+    profile=LifeProfile.objects.filter(pk=agent.pk).first()
+    if profile:return profile.owner_id
     owners = set()
     for task in AgentTask.objects.filter(task_kind='market'):
         if agent.pk in (task.agent_ids or [task.agent_id]):
@@ -73,7 +77,7 @@ def invalid_reason(session, now=None):
     if session.mode != 'mcp' and not session.task_id: return '市场任务已删除'
     if session.task_id:
         task = AgentTask.objects.filter(pk=session.task_id).first()
-        if not task or (session.mode != 'manual' and not task.enabled) or session.actor_id not in (task.agent_ids or [task.agent_id]):
+        if not task or (session.mode != 'manual' and not task.enabled) or not life_allowed(task,session.actor_id):
             return '市场任务已停止或居民已解绑'
     if session.mode == 'automatic' and not WorldActionRuntime.objects.filter(pk='world', enabled=True).exists():
         return '本机自动执行已关闭'
@@ -99,7 +103,7 @@ def enter(owner: str, agent: Agent, key: str, *, task=None, record=None, mode='m
     if agent.pk in travelling_ids(): raise ValueError('居民正在旅行')
     if MarketSession.objects.filter(actor_id=agent.pk, status='active').exists():
         raise ValueError('居民已有市场会话')
-    if task and ((mode != 'manual' and not task.enabled) or agent.pk not in (task.agent_ids or [task.agent_id])):
+    if task and ((mode != 'manual' and not task.enabled) or not life_allowed(task,agent.pk)):
         raise ValueError('市场任务已停止或居民已解绑')
     if mode == 'automatic' and not WorldActionRuntime.objects.filter(pk='world', enabled=True).exists():
         raise ValueError('本机自动执行已关闭')

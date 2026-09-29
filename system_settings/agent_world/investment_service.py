@@ -1,4 +1,5 @@
 """模拟成交原子记账；持仓以成交链重算，不将估值记入现金。"""
+from .life_scope import allowed as life_allowed
 import copy
 import hashlib
 from datetime import timedelta
@@ -78,7 +79,7 @@ def check_authorization(decision: InvestmentDecision, agent: Agent, token: str, 
     if decision.status != 'running' or decision.actor_id != agent.pk or local_day() != decision.execution_date:
         raise ValueError('投资机会已结束或跨日，请重新执行')
     task = AgentTask.objects.filter(pk=decision.task_id, task_kind='investment').first()
-    if not task or task.investment_config.get('owner_id') != decision.owner_id or agent.pk not in (task.agent_ids or [task.agent_id]):
+    if not task or task.investment_config.get('owner_id') != decision.owner_id or not life_allowed(task,agent.pk):
         raise ValueError('居民已解绑或投资任务失效')
     if not AgentExecutionLease.objects.filter(agent_id=agent.pk, token=token, until__gt=timezone.now()).exists():
         raise ValueError('投资执行授权已失效')
@@ -115,6 +116,9 @@ def commit(decision: InvestmentDecision, agent: Agent, key: str, operation: dict
     amount = (price*quantity).quantize(CENT, rounding=ROUND_HALF_UP)
     if amount >= Decimal('100000000000000'):
         raise ValueError('交易金额超出账户范围')
+    if operation['side'] == 'buy':
+        from .life_budget import charge_budget
+        charge_budget(agent,amount,business_key='investment:'+key)
     if operation['side'] == 'buy' and amount > balance:
         raise ValueError('可用余额不足')
     positions, allocated = apply_position(account.positions, operation, price, available_on)

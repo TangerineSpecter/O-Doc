@@ -1,5 +1,6 @@
 import {lazy, Suspense, useCallback, useState} from 'react';
 import WorldDialog from '../components/AgentWorld/WorldDialog';
+const LifeScheduleDialog = lazy(() => import('../components/AgentLife/LifeScheduleDialog'));
 const MarketDialog = lazy(() => import('../components/Market/MarketDialog'));
 const FarmDialog = lazy(() => import('../components/Farm/FarmDialog'));
 const ItemCatalogDialog = lazy(() => import('../components/AgentWorld/ItemCatalogDialog'));
@@ -35,6 +36,8 @@ const InvestmentDialog = lazy(() => import('../components/Investment/InvestmentD
 
 export default function AgentWorldPage() {
     const navigate = useNavigate();
+    const [lifeOpen, setLifeOpen] = useState(false);
+    const closeLife = useCallback(() => setLifeOpen(false), []);
     const [investmentOpen, setInvestmentOpen] = useState(false);
     const closeInvestment = useCallback(() => setInvestmentOpen(false), []);
     const [marketOpen, setMarketOpen] = useState(false);
@@ -105,6 +108,7 @@ export default function AgentWorldPage() {
                     <button type="button" onClick={() => setCatalogOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600">
                         <BookOpenText className="h-3.5 w-3.5 shrink-0"/>物品图鉴
                     </button>
+                    <button type="button" onClick={() => setLifeOpen(true)} className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">生活日程</button>
                     <button type="button" onClick={() => setInvestmentOpen(true)} className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">股票投资</button>
                     <button type="button" onClick={() => setMarketOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"><Store className="h-3.5 w-3.5 shrink-0"/>世界市场</button>
                     <button type="button" onClick={() => setFarmOpen(true)} className="rounded-lg border border-lime-200 bg-lime-50 px-3 py-1.5 text-xs font-semibold text-lime-700">像素农场</button>
@@ -126,6 +130,8 @@ export default function AgentWorldPage() {
                     </button>
                 </div>
             </div>
+
+            {lifeOpen && <Suspense fallback={null}><LifeScheduleDialog onClose={closeLife}/></Suspense>}
 
             {/* 移动端专属居民状态横滑栏：置顶于动态流上方，随时可横滑感知与点击筛选 (< lg) */}
             <div className="mt-3 lg:hidden">

@@ -31,6 +31,9 @@ def stamina(agent, now=None) -> Decimal:
 def execution_lease(model, lookup: dict):
     row, _ = model.objects.get_or_create(**lookup)
     token = uuid.uuid4().hex
+    if model.__name__=='AgentExecutionLease':
+        from .life_scope import CURRENT
+        if CURRENT.get():token='life:'+token  # 本机命名空间，恢复不撤销自定义任务的租约。
     acquired = model.objects.filter(pk=row.pk).filter(Q(until__isnull=True) | Q(until__lte=timezone.now())).update(
         token=token, until=timezone.now() + timedelta(minutes=10),
     )

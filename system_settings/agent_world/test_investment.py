@@ -71,9 +71,7 @@ class IndicatorTests(SimpleTestCase):
 
     @patch('system_settings.agent_world.investment_data.calendar', return_value=['2026-09-25','2026-09-28','2026-09-29','2026-09-30','2026-10-09'])
     def test_calendar_reference_and_holiday_unlock(self,cal):
-        self.assertEqual(reference_day(date(2026,9,28)),date(2026,9,25))
         self.assertEqual(next_trade_day(date(2026,9,30)),'2026-10-09')
-        self.assertEqual(reference_day(date(2026,10,5)),date(2026,9,30))
         with self.assertRaises(ValueError):reference_day(date(2027,1,1))
 
     def test_large_page(self):
@@ -250,11 +248,12 @@ class InvestmentTests(TestCase):
             result=execute('buy_stock',{'code':'000001','quantity':1,'reason':'银行行业机会'})
             self.assertNotIn('error',result)
             execute('finish',{'reason':'买入1股后观察'})
-        q={'code':'000001','name':'平安银行','price':'10','date':'2026-09-25','source':'BaoStock'}
-        with patch('system_settings.agent_world.investment_runner.reference_day',return_value=date(2026,9,25)),patch('system_settings.agent_world.investment_service.quote',return_value=q),patch('system_settings.agent_world.investment_service.next_trade_day',return_value='2026-09-29'),patch('system_settings.agent_world.investment_runner.AIService.chat_completion_messages_with_tools',side_effect=model):
+        q={'code':'000001','name':'平安银行','price':'10','date':'2026-09-28','source':'BaoStock'}
+        with patch('system_settings.agent_world.investment_runner.reference_day',return_value=date(2026,9,28)),patch('system_settings.agent_world.investment_service.quote',return_value=q),patch('system_settings.agent_world.investment_service.next_trade_day',return_value='2026-09-29'),patch('system_settings.agent_world.investment_runner.AIService.chat_completion_messages_with_tools',side_effect=model):
             record=run_investment_opportunity(self.task,manual=True)
         self.assertEqual(record.status,'success',record.summary)
         self.assertEqual(InvestmentTrade.objects.count(),1)
+        self.assertEqual(InvestmentTrade.objects.get().result['price_date'],'2026-09-28')
 
     def test_restore_during_reference_query_revokes_preparation(self):
         from utils.sync_manager import SyncManager
@@ -306,12 +305,70 @@ class InvestmentTests(TestCase):
         self.trade()
         InvestmentCache.objects.create(pk='investment-value:000001',payload={'price':'8','date':'2026-09-24'},expires_at=NOW+timedelta(days=30))
         self.account.refresh_from_db()
-        with patch('system_settings.agent_world.investment_queries.local_day',return_value=date(2026,9,29)):
-            row=positions(self.account)[0]
-            self.assertEqual((row['close_price'],row['price_date'],Decimal(row['unrealized_profit'])),('10','2026-09-25',Decimal(0)))
-            InvestmentCache.objects.filter(pk='investment-value:000001').update(payload={'price':'11','date':'2026-09-28'})
-            row=positions(self.account)[0]
-            self.assertEqual((row['close_price'],row['price_date'],Decimal(row['unrealized_profit'])),('11','2026-09-28',Decimal(1)))
+        row=positions(self.account)[0]
+        self.assertEqual((row['close_price'],row['price_date'],Decimal(row['unrealized_profit'])),('10','2026-09-25',Decimal(0)))
+        InvestmentCache.objects.filter(pk='investment-value:000001').update(payload={'price':'11','date':'2026-09-28'})
+        row=positions(self.account)[0]
+        self.assertEqual((row['close_price'],row['price_date'],Decimal(row['unrealized_profit'])),('11','2026-09-28',Decimal(1)))
+        self.assertEqual(Decimal(row['market_value']),Decimal(row['close_price'])*row['quantity'])
+
+    def test_reference_day_excludes_intraday_and_uses_published_evening_close(self):
+        bars=[{'date':'2026-09-25','close':'3000','tradestatus':'1'},
+              {'date':'2026-09-28','close':'3010','tradestatus':'1'}]
+        with patch('system_settings.agent_world.investment_data.calendar',return_value=['2026-09-25','2026-09-28']), \
+             patch('system_settings.agent_world.investment_data.provider',return_value=bars) as provider:
+            self.assertEqual(reference_day(date(2026,9,28)),date(2026,9,25))
+            self.assertEqual(provider.call_args.kwargs['end_date'],'2026-09-25')
+            with patch('django.utils.timezone.now',return_value=NOW.replace(hour=20)):
+                self.assertEqual(reference_day(date(2026,9,28)),date(2026,9,28))
+                self.assertEqual(reference_day(date(2026,9,28)),date(2026,9,28))
+            self.assertEqual(provider.call_count,2)
+
+    def test_delayed_publication_retries_instead_of_caching_yesterday_all_evening(self):
+        evening=NOW.replace(hour=17,minute=30)
+        old=[{'date':'2026-09-25','close':'3000','tradestatus':'1'}]
+        new=old+[{'date':'2026-09-28','close':'3010','tradestatus':'1'}]
+        with patch('system_settings.agent_world.investment_data.calendar',return_value=['2026-09-25','2026-09-28']), \
+             patch('system_settings.agent_world.investment_data.provider',side_effect=[old,new]) as provider:
+            with patch('django.utils.timezone.now',return_value=evening):
+                self.assertEqual(reference_day(date(2026,9,28)),date(2026,9,25))
+            with patch('django.utils.timezone.now',return_value=evening+timedelta(minutes=2)):
+                self.assertEqual(reference_day(date(2026,9,28)),date(2026,9,28))
+            self.assertEqual(provider.call_count,2)
+
+    def test_reference_holiday_uses_published_day_and_network_failure_is_not_fallback(self):
+        with patch('system_settings.agent_world.investment_data.calendar',return_value=['2026-09-25','2026-09-28','2026-09-30','2026-10-09']), \
+             patch('system_settings.agent_world.investment_data.provider',return_value=[{'date':'2026-09-30','close':'3000','tradestatus':'1'}]):
+            self.assertEqual(reference_day(date(2026,10,5)),date(2026,9,30))
+        with patch('system_settings.agent_world.investment_data.calendar',return_value=['2026-09-25','2026-09-28']), \
+             patch('system_settings.agent_world.investment_data.provider',side_effect=ValueError('network unavailable')):
+            with self.assertRaisesRegex(ValueError,'network unavailable'):
+                reference_day(date(2026,9,28))
+
+    def test_same_date_close_purchase_has_zero_profit_and_keeps_t_plus_one(self):
+        decision=self.make_decision('same-close',ref=date(2026,9,28))
+        self.trade(quantity=1400,price='6.95',code='600011',decision=decision)
+        self.account.refresh_from_db()
+        InvestmentCache.objects.create(pk='investment-value:600011',payload={'price':'6.95','date':'2026-09-28'},expires_at=NOW+timedelta(days=30))
+        row=positions(self.account)[0]
+        self.assertEqual(Decimal(row['cost']),Decimal('9730'))
+        self.assertEqual(Decimal(row['market_value']),Decimal('9730'))
+        self.assertEqual(Decimal(row['unrealized_profit']),0)
+        self.assertEqual(row['available_quantity'],0)
+        self.agent.refresh_from_db();self.assertEqual(self.agent.money,Decimal('270'))
+
+    def test_old_incomplete_history_cache_is_refreshed_and_not_cached_again(self):
+        key='investment-bao-history:v1:000001:2026-09-28:raw'
+        InvestmentCache.objects.create(pk=key,payload={'rows':[{'date':'2026-09-25','close':'10','volume':'100','trade_status':'1'}]},expires_at=NOW+timedelta(hours=6))
+        with patch('system_settings.agent_world.investment_data.stock',return_value={'provider_code':'sz.000001'}), \
+             patch('system_settings.agent_world.investment_data.provider',return_value=[{'date':'2026-09-28','close':'11','volume':'100','tradestatus':'1'}]):
+            self.assertEqual(history('000001',date(2026,9,28))[-1]['close'],'11')
+        InvestmentCache.objects.filter(pk=key).delete()
+        with patch('system_settings.agent_world.investment_data.stock',return_value={'provider_code':'sz.000001'}), \
+             patch('system_settings.agent_world.investment_data.provider',return_value=[{'date':'2026-09-25','close':'10','volume':'100','tradestatus':'1'}]):
+            with self.assertRaisesRegex(ValueError,'参考日'):
+                history('000001',date(2026,9,28))
+        self.assertFalse(InvestmentCache.objects.filter(pk=key).exists())
 
     def test_detail_deadline_and_failure_preserve_position(self):
         from .investment_data import QUERY_DEADLINE
@@ -390,12 +447,23 @@ class InvestmentTests(TestCase):
         self.trade()
         InvestmentCache.objects.create(pk='investment-value:000001',payload={'price':'9','date':'2026-09-25'},expires_at=NOW+timedelta(days=30))
         evening=NOW.replace(hour=17)
-        with patch('django.utils.timezone.now',return_value=evening),patch('system_settings.agent_world.investment_worker.calendar',return_value=['2026-09-28']),patch('system_settings.agent_world.investment_worker.history',side_effect=ValueError('not ready')) as h:
+        with patch('django.utils.timezone.now',return_value=evening),patch('system_settings.agent_world.investment_worker.reference_day',return_value=date(2026,9,28)),patch('system_settings.agent_world.investment_worker.history',side_effect=ValueError('not ready')) as h:
             tick_values();tick_values();h.assert_called_once()
         self.assertEqual(InvestmentCache.objects.get(pk='investment-value:000001').payload['price'],'9')
-        with patch('django.utils.timezone.now',return_value=evening+timedelta(minutes=2)),patch('system_settings.agent_world.investment_worker.calendar',return_value=['2026-09-28']),patch('system_settings.agent_world.investment_worker.history',return_value=[{'date':'2026-09-28','close':'12'}]):
+        with patch('django.utils.timezone.now',return_value=evening+timedelta(minutes=2)),patch('system_settings.agent_world.investment_worker.reference_day',return_value=date(2026,9,28)),patch('system_settings.agent_world.investment_worker.history',return_value=[{'date':'2026-09-28','close':'12'}]):
             tick_values()
         self.assertEqual(InvestmentCache.objects.get(pk='investment-value:000001').payload['price'],'12')
+
+    def test_valuation_catches_up_to_published_close_on_weekend_morning(self):
+        from .investment_worker import tick_values
+        self.trade()
+        saturday=datetime(2026,10,3,10)
+        with patch('django.utils.timezone.now',return_value=saturday), \
+             patch('system_settings.agent_world.investment_worker.reference_day',return_value=date(2026,9,30)), \
+             patch('system_settings.agent_world.investment_worker.history',return_value=[{'date':'2026-09-30','close':'12'}]) as history_call:
+            tick_values()
+        history_call.assert_called_once_with('000001',date(2026,9,30))
+        self.assertEqual(InvestmentCache.objects.get(pk='investment-value:000001').payload,{'price':'12','date':'2026-09-30'})
 
 
 class InvestmentConcurrencyTests(TransactionTestCase):

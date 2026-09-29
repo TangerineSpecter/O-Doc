@@ -43,7 +43,11 @@ def current_batch(owner: str, now=None) -> MarketBatch:
     pool = product_pool(rules)
     rng = random.Random(f'{config.seed}:{key}')
     slots = []
-    for index in range(config.slot_count):
+    from .life_models import LifeConfig
+    from .life_config import effective_settings
+    life_config=LifeConfig.objects.filter(pk=owner,migrated=True).first()
+    slot_count=2*len(effective_settings(life_config,aware_now).get('agent_ids',[])) if life_config else config.slot_count
+    for index in range(slot_count):
         item = dict(rng.choices(pool, weights=price_weights(pool))[0])
         quantity = rng.randint(1, 3) if item['kind'] == 'seed' else 1
         slots.append({**item, 'id': str(index), 'initial_quantity': quantity, 'remaining_quantity': quantity})

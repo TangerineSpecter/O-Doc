@@ -6,6 +6,7 @@ from system_settings.models import Agent, WorldAction
 from .models import WorldLedger
 from .income import ensure_opening
 from .execution import stamina
+from .farm_gate import guarded
 from .travel_models import TravelJourney, AgentInventoryItem
 from .inventory_attributes import RARITIES
 
@@ -17,12 +18,15 @@ def _charge(agent, key, amount, kind, snapshot):
     balance = WorldLedger.objects.filter(agent_id=agent.pk).aggregate(value=Sum('amount'))['value'] or Decimal('0')
     if amount < 0 or balance < amount:
         raise ValueError('当前余额不足，未扣款')
+    from .life_budget import charge_budget
+    charge_budget(agent,amount,item_id=snapshot.get('journey_id'),business_key=key)
     WorldLedger.objects.create(pk=key, agent_id=agent.pk, agent_name=agent.name,
                               kind=kind, amount=-amount, snapshot=snapshot)
     agent.money = balance-amount
     agent.save(update_fields=['money'])
 
 
+@guarded
 @transaction.atomic
 def depart(journey):
     row = TravelJourney.objects.select_for_update().get(pk=journey.pk)
@@ -45,6 +49,7 @@ def depart(journey):
     return row
 
 
+@guarded
 @transaction.atomic
 def purchase(journey, basket):
     row = TravelJourney.objects.select_for_update().get(pk=journey.pk)

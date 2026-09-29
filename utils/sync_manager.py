@@ -644,24 +644,12 @@ class SyncManager:
         self.client.ensure_directory(self.base_path)
         yield json.dumps({"step": "init", "msg": "正在初始化数据库导出..."}) + "\n"
 
-        all_data = []
-        total_count = 0
-
         try:
-            for model in self._iter_target_models():
-                model_name = model.__name__
-                queryset = self._queryset_for_export(model)
-                count = queryset.count()
-                if count > 0:
-                    yield json.dumps({
-                        "step": "processing",
-                        "msg": f"正在导出 {model_name} ({count}条)..."
-                    }) + "\n"
-
-                    json_str = serializers.serialize('json', queryset)
-                    data_list = json.loads(json_str)
-                    all_data.extend(data_list)
-                    total_count += count
+            all_data = self.build_snapshot_data()
+            total_count = len(all_data)
+            from collections import Counter
+            for model_label, count in Counter(item['model'] for item in all_data).items():
+                yield json.dumps({'step': 'processing', 'msg': f'正在导出 {model_label} ({count}条)...'}) + "\n"
         except Exception as e:
             raise SyncError(f"导出数据库快照失败: {str(e)}")
 
@@ -834,6 +822,8 @@ class SyncManager:
             refresh_restored_checkpoints()
             from system_settings.agent_world.settlement import reconcile_awards
             reconcile_awards()
+            from system_settings.agent_world.life_sync import reconcile_life
+            reconcile_life()
             self._reset_restored_sequences(restored_models)
 
             if image_vectors_to_remove:
@@ -1117,6 +1107,8 @@ class SyncManager:
 
     @farm_sync_guard
     def build_snapshot_data(self):
+        from system_settings.agent_world.life_sync import checkpoint_all
+        checkpoint_all()
         all_data = []
         for model in self._iter_target_models():
             queryset = self._queryset_for_export(model)
@@ -1413,6 +1405,9 @@ class SyncManager:
 
     def merge_v2_data(self, base, local_data, local_revisions, remote):
         """返回不丢失双方独有记录的合并结果及新修订清单。"""
+        from system_settings.agent_world.life_snapshot import validate_source, refresh_merged_integrity
+        validate_source(local_data)
+        validate_source(remote.get('data') or [])
         base_data = self._item_map((base or {}).get('data') or [])
         base_revisions = (base or {}).get('revisions') or {}
         local_map = self._item_map(local_data)
@@ -1462,6 +1457,7 @@ class SyncManager:
                     summary['created'] += 1
                 elif local_changed or remote_changed:
                     summary['updated'] += 1
+        refresh_merged_integrity(result, result_revisions)
         return result, result_revisions, summary
 
     def _build_v2_media_manifest(self, previous_media=None):

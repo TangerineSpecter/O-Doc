@@ -103,6 +103,8 @@ def advance(journey):
         state['goods'] = goods
         next_phase = 'depart'
     elif phase == 'depart':
+        from .life_travel_budget import review_travel_budget
+        review_travel_budget(journey,Decimal(state['selected']['price']))
         journey = depart(journey)
         next_phase = 'visit-0'
     elif phase.startswith('visit-'):
@@ -150,6 +152,10 @@ def advance(journey):
             return {'basket': basket, 'reason': text(v, 'reason')}
         basket = decide(journey, node, '自主购买纪念品或不买。返回 {"basket":[{"id":"商品ID","quantity":1}],"reason":"理由"}，不买返回空数组。每种最多3件。',
             {'goods': state['goods'], 'budget': state['selection']['shopping_budget'], 'balance': str(agent.money)}, validate)
+        from .life_travel_budget import review_travel_budget
+        goods_by_id={g['id']:g for g in state['goods']}
+        amount=sum((Decimal(goods_by_id[c['id']]['price'])*c['quantity'] for c in basket['basket']),Decimal(0))
+        review_travel_budget(journey,amount)
         purchase(journey, basket['basket'])
         state['shopping'] = basket
         next_phase = 'return'

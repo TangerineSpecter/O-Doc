@@ -35,6 +35,8 @@ def commit_publication(action_id: str, token: str, world_token: str, *, manual=F
         return action
     if action.status != 'claimed':
         raise ValueError('机会已结束')
+    from .life_scope import check_current_authorization
+    check_current_authorization()
     task = AgentTask.objects.select_for_update().get(pk=action.task_id)
     agent = Agent.objects.select_for_update().get(pk=action.agent_id)
     if task.task_kind != 'post_publish' or (not manual and not task.enabled):
@@ -111,6 +113,15 @@ def preview(task, agent):
 
 def run_publish_opportunity(task, scheduler, *, key=None, manual=False, locked=False):
     from .action_runner import record_busy_opportunity
+    from .life_scope import CURRENT,life_scope
+    from .life_models import LifeItem
+    if key and not CURRENT.get():
+        item=LifeItem.objects.filter(pk=key).first()
+        agent=Agent.objects.filter(pk=item.actor_id).first() if item else None
+        if item and agent:
+            from .life_context import build_context
+            with life_scope(item,build_context(item.owner_id,agent,item)):
+                return run_publish_opportunity(task,scheduler,key=key,manual=manual,locked=locked)
     key = key or hashlib.sha256(f'manual:{uuid.uuid4()}'.encode()).hexdigest()
     if not locked:
         with execution_lease(WorldActionRuntime, {'pk': 'world'}) as world_token:

@@ -186,6 +186,7 @@ class FarmTests(TestCase):
         with self.assertRaises(ValueError):self.op('collect',at=self.now+timedelta(days=10),targets=ids)
 
     def test_ten_daily_feeds_max_hearts_and_duplicate_same_day(self):
+        self.now=self.now.replace(hour=10,minute=0,second=0,microsecond=0)
         self.op('build',building='coop');self.op('buy_animal',animal='chicken')
         self.op('buy_supply',sku='feed',quantity=20)
         target=[self.state()['animals'][0]['id']]

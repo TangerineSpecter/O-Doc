@@ -68,8 +68,10 @@ def decide(task, agent, farm, options):
     from .farm_bonus import yield_bonus
     context['farm_bonus'] = yield_bonus(agent)
     context['yield_remainders'] = farm.state.get('yield_remainders', {})
+    from .life_scope import enrich
+    context=enrich(context)
     prompt = build_agent_system_prompt(f'当前 Agent：{agent.name}\n{agent.prompt}', conversation=False)
-    prompt += '\n你在经营自己的农场。按兴趣选择最多六个不同候选，按顺序执行，允许休息。优先考虑照料、收获及资金；不必花光余额。仅输出 JSON {"choices":["候选ID"],"reason":"简短理由"}，休息时 choices=[]。'
+    prompt += '\n你在经营自己的农场。按兴趣选择最多六个不同候选，按顺序执行，允许休息。优先考虑照料、收获及资金；不必花光余额。需要调整生活预留时可增加 budget_allocations=[{"id":"安排ID","budget":"总预算"}] 和 budget_reason。仅输出 JSON {"choices":["候选ID"],"reason":"简短理由"}，休息时 choices=[]。'
     messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(context, ensure_ascii=False)+'\n补充经营偏好：'+task.prompt}]
     for attempt in range(2):
         output = AIService.chat_completion_messages(messages, model_id=agent.model_id) or ''
@@ -142,6 +144,9 @@ def run_farm_opportunity(task, scheduler=None, *, key=None, manual=False, locked
                 update_work_activity(record, agent, status='running', current_action='正在决定农场经营')
                 options = candidates(farm, agent.money)
                 decision = decide(task, agent, farm, options) if options else {'choices': [], 'reason': '暂时没有可执行的经营操作'}
+                if decision.get('budget_allocations'):
+                    from .life_budget import budget_tool
+                    budget_tool({'allocations':decision['budget_allocations'],'reason':decision.get('budget_reason')})
                 selected = [options[int(i)]['operation'] for i in decision['choices']]
                 action.snapshot = {'farm': True, 'plan': selected, 'reason': decision['reason']}
                 action.save(update_fields=['snapshot', 'updated_at'])
@@ -176,7 +181,4 @@ def tick_farms(scheduler, token, enabled):
     # 即使任务暂停，也继续已承诺的自然生长；不自动补料或重做经营。
     for farm_id in AgentFarm.objects.values_list('pk', flat=True):
         advance_farm(farm_id)
-    for task in AgentTask.objects.filter(task_kind='farm', enabled=True, trigger='定时任务'):
-        key = take_due(task)
-        if key:
-            run_farm_opportunity(task, scheduler, key=key, locked=token)
+    return

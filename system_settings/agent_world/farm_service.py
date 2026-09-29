@@ -1,4 +1,5 @@
 """农场经营事务：状态、库存、账本和体力在同一提交中生效。"""
+from .life_scope import allowed as life_allowed
 import copy
 import hashlib
 from decimal import Decimal
@@ -32,9 +33,13 @@ def ensure_farms(task):
         return
     owner = task.farm_config['owner_id']
     from .investment_service import validate_agents
-    validate_agents(owner, task.agent_ids or [task.agent_id])
+    from .life_models import LifeConfig
+    from .life_config import effective_settings
+    config=LifeConfig.objects.filter(pk=owner,migrated=True).first()
+    ids=effective_settings(config).get('agent_ids',[]) if config else (task.agent_ids or [task.agent_id])
+    validate_agents(owner,ids)
     catalog_for(owner)
-    for agent in Agent.objects.filter(pk__in=task.agent_ids or [task.agent_id]):
+    for agent in Agent.objects.filter(pk__in=ids):
         farm, created = AgentFarm.objects.get_or_create(pk=agent.pk, defaults={'owner_id': owner,
             'actor_name': agent.name, 'state': initial_state(), 'appearance': {'style': 0, 'palette': 0}})
         if not created and farm.owner_id != owner:
@@ -202,9 +207,11 @@ def commit_operation(farm_id, opportunity_id, index, operation, reason, task, ag
             raise ValueError('操作键已用于不同操作')
         return previous
     now = now or timezone.now()
+    from .life_scope import check_current_authorization
+    check_current_authorization()
     agent = Agent.objects.select_for_update().get(pk=farm_id)
     task = AgentTask.objects.select_for_update().get(pk=task.pk)
-    if task.task_kind != 'farm' or not task.enabled or agent.pk not in (task.agent_ids or [task.agent_id]):
+    if task.task_kind != 'farm' or not task.enabled or not life_allowed(task,agent.pk):
         raise ValueError('农场任务已停止或居民已解绑')
     if not AgentExecutionLease.objects.filter(agent_id=agent.pk, token=agent_token, until__gt=now).exists():
         raise ValueError('Agent 执行锁失效')
@@ -229,6 +236,9 @@ def commit_operation(farm_id, opportunity_id, index, operation, reason, task, ag
     amount = amount.quantize(Decimal('.01'))
     if balance + amount < 0:
         raise ValueError('余额不足')
+    if amount < 0:
+        from .life_budget import charge_budget
+        charge_budget(agent,-amount,business_key='farm:'+key)
     if amount:
         WorldLedger.objects.create(pk='farm:'+key, agent_id=agent.pk, agent_name=agent.name, kind='farm', amount=amount,
             snapshot={'operation_id': key, 'operation': operation, 'reason': reason, 'farm_id': farm.pk})

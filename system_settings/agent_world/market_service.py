@@ -40,6 +40,9 @@ def change_money(agent, amount, key, at):
     balance = WorldLedger.objects.filter(agent_id=agent.pk).aggregate(total=Sum('amount'))['total'] or Decimal(0)
     if balance+amount < 0 or balance+amount > Decimal('9999999999.99'):
         raise ValueError('余额不足或余额超出范围')
+    if amount < 0:
+        from .life_budget import charge_budget
+        charge_budget(agent,-amount,business_key=f'market:{key}:{agent.pk}')
     if amount:
         WorldLedger.objects.create(pk=f'market:{key}:{agent.pk}', agent_id=agent.pk, agent_name=agent.name,
             kind='market', amount=amount, created_at=at, snapshot={'market_transaction_id': key})
@@ -86,6 +89,10 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         item = next((s for s in slots if s['id'] == slot_id), None) if slot_id != 'feed' else {'sku':'feed','name':'饲料','kind':'feed','price':str(batch.feed_price)}
         if not item: raise ValueError('商品位不存在')
         if slot_id != 'feed' and count > item['remaining_quantity']: raise ValueError('商品库存不足')
+        if slot_id != 'feed':
+            bought = set(str(value) for value in MarketTransaction.objects.filter(owner_id=owner,actor_id=agent.pk,operation__kind='buy_shop',operation__batch_id=batch.pk).exclude(operation__slot_id='feed').values_list('operation__slot_id',flat=True))
+            if slot_id not in bought and len(bought)>=2:
+                raise ValueError('本小时最多购买两个商品格，饲料不占额度')
         amount = price(item['price'])*count
         change_money(agent, -amount, key, at)
         if item['kind'] == 'animal':

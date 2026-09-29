@@ -234,24 +234,27 @@ class AgentTaskScheduler:
             task_name_override='',
             random_context=None,
     ):
+        from .agent_world.life_scope import CURRENT
+        life=CURRENT.get()
+        life_key=life['item_id'] if life else None
         if task.task_kind == 'investment':
             from .agent_world.investment_runner import run_investment_opportunity
-            return run_investment_opportunity(task, self, manual=trigger == '手动执行')
+            return run_investment_opportunity(task, self, key=life_key, manual=trigger == '手动执行')
         if task.task_kind == 'market':
             from .agent_world.market_runner import run_market_opportunity
-            return run_market_opportunity(task, self, manual=trigger == '手动执行')
+            return run_market_opportunity(task, self, key=life_key, manual=trigger == '手动执行')
         if task.task_kind == 'farm':
             from .agent_world.farm_runner import run_farm_opportunity
-            return run_farm_opportunity(task, self, manual=trigger == '手动执行')
+            return run_farm_opportunity(task, self, key=life_key, manual=trigger == '手动执行')
         if task.task_kind == 'travel':
             from .agent_world.travel_runner import run_travel_opportunity
-            return run_travel_opportunity(task, self, manual=trigger == '手动执行')
+            return run_travel_opportunity(task, self, key=life_key, manual=trigger == '手动执行')
         if task.task_kind == 'post_publish':
             from .agent_world.publish_runner import run_publish_opportunity
-            return run_publish_opportunity(task, self, manual=trigger == '手动执行')
+            return run_publish_opportunity(task, self, key=life_key, manual=trigger == '手动执行')
         if task.task_kind == 'post_interaction':
             from .agent_world.action_runner import run_opportunity
-            return run_opportunity(task, self, manual=trigger == '手动执行')
+            return run_opportunity(task, self, key=life_key, manual=trigger == '手动执行')
         started = timezone.now()
         agents = agents_override if agents_override is not None else self._get_task_agents(task)
         primary_agent = agents[0] if agents else None

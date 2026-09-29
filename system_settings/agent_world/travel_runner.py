@@ -30,8 +30,10 @@ def run_travel_opportunity(task, scheduler=None, *, key=None, manual=False, lock
     existing = TravelJourney.objects.filter(pk=key).first()
     if existing:
         return existing
+    from .life_scope import CURRENT
+    pinned=CURRENT.get()
     config = TravelConfigSerializer(data=task.travel_config, context={'previous': task.travel_config,
-        'enabled': True, 'agent_ids': task.agent_ids or [task.agent_id]})
+        'enabled': True, 'agent_ids': [pinned['actor_id']] if pinned else task.agent_ids or [task.agent_id]})
     config.is_valid(raise_exception=True)
     busy = set(TravelJourney.objects.filter(status__in=['active', 'waiting', 'manual', 'paused'], returned_at__isnull=True).values_list('actor_id', flat=True))
     agent = select_agent(task, cost=task.travel_config.get('energy_cost', 20), qualifies=lambda a: a.pk not in busy)
@@ -50,6 +52,16 @@ def run_travel_opportunity(task, scheduler=None, *, key=None, manual=False, lock
 
 
 def process_journey(journey):
+    from .life_models import LifeItem
+    from .life_scope import check_item_authorization,CURRENT,life_scope
+    item=LifeItem.objects.filter(pk=journey.pk).first()
+    if item and journey.agent and not CURRENT.get():
+        from .life_context import build_context
+        with life_scope(item,build_context(item.owner_id,journey.agent,item)):
+            return process_journey(journey)
+    if item:
+        try:check_item_authorization(item)
+        except ValueError:return
     runtime, _ = TravelRuntime.objects.get_or_create(pk=journey.pk)
     if not runtime.authorized or runtime.next_at > timezone.now() or journey.status not in ['active', 'waiting']:
         return
@@ -97,7 +109,9 @@ def process_journey(journey):
 
 def tick_travel(scheduler, token, *, manual_only=False):
     authorized = TravelRuntime.objects.filter(authorized=True).values_list('id', flat=True)
-    manual_trips = WorldAction.objects.filter(record__trigger='手动执行').values_list('id', flat=True)
+    from .life_models import LifeItem
+    manual_trips = list(WorldAction.objects.filter(record__trigger='手动执行').values_list('id', flat=True))
+    manual_trips += list(LifeItem.objects.filter(context__manual=True, activity='travel').values_list('id', flat=True))
     active_authorized = authorized.filter(id__in=manual_trips) if manual_only else authorized
     for journey in TravelJourney.objects.filter(pk__in=active_authorized, status__in=['active', 'waiting']).select_related('agent', 'task')[:20]:
         if journey.task and journey.task.enabled:
@@ -113,10 +127,4 @@ def tick_travel(scheduler, token, *, manual_only=False):
                 recover_photo(journey)
     if manual_only:
         return
-    for task in AgentTask.objects.filter(task_kind='travel', enabled=True, trigger='定时任务'):
-        key = take_due(task)
-        if key:
-            try:
-                run_travel_opportunity(task, scheduler, key=key, locked=token)
-            except Exception:
-                logger.exception('旅行任务配置或机会执行失败 task=%s', task.pk)
+    return

@@ -186,7 +186,11 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         from django.db.models import Q
         from utils.drf_utils import get_current_user_identifier
-        return super().get_queryset().filter(~Q(task_kind='market') | Q(market_config__owner_id=get_current_user_identifier(self.request))).filter(~Q(task_kind='investment') | Q(investment_config__owner_id=get_current_user_identifier(self.request)))
+        owner=get_current_user_identifier(self.request)
+        rows=super().get_queryset().filter(~Q(task_kind='market') | Q(market_config__owner_id=owner)).filter(~Q(task_kind='investment') | Q(investment_config__owner_id=owner))
+        for kind,field in [('farm','farm_config'),('travel','travel_config'),('post_publish','publish_config'),('post_interaction','world_state')]:
+            rows=rows.filter(~Q(task_kind=kind) | Q(**{field+'__owner_id':owner}) | Q(**{field+'__owner_id__isnull':True}))
+        return rows
 
     @action(detail=False, methods=['get'])
     def publish_collections(self, request):
@@ -204,6 +208,12 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
             if type(value) is not bool:
                 from rest_framework.exceptions import ValidationError
                 raise ValidationError({'enabled': '必须是布尔值'})
+            if value:
+                from .agent_world.life_config import config_for
+                from utils.drf_utils import get_current_user_identifier
+                life=config_for(get_current_user_identifier(request))
+                if not life.migrated or not life.settings.get('agent_ids'):
+                    return valid_result('请先保存统一生活配置并选择参与居民',status=400)
             runtime.enabled = value
             runtime.save(update_fields=['enabled'])
             if not value:
@@ -277,8 +287,9 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         if not data.is_valid():
             return valid_result('请提供绑定 Agent ID', data=data.errors, status=400)
         agent = Agent.objects.filter(pk=data.validated_data['agent_id']).first()
-        if not agent or agent.pk not in (task.agent_ids or [task.agent_id]):
-            return valid_result('请选择任务绑定的 Agent', status=400)
+        from .agent_world.life_scope import allowed
+        if not agent or not allowed(task,agent.pk):
+            return valid_result('请选择参与统一生活且未暂停的居民', status=400)
         from article.access import can_manage_anthology
         if not can_manage_anthology(request, task.publish_config.get('collection_id'), 'agent'):
             return valid_result('无权管理输出文集', status=403)
@@ -307,11 +318,25 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
             from article.access import can_manage_anthology
             if not can_manage_anthology(request, task.publish_config.get('collection_id'), 'agent'):
                 return valid_result('无权管理输出文集', status=403)
+        from .agent_world.life_config import KINDS,task_owner
+        from .agent_world.life_scope import allowed
+        actor=request.data.get('actor_id')
+        if task.task_kind in KINDS:
+            from utils.drf_utils import get_current_user_identifier
+            if task_owner(task)!=get_current_user_identifier(request) or not actor or not allowed(task,actor):
+                return valid_result('请明确选择此账号已参与且未暂停的居民',status=400)
         logger.info('Manual agent task requested: id=%s, name=%s', task.id, task.name)
 
         def runner():
             from system_settings.agent_task_scheduler import _agent_task_scheduler
-            _agent_task_scheduler.run_manual_task(task.id)
+            if task.task_kind in KINDS:
+                from .agent_world.life_manual import run_manual_life
+                from django.db import close_old_connections
+                close_old_connections()
+                try:run_manual_life(task,actor,task_owner(task),_agent_task_scheduler)
+                finally:close_old_connections()
+            else:
+                _agent_task_scheduler.run_manual_task(task.id)
 
         threading.Thread(target=runner, name=f'agent-task-manual-{task.id}', daemon=True).start()
         return success_result({'detail': '任务已开始执行'})

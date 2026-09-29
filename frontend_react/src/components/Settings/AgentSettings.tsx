@@ -1,3 +1,5 @@
+import {getLifeConfig} from '@/api/agentLife';
+import LifeManualRunDialog from '../AgentLife/LifeManualRunDialog';
 import { ProfessionSelect } from "../AgentWorld/ProfessionSelect";
 import { ProfessionBadge } from "../AgentWorld/ProfessionBadge";
 import {useEffect, useMemo, useState} from 'react';
@@ -56,7 +58,7 @@ import {isImageAvatarValue} from '@/utils/avatar';
 import {AgentPromptGenerator} from './agent/AgentPromptGenerator';
 import {PromptEditorModal} from '@/components/common/PromptEditorModal';
 import {PostInteractionScopeFields} from './agent/PostInteractionScopeFields';
-import {SystemTaskScheduleFields} from './agent/SystemTaskScheduleFields';
+
 import {WorldRunnerSwitch} from './agent/WorldRunnerSwitch';
 import {SystemTaskProgress} from './agent/SystemTaskProgress';
 import {InvestmentTaskFields} from './agent/InvestmentTaskFields';
@@ -509,6 +511,11 @@ export const AgentSettings = ({
     };
 
     const handleTaskSubmit = async () => {
+        let selectedAgents = taskForm.agents;
+        if (isSystemTask) {
+            try {selectedAgents = (await getLifeConfig()).settings.agentIds;}
+            catch (e) {toast.warning(e instanceof Error ? e.message : '统一生活配置加载失败'); return;}
+        }
         if (isTravelTask) {
             const error = travelConfigError(taskForm.travelConfig);
             if (error) {
@@ -522,7 +529,7 @@ export const AgentSettings = ({
                 toast.warning('目标次数须为 1 到 10000 之间的整数');
                 return;
             }
-            const allocations = resolveAllocations(taskForm.agents, count, taskForm.randomAllocations);
+            const allocations = resolveAllocations(selectedAgents, count, taskForm.randomAllocations);
             const total = Object.values(allocations).reduce((sum, value) => sum + value, 0);
             if (!isSystemTask && taskForm.executionMode === 'serial' && (Object.values(allocations).some(value => !Number.isSafeInteger(value) || value < 0) || total < 1 || total > count)) {
                 toast.warning('Agent 分配次数须为非负整数，合计大于 0 且不能超过任务总次数');
@@ -537,8 +544,8 @@ export const AgentSettings = ({
             toast.warning('请选择输出文集、搜索服务和至少一个有效分类及内容方式');
             return;
         }
-        if (taskForm.agents.length === 0) {
-            toast.warning('请至少选择一个 Agent');
+        if (selectedAgents.length === 0) {
+            toast.warning(isSystemTask ? '请先在统一生活运行中选择居民' : '请至少选择一个 Agent');
             return;
         }
         if (!isManualTask && taskForm.scheduleMode !== 'random' && taskForm.scheduleType === 'interval' && (!taskForm.intervalMinutes || Number(taskForm.intervalMinutes) < 1)) {
@@ -553,7 +560,7 @@ export const AgentSettings = ({
             toast.warning('请选择完成后接手的 Agent');
             return;
         }
-        if (taskForm.followupEnabled && taskForm.agents.includes(taskForm.followupAgent)) {
+        if (taskForm.followupEnabled && selectedAgents.includes(taskForm.followupAgent)) {
             toast.warning('后续 Agent 不能与主执行 Agent 重复');
             return;
         }
@@ -567,11 +574,11 @@ export const AgentSettings = ({
             postCollectionIds: taskForm.postCollectionIds || [],
             postCategoryIds: taskForm.postCategoryIds || [],
             name: taskForm.name.trim(),
-            agent: taskForm.agents[0],
-            agents: taskForm.agents,
+            agent: selectedAgents[0],
+            agents: selectedAgents,
             executionMode: isSystemTask ? 'serial' : taskForm.executionMode,
             trigger: taskForm.trigger,
-            schedule: isSystemTask ? (isManualTask ? '手动执行' : taskForm.scheduleMode === 'random' ? `${randomPeriodLabels[taskForm.randomPeriod]}随机 · ${taskForm.randomCount} 次行动机会` : `每 ${taskForm.intervalMinutes} 分钟 · 随机行动`) : isManualTask ? '手动执行' : taskForm.scheduleMode === 'random' && taskForm.trigger === '定时任务'
+            schedule: isSystemTask ? '由统一生活日程安排' : isManualTask ? '手动执行' : taskForm.scheduleMode === 'random' && taskForm.trigger === '定时任务'
                 ? `${randomPeriodLabels[taskForm.randomPeriod]}随机 · ${taskForm.executionMode === 'parallel' ? '每个 Agent' : '合计'} ${taskForm.randomCount} 次`
                 : buildTaskSchedule(taskForm),
             scheduleType: isSystemTask ? 'interval' : taskForm.scheduleType,
@@ -606,7 +613,9 @@ export const AgentSettings = ({
         onDeleteTask(taskId);
     };
 
+    const [manualLifeTask, setManualLifeTask] = useState<string | null>(null);
     const runTaskNow = async (taskId: string) => {
+        if ([builtinPostTask, builtinPublishTask, builtinTravelTask, builtinInvestmentTask, builtinMarketTask, builtinFarmTask].some(task => task.id === taskId)) {setManualLifeTask(taskId); return;}
         setRunningTaskId(taskId);
         try {
             await onRunTaskNow(taskId);
@@ -831,7 +840,7 @@ export const AgentSettings = ({
 
             {activeView === 'tasks' ? (
                 <div className="space-y-3">
-                    <WorldRunnerSwitch/>
+                    <WorldRunnerSwitch agents={agents}/>
                     <BuiltinPostTaskCard task={builtinPostTask}
                         agentNames={getTaskAgentNames(builtinPostTask)}
                         running={!!builtinPostTask.id && runningTaskId === builtinPostTask.id}
@@ -1302,7 +1311,7 @@ export const AgentSettings = ({
                         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                             <div>
                                 <h3 className="text-lg font-bold text-slate-900">{isSystemTask ? '配置系统任务' : taskForm.id ? '编辑任务' : '新建自定义任务'}</h3>
-                                <p className="mt-1 text-xs text-slate-500">配置 Agent 在什么时机执行什么任务，以及输出到哪里</p>
+                                <p className="mt-1 text-xs text-slate-500">{isSystemTask ? '配置活动规则、数据来源与偏好；居民和时间由统一生活安排' : '配置 Agent 在什么时机执行什么任务，以及输出到哪里'}</p>
                             </div>
                             <button
                                 onClick={() => setTaskModalOpen(false)}
@@ -1317,8 +1326,6 @@ export const AgentSettings = ({
                             {isSystemTask && <>
                                 <>{isInvestmentTask ? <InvestmentTaskFields value={taskForm.investmentConfig || {}} servers={mcpServers} onChange={investmentConfig => setTaskForm({...taskForm, investmentConfig})}/> : isMarketTask ? <p className="rounded-2xl bg-emerald-50 p-4 text-sm leading-relaxed text-slate-600">自主决定进入市场或跳过。进入消耗5体力，会话内购买种子、饲料、动物，出售产物、上架、改价和撤单；最多5分钟20次工具调用，完成后离开市场。</p> : isFarmTask ? <p className="rounded-2xl bg-lime-50 p-4 text-sm leading-relaxed text-slate-600">居民自主种植、养殖、照料与升级；种子、饲料、动物购买及产物出售由市场交易任务负责，共用现有余额。每项成功操作消耗2点体力；旅行时暂停经营。启用后赠送四块耕地。农场规则与角色外观可在农场页面配置。</p> : isTravelTask ? <TravelTaskFields value={taskForm.travelConfig || emptyTravelConfig()} servers={mcpServers} imageModels={getModelsByType('image_generation')} onChange={travelConfig => setTaskForm({...taskForm, travelConfig})}/> : isPublishTask ? <PostPublishFields value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
                                     onCollectionsChange={postCollectionIds => setTaskForm({...taskForm, postCollectionIds})} onCategoriesChange={postCategoryIds => setTaskForm({...taskForm, postCategoryIds})}/>}</>
-                                {!isManualTask && <SystemTaskScheduleFields investment={isInvestmentTask} market={isMarketTask} farm={isFarmTask} publish={isPublishTask} travel={isTravelTask} mode={taskForm.scheduleMode} period={taskForm.randomPeriod} count={taskForm.randomCount} interval={taskForm.intervalMinutes}
-                                    onChange={patch => setTaskForm({...taskForm, ...patch})}/>}
                             </>}
 
                             <div className="space-y-2">
@@ -1333,7 +1340,7 @@ export const AgentSettings = ({
                             </div>
 
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div className="space-y-2">
+                                {!isSystemTask && <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-700">执行 Agent</label>
                                     <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
                                         {agents.length === 0 ? (
@@ -1360,7 +1367,7 @@ export const AgentSettings = ({
                                             );
                                         })}
                                     </div>
-                                </div>
+                                </div>}
                                 {!isSystemTask && <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-700">执行模式</label>
                                     <SettingsSelect
@@ -1372,7 +1379,7 @@ export const AgentSettings = ({
                                 </div>}
                             </div>
 
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            {!isSystemTask && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-700">触发方式</label>
                                     <SettingsSelect
@@ -1383,7 +1390,7 @@ export const AgentSettings = ({
                                         showSelectedDescription={false}
                                     />
                                 </div>
-                            </div>
+                            </div>}
 
                             {!isSystemTask && taskForm.trigger === '定时任务' && <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">调度方式</label>
@@ -1627,6 +1634,7 @@ export const AgentSettings = ({
                 </div>
             )}
 
+            {manualLifeTask && <LifeManualRunDialog taskId={manualLifeTask} agents={agents} onClose={() => setManualLifeTask(null)}/>}
             {memoryModalAgent && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
                     <div className="w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">

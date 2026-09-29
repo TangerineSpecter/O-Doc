@@ -1,14 +1,17 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {X} from 'lucide-react';
 import {Select} from '@/components/common/Select';
 import {useEscapeDismissal} from '@/hooks/useEscapeDismissal';
 import type {AgentConfig, AgentTaskConfig} from '@/types/api/setting';
+import {getLifeConfig} from '@/api/agentLife';
 import {usePublicationPreview} from './usePublicationPreview';
 interface Props {task: AgentTaskConfig; agents: AgentConfig[]; onClose: () => void}
 export function PostPublishPreviewModal({task, agents, onClose}: Props) {
-    const bound = agents.filter(a => (task.agents?.length ? task.agents : [task.agent]).includes(a.id));
-    const [agentId, setAgentId] = useState(bound[0]?.id || '');
+    const [bound, setBound] = useState<AgentConfig[]>([]);
+    const [agentId, setAgentId] = useState('');
+    const [configError, setConfigError] = useState('');
+    useEffect(() => {const c = new AbortController(); getLifeConfig(c.signal).then(config => {if (!c.signal.aborted) {const eligible = agents.filter(a => (config.activeAgentIds || config.settings.agentIds).includes(a.id) && !config.pausedAgents.includes(a.id)); setBound(eligible); setAgentId(eligible[0]?.id || '');}}).catch(e => {if (!c.signal.aborted) setConfigError(e.message || '参与居民加载失败');}); return () => c.abort();}, [agents]);
     const {result, loading, error, run, reset} = usePublicationPreview(task.id);
     useEscapeDismissal(true, onClose);
     return createPortal(<div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-3 backdrop-blur-sm" onClick={e => {if (e.target === e.currentTarget) onClose();}}>
@@ -16,8 +19,9 @@ export function PostPublishPreviewModal({task, agents, onClose}: Props) {
             <header className="flex items-center justify-between gap-3 border-b border-slate-100 p-5"><h3 id="publish-preview-title" className="text-lg font-bold text-slate-900">发帖试运行预览</h3><button type="button" aria-label="关闭预览" onClick={onClose} className="shrink-0 whitespace-nowrap rounded-lg p-2 text-slate-500 hover:bg-slate-50"><X className="h-5 w-5"/></button></header>
             <div className="space-y-4 overflow-y-auto p-5">
                 <p className="rounded-xl bg-orange-50 p-3 text-xs leading-relaxed text-orange-700">会产生模型和搜索调用费用；不会发布、扣体力或消耗自动机会。关闭窗口会停止等待结果。</p>
-                <Select value={agentId} menuPortal options={bound.map(a => ({value: a.id, label: a.name}))} onChange={id => {if (!loading) {setAgentId(id); reset();}}} placeholder="选择绑定 Agent"/>
+                <Select value={agentId} menuPortal options={bound.map(a => ({value: a.id, label: a.name}))} onChange={id => {if (!loading) {setAgentId(id); reset();}}} placeholder="选择参与居民"/>
                 <button type="button" disabled={loading || !agentId} onClick={() => void run(agentId)} className="shrink-0 whitespace-nowrap rounded-lg bg-orange-500 px-4 py-2 text-sm text-white hover:bg-orange-600 disabled:opacity-50">{loading ? '正在选题、搜索与写作…' : '开始试运行'}</button>
+                {configError && <p role="alert" className="text-sm text-red-600">{configError}</p>}
                 {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
                 {result && <><p className="text-sm text-slate-700">{result.reason}</p>{result.snapshot?.selection && <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600"><p>{result.snapshot.selection.reason}</p><p className="mt-2 text-xs">搜索：{result.snapshot.selection.query}</p></div>}
                     {result.snapshot?.draft && <article className="space-y-3 rounded-xl border border-slate-200 p-4"><h4 className="text-base font-bold text-slate-900">{result.snapshot.draft.title}</h4><p className="text-xs text-slate-500">{result.snapshot.draft.summary}</p><div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">{result.snapshot.draft.content}</div></article>}

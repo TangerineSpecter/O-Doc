@@ -12,7 +12,8 @@ def tool(name, description, properties=None, required=None):
 
 TEXT={'type':'string'}
 INTEGER={'type':'integer','minimum':1}
-TOOLS=[
+from .life_budget import BUDGET_TOOL, budget_tool
+TOOLS=[BUDGET_TOOL,
     tool('account','查看余额和第一页持仓，不自动分析指标'),
     tool('positions','分页查看持仓',{'page':INTEGER}),
     tool('market_news','只在寻找新股票方向时使用；账号每天最多搜索一次，持仓检查不搜索'),
@@ -62,6 +63,7 @@ class InvestmentTools:
 
     def dispatch(self,name,args):
         d=self.decision
+        if name=='adjust_life_budget':return budget_tool(args)
         if name=='account':return overview(d.owner_id,self.agent.pk)
         if name=='positions':return page(positions(InvestmentAccount.objects.get(pk=self.agent.pk,owner_id=d.owner_id)),args.get('page',1))
         if name=='market_news':return news(d.owner_id,d.task.investment_config,self.deadline)

@@ -591,6 +591,13 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
                 attrs['publish_config'] = config.validated_data
         if self.instance and attrs.get('schedule_mode', self.instance.schedule_mode) != self.instance.schedule_mode:
             attrs['world_state'] = {key: value for key, value in (self.instance.world_state or {}).items() if key != 'schedule'}
+        if kind in ('post_interaction','post_publish','travel','farm','market','investment') and self.context.get('request'):
+            from .agent_world.life_config import config_for
+            from utils.drf_utils import get_current_user_identifier
+            owner=get_current_user_identifier(self.context['request'])
+            configured=config_for(owner).settings.get('agent_ids',[])
+            if configured:attrs['agent_ids']=configured
+            if kind=='post_interaction':attrs['world_state']={**getattr(self.instance,'world_state',{}),**attrs.get('world_state',{}),'owner_id':owner}
         agent_ids = attrs.get('agent_ids')
         selected_agent = attrs.get('agent') or getattr(self.instance, 'agent', None)
 
@@ -647,7 +654,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
                 config = TravelConfigSerializer(data=attrs.get('travel_config', saved), context={
                     'previous': saved, 'owner_id': get_current_user_identifier(request) if request else None,
                     'enabled': attrs.get('enabled', getattr(self.instance, 'enabled', False)),
-                    'agent_ids': attrs.get('agent_ids', getattr(self.instance, 'agent_ids', []))})
+                    'agent_ids': [] if request else attrs.get('agent_ids', getattr(self.instance, 'agent_ids', []))})
                 config.is_valid(raise_exception=True)
                 attrs['travel_config'] = config.validated_data
         notify_enabled = attrs.get('notify_enabled', getattr(self.instance, 'notify_enabled', False))

@@ -70,10 +70,42 @@ def reference_day(day: date) -> date:
     # Refuse to silently use a years-old calendar after its coverage ends.
     if day.isoformat() > days[-1]:
         raise ValueError('交易日历尚未覆盖执行日期')
-    previous = [d for d in days if d < day.isoformat()]
-    if not previous:
+    now = timezone.now()
+    local = now.astimezone(SHANGHAI) if timezone.is_aware(now) else now
+    cutoff = day - timedelta(days=1) if local.date() == day and local.hour < 15 else day
+    closed = [d for d in days if d <= cutoff.isoformat()]
+    if not closed:
         raise ValueError('没有可用的最近交易日')
-    return date.fromisoformat(previous[-1])
+    candidate = closed[-1]
+    key = f'investment-bao-reference:v1:{candidate}'
+    cached_day = InvestmentCache.objects.filter(pk=key, expires_at__gt=now).first()
+    if cached_day:
+        return date.fromisoformat(cached_day.payload['date'])
+    # An index avoids depending on a particular stock's suspension or the stock directory.
+    # A closed session is usable only after BaoStock actually publishes its daily bar.
+    rows = provider('query_history_k_data_plus', code='sh.000001', fields='date,close,tradestatus',
+                    start_date=(date.fromisoformat(candidate)-timedelta(days=30)).isoformat(),
+                    end_date=candidate, frequency='d', adjustflag='3')
+    published = []
+    closed_dates = set(closed)
+    for row in rows:
+        if row.get('date') not in closed_dates or row.get('tradestatus') != '1':
+            continue
+        try:
+            price = Decimal(row.get('close', ''))
+        except ArithmeticError:
+            continue
+        if price.is_finite() and price > 0:
+            published.append(row['date'])
+    if not published:
+        raise ValueError('无法确认最近已发布的完整收盘数据')
+    latest = max(published)
+    # Missing today's bar is temporary; never keep yesterday's answer for six hours.
+    seconds = 21600 if latest == candidate else 60
+    InvestmentCache.objects.update_or_create(pk=key, defaults={
+        'payload': {'date': latest}, 'expires_at': now + timedelta(seconds=seconds),
+    })
+    return date.fromisoformat(latest)
 
 
 def next_trade_day(day: date) -> str:
@@ -137,8 +169,15 @@ def history(code: str, until: date, adjust: str = '') -> list[dict]:
         rows = sorted((r for r in rows if r['date'] <= until.isoformat()), key=lambda r: r['date'])[-200:]
         if not rows:
             raise ValueError('没有可用日线')
+        if rows[-1]['date'] != until.isoformat():
+            raise ValueError('参考日完整日线尚未发布或股票停牌')
         return {'rows': rows}
-    return cached(f'investment-bao-history:v1:{code}:{until}:{adjust or "raw"}', load, 21600)['rows']
+    key = f'investment-bao-history:v1:{code}:{until}:{adjust or "raw"}'
+    rows = cached(key, load, 21600)['rows']
+    if rows[-1]['date'] != until.isoformat():
+        InvestmentCache.objects.filter(pk=key).delete()
+        rows = cached(key, load, 21600)['rows']
+    return rows
 
 
 def quote(code: str, day: date) -> dict:

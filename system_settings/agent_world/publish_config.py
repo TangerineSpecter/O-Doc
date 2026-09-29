@@ -80,7 +80,8 @@ def own_posts(agent):
 
 def eligibility(task, agent, *, config=None, preview=False) -> str:
     config = config or task.publish_config
-    if agent.pk not in (task.agent_ids or [task.agent_id]):
+    from .life_scope import allowed
+    if not allowed(task,agent.pk):
         return 'Agent 已解绑'
     setting = SystemSetting.objects.filter(key='system_mcp_config').first()
     if setting and not (setting.value or {}).get('enabled', True):

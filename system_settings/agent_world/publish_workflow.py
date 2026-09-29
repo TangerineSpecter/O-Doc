@@ -39,6 +39,8 @@ class Workflow:
         self.progress(phase)
 
     def ask(self, instruction, context, validate):
+        from .life_scope import enrich
+        context = enrich(context)
         messages = self.prompt + '\n' + instruction + '\n资料：' + json.dumps(context, ensure_ascii=False)
         while True:
             remaining = self.deadline - time.monotonic()

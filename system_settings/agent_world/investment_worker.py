@@ -1,26 +1,25 @@
-"""收盘后逐只更新持仓估值，失败有界退避；不运行模型或执行交易。"""
+"""按已发布收盘数据逐只更新持仓估值，失败有界退避；不运行模型或执行交易。"""
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from django.utils import timezone
 from .investment_models import InvestmentAccount, InvestmentCache
-from .investment_data import SHANGHAI, local_day, calendar, history
+from .investment_data import local_day, reference_day, history
 
 logger = logging.getLogger(__name__)
 
 
 def tick_values():
-    now=timezone.now(); local=now.astimezone(SHANGHAI) if timezone.is_aware(now) else now
-    if local.hour < 17 or local.weekday() >= 5:
-        return
-    day=local_day(now)
+    now=timezone.now()
     codes=sorted({code for a in InvestmentAccount.objects.all() for code in a.positions})
     if not codes:
         return
-    if day.isoformat() not in calendar():
-        return
+    day=reference_day(local_day(now))
     # One symbol per maintenance tick keeps world maintenance responsive.
     for code in codes:
+        current = InvestmentCache.objects.filter(pk='investment-value:'+code).first()
+        if current and current.payload.get('date', '') >= day.isoformat():
+            continue
         key=f'investment-value-state:{code}:{day}'
         row=InvestmentCache.objects.filter(pk=key).first()
         if row and (row.payload.get('done') or row.payload.get('attempts',0)>=4 or row.expires_at>now):

@@ -38,7 +38,14 @@ from .agent_world.market_views import MarketShopView, MarketConfigView, MarketLi
 
 from .agent_world.investment_views import InvestmentView
 
+from .agent_world.life_views import LifeConfigView, LifeProfileView, LifeGoalView, LifeScheduleView
+
 urlpatterns = [
+    path('agent-world/life/config/', LifeConfigView.as_view()),
+    path('agent-world/life/profiles/<str:actor>/', LifeProfileView.as_view()),
+    path('agent-world/life/goals/', LifeGoalView.as_view()),
+    path('agent-world/life/schedule/', LifeScheduleView.as_view()),
+    path('agent-world/life/schedule/<str:identity>/', LifeScheduleView.as_view()),
     path('agent-world/investment/accounts/', InvestmentView.as_view()),
     path('agent-world/investment/overview/', InvestmentView.as_view(kind='overview')),
     path('agent-world/investment/positions/', InvestmentView.as_view(kind='positions')),

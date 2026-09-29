@@ -53,11 +53,21 @@ def run_market_opportunity(task: AgentTask, scheduler=None, *, key=None, manual=
             started = timezone.now()
             update_work_activity(record,agent,status='running',current_action='正在查看市场')
             tools = [{'type':'function','function':{'name':t['name'],'description':t['description'],'parameters':t['inputSchema']}} for t in MARKET_TOOLS]
+            from .life_budget import BUDGET_TOOL,budget_tool
+            from .life_scope import CURRENT
+            if CURRENT.get():tools.append(BUDGET_TOOL)
             def execute(name, arguments):
                 model_calls[0] += 1
                 if model_calls[0] > 24 or (timezone.now()-started).total_seconds() >= 300:
                     raise RuntimeError('市场任务达到执行上限')
-                if name == 'enter_market': arguments = {**arguments,'request_id':'opportunity:'+key}
+                if name=='adjust_life_budget':
+                    try:return budget_tool(arguments)
+                    except ValueError as exc:return {'error':str(exc)}
+                if name == 'enter_market':
+                    import hashlib
+                    entry_key='opportunity:'+key
+                    if len(entry_key)>64:entry_key=hashlib.sha256(entry_key.encode()).hexdigest()
+                    arguments = {**arguments,'request_id':entry_key}
                 try:
                     result = call_market_tool(name,arguments,agent,task=task,record=record,mode=mode)
                     update_work_activity(record,agent,status='running',current_action={'enter_market':'进入市场','leave_market':'离开市场'}.get(name,'正在市场交易'))
@@ -68,6 +78,8 @@ def run_market_opportunity(task: AgentTask, scheduler=None, *, key=None, manual=
                 except ValueError as exc:
                     return {'error':str(exc)}
             context = actor_context(owner,agent)
+            from .life_scope import enrich
+            context=enrich(context)
             prompt = build_agent_system_prompt(f'当前 Agent：{agent.name}\n{agent.prompt}',conversation=False)
             prompt += '\n你获得一次逛市场机会。先结合真实余额、农场需求与挂牌决定进入或不去；不去直接说明。进入固定消耗5体力，交易不另扣体力。按工具返回的真实行情自主买卖，不必花光钱。你可以上架、改价、撤单。操作使用唯一request_id，重试复用。完成后调用leave_market，不可声称未成交的操作成功。最多5分钟20次市场调用。'
             summary = AIService.chat_completion_messages_with_tools(
