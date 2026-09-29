@@ -428,7 +428,8 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             if kind == 'investment':
                 import hashlib
                 owner = validated_data['investment_config']['owner_id']
-                builtin_id = 'builtin-investment:' + hashlib.sha256(owner.encode()).hexdigest()[:24]
+                # Keep the owner-scoped ID within AgentTask.id's 40-character limit.
+                builtin_id = 'builtin-invest:' + hashlib.sha256(owner.encode()).hexdigest()[:24]
                 candidates = candidates.filter(investment_config__owner_id=owner)
             if kind == 'market':
                 import hashlib

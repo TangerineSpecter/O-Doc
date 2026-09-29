@@ -306,11 +306,12 @@ class InvestmentTests(TestCase):
         self.trade()
         InvestmentCache.objects.create(pk='investment-value:000001',payload={'price':'8','date':'2026-09-24'},expires_at=NOW+timedelta(days=30))
         self.account.refresh_from_db()
-        row=positions(self.account)[0]
-        self.assertEqual((row['close_price'],row['price_date'],Decimal(row['unrealized_profit'])),('10','2026-09-25',Decimal(0)))
-        InvestmentCache.objects.filter(pk='investment-value:000001').update(payload={'price':'11','date':'2026-09-28'})
-        row=positions(self.account)[0]
-        self.assertEqual((row['close_price'],row['price_date'],Decimal(row['unrealized_profit'])),('11','2026-09-28',Decimal(1)))
+        with patch('system_settings.agent_world.investment_queries.local_day',return_value=date(2026,9,29)):
+            row=positions(self.account)[0]
+            self.assertEqual((row['close_price'],row['price_date'],Decimal(row['unrealized_profit'])),('10','2026-09-25',Decimal(0)))
+            InvestmentCache.objects.filter(pk='investment-value:000001').update(payload={'price':'11','date':'2026-09-28'})
+            row=positions(self.account)[0]
+            self.assertEqual((row['close_price'],row['price_date'],Decimal(row['unrealized_profit'])),('11','2026-09-28',Decimal(1)))
 
     def test_detail_deadline_and_failure_preserve_position(self):
         from .investment_data import QUERY_DEADLINE
