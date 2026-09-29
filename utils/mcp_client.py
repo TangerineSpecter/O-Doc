@@ -32,6 +32,7 @@ BUILTIN_SYSTEM_MCP_SCOPES = {
     '照片 MCP': 'photo_observation',
     '照片观察 MCP': 'photo_observation',
     '生图 MCP': 'image_generation',
+    '世界市场 MCP': 'market',
 }
 
 AGENT_IDENTITY_TOOL_NAMES = {'create_article_annotation', 'add_article_annotation_comment', 'create_agent_post'}

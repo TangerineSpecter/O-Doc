@@ -34,7 +34,14 @@ from .agent_world.item_icon_views import ItemIconListView, ItemIconDetailView, I
 from .agent_world.farm_views import FarmListView, FarmDetailView, FarmHistoryView, FarmCatalogView, FarmCropRuleView
 from .agent_world.item_catalog_views import ItemCatalogView, ItemCatalogIconView, ItemCatalogInventoryIconView
 
+from .agent_world.market_views import MarketShopView, MarketConfigView, MarketListView
+
 urlpatterns = [
+    path('agent-world/market/shop/', MarketShopView.as_view()),
+    path('agent-world/market/config/', MarketConfigView.as_view()),
+    path('agent-world/market/listings/', MarketListView.as_view()),
+    path('agent-world/market/transactions/', MarketListView.as_view(kind='transactions')),
+    path('agent-world/market/sessions/', MarketListView.as_view(kind='sessions')),
     path('agent-world/item-catalog/', ItemCatalogView.as_view()),
     path('agent-world/item-catalog/<str:sku>/icon/', ItemCatalogIconView.as_view()),
     path('agent-world/item-catalog/inventory/<str:item_id>/icon/', ItemCatalogInventoryIconView.as_view()),

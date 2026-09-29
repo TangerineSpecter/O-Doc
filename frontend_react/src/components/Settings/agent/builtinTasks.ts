@@ -26,3 +26,8 @@ export const defaultTravelTask: AgentTaskConfig = {
 export const defaultFarmTask: AgentTaskConfig = {
     ...defaultPostInteractionTask, taskKind: "farm", name: "农场经营", intervalMinutes: 30, schedule: "每 30 分钟 · 随机一位 Agent",
 };
+
+export const defaultMarketTask: AgentTaskConfig = {
+    ...defaultPostInteractionTask, taskKind: 'market', name: '市场交易', intervalMinutes: 60,
+    schedule: '每 60 分钟 · 随机一位 Agent',
+};

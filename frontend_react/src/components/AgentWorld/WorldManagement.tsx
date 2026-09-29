@@ -10,7 +10,8 @@ import { WorldProfessionTab } from './WorldProfessionTab';
 import { WorldProfessionModal } from './WorldProfessionModal';
 import { WorldIncomeTab } from './WorldIncomeTab';
 
-type WorldTab = 'categories' | 'professions' | 'income';
+import {MarketSettings} from '../Market/MarketSettings';
+type WorldTab = 'categories' | 'professions' | 'income' | 'market';
 
 export function WorldManagement() {
     const state = useAgentWorldManagement();
@@ -119,7 +120,7 @@ export function WorldManagement() {
                         <div className="min-w-0">
                             <h3 className="font-bold text-slate-800 text-sm">Agent 世界</h3>
                             <p className="text-xs text-slate-500 mt-0.5 truncate max-w-md lg:max-w-lg xl:max-w-xl">
-                                管理 Agent 世界的分类、职业与收益规则。
+                                管理 Agent 世界的分类、职业、收益与市场规则。
                             </p>
                         </div>
                     </div>
@@ -159,6 +160,7 @@ export function WorldManagement() {
                             >
                                 收益管理
                             </button>
+                            <button type="button" onClick={() => setTab('market')} className={`whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium transition-all ${tab === 'market' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>市场管理</button>
                         </div>
 
                         {/* 始终预留操作位，避免无新增按钮的页签切换时移动。 */}
@@ -231,6 +233,7 @@ export function WorldManagement() {
                         />
                     )}
 
+                    {tab === 'market' && <MarketSettings/>}
                     {tab === 'income' && (
                         <WorldIncomeTab
                             income={state.income}

@@ -183,6 +183,10 @@ for i,(name,im) in enumerate(FRAMES):
     if name.startswith('item-'):
         (ROOT/'items').mkdir(exist_ok=True)
         im.save(ROOT/'items'/f'{name[5:]}.png')
+    if name in ('chicken-idle-0', 'cow-idle-0', 'sheep-idle-0'):
+        # 市场直接复用农场动物静止帧，不维护另一套动物画法。
+        (ROOT/'items').mkdir(exist_ok=True)
+        im.save(ROOT/'items'/f'animal.{name.split("-")[0]}.png')
     atlas.paste(im,(x,y)); manifest[name]={'x':x,'y':y,'width':im.width,'height':im.height}
 atlas.save(ROOT/'sprites.png',optimize=True)
 (ROOT/'sprites.json').write_text(json.dumps(manifest,separators=(',',':')))

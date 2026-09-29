@@ -183,6 +183,11 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
     queryset = AgentTask.objects.select_related('agent', 'followup_agent').all()
     serializer_class = AgentTaskSerializer
 
+    def get_queryset(self):
+        from django.db.models import Q
+        from utils.drf_utils import get_current_user_identifier
+        return super().get_queryset().filter(~Q(task_kind='market') | Q(market_config__owner_id=get_current_user_identifier(self.request)))
+
     @action(detail=False, methods=['get'])
     def publish_collections(self, request):
         from anthology.models import Anthology
@@ -201,6 +206,9 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
                 raise ValidationError({'enabled': '必须是布尔值'})
             runtime.enabled = value
             runtime.save(update_fields=['enabled'])
+            if not value:
+                from .agent_world.market_sessions import cleanup
+                cleanup()
         return success_result({'enabled': runtime.enabled})
 
     def list(self, request, *args, **kwargs):
@@ -235,6 +243,9 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         from utils.drf_utils import get_current_user_identifier
+        if instance.task_kind == 'market':
+            if instance.market_config.get('owner_id') != get_current_user_identifier(request):
+                return valid_result('无权操作其他账号的市场任务', status=403)
         if instance.task_kind == 'farm' and instance.farm_config.get('owner_id') != get_current_user_identifier(request):
             return valid_result('无权修改此农场任务', status=403)
         if instance.task_kind == 'travel' and instance.travel_config.get('owner_id') != get_current_user_identifier(request):
@@ -248,7 +259,7 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         return success_result(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
-        if self.get_object().task_kind in ('post_interaction', 'post_publish', 'travel', 'farm'):
+        if self.get_object().task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market'):
             return valid_result('内置系统任务不能删除，请关闭任务', status=400)
         self.perform_destroy(self.get_object())
         return success_result()
@@ -280,6 +291,10 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def run_now(self, request, pk=None):
         task = self.get_object()
+        if task.task_kind == 'market':
+            from utils.drf_utils import get_current_user_identifier
+            if task.market_config.get('owner_id') != get_current_user_identifier(request):
+                return valid_result('无权执行其他账号的市场任务', status=403)
         if task.task_kind == 'farm':
             from utils.drf_utils import get_current_user_identifier
             if task.farm_config.get('owner_id') != get_current_user_identifier(request):

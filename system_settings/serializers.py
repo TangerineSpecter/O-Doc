@@ -367,7 +367,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         fields = [
             'id',
             'name',
-            'task_kind', 'publish_config', 'travel_config', 'farm_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
+            'task_kind', 'publish_config', 'travel_config', 'farm_config', 'market_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
             'agent',
             'agent_name',
             'agents',
@@ -405,13 +405,13 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         return [agents[agent_id] for agent_id in ids if agent_id in agents]
 
     def get_random_progress(self, obj):
-        if obj.task_kind in ('post_interaction', 'post_publish', 'travel', 'farm'):
+        if obj.task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market'):
             return None
         from .agent_random_schedule import progress
         return progress(obj)
 
     def get_world_progress(self, obj):
-        if obj.task_kind not in ('post_interaction', 'post_publish', 'travel', 'farm'):
+        if obj.task_kind not in ('post_interaction', 'post_publish', 'travel', 'farm', 'market'):
             return None
         from .agent_world.action_schedule import progress
         return progress(obj)
@@ -419,12 +419,18 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
     @farm_guarded
     @transaction.atomic
     def create(self, validated_data):
-        if validated_data.get('task_kind') in ('post_interaction', 'post_publish', 'travel', 'farm'):
-            from .agent_world.builtin_tasks import POST_INTERACTION_ID, POST_PUBLISH_ID, TRAVEL_ID, FARM_ID
+        if validated_data.get('task_kind') in ('post_interaction', 'post_publish', 'travel', 'farm', 'market'):
+            from .agent_world.builtin_tasks import POST_INTERACTION_ID, POST_PUBLISH_ID, TRAVEL_ID, FARM_ID, MARKET_ID
             kind = validated_data['task_kind']
-            builtin_id = {'post_publish': POST_PUBLISH_ID, 'post_interaction': POST_INTERACTION_ID, 'travel': TRAVEL_ID, 'farm': FARM_ID}[kind]
+            builtin_id = {'post_publish': POST_PUBLISH_ID, 'post_interaction': POST_INTERACTION_ID, 'travel': TRAVEL_ID, 'farm': FARM_ID, 'market': MARKET_ID}[kind]
             # 兼容此前保存的配置；首次保存采用固定标识，重复提交不创建第二个入口。
-            task = AgentTask.objects.select_for_update().filter(task_kind=kind).first()
+            candidates = AgentTask.objects.select_for_update().filter(task_kind=kind)
+            if kind == 'market':
+                import hashlib
+                owner = validated_data['market_config']['owner_id']
+                builtin_id = 'builtin-market:' + hashlib.sha256(owner.encode()).hexdigest()[:24]
+                candidates = candidates.filter(market_config__owner_id=owner)
+            task = candidates.first()
             if task is None:
                 task, created = AgentTask.objects.get_or_create(pk=builtin_id, defaults=validated_data)
                 if not created:
@@ -445,7 +451,14 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
 
     @staticmethod
     def initialize_task(task):
-        if task.task_kind in ('post_interaction', 'post_publish', 'travel', 'farm'):
+        if task.task_kind == 'market':
+            from .agent_world.market_sessions import validate_market_agents, cleanup
+            try:
+                validate_market_agents(task.market_config['owner_id'], task.agent_ids or [task.agent_id])
+            except ValueError as exc:
+                raise serializers.ValidationError({'agents':str(exc)}) from exc
+            cleanup()
+        if task.task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market'):
             from .agent_world.action_schedule import initialize
             initialize(task)
             if task.task_kind == 'farm':
@@ -480,9 +493,9 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         kind = attrs.get('task_kind', getattr(self.instance, 'task_kind', 'custom'))
         if self.instance and kind != self.instance.task_kind:
             raise serializers.ValidationError({'task_kind': '已有任务不能改变类型，请新建任务'})
-        if kind in ('post_interaction', 'post_publish', 'travel', 'farm'):
-            from .agent_world.builtin_tasks import POST_INTERACTION_NAME, POST_PUBLISH_NAME, TRAVEL_NAME, FARM_NAME
-            attrs['name'] = {'post_publish': POST_PUBLISH_NAME, 'post_interaction': POST_INTERACTION_NAME, 'travel': TRAVEL_NAME, 'farm': FARM_NAME}[kind]
+        if kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market'):
+            from .agent_world.builtin_tasks import POST_INTERACTION_NAME, POST_PUBLISH_NAME, TRAVEL_NAME, FARM_NAME, MARKET_NAME
+            attrs['name'] = {'post_publish': POST_PUBLISH_NAME, 'post_interaction': POST_INTERACTION_NAME, 'travel': TRAVEL_NAME, 'farm': FARM_NAME, 'market': MARKET_NAME}[kind]
             if self.instance is None:
                 attrs.setdefault('enabled', False)
             attrs.update(execution_mode='serial', random_allocations={}, followup_enabled=False, followup_agent=None)
@@ -502,6 +515,16 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             attrs['farm_config'] = {'owner_id': owner}
             if self.instance is None:
                 attrs.setdefault('interval_minutes', 30)
+        if kind == 'market':
+            from utils.drf_utils import get_current_user_identifier
+            request = self.context.get('request')
+            previous = getattr(self.instance, 'market_config', {}).get('owner_id')
+            owner = get_current_user_identifier(request) if request else previous
+            if not owner or (previous and owner != previous):
+                raise serializers.ValidationError({'market_config': '市场任务需要有效的所属账号'})
+            attrs['market_config'] = {'owner_id': owner}
+            if self.instance is None:
+                attrs.setdefault('interval_minutes', 60)
         if kind == 'travel' and self.instance is None:
             attrs.setdefault('schedule_mode', 'random')
             attrs.setdefault('random_period', 'weekly')
@@ -550,6 +573,14 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             attrs['agent'] = first_agent
         elif selected_agent and not getattr(self.instance, 'agent_ids', None):
             attrs['agent_ids'] = [selected_agent.id]
+
+        if kind == 'market':
+            from .agent_world.market_sessions import validate_market_agents
+            ids = attrs.get('agent_ids', getattr(self.instance, 'agent_ids', [])) or ([selected_agent.id] if selected_agent else [])
+            try:
+                validate_market_agents(attrs['market_config']['owner_id'], ids)
+            except ValueError as exc:
+                raise serializers.ValidationError({'agents':str(exc)}) from exc
 
         mode = attrs.get('schedule_mode', getattr(self.instance, 'schedule_mode', 'fixed'))
         if mode == 'random':

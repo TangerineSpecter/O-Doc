@@ -1,8 +1,9 @@
 import {lazy, Suspense, useCallback, useState} from 'react';
 import WorldDialog from '../components/AgentWorld/WorldDialog';
+const MarketDialog = lazy(() => import('../components/Market/MarketDialog'));
 const FarmDialog = lazy(() => import('../components/Farm/FarmDialog'));
 const ItemCatalogDialog = lazy(() => import('../components/AgentWorld/ItemCatalogDialog'));
-import {Activity, ArrowLeft, Bot, BookOpenText, CircleDollarSign, MessageCircle, RefreshCw, Settings, Sparkles} from 'lucide-react';
+import {Activity, ArrowLeft, Bot, BookOpenText, CircleDollarSign, MessageCircle, RefreshCw, Settings, Sparkles, Store} from 'lucide-react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
 import AgentTravelPanel from '../components/AgentWorld/AgentTravelPanel';
 import AgentActivityCard from '../components/AgentWorld/AgentActivityCard';
@@ -32,6 +33,8 @@ const filters: Array<{value: AgentWorldFilter; label: string; icon: typeof Activ
 
 export default function AgentWorldPage() {
     const navigate = useNavigate();
+    const [marketOpen, setMarketOpen] = useState(false);
+    const closeMarket = useCallback(() => setMarketOpen(false), []);
     const [farmOpen, setFarmOpen] = useState(false);
     const closeFarm = useCallback(() => setFarmOpen(false), []);
     const [catalogOpen, setCatalogOpen] = useState(false);
@@ -98,6 +101,7 @@ export default function AgentWorldPage() {
                     <button type="button" onClick={() => setCatalogOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600">
                         <BookOpenText className="h-3.5 w-3.5 shrink-0"/>物品图鉴
                     </button>
+                    <button type="button" onClick={() => setMarketOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"><Store className="h-3.5 w-3.5 shrink-0"/>世界市场</button>
                     <button type="button" onClick={() => setFarmOpen(true)} className="rounded-lg border border-lime-200 bg-lime-50 px-3 py-1.5 text-xs font-semibold text-lime-700">像素农场</button>
                     <button
                         type="button"
@@ -237,6 +241,7 @@ export default function AgentWorldPage() {
                     onClose={() => setPanel(null)}
                 />
             ) : null}
+            {marketOpen && <Suspense fallback={<WorldDialog title="世界市场" onClose={closeMarket} size="wide"><p className="p-8 text-center text-slate-500">正在打开市场…</p></WorldDialog>}><MarketDialog onClose={closeMarket} residents={world.summary?.agents || []}/></Suspense>}
             {farmOpen&&<Suspense fallback={<WorldDialog title="像素农场" onClose={closeFarm} size="wide" manageFocus={false}><p className="p-8 text-center text-slate-500">正在铺开农场地图…</p></WorldDialog>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></Suspense>}
             {catalogOpen && <Suspense fallback={<WorldDialog title="物品图鉴" onClose={closeCatalog} size="wide" manageFocus={false}><p className="p-8 text-center text-slate-500">正在翻开图鉴…</p></WorldDialog>}><ItemCatalogDialog onClose={closeCatalog}/></Suspense>}
             {worldManagementOpen && <WorldManagementDialog onClose={() => setWorldManagementOpen(false)} />}

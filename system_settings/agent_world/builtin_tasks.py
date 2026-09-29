@@ -8,4 +8,6 @@ TRAVEL_ID = 'builtin-travel'
 TRAVEL_NAME = '旅行'
 FARM_ID = 'builtin-farm'
 FARM_NAME = '农场经营'
-SYSTEM_TASK_KINDS = ('post_interaction', 'post_publish', 'travel', 'farm')
+MARKET_ID = 'builtin-market'
+MARKET_NAME = '市场交易'
+SYSTEM_TASK_KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market')

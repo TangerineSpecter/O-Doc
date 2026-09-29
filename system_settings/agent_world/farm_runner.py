@@ -24,10 +24,6 @@ def candidates(farm, money):
     options = []
     def add(op, detail):
         options.append({'id': str(len(options)), 'operation': op, 'description': detail})
-    for sku, price in [('feed', rules['feed_price']), *[(f'seed.{k}', v['seed_price']) for k, v in rules['crops'].items()]]:
-        for count in (1, 4, 12):
-            if money >= price*count:
-                add({'kind': 'buy_supply', 'sku': sku, 'quantity': count}, f'购买 {count} 份 {sku}，花费 {price*count}')
     empty = [p['id'] for p in state['plots'] if not p['crop']]
     for kind, rule in rules['crops'].items():
         quantity = stock_quantity(farm.pk, farm.owner_id, 'seed.'+kind)
@@ -48,14 +44,6 @@ def candidates(farm, money):
     ready = [a['id'] for a in state['animals'] if a['cycle'].get('result')]
     for offset in range(0, len(ready), 4):
         add({'kind': 'collect', 'targets': ready[offset:offset+4]}, '领取已经生产的产物')
-    products = {}
-    for item in farm_inventory(farm):
-        sku = item.source.get('sku', '')
-        if sku.startswith(('crop.', 'product.')):
-            total, name = products.get(sku, (0, item.name))
-            products[sku] = (total + item.quantity, name)
-    for sku, (quantity, name) in products.items():
-        add({'kind': 'sell', 'sku': sku, 'quantity': min(100, quantity)}, f'出售{name}')
     group = len(state['plots'])//4
     if group < 4 and money >= rules['land_prices'][group-1]:
         add({'kind': 'expand'}, '购买相邻四块耕地')
@@ -65,11 +53,6 @@ def candidates(farm, money):
         occupied = sum(a['building'] == kind for a in state['animals'])
         if level < 3 and money >= rule['prices'][level] and rule['capacities'][level] > capacity and rule['capacities'][level] >= occupied:
             add({'kind': 'upgrade' if level else 'build', 'building': kind}, f'{"升级" if level else "建造"}{rule["name"]}')
-    for kind, rule in rules['animals'].items():
-        house = state['buildings'].get(rule['building'])
-        count = sum(a['building'] == rule['building'] for a in state['animals'])
-        if house and count < house['capacity'] and money >= rule['price']:
-            add({'kind': 'buy_animal', 'animal': kind}, f'购买{rule["name"]}')
     return options
 
 

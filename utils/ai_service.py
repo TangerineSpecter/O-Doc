@@ -267,6 +267,7 @@ class AIService:
             use_simple_model=False,
             max_rounds=5,
             tool_choice=None,
+            deadline=None,
     ):
         """执行支持 OpenAI-compatible tool calls 的多轮对话，可指定模型。"""
         try:
@@ -279,7 +280,7 @@ class AIService:
                 api_key=config['api_key'],
                 base_url=config['base_url'],
                 timeout=120.0,
-                max_retries=1,
+                max_retries=0 if deadline is not None else 1,
             )
             messages = [dict(message) for message in messages]
 
@@ -297,6 +298,11 @@ class AIService:
                 }
                 if tool_choice:
                     request_kwargs['tool_choice'] = tool_choice
+                if deadline is not None:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError('任务达到执行时限')
+                    request_kwargs['timeout'] = min(120.0, remaining)
                 response = client.chat.completions.create(**request_kwargs) # type: ignore
 
                 message = response.choices[0].message
@@ -326,6 +332,8 @@ class AIService:
                     if on_tool_call:
                         on_tool_call(tool_name, arguments)
 
+                    if deadline is not None and time.monotonic() >= deadline:
+                        raise TimeoutError('任务达到执行时限')
                     result = tool_executor(tool_name, arguments)
                     messages.append({
                         "role": "tool",

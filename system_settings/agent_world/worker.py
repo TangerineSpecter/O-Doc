@@ -1,4 +1,4 @@
-"""月榜维护独立于 Agent 任务开关，不触发任何 Agent 行动。"""
+"""月榜与市场维护独立于 Agent 任务开关，不触发任何 Agent 行动。"""
 import atexit
 import sys
 import logging
@@ -21,14 +21,19 @@ def advance_world_months() -> None:
         return
     try:
         now = time.monotonic()
-        if now-_last_attempt < 60:
-            return
-        _last_attempt = now
-        recover_months()
+        if now-_last_attempt >= 60:
+            _last_attempt = now
+            recover_months()
+        from .market_models import MarketConfig
+        from .market_shop import current_batch
+        from .market_sessions import cleanup
+        cleanup(restart=True)
+        for owner in MarketConfig.objects.values_list('pk', flat=True):
+            current_batch(owner)
     except (OperationalError, ProgrammingError):
         logger.debug('Agent 世界表暂不可用，将重试', exc_info=True)
     except Exception:
-        logger.exception('Agent 月榜结算失败，将自动重试')
+        logger.exception('Agent 世界维护失败，将自动重试')
     finally:
         _lock.release()
 
@@ -39,7 +44,8 @@ def _loop() -> None:
         close_old_connections()
         advance_world_months()
         close_old_connections()
-        _stop.wait(60)
+        # Align maintenance to wall-clock minutes, including each Shanghai hour boundary.
+        _stop.wait(max(0.1, 60 - time.time() % 60))
 
 
 def start_world_worker() -> None:

@@ -211,6 +211,8 @@ def commit_operation(farm_id, opportunity_id, index, operation, reason, task, ag
         raise ValueError('系统 MCP 已关闭')
     if stamina(agent, now) < 2:
         raise ValueError('体力不足')
+    if operation.get('kind') in ('buy_supply', 'buy_animal', 'sell'):
+        raise ValueError('购买及出售已迁移至世界市场，请配置市场交易任务')
     farm = AgentFarm.objects.select_for_update().get(pk=farm_id, owner_id=task.farm_config['owner_id'])
     catalog = catalog_for(farm.owner_id)
     advance_state(farm.state, catalog.seed, now.timestamp())

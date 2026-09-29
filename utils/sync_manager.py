@@ -823,8 +823,13 @@ class SyncManager:
                             stale = stale.exclude(pk__in=[asset.pk for asset in owned])
                         stale.delete()
 
+            from system_settings.agent_world.market_sync import reconcile_market
+            reconcile_market()
             from system_settings.agent_world.farm_sync import reconcile_farms
             reconcile_farms()
+            from system_settings.agent_world.market_sync import end_restored_sessions, refresh_restored_checkpoints
+            end_restored_sessions()
+            refresh_restored_checkpoints()
             from system_settings.agent_world.settlement import reconcile_awards
             reconcile_awards()
             self._reset_restored_sequences(restored_models)

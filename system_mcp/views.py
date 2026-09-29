@@ -635,6 +635,8 @@ TOOLS = [
     },
 ]
 
+from system_settings.agent_world.market_tools import MARKET_TOOLS, NAMES as MARKET_TOOL_NAMES
+TOOLS.extend(MARKET_TOOLS)
 TOOLS.extend(IMAGE_GENERATION_TOOLS)
 
 MEMO_TOOL_NAMES = {'insert_memo', 'create_memo', 'list_memos', 'get_memo', 'update_memo', 'delete_memo'}
@@ -654,6 +656,8 @@ VISIBLE_COMMENT_TOOL_NAMES = {'create_article_annotation', 'list_article_annotat
 VISIBLE_VISION_TOOL_NAMES = {'describe_image'}
 VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES = {'list_photos', 'get_random_photo', 'observe_photo', 'submit_photo_review'}
 VISIBLE_IMAGE_GENERATION_TOOL_NAMES = {'get_illustration_options', *(tool['name'] for tool in IMAGE_GENERATION_TOOLS)}
+VISIBLE_MARKET_TOOL_NAMES = MARKET_TOOL_NAMES
+VISIBLE_TOOL_NAMES -= MARKET_TOOL_NAMES
 VISIBLE_TOOL_NAMES -= VISIBLE_VISION_TOOL_NAMES | VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES | VISIBLE_IMAGE_GENERATION_TOOL_NAMES
 
 
@@ -681,6 +685,7 @@ def get_system_mcp_tools_for_scope(tool_scope):
         'vision': VISIBLE_VISION_TOOL_NAMES,
         'photo_observation': VISIBLE_PHOTO_OBSERVATION_TOOL_NAMES,
         'image_generation': VISIBLE_IMAGE_GENERATION_TOOL_NAMES,
+        'market': VISIBLE_MARKET_TOOL_NAMES,
     }
     tool_names = tool_names_by_scope.get(tool_scope, VISIBLE_TOOL_NAMES)
     tools = deepcopy([tool for tool in TOOLS if tool['name'] in tool_names])
@@ -816,6 +821,9 @@ class ODocSystemMCPView(APIView):
         }, status=400, json_dumps_params={'ensure_ascii': False})
 
     def _call_tool(self, name, arguments):
+        if name in MARKET_TOOL_NAMES:
+            from system_settings.agent_world.market_tools import call_market_tool
+            return call_market_tool(name, arguments, self.agent_context)
         if name in {'insert_memo', 'create_memo'}:
             return self._create_memo(arguments)
         if name == 'list_memos':

@@ -220,6 +220,8 @@ def run_opportunity(task, scheduler, *, key=None, manual=False, locked=False):
 
 
 def tick(scheduler):
+    from .market_sessions import cleanup
+    cleanup(restart=True)
     for action in WorldAction.objects.filter(status__in=['success', 'skipped', 'failed'], effects_done=False).select_related('agent', 'record')[:20]:
         try:
             repair_effects(action)
@@ -264,3 +266,10 @@ def tick(scheduler):
                     run_publish_opportunity(task, scheduler, key=key, locked=token)
                 else:
                     run_opportunity(task, scheduler, key=key, locked=token)
+
+    if runtime.enabled:
+        from .market_runner import run_market_opportunity
+        for task in AgentTask.objects.filter(task_kind='market', enabled=True, trigger='定时任务'):
+            key = take_due(task)
+            if key:
+                run_market_opportunity(task, scheduler, key=key)

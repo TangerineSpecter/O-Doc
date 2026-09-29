@@ -18,6 +18,7 @@ function snapshotText(snapshot: Record<string, unknown> | undefined, ...keys: st
 }
 
 function getTransactionLabel(entry: WorldLedger) {
+    if (entry.kind === 'market') return entry.amount.startsWith('-') ? '市场支出' : '市场收入';
     if (entry.amount.startsWith('-')) {
         if (entry.kind === 'travel') return '旅行支出';
         return '支出';
@@ -29,6 +30,7 @@ function getTransactionLabel(entry: WorldLedger) {
 }
 
 function getTransactionDetail(entry: WorldLedger) {
+    if (entry.kind === 'market') return '世界市场交易';
     const title = snapshotText(entry.snapshot, 'postTitle', 'post_title', 'title');
     const description = snapshotText(entry.snapshot, 'description', 'reason', 'memo');
     const rank = Number(entry.snapshot?.rank);

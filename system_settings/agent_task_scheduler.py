@@ -234,6 +234,9 @@ class AgentTaskScheduler:
             task_name_override='',
             random_context=None,
     ):
+        if task.task_kind == 'market':
+            from .agent_world.market_runner import run_market_opportunity
+            return run_market_opportunity(task, self, manual=trigger == '手动执行')
         if task.task_kind == 'farm':
             from .agent_world.farm_runner import run_farm_opportunity
             return run_farm_opportunity(task, self, manual=trigger == '手动执行')

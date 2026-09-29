@@ -48,6 +48,50 @@ class FarmClockTests(SimpleTestCase):
         self.assertEqual(production_result(9, .95)['quality'], 'normal')
 
 
+def legacy_operation_fixture(test, kind, key, at, params):
+    """Load historical pre-market settlements to exercise production, FIFO and recovery.
+
+    New farm writes are checked separately; purchases/sales below are archived
+    fixtures, not permission to use the removed farm APIs.
+    """
+    import hashlib
+    from django.db import transaction
+    from django.db.models import Sum
+    from .farm_service import perform
+    from .income import ensure_opening
+    with transaction.atomic():
+        operation = {'kind': kind, **params}
+        previous = FarmOperation.objects.filter(pk=key+':0').first()
+        if previous:
+            return previous
+        if not test.task.enabled:
+            raise ValueError('农场任务已停止')
+        if stamina(test.agent, at) < 2:
+            raise ValueError('体力不足')
+        farm = AgentFarm.objects.get(pk=test.agent.pk)
+        ensure_opening(test.agent)
+        amount, result = perform(farm, operation, catalog_for_fixture(farm), at.timestamp(), key+':0')
+        balance = WorldLedger.objects.filter(agent_id=test.agent.pk).aggregate(total=Sum('amount'))['total'] or Decimal(0)
+        if balance+amount < 0:
+            raise ValueError('余额不足')
+        if amount:
+            WorldLedger.objects.create(pk='farm:'+key+':0',agent_id=test.agent.pk,agent_name=test.agent.name,
+                kind='farm',amount=amount,created_at=at,snapshot={'farm_id':farm.pk,'operation_id':key+':0'})
+        test.agent.money = balance+amount;test.agent.save(update_fields=['money'])
+        result.update(amount=str(amount),energy_cost=2)
+        row = FarmOperation.objects.create(pk=key+':0',farm=farm,opportunity_id=key,operation=operation,result=result,created_at=at)
+        WorldAction.objects.create(pk=hashlib.sha256(('farm-energy:'+key+':0').encode()).hexdigest(),
+            actor_id=test.agent.pk,status='success',consumed_at=at,energy_cost=2,effects_done=True,
+            snapshot={'farm_energy':True},result={'operation_id':row.pk})
+        farm.state['operation_keys']=[*farm.state.get('operation_keys',[]),row.pk]
+        farm.revision+=1;farm.updated_at=at;farm.save()
+        return row
+
+
+def catalog_for_fixture(farm):
+    return FarmCatalog.objects.get(pk=farm.owner_id).rules
+
+
 class FarmTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_superuser('admin', 'farm@example.invalid', 'farm-test')
@@ -65,6 +109,8 @@ class FarmTests(TestCase):
 
     def op(self, kind, *, at=None, key=None, **params):
         self.counter += 1
+        if kind in ('buy_supply', 'buy_animal', 'sell'):
+            return legacy_operation_fixture(self, kind, key or f'op{self.counter}', at or self.now, params)
         return commit_operation(self.agent.pk, key or f'op{self.counter}', 0, {'kind':kind, **params}, '按自己的偏好经营', self.task, 'a', 'w', now=at or self.now)
 
     def state(self):
@@ -257,7 +303,7 @@ class FarmTests(TestCase):
         farm = AgentFarm.objects.get(pk=self.agent.pk)
         from .farm_service import add_stock
         add_stock(farm, 'crop.radish', 1, '萝卜', 'farm_crop', 30, 'new-harvest')
-        self.assertIn({'kind': 'sell', 'sku': 'crop.radish', 'quantity': 4}, [o['operation'] for o in candidates(farm, self.agent.money)])
+        self.assertNotIn('sell', [o['operation']['kind'] for o in candidates(farm, self.agent.money)])
         result = self.op('sell', sku='crop.radish', quantity=2)
         self.assertEqual(result.result['amount'], '38.00')
         self.assertFalse(AgentInventoryItem.objects.filter(pk='market-product-0').exists())
@@ -275,17 +321,18 @@ class FarmTests(TestCase):
 
     def test_actual_partial_commit_and_interrupted_recovery(self):
         AgentExecutionLease.objects.all().delete()
-        self.agent.money=8;self.agent.save(update_fields=['money'])
-        WorldLedger.objects.filter(pk=f'opening:{self.agent.pk}').update(amount=8)
-        with patch('system_settings.agent_world.farm_runner.decide', return_value={'choices':['0','1'], 'reason':'购买两份饲料'}):
+        self.agent.money=800;self.agent.save(update_fields=['money'])
+        WorldLedger.objects.filter(pk=f'opening:{self.agent.pk}').update(amount=800)
+        with patch('system_settings.agent_world.farm_runner.decide', return_value={'choices':['0','1'], 'reason':'建造两座建筑'}):
             # 两个候选都能在初始状态支付，但第二笔重新检查余额并失败。
             with patch('system_settings.agent_world.farm_runner.candidates', return_value=[
-                {'id':'0','operation':{'kind':'buy_supply','sku':'feed','quantity':1}},
-                {'id':'1','operation':{'kind':'buy_supply','sku':'feed','quantity':1}}]):
+                {'id':'0','operation':{'kind':'build','building':'coop'}},
+                {'id':'1','operation':{'kind':'build','building':'barn'}}]):
                 run_farm_opportunity(self.task,key='partial',locked='w')
         self.assertEqual(FarmOperation.objects.filter(opportunity_id='partial').count(),1)
-        self.assertEqual(stock(AgentFarm.objects.get(pk=self.agent.pk),'feed').quantity,1)
-        self.agent.refresh_from_db();self.assertEqual(self.agent.money,3)
+        self.assertIn('coop', self.state()['buildings'])
+        self.assertNotIn('barn', self.state()['buildings'])
+        self.agent.refresh_from_db();self.assertEqual(self.agent.money,500)
         self.assertEqual(WorldAction.objects.get(pk='partial').status,'failed')
         WorldAction.objects.filter(pk='partial').update(status='claimed',updated_at=self.now-timedelta(hours=1))
         with patch('system_settings.agent_world.farm_runner.decide') as decision:
@@ -425,7 +472,7 @@ class FarmConcurrencyTests(TransactionTestCase):
         def write():
             close_old_connections()
             try:
-                return commit_operation(self.agent.pk,'concurrent',0,{'kind':'buy_supply','sku':'feed','quantity':1},'购买饲料',self.task,'a','w').pk
+                return commit_operation(self.agent.pk,'concurrent',0,{'kind':'build','building':'coop'},'建造鸡舍',self.task,'a','w').pk
             finally:
                 close_old_connections()
         with ThreadPoolExecutor(max_workers=2) as pool:

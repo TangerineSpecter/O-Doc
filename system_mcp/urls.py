@@ -4,6 +4,7 @@ from .views import ODocSystemMCPView
 
 
 urlpatterns = [
+    path('market/', ODocSystemMCPView.as_view(tool_scope='market'), name='system-mcp-market'),
     path('memos/', ODocSystemMCPView.as_view(tool_scope='memos'), name='system-mcp-memos'),
     path('anthologies/', ODocSystemMCPView.as_view(tool_scope='anthologies'), name='system-mcp-anthologies'),
     path('articles/', ODocSystemMCPView.as_view(tool_scope='articles'), name='system-mcp-articles'),

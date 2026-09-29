@@ -262,6 +262,9 @@ def _sync_scanned_system_mcp_servers(request, value):
         'O-Doc 内置系统 MCP。支持查询照片、从多个图片文集随机选取当前 Agent 未评价的照片，观察照片并保存评价和分数。不替代识图 MCP 的画面描述。',
         _photo_observation_mcp_tools(),
     )
+    from system_mcp.views import VISIBLE_MARKET_TOOL_NAMES
+    _sync_builtin_system_mcp_server(request, value, '世界市场 MCP', '/api/system-mcp/market/',
+        '查询世界市场并交易，仅可操作当前Agent资产。', VISIBLE_MARKET_TOOL_NAMES)
     _sync_builtin_system_mcp_server(
         request,
         value,
@@ -639,6 +642,17 @@ class MCPServerViewSet(viewsets.ModelViewSet):
         }
 
     @classmethod
+    def _builtin_market_server(cls, request):
+        from system_mcp.views import VISIBLE_MARKET_TOOL_NAMES
+        value = cls._ensure_system_mcp_value()
+        return {'name': '世界市场 MCP', 'transport': 'streamableHttp', 'command': '', 'args': [],
+                'url': request.build_absolute_uri('/api/system-mcp/market/'),
+                'headers': {'Authorization': f"Bearer {value.get('apiKey', '')}"}, 'env': {},
+                'source': 'system', 'enabled': bool(value.get('enabled', True)),
+                'description': '查询世界市场库存和居民挂牌；进入一次扣5体力，自主交易并离开。仅可操作当前Agent资产。',
+                'tools': cls._format_builtin_tools(VISIBLE_MARKET_TOOL_NAMES)}
+
+    @classmethod
     def _builtin_image_generation_server(cls, request):
         from system_mcp.views import VISIBLE_IMAGE_GENERATION_TOOL_NAMES
 
@@ -750,6 +764,7 @@ class MCPServerViewSet(viewsets.ModelViewSet):
             self._builtin_vision_server(request),
             self._builtin_photo_observation_server(request),
             self._builtin_image_generation_server(request),
+            self._builtin_market_server(request),
         ]
         builtin_names = {server['name'] for server in builtin_servers}
         scanned = [

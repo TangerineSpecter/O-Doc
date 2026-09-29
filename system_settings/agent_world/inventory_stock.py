@@ -1,5 +1,6 @@
 """角色共用背包：按商品 SKU 使用物品，不限定物品 ID、来源或业务类型。"""
 import hashlib
+import uuid
 from decimal import Decimal
 from django.db import transaction
 from django.db.models import Sum
@@ -25,6 +26,10 @@ def add_stock(actor_id: str, owner_id: str, actor_name: str, sku: str, quantity:
               name: str, kind: str, price=0, operation_id: str = ''):
     # 有多条来源记录时追加到最后一条，避免新产物排在其他旧批次之前被消费。
     row = stock_rows(actor_id, owner_id, sku).select_for_update().last()
+    # Newly produced goods must not inherit a traded item's original owner.
+    separate_origin = bool(row and row.origin_actor_id and row.origin_actor_id != actor_id)
+    if separate_origin:
+        row = None
     if row:
         if sku.startswith(('crop.', 'product.')):
             source = dict(row.source)
@@ -34,7 +39,7 @@ def add_stock(actor_id: str, owner_id: str, actor_name: str, sku: str, quantity:
         row.save(update_fields=['quantity', 'source'])
         return row
     return AgentInventoryItem.objects.create(
-        pk=hashlib.sha256(f'inventory:{owner_id}:{actor_id}:{sku}'.encode()).hexdigest(),
+        pk=uuid.uuid4().hex if separate_origin else hashlib.sha256(f'inventory:{owner_id}:{actor_id}:{sku}'.encode()).hexdigest(),
         actor_id=actor_id, owner_id=owner_id, actor_name=actor_name,
         origin_actor_id=actor_id, origin_actor_name=actor_name,
         name=name, kind=kind, quantity=quantity, value=price,

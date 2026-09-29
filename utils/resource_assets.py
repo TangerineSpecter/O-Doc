@@ -243,6 +243,11 @@ def get_agent_resource_usage(resource_ids=None):
         items = items.filter(icon_asset_id__in=resource_ids)
     for item in items.only('icon_asset_id', 'actor_id', 'actor_name'):
         usage.setdefault(item.icon_asset_id, {'id': item.actor_id, 'title': item.actor_name or '角色背包'})
+    from system_settings.agent_world.market_models import MarketListing
+    for listing in MarketListing.objects.filter(status='active', remaining_quantity__gt=0).only('item','seller_id','seller_name'):
+        icon = listing.item.get('icon_asset_id')
+        if icon and (resource_ids is None or icon in resource_ids):
+            usage.setdefault(icon, {'id':listing.seller_id, 'title':listing.seller_name or '市场托管物品'})
     for resource_id in catalog_icon_usage_counts(resource_ids):
         usage.setdefault(resource_id, {'id': resource_id, 'title': 'Agent 物品图鉴'})
     return usage
@@ -250,7 +255,9 @@ def get_agent_resource_usage(resource_ids=None):
 
 def is_asset_used_by_inventory(resource_id):
     from system_settings.agent_world.travel_models import AgentInventoryItem
-    return AgentInventoryItem.objects.filter(icon_asset_id=resource_id).exists()
+    from system_settings.agent_world.market_models import MarketListing
+    return (AgentInventoryItem.objects.filter(icon_asset_id=resource_id).exists()
+            or MarketListing.objects.filter(status='active', remaining_quantity__gt=0, item__icon_asset_id=resource_id).exists())
 
 
 def is_asset_used_by_catalog_item(resource_id):
