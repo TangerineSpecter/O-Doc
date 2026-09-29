@@ -9,7 +9,7 @@ import {
     Search, Filter, Download, Trash2, FileText,
     Image as ImageIcon, Music, Video, Box, FileCode, File,
     HardDrive, Cloud, CheckCircle2, Link2Off, X, Loader2, AlertTriangle,
-    BookOpen, Maximize2, Sparkles
+    BookOpen, Maximize2, Sparkles, Bot, Package
 } from 'lucide-react';
 import ImageLightboxModal from '../components/common/ImageLightboxModal';
 import PendingArticleIllustrations from '../components/Resources/PendingArticleIllustrations';
@@ -34,6 +34,9 @@ interface TypeConfigItem {
 
 const getResourcePreviewUrl = (file: ResourceItem) =>
     file.type === 'image' ? `/api/resource/view/${file.id}` : '';
+
+const getAgentResourceLabel = (file: ResourceItem) =>
+    file.sourceType === 'item_icon' ? 'Agent 道具图标' : 'Agent 头像 / 立绘';
 
 const TYPE_CONFIG: Record<string, TypeConfigItem> = {
     all: {label: '全部', icon: <HardDrive/>, color: 'text-slate-500 bg-slate-100'},
@@ -584,8 +587,10 @@ export default function ResourcesPage() {
                                             <Sparkles className="w-3 h-3 shrink-0" />
                                             <span className="truncate">{previewFile.sourcePrompt.title}</span>
                                         </button>
+                                    ) : previewFile.sourceAgent ? (
+                                        <span className="text-slate-600 truncate">{getAgentResourceLabel(previewFile)}</span>
                                     ) : (
-                                        <span className="text-slate-400">未关联任何文章</span>
+                                        <span className={previewFile.linked ? 'text-slate-600' : 'text-slate-400'}>{previewFile.linked ? '已关联资源' : '未关联'}</span>
                                     )}
                                 </div>
                             </div>
@@ -911,9 +916,14 @@ export default function ResourcesPage() {
                                                     className="truncate group-hover/source:text-orange-600 group-hover/source:underline transition-colors"
                                                     title={file.sourcePrompt.title}>{file.sourcePrompt.title}</span>
                                             </div>
+                                        ) : file.sourceAgent ? (
+                                            <div className="mt-1.5 pt-1.5 border-t border-slate-50 flex items-center gap-1 text-[10px] text-slate-400">
+                                                {file.sourceType === 'item_icon' ? <Package className="w-3 h-3 text-slate-300 shrink-0"/> : <Bot className="w-3 h-3 text-slate-300 shrink-0"/>}
+                                                <span className="truncate">{getAgentResourceLabel(file)}</span>
+                                            </div>
                                         ) : (
                                            <div className="mt-1.5 pt-1.5 border-t border-slate-50 h-5 flex items-center">
-                                                <span className="text-[10px] text-slate-300">未关联</span>
+                                                <span className="text-[10px] text-slate-300">{file.linked ? '已关联资源' : '未关联'}</span>
                                            </div>
                                         )}
                                     </div>
