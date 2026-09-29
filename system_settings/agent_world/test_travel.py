@@ -540,7 +540,7 @@ class TravelTests(TestCase):
         self.assertEqual(request['image_size'], '2K')
         self.assertEqual(request['reference_image_ids'], ['avatar-resource', 'body-resource'])
         self.assertIn('参考图 1 是头像', request['prompt'])
-        self.assertIn('头身比例', request['prompt'])
+        self.assertIn('约2–3头身', request['prompt'])
         row.refresh_from_db()
         self.assertEqual(row.snapshot['photo']['request'], request)
 
@@ -624,6 +624,57 @@ class TravelTests(TestCase):
         row.refresh_from_db(); insert_photo(row, '/new.png')
         self.assertEqual(row.snapshot['photo']['status'], 'manual')
         self.assertEqual(Article.objects.get(pk=row.article_id).content, '手动编辑\n\n![旅行场景照](/old.png)')
+
+    def test_regeneration_refreshes_only_image_config_and_keeps_original_request(self):
+        row = self.journey(status='completed'); row.article_id = 'post'
+        original = {'status': 'manual', 'attempt': 0, 'task_id': 'a'*32,
+                    'request': {'model_id': 'old-model', 'request_id': 'old-request'}}
+        row.snapshot['photo'] = original
+        row.snapshot['config']['image_model_id'] = 'old-model'
+        row.save()
+        self.task.travel_config.update(image_model_id='new-model', image_aspect_ratio='3:2',
+                                      image_size='2K', energy_cost=99)
+        self.task.save()
+        response = self.client.post(f'/api/settings/agent-world/travel/{row.pk}/',
+                                    {'action': 'regenerate_image', 'confirm_charge': True}, format='json')
+        self.assertEqual(response.status_code, 200)
+        row.refresh_from_db()
+        self.assertEqual(row.snapshot['config']['image_model_id'], 'new-model')
+        self.assertEqual(row.snapshot['config']['image_aspect_ratio'], '3:2')
+        self.assertEqual(row.snapshot['config']['image_size'], '2K')
+        self.assertEqual(row.snapshot['config']['energy_cost'], 20)
+        self.assertEqual(row.snapshot['photo_history'][0], original)
+        self.assertNotIn('task_id', row.snapshot['photo'])
+
+    def test_query_keeps_original_model_after_task_config_changes(self):
+        row = self.journey(status='completed'); row.article_id = 'post'
+        row.snapshot['config']['image_model_id'] = 'old-model'
+        original = {'status': 'manual', 'task_id': 'a'*32, 'request': {'model_id': 'old-model'}}
+        row.snapshot['photo'] = original; row.save()
+        self.task.travel_config.update(image_model_id='new-model'); self.task.save()
+        response = self.client.post(f'/api/settings/agent-world/travel/{row.pk}/',
+                                    {'action': 'query_image'}, format='json')
+        self.assertEqual(response.status_code, 200)
+        row.refresh_from_db()
+        self.assertEqual(row.snapshot['config']['image_model_id'], 'old-model')
+        self.assertEqual(row.snapshot['photo']['request']['model_id'], 'old-model')
+        with patch('system_settings.agent_world.travel_publication.get_image_generation_result',
+                   return_value={'status': 'failed', 'task_id': 'a'*32}) as query, \
+                patch('system_settings.agent_world.travel_publication.generate_image') as generate:
+            recover_photo(row)
+        query.assert_called_once_with({'task_id': 'a'*32}, agent=self.agent)
+        generate.assert_not_called()
+
+    def test_regeneration_without_task_keeps_snapshot_image_model(self):
+        row = self.journey(status='completed'); row.article_id = 'post'
+        row.task = None
+        row.snapshot['config']['image_model_id'] = 'old-model'
+        row.snapshot['photo'] = {'status': 'manual'}; row.save()
+        response = self.client.post(f'/api/settings/agent-world/travel/{row.pk}/',
+                                    {'action': 'regenerate_image', 'confirm_charge': True}, format='json')
+        self.assertEqual(response.status_code, 200)
+        row.refresh_from_db()
+        self.assertEqual(row.snapshot['config']['image_model_id'], 'old-model')
 
     def test_legacy_photo_hash_supports_replacement(self):
         row = self.journey()

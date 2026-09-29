@@ -1,10 +1,12 @@
 """通用生图提交、查询与原结果下载恢复；不触发发帖。"""
 import uuid
 import logging
+from contextlib import contextmanager
 from datetime import timedelta
 
 from django.db.models import Q
 from django.utils import timezone
+from system_logs.capture import request_context
 
 from assets.models import Asset
 from prompts.article_illustration import get_saved_article_illustration, save_article_illustration
@@ -22,6 +24,22 @@ from .image_references import load_reference_images
 ACTIVE = {'submitting', 'generating', 'download_pending'}
 LEASE_DURATION = timedelta(minutes=3)
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def image_task_context(task: ImageGenerationTask):
+    data = task.request_data
+    options = data.get('provider_options', {})
+    token = request_context.set({**request_context.get(), 'task_id': task.pk,
+        'image_request_id': task.request_id, 'agent_id': task.agent_key,
+        'model_id': task.model_id, 'provider_task_id': task.provider_task_id,
+        'reference_image_count': len(data.get('reference_image_ids', [])),
+        'image_aspect_ratio': data.get('aspect_ratio', ''), 'image_size': data.get('image_size', ''),
+        'image_dimensions': options.get('aspectRatio', '') if 'x' in options.get('aspectRatio', '') else ''})
+    try:
+        yield
+    finally:
+        request_context.reset(token)
 
 
 def _scope(agent: Agent | None) -> dict:
@@ -117,12 +135,14 @@ def generate_image(arguments: object, agent: Agent | None = None) -> dict:
         return _output(task)
     try:
         if task.provider_type == 'Grsai':
-            result = client.generate(data['prompt'], generation_options=options, reference_images=images, asynchronous=True)
+            with image_task_context(task):
+                result = client.generate(data['prompt'], generation_options=options, reference_images=images, asynchronous=True)
             _accept_result(task, result)
             if task.status == 'download_pending':
                 _download(task, client)
         else:
-            result = client.generate(data['prompt'])
+            with image_task_context(task):
+                result = client.generate(data['prompt'])
             first = result.images[0]
             _write(task, status='download_pending', image_url=first if isinstance(first, str) else '')
             _download(task, client, first)
@@ -169,7 +189,8 @@ def get_image_generation_result(arguments: object, agent: Agent | None = None) -
             model = _model(task)
             client = GrsaiImageClient(model) if task.provider_type == 'Grsai' else NewApiImageClient(model)
             if task.status == 'generating':
-                _accept_result(task, client.get_result(task.provider_task_id))
+                with image_task_context(task):
+                    _accept_result(task, client.get_result(task.provider_task_id))
             if task.status == 'download_pending':
                 _download(task, client)
     except GrsaiImageError as exc:

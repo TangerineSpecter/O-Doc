@@ -10,15 +10,26 @@ interface WorldDialogProps {
     onClose: () => void;
     children: ReactNode;
     size?: 'default' | 'wide';
+    fixedHeight?: boolean;
     manageFocus?: boolean;
 }
 
-export default function WorldDialog({title, description, onClose, children, size = 'default', manageFocus = true}: WorldDialogProps) {
+export default function WorldDialog({
+    title,
+    description,
+    onClose,
+    children,
+    size = 'default',
+    fixedHeight,
+    manageFocus = true,
+}: WorldDialogProps) {
     const closeButtonRef = useRef<HTMLButtonElement>(null);
     const openerRef = useRef<HTMLElement | null>(null);
     const openerWasKeyboardFocusedRef = useRef(false);
     const dismissedByEscapeRef = useRef(false);
     const restoreFocusOnCloseRef = useRef(false);
+
+    const isFixedHeight = fixedHeight ?? (size === 'wide');
 
     if (manageFocus && openerRef.current === null && typeof document !== 'undefined') {
         const activeElement = document.activeElement;
@@ -71,9 +82,9 @@ export default function WorldDialog({title, description, onClose, children, size
                 role="dialog"
                 aria-modal="true"
                 aria-label={title}
-                className={`relative flex max-h-[88vh] w-full ${size === 'wide' ? 'max-w-6xl' : 'max-w-3xl'} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}
+                className={`relative flex ${isFixedHeight ? 'h-[88vh] sm:h-[85vh]' : 'max-h-[88vh]'} w-full ${size === 'wide' ? 'max-w-6xl' : 'max-w-3xl'} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}
             >
-                <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+                <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
                     <div>
                         <h2 className="text-sm font-bold text-slate-900">{title}</h2>
                         {description ? <p className="mt-0.5 text-[11px] text-slate-400">{description}</p> : null}

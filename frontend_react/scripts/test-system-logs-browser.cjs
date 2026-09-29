@@ -12,7 +12,7 @@ const output = fs.mkdtempSync(path.join(os.tmpdir(), 'odoc-system-logs-ui-'));
   for (const viewport of [{width:1440,height:1000},{width:390,height:844}]) {
     const context=await browser.newContext({viewport, acceptDownloads:true});
     await context.addInitScript(()=>localStorage.setItem('token','isolated-test-token'));
-    let events=[{id:'a'.repeat(32),created:Date.now()/1000,module:'ai',title:'大模型调用失败 · test-model · http_502',errorType:'http_502',requestId:'b'.repeat(32)}];
+    let events=[{id:'a'.repeat(32),created:Date.now()/1000,module:'ai',title:'大模型调用失败 · gpt-image-2.5 · provider_task_failed',errorType:'provider_task_failed',requestId:'b'.repeat(32)}];
     await context.route(`${baseUrl}/api/**`, async route=>{
       const url=new URL(route.request().url()); const path=url.pathname;
       let data=[];
@@ -21,27 +21,38 @@ const output = fs.mkdtempSync(path.join(os.tmpdir(), 'odoc-system-logs-ui-'));
       else if(path==='/api/system/logs/overview/') data={total:events.length,latest:events[0]?.created || null,recent:events.length,bytes:24576,policy:{days:30,maxMb:100},modules:['ai']};
       else if(path==='/api/system/logs/download/') {await route.fulfill({contentType:'text/plain',body:'{"httpStatus":502}',headers:{'content-disposition':'attachment; filename="exception.txt"'}});return;}
       else if(path==='/api/system/logs/delete/' || path==='/api/system/logs/clear/') {events=[];data={};}
-      else if(path.includes('/api/system/logs/')) data={...events[0],httpStatus:502,stack:'provider.py:123 in call'};
+      else if(path.includes('/api/system/logs/')) data={...events[0],errorType:'provider_task_failed',
+        httpStatus:200,providerHttpStatus:200,businessStatus:422,providerTaskId:'provider-task-1',
+        providerTaskStatus:'failed',providerEndpoint:'GET /v1/api/result',modelId:'selected-model',
+        modelName:'gpt-image-2.5',taskId:'local-task-1',imageRequestId:'travel:trip:1',
+        providerCode:'upstream_error',reason:'服务商返回上游处理失败',referenceImageCount:2,
+        imageAspectRatio:'16:9',imageSize:'1K',imageDimensions:'1280x720',stack:'provider.py:123 in call'};
       else if(path.includes('config/')) data={};
       await route.fulfill({contentType:'application/json',body:JSON.stringify({code:200,msg:'成功',data})});
     });
     const page=await context.newPage(); page.on('pageerror',e=>errors.push(String(e)));
     await page.goto(`${baseUrl}/settings?tab=logs`);
     await page.waitForLoadState('networkidle');
-     await page.getByText('大模型调用失败 · test-model · http_502',{exact:true}).waitFor({timeout:5000});
+     await page.getByText('大模型调用失败 · gpt-image-2.5 · provider_task_failed',{exact:true}).waitFor({timeout:5000});
     await page.screenshot({path:`${output}/logs-${viewport.width}.png`,fullPage:true});
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
     if(overflow)throw new Error('horizontal overflow '+viewport.width);
-    await page.getByText('大模型调用失败 · test-model · http_502',{exact:true}).click();
+    await page.getByText('大模型调用失败 · gpt-image-2.5 · provider_task_failed',{exact:true}).click();
     await page.getByRole('dialog',{name:'异常日志明细'}).waitFor();
     if(!await page.getByRole('dialog').innerText().then(t=>t.includes('HTTP 状态')))throw new Error('missing detail');
+    const detail=await page.getByRole('dialog').innerText();
+    for(const value of ['服务商实际 HTTP 状态','业务错误状态','服务商任务 ID','provider-task-1',
+      'gpt-image-2.5','selected-model','travel:trip:1','服务商返回上游处理失败','1280x720']) {
+      if(!detail.includes(value))throw new Error('missing image diagnostic '+value);
+    }
+    await page.screenshot({path:`${output}/detail-${viewport.width}.png`,fullPage:true});
     const download=page.waitForEvent('download');
     await page.getByRole('button',{name:'下载明细'}).click();
     await download;
     await page.keyboard.press('Escape');
     await page.getByRole('dialog',{name:'异常日志明细'}).waitFor({state:'hidden'});
     await page.getByRole('button',{name:'删除日志',exact:true}).click();
-    await page.getByRole('button',{name:'确认',exact:true}).click();
+    await page.getByRole('button',{name:'确认删除',exact:true}).click();
     await page.getByText('暂无符合条件的异常日志').waitFor();
     await context.close();
   }

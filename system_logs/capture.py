@@ -52,13 +52,21 @@ def exception_metadata(exc):
         kind = 'insufficient_balance' if safe_code.lower() != 'insufficient_quota' else 'insufficient_quota'
     # Do not serialize exception messages: providers can echo prompts, bodies and credentials.
     stack = '\n'.join(f'{frame.filename}:{frame.lineno} in {frame.name}' for frame in traceback.extract_tb(exc.__traceback__))
-    return {'error_type': kind, 'exception_class': name, 'http_status': status,
+    result = {'error_type': kind, 'exception_class': name, 'http_status': status,
             'provider_http_status': status if getattr(original, 'response', None) is not None else None,
             'provider_code': sanitize(safe_code, 80),
             'reason': {'timeout': '连接、读取或调用时限超时', 'connection': '无法建立模型服务连接',
                        'authentication': '模型服务拒绝认证', 'rate_limit': '模型服务限流',
                        'insufficient_balance': '提供商明确返回余额不足', 'insufficient_quota': '提供商明确返回额度不足'}.get(kind, f'HTTP {status}' if status else name),
             'stack': sanitize(stack, 12000)}
+    # Adapters may supply explicit safe classifications, never raw response messages.
+    diagnostics = getattr(original, 'diagnostics', {})
+    if isinstance(diagnostics, dict):
+        for key in ('error_type', 'http_status', 'provider_http_status', 'business_status', 'provider_code', 'reason'):
+            if key in diagnostics:
+                value = diagnostics[key]
+                result[key] = sanitize(value, 1000) if isinstance(value, str) else value
+    return result
 
 
 def _fallback():

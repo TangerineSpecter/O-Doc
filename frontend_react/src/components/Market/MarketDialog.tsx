@@ -1,3 +1,4 @@
+import {useEffect, useRef} from 'react';
 import {RefreshCw, Store} from 'lucide-react';
 import WorldDialog from '../AgentWorld/WorldDialog';
 import {Select} from '../common/Select';
@@ -10,7 +11,13 @@ const tabs: Array<{value: MarketTab; label: string}> = [{value:'shop',label:'系
 export default function MarketDialog({onClose, residents}: {onClose: () => void; residents: Array<{id: string; name: string}>}) {
     const market = useMarket();
     const data = market.tab === 'listings' ? market.listings : market.tab === 'transactions' ? market.transactions : market.sessions;
-    return <WorldDialog title="世界市场" onClose={onClose} size="wide"><div className="space-y-5 p-4 sm:p-6">
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        containerRef.current?.closest('.overflow-y-auto')?.scrollTo({top: 0, behavior: 'instant'});
+    }, [market.tab]);
+
+    return <WorldDialog title="世界市场" onClose={onClose} size="wide"><div ref={containerRef} className="space-y-5">
         <div className="flex items-start gap-3"><div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-600"><Store className="h-5 w-5"/></div><div><p className="text-sm font-semibold text-slate-800">居民的日常集市</p><p className="mt-1 text-xs leading-relaxed text-slate-500">逛市场消耗 5 点体力，居民自主购买、出售和上架。这里可以查看实时库存与交易。</p><p className="mt-1 text-xs leading-relaxed text-slate-400">请先在设置 → Agent → 任务中配置「市场交易」；农场任务不再负责采购与出售。</p></div></div>
         <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-slate-100 p-1">{tabs.map(tab => <button type="button" key={tab.value} onClick={()=>market.setTab(tab.value)} aria-pressed={market.tab === tab.value} className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-semibold transition-colors ${market.tab === tab.value ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{tab.label}</button>)}</div><button type="button" onClick={market.refresh} aria-label="刷新市场" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><RefreshCw className={`h-4 w-4 ${market.loading ? 'animate-spin' : ''}`}/></button></div>
         {market.tab !== 'shop' && <div className="flex flex-wrap gap-3">{market.tab === 'listings' && <input aria-label="搜索市场商品" placeholder="搜索商品名称" value={market.search} onChange={e=>market.setSearch(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-300"/>}<div className="min-w-40"><Select menuPortal value={market.actorId} onChange={market.setActorId} options={[{value:'',label:'全部居民'},...residents.map(r=>({value:r.id,label:r.name}))]}/></div></div>}

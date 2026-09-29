@@ -33,7 +33,7 @@ export function TravelTaskFields({value, servers, imageModels, onChange}: {value
             <label className="block space-y-2 text-sm text-slate-700"><span>场景照比例</span><Select menuPortal value={value.imageAspectRatio || '16:9'} options={ratios} onChange={imageAspectRatio => onChange({...value, imageAspectRatio})}/></label>
             <label className="block space-y-2 text-sm text-slate-700"><span>场景照分辨率</span><Select menuPortal value={value.imageSize || '1K'} options={sizes} onChange={imageSize => onChange({...value, imageSize})}/></label>
         </div>}
-        <p className="text-xs leading-5 text-slate-500">指定模型后，此旅行任务独立使用该模型。已创建旅行保留当时的任务配置，已提交图片继续查询原请求。</p>
+        <p className="text-xs leading-5 text-slate-500">指定模型后，此旅行任务独立使用该模型。首次配图使用旅行创建时的配置；点击重新生成时使用任务当前保存的模型、比例和分辨率。已提交图片继续查询原请求。</p>
         <p className="text-xs leading-5 text-slate-500">参与 Agent 需配置模型并绑定旅行游记 Skill。配图另需绑定旅行场景照 Skill 和生图 MCP；缺少配图条件仍发布文字日记，并通知人工处理。</p>
     </section>;
 }

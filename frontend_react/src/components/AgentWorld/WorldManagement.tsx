@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Globe, Loader2, Plus } from 'lucide-react';
 import { saveWorldCategory, saveWorldProfession, saveWorldIncome } from '../../api/agentWorld';
 import type { WorldCategory, WorldProfession } from '../../types/api/agentWorld';
@@ -18,6 +18,11 @@ export function WorldManagement() {
     const toast = useToast();
 
     const [tab, setTab] = useState<WorldTab>('categories');
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        containerRef.current?.closest('.overflow-y-auto')?.scrollTo({top: 0, behavior: 'instant'});
+    }, [tab]);
 
     // 模态弹窗状态
     const [categoryModalOpen, setCategoryModalOpen] = useState(false);
@@ -109,7 +114,7 @@ export function WorldManagement() {
     };
 
     return (
-        <div className="space-y-6">
+        <div ref={containerRef} className="space-y-6">
             {/* 顶层头部卡片 - 对齐 AgentSettings 紧凑单行风格 */}
             <div className="bg-white rounded-2xl border border-slate-200 px-5 py-3.5 shadow-sm">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

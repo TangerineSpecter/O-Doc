@@ -179,7 +179,7 @@ export default function TravelDetailDialog({journey: initial, onClose, onChanged
                         <p className="text-xs leading-relaxed text-slate-600 sm:text-sm">
                             {confirmation === 'end'
                                 ? '已出发的旅行费用不自动退还，已获得的物品与战利品保留，系统将根据已发生的足迹经历收尾并撰写旅行日记。'
-                                : '重新请求场景插画可能会产生额外的 AI 绘图计费。生成成功后将替换旧图；若正文内容有变动将转为手动提示插入。是否确认重新生成？'}
+                                : '将使用旅行任务当前保存的生图模型、比例和分辨率重新生成，任务已删除时沿用旅行原配置。重新请求可能产生额外计费。生成成功后将替换旧图；若正文有变动将提示手动插入。是否确认重新生成？'}
                         </p>
                         <div className="flex justify-end gap-2 pt-2">
                             <button

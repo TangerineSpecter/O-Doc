@@ -96,8 +96,8 @@ export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
 
     return (
         <WorldDialog title="物品图鉴" description="认识世界中的物品，看看它们的用途与价值。" onClose={onClose} size="wide">
-            {/* 外层高度增加到 620px，保证右侧卡片与左侧网格均能完整舒展展示，不被截断 */}
-            <div ref={content} tabIndex={-1} className="flex h-[620px] flex-col space-y-3 outline-none">
+            {/* 撑满外层固定高度弹窗，左右两侧舒展展示且不会产生多余外层滚动条 */}
+            <div ref={content} tabIndex={-1} className="flex h-full min-h-[520px] flex-col space-y-3 outline-none">
                 {/* 顶部工具栏：分类 Tab + 搜索与功能入口 */}
                 <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap gap-1 rounded-2xl bg-slate-100 p-1 border border-slate-200/50" aria-label="物品分类">

@@ -418,9 +418,9 @@ class ReviewRegressionTests(IsolatedStore):
             for provider, client_class in (('Grsai', GrsaiImageClient), ('NewAPI', NewApiImageClient)):
                 for status in (401, 403, 429, 500, 502):
                     with self.subTest(provider=provider, status=status):
-                        model = SimpleNamespace(type='image_generation', name='test-model', provider=SimpleNamespace(
+                        model = SimpleNamespace(pk='test-model-id', type='image_generation', name='test-model', provider=SimpleNamespace(
                             type=provider, api_key='mock-only', base_url='https://model.example/v1'))
-                        response = SimpleNamespace(status_code=status)
+                        response = SimpleNamespace(status_code=status, json=lambda: {})
                         token = request_context.set({'request_id': uuid.uuid4().hex})
                         try:
                             with patch('system_logs.capture.start', return_value=SimpleNamespace(put_nowait=store.write)), \

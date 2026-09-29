@@ -7,9 +7,10 @@ from urllib.parse import urlsplit, urlunsplit
 import requests
 
 from system_logs.ai import model_operation
-from system_logs.capture import capture
+from system_logs.capture import capture, request_context
 
 from .models import AIModel, SystemSetting
+from .grsai_diagnostics import failure_details
 
 
 TASK_ID_RE = re.compile(r'^[A-Za-z0-9_-]{1,128}$')
@@ -20,9 +21,11 @@ FAILED_STATUSES = {'failed', 'error', 'cancelled', 'canceled', 'violation'}
 class GrsaiImageError(Exception):
     """A safe, user-facing generation error without provider response secrets."""
 
-    def __init__(self, message: str, *, status_code: int = 502, retryable: bool = False):
+    def __init__(self, message: str, *, status_code: int = 502, retryable: bool = False,
+                 diagnostics: dict | None = None):
         self.status_code = status_code
         self.retryable = retryable
+        self.diagnostics = diagnostics or {}
         super().__init__(message)
 
 
@@ -67,8 +70,13 @@ class GrsaiImageClient:
         self.api_root = f'{root}/v1/api'
         self.api_key = provider.api_key
         self.model_name = model.name
+        self.model_id = str(model.pk)
+        self.response_status_code = None
 
     def _request(self, method: str, path: str, *, payload: dict | None = None, params: dict | None = None) -> dict:
+        self.response_status_code = None
+        request_context.set({**request_context.get(), 'model_id': self.model_id,
+            'provider_endpoint': f'{method} /v1/api/{path}'})
         try:
             response = requests.request(
                 method,
@@ -84,10 +92,18 @@ class GrsaiImageClient:
         except requests.RequestException as exc:
             raise GrsaiImageError('无法连接 Grsai 服务，请检查服务地址') from exc
 
+        self.response_status_code = response.status_code
         if response.status_code >= 400:
+            try:
+                body = response.json()
+            except ValueError:
+                body = {}
+            details = failure_details(body) if isinstance(body, dict) else failure_details({})
+            if details['reason'].startswith('服务商返回失败状态'):
+                details['reason'] = f'模型服务返回 HTTP {response.status_code}'
             capture('生图模型接口失败', module='ai',
                     http_status=response.status_code, provider_http_status=response.status_code,
-                    reason=f'模型服务返回 HTTP {response.status_code}',
+                    **details,
                     error_type=f'http_{response.status_code}',
                     model_name=self.model_name, provider_name='Grsai')
         if response.status_code in (401, 403):
@@ -106,15 +122,21 @@ class GrsaiImageClient:
         return data
 
     @staticmethod
-    def _parse_result(data: dict, *, expected_id: str = '') -> GrsaiImageResult:
+    def _parse_result(data: dict, *, expected_id: str = '', http_status: int | None = None) -> GrsaiImageResult:
         task_id = str(data.get('id') or expected_id)
         if not TASK_ID_RE.fullmatch(task_id):
             raise GrsaiImageError('Grsai 返回的任务 ID 无效')
         if expected_id and task_id != expected_id:
             raise GrsaiImageError('Grsai 返回的任务 ID 与查询不一致')
         status = str(data.get('status') or '').lower()
+        request_context.set({**request_context.get(), 'provider_task_id': task_id,
+                             'provider_task_status': status})
         if status in FAILED_STATUSES:
-            raise GrsaiImageError('Grsai 生图失败，请调整提示词后重试', status_code=422)
+            details = failure_details(data)
+            raise GrsaiImageError(f'Grsai 生图失败：{details["reason"]}', status_code=422,
+                diagnostics={**details, 'error_type': 'provider_task_failed',
+                    'http_status': http_status, 'provider_http_status': http_status,
+                    'business_status': 422})
         results = data.get('results')
         image_urls = tuple(
             item['url'] for item in results[:12]
@@ -139,12 +161,17 @@ class GrsaiImageClient:
             payload.update({'aspectRatio': '1:1', 'imageSize': '1K'})
         else:
             payload.update(generation_options)
+        request_context.set({**request_context.get(), 'reference_image_count': len(reference_images or []),
+            'image_aspect_ratio': request_context.get().get('image_aspect_ratio') or payload.get('aspectRatio', ''),
+            'image_size': request_context.get().get('image_size') or payload.get('imageSize', ''),
+            'image_dimensions': payload.get('aspectRatio', '') if 'x' in payload.get('aspectRatio', '') else ''})
         data = self._request('POST', 'generate', payload=payload)
-        return self._parse_result(data)
+        return self._parse_result(data, http_status=self.response_status_code)
 
     @model_operation
     def get_result(self, task_id: str) -> GrsaiImageResult:
+        request_context.set({**request_context.get(), 'provider_task_id': task_id})
         if not TASK_ID_RE.fullmatch(task_id):
             raise GrsaiImageError('Grsai 任务 ID 无效', status_code=400)
         data = self._request('GET', 'result', params={'id': task_id})
-        return self._parse_result(data, expected_id=task_id)
+        return self._parse_result(data, expected_id=task_id, http_status=self.response_status_code)

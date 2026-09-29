@@ -130,6 +130,14 @@ class TravelDetailView(APIView):
                             raise ValueError('重新生成可能再次计费，需明确确认')
                         if photo.get('status') not in ['manual', 'abandoned', 'inserted']:
                             raise ValueError('图片仍在处理中，请查询原任务')
+                        # 人工重新生成是一项新意图；仅刷新生图参数，旅行经历等仍使用原快照。
+                        if row.task_id:
+                            from system_settings.models import AgentTask
+                            current = AgentTask.objects.get(pk=row.task_id).travel_config or {}
+                            config = dict(row.snapshot.get('config', {}))
+                            config.update({key: current.get(key, default) for key, default in (
+                                ('image_model_id', ''), ('image_aspect_ratio', '16:9'), ('image_size', '1K'))})
+                            row.snapshot = {**row.snapshot, 'config': config}
                         row.snapshot = {**row.snapshot, 'photo_history': [*row.snapshot.get('photo_history', []), photo]}
                         photo = {'status': 'pending', 'attempt': photo.get('attempt', 0)+1, 'insertion_position': 'end',
                             'previous_image_url': photo.get('image_url') if photo.get('status') == 'inserted' else photo.get('previous_image_url')}
