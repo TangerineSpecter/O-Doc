@@ -179,6 +179,7 @@ def is_asset_used_by_agent(resource_id):
     url = get_resource_view_url(resource_id)
     return (
         is_asset_used_by_inventory(resource_id)
+        or is_asset_used_by_catalog_item(resource_id)
         or Agent.objects.filter(Q(avatar=url) | Q(full_body_image=url)).exists()
         or AgentActivity.objects.filter(metadata__agentSnapshot__avatar=url).exists()
         or Article.objects.filter(agent_post_creator_avatar=url).exists()
@@ -236,17 +237,25 @@ def get_agent_resource_usage(resource_ids=None):
             usage.setdefault(resource_id, {'id': agent.id, 'title': agent.name})
 
     from system_settings.agent_world.travel_models import AgentInventoryItem
+    from system_settings.agent_world.item_catalog_icons import catalog_icon_usage_counts
     items = AgentInventoryItem.objects.exclude(icon_asset_id__isnull=True).exclude(icon_asset_id='')
     if resource_ids is not None:
         items = items.filter(icon_asset_id__in=resource_ids)
     for item in items.only('icon_asset_id', 'actor_id', 'actor_name'):
         usage.setdefault(item.icon_asset_id, {'id': item.actor_id, 'title': item.actor_name or '角色背包'})
+    for resource_id in catalog_icon_usage_counts(resource_ids):
+        usage.setdefault(resource_id, {'id': resource_id, 'title': 'Agent 物品图鉴'})
     return usage
 
 
 def is_asset_used_by_inventory(resource_id):
     from system_settings.agent_world.travel_models import AgentInventoryItem
     return AgentInventoryItem.objects.filter(icon_asset_id=resource_id).exists()
+
+
+def is_asset_used_by_catalog_item(resource_id):
+    from system_settings.agent_world.item_catalog_icons import is_catalog_item_icon_used
+    return is_catalog_item_icon_used(resource_id)
 
 
 def delete_asset_physical_file(asset):
@@ -262,8 +271,8 @@ def delete_asset_physical_file(asset):
 
 
 def delete_asset_record_and_file(asset):
-    # 所有资源删除入口均保留物品引用；此保护不会增加读取权限。
-    if is_asset_used_by_inventory(asset.pk):
+    # 所有资源删除入口均保留图鉴和背包物品引用；不扩大读取权限。
+    if is_asset_used_by_inventory(asset.pk) or is_asset_used_by_catalog_item(asset.pk):
         return False
     delete_asset_physical_file(asset)
     asset.delete()

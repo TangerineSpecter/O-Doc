@@ -1,0 +1,84 @@
+.agent-world-edge-button__surface {
+    display: flex;
+    align-items: center;
+    height: 2.25rem;
+    width: 2.25rem;
+    overflow: hidden;
+    padding-left: 0.5rem;
+    margin-right: -1px;
+    color: #fff;
+    background: #10b981;
+    border: 1px solid rgb(5 150 105 / 35%);
+    border-right: 0;
+    border-radius: 0.375rem 0 0 0.375rem;
+    box-shadow: 0 1px 3px rgb(16 185 129 / 20%);
+    transition: width 200ms ease, background-color 200ms ease, box-shadow 200ms ease;
+}
+
+.agent-world-edge-button:hover .agent-world-edge-button__surface,
+.agent-world-edge-button:focus-visible .agent-world-edge-button__surface {
+    background: #059669;
+    box-shadow: 0 4px 10px rgb(16 185 129 / 28%);
+}
+
+.agent-world-edge-button__globe {
+    display: block;
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.agent-world-edge-button__orbit {
+    transform-box: view-box;
+    transform-origin: center;
+    animation: agent-world-satellite-orbit 6s linear infinite;
+}
+
+.agent-world-edge-button__orbit-path {
+    stroke-width: 0.7;
+    opacity: 0.45;
+}
+
+.agent-world-edge-button__satellite {
+    fill: currentColor;
+    stroke: none;
+}
+
+.agent-world-edge-button__label {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    width: 0;
+    margin-left: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: width 200ms ease, margin-left 200ms ease, opacity 160ms ease;
+}
+
+@media (min-width: 640px) {
+    .agent-world-edge-button:hover .agent-world-edge-button__surface,
+    .agent-world-edge-button:focus-visible .agent-world-edge-button__surface {
+        width: 7.5rem;
+    }
+
+    .agent-world-edge-button:hover .agent-world-edge-button__label,
+    .agent-world-edge-button:focus-visible .agent-world-edge-button__label {
+        width: 5rem;
+        margin-left: 0.5rem;
+        opacity: 1;
+    }
+}
+
+@keyframes agent-world-satellite-orbit {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .agent-world-edge-button__orbit,
+    .agent-world-edge-button__surface,
+    .agent-world-edge-button__label {
+        animation: none;
+        transition: none;
+    }
+}

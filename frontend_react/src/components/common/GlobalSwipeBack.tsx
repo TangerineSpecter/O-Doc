@@ -1,6 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { triggerSwipeBackInterceptors } from '../../utils/swipeBackRegistry';
+import { hasActiveInterceptors, triggerSwipeBackInterceptors } from '../../utils/swipeBackRegistry';
+import {
+    useMacTrackpadHistoryNavigation,
+    type TrackpadHistoryFeedbackState,
+} from '../../hooks/useMacTrackpadHistoryNavigation';
+import TrackpadHistoryFeedback from './TrackpadHistoryFeedback';
 
 const DEFAULT_TAB_PATHS = ['/memos', '/prompts', '/resources', '/stats'];
 const MIN_SWIPE_DISTANCE = 55; // 触发返回所需最小水平位移 px
@@ -14,7 +19,9 @@ interface SwipeVisualState {
 }
 
 /**
- * 全局移动端右滑返回指示器与手势调度组件
+ * 全局返回手势调度组件
+ * - 移动端单指右滑提供边缘动效
+ * - macOS 桌面触控板双指横滑由独立 Hook 映射到路由历史
  * - 覆盖全站所有路由（包括全屏文章编辑器 /editor、登录页 /login、白板 /whiteboard 及常规 Layout 页面）
  * - 方案 C：边缘流体水滴弧形拉伸动效 (Fluid Edge Ripple)
  * - 浮层优先拦截（通过 swipeBackRegistry 统一调度）
@@ -25,6 +32,48 @@ export default function GlobalSwipeBack() {
     const navigate = useNavigate();
 
     const [swipeState, setSwipeState] = useState<SwipeVisualState | null>(null);
+    const [trackpadFeedback, setTrackpadFeedback] = useState<TrackpadHistoryFeedbackState | null>(null);
+    const pathname = location.pathname;
+
+    const handleMobileBack = useCallback(() => {
+        if (triggerSwipeBackInterceptors()) return;
+        if (pathname === '/' || pathname === '/home') return;
+
+        const isTab = DEFAULT_TAB_PATHS.some(
+            (path) => pathname === path || pathname.startsWith(`${path}/`)
+        );
+        if (isTab) navigate('/');
+        else navigate(-1);
+    }, [navigate, pathname]);
+
+    const handleHistoryBack = useCallback(() => {
+        if (!triggerSwipeBackInterceptors()) navigate(-1);
+    }, [navigate]);
+
+    const handleHistoryForward = useCallback(() => navigate(1), [navigate]);
+
+    const canBack = useCallback(() => {
+        if (hasActiveInterceptors()) return true;
+        if (typeof window !== 'undefined' && (window as unknown as { navigation?: { canGoBack?: boolean } }).navigation) {
+            return Boolean((window as unknown as { navigation?: { canGoBack?: boolean } }).navigation?.canGoBack);
+        }
+        return true;
+    }, []);
+
+    const canForward = useCallback(() => {
+        if (typeof window !== 'undefined' && (window as unknown as { navigation?: { canGoForward?: boolean } }).navigation) {
+            return Boolean((window as unknown as { navigation?: { canGoForward?: boolean } }).navigation?.canGoForward);
+        }
+        return true;
+    }, []);
+
+    useMacTrackpadHistoryNavigation(
+        handleHistoryBack,
+        handleHistoryForward,
+        setTrackpadFeedback,
+        canBack,
+        canForward
+    );
 
     // 手势记录 Ref
     const gestureRef = useRef<{
@@ -34,8 +83,6 @@ export default function GlobalSwipeBack() {
         valid: boolean;
         vibrated: boolean;
     } | null>(null);
-
-    const pathname = location.pathname;
 
     useEffect(() => {
         const isEditorPage = pathname === '/editor' || pathname.startsWith('/editor/');
@@ -163,27 +210,7 @@ export default function GlobalSwipeBack() {
                 setTimeout(() => {
                     setSwipeState(null);
 
-                    // 1. 优先执行全局注册的弹窗/浮层拦截器
-                    const intercepted = triggerSwipeBackInterceptors();
-                    if (intercepted) {
-                        return;
-                    }
-
-                    // 2. 如果已经在首页，不执行返回
-                    if (pathname === '/' || pathname === '/home') {
-                        return;
-                    }
-
-                    // 3. 核心 Tab 页面返回首页，其他子页面返回上一页
-                    const isTab = DEFAULT_TAB_PATHS.some(
-                        (p) => pathname === p || pathname.startsWith(`${p}/`)
-                    );
-
-                    if (isTab) {
-                        navigate('/');
-                    } else {
-                        navigate(-1);
-                    }
+                    handleMobileBack();
                 }, 180);
             } else {
                 // 未达标或被取消：水滴平滑缩回左边缘并隐藏
@@ -210,10 +237,10 @@ export default function GlobalSwipeBack() {
             window.removeEventListener('touchend', handleTouchEnd);
             window.removeEventListener('touchcancel', handleTouchCancel);
         };
-    }, [pathname, navigate]);
+    }, [pathname, navigate, handleMobileBack]);
 
     if (!swipeState) {
-        return null;
+        return <TrackpadHistoryFeedback gesture={trackpadFeedback} />;
     }
 
     const { deltaX, clientY, triggered, exiting, active } = swipeState;
@@ -240,6 +267,7 @@ export default function GlobalSwipeBack() {
     const arrowOpacity = deltaX < 15 ? 0 : Math.min(1, (deltaX - 15) / 32);
 
     return (
+      <>
         <aside
             aria-hidden="true"
             className="fixed inset-y-0 left-0 w-36 pointer-events-none select-none z-[9999] overflow-visible"
@@ -337,5 +365,7 @@ export default function GlobalSwipeBack() {
                 </g>
             </svg>
         </aside>
+        <TrackpadHistoryFeedback gesture={trackpadFeedback} />
+      </>
     );
 }

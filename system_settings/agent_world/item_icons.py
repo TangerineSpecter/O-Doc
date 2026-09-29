@@ -49,9 +49,8 @@ def upload_icon(upload, owner: str, name: str) -> tuple[Asset, bool]:
         raise
 
 
-@transaction.atomic
-def bind_icon(item_id: str, owner: str, asset_id: str | None) -> AgentInventoryItem:
-    # 同图标删除与绑定按资源锁串行；不改变其他物品的关联。
+def lock_owned_icon(owner: str, asset_id: str | None):
+    """Validate and lock the resource before locking inventory rows."""
     asset = None
     if asset_id:
         asset = Asset.objects.select_for_update().filter(
@@ -60,6 +59,13 @@ def bind_icon(item_id: str, owner: str, asset_id: str | None) -> AgentInventoryI
             raise ValueError('图标不存在或不属于当前账号')
         if not (Path(settings.MEDIA_ROOT) / asset.file_path).is_file():
             raise ValueError('图标文件尚未下载或已丢失，请恢复资源后重试')
+    return asset
+
+
+@transaction.atomic
+def bind_icon(item_id: str, owner: str, asset_id: str | None) -> AgentInventoryItem:
+    # 同图标删除与绑定按资源锁串行；不改变其他物品的关联。
+    asset = lock_owned_icon(owner, asset_id)
     item = AgentInventoryItem.objects.select_for_update().filter(pk=item_id, owner_id=owner).first()
     if not item:
         raise LookupError('物品不存在')

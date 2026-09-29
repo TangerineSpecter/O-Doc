@@ -110,7 +110,7 @@ def recover_photo(journey):
             if not skill or not any(any(t.get('name') == 'generate_image' and t.get('enabled', True) for t in (server.tools or [])) for server in bound_tools):
                 raise ValueError('未绑定旅行场景照 Skill 或可用生图 MCP，日记已先发布')
             model_id = photo.get('request', {}).get('model_id') or state.get('config', {}).get('image_model_id')
-            options = image_generation_options(journey.agent, model_id=model_id)
+            options = image_generation_options(journey.agent, model_id=model_id, scene='travel_photo')
             if not options.get('configured'):
                 raise ValueError(options.get('message') or '生图模型未配置')
             refs = list(dict.fromkeys(options.get('agent_reference_images', {}).values()))
@@ -119,7 +119,7 @@ def recover_photo(journey):
             node, _ = TravelNode.objects.get_or_create(pk=f'{journey.pk}:photo-{photo.get("attempt", 0)}', defaults={'journey': journey, 'kind': 'photo'})
             def validate(v):
                 return {'prompt': text(v, 'prompt', 8000)}
-            prompt = decide(journey, node, '只生成生图提示词，返回 {"prompt":"..."}。按参考图顺序说明用途。头像固定身份及人物画风：最终提示词必须要求沿用头像的头身比例、脸型、五官画法、描边粗细、色块与阴影方式，不能仅匹配发色和瞳色；头像为Q版时保持Q版，不能转为常规动漫少女比例。全身图默认补充服装配饰，不覆盖头像画风；任务明确指定其他版本时遵从。未看到参考图片时不要猜测画风，直接要求生图模型按头像还原。只表现已发生片段，单张完整画面。角色卡只摘外观，不发送完整人格。',
+            prompt = decide(journey, node, '只生成生图提示词，返回 {"prompt":"..."}。按参考图顺序说明用途。角色默认采用旅行场景照的统一画风：Q版大头短身（约2–3头身）、圆润简化的四肢和五官、粗而清晰的深褐近黑手绘描边、干净色块、轻柔明暗和少量纸感纹理；避免修长成人比例、细线稿和写实人物。头像固定角色身份、发型和五官特征；全身图补充服装配饰。只有任务明确指定另一种画风时才覆盖默认画风。提示词整理模型未看到参考图片时不要猜测具体外形，直接要求生图模型按头像还原。默认横向16:9，使用能同时表现角色动作和地点环境的中景或环境人像，背景细致、有层次并让地标可辨认。只表现已发生片段，输出单张完整画面。表情按角色性格和经历决定，不要求温柔、活泼或总是开心。角色卡只摘外观，不发送完整人格。',
                 {'scene': state['draft']['photo_scene'], 'journey': state, 'reference_images': options.get('agent_reference_images', {}), 'appearance': {'avatar': journey.agent.avatar, 'full_body': journey.agent.full_body_image}}, validate, skill.prompt)
             if not photo.get('request'):
                 sizes = [s['value'] for s in options.get('image_size_options', [])]
@@ -127,18 +127,21 @@ def recover_photo(journey):
                 if sizes and requested_size not in sizes:
                     raise ValueError(f'当前模型不支持配置的{requested_size}分辨率，请人工处理')
                 avatar = options.get('agent_reference_images', {}).get('avatar')
-                style = ''
+                style = ('\n旅行场景照统一画风：除任务明确指定其他画风外，角色均保持约2–3头身的Q版大头短身比例、'
+                    '圆润简化的五官和四肢、粗而清晰的深褐近黑手绘描边、干净色块、轻柔明暗及少量纸感纹理；'
+                    '避免修长成人比例、细线稿和写实人物。使用横向16:9构图，角色动作、地点地标和旅行环境都清楚可见；'
+                    '背景可以更细致、有层次，但不改变角色画法。表情按性格与实际经历决定，不默认开心。')
                 if avatar in refs:
-                    style = (f'\n人物画风约束：参考图 {refs.index(avatar)+1} 是头像。除任务明确指定更换画风外，'
-                        '严格沿用此头像的头身比例、脸型、五官画法、描边粗细、色块与阴影方式；'
-                        '不能只匹配发色和瞳色。头像是Q版时保持大头短身、圆脸、简化小手与原有描边，'
-                        '不改成常规动漫少女比例。其他参考图补充服装、配饰，背景可以更细致，不改变人物画法。')
+                    style += (f'\n角色参考约束：参考图 {refs.index(avatar)+1} 是头像，用于还原该角色身份、发型和五官；'
+                        '按默认Q版比例和粗描边重画角色。其他参考图补充服装、配饰，不要复制设定图排版。')
+                else:
+                    style += '\n没有可用头像参考图时，不要声称已参考头像，也不要臆造角色具体外形。'
                 photo['request'] = {'prompt': prompt['prompt'] + style, 'reference_image_ids': refs,
                     'request_id': f'travel:{journey.pk}:{photo.get("attempt", 0)}'}
                 if options.get('model_id'):
                     photo['request']['model_id'] = options['model_id']
                 if options.get('default_aspect_ratio'):
-                    photo['request']['aspect_ratio'] = state.get('config', {}).get('image_aspect_ratio', options['default_aspect_ratio'])
+                    photo['request']['aspect_ratio'] = state.get('config', {}).get('image_aspect_ratio') or options['default_aspect_ratio']
                 if sizes:
                     photo['request']['image_size'] = requested_size
             # 提交前保存参数与幂等键，崩溃后不变更生成意图。

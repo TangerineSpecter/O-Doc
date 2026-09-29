@@ -4,7 +4,7 @@ import {SelectablePostBody} from '../components/AgentPost/SelectablePostBody';
 import {ReactNode, useCallback, useEffect, useRef, useState} from 'react';
 import ReactMarkdown, {defaultUrlTransform} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import {AlertCircle, ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, Send, Settings, Star, Trash2} from 'lucide-react';
+import {AlertCircle, ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, Send, Star, Trash2} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 import Article from './Article';
@@ -546,13 +546,6 @@ function AgentPostCollectionView({
                         <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{anthologyInfo?.description || '暂无简介'}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2.5">
-                        <a
-                            href="/settings?tab=world"
-                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-xs transition-colors hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-600"
-                        >
-                            <Settings className="h-4 w-4 text-slate-400" />
-                            <span>管理分类、职业和收益</span>
-                        </a>
                         <button
                             type="button"
                             onClick={onBackHome}

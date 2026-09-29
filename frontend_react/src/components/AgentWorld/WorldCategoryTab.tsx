@@ -1,4 +1,4 @@
-import { CheckCircle2, Edit2, FolderTree, Info } from 'lucide-react';
+import { CheckCircle2, Edit2, FolderTree } from 'lucide-react';
 import type { WorldCategory } from '../../types/api/agentWorld';
 
 interface WorldCategoryTabProps {
@@ -9,12 +9,6 @@ interface WorldCategoryTabProps {
 export function WorldCategoryTab({ categories, onEdit }: WorldCategoryTabProps) {
     return (
         <div className="space-y-4">
-            {/* 提示信息栏 */}
-            <div className="flex items-center gap-2.5 px-4 py-2.5 bg-amber-50/70 border border-amber-200/60 rounded-xl text-xs text-amber-800">
-                <Info className="w-4 h-4 text-amber-500 shrink-0" />
-                <span>停用保留历史关联；历史帖子需要人工迁移。</span>
-            </div>
-
             {/* 紧凑分类列表 */}
             {categories.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">

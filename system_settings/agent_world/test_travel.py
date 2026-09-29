@@ -534,7 +534,7 @@ class TravelTests(TestCase):
                 patch('system_settings.agent_world.travel_publication.generate_image', return_value={'status': 'generating', 'task_id': 'a'*32}) as generate:
             recover_photo(row)
         request = generate.call_args.args[0]
-        get_options.assert_called_once_with(row.agent, model_id='task-image-model')
+        get_options.assert_called_once_with(row.agent, model_id='task-image-model', scene='travel_photo')
         self.assertEqual(request['model_id'], 'task-image-model')
         self.assertEqual(request['aspect_ratio'], '3:2')
         self.assertEqual(request['image_size'], '2K')
@@ -562,7 +562,7 @@ class TravelTests(TestCase):
             self.assertEqual(serializer.is_valid(), valid, serializer.errors)
             response = self.client.get('/api/prompt/article-illustration/options', {'model_id': str(model.pk), 'scene': 'travel_photo'})
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.data['data']['default_aspect_ratio'], '1:1')
+            self.assertEqual(response.data['data']['default_aspect_ratio'], '16:9')
             self.assertEqual([item['value'] for item in response.data['data']['image_size_options']], ['1K'] if name == 'gpt-image-2' else ['1K', '2K', '4K'])
 
     def test_restore_discards_remote_image_lease(self):

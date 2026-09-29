@@ -1,18 +1,27 @@
-"""只读物品图鉴：内置农牧目录与当前共用背包物品，不另建库存或收集记录。"""
-from .farm_catalog import DEFAULT_RULES
+"""物品图鉴目录：组合农牧规则、共享背包数量和可复用图片，不另建库存或收集记录。"""
+from assets.models import Asset
+from .farm_catalog import DEFAULT_RULES, normalized_rules
 from .farm_models import FarmCatalog
 from .travel_models import AgentInventoryItem
 from .travel_views import InventorySerializer, inventory_context
+from .item_catalog_identity import inventory_catalog_identity
 
 
 def item_catalog(owner: str) -> list[dict]:
     catalog = FarmCatalog.objects.filter(pk=owner).first()
-    rules = catalog.rules if catalog else DEFAULT_RULES
+    rules = normalized_rules(catalog.rules if catalog else DEFAULT_RULES)
+    icon_ids = rules.get('item_icons') or {}
+    icon_assets = {asset.pk for asset in Asset.objects.filter(
+        pk__in=icon_ids.values(), uploader=owner, is_valid=True,
+        source_type='item_icon', file_type='image').only('pk')}
     entries = {}
 
     def add(sku, name, category, description, purchase=None, sale=None, quality='normal'):
+        asset_id = icon_ids.get(sku)
         entries[sku] = dict(id=sku, sku=sku, name=name, category=category, description=description,
-                            purchase_price=purchase, sale_price=sale, quality=quality, quantity=0, icon_url='')
+                            purchase_price=purchase, sale_price=sale, quality=quality, quantity=0,
+                            icon_asset_id=asset_id if asset_id in icon_assets else None,
+                            icon_url=f'/api/resource/view/{asset_id}' if asset_id in icon_assets else '')
 
     add('feed', '饲料', 'feed', '每份为一只动物补足最多 24 小时的喂养覆盖，缺饲料时暂停生产。', rules['feed_price'])
     for kind, crop in rules['crops'].items():
@@ -38,11 +47,12 @@ def item_catalog(owner: str) -> list[dict]:
             continue
         # 无稳定 SKU 的旅行纪念品按名称、品质及目的地归类，避免把不同旅行物品合并。
         destination = source.get('destination') or {}
-        identity = ('inventory', sku or (row['name'], row['rarity'], destination.get('country', ''), destination.get('city', '')))
+        identity = inventory_catalog_identity(row['name'], row['rarity'], source)
         if identity not in entries:
             entries[identity] = dict(id='inventory:' + row['id'], sku=sku, name=row['name'],
                 category='souvenir' if row['kind'] == 'souvenir' else 'other',
                 description=source.get('description') or ('来自' + destination['city'] if destination.get('city') else '居民共用背包中的物品。'),
-                purchase_price=None, sale_price=None, quality=row['rarity'], quantity=0, icon_url=row['icon_url'])
+                purchase_price=None, sale_price=None, quality=row['rarity'], quantity=0,
+                icon_asset_id=row.get('icon_asset_id'), icon_url=row['icon_url'])
         entries[identity]['quantity'] += row['quantity']
     return list(entries.values())

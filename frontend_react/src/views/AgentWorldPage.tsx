@@ -11,6 +11,7 @@ import AgentWorldBanner from '../components/AgentWorld/AgentWorldBanner';
 import AgentFinanceFeed from '../components/AgentWorld/AgentFinanceFeed';
 import AgentRelationCard from '../components/AgentWorld/AgentRelationCard';
 import AgentRunDrawer from '../components/AgentWorld/AgentRunDrawer';
+import WorldManagementDialog from '../components/AgentWorld/WorldManagementDialog';
 import {AgentResidentsMobileBar, AgentResidentsSidebar} from '../components/AgentWorld/AgentResidentsBar';
 import StarLoader from '../components/common/StarLoader';
 import {useAgentRelation} from '../hooks/useAgentRelation';
@@ -35,6 +36,7 @@ export default function AgentWorldPage() {
     const closeFarm = useCallback(() => setFarmOpen(false), []);
     const [catalogOpen, setCatalogOpen] = useState(false);
     const closeCatalog = useCallback(() => setCatalogOpen(false), []);
+    const [worldManagementOpen, setWorldManagementOpen] = useState(false);
     const [query] = useSearchParams();
     const world = useAgentWorld();
     const [activeFilter, setActiveFilter] = useState<AgentWorldFilter>(query.has('travel') ? 'travel' : 'all');
@@ -97,13 +99,14 @@ export default function AgentWorldPage() {
                         <BookOpenText className="h-3.5 w-3.5 shrink-0"/>物品图鉴
                     </button>
                     <button type="button" onClick={() => setFarmOpen(true)} className="rounded-lg border border-lime-200 bg-lime-50 px-3 py-1.5 text-xs font-semibold text-lime-700">像素农场</button>
-                    <a
-                        href="/settings?tab=world"
+                    <button
+                        type="button"
+                        onClick={() => setWorldManagementOpen(true)}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition-colors hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-600 active:scale-95"
                     >
                         <Settings className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                         <span>世界管理</span>
-                    </a>
+                    </button>
                     <button
                         type="button"
                         onClick={() => navigate('/')}
@@ -234,8 +237,9 @@ export default function AgentWorldPage() {
                     onClose={() => setPanel(null)}
                 />
             ) : null}
-            {farmOpen&&<Suspense fallback={<WorldDialog title="像素农场" onClose={closeFarm} size="wide"><p className="p-8 text-center text-slate-500">正在铺开农场地图…</p></WorldDialog>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></Suspense>}
-            {catalogOpen && <Suspense fallback={<WorldDialog title="物品图鉴" onClose={closeCatalog} size="wide"><p className="p-8 text-center text-slate-500">正在翻开图鉴…</p></WorldDialog>}><ItemCatalogDialog onClose={closeCatalog}/></Suspense>}
+            {farmOpen&&<Suspense fallback={<WorldDialog title="像素农场" onClose={closeFarm} size="wide" manageFocus={false}><p className="p-8 text-center text-slate-500">正在铺开农场地图…</p></WorldDialog>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></Suspense>}
+            {catalogOpen && <Suspense fallback={<WorldDialog title="物品图鉴" onClose={closeCatalog} size="wide" manageFocus={false}><p className="p-8 text-center text-slate-500">正在翻开图鉴…</p></WorldDialog>}><ItemCatalogDialog onClose={closeCatalog}/></Suspense>}
+            {worldManagementOpen && <WorldManagementDialog onClose={() => setWorldManagementOpen(false)} />}
             <AgentRunDrawer
                 key={selectedActivity?.runRecordId || selectedActivity?.id || 'closed'}
                 activity={selectedActivity}

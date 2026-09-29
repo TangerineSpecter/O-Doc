@@ -4,7 +4,7 @@ export interface TravelConfig {
     imageModelId?: string;
     imageAspectRatio?: string; imageSize?: string;
 }
-export const emptyTravelConfig = (): TravelConfig => ({collectionId: '', categoryId: '', searchServerId: '', nodeMinutes: 1, recentCities: 3, energyCost: 20, photoEnabled: true});
+export const emptyTravelConfig = (): TravelConfig => ({collectionId: '', categoryId: '', searchServerId: '', nodeMinutes: 1, recentCities: 3, energyCost: 20, photoEnabled: true, imageModelId: '', imageAspectRatio: '16:9', imageSize: '1K'});
 interface Destination {id: string; country: string; city: string; region: string; price: string}
 export interface TravelJourney {
     id: string; actorId: string; status: string; phase: string; articleId: string;

@@ -15,7 +15,7 @@ DEFAULT_RULES = {
         'sheep': {'name': '羊', 'product': '羊毛', 'period_seconds': 172800, 'price': 500, 'sale_price': 90, 'building': 'barn'}},
     'buildings': {'coop': {'name': '鸡舍', 'prices': [300, 600, 1200], 'capacities': [2, 4, 6]},
                   'barn': {'name': '牛羊舍', 'prices': [800, 1600, 3200], 'capacities': [2, 4, 6]}},
-    'land_prices': [500, 1000, 2000], 'feed_price': 5,
+    'land_prices': [500, 1000, 2000], 'feed_price': 5, 'item_icons': {},
 }
 
 
@@ -23,7 +23,16 @@ def catalog_for(owner: str) -> FarmCatalog:
     return FarmCatalog.objects.get_or_create(pk=owner, defaults={'seed': uuid.uuid4().hex, 'rules': copy.deepcopy(DEFAULT_RULES)})[0]
 
 
+def normalized_rules(value: dict | None) -> dict:
+    rules = copy.deepcopy(value if isinstance(value, dict) else DEFAULT_RULES)
+    # Existing WebDAV snapshots may predate catalog-level image overrides.
+    rules.setdefault('item_icons', {})
+    return rules
+
+
 def validate_rules(value: dict) -> dict:
+    if isinstance(value, dict) and 'item_icons' not in value:
+        value = {**value, 'item_icons': {}}
     if not isinstance(value, dict) or set(value) != set(DEFAULT_RULES):
         raise serializers.ValidationError('目录必须包含完整的作物、动物、建筑、土地及饲料配置')
     for group in ('crops', 'animals', 'buildings'):
@@ -47,4 +56,20 @@ def validate_rules(value: dict) -> dict:
         raise serializers.ValidationError('需要三个有效土地价格')
     if type(value['feed_price']) is not int or not 1 <= value['feed_price'] <= 1000000:
         raise serializers.ValidationError('饲料价格无效')
+    if not isinstance(value['item_icons'], dict):
+        raise serializers.ValidationError('物品图标配置无效')
+    from .item_catalog_icons import catalog_item_names
+    allowed_skus = set(catalog_item_names(value))
+    for sku, asset_id in value['item_icons'].items():
+        if sku not in allowed_skus or not isinstance(asset_id, str) or not asset_id or len(asset_id) > 32:
+            raise serializers.ValidationError('物品图标关联无效')
+    return value
+
+
+def validate_crop_rule(value: dict) -> dict:
+    fields = {'growth_seconds', 'seed_price', 'yield', 'sale_price'}
+    if not isinstance(value, dict) or set(value) != fields:
+        raise serializers.ValidationError('作物规则字段不完整')
+    if any(type(number) is not int or not 1 <= number <= 1000000 for number in value.values()):
+        raise serializers.ValidationError('数值必须为 1 至 1000000 的整数')
     return value

@@ -44,12 +44,12 @@ def resolve_image_model(model_id=None):
     return model
 
 
-def image_generation_options(agent=None, model_id=None) -> dict:
+def image_generation_options(agent=None, model_id=None, scene='generic') -> dict:
     try:
         model = resolve_image_model(model_id)
     except GrsaiImageError as exc:
         return {'configured': False, 'message': str(exc)}
-    options = serialize_image_generation_options(model, scene='generic')
+    options = serialize_image_generation_options(model, scene=scene)
     options.update(configured=True, model_id=str(model.pk), supports_reference_images=supports_references(model),
                    max_reference_images=MAX_REFERENCE_IMAGES if supports_references(model) else 0)
     references = {}

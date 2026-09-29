@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import FloatingActionMenu from '../components/FloatingActionMenu';
 import { AIChatWindow } from '../components/AIChatWindow';
 import { PeekingBotButton } from '../components/AIChatWindow/PeekingBotButton';
+import AgentWorldEdgeButton from '../components/AgentWorld/AgentWorldEdgeButton';
 import AgentContactPanel from '../components/AgentContactPanel';
 import { getUserInfo } from '../api/user';
 import type { UserInfo } from '../types/api/user';
@@ -151,6 +152,7 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                         title={isAuthenticated ? '打开 AI 中心' : '打开小橘 AI助手'}
                         zIndexClass="z-[80]"
                     />
+                    <AgentWorldEdgeButton />
                 </div>
             )}
 

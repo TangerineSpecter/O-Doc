@@ -17,7 +17,7 @@ class TravelConfigSerializer(serializers.Serializer):
     energy_cost = serializers.IntegerField(default=20, min_value=0, max_value=100)
     photo_enabled = serializers.BooleanField(default=True)
     image_model_id = serializers.CharField(max_length=40, allow_blank=True, default='')
-    image_aspect_ratio = serializers.ChoiceField(choices=COMMON_IMAGE_RATIOS, default='1:1')
+    image_aspect_ratio = serializers.ChoiceField(choices=COMMON_IMAGE_RATIOS, default='16:9')
     image_size = serializers.ChoiceField(choices=['1K', '2K', '4K'], default='1K')
     owner_id = serializers.CharField(read_only=True)
 
@@ -37,7 +37,7 @@ class TravelConfigSerializer(serializers.Serializer):
                 model = None  # 缺少默认配图配置仍允许旅行与文字日记。
             if model and get_image_generation_profile(model).mode != 'automatic':
                 try:
-                    resolve_image_generation_request(model, {'aspect_ratio': data['image_aspect_ratio'], 'image_size': data['image_size']}, scene='generic')
+                    resolve_image_generation_request(model, {'aspect_ratio': data['image_aspect_ratio'], 'image_size': data['image_size']}, scene='travel_photo')
                 except ValueError as exc:
                     raise serializers.ValidationError(str(exc)) from exc
         previous = self.context.get('previous', {})

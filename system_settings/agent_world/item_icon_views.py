@@ -12,6 +12,7 @@ from utils.drf_utils import get_current_user_identifier
 from utils.response_utils import success_result, valid_result
 from utils.resource_assets import delete_asset_record_and_file, is_asset_referenced
 from .item_icons import bind_icon, normalize_item_name, upload_icon
+from .item_catalog_icons import catalog_icon_usage_counts
 from .travel_models import AgentInventoryItem
 from .travel_views import InventorySerializer, inventory_context
 
@@ -64,6 +65,8 @@ class ItemIconListView(APIView):
         ids = [asset.pk for asset in page]
         uses = dict(AgentInventoryItem.objects.filter(icon_asset_id__in=ids).values('icon_asset_id')
                     .annotate(count=Count('id')).values_list('icon_asset_id', 'count'))
+        for asset_id, count in catalog_icon_usage_counts(ids).items():
+            uses[asset_id] = uses.get(asset_id, 0) + count
         data['list'] = [icon_data(asset, uses.get(asset.pk, 0), bool(normalized and normalized in
             [normalize_item_name(asset.name), *asset.metadata.get('confirmed_names', [])])) for asset in page]
         return success_result(data)
@@ -77,7 +80,8 @@ class ItemIconListView(APIView):
             return valid_result('图标名称需要 1–200 个字符', status=400)
         try:
             asset, duplicate = upload_icon(upload, get_current_user_identifier(request), name)
-            usage = AgentInventoryItem.objects.filter(icon_asset_id=asset.pk).count()
+            usage = (AgentInventoryItem.objects.filter(icon_asset_id=asset.pk).count()
+                     + catalog_icon_usage_counts([asset.pk]).get(asset.pk, 0))
             return success_result({**icon_data(asset, usage), 'duplicate': duplicate})
         except ValueError as exc:
             return valid_result(str(exc), status=400)
@@ -99,7 +103,9 @@ class ItemIconDetailView(APIView):
                 return valid_result('图标不存在', status=404)
             asset.name = name.strip()
             asset.save(update_fields=['name', 'update_time'])
-        return success_result(icon_data(asset, AgentInventoryItem.objects.filter(icon_asset_id=asset.pk).count()))
+        usage = (AgentInventoryItem.objects.filter(icon_asset_id=asset.pk).count()
+                 + catalog_icon_usage_counts([asset.pk]).get(asset.pk, 0))
+        return success_result(icon_data(asset, usage))
 
     def delete(self, request, asset_id):
         with transaction.atomic():

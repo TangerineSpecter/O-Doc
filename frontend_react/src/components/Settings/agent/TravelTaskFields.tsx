@@ -13,7 +13,7 @@ export function TravelTaskFields({value, servers, imageModels, onChange}: {value
     const sizes = image.settings?.imageSizeOptions || [];
     useEffect(() => {
         if (!image.settings || image.settings.mode === 'automatic') return;
-        const imageAspectRatio = ratios.some(option => option.value === (value.imageAspectRatio || '1:1')) ? (value.imageAspectRatio || '1:1') : ratios[0]?.value;
+        const imageAspectRatio = ratios.some(option => option.value === (value.imageAspectRatio || '16:9')) ? (value.imageAspectRatio || '16:9') : ratios[0]?.value;
         const imageSize = sizes.some(option => option.value === (value.imageSize || '1K')) ? (value.imageSize || '1K') : sizes[0]?.value;
         if (imageAspectRatio !== value.imageAspectRatio || imageSize !== value.imageSize) onChange({...value, imageAspectRatio, imageSize});
     }, [image.settings, value.imageAspectRatio, value.imageSize]);
@@ -30,7 +30,7 @@ export function TravelTaskFields({value, servers, imageModels, onChange}: {value
         <Checkbox checked={value.photoEnabled} onChange={photoEnabled => onChange({...value, photoEnabled})} label="默认生成一张旅行场景照"/>
         <label className="block space-y-2 text-sm text-slate-700"><span>场景照生图模型</span><Select menuPortal value={value.imageModelId || ''} options={[{value: '', label: '跟随系统默认生图模型'}, ...imageModels.map(model => ({value: model.id, label: `${model.providerName} / ${model.displayName || model.name}`}))]} onChange={imageModelId => onChange({...value, imageModelId})}/></label>
         {image.loading ? <p className="text-xs text-slate-500">正在加载模型尺寸选项…</p> : image.error ? <p className="text-xs text-amber-600">{image.error}</p> : image.settings?.mode === 'automatic' ? <p className="text-xs text-slate-500">此模型由服务自动决定比例和分辨率。</p> : <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block space-y-2 text-sm text-slate-700"><span>场景照比例</span><Select menuPortal value={value.imageAspectRatio || '1:1'} options={ratios} onChange={imageAspectRatio => onChange({...value, imageAspectRatio})}/></label>
+            <label className="block space-y-2 text-sm text-slate-700"><span>场景照比例</span><Select menuPortal value={value.imageAspectRatio || '16:9'} options={ratios} onChange={imageAspectRatio => onChange({...value, imageAspectRatio})}/></label>
             <label className="block space-y-2 text-sm text-slate-700"><span>场景照分辨率</span><Select menuPortal value={value.imageSize || '1K'} options={sizes} onChange={imageSize => onChange({...value, imageSize})}/></label>
         </div>}
         <p className="text-xs leading-5 text-slate-500">指定模型后，此旅行任务独立使用该模型。已创建旅行保留当时的任务配置，已提交图片继续查询原请求。</p>

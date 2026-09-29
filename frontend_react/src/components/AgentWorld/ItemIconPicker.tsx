@@ -1,12 +1,12 @@
 import {Package} from 'lucide-react';
-import type {InventoryItem} from '../../types/api/travel';
+import type {ItemIconTarget} from '../../hooks/useItemIconPicker';
 import {useItemIconPicker} from '../../hooks/useItemIconPicker';
 import WorldDialog from './WorldDialog';
 import {ItemIconUploadForm} from './ItemIconUploadForm';
 import {ItemImagePagination} from './ItemImagePagination';
 import {ItemIconImage} from './ItemIconImage';
 
-export function ItemIconPicker({item, onClose, onSaved}: {item: InventoryItem; onClose: () => void; onSaved: () => void}) {
+export function ItemIconPicker({item, onClose, onSaved}: {item: ItemIconTarget; onClose: () => void; onSaved: () => void}) {
     const state = useItemIconPicker(item);
     const icons = state.uploaded ? [state.uploaded, ...state.icons.filter(icon => icon.id !== state.uploaded?.id)] : state.icons;
     return <WorldDialog title="设置物品图片" description={item.name} onClose={() => {if (!state.busy) onClose();}}>

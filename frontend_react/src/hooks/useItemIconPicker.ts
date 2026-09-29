@@ -1,9 +1,18 @@
 import {useEffect, useState} from 'react';
 import {getItemIcons, setInventoryIcon, uploadItemIcon} from '../api/itemIcons';
+import {setCatalogItemIcon, setCatalogInventoryIcon} from '../api/itemCatalog';
 import type {ItemIcon} from '../types/api/itemIcons';
 import type {InventoryItem} from '../types/api/travel';
+import type {CatalogItem} from '../types/api/itemCatalog';
 
-export function useItemIconPicker(item: InventoryItem) {
+export type ItemIconTarget = InventoryItem | CatalogItem;
+
+function inventoryId(item: ItemIconTarget): string | null {
+    if ('category' in item) return item.id.startsWith('inventory:') ? item.id.slice('inventory:'.length) : null;
+    return item.id;
+}
+
+export function useItemIconPicker(item: ItemIconTarget) {
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
     const [icons, setIcons] = useState<ItemIcon[]>([]);
@@ -14,11 +23,12 @@ export function useItemIconPicker(item: InventoryItem) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [uploaded, setUploaded] = useState<ItemIcon | null>(null);
+    const targetInventoryId = inventoryId(item);
     useEffect(() => {
         const controller = new AbortController();
         const timer = window.setTimeout(() => {
             setLoading(true); setError('');
-            void getItemIcons({search, itemId: item.id, page}, controller.signal).then(data => {
+            void getItemIcons({search, itemId: targetInventoryId || undefined, page}, controller.signal).then(data => {
                 if (controller.signal.aborted) return;
                 setIcons(data.list); setTotal(data.total); setPageSize(data.pageSize); setPage(data.page);
             }).catch(e => {
@@ -26,7 +36,7 @@ export function useItemIconPicker(item: InventoryItem) {
             }).finally(() => {if (!controller.signal.aborted) setLoading(false);});
         }, 200);
         return () => {controller.abort(); window.clearTimeout(timer);};
-    }, [item.id, search, page]);
+    }, [targetInventoryId, search, page]);
     const upload = async (file: File, name: string) => {
         setBusy(true); setError('');
         try {
@@ -38,7 +48,13 @@ export function useItemIconPicker(item: InventoryItem) {
     };
     const save = async () => {
         setBusy(true); setError('');
-        try {await setInventoryIcon(item.id, selected); return true;}
+        try {
+            if (targetInventoryId && 'category' in item) await setCatalogInventoryIcon(targetInventoryId, selected);
+            else if (targetInventoryId) await setInventoryIcon(targetInventoryId, selected);
+            else if ('category' in item && item.sku) await setCatalogItemIcon(item.sku, selected);
+            else throw new Error('图鉴物品缺少可用的稳定编号');
+            return true;
+        }
         catch (e) {setError(e instanceof Error ? e.message : '设置失败，原图片保持不变'); return false;}
         finally {setBusy(false);}
     };

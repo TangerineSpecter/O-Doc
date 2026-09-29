@@ -9,9 +9,8 @@ import { WorldCategoryModal } from './WorldCategoryModal';
 import { WorldProfessionTab } from './WorldProfessionTab';
 import { WorldProfessionModal } from './WorldProfessionModal';
 import { WorldIncomeTab } from './WorldIncomeTab';
-import { WorldItemImages } from './WorldItemImages';
 
-type WorldTab = 'categories' | 'professions' | 'income' | 'items';
+type WorldTab = 'categories' | 'professions' | 'income';
 
 export function WorldManagement() {
     const state = useAgentWorldManagement();
@@ -120,7 +119,7 @@ export function WorldManagement() {
                         <div className="min-w-0">
                             <h3 className="font-bold text-slate-800 text-sm">Agent 世界</h3>
                             <p className="text-xs text-slate-500 mt-0.5 truncate max-w-md lg:max-w-lg xl:max-w-xl">
-                                管理分类、职业、事件收益与物品图片。
+                                管理 Agent 世界的分类、职业与收益规则。
                             </p>
                         </div>
                     </div>
@@ -160,33 +159,34 @@ export function WorldManagement() {
                             >
                                 收益管理
                             </button>
-                            <button type="button" onClick={() => setTab('items')} className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${tab === 'items' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>物品图片</button>
                         </div>
 
-                        {/* 主要操作按钮 */}
-                        {tab === 'categories' && (
-                            <button
-                                type="button"
-                                onClick={openCreateCategory}
-                                title="新增分类"
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-xs shadow-orange-500/20 whitespace-nowrap shrink-0 active:scale-95"
-                            >
-                                <Plus className="w-3.5 h-3.5 shrink-0" />
-                                新增
-                            </button>
-                        )}
+                        {/* 始终预留操作位，避免无新增按钮的页签切换时移动。 */}
+                        <div className="flex h-[30px] w-[62px] shrink-0 items-center justify-end">
+                            {tab === 'categories' && (
+                                <button
+                                    type="button"
+                                    onClick={openCreateCategory}
+                                    title="新增分类"
+                                    className="flex w-full items-center justify-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-medium text-white shadow-xs shadow-orange-500/20 transition-all hover:bg-orange-600 active:scale-95 active:bg-orange-700 whitespace-nowrap shrink-0"
+                                >
+                                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                                    新增
+                                </button>
+                            )}
 
-                        {tab === 'professions' && (
-                            <button
-                                type="button"
-                                onClick={openCreateProfession}
-                                title="新增职业"
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-xs shadow-orange-500/20 whitespace-nowrap shrink-0 active:scale-95"
-                            >
-                                <Plus className="w-3.5 h-3.5 shrink-0" />
-                                新增
-                            </button>
-                        )}
+                            {tab === 'professions' && (
+                                <button
+                                    type="button"
+                                    onClick={openCreateProfession}
+                                    title="新增职业"
+                                    className="flex w-full items-center justify-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-medium text-white shadow-xs shadow-orange-500/20 transition-all hover:bg-orange-600 active:scale-95 active:bg-orange-700 whitespace-nowrap shrink-0"
+                                >
+                                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                                    新增
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -242,7 +242,6 @@ export function WorldManagement() {
                             onSave={handleSaveIncome}
                         />
                     )}
-                    {tab === 'items' && <WorldItemImages/>}
                 </>
             )}
 

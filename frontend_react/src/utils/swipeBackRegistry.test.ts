@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+    hasActiveInterceptors,
     registerSwipeBackInterceptor,
     triggerSwipeBackInterceptors,
 } from './swipeBackRegistry.ts';
 
 test('triggerSwipeBackInterceptors returns false when no interceptors registered', () => {
     assert.equal(triggerSwipeBackInterceptors(), false);
+    assert.equal(hasActiveInterceptors(), false);
 });
+
 
 test('interceptor is executed in LIFO order and can consume the event', () => {
     const callOrder: string[] = [];

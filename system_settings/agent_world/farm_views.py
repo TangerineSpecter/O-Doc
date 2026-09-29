@@ -6,13 +6,14 @@ from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from utils.drf_utils import get_current_user_identifier
-from utils.response_utils import success_result
+from utils.response_utils import success_result, valid_result
 from system_settings.models import Agent, WorldAction, AgentActivity
 from .farm_models import AgentFarm, FarmCatalog
-from .farm_catalog import DEFAULT_RULES, validate_rules
+from .farm_catalog import DEFAULT_RULES, normalized_rules, validate_crop_rule, validate_rules
 from .farm_clock import weather, advance_state, wet_intervals
 from .farm_gate import farm_gate
 from .farm_runner import farm_inventory
+from .item_catalog_icons import validate_catalog_icon_assets
 
 
 def present(farm):
@@ -75,13 +76,42 @@ class FarmCatalogView(APIView):
 
     def get(self, request):
         catalog = FarmCatalog.objects.filter(pk=get_current_user_identifier(request)).first()
-        return success_result(catalog.rules if catalog else copy.deepcopy(DEFAULT_RULES))
+        return success_result(normalized_rules(catalog.rules if catalog else DEFAULT_RULES))
 
     def patch(self, request):
         rules = validate_rules(request.data.get('rules'))
+        owner = get_current_user_identifier(request)
         from .farm_catalog import catalog_for
         with farm_gate(), transaction.atomic():
-            catalog = catalog_for(get_current_user_identifier(request))
+            catalog = catalog_for(owner)
+            current_rules = normalized_rules(catalog.rules)
+            # Crop rules and icon links are managed from the item catalog, never
+            # overwritten by an older farm-configuration form that was open.
+            rules['crops'] = current_rules['crops']
+            rules['item_icons'] = current_rules['item_icons']
+            rules = validate_rules(rules)
+            validate_catalog_icon_assets(owner, rules)
             catalog.rules = rules
             catalog.save(update_fields=['rules', 'updated_at'])
         return success_result(rules)
+
+
+class FarmCropRuleView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, crop_kind):
+        from .farm_catalog import catalog_for
+        from .farm_catalog import DEFAULT_RULES as defaults
+        if crop_kind not in defaults['crops']:
+            return valid_result('作物不存在', status=404)
+        crop_rule = validate_crop_rule(request.data)
+        owner = get_current_user_identifier(request)
+        with farm_gate(), transaction.atomic():
+            catalog_for(owner)
+            catalog = FarmCatalog.objects.select_for_update().get(pk=owner)
+            rules = normalized_rules(catalog.rules)
+            rules['crops'][crop_kind].update(crop_rule)
+            rules = validate_rules(rules)
+            catalog.rules = rules
+            catalog.save(update_fields=['rules', 'updated_at'])
+        return success_result(rules['crops'][crop_kind])

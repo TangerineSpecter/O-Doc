@@ -39,3 +39,11 @@ export function triggerSwipeBackInterceptors(): boolean {
     }
     return false;
 }
+
+/**
+ * 检查当前是否有活跃的拦截器注册
+ */
+export function hasActiveInterceptors(): boolean {
+    return interceptors.length > 0;
+}
+

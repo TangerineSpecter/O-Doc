@@ -28,5 +28,5 @@ class ImageGenerationDimensionsTests(SimpleTestCase):
             for scene in ['generic', 'travel_photo']:
                 options = serialize_image_generation_options(self.model(name), scene=scene)
                 self.assertEqual([option['value'] for option in options['aspect_ratio_options']], list(COMMON_IMAGE_RATIOS))
-                self.assertEqual(options['default_aspect_ratio'], '1:1')
+                self.assertEqual(options['default_aspect_ratio'], '16:9' if scene == 'travel_photo' else '1:1')
                 self.assertEqual([option['value'] for option in options['image_size_options']], ['1K'] if name == 'gpt-image-2' else ['1K', '2K', '4K'])

@@ -50,6 +50,7 @@ SCENE_DEFAULTS = {
     # Inline editorial artwork reads best as a landscape image in article bodies.
     'article_illustration': {'aspect_ratio': '16:9', 'image_size': '1K'},
     'agent_post_illustration': {'aspect_ratio': '16:9', 'image_size': '1K'},
+    'travel_photo': {'aspect_ratio': '16:9', 'image_size': '1K'},
 }
 
 AGENT_POST_IMAGE_SIZE = '1K'

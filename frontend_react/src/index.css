@@ -71,6 +71,17 @@ body {
   text-size-adjust: 100%;
 }
 
+/* Let the app router own Mac trackpad history swipes without double navigation in Chrome. */
+html.mac-trackpad-history-navigation {
+  overscroll-behavior-x: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trackpad-history-feedback-transition {
+    transition-duration: 0.01ms !important;
+  }
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -652,4 +663,3 @@ canvas:focus,
 [tabindex="-1"]:focus {
   outline: none !important;
 }
-
