@@ -11,25 +11,33 @@ export function ItemIconUploadForm({initialName = '', busy, onUpload}: {
     const [file, setFile] = useState<File | null>(null);
     const [name, setName] = useState(initialName);
     const [preview, setPreview] = useState('');
+    const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [dragging, setDragging] = useState(false);
     const [fileError, setFileError] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const selectFile = (next: File | undefined) => {
-        if (!next) return;
+        if (!next) return null;
         const supported = ACCEPTED_IMAGE_TYPES.has(next.type) || (!next.type && ACCEPTED_IMAGE_EXTENSIONS.test(next.name));
         if (!supported) {
             setFileError('仅支持 PNG、JPEG 或 WebP 图片。');
-            return;
+            return null;
         }
         if (next.size > MAX_FILE_SIZE) {
             setFileError('图片不能超过 20MB。');
-            return;
+            return null;
         }
+        const nextName = name.trim() || next.name.replace(/\.[^.]+$/, '');
         setFileError('');
         setFile(next);
+        setUploadedFile(null);
         setPreview(URL.createObjectURL(next));
-        if (!name.trim()) setName(next.name.replace(/\.[^.]+$/, ''));
+        if (!name.trim()) setName(nextName);
+        return {file: next, name: nextName};
+    };
+
+    const uploadFile = async (next: File, nextName: string) => {
+        if (await onUpload(next, nextName)) setUploadedFile(next);
     };
 
     useEffect(() => () => {if (preview) URL.revokeObjectURL(preview);}, [preview]);
@@ -52,7 +60,10 @@ export function ItemIconUploadForm({initialName = '', busy, onUpload}: {
         onDrop={event => {
             event.preventDefault();
             setDragging(false);
-            if (!busy) selectFile(event.dataTransfer.files[0]);
+            if (!busy) {
+                const selected = selectFile(event.dataTransfer.files[0]);
+                if (selected) void uploadFile(selected.file, selected.name);
+            }
         }}
         className={`rounded-xl border bg-slate-50/50 p-4 transition-colors ${dragging ? 'border-orange-400 bg-orange-50/70 ring-2 ring-orange-100' : 'border-slate-200'}`}
     >
@@ -73,9 +84,9 @@ export function ItemIconUploadForm({initialName = '', busy, onUpload}: {
                 {fileError && <p role="alert" className="text-[11px] text-red-600">{fileError}</p>}
             </div>
         </div>
-        <button type="button" disabled={busy || !file || !name.trim()} onClick={() => {if (file) void onUpload(file, name.trim());}} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-40">
-            <Upload size={14}/>{busy ? '正在处理…' : '上传并压缩'}
+        <button type="button" disabled={busy || !file || !name.trim() || uploadedFile === file} onClick={() => {if (file) void uploadFile(file, name.trim());}} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-40">
+            <Upload size={14}/>{busy ? '正在处理…' : uploadedFile === file ? '已上传' : '上传并压缩'}
         </button>
-        {dragging && <p aria-live="polite" className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-orange-700"><UploadCloud size={14}/>松开鼠标即可添加图片</p>}
+        {dragging && <p aria-live="polite" className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-orange-700"><UploadCloud size={14}/>松开鼠标即可自动上传并压缩</p>}
     </div>;
 }
