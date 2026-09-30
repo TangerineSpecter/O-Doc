@@ -1,8 +1,10 @@
 """旅行复用任务执行记录与世界动态，阶段事实仍由旅行记录表达。"""
+from datetime import datetime
 from django.db import transaction
 from django.utils import timezone
 from system_settings.models import AgentRunRecord, WorldAction
 from system_settings.agent_activity import update_work_activity
+from .life_time import local_time
 
 PHASE_LABELS = {'preview': '准备候选目的地', 'choose': '选择目的地', 'plan': '整理当地行程',
     'depart': '出发', 'food': '体验当地美食', 'buy': '选购纪念品', 'return': '返程',
@@ -42,7 +44,7 @@ def update_activity(journey, error=''):
     record.summary = ('本次不出行' if journey.status == 'skipped' else '旅行日记已发布' if completed else error or f'旅行阶段：{phase_label(journey.phase)}')[:255]
     if journey.phase == 'preview' and not error:
         record.summary += f"（{len(journey.snapshot.get('previews', []))}/{len(journey.snapshot.get('candidates', []))}）"
-    record.output = journey.snapshot.get('draft', {}).get('content', '')
+    record.output = journey.snapshot.get('draft', {}).get('content', '') or error
     elapsed = max(0, int((timezone.now() - record.started_at).total_seconds()))
     record.duration = f'{elapsed // 60}m {elapsed % 60}s'
     steps = []
@@ -53,10 +55,18 @@ def update_activity(journey, error=''):
         title = phase_label(node.kind)
         if node.kind == 'preview' and node.input.get('city'):
             title += f"：{node.input.get('country', '')} · {node.input['city']}"
-        when = timezone.localtime(node.updated_at) if timezone.is_aware(node.updated_at) else node.updated_at
-        steps.append({'time': when.strftime('%Y-%m-%d %H:%M:%S'),
-            'status': 'failed' if node.error else 'success' if node.status == 'success' or node.result else 'running',
-            'title': title, 'detail': detail})
+        attempts = node.input.get('activity_attempts') or []
+        for attempt in attempts:
+            when = local_time(datetime.fromisoformat(attempt['at']))
+            steps.append({'time': when.strftime('%Y-%m-%d %H:%M:%S'),
+                          'status': 'failed' if attempt['status'] == 'failed' else 'success',
+                          'title': title, 'detail': attempt.get('error') or '处理完成'})
+        # 重试运行状态不是终态 attempt，单独保留当前节点进度。
+        if not attempts or node.status in ('pending', 'running'):
+            when = local_time(node.updated_at)
+            steps.append({'time': when.strftime('%Y-%m-%d %H:%M:%S'),
+                'status': 'failed' if node.error else 'success' if node.status == 'success' or node.result else 'running',
+                'title': title, 'detail': detail})
     record.steps = steps
     record.save(update_fields=['status', 'summary', 'output', 'steps', 'duration', 'updated_at'])
     if journey.agent:

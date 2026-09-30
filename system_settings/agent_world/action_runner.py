@@ -1,4 +1,5 @@
 """一个机会只选一位居民；模型提供评价，服务端提交业务事实。"""
+from .run_diagnostics import failure_detail, progress, finish_record
 from .life_scope import allowed as life_allowed
 import hashlib
 import json
@@ -142,10 +143,7 @@ def repair_effects(action):
     status = 'failed' if action.status == 'failed' else 'success'
     if action.record_id:
         record = action.record
-        summary = action.result['reason']
-        runs = [{**row, 'status': status, 'summary': summary, 'content': json.dumps(action.result, ensure_ascii=False)} for row in record.agent_runs]
-        AgentRunRecord.objects.filter(pk=record.pk).update(status=status, summary=summary, agent_runs=runs,
-            output=json.dumps(action.result, ensure_ascii=False), updated_at=timezone.now())
+        finish_record(record, status, action.result.get('reason', ''), json.dumps(action.result, ensure_ascii=False), '互动机会结束')
     finish_activity(action)
     if action.status != 'success':
         WorldAction.objects.filter(pk=action.pk).update(effects_done=True)
@@ -196,6 +194,8 @@ def run_opportunity(task, scheduler, *, key=None, manual=False, locked=False):
         summary='正在选择帖子', agent_runs=[{'agent': agent.pk, 'agentName': agent.name, 'agentAvatar': agent.avatar,
         'modelName': agent.model.name if agent.model else '未知', 'status': 'running', 'steps': []}] if agent else [])
     action = WorldAction.objects.create(pk=key, task=task, agent=agent, actor_id=agent.pk if agent else '', record=record)
+    phase = '准备帖子互动'
+    progress(record, phase)
     try:
         if not agent:
             action.status, action.result = 'skipped', {'reason': '没有空闲且体力足够、已结束冷却的 Agent'}
@@ -208,28 +208,36 @@ def run_opportunity(task, scheduler, *, key=None, manual=False, locked=False):
                     config = SystemSetting.objects.filter(key='system_mcp_config').first()
                     if config and not (config.value or {}).get('enabled', True):
                         raise ValueError('系统 MCP 已关闭，无法执行帖子互动')
+                    phase = '选择帖子'
+                    progress(record, phase)
                     post = choose_post(task, agent)
                     if not post:
                         action.status, action.result = 'skipped', {'reason': '范围内没有本人未评论的非本人帖子'}
                     else:
                         update_work_activity(record, agent, status='running', current_action=f'正在阅读《{post.title}》')
                         scheduler._append_agent_run_step(record, agent.pk, 'info', '阅读帖子', f'《{post.title}》')
+                        phase = '模型阅读与评价'
+                        progress(record, phase)
                         feedback = evaluate(task, agent, post)
                         if feedback['action'] == 'rest':
                             action.status, action.result = 'skipped', {'reason': feedback['reason']}
                         else:
+                            phase = '提交评论与评分'
+                            progress(record, phase)
                             action = commit_feedback(key, task, agent, post, feedback, token, manual=manual, world_token=locked)
         action.save()
     except Exception as error:
         logger.exception('World interaction failed: action=%s', key)
         action.refresh_from_db()
         if action.status != 'success':
-            action.status, action.result = 'failed', {'reason': str(error)[:255]}
+            action.status, action.result = 'failed', {'reason': failure_detail(phase, error)}
             action.save()
     try:
         repair_effects(action)
-    except Exception:
+    except Exception as exc:
+        progress(record, '互动后续处理待恢复', failure_detail('互动后续处理', exc), 'failed', allow_terminal=True)
         logger.exception('World interaction effects pending: action=%s', key)
+    record.refresh_from_db()
     record.status = 'failed' if action.status == 'failed' else 'success'
     record.summary = action.result['reason']
     record.output = json.dumps(action.result, ensure_ascii=False)
@@ -265,11 +273,13 @@ def tick(scheduler):
     stale = timezone.now() - timedelta(minutes=15)
     interrupted = WorldAction.objects.filter(status='claimed', updated_at__lt=stale).exclude(task__task_kind__in=['post_publish', 'travel', 'farm', 'investment'])
     record_ids = list(interrupted.values_list('record_id', flat=True))
-    interrupted.update(status='failed', result={'reason': '执行中断，本机会结束'})
+    interrupted.update(status='failed', result={'reason': '执行中断，本机会结束；已提交操作保留。未捕获底层异常，无法确定中断原因。'})
     AgentRunRecord.objects.filter(pk__in=record_ids, status='running').update(status='failed', summary='执行中断，本机会结束', updated_at=timezone.now())
     AgentActivity.objects.filter(run_record_id__in=record_ids, activity_type='work', status='running').update(
         status='failed', summary='执行中断，本机会结束', current_action='执行已中断', updated_at=timezone.now(),
     )
+    for action in WorldAction.objects.filter(record_id__in=record_ids, status='failed').select_related('record', 'agent'):
+        repair_effects(action)
     runtime, _ = WorldActionRuntime.objects.get_or_create(pk='world')
     with execution_lease(WorldActionRuntime, {'pk': 'world'}) as token:
         if not token:

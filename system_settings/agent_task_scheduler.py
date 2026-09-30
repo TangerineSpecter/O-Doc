@@ -3,6 +3,7 @@ from system_logs.context import diagnostic_operation
 import os
 import socket
 import threading
+import uuid
 import json
 import hashlib
 import urllib.error
@@ -221,6 +222,35 @@ class AgentTaskScheduler:
 
         return None
 
+    def _run_world_task(self, runner, task, key, trigger):
+        """覆盖配置、准备和后续收束异常，使用同一机会 ID 避免生成第二条记录。"""
+        from .models import WorldAction
+        from .agent_world.run_diagnostics import failure_detail, finish_record, progress
+        try:
+            return runner(task, self, key=key, manual=trigger == '手动执行')
+        except Exception as exc:
+            logger.exception('World task runner failed: task=%s opportunity=%s', task.pk, key)
+            action = WorldAction.objects.select_related('record', 'agent').filter(pk=key).first()
+            record = action.record if action and action.record_id else None
+            detail = failure_detail('任务准备或收束', exc)
+            if record and record.status != 'running':
+                progress(record, '后续处理失败', detail, 'failed', allow_terminal=True)
+                return record
+            if not record:
+                agents = self._get_task_agents(task)
+                agent = agents[0] if len(agents) == 1 else None
+                record = AgentRunRecord.objects.create(task=task, task_name=task.name, trigger=trigger,
+                    agent=agent, agent_name=agent.name if agent else '', status='running')
+            finish_record(record, 'failed', detail, detail, '执行失败')
+            if action:
+                action.status, action.record = 'failed', record
+                action.result = {**action.result, 'reason': detail}
+                action.save(update_fields=['status', 'record', 'result', 'updated_at'])
+            if record.agent:
+                update_work_activity(record, record.agent, status='failed', summary=detail,
+                                     current_action='执行遇到问题', output=detail)
+            return record
+
     @diagnostic_operation('agent_task')
     def _run_task(
             self,
@@ -236,25 +266,25 @@ class AgentTaskScheduler:
     ):
         from .agent_world.life_scope import CURRENT
         life=CURRENT.get()
-        life_key=life['item_id'] if life else None
+        life_key=life['item_id'] if life else uuid.uuid4().hex
         if task.task_kind == 'investment':
             from .agent_world.investment_runner import run_investment_opportunity
-            return run_investment_opportunity(task, self, key=life_key, manual=trigger == '手动执行')
+            return self._run_world_task(run_investment_opportunity, task, life_key, trigger)
         if task.task_kind == 'market':
             from .agent_world.market_runner import run_market_opportunity
-            return run_market_opportunity(task, self, key=life_key, manual=trigger == '手动执行')
+            return self._run_world_task(run_market_opportunity, task, life_key, trigger)
         if task.task_kind == 'farm':
             from .agent_world.farm_runner import run_farm_opportunity
-            return run_farm_opportunity(task, self, key=life_key, manual=trigger == '手动执行')
+            return self._run_world_task(run_farm_opportunity, task, life_key, trigger)
         if task.task_kind == 'travel':
             from .agent_world.travel_runner import run_travel_opportunity
-            return run_travel_opportunity(task, self, key=life_key, manual=trigger == '手动执行')
+            return self._run_world_task(run_travel_opportunity, task, life_key, trigger)
         if task.task_kind == 'post_publish':
             from .agent_world.publish_runner import run_publish_opportunity
-            return run_publish_opportunity(task, self, key=life_key, manual=trigger == '手动执行')
+            return self._run_world_task(run_publish_opportunity, task, life_key, trigger)
         if task.task_kind == 'post_interaction':
             from .agent_world.action_runner import run_opportunity
-            return run_opportunity(task, self, key=life_key, manual=trigger == '手动执行')
+            return self._run_world_task(run_opportunity, task, life_key, trigger)
         started = timezone.now()
         agents = agents_override if agents_override is not None else self._get_task_agents(task)
         primary_agent = agents[0] if agents else None
@@ -333,13 +363,18 @@ class AgentTaskScheduler:
                         close_old_connections()
                         result = self._run_task_for_agent(record, task, agent, prompt_override=prompt_override)
                     except Exception as exc:
+                        from .agent_world.run_diagnostics import failure_detail
+                        detail = failure_detail('启动 Agent 执行', exc)
+                        logger.exception('Agent worker failed: task=%s agent=%s', task.pk, agent.pk)
+                        self._append_agent_run_step(record, agent.pk, 'failed', '执行失败', detail)
+                        self._finish_agent_run(record, agent.pk, 'failed', detail, '', detail)
                         result = {
                             'agent': agent.id,
                             'agentName': agent.name,
                             'agentAvatar': agent.avatar,
                             'status': 'failed',
-                            'summary': str(exc)[:255],
-                            'content': '',
+                            'summary': detail[:500],
+                            'content': detail,
                         }
                     with result_lock:
                         run_results.append(result)
@@ -382,9 +417,11 @@ class AgentTaskScheduler:
             duration_seconds = max(0, int((timezone.now() - started).total_seconds()))
             record.status = 'failed'
             record.duration = self._format_duration(duration_seconds)
-            record.summary = str(exc)[:255]
-            record.save(update_fields=['status', 'duration', 'summary', 'updated_at'])
-            self._append_run_step(record, 'failed', '执行失败', str(exc)[:500])
+            from .agent_world.run_diagnostics import failure_detail
+            record.summary = failure_detail('任务调度与执行', exc)[:255]
+            record.output = record.output or record.summary
+            record.save(update_fields=['status', 'duration', 'summary', 'output', 'updated_at'])
+            self._append_run_step(record, 'failed', '执行失败', record.summary)
             _scheduler_log(f"task failed: id={task.id}, name={task.name}, error={exc}")
             logger.exception('Agent task failed: %s', task.id)
         return record
@@ -467,11 +504,12 @@ class AgentTaskScheduler:
                 'content': content or '',
             }
         except AIAuthenticationError as exc:
-            summary = str(exc)
+            from .agent_world.run_diagnostics import failure_detail
+            summary = failure_detail('模型认证', exc)
             duration = self._format_duration(max(0, int((timezone.now() - agent_started).total_seconds())))
             self._append_agent_run_step(record, agent.id, 'failed', 'API Key 已失效', summary)
-            self._finish_agent_run(record, agent.id, 'failed', summary, duration, '')
-            update_work_activity(record, agent, status='failed', summary=summary, current_action='模型认证失败')
+            self._finish_agent_run(record, agent.id, 'failed', summary, duration, summary)
+            update_work_activity(record, agent, status='failed', summary=summary, current_action='模型认证失败', output=summary)
             notified = self._notify_provider_auth_failure_once(exc)
             _scheduler_log(
                 f"agent blocked by invalid API key: agent={agent.id}, task={task.id}, "
@@ -484,19 +522,23 @@ class AgentTaskScheduler:
                 'status': 'failed',
                 'summary': summary,
                 'duration': duration,
-                'content': '',
+                'content': summary,
             }
         except Exception as exc:
-            summary = str(exc)[:255]
+            from .agent_world.run_diagnostics import failure_detail
+            stage = next((step.get('title') for run in record.agent_runs if run.get('agent') == agent.pk
+                          for step in reversed(run.get('steps') or []) if step.get('title')), '任务执行')
+            summary = failure_detail(stage, exc)[:500]
             duration = self._format_duration(max(0, int((timezone.now() - agent_started).total_seconds())))
-            self._append_agent_run_step(record, agent.id, 'failed', '执行失败', str(exc)[:500])
-            self._finish_agent_run(record, agent.id, 'failed', summary, duration, '')
+            self._append_agent_run_step(record, agent.id, 'failed', '执行失败', summary)
+            self._finish_agent_run(record, agent.id, 'failed', summary, duration, summary)
             update_work_activity(
                 record,
                 agent,
                 status='failed',
-                summary='任务执行失败，请到执行记录查看详情',
+                summary=summary,
                 current_action='执行遇到问题',
+                output=summary,
             )
             logger.exception('Agent task failed for agent %s: %s', agent.id, task.id)
             return {
@@ -506,7 +548,7 @@ class AgentTaskScheduler:
                 'status': 'failed',
                 'summary': summary,
                 'duration': duration,
-                'content': '',
+                'content': summary,
             }
 
     def _run_configured_followups(self, task, record, results):

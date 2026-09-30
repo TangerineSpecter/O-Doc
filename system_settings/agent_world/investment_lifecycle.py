@@ -18,12 +18,14 @@ def append_step(record, title, detail='', status='info'):
     record.agent_runs = [{**r, 'steps': [*(r.get('steps') or []), step]} for r in record.agent_runs]
 
 
-def progress(record_id, title, detail=''):
+def progress(record_id, title, detail='', status='info'):
+    if not record_id:
+        return
     with farm_gate(), transaction.atomic():
         record = AgentRunRecord.objects.select_for_update().get(pk=record_id)
         if record.status != 'running':
             raise ValueError('投资执行已结束，停止后续处理')
-        append_step(record, title, detail)
+        append_step(record, title, detail, status)
         record.save(update_fields=['steps', 'agent_runs', 'updated_at'])
         WorldAction.objects.filter(record_id=record_id, status='claimed').update(updated_at=timezone.now())
         AgentActivity.objects.filter(run_record_id=record_id, activity_type='work', status='running').update(current_action=title, updated_at=timezone.now())
@@ -52,7 +54,7 @@ def finish(action_id, status, summary, *, recovery=False):
         action.result = {**action.result, 'reason': str(summary)[:2000], 'decision_id': decision.pk if decision else None}
         action.save(update_fields=['status', 'effects_done', 'result', 'updated_at'])
         record.status = status
-        record.summary = str(summary)[:500]
+        record.summary = str(summary)[:255]
         record.output = json.dumps(action.result, ensure_ascii=False)
         elapsed = max(0, int((ended_at - record.started_at).total_seconds()))
         record.duration = f'{elapsed // 60}分{elapsed % 60}秒' if elapsed >= 60 else f'{elapsed}秒'
@@ -96,5 +98,6 @@ def recover(action_id=None):
             summary = '投资执行长时间未完成，已结束本次机会并保留已提交交易。'
             if last_tool:
                 summary += f'最后已完成工具：{last_tool}（共 {len(calls)} 次）。'
-            summary += '原执行未保存底层异常，无法确定是进程中断还是请求超时。'
+            known_reason = current.result.get('reason') if current.status == 'failed' else ''
+            summary += f'已保存失败原因：{known_reason}' if known_reason else '原执行未保存底层异常，无法确定是进程中断还是请求超时。'
             finish(action.pk, 'failed', summary, recovery=True)

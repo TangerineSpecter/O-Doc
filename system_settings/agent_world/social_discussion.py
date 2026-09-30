@@ -1,5 +1,5 @@
 """帖子和朋友圈共用收件箱、讨论上下文及连续回应限制。"""
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 from .identity import actor_key
 from .life_schedule import stable_id
@@ -16,7 +16,39 @@ def post_owner(post):
 
 
 def post_author(post, owner):
-    return f'agent-id:{post.agent_post_author_id}' if post.agent_post_author_id else user_actor(owner)
+    if post.agent_post_author_id:
+        return f'agent-id:{post.agent_post_author_id}'
+    creator = post.agent_post_creator_id
+    if creator.startswith(('agent-id:', 'agent:', 'user:')):
+        # 旧的按名称身份只保留原标识，不重新绑定后来创建的同名居民。
+        return creator
+    from anthology.models import Anthology
+    if creator or post.agent_post_creator_name or post.agent_post_creator_avatar or Anthology.objects.filter(pk=post.coll_id, type='agent').exists():
+        return f'historical-post-author:{post.pk}'
+    return user_actor(owner) if owner else ''
+
+
+def user_notifications(owner):
+    """按实际评论目标校验历史通知，在分页和未读计数之前排除旧误归属。"""
+    from article.models import Article, ArticlePostComment
+    from anthology.models import Anthology
+    actor = user_actor(owner)
+    agent_collections = Anthology.objects.filter(type='agent').values('pk')
+    user_posts = Article.objects.filter(agent_post_author_id='').filter(
+        Q(agent_post_creator_id=actor) |
+        (Q(agent_post_creator_id='', agent_post_creator_name='', agent_post_creator_avatar='') &
+         ~Q(coll_id__in=agent_collections))
+    ).values('pk')
+    owned_collections = Anthology.objects.filter(user_id=owner).values('pk')
+    comments = ArticlePostComment.objects.filter(pk=OuterRef('source_id'),
+        article_id=OuterRef('content_id'), is_valid=True, article__is_valid=True,
+        article__coll_id__in=owned_collections).filter(
+        Q(reply_to_actor_id=actor) |
+        Q(reply_to_actor_id='', article_id__in=user_posts)
+    )
+    return SocialInbox.objects.filter(owner_id=owner, target_id=actor).exclude(status='invalid').annotate(
+        valid_post_target=Exists(comments),
+    ).filter(~Q(source_kind='post') | Q(valid_post_target=True))
 
 
 def enqueue(owner, target, sender, kind, comment_id, content_id, root_id, identity):

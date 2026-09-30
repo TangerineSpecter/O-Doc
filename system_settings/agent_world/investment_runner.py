@@ -17,6 +17,7 @@ from .investment_queries import overview
 from .investment_tools import InvestmentTools, TOOLS, Finished
 from .investment_execution import investment_lease, check_lease
 from .investment_lifecycle import progress, finish
+from .run_diagnostics import failure_detail
 
 logger=logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ def run_investment_opportunity(task,scheduler=None,*,key=None,manual=False):
                 except Finished as exc:summary=str(exc)
     except Exception as exc:
         logger.exception('投资机会失败 key=%s',key)
-        status='failed'; summary=f'{phase}失败（{type(exc).__name__}）：{str(exc)[:400]}'
+        status='failed'; summary=failure_detail(phase, exc)
     finally:
         finish(key, status, summary)
         record.refresh_from_db()

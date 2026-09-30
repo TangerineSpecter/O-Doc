@@ -16,6 +16,7 @@ from .travel_steps import advance, record_attempt
 from .travel_notifications import notify
 from .travel_publication import recover_photo
 from .travel_activity import start_activity, update_activity
+from .run_diagnostics import failure_detail
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ def process_journey(journey):
     if not journey.agent_id:
         journey.status = 'manual'
         journey.save(update_fields=['status', 'updated_at'])
+        update_activity(journey, '角色已删除，旅行历史已保留')
         notify(journey, 'missing-agent', '角色已删除，旅行历史已保留')
         return
     with execution_lease(TravelRuntime, {'pk': journey.pk}) as token:
@@ -83,6 +85,7 @@ def process_journey(journey):
             if not journey.agent_id:
                 journey.status = 'manual'
                 journey.save(update_fields=['status', 'updated_at'])
+                update_activity(journey, '角色已删除，旅行历史已保留')
                 notify(journey, 'missing-agent', '角色已删除，旅行历史已保留')
                 return
             journey.status = 'active'
@@ -99,10 +102,12 @@ def process_journey(journey):
                 journey.refresh_from_db()
                 journey.status = 'waiting' if runtime.attempts <= 3 else 'manual'
                 journey.save(update_fields=['status', 'updated_at'])
-                node = TravelNode.objects.filter(pk=f'{journey.pk}:{journey.phase}').first()
+                detail = failure_detail(journey.phase, exc)
+                node, _ = TravelNode.objects.get_or_create(pk=f'{journey.pk}:{journey.phase}',
+                    defaults={'journey': journey, 'kind': journey.phase})
                 if node:
-                    record_attempt(node, 'failed', str(exc)[:1000], node_status=journey.status)
-                update_activity(journey, str(exc))
+                    record_attempt(node, 'failed', detail, node_status=journey.status)
+                update_activity(journey, detail)
                 runtime.next_at = timezone.now()+timedelta(minutes=[1, 5, 15][min(runtime.attempts-1, 2)])
                 if journey.status == 'manual':
                     notify(journey, f'node:{journey.phase}', str(exc))

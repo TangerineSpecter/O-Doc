@@ -51,7 +51,10 @@ class InvestmentTools:
             try:
                 result=self.dispatch(name,args)
             except (ValueError,KeyError,TypeError) as exc:
-                result={'error':str(exc)[:500]}
+                from .run_diagnostics import failure_detail
+                detail = failure_detail(f'投资工具 {name}', exc)
+                progress(self.decision.record_id, '投资工具失败', detail, 'failed')
+                result={'error':detail[:500]}
         finally:
             QUERY_DEADLINE.reset(query_token)
         with farm_gate(), transaction.atomic():

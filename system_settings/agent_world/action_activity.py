@@ -13,6 +13,8 @@ def finish_activity(action):
     reason = action.result.get('reason', '')
     current_action = {'success': '评论与评分已完成', 'skipped': '本次机会已跳过',
                       'failed': '本次互动失败'}[action.status]
+    if action.snapshot.get('market'):
+        current_action = '市场机会结束'
     if 'config' in action.snapshot:
         current_action = {'success': '帖子已发布', 'skipped': '本次机会已跳过', 'failed': '本次发帖失败'}[action.status]
     if not action.agent_id:

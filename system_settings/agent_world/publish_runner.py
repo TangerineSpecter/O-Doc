@@ -73,6 +73,9 @@ def commit_publication(action_id: str, token: str, world_token: str, *, manual=F
     return action
 
 
+from .run_diagnostics import failure_detail, finish_record, progress as record_progress
+
+
 def repair_publication(action):
     if action.status not in ('success', 'skipped', 'failed'):
         return
@@ -80,10 +83,8 @@ def repair_publication(action):
     status = 'failed' if action.status == 'failed' else 'success'
     if action.record_id:
         record = action.record
-        runs = [{**row, 'status': status, 'summary': action.result.get('reason', ''),
-                 'content': json.dumps(action.snapshot, ensure_ascii=False)} for row in record.agent_runs]
-        AgentRunRecord.objects.filter(pk=record.pk).update(status=status, summary=action.result.get('reason', ''),
-            output=json.dumps({'result': action.result, 'snapshot': action.snapshot}, ensure_ascii=False), agent_runs=runs, updated_at=timezone.now())
+        finish_record(record, status, action.result.get('reason', ''),
+                      json.dumps({'result': action.result, 'snapshot': action.snapshot}, ensure_ascii=False), '发帖机会结束')
         finish_activity(action)
     if action.status == 'success' and action.agent_id:
         post = Article.objects.filter(pk=action.result.get('post_id')).first()
@@ -198,17 +199,18 @@ def run_publish_opportunity(task, scheduler, *, key=None, manual=False, locked=F
         if action.status != 'success':
             action.status, action.result = 'skipped', {'reason': str(exc)[:255]}
             action.save()
-    except Exception:
+    except Exception as exc:
         logger.exception('自主发帖流程失败 action=%s', key)
         action.refresh_from_db()
         if action.status != 'success':
-            action.status, action.result = 'failed', {'reason': '发帖流程失败，请检查模型、搜索配置或运行日志'}
+            action.status, action.result = 'failed', {'reason': failure_detail(PHASE_LABELS.get(action.snapshot.get('phase'), '准备发帖'), exc)}
             action.save()
     try:
         repair_publication(action)
         if action.status == 'success':
             deliver_notification(action, scheduler)
-    except Exception:
+    except Exception as exc:
+        record_progress(record, '发帖后续处理待恢复', failure_detail('发帖后续处理', exc), 'failed', allow_terminal=True)
         logger.exception('发帖后续处理待恢复 action=%s', key)
     record.refresh_from_db()
     record.duration = scheduler._format_duration(int((timezone.now()-record.started_at).total_seconds()))

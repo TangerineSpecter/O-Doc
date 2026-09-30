@@ -74,7 +74,19 @@ def reconcile_investments():
     from .investment_execution import revoke_investment_leases
     revoke_investment_leases()
     # Also close claimed opportunities that have not acquired a resident lease.
+    interrupted = list(WorldAction.objects.filter(snapshot__investment=True, effects_done=False).select_related('record', 'agent'))
     WorldAction.objects.filter(snapshot__investment=True, effects_done=False).update(
         effects_done=True, status='interrupted', result={'reason':'快照恢复，本次投资机会已结束'},
     )
     InvestmentDecision.objects.filter(status='running').update(status='interrupted', reason='快照恢复，本次投资机会已结束')
+
+    # 恢复撤销授权的同时关闭执行记录，避免迟到的 runner 因 effects_done 而无法收束。
+    from .run_diagnostics import finish_record
+    from system_settings.agent_activity import update_work_activity
+    for action in interrupted:
+        if action.record_id and action.record.status == 'running':
+            reason = '快照恢复，投资执行授权已失效；本次机会结束，已提交交易保留'
+            output = json.dumps({'reason': reason}, ensure_ascii=False)
+            finish_record(action.record, 'failed', reason, output, '投资执行中断')
+            if action.agent:
+                update_work_activity(action.record, action.agent, status='failed', summary=reason, current_action='投资执行中断', output=output)

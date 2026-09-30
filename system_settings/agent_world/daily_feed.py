@@ -176,12 +176,15 @@ def day_events(request, owner, day, actor_id=''):
     names = dict(Agent.objects.filter(pk__in=actors).values_list('id', 'name'))
     events = []
     visible_colls = get_visible_anthology_queryset(request).values_list('coll_id', flat=True)
-    activities = AgentActivity.objects.filter(occurred_at__gte=start, occurred_at__lt=end).filter(
+    activities = AgentActivity.objects.filter(
         Q(activity_type='work', agent_id__in=actors) |
         Q(activity_type='work', agent_id__isnull=True, run_record__agent_id__in=actors) |
         Q(activity_type__in=('publication', 'interaction'), artifact_coll_id__in=visible_colls) |
         Q(action__startswith='social_', metadata__owner_id=owner)
     ).select_related('agent', 'run_record')
+    day_activities = activities.filter(occurred_at__gte=start, occurred_at__lt=end)
+    activities = activities.filter(Q(pk__in=day_activities.values('pk')) |
+        Q(run_record_id__in=day_activities.exclude(activity_type='work').exclude(run_record_id=None).values('run_record_id')))
     from system_settings.agent_activity_presentation import grouped_activities, activity_title, activity_rating
     activities = grouped_activities(activities)
     recorded_runs = set()
@@ -207,6 +210,8 @@ def day_events(request, owner, day, actor_id=''):
                                'artifactId': row.artifact_id or '',
                                'artifactKind': row.artifact_kind or ''})
         event['rating'] = activity_rating(row)
+        if row.run_record_id and row.activity_type != 'work':
+            event['_execution_group'] = 'activity:' + row.run_record_id
         if row.action.startswith('social_'):
             event['currentAction'] = row.current_action or ''
         if row.activity_type == 'work':
@@ -308,6 +313,7 @@ def day_events(request, owner, day, actor_id=''):
             events.append(_event('trade', 'market-seller', row.pk, row.created_at, seller_id,
                                  names.get(seller_id) or (listing.seller_name if listing else ''), '居民商品售出', detail,
                                  amount=seller_amount, target={'kind': 'market', 'id': row.pk}))
+            events[-1]['_execution_group'] = 'market-sale:' + (session.record_id or session.pk)
     for row in sessions:
         group = 'market:' + (row.record_id or row.pk)
         event = _event('market', 'market-enter', row.pk, row.created_at, row.actor_id,

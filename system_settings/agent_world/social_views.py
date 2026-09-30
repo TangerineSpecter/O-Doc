@@ -10,7 +10,7 @@ from article.annotation_service import get_user_identity
 from .farm_gate import guarded
 from .social_models import Moment, MomentComment, SocialInbox
 from .social_content import publish, comment, like, delete_moment, moment_data, comment_data
-from .social_discussion import user_actor
+from .social_discussion import user_actor, user_notifications
 from .social_config import config_for, settings_for, validate
 
 
@@ -34,9 +34,11 @@ class SocialView(APIView):
             return success_result({'settings': settings_for(config), 'overrides': config.overrides,
                 'agents': list(Agent.objects.filter(pk__in=ids).values('id', 'name'))})
         if self.kind == 'inbox':
-            notifications = SocialInbox.objects.filter(owner_id=owner, target_id=actor).exclude(status='invalid')
+            notifications = user_notifications(owner)
             rows = notifications.order_by('-created_at')[:100]
             items = list(rows.values())
+            for item in items:
+                item.pop('valid_post_target', None)
             from article.models import Article
             post_ids = [r['content_id'] for r in items if r['source_kind'] == 'post']
             posts = dict(Article.objects.filter(pk__in=post_ids, is_valid=True).values_list('pk', 'coll_id'))

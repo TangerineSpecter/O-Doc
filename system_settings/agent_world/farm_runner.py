@@ -8,6 +8,7 @@ from system_settings.models import AgentTask, AgentRunRecord, WorldAction, World
 from system_settings.agent_activity import update_work_activity
 from system_settings.agent_prompts import build_agent_system_prompt
 from utils.ai_service import AIService
+from .run_diagnostics import failure_detail, progress, finish_record
 from .execution import execution_lease, stamina
 from .action_schedule import select_agent, take_due
 from .farm_catalog import catalog_for
@@ -96,9 +97,7 @@ def finish(action, scheduler=None):
     if action.record:
         record = action.record
         status = 'failed' if action.status == 'failed' else 'success'
-        record.status, record.summary, record.output = status, summary, json.dumps(action.result, ensure_ascii=False)
-        record.agent_runs = [{**r, 'status': status, 'summary': summary} for r in record.agent_runs]
-        record.save(update_fields=['status', 'summary', 'output', 'agent_runs', 'updated_at'])
+        finish_record(record, status, summary, json.dumps(action.result, ensure_ascii=False), '农场机会结束')
         if action.agent:
             update_work_activity(record, action.agent, status=status, summary=summary, current_action='农场经营完成' if ops else '本次经营机会结束', output=record.output)
     action.effects_done = True
@@ -130,6 +129,8 @@ def run_farm_opportunity(task, scheduler=None, *, key=None, manual=False, locked
         agent_runs=[{'agent': agent.pk, 'agentName': agent.name, 'agentAvatar': agent.avatar,
             'modelName': agent.model.name if agent.model else '', 'status': 'running', 'steps': []}] if agent else [])
     action = WorldAction.objects.create(pk=key, task=task, agent=agent, actor_id=agent.pk if agent else '', record=record, snapshot={'farm': True})
+    phase = '准备农场执行'
+    progress(record, phase)
     try:
         if not agent:
             action.status, action.result = 'skipped', {'reason': '没有空闲且体力足够的居民'}
@@ -140,9 +141,13 @@ def run_farm_opportunity(task, scheduler=None, *, key=None, manual=False, locked
                 setting = SystemSetting.objects.filter(key='system_mcp_config').first()
                 if setting and not (setting.value or {}).get('enabled', True):
                     raise ValueError('系统 MCP 已关闭')
+                phase = '读取农场状态'
+                progress(record, phase)
                 farm = advance_farm(agent.pk)
                 update_work_activity(record, agent, status='running', current_action='正在决定农场经营')
                 options = candidates(farm, agent.money)
+                phase = '模型选择经营计划'
+                progress(record, phase)
                 decision = decide(task, agent, farm, options) if options else {'choices': [], 'reason': '暂时没有可执行的经营操作'}
                 if decision.get('budget_allocations'):
                     from .life_budget import budget_tool
@@ -151,7 +156,9 @@ def run_farm_opportunity(task, scheduler=None, *, key=None, manual=False, locked
                 action.snapshot = {'farm': True, 'plan': selected, 'reason': decision['reason']}
                 action.save(update_fields=['snapshot', 'updated_at'])
                 for index, operation in enumerate(selected):
-                    update_work_activity(record, agent, status='running', current_action=LABELS[operation['kind']])
+                    phase = LABELS[operation['kind']]
+                    progress(record, phase, f'第 {index + 1}/{len(selected)} 项经营操作')
+                    update_work_activity(record, agent, status='running', current_action=phase)
                     commit_operation(agent.pk, key, index, operation, decision['reason'], task, token, locked)
                 action.status = 'success' if selected else 'skipped'
                 action.result = {'reason': decision['reason']}
@@ -159,7 +166,7 @@ def run_farm_opportunity(task, scheduler=None, *, key=None, manual=False, locked
     except Exception as exc:
         logger.exception('农场机会执行失败 action=%s', key)
         action.refresh_from_db()
-        action.status, action.result = 'failed', {'reason': str(exc)[:500]}
+        action.status, action.result = 'failed', {'reason': failure_detail(phase, exc)}
         action.save(update_fields=['status', 'result', 'updated_at'])
     finish(action, scheduler)
     if scheduler and action.status == 'success':
