@@ -44,6 +44,8 @@ class InvestmentTools:
         if self.call_count>20 or time.monotonic()>=self.deadline:
             raise Finished('投资机会达到时间或工具调用上限')
         check_authorization(self.decision,self.agent,self.token,self.manual)
+        from .investment_lifecycle import progress
+        progress(self.decision.record_id, '调用投资工具', f'工具：{name}；第 {self.call_count} 次')
         query_token = QUERY_DEADLINE.set(self.deadline)
         try:
             try:
@@ -59,6 +61,10 @@ class InvestmentTools:
                 audit_result = {**result, 'items': [{k:v for k,v in r.items() if k != 'summary'} for r in result.get('items', [])]}
             self.decision.calls.append({'tool':name,'arguments':args,'result':audit_result})
             self.decision.save(update_fields=['calls','updated_at'])
+        detail = f'工具：{name}'
+        if isinstance(result, dict) and result.get('error'):
+            detail += '；' + str(result['error'])[:500]
+        progress(self.decision.record_id, '工具已返回', detail)
         return result
 
     def dispatch(self,name,args):

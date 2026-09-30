@@ -136,5 +136,6 @@ def search(config: dict, query: str, mode: str, days: int, deadline: float, *, s
         results.append({'url': url, 'title': str(row.get('title') or '')[:500],
                         'summary': str(row.get('content') or row.get('raw_content') or '')[:6000],
                         'published_at': published.isoformat() if published else None,
+                        'search_window': {key: args[key] for key in ('days', 'start_date', 'end_date', 'time_range') if key in args and args[key] is not None},
                         'fetched_at': timezone.now().isoformat()})
     return results

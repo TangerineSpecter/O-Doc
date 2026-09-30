@@ -2,6 +2,8 @@ export type DailyFeedCategory = 'all' | 'publication' | 'interaction' | 'travel'
 
 export interface DailyFeedEvent {
     rating?: number | null;
+    categories?: Exclude<DailyFeedCategory, 'all'>[];
+    steps?: {id: string; title: string; detail: string; occurredAt: string; amount: string | null}[];
     id: string;
     category: Exclude<DailyFeedCategory, 'all'>;
     source: string;

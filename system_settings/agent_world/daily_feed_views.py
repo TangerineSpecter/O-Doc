@@ -43,7 +43,7 @@ class DailyFeedView(APIView):
         today = local_time().date()
         if selected_day is not None:
             all_events, events, counts, global_total, actor_counts = day_events(request, owner, selected_day, actor)
-            filtered = all_events if category == 'all' else [row for row in events if row['category'] == category]
+            filtered = all_events if category == 'all' else [row for row in events if category in row.get('categories', [row['category']])]
             total = len(filtered)
             if cursor:
                 filtered = [row for row in filtered if (row['occurredAt'], row['id']) < (moment, identity)]
@@ -59,7 +59,7 @@ class DailyFeedView(APIView):
                     all_events, events = today_all, today_events
                 else:
                     all_events, events, _, _, _ = day_events(request, owner, current_day, actor)
-                rows = all_events if category == 'all' else [row for row in events if row['category'] == category]
+                rows = all_events if category == 'all' else [row for row in events if category in row.get('categories', [row['category']])]
                 if cursor:
                     rows = [row for row in rows if (row['occurredAt'], row['id']) < (moment, identity)]
                 filtered.extend(rows[:size + 1 - len(filtered)])

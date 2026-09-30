@@ -17,13 +17,14 @@ export interface AgentPublishConfig {
 }
 export interface PublishMaterial {
     url: string; title: string; summary: string; publishedAt: string | null; fetchedAt: string;
+    searchWindow?: {days?: number; startDate?: string; endDate?: string; timeRange?: string};
 }
 export interface PublishPreview {
     status: 'ready' | 'skipped';
     reason: string;
     snapshot?: {
         phase: string;
-        selection?: {categoryId: string; mode: 'news' | 'topic'; query: string; reason: string};
+        selection?: {categoryId: string; mode: 'news' | 'topic'; query: string; reason: string; expressionDirection?: string};
         materials: PublishMaterial[];
         draft?: {title: string; summary: string; content: string; reason: string; sourceUrls: string[]};
     };

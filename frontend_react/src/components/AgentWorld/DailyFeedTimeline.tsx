@@ -1,3 +1,4 @@
+import {ExecutionFeedSteps} from './ExecutionFeedSteps';
 import PostRatingBadge from '../AgentPost/PostRatingBadge';
 import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, MapPin, MessageCircle, Package, RefreshCw, Sprout, Store, TrendingUp} from 'lucide-react';
 import {useEffect, useState} from 'react';
@@ -70,6 +71,7 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-slate-800">{event.title}</h3><PostRatingBadge rating={event.rating}/></div>
                 {event.detail && <div className="mt-1.5"><AgentActivitySummary text={event.detail} expanded={expanded} onExpandedChange={setExpanded} variant={event.category === 'interaction' ? 'interaction' : event.category === 'publication' ? 'publication' : 'work'}/></div>}
+                {!!event.steps?.length && <ExecutionFeedSteps steps={event.steps}/>}
                 {(amount !== null || event.target) && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
                     {event.target && <button type="button" onClick={() => onOpen(event)} className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-100">{{farm: '打开农场', market: '打开市场', investment: '打开投资', travel: '查看旅行', life: '查看日程'}[event.target.kind] || '查看详情'}</button>}
                     {amount !== null && <span className={`ml-auto inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${expense ? 'text-red-600' : 'text-emerald-600'}`}>

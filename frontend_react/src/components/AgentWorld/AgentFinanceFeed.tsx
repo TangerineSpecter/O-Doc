@@ -31,6 +31,7 @@ function getTransactionLabel(entry: WorldLedger) {
 }
 
 function getTransactionDetail(entry: WorldLedger) {
+    if (entry.detail?.trim()) return entry.detail;
     if (entry.kind === 'investment') return '模拟股票交易 · ' + snapshotText(entry.snapshot, 'code');
     if (entry.kind === 'market') return '世界市场交易';
     const title = snapshotText(entry.snapshot, 'postTitle', 'post_title', 'title');
@@ -110,7 +111,7 @@ export default function AgentFinanceFeed({entries, selectedAgentId, loading, err
                                             <span className="text-xs font-semibold text-slate-700">{getTransactionLabel(entry)}</span>
                                             {!selectedAgentId && <span className="text-xs text-slate-500">{entry.agentName}</span>}
                                         </div>
-                                        <p className="mt-1 truncate text-xs text-slate-600">{getTransactionDetail(entry)}</p>
+                                        <p className="mt-1 break-words text-xs leading-relaxed text-slate-600">{getTransactionDetail(entry)}</p>
                                         <time className="mt-1 block text-[11px] text-slate-400">{formatDate(entry.createdAt)}</time>
                                     </div>
                                 </div>

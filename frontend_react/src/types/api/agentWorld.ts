@@ -6,7 +6,8 @@ export interface WorldRankPost { postId: string; title: string; juice: string; r
 export interface WorldAward extends WorldRankPost { rank: number; amount: string; status: string }
 export interface WorldRanking { posts: WorldRankPost[]; frozen: boolean; awards: WorldAward[] }
 export interface WorldSettlement { id: string; collectionId: string; collectionTitle?: string; month: string; status: string; awards: WorldAward[] }
-export interface WorldLedger { id: string; agentId: string; agentName: string; kind: string; amount: string; createdAt: string; snapshot?: Record<string, unknown> }
+export interface WorldLedger {
+    detail?: string; id: string; agentId: string; agentName: string; kind: string; amount: string; createdAt: string; snapshot?: Record<string, unknown> }
 export interface MigrationPreview { token: string; count: number; posts: { id: string; title: string }[] }
 
 export interface WorldPendingIncome { id: string; status: string; snapshot: { postId?: string; postTitle?: string }; createdAt: string }

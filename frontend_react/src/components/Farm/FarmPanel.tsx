@@ -315,8 +315,10 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                                                     <span
                                                         className={`font-mono font-medium ${
                                                             Number(o.result.amount) > 0
-                                                                ? 'text-lime-600'
-                                                                : 'text-slate-500'
+                                                                ? 'text-emerald-600'
+                                                                : Number(o.result.amount) < 0
+                                                                    ? 'text-red-600'
+                                                                    : 'text-slate-500'
                                                         }`}
                                                     >
                                                         {Number(o.result.amount) !== 0

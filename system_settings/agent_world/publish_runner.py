@@ -68,7 +68,7 @@ def commit_publication(action_id: str, token: str, world_token: str, *, manual=F
     snapshot['materials'] = [m for m in snapshot['materials'] if m['url'] in draft['source_urls']]
     action.snapshot = {**snapshot, 'phase': 'published', 'post_id': article.pk, 'notification_pending': True}
     action.result = {'reason': '帖子已发布', 'post_id': article.pk, 'coll_id': article.coll_id,
-                     'category_id': selection['category_id'], 'title': article.title, 'template_version': 1}
+                     'category_id': selection['category_id'], 'title': article.title, 'template_version': snapshot.get('template_version', 1)}
     action.save()
     return action
 
@@ -171,7 +171,7 @@ def run_publish_opportunity(task, scheduler, *, key=None, manual=False, locked=F
             agent_runs=[{'agent': agent.pk, 'agentName': agent.name, 'agentAvatar': agent.avatar,
                          'modelName': agent.model.name if agent.model else '未知', 'status': 'running', 'steps': []}] if agent else [])
         action = WorldAction.objects.create(pk=key, task=task, agent=agent, actor_id=agent.pk if agent else '', record=record,
-            snapshot={'template_version': 1, 'manual': manual, 'config': copy.deepcopy(task.publish_config), 'phase': 'select', 'materials': [], 'search_count': 0})
+            snapshot={'template_version': 2, 'manual': manual, 'config': copy.deepcopy(task.publish_config), 'phase': 'select', 'materials': [], 'search_count': 0})
         if not agent:
             action.status = 'skipped'
             action.result = {'reason': '；'.join(sorted(set(reasons.values()))) or '没有空闲且体力足够、已结束冷却的 Agent'}

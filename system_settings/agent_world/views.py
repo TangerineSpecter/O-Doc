@@ -80,7 +80,11 @@ class LedgerView(APIView):
             rows = rows.filter(amount__gt=0).exclude(kind='opening')
         elif direction == 'expense':
             rows = rows.filter(amount__lt=0)
-        return success_result(LedgerSerializer(rows[:200], many=True).data)
+        from .ledger_details import ledger_details
+        entries = list(rows[:200])
+        details = ledger_details(entries)
+        data = LedgerSerializer(entries, many=True).data
+        return success_result([{**row, 'detail': details.get(entry.pk, '') if entry.kind == 'market' else ''} for entry, row in zip(entries, data)])
 
 
 class SettlementsView(APIView):

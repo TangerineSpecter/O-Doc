@@ -49,6 +49,11 @@ const activityConfig: Record<
         badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-100',
         accentBar: 'bg-indigo-500',
     },
+    market: {
+        icon: ShoppingBag,
+        badgeColor: 'bg-amber-50 text-amber-700 border-amber-100',
+        accentBar: 'bg-amber-500',
+    },
     market_prepare: {
         icon: ShoppingBag,
         badgeColor: 'bg-amber-50 text-amber-700 border-amber-100',

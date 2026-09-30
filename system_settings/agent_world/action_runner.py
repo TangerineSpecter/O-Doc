@@ -258,9 +258,12 @@ def tick(scheduler):
                 deliver_notification(publication, scheduler)
             except Exception:
                 logger.exception('发帖通知恢复失败 action=%s', publication.pk)
+    # 手动投资同样需要恢复终态，不能依赖世界自动运行开关。
+    from .investment_lifecycle import recover as recover_investments
+    recover_investments()
     # 崩溃后不重做模型选择；已提交事实由上面的恢复逻辑完成后续处理。
     stale = timezone.now() - timedelta(minutes=15)
-    interrupted = WorldAction.objects.filter(status='claimed', updated_at__lt=stale).exclude(task__task_kind__in=['post_publish', 'travel', 'farm'])
+    interrupted = WorldAction.objects.filter(status='claimed', updated_at__lt=stale).exclude(task__task_kind__in=['post_publish', 'travel', 'farm', 'investment'])
     record_ids = list(interrupted.values_list('record_id', flat=True))
     interrupted.update(status='failed', result={'reason': '执行中断，本机会结束'})
     AgentRunRecord.objects.filter(pk__in=record_ids, status='running').update(status='failed', summary='执行中断，本机会结束', updated_at=timezone.now())
@@ -284,8 +287,6 @@ def tick(scheduler):
         for pending in publications[:20]:
             from .publish_runner import run_publish_opportunity
             run_publish_opportunity(pending.task, scheduler, key=pending.pk, manual=False, locked=token)
-    from .investment_models import InvestmentDecision
-    InvestmentDecision.objects.filter(status='running', created_at__lt=timezone.now()-timedelta(minutes=5)).update(status='interrupted', reason='执行中断或超时，本机会结束')
     if runtime.enabled:
         from .life_runner import tick_life
         tick_life(scheduler)

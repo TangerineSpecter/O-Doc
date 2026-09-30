@@ -6,7 +6,7 @@ from decimal import Decimal
 from django.db.models import Q
 
 from article.access import get_visible_anthology_queryset
-from system_settings.models import Agent, AgentActivity, AgentRunRecord, AgentTask
+from system_settings.models import Agent, AgentActivity, AgentRunRecord, AgentTask, WorldAction
 from .farm_models import AgentFarm, FarmOperation
 from .investment_models import InvestmentAccount, InvestmentDecision, InvestmentTrade
 from .life_models import LifeItem, LifeProfile, LifeRevision
@@ -84,7 +84,8 @@ def latest_event_day(request, owner, before, category='all'):
         collect(FarmOperation.objects.filter(farm__owner_id=owner), 'created_at')
     if category in ('all', 'market', 'trade'):
         collect(MarketTransaction.objects.filter(owner_id=owner), 'created_at')
-    if category in ('all', 'market'):
+    if category in ('all', 'market', 'trade'):
+        # 交易归并卡片可能移动到跨日会话结束日，日期索引须覆盖该日期。
         sessions = MarketSession.objects.filter(owner_id=owner)
         collect(sessions, 'created_at')
         collect(sessions, 'ended_at')
@@ -164,7 +165,7 @@ def _investment_detail(decision, trades):
         parts.append(f"{side}{name} {result.get('quantity') or operation.get('quantity', '')} 股，"
                      f"{result.get('price', '')} 元/股")
     if decision.reason:
-        parts.append('决定：' + decision.reason[:700])
+        parts.append(('执行结果：' if decision.status in ('failed', 'interrupted') else '决定：') + decision.reason[:700])
     return ' · '.join(parts) or '正在研究持仓和市场'
 
 
@@ -238,8 +239,12 @@ def day_events(request, owner, day, actor_id=''):
         event['outputPreview'] = str(row.output or '')[:300]
         events.append(event)
 
-    farms = FarmOperation.objects.filter(farm__owner_id=owner, created_at__gte=start,
-                                         created_at__lt=end).select_related('farm')
+    day_farms = FarmOperation.objects.filter(farm__owner_id=owner, created_at__gte=start, created_at__lt=end)
+    opportunity_ids = day_farms.exclude(opportunity_id='').values_list('opportunity_id', flat=True)
+    farm_actions = dict(WorldAction.objects.filter(pk__in=opportunity_ids).values_list('pk', 'status'))
+    farms = FarmOperation.objects.filter(farm__owner_id=owner).filter(
+        Q(opportunity_id__in=opportunity_ids) | Q(opportunity_id='', created_at__gte=start, created_at__lt=end)
+    ).select_related('farm')
     for row in farms:
         op, result = row.operation or {}, row.result or {}
         kind = op.get('kind', '')
@@ -260,8 +265,21 @@ def day_events(request, owner, day, actor_id=''):
                              names.get(row.farm_id, row.farm.actor_name), result.get('label') or FARM_LABELS.get(kind, '农场操作'),
                              ' · '.join(parts), amount=result.get('amount') if result.get('amount') not in ('0', '0.00', 0) else None,
                              target={'kind': 'farm', 'id': row.farm_id}))
+        if row.opportunity_id:
+            events[-1]['_execution_group'] = 'farm:' + row.opportunity_id
+            events[-1]['_execution_failed'] = farm_actions.get(row.opportunity_id) == 'failed'
+            events[-1]['_execution_running'] = farm_actions.get(row.opportunity_id) == 'claimed'
 
-    transactions = list(MarketTransaction.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end))
+    day_transactions = MarketTransaction.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end)
+    day_sessions = MarketSession.objects.filter(owner_id=owner).filter(
+        Q(created_at__gte=start, created_at__lt=end) | Q(ended_at__gte=start, ended_at__lt=end) | Q(pk__in=day_transactions.values('session_id'))
+    )
+    # 同次任务可能有多个会话；不按分钟或角色名称猜测执行归属。
+    sessions = list(MarketSession.objects.filter(owner_id=owner).filter(
+        Q(pk__in=day_sessions.values('pk')) | Q(record_id__in=day_sessions.exclude(record_id=None).values('record_id'))
+    ).select_related('record'))
+    session_map = {row.pk: row for row in sessions}
+    transactions = list(MarketTransaction.objects.filter(owner_id=owner, session_id__in=session_map))
     listing_ids = {row.operation.get('listing_id') for row in transactions
                    if isinstance(row.operation, dict) and row.operation.get('listing_id')}
     listings = {row.pk: row for row in MarketListing.objects.filter(owner_id=owner, pk__in=listing_ids)}
@@ -280,6 +298,9 @@ def day_events(request, owner, day, actor_id=''):
         events.append(_event(category, 'market', row.pk, row.created_at, row.actor_id,
                              row.actor_name, MARKET_LABELS.get(kind, '市场操作'), detail,
                              amount=amount, target={'kind': 'market', 'id': row.pk}))
+        session = session_map[row.session_id]
+        events[-1]['_execution_group'] = 'market:' + (session.record_id or session.pk)
+        events[-1]['_execution_failed'] = bool(session.record and session.record.status == 'failed')
         seller_id = result.get('seller_id') if kind == 'buy_listing' else None
         if seller_id:
             seller_amount = next((entry.get('amount') for entry in result.get('deltas', [])
@@ -287,26 +308,31 @@ def day_events(request, owner, day, actor_id=''):
             events.append(_event('trade', 'market-seller', row.pk, row.created_at, seller_id,
                                  names.get(seller_id) or (listing.seller_name if listing else ''), '居民商品售出', detail,
                                  amount=seller_amount, target={'kind': 'market', 'id': row.pk}))
-    entered = MarketSession.objects.filter(owner_id=owner, created_at__gte=start,
-                                           created_at__lt=end)
-    for row in entered:
-        events.append(_event('market', 'market-enter', row.pk, row.created_at, row.actor_id,
-                             row.actor_name, '进入市场', target={'kind': 'market', 'id': row.pk}))
-    sessions = MarketSession.objects.filter(owner_id=owner, ended_at__gte=start,
-                                            ended_at__lt=end)
     for row in sessions:
-        events.append(_event('market', 'market-session', row.pk, row.ended_at, row.actor_id,
-                             row.actor_name, '离开市场', row.reason,
-                             status='success' if row.status == 'completed' else row.status,
-                             target={'kind': 'market', 'id': row.pk}))
+        group = 'market:' + (row.record_id or row.pk)
+        event = _event('market', 'market-enter', row.pk, row.created_at, row.actor_id,
+                       row.actor_name, '进入市场', target={'kind': 'market', 'id': row.pk})
+        event.update(_execution_group=group, _execution_running=row.status == 'active',
+                     _execution_failed=bool(row.record and row.record.status == 'failed'))
+        events.append(event)
+        if row.ended_at:
+            event = _event('market', 'market-session', row.pk, row.ended_at, row.actor_id,
+                           row.actor_name, '离开市场', row.reason,
+                           target={'kind': 'market', 'id': row.pk})
+            event['_execution_group'] = group
+            events.append(event)
 
-    decisions = list(InvestmentDecision.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end))
+    decisions = list(InvestmentDecision.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end).select_related('record'))
     decision_ids = [row.pk for row in decisions]
     trades_by_decision = {pk: [] for pk in decision_ids}
     for trade in InvestmentTrade.objects.filter(owner_id=owner, decision_id__in=decision_ids).order_by('created_at', 'pk'):
         trades_by_decision[trade.decision_id].append(trade)
     covered_investment_charges = set()
     for row in decisions:
+        # 兼容尚未经过后台修复的旧决策，执行记录结束后不再投影为研究中。
+        if row.status == 'running' and row.record and row.record.status in ('success', 'failed'):
+            row.status = row.record.status
+            row.reason = row.reason or row.record.summary
         trades = trades_by_decision[row.pk]
         covered_investment_charges.update('investment:' + trade.pk for trade in trades
                                           if start <= trade.created_at < end)
@@ -342,14 +368,15 @@ def day_events(request, owner, day, actor_id=''):
 
     ledger = list(WorldLedger.objects.filter(created_at__gte=start, created_at__lt=end,
                                              agent_id__in=actors).exclude(kind='opening').exclude(amount=0))
+    from .ledger_details import ledger_details
+    descriptions = ledger_details(ledger, owner)
     travel_ids = {row.snapshot.get('journey_id') for row in ledger
                   if row.kind in ('travel', 'souvenir') and isinstance(row.snapshot, dict)
                   and row.snapshot.get('journey_id')}
     owned_travel_ids = set(TravelJourney.objects.filter(owner_id=owner, pk__in=travel_ids).values_list('pk', flat=True))
     for row in ledger:
         snapshot = row.snapshot if isinstance(row.snapshot, dict) else {}
-        description = next((str(snapshot[key]) for key in ('postTitle', 'post_title', 'title', 'reason', 'code')
-                            if snapshot.get(key)), '')
+        description = descriptions.get(row.pk, '')
         entry = _event('finance', 'ledger', row.pk, row.created_at, row.agent_id,
                        row.agent_name or names.get(row.agent_id),
                        LEDGER_LABELS.get(row.kind, '收入' if row.amount > 0 else '支出'),
@@ -386,12 +413,14 @@ def day_events(request, owner, day, actor_id=''):
                              row.item.actor_id, names.get(row.item.actor_id), title, row.reason,
                              status=status, target={'kind': 'life', 'id': row.item_id}))
 
+    from .daily_feed_groups import grouped_execution_events
+    events = grouped_execution_events(events, start, end)
     global_events = [event for event in events if event['category'] != 'record' and not event.get('_finance_only')]
     summary_events = global_events
     actor_counts = dict(Counter(event['actorId'] for event in summary_events if event['actorId']))
     if actor_id:
         events = [event for event in events if event['actorId'] == actor_id]
-    counts = Counter(event['category'] for event in events)
+    counts = Counter(category for event in events for category in event.get('categories', [event['category']]))
     all_events = [event for event in events if event['category'] != 'record' and not event.get('_finance_only')]
     all_events.sort(key=lambda event: (event['occurredAt'], event['id']), reverse=True)
     for event in events:

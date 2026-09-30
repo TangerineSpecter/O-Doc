@@ -35,6 +35,7 @@ function ActivityIcon({activity, className}: {activity?: string; className?: str
             return <TrendingUp className={className} />;
         case 'rest':
             return <Coffee className={className} />;
+        case 'market':
         case 'market_prepare':
             return <ShoppingBag className={className} />;
         case 'post_interaction':
