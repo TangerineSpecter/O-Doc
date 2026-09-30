@@ -84,6 +84,10 @@ def can_read_asset(request, asset):
     ):
         return True
 
+    from utils.resource_assets import is_asset_used_by_inventory, is_asset_used_by_catalog_item
+    if is_asset_used_by_inventory(asset.id) or is_asset_used_by_catalog_item(asset.id):
+        return True
+
     if is_asset_used_by_prompt(asset.id):
         return request.user and request.user.is_authenticated and asset.uploader == get_current_user_identifier(request)
 

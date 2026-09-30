@@ -15,6 +15,8 @@ type AgentWorldBannerProps = {
     stats: readonly AgentWorldBannerStat[];
 };
 
+const bannerWorldscapeUrl = `${import.meta.env.BASE_URL}agent-world-banner-worldscape.svg`;
+
 export default function AgentWorldBanner({stats}: AgentWorldBannerProps) {
     return (
         <section
@@ -23,8 +25,11 @@ export default function AgentWorldBanner({stats}: AgentWorldBannerProps) {
         >
             <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 hidden w-[58%] xl:block">
                 <img
-                    src="/agent-world-banner-worldscape.svg"
+                    src={bannerWorldscapeUrl}
                     alt=""
+                    onError={e => {
+                        (e.currentTarget as HTMLElement).style.display = 'none';
+                    }}
                     className="absolute inset-0 h-full w-full object-cover object-right"
                 />
             </div>

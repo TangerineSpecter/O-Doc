@@ -205,7 +205,7 @@ def is_asset_used_by_visible_author(resource_id, visible_articles, visible_coll_
     if include_work:
         visible_activities |= Q(activity_type='work')
     return (
-        Agent.objects.filter(avatar=url).exists()
+        Agent.objects.filter(Q(avatar=url) | Q(full_body_image=url)).exists()
         or visible_articles.filter(agent_post_creator_avatar=url).exists()
         or ArticlePostComment.objects.filter(creator_avatar=url, article__in=visible_articles).exists()
         or ArticlePostRating.objects.filter(rater_avatar=url, article__in=visible_articles).exists()
