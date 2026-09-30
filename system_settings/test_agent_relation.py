@@ -19,6 +19,7 @@ from system_settings.agent_relation import (
     replay_affinity,
 )
 from system_settings.agent_views import AgentRelationView
+from system_settings.agent_world.social_models import SocialRelation
 from system_settings.models import Agent, AgentActivity, AgentAffinity, AgentRunRecord, AgentTask, MCPServer, SyncEntityState
 from utils.mcp_client import call_mcp_tool
 
@@ -67,37 +68,39 @@ class AgentRelationFlowTests(TestCase):
             title='新帖',
             content='正文',
             coll_id=self.collection.coll_id,
+            agent_post_author_id=self.author.pk,
             agent_post_creator_id='agent:作者',
             agent_post_creator_name='作者',
         )
         self.task = AgentTask.objects.create(name='互动', agent=self.reader, agent_ids=[self.reader.id], prompt='互动')
         self.record = AgentRunRecord.objects.create(task=self.task, task_name=self.task.name, agent=self.reader, agent_name=self.reader.name)
 
-    def test_repeated_approval_and_disapproval_move_affinity(self):
+    def test_comments_change_affinity_but_content_rating_does_not(self):
         for index in range(6):
             record_post_comment(self.reader, self.article, {
                 'comment_id': f'cmt_{index}',
                 'content': '认可',
             }, 'approve', self.record)
-        rising = AgentAffinity.objects.get(actor=self.reader, counterpart=self.author)
-        self.assertGreater(rising.score, 40)
-        self.assertLess(rising.score, 100)
+        rising = SocialRelation.objects.get(actor_id=self.reader.pk, counterpart_id=f'agent-id:{self.author.pk}')
+        self.assertEqual(rising.affinity, 18)
+        self.assertEqual(rising.familiarity, 12)
 
         record_post_rating(self.reader, self.article, 'rate_1', 1, self.record)
         record_post_rating(self.reader, self.article, 'rate_1', 1, self.record)
-        falling = AgentAffinity.objects.get(actor=self.reader, counterpart=self.author)
-        self.assertLess(falling.score, rising.score)
+        falling = SocialRelation.objects.get(actor_id=self.reader.pk, counterpart_id=f'agent-id:{self.author.pk}')
+        self.assertEqual(falling.affinity, rising.affinity)
         self.assertEqual(AgentActivity.objects.filter(event_key='rating:rate_1').count(), 1)
-        self.assertEqual(falling.tier, '熟悉')
+        self.assertEqual(falling.band, '中性')
 
     def test_comment_tool_activity_is_idempotent_by_comment(self):
         result = {'comment': {'comment_id': 'cmt_same', 'article_id': self.article.article_id, 'content': '一次', 'stance': 'neutral'}}
         record_tool_activity(self.record, self.reader, 'add_agent_post_comment', result, 1)
         record_tool_activity(self.record, self.reader, 'add_agent_post_comment', result, 2)
         self.assertEqual(AgentActivity.objects.filter(action='comment').count(), 1)
-        affinity = AgentAffinity.objects.get(actor=self.reader, counterpart=self.author)
-        self.assertEqual(affinity.tier, '初识')
-        self.assertFalse(AgentAffinity.objects.filter(actor=self.author, counterpart=self.reader).exists())
+        affinity = SocialRelation.objects.get(actor_id=self.reader.pk, counterpart_id=f'agent-id:{self.author.pk}')
+        self.assertEqual(affinity.band, '中性')
+        self.assertEqual(affinity.familiarity, 2)
+        self.assertFalse(SocialRelation.objects.filter(actor_id=self.author.pk, counterpart_id=f'agent-id:{self.reader.pk}').exists())
 
     def test_activity_mcp_returns_only_recorded_events(self):
         record_post_comment(self.reader, self.article, {'comment_id': 'cmt_week', 'content': '本周'}, 'approve')
@@ -139,7 +142,7 @@ class AgentRelationFlowTests(TestCase):
         self.assertEqual(author['post_count'], 0)
         self.assertEqual(author['active_days'], 0)
 
-    def test_historical_comment_backfill_is_neutral(self):
+    def test_graph_query_does_not_backfill_historical_comments(self):
         ArticlePostComment.objects.create(
             article=self.article,
             content='以前的评论',
@@ -147,9 +150,8 @@ class AgentRelationFlowTests(TestCase):
             creator_name='读者',
         )
         graph = relation_graph()
-        self.assertEqual(len(graph['edges']), 1)
-        self.assertEqual(graph['edges'][0]['tier'], '初识')
-        self.assertEqual(graph['edges'][0]['source_score'] + graph['edges'][0]['target_score'], 0)
+        self.assertEqual(graph['edges'], [])
+        self.assertFalse(SocialRelation.objects.exists())
 
     def test_list_events_ignores_empty_action_work_rows(self):
         AgentActivity.objects.create(event_key='work-only', activity_type='work', agent=self.reader, title='开始任务')

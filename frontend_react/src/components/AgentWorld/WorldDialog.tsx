@@ -1,11 +1,12 @@
 import type {ReactNode} from 'react';
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useContext, useEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {X} from 'lucide-react';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
 import './WorldDialog.css';
+import {WorldDialogContext} from './WorldDialogContext';
 
-interface WorldDialogProps {
+export interface WorldDialogProps {
     title: string;
     description?: string;
     onClose: () => void;
@@ -15,7 +16,7 @@ interface WorldDialogProps {
     manageFocus?: boolean;
 }
 
-export default function WorldDialog({
+function WorldDialogFrame({
     title,
     description,
     onClose,
@@ -145,4 +146,16 @@ export default function WorldDialog({
         </div>,
         document.body
     );
+}
+
+function LoadedDialogContent({title, description, size, fixedHeight, children}: WorldDialogProps) {
+    const update = useContext(WorldDialogContext);
+    useEffect(() => {update?.update({title, description, size, fixedHeight});}, [update, title, description, size, fixedHeight]);
+    return <WorldDialogContext.Provider value={null}><div className="world-dialog-content-enter flex min-h-0 flex-1 flex-col">{children}</div></WorldDialogContext.Provider>;
+}
+
+export default function WorldDialog(props: WorldDialogProps) {
+    const inherited = useContext(WorldDialogContext);
+    // 只复用当前入口的卡片；并列声明的设置、编辑等子弹窗仍独立入场。
+    return inherited?.title === props.title ? <LoadedDialogContent {...props}/> : <WorldDialogFrame {...props}/>;
 }

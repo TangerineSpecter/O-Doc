@@ -24,6 +24,7 @@ interface SelectProps<T extends string> {
     showSelectedDescription?: boolean;
     menuPlacement?: 'auto' | 'top' | 'bottom';
     menuPortal?: boolean;
+    disabled?: boolean;
 }
 
 export function Select<T extends string>({
@@ -38,6 +39,7 @@ export function Select<T extends string>({
     showSelectedDescription = true,
     menuPlacement = 'auto',
     menuPortal = false,
+    disabled = false,
 }: SelectProps<T>) {
     const [open, setOpen] = useState(false);
     const [portalStyle, setPortalStyle] = useState<CSSProperties>({});
@@ -47,7 +49,7 @@ export function Select<T extends string>({
     const selected = options.find(option => option.value === value);
 
     useEffect(() => {
-        if (!open) return;
+        if (!open || disabled) return;
 
         const closeOnOutside = (event: MouseEvent) => {
             if (!rootRef.current?.contains(event.target as Node) && !menuRef.current?.contains(event.target as Node)) {
@@ -69,10 +71,10 @@ export function Select<T extends string>({
             document.removeEventListener('mousedown', closeOnOutside);
             document.removeEventListener('keydown', closeOnEscape);
         };
-    }, [open]);
+    }, [open, disabled]);
 
     useLayoutEffect(() => {
-        if (!open || !menuPortal) return;
+        if (!open || disabled || !menuPortal) return;
 
         const updatePosition = () => {
             const rect = rootRef.current?.getBoundingClientRect();
@@ -99,17 +101,18 @@ export function Select<T extends string>({
             window.removeEventListener('resize', updatePosition);
             window.removeEventListener('scroll', updatePosition, true);
         };
-    }, [menuPlacement, menuPortal, open, options.length]);
+    }, [menuPlacement, menuPortal, open, disabled, options.length]);
 
     return (
         <div ref={rootRef} className="relative">
             <button
+                disabled={disabled}
                 type="button"
                 aria-haspopup="listbox"
-                aria-expanded={open}
+                aria-expanded={open && !disabled}
                 aria-controls={listboxId}
                 onClick={() => setOpen(prev => !prev)}
-                className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-700 shadow-sm transition-all hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 ${buttonClassName}`}
+                className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-700 shadow-sm transition-all hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 disabled:cursor-not-allowed disabled:opacity-50 ${buttonClassName}`}
             >
                 <span className="flex min-w-0 flex-1 items-center gap-2">
                     {selected?.icon}
@@ -124,10 +127,10 @@ export function Select<T extends string>({
                         )}
                     </span>
                 </span>
-                <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}/>
+                <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open && !disabled ? 'rotate-180' : ''}`}/>
             </button>
 
-            {open && (() => {
+            {open && !disabled && (() => {
                 const menu = (
                     <div
                     ref={menuRef}

@@ -137,13 +137,10 @@ def selection_weight(actor_creator_id, author_creator_id):
         weight *= 1.15
     if not actor or actor.id == author.id:
         return weight
-    affinity = AgentAffinity.objects.filter(actor=actor, counterpart=author).first()
-    if not affinity:
-        return weight
-    if affinity.tier in {'熟悉', '朋友', '知己'} and affinity.score >= 10:
-        weight *= 1.4
-    elif affinity.score < 10:
-        weight *= 0.7
+    from .agent_world.social_models import SocialRelation
+    affinity = SocialRelation.objects.filter(actor_id=actor.pk, counterpart_id=f'agent-id:{author.pk}').first()
+    if affinity:
+        weight *= 1 + affinity.familiarity / 100 + max(-.6, affinity.affinity / 100)
     return weight
 
 
@@ -189,39 +186,15 @@ def refresh_creativity(agent):
 
 
 def refresh_pair(actor, counterpart):
-    """重算一个方向，并让双方的展示等级对齐。"""
-    if not actor or not counterpart or actor.id == counterpart.id:
-        return None
-    _write_direction(actor, counterpart)
-    _write_direction(counterpart, actor)
+    """旧调用保留；有向社交事件已在提交时更新，不再重放评分。"""
+    if not actor or not counterpart: return None
     return AgentAffinity.objects.filter(actor=actor, counterpart=counterpart).first()
 
 
 def recompute_all_relations():
+    """定时维护仅更新创作力；长期关系不按窗口重置。"""
     for agent in Agent.objects.all():
         refresh_creativity(agent)
-    pairs = set()
-    activities = AgentActivity.objects.filter(
-        action__in=['comment', 'rate'],
-        occurred_at__gte=window_start(),
-        counterpart_type='agent',
-    ).exclude(agent_id=None)
-    for activity in activities:
-        counterpart = agent_from_creator_id(activity.counterpart_id)
-        if counterpart and activity.agent_id != counterpart.id:
-            pairs.add((activity.agent_id, counterpart.id))
-    seen = set()
-    for actor_id, counterpart_id in pairs:
-        key = tuple(sorted((actor_id, counterpart_id)))
-        if key in seen:
-            continue
-        seen.add(key)
-        actor = Agent.objects.filter(id=actor_id).first()
-        counterpart = Agent.objects.filter(id=counterpart_id).first()
-        refresh_pair(actor, counterpart)
-    AgentAffinity.objects.exclude(
-        id__in=_kept_affinity_ids(seen),
-    ).delete()
 
 
 def backfill_relation_events():
@@ -270,8 +243,6 @@ def relation_graph(owner_id=None):
     from .agent_world.travel_models import AgentInventoryItem
     from django.db.models import Sum
 
-    backfill_relation_events()
-    recompute_all_relations()
     agents = list(Agent.objects.select_related("profession").all())
     creativity = {item.agent_id: item for item in AgentCreativity.objects.all()}
     running_ids = set(AgentActivity.objects.filter(status='running').exclude(agent_id=None).values_list('agent_id', flat=True))
@@ -296,26 +267,8 @@ def relation_graph(owner_id=None):
             'active_days': snapshot.active_days if snapshot else 0,
             'status': 'running' if agent.id in running_ids else 'idle',
         })
-    affinities = list(AgentAffinity.objects.select_related('actor', 'counterpart'))
-    grouped = {}
-    for item in affinities:
-        key = tuple(sorted((item.actor_id, item.counterpart_id)))
-        grouped.setdefault(key, {})[item.actor_id] = item
-    names = {agent.id: agent.name for agent in agents}
-    edges = []
-    for (left_id, right_id), directions in grouped.items():
-        left = directions.get(left_id)
-        right = directions.get(right_id)
-        sample = left or right
-        edges.append({
-            'source_id': left_id,
-            'target_id': right_id,
-            'tier': sample.tier if sample else '初识',
-            'source_score': left.score if left else 0,
-            'target_score': right.score if right else 0,
-            'source_name': names.get(left_id, ''),
-            'target_name': names.get(right_id, ''),
-        })
+    from .agent_world.social_graph import graph_edges
+    edges = graph_edges(owner_id, nodes)
     return {'nodes': nodes, 'edges': edges}
 
 

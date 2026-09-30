@@ -15,8 +15,11 @@ import './AgentRelationTooltip.css';
 echarts.use([GraphChart, TooltipComponent, CanvasRenderer]);
 
 const TIER_COLOR: Record<string, string> = {
-    初识: '#94a3b8',
-    熟悉: '#fb923c',
+    中性: '#94a3b8',
+    友好: '#fb923c',
+    不合: '#60a5fa',
+    反感: '#6366f1',
+    敌对: '#be123c',
     朋友: '#f97316',
     知己: '#c2410c',
 };
@@ -134,7 +137,7 @@ export default function AgentRelationCard({
                     source: edge.sourceId,
                     target: edge.targetId,
                     label: {formatter: edge.tier},
-                    lineStyle: {color: TIER_COLOR[edge.tier] || '#94a3b8'},
+                    lineStyle: {color: TIER_COLOR[edge.band || edge.tier] || '#94a3b8'},
                 })),
             }],
         };
@@ -155,7 +158,7 @@ export default function AgentRelationCard({
         chart.on('click', params => {
             if (params.dataType === 'node') {
                 const node = params.data as {id?: string};
-                if (node.id) onSelectAgent(node.id);
+                if (node.id && !node.id.startsWith('user:')) onSelectAgent(node.id);
                 return;
             }
             if (params.dataType === 'edge') {
@@ -190,7 +193,7 @@ export default function AgentRelationCard({
                             <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5"/><b className="text-slate-800">{graph.nodes.length}</b> 位居民</span>
                             <span className="flex items-center gap-1.5"><Network className="h-3.5 w-3.5"/><b className="text-slate-800">{graph.edges.length}</b> 条关系</span>
                         </div>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500">最近 30 天</span>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500">长期关系 · 情绪会缓解</span>
                     </div>
                     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60">
                         <div ref={chartRef} className="h-[min(60vh,620px)] min-h-64 w-full"/>
@@ -203,12 +206,13 @@ export default function AgentRelationCard({
             ) : null}
             {selectedEdge ? (
                 <div className="mt-3 rounded-xl bg-orange-50/80 px-3 py-2 text-xs text-slate-600">
-                    <span className="font-semibold text-slate-800">{selectedEdge.sourceName}</span>
-                    {` → ${selectedEdge.targetName} ${selectedEdge.sourceScore}`}
-                    <span className="mx-2 text-slate-300">|</span>
-                    <span className="font-semibold text-slate-800">{selectedEdge.targetName}</span>
-                    {` → ${selectedEdge.sourceName} ${selectedEdge.targetScore}`}
-                    <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-orange-700">{selectedEdge.tier}</span>
+                    {[['source', selectedEdge.sourceName, selectedEdge.targetName, selectedEdge.sourceRelation], ['target', selectedEdge.targetName, selectedEdge.sourceName, selectedEdge.targetRelation]].map(([direction, name, target, feeling]) => {
+                        const value = feeling as AgentRelationEdge['sourceRelation'];
+                        if (!value) return null;
+                        return <div key={String(direction)} className="mb-2"><strong>{String(name)}</strong> → {String(target)}：好感 {value.affinity}/100 · {value.familiarityLabel} {value.familiarity}/100 · {value.emotion.kind}
+                            <p className="mt-1 text-[11px] text-slate-500">{value.reason}</p></div>;
+                    })}
+                    <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-orange-700">{selectedEdge.tier}{selectedEdge.oneWay ? ' · Agent单方面感受' : ''}</span>
                 </div>
             ) : null}
         </WorldDialog>

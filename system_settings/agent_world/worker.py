@@ -1,4 +1,4 @@
-"""月榜与市场维护独立于 Agent 任务开关，不触发任何 Agent 行动。"""
+"""月榜与市场维护独立于 Agent 任务开关，不触发居民自主行动；恢复本机已授权的人工配图。"""
 import atexit
 import sys
 import logging
@@ -20,6 +20,8 @@ def advance_world_months() -> None:
     if not _lock.acquire(blocking=False):
         return
     try:
+        from .social_media_worker import start_manual_image_worker
+        start_manual_image_worker()
         now = time.monotonic()
         if now-_last_attempt >= 60:
             _last_attempt = now

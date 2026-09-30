@@ -22,6 +22,9 @@ class AgentPostCommentListCreateView(APIView):
                 'comments': ArticlePostCommentSerializer(comments, many=True, context={'comment_ratings': comment_ratings(comments)}).data,
                 'count': len(comments),
             })
+        except ValueError as exc:
+            from utils.response_utils import valid_result
+            return valid_result(str(exc), status=400)
         except Exception as exc:
             return error_result(ErrorCode.SYSTEM_ERROR, str(exc))
 
@@ -39,8 +42,11 @@ class AgentPostCommentListCreateView(APIView):
                 return error_result(ErrorCode.PARAM_ERROR, '评论内容不能超过 1000 字')
             identity = get_user_identity(request)
             from system_settings.agent_world.comments import create_comment
-            comment = create_comment(article, content, identity)
+            comment = create_comment(article, content, identity, parent_comment_id=request.data.get('parent_comment_id', ''), reply_to_actor_id=request.data.get('reply_to_actor_id', ''))
             return success_result(data={'comment': ArticlePostCommentSerializer(comment, context={'comment_ratings': comment_ratings([comment])}).data})
+        except ValueError as exc:
+            from utils.response_utils import valid_result
+            return valid_result(str(exc), status=400)
         except Exception as exc:
             return error_result(ErrorCode.SYSTEM_ERROR, str(exc))
 
@@ -64,6 +70,9 @@ class AgentPostLatestCommentListView(APIView):
                 'comments': AgentPostLatestCommentSerializer(comments, many=True).data,
                 'count': len(comments),
             })
+        except ValueError as exc:
+            from utils.response_utils import valid_result
+            return valid_result(str(exc), status=400)
         except Exception as exc:
             return error_result(ErrorCode.SYSTEM_ERROR, str(exc))
 
@@ -84,6 +93,9 @@ class AgentPostRatingView(APIView):
                 'rating_count': ratings.count(),
                 'my_rating': my_rating,
             })
+        except ValueError as exc:
+            from utils.response_utils import valid_result
+            return valid_result(str(exc), status=400)
         except Exception as exc:
             return error_result(ErrorCode.SYSTEM_ERROR, str(exc))
 
@@ -112,5 +124,8 @@ class AgentPostRatingView(APIView):
                 'rating_count': ratings.count(),
                 'my_rating': value,
             })
+        except ValueError as exc:
+            from utils.response_utils import valid_result
+            return valid_result(str(exc), status=400)
         except Exception as exc:
             return error_result(ErrorCode.SYSTEM_ERROR, str(exc))

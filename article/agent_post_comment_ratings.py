@@ -6,7 +6,7 @@ from system_settings.agent_world.identity import actor_key
 
 
 def comment_ratings(comments) -> dict[str, int]:
-    comments = list(comments)
+    comments = [c for c in comments if not getattr(c, 'parent_comment_id', '')]
     if not comments:
         return {}
     # 旧记录需要名称身份解析；仅在本次请求中缓存，避免每条评论重复查询。

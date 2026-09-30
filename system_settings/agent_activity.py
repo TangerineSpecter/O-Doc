@@ -149,6 +149,14 @@ def record_post_comment(agent, article, comment, stance, run_record=None):
             'occurred_at': timezone.now(),
         },
     )
+    from .agent_world.social_discussion import post_owner, post_author
+    from .agent_world.social_relations import apply_event
+    owner = post_owner(article)
+    if owner:
+        apply_event(owner, agent.pk, post_author(article, owner), f"sent:{comment['comment_id']}",
+                    {'category': 'agreement' if stance == 'approve' else 'disagreement' if stance == 'disapprove' else 'neutral',
+                     'reason': str(comment.get('content') or '实际评论')[:1000]},
+                    {'name': article.agent_post_creator_name, 'avatar': article.agent_post_creator_avatar})
     _refresh_scores(agent, counterpart_type, counterpart_id, 'comment')
     return activity
 

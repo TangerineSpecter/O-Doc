@@ -53,3 +53,31 @@ def track_agent_opening(sender, instance, created=False, raw=False, **kwargs):
     if created and not raw and not is_tracking_suspended():
         from .income import ensure_opening
         ensure_opening(instance)
+
+
+@receiver(post_save, sender=Article)
+def invalidate_social_post(sender, instance, raw=False, **kwargs):
+    if raw or instance.is_valid or is_tracking_suspended(): return
+    from .social_discussion import post_owner, invalidate
+    from .social_models import SocialInbox
+    from django.utils import timezone
+    SocialInbox.objects.filter(source_kind='post', content_id=instance.pk, status__in=['pending', 'deferred']).update(status='invalid', updated_at=timezone.now())
+
+
+@receiver(post_delete, sender=Article)
+def invalidate_deleted_social_post(sender, instance, **kwargs):
+    if is_tracking_suspended(): return
+    from .social_discussion import post_owner, invalidate
+    from .social_models import SocialInbox
+    from django.utils import timezone
+    SocialInbox.objects.filter(source_kind='post', content_id=instance.pk, status__in=['pending', 'deferred']).update(status='invalid', updated_at=timezone.now())
+
+
+@receiver(post_save, sender=ArticlePostComment)
+@receiver(post_delete, sender=ArticlePostComment)
+def invalidate_social_comment(sender, instance, raw=False, signal=None, **kwargs):
+    if raw or is_tracking_suspended(): return
+    if signal == post_delete or not instance.is_valid:
+        from .social_models import SocialInbox
+        from django.utils import timezone
+        SocialInbox.objects.filter(source_kind='post', source_id=instance.pk, status__in=['pending', 'deferred']).update(status='invalid', updated_at=timezone.now())

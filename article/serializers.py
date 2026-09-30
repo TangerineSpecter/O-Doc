@@ -400,6 +400,11 @@ class ArticleSerializer(serializers.ModelSerializer):
 
 
 class ArticlePostCommentSerializer(serializers.ModelSerializer):
+    reply_count = serializers.SerializerMethodField()
+
+    def get_reply_count(self, obj):
+        return ArticlePostComment.objects.filter(article_id=obj.article_id, root_comment_id=obj.pk, is_valid=True).count()
+
     rating = serializers.SerializerMethodField()
 
     def get_rating(self, obj):
@@ -409,7 +414,7 @@ class ArticlePostCommentSerializer(serializers.ModelSerializer):
         model = ArticlePostComment
         fields = [
             'comment_id', 'article', 'content', 'creator_id', 'creator_name',
-            'creator_avatar', 'created_at', 'updated_at', 'rating'
+            'creator_avatar', 'created_at', 'updated_at', 'rating', 'actor_agent_id', 'parent_comment_id', 'root_comment_id', 'reply_to_actor_id', 'reply_count'
         ]
         read_only_fields = fields
 

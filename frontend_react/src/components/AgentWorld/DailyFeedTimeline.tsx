@@ -1,5 +1,5 @@
 import PostRatingBadge from '../AgentPost/PostRatingBadge';
-import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, MapPin, MessageCircle, Package, Sprout, Store, TrendingUp} from 'lucide-react';
+import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, MapPin, MessageCircle, Package, RefreshCw, Sprout, Store, TrendingUp} from 'lucide-react';
 import {useEffect, useState} from 'react';
 import type {DailyFeedCategory, DailyFeedEvent} from '../../types/api/dailyFeed';
 import type {AgentActivity, AgentWorldAgentStatus} from '../../types/api/setting';
@@ -117,7 +117,7 @@ export default function DailyFeedTimeline({actorId, residents, onOpen, onSummary
     useEffect(() => {
         if (summary && summary.date === today) onSummary?.({date: summary.date, total: summary.allTotal, actorCounts: summary.actorCounts});
     }, [summary, today, onSummary]);
-    return <section aria-label="居民活动时间线">
+    return <section id="agent-world-daily-feed" aria-label="居民活动时间线" className="scroll-mt-6">
         <div className="mb-3 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
             <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide" role="tablist" aria-label="活动类型">
                 <div className="flex w-max items-center gap-1">
@@ -125,7 +125,7 @@ export default function DailyFeedTimeline({actorId, residents, onOpen, onSummary
                 </div>
             </div>
             <span className="shrink-0 text-xs text-slate-500">{feed.loading ? '读取中' : `已加载 ${feed.items.length} 条`}</span>
-            <button type="button" onClick={feed.reload} aria-label="刷新活动" className="shrink-0 rounded-lg px-2 py-1.5 text-xs text-slate-500 hover:bg-orange-50 hover:text-orange-700">刷新</button>
+            <button type="button" onClick={feed.reload} disabled={feed.loading} aria-label="刷新活动" title="刷新动态" className="shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-orange-50 hover:text-orange-600 disabled:cursor-wait"><RefreshCw aria-hidden="true" className={`h-4 w-4 ${feed.loading ? 'motion-safe:animate-spin' : ''}`}/></button>
         </div>
         {feed.loading ? <div className="flex min-h-64 items-center justify-center rounded-2xl bg-white"><StarLoader variant="pill" message="更新最新动态..."/></div> : feed.error && !feed.items.length ? <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-sm text-red-700">{feed.error}<button type="button" onClick={feed.reload} className="ml-3 underline">重试</button></div> : feed.items.length ? <div className="space-y-3">
             {category === 'finance'

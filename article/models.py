@@ -710,6 +710,9 @@ class ArticleAnnotation(models.Model):
 
 
 class ArticlePostComment(models.Model):
+    parent_comment_id = models.CharField(max_length=32, blank=True, default='')
+    root_comment_id = models.CharField(max_length=32, blank=True, default='')
+    reply_to_actor_id = models.CharField(max_length=100, blank=True, default='')
     actor_agent_id = models.CharField(max_length=40, blank=True, default="")
     """
     Agent 文集帖子评论。

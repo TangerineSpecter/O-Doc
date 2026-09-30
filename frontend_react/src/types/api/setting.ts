@@ -1,3 +1,4 @@
+import type {SocialFeeling} from './social';
 // --- 类型定义 ---
 export type ModelType = 'chat' | 'image' | 'image_generation' | 'embedding' | 'rerank';
 
@@ -227,6 +228,7 @@ export interface AgentActivityListResult {
 }
 
 export interface AgentRelationNode {
+    kind?: 'agent' | 'user';
     inventoryCount?: number;
     professionName?: string;
     id: string;
@@ -245,8 +247,12 @@ export interface AgentRelationEdge {
     sourceId: string;
     targetId: string;
     tier: string;
-    sourceScore: number;
-    targetScore: number;
+    sourceScore: number | null;
+    targetScore: number | null;
+    sourceRelation?: SocialFeeling | null;
+    targetRelation?: SocialFeeling | null;
+    oneWay?: boolean;
+    band?: string;
     sourceName: string;
     targetName: string;
 }

@@ -172,6 +172,9 @@ def get_prompt_resource_usage(resource_ids=None):
 
 
 def is_asset_used_by_agent(resource_id):
+    from system_settings.agent_world.social_models import Moment
+    if any(resource_id in row.images for row in Moment.objects.filter(is_valid=True).only('images')):
+        return True
     from django.db.models import Q
     from system_settings.models import Agent, AgentActivity
     from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating, ImageReview
@@ -236,6 +239,11 @@ def get_agent_resource_usage(resource_ids=None):
                 continue
             usage.setdefault(resource_id, {'id': agent.id, 'title': agent.name})
 
+    from system_settings.agent_world.social_models import Moment
+    for moment in Moment.objects.filter(is_valid=True).only('images', 'actor_id', 'identity'):
+        for resource_id in moment.images:
+            if resource_ids is None or resource_id in resource_ids:
+                usage.setdefault(resource_id, {'id': moment.actor_id, 'title': (moment.identity.get('name') or '参与者') + '的朋友圈'})
     from system_settings.agent_world.travel_models import AgentInventoryItem
     from system_settings.agent_world.item_catalog_icons import catalog_icon_usage_counts
     items = AgentInventoryItem.objects.exclude(icon_asset_id__isnull=True).exclude(icon_asset_id='')

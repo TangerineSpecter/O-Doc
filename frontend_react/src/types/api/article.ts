@@ -72,6 +72,11 @@ export interface Article {
 }
 
 export interface AgentPostComment {
+    actorAgentId?: string;
+    parentCommentId?: string;
+    rootCommentId?: string;
+    replyToActorId?: string;
+    replyCount?: number;
     rating?: number | null;
     commentId: string;
     article: string;

@@ -1,11 +1,14 @@
+import {residentRelations, type ResidentRelation} from '../../utils/agentRelations';
+import ResidentRelationsDialog from './ResidentRelationsDialog';
+import ResidentActivityDialog from './ResidentActivityDialog';
 import {useState} from 'react';
-import type {AgentRelationEdge, AgentRelationGraph, AgentRelationNode} from '../../types/api/setting';
+import type {AgentRelationGraph, AgentRelationNode} from '../../types/api/setting';
 import AgentAvatar from './AgentAvatar';
 import WorldDialog from './WorldDialog';
 import {
     Battery,
     CalendarDays,
-    ChevronDown,
+    Activity,
     FileText,
     MessageSquare,
     Package,
@@ -23,39 +26,22 @@ interface AgentAttributePanelProps {
     error: string;
     selectedAgentId: string;
     onClose: () => void;
+    onViewActivities?: (actorId: string) => void;
     onOpenInvestment?: (actorId?: string) => void;
 }
-
-interface RelationRow {
-    name: string;
-    tier: string;
-    mine: number;
-    theirs: number;
-}
-
-const relationsFor = (agentId: string, edges: AgentRelationEdge[]): RelationRow[] =>
-    edges.flatMap((edge) => {
-        if (edge.sourceId === agentId) {
-            return [{name: edge.targetName, tier: edge.tier, mine: edge.sourceScore, theirs: edge.targetScore}];
-        }
-        if (edge.targetId === agentId) {
-            return [{name: edge.sourceName, tier: edge.tier, mine: edge.targetScore, theirs: edge.sourceScore}];
-        }
-        return [];
-    });
 
 function AttributeRow({
     node,
     relations,
-    expanded,
-    onToggle,
+    onOpenRelations,
+    onOpenActivities,
     onOpenInventory,
     onOpenHoldings,
 }: {
     node: AgentRelationNode;
-    relations: RelationRow[];
-    expanded: boolean;
-    onToggle: () => void;
+    relations: ResidentRelation[];
+    onOpenRelations: () => void;
+    onOpenActivities: () => void;
     onOpenInventory: () => void;
     onOpenHoldings: () => void;
 }) {
@@ -64,14 +50,10 @@ function AttributeRow({
 
     return (
         <div
-            className={`overflow-hidden rounded-2xl border transition-all duration-200 ${
-                expanded
-                    ? 'border-orange-300 bg-orange-50/20 shadow-sm'
-                    : 'border-slate-200/90 bg-white hover:border-orange-200 hover:shadow-xs'
-            } p-3.5 flex flex-col justify-between`}
+            className="flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-3.5 transition-colors hover:border-orange-200 hover:shadow-xs"
         >
             <div>
-                {/* 头部居民信息与好感折叠按钮 */}
+                {/* 头部居民信息与独立互动、活动入口 */}
                 <div className="flex items-center gap-2.5">
                     <AgentAvatar name={node.name} avatar={node.avatar} size="md" />
                     <div className="min-w-0 flex-1">
@@ -98,27 +80,10 @@ function AttributeRow({
                         </div>
                     </div>
 
-                    {/* 右侧互动折叠切换 */}
-                    {relations.length > 0 ? (
-                        <button
-                            type="button"
-                            onClick={onToggle}
-                            aria-expanded={expanded}
-                            title={expanded ? '收起互动好感' : '展开互动好感'}
-                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                                expanded
-                                    ? 'bg-orange-100 text-orange-700'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-orange-50 hover:text-orange-600'
-                            }`}
-                        >
-                            <span>{relations.length} 互动</span>
-                            <ChevronDown
-                                className={`h-3 w-3 transition-transform ${expanded ? 'rotate-180' : ''}`}
-                            />
-                        </button>
-                    ) : (
-                        <span className="shrink-0 text-[11px] text-slate-400">无互动</span>
-                    )}
+                    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                        <button type="button" onClick={onOpenRelations} aria-label={`查看${node.name}的互动`} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-600 shadow-2xs transition-colors hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"><MessageSquare className="h-3 w-3 text-slate-400"/>互动<span className="border-l border-slate-200 pl-1.5 tabular-nums text-slate-400">{relations.length}</span></button>
+                        <button type="button" onClick={onOpenActivities} aria-label={`查看${node.name}的活动`} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-orange-200/80 bg-orange-50/60 px-2 text-[11px] font-medium text-orange-700 shadow-2xs transition-colors hover:border-orange-300 hover:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"><Activity className="h-3 w-3 text-orange-500"/>活动</button>
+                    </div>
                 </div>
 
                 {/* 核心双指标：创作力 & 体力 双列紧凑并排 */}
@@ -243,39 +208,7 @@ function AttributeRow({
                 </div>
             </div>
 
-            {/* 好感度展开详情 */}
-            {expanded ? (
-                <div className="mt-2.5 border-t border-orange-100/90 pt-2 space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
-                        <span>互动居民</span>
-                        <span>相互好感度</span>
-                    </div>
-                    {relations.length ? (
-                        <div className="max-h-36 overflow-y-auto scrollbar-hide space-y-1 divide-y divide-slate-100">
-                            {relations.map((relation) => (
-                                <div
-                                    key={relation.name}
-                                    className="flex items-center justify-between gap-2 pt-1 text-xs text-slate-600"
-                                >
-                                    <span className="min-w-0 truncate font-medium text-slate-800">
-                                        {relation.name}
-                                    </span>
-                                    <span className="shrink-0 text-right text-[11px]">
-                                        <span className="mr-1.5 rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">
-                                            {relation.tier}
-                                        </span>
-                                        我 {relation.mine} · TA {relation.theirs}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="py-2 text-center text-xs text-slate-400">
-                            最近 30 天还没有和其他居民互动。
-                        </p>
-                    )}
-                </div>
-            ) : null}
+
         </div>
     );
 }
@@ -287,16 +220,12 @@ export default function AgentAttributePanel({
     selectedAgentId,
     onClose,
     onOpenInvestment,
+    onViewActivities,
 }: AgentAttributePanelProps) {
-    const [prevSelectedAgentId, setPrevSelectedAgentId] = useState(selectedAgentId);
-    const [expandedId, setExpandedId] = useState(selectedAgentId);
+    const [relationAgent, setRelationAgent] = useState<AgentRelationNode | null>(null);
+    const [activityAgent, setActivityAgent] = useState<AgentRelationNode | null>(null);
     const [inventoryAgent, setInventoryAgent] = useState<AgentRelationNode | null>(null);
     const [holdingsAgent, setHoldingsAgent] = useState<AgentRelationNode | null>(null);
-
-    if (selectedAgentId !== prevSelectedAgentId) {
-        setPrevSelectedAgentId(selectedAgentId);
-        setExpandedId(selectedAgentId);
-    }
 
     const nodes = [...(graph?.nodes || [])].sort((left, right) => {
         if (left.id === selectedAgentId) return -1;
@@ -307,7 +236,7 @@ export default function AgentAttributePanel({
     return (
         <WorldDialog
             title="居民属性"
-            description="创作与互动按近 30 天统计，并显示当前体力、金钱余额与资产持仓。"
+            description="创作统计近 30 天，互动保留历史关系；体力、金钱余额与资产显示当前状态。"
             size="wide"
             onClose={onClose}
         >
@@ -330,17 +259,18 @@ export default function AgentAttributePanel({
                           <AttributeRow
                               key={node.id}
                               node={node}
-                              relations={relationsFor(node.id, graph?.edges || [])}
-                              expanded={expandedId === node.id}
-                              onToggle={() =>
-                                  setExpandedId((current) => (current === node.id ? '' : node.id))
-                              }
+                              relations={residentRelations(node.id, graph)}
+                              onOpenRelations={() => setRelationAgent(node)}
+                              onOpenActivities={() => setActivityAgent(node)}
                               onOpenInventory={() => setInventoryAgent(node)}
                               onOpenHoldings={() => setHoldingsAgent(node)}
                           />
                       ))
                     : null}
             </div>
+
+            {relationAgent && <ResidentRelationsDialog agent={relationAgent} relations={residentRelations(relationAgent.id, graph)} onClose={() => setRelationAgent(null)}/>}
+            {activityAgent && <ResidentActivityDialog key={activityAgent.id} agent={activityAgent} onClose={() => setActivityAgent(null)} onViewComplete={onViewActivities ? () => {setActivityAgent(null); onViewActivities(activityAgent.id);} : undefined}/>}
 
             {/* 背包弹窗 */}
             {inventoryAgent && (

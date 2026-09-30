@@ -5,22 +5,22 @@
 
 /* 遮罩入场与退场动画 */
 .world-dialog-overlay-enter {
-    animation: world-dialog-backdrop-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: world-dialog-backdrop-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .world-dialog-overlay-exit {
-    animation: world-dialog-backdrop-out 0.16s cubic-bezier(0.4, 0, 1, 1) forwards;
+    animation: world-dialog-backdrop-out 0.16s cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 /* 卡片容器入场与退场动画 - 响应式支持移动端底部滑入与桌面端微缩放弹性弹入 */
 .world-dialog-panel-enter {
-    animation: world-dialog-panel-mobile-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: world-dialog-panel-mobile-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
     transform-origin: center center;
     will-change: transform, opacity;
 }
 
 .world-dialog-panel-exit {
-    animation: world-dialog-panel-mobile-out 0.16s cubic-bezier(0.4, 0, 1, 1) forwards;
+    animation: world-dialog-panel-mobile-out 0.16s cubic-bezier(0.4, 0, 1, 1) both;
     transform-origin: center center;
     will-change: transform, opacity;
 }
@@ -82,7 +82,7 @@
     @keyframes world-dialog-panel-desktop-in {
         0% {
             opacity: 0;
-            transform: translateY(12px) scale(0.95);
+            transform: translateY(10px) scale(0.985);
         }
         100% {
             opacity: 1;
@@ -111,4 +111,16 @@
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
     }
+}
+
+/* 数据就绪只淡入正文，外层卡片保持稳定。 */
+.world-dialog-content-enter {
+    animation: world-dialog-content-in 0.2s ease-out both;
+}
+@keyframes world-dialog-content-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .world-dialog-content-enter { animation: none; }
 }

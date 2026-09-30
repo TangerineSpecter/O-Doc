@@ -151,6 +151,8 @@ class SyncManager:
         return remote_parts > current_parts
 
     def validate_remote_snapshot_version(self, remote_meta):
+        if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
+            raise SyncError('社交快照版本高于本机，请升级后同步。')
         if not remote_meta:
             return
 
@@ -713,6 +715,13 @@ class SyncManager:
         from article.image_search_service import delete_image_vectors
         from article.models import ImageVisualIndex
 
+        expected_social = (remote_meta or {}).get('social_owners')
+        if expected_social is not None:
+            restored_social = {str(item.get('pk')) for item in data_list
+                               if item.get('model') == 'system_settings.socialintegrity'}
+            if set(expected_social) != restored_social:
+                raise SyncError('社交快照缺少完整性记录，拒绝恢复')
+
         data_list = self._drop_local_only_settings(data_list)
         self._strip_device_local_user_fields(data_list)
         self._restore_device_local_user_fields(data_list)
@@ -824,6 +833,11 @@ class SyncManager:
             reconcile_awards()
             from system_settings.agent_world.life_sync import reconcile_life
             reconcile_life()
+            from system_settings.agent_world.social_sync import reconcile_social
+            reconcile_social()
+            if not any(item.get('model', '').startswith('system_settings.social') for item in data_list):
+                from system_settings.agent_world.social_migration import seed_legacy_relations
+                seed_legacy_relations()
             self._reset_restored_sequences(restored_models)
 
             if image_vectors_to_remove:
@@ -1085,7 +1099,10 @@ class SyncManager:
             raise SyncError(f"远端快照元数据损坏：{exc}")
 
     def build_snapshot_meta(self, source='manual', runner_id=''):
+        from system_settings.agent_world.social_models import SocialIntegrity
         return {
+            'social_schema_version': 1,
+            'social_owners': list(SocialIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
             'snapshot_id': uuid.uuid4().hex,
             'generated_at': datetime.utcnow().isoformat() + 'Z',
             'source': source,
@@ -1095,6 +1112,8 @@ class SyncManager:
         }
 
     def validate_import_snapshot_version(self, remote_meta):
+        if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
+            raise SyncError('社交快照版本高于本机，请升级后恢复。')
         if not remote_meta or not remote_meta.get('app_version'):
             raise SyncError('备份缺少版本信息，无法导入。')
         remote_version = remote_meta['app_version']
@@ -1109,6 +1128,8 @@ class SyncManager:
     def build_snapshot_data(self):
         from system_settings.agent_world.life_sync import checkpoint_all
         checkpoint_all()
+        from system_settings.agent_world.social_sync import checkpoint_all as checkpoint_social
+        checkpoint_social()
         all_data = []
         for model in self._iter_target_models():
             queryset = self._queryset_for_export(model)

@@ -47,6 +47,11 @@ def get_visible_anthology_ids(request):
 
 
 def can_read_asset(request, asset):
+    if request.user and request.user.is_authenticated:
+        from system_settings.agent_world.social_models import Moment
+        owner = get_current_user_identifier(request)
+        if any(asset.pk in row.images for row in Moment.objects.filter(owner_id=owner, is_valid=True).only('images')):
+            return True
     if request.user and request.user.is_authenticated and asset.uploader == get_current_user_identifier(request):
         return True
 

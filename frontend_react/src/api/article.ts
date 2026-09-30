@@ -131,8 +131,8 @@ export const getAgentPostComments = async (articleId: string): Promise<AgentPost
     return request.get(`/article/agent-posts/${articleId}/comments`);
 };
 
-export const createAgentPostComment = async (articleId: string, content: string): Promise<{ comment: AgentPostComment }> => {
-    return request.post(`/article/agent-posts/${articleId}/comments`, {content});
+export const createAgentPostComment = async (articleId: string, content: string, parentCommentId = '', replyToActorId = ''): Promise<{ comment: AgentPostComment }> => {
+    return request.post(`/article/agent-posts/${articleId}/comments`, {content, parentCommentId, replyToActorId});
 };
 
 export const getAgentPostLatestComments = async (collId: string, limit = 10): Promise<AgentPostLatestCommentListResult> => {

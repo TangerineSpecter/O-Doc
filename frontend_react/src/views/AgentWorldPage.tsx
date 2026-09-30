@@ -1,7 +1,7 @@
-import {lazy, Suspense, useCallback, useEffect, useState} from 'react';
-import WorldDialog from '../components/AgentWorld/WorldDialog';
+import WorldDialogSuspense from '../components/AgentWorld/WorldDialogSuspense';
+import {lazy, useCallback, useEffect, useState} from 'react';
 import WorldOrbitLoader from '../components/AgentWorld/WorldOrbitLoader';
-import {Activity, ArrowLeft, Bot, BookOpenText, Settings, Store} from 'lucide-react';
+import {Activity, ArrowLeft, Bot, BookOpenText, Settings, Store, MessageCircle} from 'lucide-react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
 import DailyFeedTimeline from '../components/AgentWorld/DailyFeedTimeline';
 import AgentAttributePanel from '../components/AgentWorld/AgentAttributePanel';
@@ -25,6 +25,7 @@ const preloadTravel = () => import('../components/AgentWorld/TravelJourneyDialog
 const LifeScheduleDialog = lazy(preloadLifeSchedule);
 const MarketDialog = lazy(preloadMarket);
 const FarmDialog = lazy(preloadFarm);
+const MomentsDialog = lazy(() => import('../components/AgentWorld/MomentsDialog'));
 const ItemCatalogDialog = lazy(preloadCatalog);
 const InvestmentDialog = lazy(preloadInvestment);
 const TravelJourneyDialog = lazy(preloadTravel);
@@ -36,6 +37,7 @@ export default function AgentWorldPage() {
     const [feedRefreshToken, setFeedRefreshToken] = useState(0);
     const closeLife = useCallback(() => setLifeOpen(false), []);
     const [investmentOpen, setInvestmentOpen] = useState(false);
+    const [feedViewKey, setFeedViewKey] = useState(0);
     const [investmentActorId, setInvestmentActorId] = useState('');
     const closeInvestment = useCallback(() => {
         setInvestmentOpen(false);
@@ -45,6 +47,7 @@ export default function AgentWorldPage() {
     const closeMarket = useCallback(() => setMarketOpen(false), []);
     const [farmOpen, setFarmOpen] = useState(false);
     const closeFarm = useCallback(() => setFarmOpen(false), []);
+    const [momentsOpen, setMomentsOpen] = useState(false);
     const [catalogOpen, setCatalogOpen] = useState(false);
     const closeCatalog = useCallback(() => setCatalogOpen(false), []);
     const [worldManagementOpen, setWorldManagementOpen] = useState(false);
@@ -137,6 +140,7 @@ export default function AgentWorldPage() {
                     <span className="text-[11px] text-slate-400 hidden sm:inline">实时见证智能体思考与成长轨迹</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => setMomentsOpen(true)} className="inline-flex items-center shrink-0 gap-1.5 whitespace-nowrap rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 shadow-2xs transition-all duration-150 hover:border-rose-300 hover:bg-rose-100 hover:shadow-xs active:scale-95"><MessageCircle className="h-3.5 w-3.5"/>朋友圈</button>
                     <button
                         type="button"
                         onClick={() => setCatalogOpen(true)}
@@ -196,7 +200,7 @@ export default function AgentWorldPage() {
                 </div>
             </div>
 
-            {lifeOpen && <Suspense fallback={<WorldDialog title="居民生活日程" onClose={closeLife} size="extra-wide"><WorldOrbitLoader title="正在排布居民生活日程" subtitle="读取今日动态流 · 校验行动预留资金"/></WorldDialog>}><LifeScheduleDialog onClose={closeLife}/></Suspense>}
+            {lifeOpen && <WorldDialogSuspense title="居民生活日程" onClose={closeLife} size="extra-wide" fallback={<WorldOrbitLoader title="正在排布居民生活日程" subtitle="读取今日动态流 · 校验行动预留资金"/>}><LifeScheduleDialog onClose={closeLife}/></WorldDialogSuspense>}
 
             {/* 移动端专属居民状态横滑栏：置顶于动态流上方，随时可横滑感知与点击筛选 (< lg) */}
             <div className="mt-3 lg:hidden">
@@ -211,7 +215,7 @@ export default function AgentWorldPage() {
 
             <div className="mt-3.5 grid gap-5 lg:mt-5 lg:grid-cols-[minmax(0,1fr)_280px]">
                 <div className="min-w-0">
-                    <DailyFeedTimeline actorId={world.agentId} residents={residents} onOpen={openDailyTarget} onSummary={updateDailySummary} refreshToken={feedRefreshToken}/>
+                    <DailyFeedTimeline key={feedViewKey} actorId={world.agentId} residents={residents} onOpen={openDailyTarget} onSummary={updateDailySummary} refreshToken={feedRefreshToken}/>
                 </div>
 
                 {/* 桌面端常驻侧边栏 (>= lg) */}
@@ -246,6 +250,12 @@ export default function AgentWorldPage() {
                     error={relation.error}
                     selectedAgentId={world.agentId}
                     onClose={() => setPanel(null)}
+                    onViewActivities={(actorId) => {
+                        world.setAgentId(actorId);
+                        setFeedViewKey(value => value + 1);
+                        setPanel(null);
+                        requestAnimationFrame(() => document.getElementById('agent-world-daily-feed')?.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'}));
+                    }}
                     onOpenInvestment={(actorId) => {
                         setInvestmentActorId(actorId || world.agentId);
                         setPanel(null);
@@ -253,11 +263,12 @@ export default function AgentWorldPage() {
                     }}
                 />
             ) : null}
-            {investmentOpen && <Suspense fallback={<WorldDialog title="股票投资" onClose={closeInvestment} size="extra-wide"><WorldOrbitLoader title="正在打开投资账户" subtitle="读取模拟盘行情 · 同步持仓与盈亏"/></WorldDialog>}><InvestmentDialog onClose={closeInvestment} initialActorId={investmentActorId}/></Suspense>}
-            {travelArchiveId && <Suspense fallback={<WorldDialog title="旅行详情" onClose={closeTravel} manageFocus={false}><WorldOrbitLoader title="正在调取旅行档案" subtitle="还原行程图层 · 加载旅途见闻与照片"/></WorldDialog>}><TravelJourneyDialog key={travelArchiveId} journeyId={travelArchiveId} onClose={closeTravel} onChanged={() => setFeedRefreshToken(value => value + 1)}/></Suspense>}
-            {marketOpen && <Suspense fallback={<WorldDialog title="世界市场 · 集市大厅" onClose={closeMarket} size="wide"><WorldOrbitLoader title="正在连接世界市场" subtitle="检索集市货架 · 实时计算商品供需物价"/></WorldDialog>}><MarketDialog onClose={closeMarket} residents={world.summary?.agents || []}/></Suspense>}
-            {farmOpen && <Suspense fallback={<WorldDialog title="像素农场" onClose={closeFarm} size="extra-wide" manageFocus={false}><WorldOrbitLoader title="正在铺开像素农场" subtitle="构建地形图块 · 加载农作物生长状态"/></WorldDialog>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></Suspense>}
-            {catalogOpen && <Suspense fallback={<WorldDialog title="物品图鉴" onClose={closeCatalog} size="wide" manageFocus={false}><WorldOrbitLoader title="正在翻开物品图鉴" subtitle="整理物品分类 · 计算稀有度与用途估值"/></WorldDialog>}><ItemCatalogDialog onClose={closeCatalog}/></Suspense>}
+            {investmentOpen && <WorldDialogSuspense title="股票投资" onClose={closeInvestment} size="extra-wide" fallback={<WorldOrbitLoader title="正在打开投资账户" subtitle="读取模拟盘行情 · 同步持仓与盈亏"/>}><InvestmentDialog onClose={closeInvestment} initialActorId={investmentActorId}/></WorldDialogSuspense>}
+            {travelArchiveId && <WorldDialogSuspense title="旅行详情" onClose={closeTravel} manageFocus={false} fallback={<WorldOrbitLoader title="正在调取旅行档案" subtitle="还原行程图层 · 加载旅途见闻与照片"/>}><TravelJourneyDialog key={travelArchiveId} journeyId={travelArchiveId} onClose={closeTravel} onChanged={() => setFeedRefreshToken(value => value + 1)}/></WorldDialogSuspense>}
+            {marketOpen && <WorldDialogSuspense title="世界市场 · 集市大厅" onClose={closeMarket} size="wide" fallback={<WorldOrbitLoader title="正在连接世界市场" subtitle="检索集市货架 · 实时计算商品供需物价"/>}><MarketDialog onClose={closeMarket} residents={world.summary?.agents || []}/></WorldDialogSuspense>}
+            {farmOpen && <WorldDialogSuspense title="像素农场" onClose={closeFarm} size="extra-wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在铺开像素农场" subtitle="构建地形图块 · 加载农作物生长状态"/>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></WorldDialogSuspense>}
+            {momentsOpen && <WorldDialogSuspense title="朋友圈" size="wide" onClose={() => setMomentsOpen(false)} fallback={<WorldOrbitLoader title="正在读取朋友圈" subtitle="整理生活分享与讨论"/>}><MomentsDialog onClose={() => setMomentsOpen(false)}/></WorldDialogSuspense>}
+            {catalogOpen && <WorldDialogSuspense title="物品图鉴" onClose={closeCatalog} size="wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在翻开物品图鉴" subtitle="整理物品分类 · 计算稀有度与用途估值"/>}><ItemCatalogDialog onClose={closeCatalog}/></WorldDialogSuspense>}
             {worldManagementOpen && <WorldManagementDialog onClose={() => setWorldManagementOpen(false)} />}
             <AgentRunDrawer
                 key={selectedActivity?.runRecordId || selectedActivity?.id || 'closed'}

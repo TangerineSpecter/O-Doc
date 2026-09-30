@@ -12,7 +12,8 @@ import { WorldProfessionModal } from './WorldProfessionModal';
 import { WorldIncomeTab } from './WorldIncomeTab';
 
 import {MarketSettings} from '../Market/MarketSettings';
-type WorldTab = 'categories' | 'professions' | 'income' | 'market';
+import SocialSettingsDialog from './SocialSettingsDialog';
+type WorldTab = 'categories' | 'professions' | 'income' | 'market' | 'social';
 
 export function WorldManagement() {
     const state = useAgentWorldManagement();
@@ -20,6 +21,7 @@ export function WorldManagement() {
     const catalogToggle = useWorldCatalogToggle(state.reload);
 
     const [tab, setTab] = useState<WorldTab>('categories');
+    const [socialSettingsOpen, setSocialSettingsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -133,7 +135,8 @@ export function WorldManagement() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2.5">
                         {/* 胶囊分段控制器 */}
-                        <div className="flex rounded-lg bg-slate-100 p-0.5 shrink-0">
+                        <div className="flex flex-wrap rounded-lg bg-slate-100 p-0.5 shrink-0">
+                            <button type="button" onClick={() => setTab('social')} className={`rounded-md px-3 py-1 text-xs ${tab === 'social' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>社交关系</button>
                             <button
                                 type="button"
                                 onClick={() => setTab('categories')}
@@ -244,6 +247,8 @@ export function WorldManagement() {
                         />
                     )}
 
+                    {tab === 'social' && <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><div><h3 className="text-sm font-bold text-slate-800">居民的社交习惯</h3><p className="mt-2 text-xs text-slate-400">管理参与居民、自动社交节奏和可选配图。</p></div><button type="button" onClick={() => setSocialSettingsOpen(true)} className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white">社交设置</button></div>}
+                    {socialSettingsOpen && <SocialSettingsDialog onClose={() => setSocialSettingsOpen(false)}/>}
                     {tab === 'market' && <MarketSettings/>}
                     {tab === 'income' && (
                         <WorldIncomeTab

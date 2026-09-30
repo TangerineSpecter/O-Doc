@@ -26,6 +26,8 @@ def build_context(owner: str, agent, item: LifeItem | None = None) -> dict:
     goals=LifeGoal.objects.filter(owner_id=owner, actor_id=agent.pk, status='active')
     context['goals_total']=goals.count()
     context['goals'] = list(goals.values('id','title','condition','progress')[:20])
+    from .social_models import SocialOpportunity
+    context['recent_social'] = list(SocialOpportunity.objects.filter(owner_id=owner, actor_id=agent.pk, status='completed').order_by('-created_at').values('id', 'result', 'created_at')[:10])
     context['recent_experiences'] = list(AgentRunRecord.objects.filter(agent_id=agent.pk).order_by('-created_at').values('id','task_name','status','summary','created_at')[:20])
     context['ongoing_travel'] = list(TravelJourney.objects.filter(actor_id=agent.pk, returned_at__isnull=True, status__in=['active','waiting','paused','manual']).values('id','phase','status')[:5])
     rows = LifeItem.objects.filter(owner_id=owner, actor_id=agent.pk, status__in=OPEN).order_by('scheduled_at')

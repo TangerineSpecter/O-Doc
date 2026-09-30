@@ -875,12 +875,12 @@ class AgentActivity(models.Model):
 
 
 class AgentAffinity(models.Model):
-    """一对 Agent 在最近 30 天互动上的有向好感度。"""
+    """旧关系基线；三维关系迁移后由 SocialRelation 保存持续的有向感受。"""
 
     id = models.CharField(max_length=40, primary_key=True, default=generate_agent_affinity_id)
     actor = models.ForeignKey(Agent, related_name='affinities_out', on_delete=models.CASCADE)
     counterpart = models.ForeignKey(Agent, related_name='affinities_in', on_delete=models.CASCADE)
-    score = models.PositiveSmallIntegerField(default=0, verbose_name='好感度', db_comment='0-100')
+    score = models.SmallIntegerField(default=0, verbose_name='好感度', db_comment='-100至100；旧快照迁移基线')
     band = models.CharField(max_length=20, default='初识', verbose_name='单方等级', db_comment='只看这一方向分数的等级，用于滞后')
     tier = models.CharField(max_length=20, default='初识', verbose_name='关系等级', db_comment='结合双方后的展示等级')
     event_count = models.PositiveIntegerField(default=0, verbose_name='窗口内事件数', db_comment='最近 30 天计入的互动数')
@@ -967,3 +967,5 @@ from .agent_world.investment_models import InvestmentAccount, InvestmentDecision
 
 from .agent_world.life_models import LifeConfig, LifeProfile, LifeGoal, LifeCycle, LifeItem, LifeRevision  # noqa: E402,F401
 from .agent_world.life_models import LifeIntegrity  # noqa: E402,F401
+
+from .agent_world.social_models import (SocialConfig, Moment, MomentComment, MomentLike, SocialInbox, SocialRelation, SocialEvent, SocialOpportunity, SocialIntegrity)  # noqa: E402,F401

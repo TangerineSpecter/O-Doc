@@ -1,3 +1,4 @@
+import {SocialDiscussion, type DiscussionEntry} from '../components/AgentWorld/SocialDiscussion';
 import PostRatingBadge from '../components/AgentPost/PostRatingBadge';
 import { CategoryMigration, MigrationAlert } from "../components/AgentWorld/CategoryMigration";
 import { PostRanking } from "../components/AgentWorld/PostRanking";
@@ -187,6 +188,7 @@ function AgentPostCollectionView({
     const [postLoading, setPostLoading] = useState(false);
     const [comments, setComments] = useState<AgentPostComment[]>([]);
     const [commentsLoading, setCommentsLoading] = useState(false);
+    const [replyTarget, setReplyTarget] = useState<DiscussionEntry | null>(null);
     const [commentDraft, setCommentDraft] = useState('');
     const [commentSubmitting, setCommentSubmitting] = useState(false);
     const [activeCategory, setActiveCategory] = useState('all');
@@ -284,6 +286,8 @@ function AgentPostCollectionView({
         loadPosts();
     }, [loadPosts]);
 
+    useEffect(() => {setReplyTarget(null); setCommentDraft('');}, [articleId]);
+
     const loadPostDetail = useCallback(async () => {
         if (!articleId) {
             setActivePost(null);
@@ -315,6 +319,16 @@ function AgentPostCollectionView({
     }, [loadPostDetail]);
 
     useEffect(() => {
+        if (!articleId) return;
+        let active = true;
+        const timer = window.setInterval(() => {
+            if (document.visibilityState !== 'visible') return;
+            void getAgentPostComments(articleId).then(result => {if (active) setComments(result.comments);}).catch(() => {});
+        }, 30000);
+        return () => {active = false; window.clearInterval(timer);};
+    }, [articleId]);
+
+    useEffect(() => {
         if (commentsLoading || !window.location.hash.startsWith('#comment-')) return;
         const targetId = decodeURIComponent(window.location.hash.slice('#comment-'.length));
         const target = document.getElementById(`comment-${targetId}`);
@@ -342,7 +356,7 @@ function AgentPostCollectionView({
         if (!activePost || !commentDraft.trim() || commentSubmitting) return;
         setCommentSubmitting(true);
         try {
-            const result = await createAgentPostComment(activePost.articleId, commentDraft.trim());
+            const result = await createAgentPostComment(activePost.articleId, commentDraft.trim(), replyTarget?.id, replyTarget?.actorId);
             setComments(prev => [...prev, result.comment]);
             setActivePost(prev => prev ? {
                 ...prev,
@@ -362,6 +376,7 @@ function AgentPostCollectionView({
                 createdAt: result.comment.createdAt
             }, ...prev].slice(0, 10));
             setCommentDraft('');
+            setReplyTarget(null);
             toast.success('评论已发布');
         } catch (error) {
             console.error('发布评论失败:', error);
@@ -524,19 +539,12 @@ function AgentPostCollectionView({
                                     <div className="py-6 text-center text-xs text-slate-400">正在加载评论...</div>
                                 ) : comments.length > 0 ? (
                                     <div className="space-y-4">
-                                        {comments.map(comment => (
-                                            <div id={`comment-${comment.commentId}`} key={comment.commentId} className="flex scroll-mt-24 gap-3 rounded-lg bg-slate-50 px-3 py-3">
-                                                <AgentAvatar name={comment.creatorName} avatar={comment.creatorAvatar} />
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <span className="text-sm font-semibold text-slate-800">{comment.creatorName || '用户'}</span>
-                                                        <PostRatingBadge rating={comment.rating}/>
-                                                        <span className="text-xs text-slate-400">{formatPostTime(comment.createdAt)}</span>
-                                                    </div>
-                                                    <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">{comment.content}</p>
-                                                </div>
-                                            </div>
-                                        ))}
+                                        <SocialDiscussion entries={comments.map(comment => ({
+                                            id: comment.commentId, actorId: comment.actorAgentId ? `agent-id:${comment.actorAgentId}` : `user:${comment.creatorId}`,
+                                            name: comment.creatorName, avatar: comment.creatorAvatar, content: comment.content, parentId: comment.parentCommentId || '',
+                                            rootId: comment.rootCommentId || '', replyToActorId: comment.replyToActorId || '', createdAt: comment.createdAt,
+                                            header: <PostRatingBadge rating={comment.rating}/>,
+                                        }))} onReply={entry => {setReplyTarget(entry); setCommentDraft('');}}/>
                                     </div>
                                 ) : (
                                     <div className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">暂无评论</div>
@@ -544,6 +552,7 @@ function AgentPostCollectionView({
 
                                 {canManage && (
                                     <div className="mt-5 rounded-xl border border-slate-200 bg-white p-3">
+                                        {replyTarget && <p className="mb-2 text-xs text-orange-600">回复 {replyTarget.name}<button type="button" onClick={() => setReplyTarget(null)} className="ml-2 text-slate-400">取消</button></p>}
                                         <textarea
                                             value={commentDraft}
                                             onChange={(event) => setCommentDraft(event.target.value)}

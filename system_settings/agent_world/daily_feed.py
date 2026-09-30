@@ -73,7 +73,7 @@ def latest_event_day(request, owner, before, category='all'):
         activity_scope = (Q(activity_type='work', agent_id__in=actors) |
                           Q(activity_type='work', agent_id__isnull=True, run_record__agent_id__in=actors)) if category == 'record' else Q(pk__in=[])
         visible_scope = Q(activity_type__in=activity_types, artifact_coll_id__in=visible_colls)
-        collect(AgentActivity.objects.filter(activity_scope | visible_scope), 'occurred_at')
+        collect(AgentActivity.objects.filter(activity_scope | visible_scope | Q(action__startswith='social_', metadata__owner_id=owner)), 'occurred_at')
     if category == 'record':
         records = AgentRunRecord.objects.filter(agent_id__in=actors)
         collect(records, 'started_at')
@@ -178,7 +178,8 @@ def day_events(request, owner, day, actor_id=''):
     activities = AgentActivity.objects.filter(occurred_at__gte=start, occurred_at__lt=end).filter(
         Q(activity_type='work', agent_id__in=actors) |
         Q(activity_type='work', agent_id__isnull=True, run_record__agent_id__in=actors) |
-        Q(activity_type__in=('publication', 'interaction'), artifact_coll_id__in=visible_colls)
+        Q(activity_type__in=('publication', 'interaction'), artifact_coll_id__in=visible_colls) |
+        Q(action__startswith='social_', metadata__owner_id=owner)
     ).select_related('agent', 'run_record')
     from system_settings.agent_activity_presentation import grouped_activities, activity_title, activity_rating
     activities = grouped_activities(activities)
@@ -205,6 +206,8 @@ def day_events(request, owner, day, actor_id=''):
                                'artifactId': row.artifact_id or '',
                                'artifactKind': row.artifact_kind or ''})
         event['rating'] = activity_rating(row)
+        if row.action.startswith('social_'):
+            event['currentAction'] = row.current_action or ''
         if row.activity_type == 'work':
             event['currentAction'] = row.current_action or ''
             metadata = row.metadata if isinstance(row.metadata, dict) else {}

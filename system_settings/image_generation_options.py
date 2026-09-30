@@ -47,6 +47,7 @@ GPT_IMAGE_DIMENSIONS = {
 }
 
 SCENE_DEFAULTS = {
+    'moment': {'aspect_ratio': '1:1', 'image_size': '1K'},
     # Inline editorial artwork reads best as a landscape image in article bodies.
     'article_illustration': {'aspect_ratio': '16:9', 'image_size': '1K'},
     'agent_post_illustration': {'aspect_ratio': '16:9', 'image_size': '1K'},

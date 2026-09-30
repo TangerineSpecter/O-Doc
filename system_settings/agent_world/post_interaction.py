@@ -29,7 +29,7 @@ def candidate_posts(agent, collection_ids: list[str] | None, category_ids: list[
     # 最终评论服务会检查软删历史，因此候选查询也不按 is_valid 筛评论。
     target = actor_key(agent.pk, '')
     commented = {
-        row.article_id for row in ArticlePostComment.objects.filter(article__in=posts)
+        row.article_id for row in ArticlePostComment.objects.filter(article__in=posts, parent_comment_id="")
         .only('article_id', 'actor_agent_id', 'creator_id')
         if actor_key(row.actor_agent_id, row.creator_id) == target
     }

@@ -41,7 +41,18 @@ from .agent_world.investment_views import InvestmentView
 from .agent_world.life_views import LifeConfigView, LifeProfileView, LifeGoalView, LifeScheduleView
 from .agent_world.daily_feed_views import DailyFeedView
 
+from .agent_world.social_views import SocialView
+
 urlpatterns = [
+    path('agent-world/social/config/', SocialView.as_view(kind='config')),
+    path('agent-world/social/inbox/', SocialView.as_view(kind='inbox')),
+    path('agent-world/social/inbox/<str:identity>/read/', SocialView.as_view(kind='inbox')),
+    path('agent-world/moments/', SocialView.as_view()),
+    path('agent-world/moments/<str:identity>/', SocialView.as_view()),
+    path('agent-world/moments/<str:identity>/comments/', SocialView.as_view(kind='comments')),
+    path('agent-world/moments/<str:identity>/like/', SocialView.as_view(kind='like')),
+    path('agent-world/moments/<str:identity>/recover-image/', SocialView.as_view(kind='recover-image')),
+    path('agent-world/moments/<str:identity>/regenerate/', SocialView.as_view(kind='regenerate')),
     path('agent-world/daily-feed/', DailyFeedView.as_view()),
     path('agent-world/life/config/', LifeConfigView.as_view()),
     path('agent-world/life/profiles/<str:actor>/', LifeProfileView.as_view()),

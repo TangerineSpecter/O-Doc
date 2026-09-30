@@ -7,6 +7,7 @@ export const escapeRelationText = (value: string) => value
     .replace(/"/g, '&quot;');
 
 export function relationNodeTooltip(node: AgentRelationNode): string {
+    if (node.kind === 'user') return `<div class="relation-tooltip"><strong>${escapeRelationText(node.name)}</strong><div class="relation-tooltip__footer">用户参与者 · 连线仅表示 Agent 的感受</div></div>`;
     const running = node.status === 'running';
     const professionBadge = node.professionName
         ? `<span class="relation-tooltip__profession">${escapeRelationText(node.professionName)}</span>`
