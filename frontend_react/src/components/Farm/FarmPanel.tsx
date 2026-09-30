@@ -9,15 +9,70 @@ import {
     Sun,
     Warehouse,
     Coins,
+    Bot,
 } from 'lucide-react';
 import {Link} from 'react-router-dom';
 import {Select} from '../common/Select';
+import {ProfessionBadge} from '../AgentWorld/ProfessionBadge';
 import {AgentInventoryDialog} from '../AgentWorld/AgentInventoryDialog';
 import {FarmCanvas} from './FarmCanvas';
 import {FarmDetails} from './FarmDetails';
 import {FarmConfiguration} from './FarmConfiguration';
 import {useFarm} from '../../hooks/useFarm';
+import {farmAtlasUrl} from './assets';
 import type {FarmSelection} from '../../types/api/farm';
+
+// 居民专属头像（优先智能体自定义头像/Emoji，无则优雅降级为农场像素小人切片）
+function FarmResidentAvatar({
+    name,
+    avatar,
+    appearance,
+}: {
+    name: string;
+    avatar?: string;
+    appearance?: {style: number; palette: number};
+}) {
+    const isImage = Boolean(avatar && /^(https?:|data:|\/)/.test(avatar));
+    if (isImage) {
+        return (
+            <img
+                src={avatar}
+                alt={name}
+                className="h-6 w-6 shrink-0 rounded-lg object-cover border border-orange-100/90 shadow-2xs"
+            />
+        );
+    }
+    if (avatar && avatar.trim()) {
+        return (
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-orange-100 bg-orange-50 text-xs shadow-2xs">
+                {avatar}
+            </span>
+        );
+    }
+    if (appearance) {
+        return (
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-lime-200/90 bg-lime-50 shadow-2xs">
+                <div
+                    style={{
+                        width: 32,
+                        height: 32,
+                        transform: 'scale(0.65) translateY(1px)',
+                        transformOrigin: 'center center',
+                        imageRendering: 'pixelated',
+                        backgroundImage: `url(${farmAtlasUrl})`,
+                        backgroundSize: '1024px auto',
+                        backgroundPosition: `0px -${(appearance.style * 8 + appearance.palette * 2) * 64}px`,
+                    }}
+                />
+            </span>
+        );
+    }
+    return (
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-orange-100 bg-orange-50 text-orange-600 shadow-2xs">
+            <Bot className="h-3.5 w-3.5" />
+        </span>
+    );
+}
 
 export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
     const {farms, agentId, setAgentId, farm, history, loading, error, refresh} =
@@ -42,13 +97,27 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                 {/* 左侧：居民、天气、余额、行动 */}
                 <div className="flex flex-wrap items-center gap-2.5">
                     {!!farms.length && (
-                        <div className="w-36">
+                        <div className="w-52 sm:w-60">
                             <Select
                                 menuPortal
                                 value={agentId}
                                 options={farms.map((f) => ({
                                     value: f.id,
-                                    label: f.actorName,
+                                    label: (
+                                        <span className="flex min-w-0 items-center gap-1.5">
+                                            <span className="truncate font-medium">{f.actorName}</span>
+                                            {f.professionName && (
+                                                <ProfessionBadge professionName={f.professionName} size="xs" />
+                                            )}
+                                        </span>
+                                    ),
+                                    icon: (
+                                        <FarmResidentAvatar
+                                            name={f.actorName}
+                                            avatar={f.avatar}
+                                            appearance={f.appearance}
+                                        />
+                                    ),
                                 }))}
                                 onChange={(id) => {
                                     setAgentId(id);
@@ -56,7 +125,8 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                                     setConfigure(false);
                                     setInventory(false);
                                 }}
-                                buttonClassName="!py-1 text-xs"
+                                buttonClassName="!min-h-[34px] !py-1 !px-2.5 text-xs shadow-2xs rounded-xl border-slate-200/90"
+                                menuClassName="w-56 sm:w-64"
                             />
                         </div>
                     )}

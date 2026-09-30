@@ -1,5 +1,6 @@
 import {useId, type ReactNode} from 'react';
 import {Check} from 'lucide-react';
+import {twMerge} from 'tailwind-merge';
 
 export interface CheckboxProps {
     checked: boolean;
@@ -41,11 +42,13 @@ export function Checkbox({
     return (
         <label
             htmlFor={id}
-            className={`group inline-flex items-center gap-1.5 select-none transition-opacity ${
-                disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-            } ${className}`}
+            className={twMerge(
+                'group inline-flex items-center gap-2 select-none transition-opacity',
+                disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+                className
+            )}
         >
-            <span className="relative inline-flex items-center justify-center">
+            <span className="relative inline-flex items-center justify-center shrink-0">
                 <input
                     id={id}
                     name={name}
@@ -58,11 +61,14 @@ export function Checkbox({
                 />
                 <span
                     aria-hidden="true"
-                    className={`inline-flex items-center justify-center rounded transition-all duration-150 ${boxSize} ${
+                    className={twMerge(
+                        `inline-flex items-center justify-center rounded transition-all duration-150 ${boxSize}`,
                         checked
                             ? 'border border-orange-500 bg-orange-500 text-white shadow-xs shadow-orange-500/20'
-                            : 'border border-slate-300 bg-white group-hover:border-orange-400'
-                    } peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/30 peer-focus-visible:ring-offset-1 ${boxClassName}`}
+                            : 'border border-slate-300 bg-white group-hover:border-orange-400',
+                        'peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/30 peer-focus-visible:ring-offset-1',
+                        boxClassName
+                    )}
                 >
                     <Check
                         className={`${iconSize} stroke-[3] transition-transform duration-100 ${
@@ -74,7 +80,11 @@ export function Checkbox({
 
             {(label || description) && (
                 <span className="min-w-0 flex-1 leading-normal">
-                    {label && <span className={`block font-medium ${defaultLabelClass} ${labelClassName}`}>{label}</span>}
+                    {label && (
+                        <span className={twMerge('block font-medium', defaultLabelClass, labelClassName)}>
+                            {label}
+                        </span>
+                    )}
                     {description && <span className="mt-0.5 block text-[10px] text-slate-400">{description}</span>}
                 </span>
             )}

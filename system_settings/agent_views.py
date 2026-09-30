@@ -366,9 +366,10 @@ class AgentActivityViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         visible_coll_ids = get_visible_anthology_queryset(self.request).values_list('coll_id', flat=True)
-        return super().get_queryset().filter(
+        from .agent_activity_presentation import grouped_activities
+        return grouped_activities(super().get_queryset().filter(
             Q(activity_type='work') | Q(artifact_coll_id__in=visible_coll_ids)
-        )
+        ))
 
     def list(self, request, *args, **kwargs):
         # The cursor uses the id as the stable tie-breaker, so keep the database

@@ -2,9 +2,9 @@ import {useCallback, useEffect, useState} from 'react';
 import {getInvestmentDecisions, getInvestmentOverview, getInvestmentPositions, getInvestmentResidents, getInvestmentTrades} from '../api/investment';
 import type {InvestmentDecision, InvestmentOverview, InvestmentPage, InvestmentPosition, InvestmentResident, InvestmentTab, InvestmentTrade} from '../types/api/investment';
 
-export function useInvestment() {
+export function useInvestment(initialActorId?: string) {
     const [residents, setResidents] = useState<InvestmentResident[]>([]);
-    const [actorId, setActorIdState] = useState('');
+    const [actorId, setActorIdState] = useState(initialActorId || '');
     const [tab, setTabState] = useState<InvestmentTab>('positions');
     const [page, setPageState] = useState(1);
     const [overview, setOverview] = useState<InvestmentOverview | null>(null);
@@ -30,7 +30,9 @@ export function useInvestment() {
                 const accounts = await getInvestmentResidents(abort.signal);
                 if (!alive || abort.signal.aborted) return;
                 setResidents(accounts);
-                const selected = accounts.some(r => r.id === actorId) ? actorId : accounts[0]?.id || '';
+                const selected = accounts.some(r => r.id === actorId)
+                    ? actorId
+                    : (initialActorId && accounts.some(r => r.id === initialActorId) ? initialActorId : accounts[0]?.id || '');
                 if (selected !== actorId) {setActorIdState(selected); setPageState(1); return;}
                 if (selected) {
                     const summary = await getInvestmentOverview(selected, abort.signal);
@@ -57,6 +59,6 @@ export function useInvestment() {
         const visibility = () => {clearTimeout(timer); if (document.hidden) controller?.abort(); else void poll();};
         document.addEventListener('visibilitychange', visibility); void poll();
         return () => {alive = false; controller?.abort(); clearTimeout(timer); document.removeEventListener('visibilitychange', visibility);};
-    }, [actorId, tab, page, retry]);
+    }, [actorId, tab, page, retry, initialActorId]);
     return {residents, actorId, setActorId, tab, setTab, page, setPage, overview, positions, trades, decisions, loading, error, refresh};
 }

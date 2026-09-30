@@ -1,4 +1,4 @@
-import {Clock, Droplets, Heart, Sparkles, Sprout, Home} from 'lucide-react';
+import {Clock, Droplets, Heart, Sparkles, Sprout, Home, Warehouse, Eye, Info} from 'lucide-react';
 import type {FarmSelection, FarmState} from '../../types/api/farm';
 import {FarmBonus} from './FarmBonus';
 
@@ -26,6 +26,10 @@ export function FarmDetails({
         selection?.kind === 'building'
             ? farm.state.buildings[selection.id as 'coop' | 'barn']
             : null;
+    const buildingAnimals =
+        selection?.kind === 'building'
+            ? farm.state.animals.filter((a) => a.building === selection.id)
+            : [];
 
     const remaining = (seconds: number) =>
         seconds <= 0 ? '已成熟可收获' : `剩余约 ${Math.ceil(seconds / 60)} 分钟生长时间`;
@@ -35,22 +39,22 @@ export function FarmDetails({
             {/* 职业产量加成 */}
             <FarmBonus farm={farm} />
 
-            {/* 观察焦点反馈区 */}
+            {/* 观察焦点反馈区（固定高度 96px，统一工整三行结构，杜绝切换时导致下方卡片产生任何位移） */}
             <div
                 aria-live="polite"
-                className="rounded-xl border border-lime-200/90 bg-gradient-to-b from-lime-50/70 to-emerald-50/20 p-3 text-xs leading-relaxed text-slate-700 shadow-2xs"
+                className="h-[96px] min-h-[96px] max-h-[96px] rounded-xl border border-lime-200/90 bg-gradient-to-b from-lime-50/70 to-emerald-50/20 p-2.5 sm:p-3 text-xs leading-relaxed text-slate-700 shadow-2xs flex flex-col justify-between overflow-hidden select-none"
             >
                 {plot ? (
                     <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 font-bold text-slate-900">
-                                <Sprout className="h-3.5 w-3.5 text-lime-600" />
-                                <span>
+                            <span className="flex items-center gap-1.5 font-bold text-slate-900 truncate">
+                                <Sprout className="h-3.5 w-3.5 text-lime-600 shrink-0" />
+                                <span className="truncate">
                                     耕地 #{Number(plot.id) + 1} · {plot.crop?.rules.name || '空闲耕地'}
                                 </span>
                             </span>
                             <span
-                                className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${
                                     plot.crop
                                         ? plot.crop.rules.growthSeconds <= plot.crop.grown
                                             ? 'bg-amber-100 text-amber-800'
@@ -62,9 +66,9 @@ export function FarmDetails({
                             </span>
                         </div>
 
-                        <div className="flex items-center gap-2 pt-1 text-slate-600">
+                        <div className="flex items-center gap-2 pt-0.5 text-slate-600">
                             <Clock className="h-3 w-3 text-slate-400 shrink-0" />
-                            <span>
+                            <span className="truncate">
                                 {plot.crop
                                     ? remaining(plot.crop.rules.growthSeconds - plot.crop.grown)
                                     : '等待居民自主播种'}
@@ -73,7 +77,7 @@ export function FarmDetails({
 
                         <div className="flex items-center gap-2 text-slate-600">
                             <Droplets className="h-3 w-3 text-blue-400 shrink-0" />
-                            <span>
+                            <span className="truncate">
                                 {plot.wet ??
                                 (plot.wateredUntil > at || farm.weather === 'rain')
                                     ? '土壤湿润（水分充足）'
@@ -84,51 +88,102 @@ export function FarmDetails({
                 ) : animal ? (
                     <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1 font-bold text-slate-900">
-                                <Heart className="h-3.5 w-3.5 text-rose-500 fill-rose-500" />
-                                <span>{animalNames[animal.kind]}</span>
+                            <span className="flex items-center gap-1 font-bold text-slate-900 truncate">
+                                <Heart className="h-3.5 w-3.5 text-rose-500 fill-rose-500 shrink-0" />
+                                <span className="truncate">{animalNames[animal.kind]}</span>
                             </span>
-                            <span className="font-mono text-xs text-rose-500 font-bold">
+                            <span className="font-mono text-xs text-rose-500 font-bold shrink-0">
                                 {animal.halfHearts / 2} / 5 心
                             </span>
                         </div>
 
-                        <p className="pt-1 text-slate-600">
-                            {animal.cycle.result ? (
-                                <span className="font-semibold text-amber-700">
-                                    待收取产物：
-                                    {animal.cycle.result.quality === 'gold' ? '金色 ' : '普通 '}
-                                    {animal.cycle.rules.product} × {animal.cycle.result.quantity}
-                                </span>
-                            ) : (
-                                remaining(
-                                    animal.cycle.rules.periodSeconds - animal.cycle.grown
-                                )
-                            )}
-                        </p>
+                        <div className="flex items-center gap-2 pt-0.5 text-slate-600">
+                            <Sparkles className="h-3 w-3 text-amber-500 shrink-0" />
+                            <span className="truncate">
+                                {animal.cycle.result ? (
+                                    <span className="font-semibold text-amber-700">
+                                        待收取：
+                                        {animal.cycle.result.quality === 'gold' ? '金色 ' : '普通 '}
+                                        {animal.cycle.rules.product} × {animal.cycle.result.quantity}
+                                    </span>
+                                ) : (
+                                    remaining(
+                                        animal.cycle.rules.periodSeconds - animal.cycle.grown
+                                    )
+                                )}
+                            </span>
+                        </div>
 
-                        <p className="text-[11px] text-slate-500">
-                            {animal.fedUntil > at
-                                ? '饲料充足（生产正常）'
-                                : '等待喂养，生产暂停'}
-                        </p>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                            <Clock className="h-3 w-3 text-slate-400 shrink-0" />
+                            <span className="truncate">
+                                {animal.fedUntil > at
+                                    ? '饲料充足（生产正常）'
+                                    : '等待喂养，生产暂停'}
+                            </span>
+                        </div>
                     </div>
                 ) : selection?.kind === 'building' ? (
                     <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                            <Home className="h-3.5 w-3.5 text-orange-500" />
-                            <span>{selection.id === 'coop' ? '鸡舍' : '牛羊舍'}</span>
+                        <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 font-bold text-slate-900 truncate">
+                                {selection.id === 'coop' ? (
+                                    <Home className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                                ) : (
+                                    <Warehouse className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                                )}
+                                <span className="truncate">
+                                    {selection.id === 'coop' ? '鸡舍 (家禽舍)' : '牛羊舍 (牲畜棚)'}
+                                </span>
+                            </span>
+                            <span
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${
+                                    building
+                                        ? 'bg-lime-100 text-lime-800'
+                                        : 'bg-slate-100 text-slate-500'
+                                }`}
+                            >
+                                {building ? `Lv.${building.level} 建筑` : '尚未建造'}
+                            </span>
                         </div>
-                        <p className="pt-1 text-slate-600">
-                            {building
-                                ? `${building.level} 级建筑 · 可容纳 ${building.capacity} 只动物`
-                                : '尚未建造'}
-                        </p>
+
+                        <div className="flex items-center gap-2 pt-0.5 text-slate-600">
+                            <Info className="h-3 w-3 text-slate-400 shrink-0" />
+                            <span className="truncate">
+                                {building
+                                    ? `容纳上限：可饲养 ${building.capacity} 只${selection.id === 'coop' ? '母鸡' : '牲畜'}`
+                                    : '尚未动工建设，暂无法饲养动物'}
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-slate-600">
+                            <Sparkles className="h-3 w-3 text-amber-500 shrink-0" />
+                            <span className="truncate">
+                                {building
+                                    ? `当前养殖：共 ${buildingAnimals.length} / ${building.capacity} 只`
+                                    : '可在农场配置或自动规划中建设'}
+                            </span>
+                        </div>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-2 text-slate-600">
-                        <Sparkles className="h-4 w-4 text-lime-600 shrink-0" />
-                        <span>点击左侧地块、动物或建筑，在此观察其成长与收益。</span>
+                    <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 font-bold text-slate-900">
+                                <Sparkles className="h-3.5 w-3.5 text-lime-600 shrink-0" />
+                                <span>农场观察哨</span>
+                            </span>
+                            <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-lime-100 text-lime-800">
+                                实时聚焦
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2 pt-0.5 text-slate-600">
+                            <Eye className="h-3 w-3 text-slate-400 shrink-0" />
+                            <span className="truncate">点击画布或下方卡片查看地块、动物与建筑</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-slate-600">
+                            <Sprout className="h-3 w-3 text-lime-600 shrink-0" />
+                            <span className="truncate">居民将依据当前环境自主耕作、照料与收获</span>
+                        </div>
                     </div>
                 )}
             </div>

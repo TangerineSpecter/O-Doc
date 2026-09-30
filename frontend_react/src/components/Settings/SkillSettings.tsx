@@ -221,7 +221,7 @@ export const SkillSettings = ({skills, onSave, onDelete}: SkillSettingsProps) =>
                                     disabled={form.isSystem}
                                     rows={3}
                                     placeholder="这个技能适合处理什么任务"
-                                    className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-6 transition-all disabled:bg-slate-50 disabled:text-slate-500 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                    className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-6 transition-all disabled:bg-slate-50 disabled:text-slate-500 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                                 />
                             </div>
 

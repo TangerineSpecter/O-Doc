@@ -196,6 +196,7 @@ export interface AgentActivityArtifact {
 }
 
 export interface AgentActivity {
+    rating?: number | null;
     id: string;
     type: AgentActivityType;
     status: AgentRunStatus;

@@ -472,7 +472,7 @@ function MarkdownArticle({
         blockquote: VariantBlockquote,
         input: (props: any) => {
             if (props.type === 'checkbox') return <input type="checkbox" defaultChecked={props.checked}
-                                                         className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded cursor-pointer"/>;
+                                                         className="w-4 h-4 text-orange-500 accent-orange-500 bg-gray-100 border-gray-300 rounded cursor-pointer"/>;
             return <input {...props} />;
         },
         h2: ({children}: { children: ReactNode }) => <h2

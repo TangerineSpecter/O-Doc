@@ -3,6 +3,7 @@ import {useNavigate} from 'react-router-dom';
 import {Mail, Lock, ArrowRight, Leaf, ArrowLeft} from 'lucide-react';
 import {login} from '../api/user';
 import {useToast} from '../components/common/ToastProvider';
+import {Checkbox} from '../components/common/Checkbox';
 import {
     saveAuthToken,
     getRememberedAccount,
@@ -201,20 +202,14 @@ export default function LoginPage() {
                         </div>
 
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center">
-                                <input
-                                    id="remember-me"
-                                    name="remember-me"
-                                    type="checkbox"
-                                    checked={rememberMe}
-                                    onChange={(e) => setRememberMe(e.target.checked)}
-                                    className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded cursor-pointer"
-                                />
-                                <label htmlFor="remember-me"
-                                       className="ml-2 block text-sm text-slate-600 cursor-pointer select-none">
-                                    记住我
-                                </label>
-                            </div>
+                            <Checkbox
+                                id="remember-me"
+                                name="remember-me"
+                                checked={rememberMe}
+                                onChange={setRememberMe}
+                                label="记住我"
+                                labelClassName="text-sm font-normal text-slate-600"
+                            />
 
                             <div className="text-sm">
                                 <a href="#" className="font-medium text-orange-600 hover:text-orange-500">

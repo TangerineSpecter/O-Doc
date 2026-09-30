@@ -2,3 +2,113 @@
     outline: none !important;
     box-shadow: none !important;
 }
+
+/* 遮罩入场与退场动画 */
+.world-dialog-overlay-enter {
+    animation: world-dialog-backdrop-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.world-dialog-overlay-exit {
+    animation: world-dialog-backdrop-out 0.16s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* 卡片容器入场与退场动画 - 响应式支持移动端底部滑入与桌面端微缩放弹性弹入 */
+.world-dialog-panel-enter {
+    animation: world-dialog-panel-mobile-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform-origin: center center;
+    will-change: transform, opacity;
+}
+
+.world-dialog-panel-exit {
+    animation: world-dialog-panel-mobile-out 0.16s cubic-bezier(0.4, 0, 1, 1) forwards;
+    transform-origin: center center;
+    will-change: transform, opacity;
+}
+
+@keyframes world-dialog-backdrop-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes world-dialog-backdrop-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+/* 移动端入场：从屏幕底部微位移滑入 + 淡入 */
+@keyframes world-dialog-panel-mobile-in {
+    0% {
+        opacity: 0;
+        transform: translateY(24px) scale(0.97);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* 移动端退场：向屏幕底部滑出 + 淡出 */
+@keyframes world-dialog-panel-mobile-out {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(18px) scale(0.98);
+    }
+}
+
+/* 桌面端（>= 640px）：居中微缩放与微向上位移优雅弹入 */
+@media (min-width: 640px) {
+    .world-dialog-panel-enter {
+        animation-name: world-dialog-panel-desktop-in;
+        animation-duration: 0.24s;
+    }
+
+    .world-dialog-panel-exit {
+        animation-name: world-dialog-panel-desktop-out;
+        animation-duration: 0.16s;
+    }
+
+    @keyframes world-dialog-panel-desktop-in {
+        0% {
+            opacity: 0;
+            transform: translateY(12px) scale(0.95);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    @keyframes world-dialog-panel-desktop-out {
+        0% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+        100% {
+            opacity: 0;
+            transform: translateY(8px) scale(0.96);
+        }
+    }
+}
+
+/* 辅助减弱动效偏好适配 */
+@media (prefers-reduced-motion: reduce) {
+    .world-dialog-overlay-enter,
+    .world-dialog-overlay-exit,
+    .world-dialog-panel-enter,
+    .world-dialog-panel-exit {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}

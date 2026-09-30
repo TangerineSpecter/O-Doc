@@ -14,6 +14,8 @@ import {
     investmentTime,
     investmentSignedMoney,
     profitClass,
+    cashDeltaClass,
+    investmentCashDeltaMoney,
 } from './presentation';
 
 const labels: Record<string, {label: string; color: string}> = {
@@ -88,13 +90,11 @@ export function InvestmentTrades({items}: {items: InvestmentTrade[]}) {
                                 <div className="text-right font-mono">
                                     <span className="text-[11px] text-slate-400">资金变动 </span>
                                     <span
-                                        className={`text-xs font-bold ${
-                                            Number(t.result.cashDelta) < 0
-                                                ? 'text-slate-800'
-                                                : 'text-emerald-600'
-                                        }`}
+                                        className={`text-xs font-bold ${cashDeltaClass(
+                                            t.result.cashDelta
+                                        )}`}
                                     >
-                                        ¥{investmentMoney(t.result.cashDelta)}
+                                        {investmentCashDeltaMoney(t.result.cashDelta)}
                                     </span>
                                 </div>
                                 <span className="font-mono text-[11px] text-slate-400">

@@ -91,7 +91,7 @@ export default function MemoEditModal({
             value={editContent}
             onChange={(event) => onContentChange(event.target.value)}
             placeholder="编辑这条闪念..."
-            className="min-h-[360px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-800 outline-none transition focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
+            className="min-h-[360px] w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-800 outline-none transition focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-500/15"
             autoFocus
           />
         </div>
@@ -103,14 +103,14 @@ export default function MemoEditModal({
               type="button"
               onClick={onRequestClose}
               disabled={editSaving}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200/70 disabled:opacity-50"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200/70 disabled:opacity-50 whitespace-nowrap shrink-0"
             >
               取消
             </button>
             <button
               type="submit"
               disabled={!editContent.trim() || editSaving}
-              className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-orange-500/20 transition hover:bg-orange-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+              className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-orange-500/20 transition hover:bg-orange-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none whitespace-nowrap shrink-0"
             >
               {editSaving ? '保存中...' : '保存'}
             </button>

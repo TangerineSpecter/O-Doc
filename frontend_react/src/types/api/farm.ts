@@ -5,7 +5,7 @@ export interface CropRule {name: string; growthSeconds: number; seedPrice: numbe
 export interface AnimalRule {name: string; product: string; periodSeconds: number; price: number; salePrice: number; building: BuildingKind}
 export interface FarmRules {crops: Record<CropKind, CropRule>; animals: Record<AnimalKind, AnimalRule>; buildings: Record<BuildingKind, {name: string; prices: number[]; capacities: number[]}>; landPrices: number[]; feedPrice: number; itemIcons?: Record<string, string>}
 export interface FarmAppearance {style: number; palette: number}
-export interface FarmSummary {id: string; actorName: string; appearance: FarmAppearance}
+export interface FarmSummary {id: string; actorName: string; appearance: FarmAppearance; avatar?: string; professionName?: string | null}
 export interface FarmPlot {id: string; wateredUntil: number; wet?: boolean; crop: null | {kind: CropKind; grown: number; checkedAt: number; plantedAt: number; rules: CropRule}}
 export interface FarmAnimal {id: string; kind: AnimalKind; building: BuildingKind; halfHearts: number; fedUntil: number; lastFedDay: string; cycle: {number: number; grown: number; checkedAt: number; rules: AnimalRule; result?: {quality: 'normal' | 'gold'; quantity: number; halfHearts: number; completedAt: number}}}
 export interface FarmAction {kind: string; targets?: string[]; building?: BuildingKind; animal?: AnimalKind; crop?: CropKind; sku?: string; quantity?: number}

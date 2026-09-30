@@ -72,6 +72,7 @@ export interface Article {
 }
 
 export interface AgentPostComment {
+    rating?: number | null;
     commentId: string;
     article: string;
     content: string;

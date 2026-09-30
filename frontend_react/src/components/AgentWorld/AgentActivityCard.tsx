@@ -1,3 +1,4 @@
+import PostRatingBadge from '../AgentPost/PostRatingBadge';
 import {useState} from 'react';
 import {ArrowUpRight, BookOpenText, CircleAlert, LoaderCircle, MessageCircle, Sparkles, Terminal} from 'lucide-react';
 import type {AgentActivity} from '../../types/api/setting';
@@ -132,6 +133,7 @@ export default function AgentActivityCard({
                                     )}
                                 </>
                             )}
+                            <PostRatingBadge rating={activity.rating}/>
                         </div>
                     )}
 

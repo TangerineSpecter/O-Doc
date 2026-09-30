@@ -24,8 +24,14 @@ const tabs: Array<{value: InvestmentTab; label: string; icon: React.ElementType}
     {value: 'decisions', label: '投资决策', icon: Brain},
 ];
 
-export default function InvestmentDialog({onClose}: {onClose: () => void}) {
-    const investment = useInvestment();
+export default function InvestmentDialog({
+    onClose,
+    initialActorId,
+}: {
+    onClose: () => void;
+    initialActorId?: string;
+}) {
+    const investment = useInvestment(initialActorId);
     const [detail, setDetail] = useState<string | null>(null);
     const [showRule, setShowRule] = useState(false);
 

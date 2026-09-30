@@ -1,13 +1,15 @@
 import {useEffect, useId, useLayoutEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {Check, ChevronDown} from 'lucide-react';
-import type {CSSProperties} from 'react';
+import type {CSSProperties, ReactNode} from 'react';
 
 export interface SelectOption<T extends string> {
     value: T;
-    label: string;
-    description?: string;
-    icon?: React.ReactNode;
+    label: ReactNode;
+    textLabel?: string;
+    description?: ReactNode;
+    descriptionClassName?: string;
+    icon?: ReactNode;
 }
 
 interface SelectProps<T extends string> {
@@ -109,14 +111,14 @@ export function Select<T extends string>({
                 onClick={() => setOpen(prev => !prev)}
                 className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-700 shadow-sm transition-all hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 ${buttonClassName}`}
             >
-                <span className="flex min-w-0 items-center gap-2">
+                <span className="flex min-w-0 flex-1 items-center gap-2">
                     {selected?.icon}
-                    <span className="min-w-0 truncate">
-                        <span className={`block truncate ${selected ? 'text-slate-800' : 'text-slate-400'}`}>
-                            {selected?.label || placeholder}
+                    <span className="min-w-0 flex-1 truncate">
+                        <span className={`min-w-0 ${typeof (selected ? selected.label : placeholder) === 'string' ? 'block truncate' : ''} ${selected ? 'text-slate-800' : 'text-slate-400'}`}>
+                            {selected ? selected.label : placeholder}
                         </span>
                         {showSelectedDescription && selected?.description && (
-                            <span className="mt-0.5 block truncate text-[11px] text-slate-400">
+                            <span className={`mt-0.5 block truncate text-[11px] ${selected.descriptionClassName || 'text-slate-400'}`}>
                                 {selected.description}
                             </span>
                         )}
@@ -154,12 +156,14 @@ export function Select<T extends string>({
                                 }}
                                 className={`flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left text-sm transition-colors ${active ? accentClassName : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                             >
-                                <span className="flex min-w-0 items-center gap-2">
+                                <span className="flex min-w-0 flex-1 items-center gap-2">
                                     {option.icon}
-                                    <span className="min-w-0 truncate">
-                                        <span className="block truncate font-medium">{option.label}</span>
+                                    <span className="min-w-0 flex-1 truncate">
+                                        <span className={`min-w-0 ${typeof option.label === 'string' ? 'block truncate font-medium' : ''}`}>
+                                            {option.label}
+                                        </span>
                                         {option.description && (
-                                            <span className={`mt-0.5 block truncate text-[11px] ${active ? 'text-current opacity-70' : 'text-slate-400'}`}>
+                                            <span className={`mt-0.5 block truncate text-[11px] ${option.descriptionClassName || (active ? 'text-current opacity-70' : 'text-slate-400')}`}>
                                                 {option.description}
                                             </span>
                                         )}

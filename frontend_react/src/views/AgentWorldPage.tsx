@@ -1,9 +1,6 @@
 import {lazy, Suspense, useCallback, useEffect, useState} from 'react';
 import WorldDialog from '../components/AgentWorld/WorldDialog';
-const LifeScheduleDialog = lazy(() => import('../components/AgentLife/LifeScheduleDialog'));
-const MarketDialog = lazy(() => import('../components/Market/MarketDialog'));
-const FarmDialog = lazy(() => import('../components/Farm/FarmDialog'));
-const ItemCatalogDialog = lazy(() => import('../components/AgentWorld/ItemCatalogDialog'));
+import WorldOrbitLoader from '../components/AgentWorld/WorldOrbitLoader';
 import {Activity, ArrowLeft, Bot, BookOpenText, Settings, Store} from 'lucide-react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
 import DailyFeedTimeline from '../components/AgentWorld/DailyFeedTimeline';
@@ -18,8 +15,19 @@ import {useAgentWorld} from '../hooks/useAgentWorld';
 import type {DailyFeedEvent} from '../types/api/dailyFeed';
 import type {AgentActivity as AgentActivityData, AgentActivityType} from '../types/api/setting';
 
-const InvestmentDialog = lazy(() => import('../components/Investment/InvestmentDialog'));
-const TravelJourneyDialog = lazy(() => import('../components/AgentWorld/TravelJourneyDialog'));
+const preloadLifeSchedule = () => import('../components/AgentLife/LifeScheduleDialog');
+const preloadMarket = () => import('../components/Market/MarketDialog');
+const preloadFarm = () => import('../components/Farm/FarmDialog');
+const preloadCatalog = () => import('../components/AgentWorld/ItemCatalogDialog');
+const preloadInvestment = () => import('../components/Investment/InvestmentDialog');
+const preloadTravel = () => import('../components/AgentWorld/TravelJourneyDialog');
+
+const LifeScheduleDialog = lazy(preloadLifeSchedule);
+const MarketDialog = lazy(preloadMarket);
+const FarmDialog = lazy(preloadFarm);
+const ItemCatalogDialog = lazy(preloadCatalog);
+const InvestmentDialog = lazy(preloadInvestment);
+const TravelJourneyDialog = lazy(preloadTravel);
 
 export default function AgentWorldPage() {
     const navigate = useNavigate();
@@ -28,7 +36,11 @@ export default function AgentWorldPage() {
     const [feedRefreshToken, setFeedRefreshToken] = useState(0);
     const closeLife = useCallback(() => setLifeOpen(false), []);
     const [investmentOpen, setInvestmentOpen] = useState(false);
-    const closeInvestment = useCallback(() => setInvestmentOpen(false), []);
+    const [investmentActorId, setInvestmentActorId] = useState('');
+    const closeInvestment = useCallback(() => {
+        setInvestmentOpen(false);
+        setInvestmentActorId('');
+    }, []);
     const [marketOpen, setMarketOpen] = useState(false);
     const closeMarket = useCallback(() => setMarketOpen(false), []);
     const [farmOpen, setFarmOpen] = useState(false);
@@ -55,6 +67,18 @@ export default function AgentWorldPage() {
     const [selectedActivity, setSelectedActivity] = useState<AgentActivityData | null>(null);
     const [panel, setPanel] = useState<'graph' | 'attributes' | null>(null);
     const relation = useAgentRelation(panel !== null);
+
+    // 闲暇时预先静默加载弹窗组件 chunk，消除用户点击按钮后的白屏等待与二次跳跃
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            preloadLifeSchedule();
+            preloadInvestment();
+            preloadCatalog();
+            preloadMarket();
+            preloadFarm();
+        }, 1200);
+        return () => clearTimeout(timer);
+    }, []);
 
     const openDailyTarget = (event: DailyFeedEvent) => {
         const target = event.target;
@@ -113,17 +137,50 @@ export default function AgentWorldPage() {
                     <span className="text-[11px] text-slate-400 hidden sm:inline">实时见证智能体思考与成长轨迹</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={() => setCatalogOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600">
+                    <button
+                        type="button"
+                        onClick={() => setCatalogOpen(true)}
+                        onMouseEnter={preloadCatalog}
+                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 hover:shadow-xs active:scale-95"
+                    >
                         <BookOpenText className="h-3.5 w-3.5 shrink-0"/>物品图鉴
                     </button>
-                    <button type="button" onClick={() => setLifeOpen(true)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100">生活日程</button>
-                    <button type="button" onClick={() => setInvestmentOpen(true)} className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">股票投资</button>
-                    <button type="button" onClick={() => setMarketOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"><Store className="h-3.5 w-3.5 shrink-0"/>世界市场</button>
-                    <button type="button" onClick={() => setFarmOpen(true)} className="rounded-lg border border-lime-200 bg-lime-50 px-3 py-1.5 text-xs font-semibold text-lime-700">像素农场</button>
+                    <button
+                        type="button"
+                        onClick={() => setLifeOpen(true)}
+                        onMouseEnter={preloadLifeSchedule}
+                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-2xs transition-all duration-150 hover:border-blue-300 hover:bg-blue-100 hover:shadow-xs active:scale-95"
+                    >
+                        生活日程
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setInvestmentOpen(true)}
+                        onMouseEnter={preloadInvestment}
+                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-100 hover:shadow-xs active:scale-95"
+                    >
+                        股票投资
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setMarketOpen(true)}
+                        onMouseEnter={preloadMarket}
+                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-2xs transition-all duration-150 hover:border-emerald-300 hover:bg-emerald-100 hover:shadow-xs active:scale-95"
+                    >
+                        <Store className="h-3.5 w-3.5 shrink-0"/>世界市场
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setFarmOpen(true)}
+                        onMouseEnter={preloadFarm}
+                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-lime-200 bg-lime-50 px-3 py-1.5 text-xs font-semibold text-lime-700 shadow-2xs transition-all duration-150 hover:border-lime-300 hover:bg-lime-100 hover:shadow-xs active:scale-95"
+                    >
+                        像素农场
+                    </button>
                     <button
                         type="button"
                         onClick={() => setWorldManagementOpen(true)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition-colors hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-600 active:scale-95"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-600 hover:shadow-xs active:scale-95"
                     >
                         <Settings className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                         <span>世界管理</span>
@@ -131,7 +188,7 @@ export default function AgentWorldPage() {
                     <button
                         type="button"
                         onClick={() => navigate('/')}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition-colors hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-600 active:scale-95"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-600 hover:shadow-xs active:scale-95"
                     >
                         <ArrowLeft className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                         <span>返回文集</span>
@@ -139,7 +196,7 @@ export default function AgentWorldPage() {
                 </div>
             </div>
 
-            {lifeOpen && <Suspense fallback={null}><LifeScheduleDialog onClose={closeLife}/></Suspense>}
+            {lifeOpen && <Suspense fallback={<WorldDialog title="居民生活日程" onClose={closeLife} size="extra-wide"><WorldOrbitLoader title="正在排布居民生活日程" subtitle="读取今日动态流 · 校验行动预留资金"/></WorldDialog>}><LifeScheduleDialog onClose={closeLife}/></Suspense>}
 
             {/* 移动端专属居民状态横滑栏：置顶于动态流上方，随时可横滑感知与点击筛选 (< lg) */}
             <div className="mt-3 lg:hidden">
@@ -189,13 +246,18 @@ export default function AgentWorldPage() {
                     error={relation.error}
                     selectedAgentId={world.agentId}
                     onClose={() => setPanel(null)}
+                    onOpenInvestment={(actorId) => {
+                        setInvestmentActorId(actorId || world.agentId);
+                        setPanel(null);
+                        setInvestmentOpen(true);
+                    }}
                 />
             ) : null}
-            {investmentOpen && <Suspense fallback={<WorldDialog title="股票投资" onClose={closeInvestment} size="wide"><p className="p-8 text-center text-slate-500">正在打开投资账户…</p></WorldDialog>}><InvestmentDialog onClose={closeInvestment}/></Suspense>}
-            {travelArchiveId && <Suspense fallback={<WorldDialog title="旅行详情" onClose={closeTravel} manageFocus={false}><p className="p-8 text-center text-slate-500">正在打开旅行详情…</p></WorldDialog>}><TravelJourneyDialog key={travelArchiveId} journeyId={travelArchiveId} onClose={closeTravel} onChanged={() => setFeedRefreshToken(value => value + 1)}/></Suspense>}
-            {marketOpen && <Suspense fallback={<WorldDialog title="世界市场" onClose={closeMarket} size="wide"><p className="p-8 text-center text-slate-500">正在打开市场…</p></WorldDialog>}><MarketDialog onClose={closeMarket} residents={world.summary?.agents || []}/></Suspense>}
-            {farmOpen&&<Suspense fallback={<WorldDialog title="像素农场" onClose={closeFarm} size="wide" manageFocus={false}><p className="p-8 text-center text-slate-500">正在铺开农场地图…</p></WorldDialog>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></Suspense>}
-            {catalogOpen && <Suspense fallback={<WorldDialog title="物品图鉴" onClose={closeCatalog} size="wide" manageFocus={false}><p className="p-8 text-center text-slate-500">正在翻开图鉴…</p></WorldDialog>}><ItemCatalogDialog onClose={closeCatalog}/></Suspense>}
+            {investmentOpen && <Suspense fallback={<WorldDialog title="股票投资" onClose={closeInvestment} size="extra-wide"><WorldOrbitLoader title="正在打开投资账户" subtitle="读取模拟盘行情 · 同步持仓与盈亏"/></WorldDialog>}><InvestmentDialog onClose={closeInvestment} initialActorId={investmentActorId}/></Suspense>}
+            {travelArchiveId && <Suspense fallback={<WorldDialog title="旅行详情" onClose={closeTravel} manageFocus={false}><WorldOrbitLoader title="正在调取旅行档案" subtitle="还原行程图层 · 加载旅途见闻与照片"/></WorldDialog>}><TravelJourneyDialog key={travelArchiveId} journeyId={travelArchiveId} onClose={closeTravel} onChanged={() => setFeedRefreshToken(value => value + 1)}/></Suspense>}
+            {marketOpen && <Suspense fallback={<WorldDialog title="世界市场 · 集市大厅" onClose={closeMarket} size="wide"><WorldOrbitLoader title="正在连接世界市场" subtitle="检索集市货架 · 实时计算商品供需物价"/></WorldDialog>}><MarketDialog onClose={closeMarket} residents={world.summary?.agents || []}/></Suspense>}
+            {farmOpen && <Suspense fallback={<WorldDialog title="像素农场" onClose={closeFarm} size="extra-wide" manageFocus={false}><WorldOrbitLoader title="正在铺开像素农场" subtitle="构建地形图块 · 加载农作物生长状态"/></WorldDialog>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></Suspense>}
+            {catalogOpen && <Suspense fallback={<WorldDialog title="物品图鉴" onClose={closeCatalog} size="wide" manageFocus={false}><WorldOrbitLoader title="正在翻开物品图鉴" subtitle="整理物品分类 · 计算稀有度与用途估值"/></WorldDialog>}><ItemCatalogDialog onClose={closeCatalog}/></Suspense>}
             {worldManagementOpen && <WorldManagementDialog onClose={() => setWorldManagementOpen(false)} />}
             <AgentRunDrawer
                 key={selectedActivity?.runRecordId || selectedActivity?.id || 'closed'}

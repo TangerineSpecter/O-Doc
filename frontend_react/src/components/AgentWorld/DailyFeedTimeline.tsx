@@ -1,3 +1,4 @@
+import PostRatingBadge from '../AgentPost/PostRatingBadge';
 import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, MapPin, MessageCircle, Package, Sprout, Store, TrendingUp} from 'lucide-react';
 import {useEffect, useState} from 'react';
 import type {DailyFeedCategory, DailyFeedEvent} from '../../types/api/dailyFeed';
@@ -67,7 +68,7 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
                     {event.category === 'travel' && event.status === 'paused' && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">已暂停</span>}
                     <time className="ml-auto text-xs tabular-nums text-slate-400" dateTime={event.occurredAt}>{clock(event.occurredAt)}</time>
                 </div>
-                <h3 className="mt-2 text-sm font-semibold text-slate-800">{event.title}</h3>
+                <div className="mt-2 flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-slate-800">{event.title}</h3><PostRatingBadge rating={event.rating}/></div>
                 {event.detail && <div className="mt-1.5"><AgentActivitySummary text={event.detail} expanded={expanded} onExpandedChange={setExpanded} variant={event.category === 'interaction' ? 'interaction' : event.category === 'publication' ? 'publication' : 'work'}/></div>}
                 {(amount !== null || event.target) && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
                     {event.target && <button type="button" onClick={() => onOpen(event)} className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-100">{{farm: '打开农场', market: '打开市场', investment: '打开投资', travel: '查看旅行', life: '查看日程'}[event.target.kind] || '查看详情'}</button>}
@@ -126,7 +127,7 @@ export default function DailyFeedTimeline({actorId, residents, onOpen, onSummary
             <span className="shrink-0 text-xs text-slate-500">{feed.loading ? '读取中' : `已加载 ${feed.items.length} 条`}</span>
             <button type="button" onClick={feed.reload} aria-label="刷新活动" className="shrink-0 rounded-lg px-2 py-1.5 text-xs text-slate-500 hover:bg-orange-50 hover:text-orange-700">刷新</button>
         </div>
-        {feed.loading ? <div className="flex min-h-64 items-center justify-center rounded-2xl bg-white"><StarLoader/></div> : feed.error && !feed.items.length ? <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-sm text-red-700">{feed.error}<button type="button" onClick={feed.reload} className="ml-3 underline">重试</button></div> : feed.items.length ? <div className="space-y-3">
+        {feed.loading ? <div className="flex min-h-64 items-center justify-center rounded-2xl bg-white"><StarLoader variant="pill" message="更新最新动态..."/></div> : feed.error && !feed.items.length ? <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-sm text-red-700">{feed.error}<button type="button" onClick={feed.reload} className="ml-3 underline">重试</button></div> : feed.items.length ? <div className="space-y-3">
             {category === 'finance'
                 ? <DailyFinanceFeed events={feed.items} residents={residents}/>
                 : feed.items.map(event => category === 'record'

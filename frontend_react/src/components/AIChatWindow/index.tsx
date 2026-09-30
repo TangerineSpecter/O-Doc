@@ -101,7 +101,7 @@ export const AIChatWindow = ({
                     id: 'knowledge',
                     label: '检索知识库',
                     detail: selectedCollId
-                        ? anthologyOptions.find(option => option.value === selectedCollId)?.label || '指定文集'
+                        ? String(anthologyOptions.find(option => option.value === selectedCollId)?.label || '指定文集')
                         : '全部文集',
                     status: steps.length === 0 ? ('active' as const) : ('queued' as const),
                 });

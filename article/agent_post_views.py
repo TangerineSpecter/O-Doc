@@ -1,6 +1,7 @@
 from django.db.models import Avg
 from rest_framework.views import APIView
 
+from article.agent_post_comment_ratings import comment_ratings
 from article.access import can_access_anthology
 from article.annotation_service import get_user_identity
 from article.models import Article, ArticlePostComment, ArticlePostRating
@@ -16,10 +17,10 @@ class AgentPostCommentListCreateView(APIView):
             article = Article.objects.filter(article_id=article_id, is_valid=True).first()
             if not article or not can_access_anthology(request, article.coll_id, 'agent'):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
-            comments = ArticlePostComment.objects.filter(article=article, is_valid=True)
+            comments = list(ArticlePostComment.objects.filter(article=article, is_valid=True))
             return success_result(data={
-                'comments': ArticlePostCommentSerializer(comments, many=True).data,
-                'count': comments.count(),
+                'comments': ArticlePostCommentSerializer(comments, many=True, context={'comment_ratings': comment_ratings(comments)}).data,
+                'count': len(comments),
             })
         except Exception as exc:
             return error_result(ErrorCode.SYSTEM_ERROR, str(exc))
@@ -39,7 +40,7 @@ class AgentPostCommentListCreateView(APIView):
             identity = get_user_identity(request)
             from system_settings.agent_world.comments import create_comment
             comment = create_comment(article, content, identity)
-            return success_result(data={'comment': ArticlePostCommentSerializer(comment).data})
+            return success_result(data={'comment': ArticlePostCommentSerializer(comment, context={'comment_ratings': comment_ratings([comment])}).data})
         except Exception as exc:
             return error_result(ErrorCode.SYSTEM_ERROR, str(exc))
 

@@ -613,7 +613,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
                                             onChange={event => setForm({...form, argsText: event.target.value})}
                                             rows={4}
                                             placeholder={'每行一个参数，例如：\n-y\n@modelcontextprotocol/server-filesystem\n/Users/me/Documents'}
-                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-mono leading-6 resize-y"
+                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-mono leading-6 resize-none"
                                         />
                                     </div>
                                 </div>
@@ -655,7 +655,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
                                                                 type="checkbox"
                                                                 checked={row.enabled}
                                                                 onChange={event => updateHeaderRow(row.id, {enabled: event.target.checked})}
-                                                                className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500/20"
+                                                                className="h-4 w-4 rounded border-slate-300 accent-orange-500 text-orange-500 focus:ring-orange-500/20"
                                                             />
                                                         </label>
                                                         <input

@@ -32,6 +32,8 @@ def present(farm):
         'balance': str(agent.money) if agent else None, 'revision': farm.revision, 'server_time': now,
         'weather': weather(catalog.seed, now.timestamp()), 'hour': now.astimezone(__import__('zoneinfo').ZoneInfo('Asia/Shanghai')).hour,
         'state': state, 'farm_bonus': yield_bonus(agent), 'current_action': activity.current_action if activity else current.record.summary if current and current.record else None,
+        'avatar': agent.avatar if agent else '',
+        'profession_name': agent.profession.name if (agent and agent.profession) else None,
         'inventory': [{'id': i.pk, 'name': i.name, 'quantity': i.quantity, 'value': str(i.value), 'sku': i.source.get('sku', ''), 'quality': i.source.get('quality', 'normal')} for i in farm_inventory(farm)]}
 
 
@@ -40,7 +42,23 @@ class FarmListView(APIView):
 
     def get(self, request):
         owner = get_current_user_identifier(request)
-        return success_result([{'id': f.pk, 'actor_name': f.actor_name, 'appearance': f.appearance} for f in AgentFarm.objects.filter(owner_id=owner).order_by('actor_name', 'id')])
+        farms = list(AgentFarm.objects.filter(owner_id=owner).order_by('actor_name', 'id'))
+        agent_ids = [f.pk for f in farms]
+        agents = {
+            a.pk: a
+            for a in Agent.objects.select_related('profession').filter(pk__in=agent_ids)
+        }
+        rows = []
+        for f in farms:
+            agent = agents.get(f.pk)
+            rows.append({
+                'id': f.pk,
+                'actor_name': agent.name if agent else f.actor_name,
+                'avatar': agent.avatar if agent else '',
+                'profession_name': agent.profession.name if (agent and agent.profession) else None,
+                'appearance': f.appearance,
+            })
+        return success_result(rows)
 
 
 class FarmDetailView(APIView):

@@ -625,7 +625,7 @@ export default function MemosPage() {
         td: ({children}: any) => <td className="whitespace-nowrap px-3 py-2 text-slate-700">{children}</td>,
         input: (props: any) => {
             if (props.type === 'checkbox') {
-                return <input type="checkbox" checked={props.checked} readOnly className="mr-2 h-3.5 w-3.5 rounded border-slate-300 text-orange-500"/>;
+                return <input type="checkbox" checked={props.checked} readOnly className="mr-2 h-3.5 w-3.5 rounded border-slate-300 accent-orange-500 text-orange-500"/>;
             }
             return <input {...props}/>;
         },

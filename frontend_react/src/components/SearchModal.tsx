@@ -12,13 +12,15 @@ import {
     Zap
 } from 'lucide-react';
 import {globalSearch, type GlobalSearchItem, type GlobalSearchType} from '../api/search';
+import {createMemo} from '../api/memo';
 import {useGlobalSmartImageSearch} from '../hooks/useGlobalSmartImageSearch';
 import {mergeGlobalSearchResults, visibleImageCount} from '../utils/globalSearchMerge';
 import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
+import {useToast} from './common/ToastProvider';
 
 interface SuggestionItem {
     id: string;
-    type: 'ai' | GlobalSearchType;
+    type: 'ai' | 'memo-create' | GlobalSearchType;
     title: string;
     subtitle: string;
     excerpt?: string;
@@ -107,9 +109,12 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
         prompt: 0,
     });
     const [isSearching, setIsSearching] = useState(false);
+    const [isSavingMemo, setIsSavingMemo] = useState(false);
     const [smartEnabled, setSmartEnabled] = useState(false);
+    const memoSavePendingRef = useRef(false);
+    const toast = useToast();
     const searchInputRef = useRef<HTMLInputElement>(null);
-    const onSmartResults = useCallback((hasResults: boolean) => { if (hasResults) setSearchIndex(1); }, []);
+    const onSmartResults = useCallback((hasResults: boolean) => { if (hasResults) setSearchIndex(2); }, []);
     const smart = useGlobalSmartImageSearch({isOpen, enabled: smartEnabled, keyword, filter: activeFilter, onResults: onSmartResults});
     const smartPending = smart.pending;
     const searchSmartNow = smart.searchNow;
@@ -208,9 +213,17 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
             subtitle: '基于知识库回答问题',
             icon: <Zap className="h-4 w-4"/>,
         };
+        const memoSuggestion: SuggestionItem = {
+            id: 'memo-create',
+            type: 'memo-create',
+            title: '记录闪念',
+            subtitle: '将当前搜索词保存为一条闪念',
+            icon: <MessageSquareText className="h-4 w-4"/>,
+        };
 
         return [
             aiSuggestion,
+            ...(keyword.trim() ? [memoSuggestion] : []),
             ...displayedResults.map((item) => {
                 const meta = TYPE_META[item.type];
                 return {
@@ -226,8 +239,28 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
         ];
     }, [keyword, displayedResults]);
 
-    const handleSelectSuggestion = useCallback((item?: SuggestionItem) => {
+    const handleSelectSuggestion = useCallback(async (item?: SuggestionItem) => {
         if (!item) return;
+
+        if (item.type === 'memo-create') {
+            const content = keyword.trim();
+            if (!content || memoSavePendingRef.current) return;
+
+            memoSavePendingRef.current = true;
+            setIsSavingMemo(true);
+            try {
+                await createMemo({content});
+                toast.success('闪念已收好');
+                onClose();
+            } catch (error) {
+                console.error('Failed to create memo from global search', error);
+                toast.error('闪念保存失败');
+            } finally {
+                memoSavePendingRef.current = false;
+                setIsSavingMemo(false);
+            }
+            return;
+        }
 
         onClose();
         if (item.type === 'ai') {
@@ -247,7 +280,7 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
             }
             onNavigate(route.view, route.params);
         }
-    }, [onClose, onChatStart, onNavigate]);
+    }, [keyword, onClose, onChatStart, onNavigate, toast]);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -262,11 +295,11 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
             }
             if (event.key === 'Enter') {
                 event.preventDefault();
-                if (smartEnabled && smartPending && keyword.trim()) {
+                if (smartEnabled && smartPending && keyword.trim() && suggestions[searchIndex]?.type !== 'memo-create') {
                     searchSmartNow();
                     return;
                 }
-                handleSelectSuggestion(suggestions[searchIndex]);
+                void handleSelectSuggestion(suggestions[searchIndex]);
             }
         };
 
@@ -335,12 +368,12 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
                                 aria-label="智能搜图"
                                 title="开启后，停止输入约 700 毫秒会检索图片画面；关闭后只使用关键词搜索"
                                 onClick={() => { if (smartEnabled) resetSmart(); setSmartEnabled(value => !value); setSearchIndex(0); }}
-                                className={`ml-auto inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/30 ${smartEnabled ? 'border-orange-300 bg-orange-50 text-orange-700' : 'border-slate-200 bg-white text-slate-500 hover:border-orange-200'}`}
+                                className={`ml-auto inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/30 ${smartEnabled ? 'border-orange-300 bg-orange-50 text-orange-700' : 'border-slate-200 bg-white text-slate-500 hover:border-orange-200'}`}
                             >
-                                <Sparkles className="h-3.5 w-3.5"/>
+                                <Sparkles className="h-3.5 w-3.5 shrink-0"/>
                                 智能搜图
-                                <span className={`relative h-4 w-7 rounded-full transition-colors ${smartEnabled ? 'bg-orange-500' : 'bg-slate-300'}`} aria-hidden="true">
-                                    <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${smartEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`}/>
+                                <span className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${smartEnabled ? 'bg-orange-500' : 'bg-slate-300'}`} aria-hidden="true">
+                                    <span className={`absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${smartEnabled ? 'translate-x-3' : 'translate-x-0'}`}/>
                                 </span>
                             </button>
                         )}
@@ -362,28 +395,29 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
                             <p className="text-sm font-semibold text-slate-800">输入关键词开始全局搜索</p>
                             <p className="mt-1 text-xs text-slate-500">支持文章正文、闪念内容、图片描述与资源文件名。</p>
                         </div>
-                    ) : !hasResults && !isSearching && !keywordPending && !smart.pending ? (
-                        <div className="px-8 py-12 text-center text-sm text-slate-400">暂无搜索结果</div>
-                    ) : !hasResults ? (
-                        <div className="flex items-center justify-center gap-2 px-8 py-12 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin"/>正在搜索…</div>
                     ) : (
                         <div className="space-y-1">
                             {suggestions.map((item, index) => {
                                 const isSelected = index === searchIndex;
-                                const typeMeta = item.type === 'ai' ? null : TYPE_META[item.type];
+                                const typeMeta = item.type === 'ai'
+                                    ? null
+                                    : TYPE_META[item.type === 'memo-create' ? 'memo' : item.type];
 
                                 return (
                                     <div key={item.id}>
-                                        {index === 1 && (
+                                        {index === 2 && hasResults && (
                                             <div className="mt-1 flex items-center gap-2 border-t border-slate-100 px-3 pb-1.5 pt-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                                 <Library className="h-3 w-3"/>
                                                 全局检索结果
                                             </div>
                                         )}
                                         <div
-                                            onClick={() => handleSelectSuggestion(item)}
+                                            onClick={() => void handleSelectSuggestion(item)}
                                             onMouseEnter={() => setSearchIndex(index)}
-                                            className={`flex cursor-pointer items-center justify-between gap-4 rounded-lg px-3 py-3 transition-colors ${
+                                            aria-disabled={item.type === 'memo-create' && isSavingMemo}
+                                            className={`flex items-center justify-between gap-4 rounded-lg px-3 py-3 transition-colors ${
+                                                item.type === 'memo-create' && isSavingMemo ? 'cursor-wait opacity-70' : 'cursor-pointer'
+                                            } ${
                                                 isSelected ? 'bg-orange-50' : 'hover:bg-slate-50'
                                             }`}
                                         >
@@ -397,7 +431,7 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
                                                 </div>
                                                 <div className="min-w-0">
                                                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                                        {item.type !== 'ai' && (
+                                                        {item.type !== 'ai' && item.type !== 'memo-create' && (
                                                             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
                                                                 {TYPE_META[item.type].label}
                                                             </span>
@@ -420,15 +454,22 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
                                             {isSelected && (
                                                 <div className="hidden shrink-0 items-center gap-2 sm:flex">
                                                     <span className="text-xs font-medium text-orange-600">
-                                                        {item.type === 'ai' ? '开始对话' : '打开'}
+                                                        {item.type === 'ai' ? '开始对话' : item.type === 'memo-create' ? (isSavingMemo ? '正在记录' : '记录') : '打开'}
                                                     </span>
-                                                    <CornerDownLeft className="h-3.5 w-3.5 text-orange-400"/>
+                                                    {item.type === 'memo-create' && isSavingMemo
+                                                        ? <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-400"/>
+                                                        : <CornerDownLeft className="h-3.5 w-3.5 text-orange-400"/>}
                                                 </div>
                                             )}
                                         </div>
                                     </div>
                                 );
                             })}
+                            {!hasResults && (
+                                isSearching || keywordPending || smart.pending
+                                    ? <div className="flex items-center justify-center gap-2 px-8 py-8 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin"/>正在搜索…</div>
+                                    : <div className="px-8 py-8 text-center text-sm text-slate-400">暂无搜索结果</div>
+                            )}
                         </div>
                     )}
                 </div>

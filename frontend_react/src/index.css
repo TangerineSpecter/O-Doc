@@ -669,3 +669,55 @@ textarea {
   resize: none;
 }
 
+/* 全系统原生复选框默认统一使用橘色主题，避免浏览器默认蓝色 */
+input[type="checkbox"] {
+  accent-color: #f97316;
+}
+
+/* --- 通用进场动效支持 (animate-in / fade-in / zoom-in / slide-in) --- */
+@keyframes enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0) scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), var(--tw-enter-scale, 1)) rotate(var(--tw-enter-rotate, 0));
+  }
+}
+
+.animate-in {
+  animation-name: enter;
+  animation-duration: 200ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  --tw-enter-opacity: initial;
+  --tw-enter-scale: initial;
+  --tw-enter-rotate: initial;
+  --tw-enter-translate-x: initial;
+  --tw-enter-translate-y: initial;
+}
+
+.fade-in {
+  --tw-enter-opacity: 0;
+}
+.zoom-in-95 {
+  --tw-enter-scale: 0.95;
+}
+.zoom-in-90 {
+  --tw-enter-scale: 0.9;
+}
+.slide-in-from-bottom {
+  --tw-enter-translate-y: 100%;
+}
+.slide-in-from-bottom-2 {
+  --tw-enter-translate-y: 0.5rem;
+}
+.slide-in-from-bottom-4 {
+  --tw-enter-translate-y: 1rem;
+}
+.slide-in-from-right {
+  --tw-enter-translate-x: 100%;
+}
+.slide-in-from-right-6 {
+  --tw-enter-translate-x: 1.5rem;
+}
+.slide-in-from-left-1 {
+  --tw-enter-translate-x: -0.25rem;
+}
+

@@ -1,10 +1,11 @@
+import PostRatingBadge from '../components/AgentPost/PostRatingBadge';
 import { CategoryMigration, MigrationAlert } from "../components/AgentWorld/CategoryMigration";
 import { PostRanking } from "../components/AgentWorld/PostRanking";
 import {SelectablePostBody} from '../components/AgentPost/SelectablePostBody';
-import {ReactNode, useCallback, useEffect, useRef, useState} from 'react';
+import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import ReactMarkdown, {defaultUrlTransform} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import {AlertCircle, ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, Send, Star, Trash2} from 'lucide-react';
+import {AlertCircle, ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, RefreshCw, Search, Send, Star, Trash2, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 import Article from './Article';
@@ -189,6 +190,8 @@ function AgentPostCollectionView({
     const [commentDraft, setCommentDraft] = useState('');
     const [commentSubmitting, setCommentSubmitting] = useState(false);
     const [activeCategory, setActiveCategory] = useState('all');
+    const [searchKeyword, setSearchKeyword] = useState('');
+    const [refreshing, setRefreshing] = useState(false);
     const [migrationTarget, setMigrationTarget] = useState<{oldCategory: string; postId?: string}>();
     const [ratingSubmitting, setRatingSubmitting] = useState(false);
     const [latestComments, setLatestComments] = useState<AgentPostLatestCommentListResult['comments']>([]);
@@ -202,7 +205,46 @@ function AgentPostCollectionView({
         else acc.push({key, name: post.agentPostCategoryName || post.agentPostCategory || '未分类', oldCategory: post.agentPostCategory || '', pending: !post.agentPostCategoryId, count: 1});
         return acc;
     }, []);
-    const visiblePosts = activeCategory === 'all' ? posts : posts.filter(post => categoryKey(post) === activeCategory);
+
+    // 驻留创作的智能体列表去重
+    const residentAgents = useMemo(() => {
+        const map = new Map<string, { name: string; avatar?: string }>();
+        posts.forEach(p => {
+            const name = p.agentPostCreatorName || 'Agent';
+            if (!map.has(name)) {
+                map.set(name, { name, avatar: p.agentPostCreatorAvatar });
+            }
+        });
+        return Array.from(map.values());
+    }, [posts]);
+
+    // 累计互动评论数
+    const totalInteractionCount = useMemo(() => {
+        return posts.reduce((sum, p) => sum + (p.postCommentCount || 0), 0);
+    }, [posts]);
+
+    // 综合平均评分
+    const averageRating = useMemo(() => {
+        const ratedPosts = posts.filter(p => typeof p.agentPostRating === 'number' && p.agentPostRating > 0);
+        if (ratedPosts.length === 0) return null;
+        const sum = ratedPosts.reduce((acc, p) => acc + (p.agentPostRating || 0), 0);
+        return (sum / ratedPosts.length).toFixed(1);
+    }, [posts]);
+
+    // 分类 + 关键词过滤
+    const visiblePosts = useMemo(() => {
+        let list = activeCategory === 'all' ? posts : posts.filter(post => categoryKey(post) === activeCategory);
+        if (searchKeyword.trim()) {
+            const q = searchKeyword.trim().toLowerCase();
+            list = list.filter(post => {
+                const titleMatch = (post.title || '').toLowerCase().includes(q);
+                const summaryMatch = (post.postSummary || post.content || '').toLowerCase().includes(q);
+                const authorMatch = (post.agentPostCreatorName || '').toLowerCase().includes(q);
+                return titleMatch || summaryMatch || authorMatch;
+            });
+        }
+        return list;
+    }, [posts, activeCategory, searchKeyword]);
 
     const truncateText = (value?: string, max = 56) => {
         const text = (value || '').replace(/\s+/g, ' ').trim();
@@ -226,6 +268,17 @@ function AgentPostCollectionView({
             setLoading(false);
         }
     }, [collId, toast]);
+
+    const handleRefresh = async () => {
+        if (refreshing) return;
+        setRefreshing(true);
+        try {
+            await loadPosts();
+            toast.success('已刷新最新帖子');
+        } finally {
+            setRefreshing(false);
+        }
+    };
 
     useEffect(() => {
         loadPosts();
@@ -477,6 +530,7 @@ function AgentPostCollectionView({
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <span className="text-sm font-semibold text-slate-800">{comment.creatorName || '用户'}</span>
+                                                        <PostRatingBadge rating={comment.rating}/>
                                                         <span className="text-xs text-slate-400">{formatPostTime(comment.createdAt)}</span>
                                                     </div>
                                                     <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">{comment.content}</p>
@@ -534,25 +588,121 @@ function AgentPostCollectionView({
                 />
             )}
             <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-                <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-3">
-                            <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700">
-                                <ListTree className="h-3.5 w-3.5" />
-                                帖子
+                {/* 纯净去框排版 Header */}
+                <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+                    <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
+                        {/* 左侧：图标与标题并排，自然纯粹排版 */}
+                        <div className="min-w-0 max-w-2xl space-y-2">
+                            <div className="flex items-center gap-3">
+                                {anthologyInfo?.iconId ? (
+                                    <span className="flex shrink-0 items-center justify-center">
+                                        {getIconComponent(anthologyInfo.iconId, 'w-7 h-7 sm:w-8 sm:h-8')}
+                                    </span>
+                                ) : (
+                                    <ListTree className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 text-orange-500" />
+                                )}
+                                <h1 className="truncate text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+                                    {anthologyInfo?.title || 'Agent 专栏'}
+                                </h1>
                             </div>
-                            <h1 className="min-w-0 flex-1 truncate text-xl font-bold text-slate-900">{anthologyInfo?.title || 'Agent'}</h1>
+
+                            <p className="text-sm text-slate-500 leading-relaxed line-clamp-2">
+                                {anthologyInfo?.description || '暂无专栏简介'}
+                            </p>
+
+                            {/* 驻留智能体阵容 */}
+                            <div className="flex flex-wrap items-center gap-3 pt-0.5 text-xs text-slate-400">
+                                {residentAgents.length > 0 && (
+                                    <>
+                                        <div className="flex items-center -space-x-1.5">
+                                            {residentAgents.slice(0, 5).map((agent, i) => (
+                                                <AgentAvatar
+                                                    key={agent.name + i}
+                                                    name={agent.name}
+                                                    avatar={agent.avatar}
+                                                    className="h-5 w-5 rounded-full ring-2 ring-white shadow-xs"
+                                                />
+                                            ))}
+                                        </div>
+                                        <span className="font-medium text-slate-600">
+                                            {residentAgents.length} 位智能体创作
+                                        </span>
+                                    </>
+                                )}
+                                {posts.length > 0 && (
+                                    <>
+                                        <span className="text-slate-300">·</span>
+                                        <span className="text-slate-400">
+                                            最新发布于 {formatPostTime(posts[0].createdAt)}
+                                        </span>
+                                    </>
+                                )}
+                            </div>
                         </div>
-                        <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{anthologyInfo?.description || '暂无简介'}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2.5">
-                        <button
-                            type="button"
-                            onClick={onBackHome}
-                            className="inline-flex shrink-0 items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
-                        >
-                            返回首页
-                        </button>
+
+                        {/* 右侧：极简数据指标与操作工具 */}
+                        <div className="flex flex-col sm:flex-row xl:flex-col items-stretch xl:items-end gap-3.5 shrink-0 border-t xl:border-t-0 pt-4 xl:pt-0 border-slate-100">
+                            {/* 极简指标项 */}
+                            <div className="flex items-center gap-4 text-xs text-slate-500 px-1">
+                                <div>
+                                    <span className="text-base font-bold text-slate-900">{posts.length}</span> 篇帖子
+                                </div>
+                                <div className="h-3.5 w-px bg-slate-200" />
+                                <div>
+                                    <span className="text-base font-bold text-slate-900">{totalInteractionCount}</span> 互动
+                                </div>
+                                {averageRating && (
+                                    <>
+                                        <div className="h-3.5 w-px bg-slate-200" />
+                                        <div>
+                                            <span className="text-base font-bold text-amber-500">{averageRating}</span> 评分
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* 操作栏 */}
+                            <div className="flex items-center gap-2">
+                                <div className="relative w-44 sm:w-56">
+                                    <input
+                                        type="text"
+                                        value={searchKeyword}
+                                        onChange={(e) => setSearchKeyword(e.target.value)}
+                                        placeholder="搜索本专栏帖子..."
+                                        className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-orange-500 shadow-xs"
+                                    />
+                                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                                    {searchKeyword && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearchKeyword('')}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={handleRefresh}
+                                    disabled={refreshing || loading}
+                                    className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-orange-600 hover:border-orange-200 hover:bg-orange-50/50 transition-colors shadow-xs disabled:opacity-50"
+                                    title="刷新帖子"
+                                >
+                                    <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-orange-500' : ''}`} />
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={onBackHome}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-xs"
+                                >
+                                    <ArrowLeft className="w-3.5 h-3.5 text-slate-400" />
+                                    返回首页
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -565,24 +715,49 @@ function AgentPostCollectionView({
                         </span>
                     </div>
                 )}
-                <div className="mb-5 flex gap-2 overflow-x-auto pb-1 scrollbar-hide no-scrollbar touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                    <button
-                        type="button"
-                        onClick={() => setActiveCategory('all')}
-                        className={`shrink-0 rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
-                            activeCategory === 'all'
-                                ? 'border-red-400 bg-white text-slate-900 shadow-sm'
-                                : 'border-slate-200 bg-white/80 text-slate-600 hover:border-slate-300 hover:bg-white'
-                        }`}
-                    >
-                        全部 {posts.length}
-                    </button>
-                    {categoryStats.map(category => (
-                        <div key={category.key} className={`flex shrink-0 items-center rounded-lg border bg-white ${activeCategory === category.key ? 'border-red-400' : 'border-slate-200'}`}>
-                            <button type="button" onClick={() => setActiveCategory(category.key)} className="px-4 py-2 text-sm text-slate-600">{category.name} {category.count}</button>
-                            {canMigrate && category.pending && <MigrationAlert onClick={() => setMigrationTarget({oldCategory: category.oldCategory})}/>}
+                {/* 胶囊分类筛选器 */}
+                <div className="mb-5 flex items-center justify-between gap-3">
+                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide no-scrollbar touch-pan-x [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                        <button
+                            type="button"
+                            onClick={() => setActiveCategory('all')}
+                            className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
+                                activeCategory === 'all'
+                                    ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/25'
+                                    : 'border border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50/40 hover:text-orange-600 shadow-xs'
+                            }`}
+                        >
+                            全部 {posts.length}
+                        </button>
+                        {categoryStats.map(category => (
+                            <div
+                                key={category.key}
+                                className={`flex shrink-0 items-center rounded-full border transition-all ${
+                                    activeCategory === category.key
+                                        ? 'border-orange-500 bg-orange-500 text-white shadow-sm shadow-orange-500/25'
+                                        : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50/40 hover:text-orange-600 shadow-xs'
+                                }`}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveCategory(category.key)}
+                                    className={`px-3.5 py-1.5 text-xs font-medium ${activeCategory === category.key ? 'text-white font-semibold' : 'text-slate-600'}`}
+                                >
+                                    {category.name} {category.count}
+                                </button>
+                                {canMigrate && category.pending && (
+                                    <span className="pr-2">
+                                        <MigrationAlert onClick={() => setMigrationTarget({oldCategory: category.oldCategory})} />
+                                    </span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    {searchKeyword && (
+                        <div className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-400 shrink-0">
+                            找到 <span className="font-semibold text-orange-600">{visiblePosts.length}</span> 条结果
                         </div>
-                    ))}
+                    )}
                 </div>
 
                 {loading ? (
@@ -678,6 +853,20 @@ function AgentPostCollectionView({
                                 </div>
                             </section>
                         </aside>
+                    </div>
+                ) : searchKeyword.trim() ? (
+                    <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-400">
+                        <Search className="h-8 w-8 text-slate-300 mb-2" />
+                        <p className="text-sm font-medium text-slate-600">未找到与 “{searchKeyword}” 相关的帖子</p>
+                        <p className="mt-1 text-xs text-slate-400">可以尝试更换关键词或清除搜索条件</p>
+                        <button
+                            type="button"
+                            onClick={() => setSearchKeyword('')}
+                            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                            清除搜索
+                        </button>
                     </div>
                 ) : (
                     <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-indigo-300 bg-white text-slate-400">

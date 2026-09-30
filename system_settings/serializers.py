@@ -716,6 +716,8 @@ class AgentRunRecordSerializer(serializers.ModelSerializer):
 
 
 class AgentActivitySerializer(serializers.ModelSerializer):
+    rating = serializers.SerializerMethodField()
+    title = serializers.SerializerMethodField()
     type = serializers.CharField(source='activity_type', read_only=True)
     agent = serializers.SerializerMethodField()
     run_record_id = serializers.CharField(source='run_record.id', read_only=True, allow_null=True)
@@ -726,7 +728,7 @@ class AgentActivitySerializer(serializers.ModelSerializer):
         model = AgentActivity
         fields = [
             'id', 'type', 'status', 'agent', 'title', 'summary', 'current_action',
-            'occurred_at', 'run_record_id', 'output_preview', 'artifact',
+            'occurred_at', 'run_record_id', 'output_preview', 'artifact', 'rating',
         ]
 
     def get_agent(self, obj):
@@ -734,6 +736,14 @@ class AgentActivitySerializer(serializers.ModelSerializer):
             from .agent_history import historical_activity_author
             return historical_activity_author(obj)
         return {'id': obj.agent.id, 'name': obj.agent.name, 'avatar': obj.agent.avatar}
+
+    def get_rating(self, obj):
+        from .agent_activity_presentation import activity_rating
+        return activity_rating(obj)
+
+    def get_title(self, obj):
+        from .agent_activity_presentation import activity_title
+        return activity_title(obj)
 
     def get_output_preview(self, obj):
         metadata = obj.metadata if isinstance(obj.metadata, dict) else {}

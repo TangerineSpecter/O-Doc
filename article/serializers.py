@@ -400,11 +400,16 @@ class ArticleSerializer(serializers.ModelSerializer):
 
 
 class ArticlePostCommentSerializer(serializers.ModelSerializer):
+    rating = serializers.SerializerMethodField()
+
+    def get_rating(self, obj):
+        return self.context.get('comment_ratings', {}).get(obj.pk)
+
     class Meta:
         model = ArticlePostComment
         fields = [
             'comment_id', 'article', 'content', 'creator_id', 'creator_name',
-            'creator_avatar', 'created_at', 'updated_at'
+            'creator_avatar', 'created_at', 'updated_at', 'rating'
         ]
         read_only_fields = fields
 

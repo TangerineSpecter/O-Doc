@@ -180,6 +180,8 @@ def day_events(request, owner, day, actor_id=''):
         Q(activity_type='work', agent_id__isnull=True, run_record__agent_id__in=actors) |
         Q(activity_type__in=('publication', 'interaction'), artifact_coll_id__in=visible_colls)
     ).select_related('agent', 'run_record')
+    from system_settings.agent_activity_presentation import grouped_activities, activity_title, activity_rating
+    activities = grouped_activities(activities)
     recorded_runs = set()
     for row in activities:
         historical_name = ''
@@ -195,13 +197,14 @@ def day_events(request, owner, day, actor_id=''):
         event = _event('record' if row.activity_type == 'work' else row.activity_type,
                        'activity', row.pk, row.occurred_at, actor_key,
                        row.agent.name if row.agent else historical_name or (row.run_record.agent_name if row.run_record else ''),
-                       row.title, row.summary, status=row.status,
+                       activity_title(row), row.summary, status=row.status,
                        target={'kind': 'activity', 'id': row.pk,
                                'runRecordId': row.run_record_id or '',
                                'collId': row.artifact_coll_id or '',
                                'articleId': row.artifact_article_id or '',
                                'artifactId': row.artifact_id or '',
                                'artifactKind': row.artifact_kind or ''})
+        event['rating'] = activity_rating(row)
         if row.activity_type == 'work':
             event['currentAction'] = row.current_action or ''
             metadata = row.metadata if isinstance(row.metadata, dict) else {}
