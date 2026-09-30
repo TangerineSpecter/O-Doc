@@ -23,7 +23,7 @@ import {
 import WorldDialog from '../AgentWorld/WorldDialog';
 import {getLifeItem, changeLifeItem} from '../../api/agentLife';
 import type {LifeItem} from '../../types/api/agentLife';
-import {activityLabels, statusLabels} from './lifeLabels';
+import {activityLabels, statusLabels, showsLifeBudget} from './lifeLabels';
 
 function ActivityIcon({activity, className}: {activity?: string; className?: string}) {
     switch (activity) {
@@ -212,30 +212,32 @@ export default function LifeItemDetails({
                         </div>
 
                         {/* 预算与支出面板 */}
-                        <div className="grid grid-cols-2 gap-3 text-xs">
-                            <div className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs hover:border-slate-300 transition-all">
-                                <div className="space-y-0.5">
-                                    <span className="text-[11px] font-medium text-slate-400">预计总预算</span>
-                                    <p className="font-mono text-base font-bold text-slate-900">
-                                        ¥{item.budget}
-                                    </p>
+                        {showsLifeBudget(item) && (
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs hover:border-slate-300 transition-all">
+                                    <div className="space-y-0.5">
+                                        <span className="text-[11px] font-medium text-slate-400">预计总预算</span>
+                                        <p className="font-mono text-base font-bold text-slate-900">
+                                            ¥{item.budget}
+                                        </p>
+                                    </div>
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 border border-amber-100/60">
+                                        <Wallet className="h-4.5 w-4.5" />
+                                    </div>
                                 </div>
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 border border-amber-100/60">
-                                    <Wallet className="h-4.5 w-4.5" />
+                                <div className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs hover:border-slate-300 transition-all">
+                                    <div className="space-y-0.5">
+                                        <span className="text-[11px] font-medium text-slate-400">实际已支出</span>
+                                        <p className="font-mono text-base font-bold text-orange-600">
+                                            ¥{item.spent}
+                                        </p>
+                                    </div>
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600 border border-orange-100/60">
+                                        <CreditCard className="h-4.5 w-4.5" />
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs hover:border-slate-300 transition-all">
-                                <div className="space-y-0.5">
-                                    <span className="text-[11px] font-medium text-slate-400">实际已支出</span>
-                                    <p className="font-mono text-base font-bold text-orange-600">
-                                        ¥{item.spent}
-                                    </p>
-                                </div>
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600 border border-orange-100/60">
-                                    <CreditCard className="h-4.5 w-4.5" />
-                                </div>
-                            </div>
-                        </div>
+                        )}
 
                         {item.result?.reason && (
                             <div className="flex items-start gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-xs">
@@ -310,13 +312,15 @@ export default function LifeItemDetails({
                                                         timeZone: 'Asia/Shanghai',
                                                     })}
                                                 </span>
-                                                <span className="flex items-center gap-1 font-mono text-slate-600">
-                                                    预算：{String(r.before.budget ?? '—')}
-                                                    <ArrowRight className="h-3 w-3 text-slate-400" />
-                                                    <strong className="text-orange-600">
-                                                        {String(r.after.budget ?? '—')}
-                                                    </strong>
-                                                </span>
+                                                {showsLifeBudget(item) && Number(r.before.budget) !== Number(r.after.budget) && (
+                                                    <span className="flex items-center gap-1 font-mono text-slate-600">
+                                                        预算：{String(r.before.budget ?? '—')}
+                                                        <ArrowRight className="h-3 w-3 text-slate-400" />
+                                                        <strong className="text-orange-600">
+                                                            {String(r.after.budget ?? '—')}
+                                                        </strong>
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="mt-1.5 text-slate-700 leading-relaxed">{r.reason}</p>
                                         </div>

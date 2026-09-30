@@ -26,6 +26,8 @@ def actor_for(owner, identity):
 
 def item_data(item, detail=False):
     value={field:getattr(item,field) for field in ('id','owner_id','actor_id','original_at','scheduled_at','activity','task_id','status','intent','budget','spent','record_id','result','attempts')}
+    from .life_budget_policy import effective_budget
+    value['budget']=effective_budget(item)
     value['original_at']=local_time(item.original_at).isoformat()
     value['scheduled_at']=local_time(item.scheduled_at).isoformat()
     if detail:

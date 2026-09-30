@@ -11,7 +11,7 @@ import {
     Activity,
 } from 'lucide-react';
 import type {LifeItem} from '../../types/api/agentLife';
-import {activityLabels, statusLabels} from './lifeLabels';
+import {activityLabels, showsLifeBudget, statusLabels} from './lifeLabels';
 
 interface LifeScheduleCardProps {
     item: LifeItem;
@@ -131,8 +131,9 @@ export default function LifeScheduleCard({
         minute: '2-digit',
     });
 
+    const showBudget = showsLifeBudget(item);
     const hasSpent = parseFloat(item.spent || '0') > 0;
-    const tooltipText = `${activityLabels[item.activity] || item.activity} · ${actorName || '居民'}\n时间：${timeString}\n状态：${statusInfo.label}${item.intent ? `\n意图：${item.intent}` : ''}\n预算：${item.budget} · 已用：${item.spent}`;
+    const tooltipText = `${activityLabels[item.activity] || item.activity} · ${actorName || '居民'}\n时间：${timeString}\n状态：${statusInfo.label}${item.intent ? `\n意图：${item.intent}` : ''}${showBudget ? `\n预算：${item.budget} · 已用：${item.spent}` : ''}`;
 
     // ==========================================
     // 列表视图专用卡片：适度增加高度，收缩宽度，排版更具呼吸感
@@ -196,7 +197,7 @@ export default function LifeScheduleCard({
                             {hasSpent ? (
                                 <span className="font-semibold text-orange-600">支 ¥{item.spent}</span>
                             ) : (
-                                <span>预 ¥{item.budget}</span>
+                                <span>{showBudget ? `预 ¥${item.budget}` : '无需预算'}</span>
                             )}
                         </span>
                     </div>
@@ -259,12 +260,14 @@ export default function LifeScheduleCard({
                 )}
 
                 {/* 底栏：预算与支出 */}
-                <div className="mt-2 flex items-center justify-between gap-1 border-t border-slate-100/80 pt-2 pl-1.5 text-[11px] text-slate-400">
-                    <span className="font-mono">预：¥{item.budget}</span>
-                    <span className="font-mono font-semibold text-orange-600">
-                        实支：¥{item.spent}
-                    </span>
-                </div>
+                {showBudget && (
+                    <div className="mt-2 flex items-center justify-between gap-1 border-t border-slate-100/80 pt-2 pl-1.5 text-[11px] text-slate-400">
+                        <span className="font-mono">预：¥{item.budget}</span>
+                        <span className="font-mono font-semibold text-orange-600">
+                            实支：¥{item.spent}
+                        </span>
+                    </div>
+                )}
             </button>
         );
     }
@@ -332,7 +335,7 @@ export default function LifeScheduleCard({
                         {hasSpent ? (
                             <span className="font-semibold text-orange-600">支 ¥{item.spent}</span>
                         ) : (
-                            <span>预 ¥{item.budget}</span>
+                            <span>{showBudget ? `预 ¥${item.budget}` : '无需预算'}</span>
                         )}
                     </div>
                 </div>
@@ -384,9 +387,11 @@ export default function LifeScheduleCard({
                 </div>
             )}
 
-            <div className="mt-1.5 flex items-center justify-between gap-1 border-t border-slate-100/80 pt-1.5 pl-1.5 text-[10px] text-slate-400">
-                <span>预 ¥{item.budget} · 支 ¥{item.spent}</span>
-            </div>
+            {showBudget && (
+                <div className="mt-1.5 flex items-center justify-between gap-1 border-t border-slate-100/80 pt-1.5 pl-1.5 text-[10px] text-slate-400">
+                    <span>预 ¥{item.budget} · 支 ¥{item.spent}</span>
+                </div>
+            )}
         </button>
     );
 }

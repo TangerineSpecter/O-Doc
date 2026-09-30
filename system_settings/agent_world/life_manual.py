@@ -2,6 +2,7 @@
 from decimal import Decimal
 from django.utils import timezone
 from system_settings.models import Agent
+from .life_budget_policy import allows_spending, remaining_reservation
 from .life_models import LifeItem
 from .life_scope import life_scope
 from .life_context import build_context
@@ -11,8 +12,9 @@ from .life_schedule import OPEN, stable_id, revise
 def run_manual_life(task, actor, owner, scheduler):
     agent=Agent.objects.get(pk=actor)
     now=timezone.now()
-    reserved=sum((max(Decimal(0),r.budget-r.spent) for r in LifeItem.objects.filter(owner_id=owner,actor_id=actor,status__in=OPEN)),Decimal(0))
-    item=LifeItem.objects.create(pk=stable_id('manual',task.pk,actor,now.isoformat()),owner_id=owner,actor_id=actor,original_at=now,scheduled_at=now,activity=task.task_kind,task_id=task.pk,status='running',intent='用户手动执行',budget=max(Decimal(0),agent.money-reserved),context={'manual':True})
+    reserved=sum((remaining_reservation(r) for r in LifeItem.objects.filter(owner_id=owner,actor_id=actor,status__in=OPEN)),Decimal(0))
+    budget = max(Decimal(0), agent.money-reserved) if allows_spending(task.task_kind) else Decimal(0)
+    item=LifeItem.objects.create(pk=stable_id('manual',task.pk,actor,now.isoformat()),owner_id=owner,actor_id=actor,original_at=now,scheduled_at=now,activity=task.task_kind,task_id=task.pk,status='running',intent='用户手动执行',budget=budget,context={'manual':True})
     try:
         with life_scope(item,build_context(owner,agent,item)):
             record=scheduler._run_task(task,trigger='手动执行')

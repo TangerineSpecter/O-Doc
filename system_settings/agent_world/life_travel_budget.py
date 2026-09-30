@@ -1,6 +1,7 @@
 """长流程扣费前复核预留；预算调整不创造资金或重复扣款。"""
 from decimal import Decimal
 
+from .life_budget_policy import remaining_reservation
 from .life_models import LifeItem
 from .life_schedule import OPEN
 from .life_budget import adjust_budget, money
@@ -15,7 +16,7 @@ def review_travel_budget(journey, amount):
     agent = journey.agent
     agent.refresh_from_db()
     others = LifeItem.objects.filter(owner_id=item.owner_id, actor_id=item.actor_id, status__in=OPEN).exclude(pk=item.pk)
-    reserved = sum((max(Decimal(0), r.budget-r.spent) for r in others), Decimal(0))
+    reserved = sum((remaining_reservation(r) for r in others), Decimal(0))
     if amount <= item.budget-item.spent and agent.money-amount >= reserved:
         return
     from .travel_ai import ask, text

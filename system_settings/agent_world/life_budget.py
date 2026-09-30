@@ -2,6 +2,7 @@
 from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from system_settings.models import Agent
+from .life_budget_policy import allows_spending, remaining_reservation, validate_activity_budget
 from .life_models import LifeItem
 from .life_schedule import OPEN, revise
 from .life_scope import CURRENT, check_item_authorization
@@ -36,6 +37,7 @@ def future_allocations(rows: list[LifeItem], allocations: list[dict], reason: st
         amount=money(entry.get('budget'))
         if amount<available[entry['id']].spent:
             raise ValueError('预算不能小于已发生支出')
+        validate_activity_budget(available[entry['id']].activity, amount, available[entry['id']].spent)
         changes[entry['id']]=amount
     return changes
 
@@ -54,10 +56,12 @@ def charge_budget(agent: Agent, amount: Decimal, *, item_id: str | None = None, 
             return
         raise ValueError('生活预算安排不存在')
     check_item_authorization(item)
+    if not allows_spending(item.activity):
+        raise ValueError('当前活动不支持世界货币消费')
     if item.status not in OPEN:
         raise ValueError('生活安排已结束')
     others = LifeItem.objects.select_for_update().filter(owner_id=item.owner_id, actor_id=agent.pk, status__in=OPEN).exclude(pk=item.pk)
-    reserved = sum((max(Decimal(0), r.budget-r.spent) for r in others), Decimal(0))
+    reserved = sum((remaining_reservation(r) for r in others), Decimal(0))
     if item.spent+amount > item.budget or agent.money-amount < reserved:
         raise ValueError('支出超出生活预算；请调用adjust_life_budget说明原因重新分配，不能动用后续活动预留')
     if business_key:
@@ -86,8 +90,9 @@ def adjust_budget(owner: str, actor: str, allocations: list[dict], reason: str) 
         amount = money(entry.get('budget'))
         if amount < rows[identity].spent:
             raise ValueError('预算不能小于已发生支出')
+        validate_activity_budget(rows[identity].activity, amount, rows[identity].spent)
         changes[identity] = amount
-    reserved = sum((max(Decimal(0), changes.get(k,r.budget)-r.spent) for k,r in rows.items()), Decimal(0))
+    reserved = sum((remaining_reservation(r, changes.get(k)) for k,r in rows.items()), Decimal(0))
     if reserved > agent.money:
         raise ValueError('预留总额超出真实余额')
     for identity, amount in changes.items():

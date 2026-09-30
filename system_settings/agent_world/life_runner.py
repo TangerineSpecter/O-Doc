@@ -77,7 +77,8 @@ def execute_item(item: LifeItem, scheduler) -> None:
                 return
             locked.status='running';locked.context={**locked.context,'execution_started':timezone.now().isoformat()};locked.save()
         with life_scope(item,build_context(item.owner_id,agent,item)):
-            if item.context.get('needs_market'):
+            from .life_budget_policy import allows_spending
+            if allows_spending(item.activity) and item.context.get('needs_market'):
                 market=next((t for t in tasks_for(item.owner_id) if t.enabled and t.task_kind=='market'),None)
                 if market:
                     from .market_runner import run_market_opportunity

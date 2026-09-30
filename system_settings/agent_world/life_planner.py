@@ -5,6 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 from utils.ai_service import AIService
 from system_settings.agent_prompts import build_agent_system_prompt
+from .life_budget_policy import remaining_reservation, validate_activity_budget
 from .life_models import LifeItem, LifeGoal
 from .life_schedule import OPEN, SHANGHAI, revise, stable_id
 from .life_context import build_context
@@ -57,11 +58,12 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict) -> None
             raise ValueError('不能覆盖正在执行的活动')
         needs_market=plan.get('needs_market',False)
         if type(needs_market) is not bool:raise ValueError('补给意向须为布尔值')
+        validate_activity_budget(activity, budget, item.spent, needs_market=needs_market)
         updates.append((item, activity, reason, budget, needs_market))
     other = list(LifeItem.objects.select_for_update().filter(owner_id=owner,actor_id=agent.pk,status__in=OPEN).exclude(pk__in=expected))
     adjustment_reason=proposal.get('budget_reason','')
     changes=future_allocations(other,proposal.get('budget_allocations',[]),adjustment_reason)
-    reserve = sum((max(Decimal(0),changes.get(r.pk,r.budget)-r.spent) for r in other),Decimal(0))
+    reserve = sum((remaining_reservation(r, changes.get(r.pk)) for r in other),Decimal(0))
     if reserve+sum((b-i.spent for i,_,_,b,_ in updates),Decimal(0)) > agent.money:
         raise ValueError('计划费用总额超过真实余额')
     for row in other:
@@ -148,6 +150,6 @@ def plan_items(config, agent, items: list[LifeItem]) -> None:
     check_goals(config.pk,agent)
     context=build_context(config.pk,agent)
     context['slots']=[{'id':i.pk,'time':i.scheduled_at.isoformat(),'current_activity':i.activity,'spent':str(i.spent)} for i in items]
-    proposal=ask(agent,'为slots的每个时间点规划一个活动或rest。返回 {"plans":[{"id":"时间点ID","activity":"开放活动kind或rest","budget":"总预算","reason":"安排原因","needs_market":false}],"goal_updates":[]}。如需重分配其他安排，可另返回budget_allocations:[{id, budget}]和budget_reason，说明实际原因。预留旅行和扩建费用。未买到物资就按实际资源调整；需要先补给时设置needs_market:true，补给费用计入该机会总预算。允许放弃失效目标并说明原因，已完成须引用真实evidence_record_id。',context)
+    proposal=ask(agent,'为slots的每个时间点规划一个活动或rest。返回 {"plans":[{"id":"时间点ID","activity":"开放活动kind或rest","budget":"总预算","reason":"安排原因","needs_market":false}],"goal_updates":[]}。如需重分配其他安排，可另返回budget_allocations:[{id, budget}]和budget_reason，说明实际原因。阅读评论、发帖和休息没有世界货币支出，budget必须等于已支出（通常为0），needs_market必须为false。只有旅行、农场经营、投资及独立市场采购可预留实际费用；不消费时填0。预留旅行和扩建费用。未买到物资就按实际资源调整；需要先补给时设置needs_market:true，补给费用计入该机会总预算。允许放弃失效目标并说明原因，已完成须引用真实evidence_record_id。',context)
     apply_plan(config.pk,agent,items,proposal)
     check_goals(config.pk,agent)
