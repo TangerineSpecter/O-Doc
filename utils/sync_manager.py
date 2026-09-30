@@ -106,15 +106,22 @@ class SyncManager:
         remote_major, remote_minor, remote_patch = remote_parts
         current_major, current_minor, current_patch = current_parts
 
+        # 远端版本高于当前本机版本时，禁止同步（必须先升级本机）
+        if remote_major > current_major:
+            return False
+        if remote_major == current_major and remote_minor > current_minor:
+            return False
+        if remote_major == current_major and remote_minor == current_minor and remote_patch > current_patch:
+            return False
+
+        # 兼容 0.9.x 到 1.0.x 的主版本跨越（升级过渡）：
+        # 0.9.x 为 1.0.x 的紧邻前序版本，允许新版服务读取并合并以完成升级后的首次同步。
+        if remote_major == 0 and current_major == 1:
+            return remote_minor >= 9 and current_minor == 0
+
         # 同步快照只做向后兼容：当前版本可以读取同一主版本下的当前小版本
         # 或上一个小版本快照，但不能读取由更新系统生成的快照。
         if remote_major != current_major:
-            return False
-
-        if remote_minor > current_minor:
-            return False
-
-        if remote_minor == current_minor and remote_patch > current_patch:
             return False
 
         # 允许新版服务读取上一个小版本生成的快照，完成升级后的首次同步。

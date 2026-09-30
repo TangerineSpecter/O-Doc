@@ -426,6 +426,15 @@ class SyncManagerTests(TestCase):
         self.assertEqual(len(issues), 1)
         self.assertIn('image/missing.png', issues[0])
 
+    def test_v2_snapshot_version_compatibility_0_9_to_1_0(self):
+        # 0.9.x 到 1.0.x 属于连续的小版本升级与跨主版本发布，应允许新版读取旧版快照以完成升级后首次同步
+        self.assertTrue(SyncManager._is_snapshot_version_compatible('0.9.13', '1.0.2'))
+        self.assertTrue(SyncManager._is_snapshot_version_compatible('0.9.14', '1.0.0'))
+        # 远端比本机更高版本时，禁止同步
+        self.assertFalse(SyncManager._is_snapshot_version_compatible('1.0.2', '0.9.13'))
+        # 跨越多个大版本或过旧版本（如 0.8 到 1.0）应拒绝
+        self.assertFalse(SyncManager._is_snapshot_version_compatible('0.8.2', '1.0.2'))
+
     def test_sync_data_download_raises_when_snapshot_missing(self):
         manager = SyncManager(FakeWebDavClient(content=None), '/o-doc-sync/')
 
