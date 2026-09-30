@@ -1,3 +1,4 @@
+import AgentSettingsToolbar from './AgentSettingsToolbar';
 import {getLifeConfig} from '@/api/agentLife';
 import LifeManualRunDialog from '../AgentLife/LifeManualRunDialog';
 import { ProfessionSelect } from "../AgentWorld/ProfessionSelect";
@@ -19,7 +20,6 @@ import {
     ImagePlus,
     MessageCircle,
     Play,
-    Plus,
     Repeat2,
     Sparkles,
     Trash2,
@@ -785,48 +785,12 @@ export const AgentSettings = ({
                             </p>
                         </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2.5">
-                        <div className="flex rounded-lg bg-slate-100 p-0.5 shrink-0">
-                            <button
-                                onClick={() => setActiveView('list')}
-                                className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${activeView === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                Agent 列表
-                            </button>
-                            <button
-                                onClick={() => setActiveView('tasks')}
-                                className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${activeView === 'tasks' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                任务分配
-                            </button>
-                            <button
-                                onClick={() => setActiveView('records')}
-                                className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${activeView === 'records' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                执行记录
-                            </button>
-                        </div>
-                        {activeView === 'list' && (
-                            <button
-                                onClick={openCreateModal}
-                                title="创建 Agent"
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-xs shadow-orange-500/20 whitespace-nowrap shrink-0 active:scale-95"
-                            >
-                                <Plus className="w-3.5 h-3.5 shrink-0"/>
-                                创建
-                            </button>
-                        )}
-                        {activeView === 'tasks' && (
-                            <button
-                                onClick={openCreateTaskModal}
-                                title="新建任务"
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white rounded-lg text-xs font-medium transition-all shadow-xs shadow-orange-500/20 whitespace-nowrap shrink-0 active:scale-95"
-                            >
-                                <Plus className="w-3.5 h-3.5 shrink-0"/>
-                                新建
-                            </button>
-                        )}
-                    </div>
+                    <AgentSettingsToolbar
+                        activeView={activeView}
+                        onViewChange={setActiveView}
+                        onCreateAgent={openCreateModal}
+                        onCreateTask={openCreateTaskModal}
+                    />
                 </div>
             </div>
 
