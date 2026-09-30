@@ -5,6 +5,7 @@ import {
   cancelImageIndexJob, createImageIndexJob, getImageIndexJobs, removeImageIndexes,
   type Image, type ImageIndexJob, type ImageIndexSummary, type ImageIndexStatus,
 } from '../../api/image';
+import Checkbox from '../common/Checkbox';
 
 const STATUS: Record<ImageIndexStatus, string> = {
   unrecognized: '未识图', recognized: '已识图，未索引', indexed: '已索引',
@@ -100,7 +101,10 @@ export default function ImageIndexManager({open, onClose, collId, images, summar
             const checked = selected.includes(image.imageId);
             const status = summary?.statuses[image.imageId] || 'unrecognized';
             return <label key={image.imageId} className="flex cursor-pointer items-center gap-3 border-b border-slate-100 py-2.5 last:border-0">
-              <input type="checkbox" checked={checked} onChange={() => setSelected(previous => checked ? previous.filter(id => id !== image.imageId) : [...previous, image.imageId])} className="accent-orange-500"/>
+              <Checkbox
+                checked={checked}
+                onChange={isChecked => setSelected(previous => isChecked ? [...previous, image.imageId] : previous.filter(id => id !== image.imageId))}
+              />
               <img src={image.imageUrl} alt="" className="h-11 w-11 rounded-lg bg-slate-100 object-cover"/>
               <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{image.title}</span>
               <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${status === 'indexed' ? 'bg-lime-50 text-lime-700' : status === 'failed' ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'}`}>{STATUS[status]}</span>

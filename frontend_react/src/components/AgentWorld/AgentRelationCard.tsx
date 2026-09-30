@@ -7,6 +7,7 @@ import {CanvasRenderer} from 'echarts/renderers';
 import type {EChartsOption} from 'echarts';
 import type {AgentRelationEdge, AgentRelationGraph, AgentRelationNode} from '../../types/api/setting';
 import WorldDialog from './WorldDialog';
+import Checkbox from '../common/Checkbox';
 import {Network, Users} from 'lucide-react';
 import {circularRelationAvatar} from '../../utils/relationAvatar';
 import {escapeRelationText as escapeXml, relationNodeTooltip} from '../../utils/relationTooltip';
@@ -195,11 +196,16 @@ export default function AgentRelationCard({
 
     return (
         <WorldDialog size="wide" title="关系图谱" description="点击当前居民查看动态，点击连线查看双方好感；已离开居民仅展示历史关系。" onClose={onClose}>
-            <label className="mb-4 flex w-fit cursor-pointer items-center gap-2 text-sm text-slate-600">
-                <input type="checkbox" checked={showDeparted} className="h-4 w-4 accent-orange-500"
-                    onChange={event => {setShowDeparted(event.target.checked); onSelectEdge(null);}}/>
-                显示已离开居民
-            </label>
+            <Checkbox
+                checked={showDeparted}
+                onChange={checked => {
+                    setShowDeparted(checked);
+                    onSelectEdge(null);
+                }}
+                label="显示已离开居民"
+                labelClassName="text-sm font-normal text-slate-600"
+                className="mb-4"
+            />
             {loading ? <p className="py-16 text-center text-xs text-slate-400">正在整理最近的互动...</p> : null}
             {error ? <p className="py-12 text-center text-xs text-red-600">{error}</p> : null}
             {!loading && !error && graph && !graph.nodes.length ? (
