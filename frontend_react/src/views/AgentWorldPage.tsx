@@ -1,7 +1,7 @@
 import WorldDialogSuspense from '../components/AgentWorld/WorldDialogSuspense';
 import {lazy, useCallback, useEffect, useState} from 'react';
 import WorldOrbitLoader from '../components/AgentWorld/WorldOrbitLoader';
-import {Activity, ArrowLeft, Bot, BookOpenText, Settings, Store, MessageCircle} from 'lucide-react';
+import {Activity, ArrowLeft, Bot, BookOpenText, CalendarDays, MessageCircle, Settings, Sprout, Store, TrendingUp} from 'lucide-react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
 import DailyFeedTimeline from '../components/AgentWorld/DailyFeedTimeline';
 import AgentAttributePanel from '../components/AgentWorld/AgentAttributePanel';
@@ -140,7 +140,7 @@ export default function AgentWorldPage() {
                     <span className="text-[11px] text-slate-400 hidden sm:inline">实时见证智能体思考与成长轨迹</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={() => setMomentsOpen(true)} className="inline-flex items-center shrink-0 gap-1.5 whitespace-nowrap rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 shadow-2xs transition-all duration-150 hover:border-rose-300 hover:bg-rose-100 hover:shadow-xs active:scale-95"><MessageCircle className="h-3.5 w-3.5"/>朋友圈</button>
+                    <button type="button" onClick={() => setMomentsOpen(true)} className="inline-flex items-center shrink-0 gap-1.5 whitespace-nowrap rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 shadow-2xs transition-all duration-150 hover:border-rose-300 hover:bg-rose-100 hover:shadow-xs active:scale-95"><MessageCircle className="h-3.5 w-3.5 shrink-0"/>朋友圈</button>
                     <button
                         type="button"
                         onClick={() => setCatalogOpen(true)}
@@ -155,7 +155,7 @@ export default function AgentWorldPage() {
                         onMouseEnter={preloadLifeSchedule}
                         className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-2xs transition-all duration-150 hover:border-blue-300 hover:bg-blue-100 hover:shadow-xs active:scale-95"
                     >
-                        生活日程
+                        <CalendarDays className="h-3.5 w-3.5 shrink-0"/>生活日程
                     </button>
                     <button
                         type="button"
@@ -163,7 +163,7 @@ export default function AgentWorldPage() {
                         onMouseEnter={preloadInvestment}
                         className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-100 hover:shadow-xs active:scale-95"
                     >
-                        股票投资
+                        <TrendingUp className="h-3.5 w-3.5 shrink-0"/>股票投资
                     </button>
                     <button
                         type="button"
@@ -179,7 +179,7 @@ export default function AgentWorldPage() {
                         onMouseEnter={preloadFarm}
                         className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-lime-200 bg-lime-50 px-3 py-1.5 text-xs font-semibold text-lime-700 shadow-2xs transition-all duration-150 hover:border-lime-300 hover:bg-lime-100 hover:shadow-xs active:scale-95"
                     >
-                        像素农场
+                        <Sprout className="h-3.5 w-3.5 shrink-0"/>像素农场
                     </button>
                     <button
                         type="button"
