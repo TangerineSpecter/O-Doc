@@ -1359,29 +1359,44 @@ class SyncManager:
             for state in SyncEntityState.objects.all()
         }
         revisions = {}
+        to_create = []
+        to_update = []
+        now = timezone.now()
+
         for key, item in self._item_map(data_list).items():
             state = states.get(key)
             item_hash = canonical_hash(item.get('fields') or {})
             if state is None:
                 model_label, pk = key.rsplit(':', 1)
-                state = SyncEntityState.objects.create(
+                rev_at = self._item_revision_at(item)
+                state = SyncEntityState(
                     model_label=model_label, object_pk=pk, content_hash=item_hash,
-                    # 首次升级时尽量沿用业务记录的更新时间，避免所有旧记录在
-                    # 第一次 v2 同步中同时变成“最新修改”。
-                    revision_at=self._item_revision_at(item), origin_device=device_id, is_deleted=False,
+                    revision_at=rev_at, origin_device=device_id, is_deleted=False,
                 )
+                to_create.append(state)
+                states[key] = state
             elif state.content_hash != item_hash or state.is_deleted:
                 state.content_hash = item_hash
                 state.is_deleted = False
-                state.revision_at = timezone.now()
+                state.revision_at = now
                 state.origin_device = device_id
-                state.save(update_fields=['content_hash', 'is_deleted', 'revision_at', 'origin_device', 'updated_at'])
+                to_update.append(state)
             revisions[key] = {
                 'hash': item_hash,
                 'revision_at': state.revision_at.isoformat(),
                 'origin_device': state.origin_device or device_id,
                 'deleted': False,
             }
+
+        if to_create:
+            SyncEntityState.objects.bulk_create(to_create, batch_size=1000)
+        if to_update:
+            SyncEntityState.objects.bulk_update(
+                to_update,
+                fields=['content_hash', 'is_deleted', 'revision_at', 'origin_device', 'updated_at'],
+                batch_size=1000,
+            )
+
         for key, state in states.items():
             if state.is_deleted:
                 revisions[key] = {

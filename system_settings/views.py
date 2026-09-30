@@ -765,11 +765,11 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 yield self._sync_event("done", "✅ 所有同步已完成！")
             except SyncError as e:
                 if acquired and runner_owns_sync(runner_id):
-                    update_runtime_state(status='error', trigger='manual', runner_id=runner_id, last_error=str(e))
+                    update_runtime_state(status='error', trigger='manual', runner_id=runner_id, last_error=str(e), cancel_requested=False)
                 yield self._sync_event("error", str(e))
             except Exception as e:
                 if acquired and runner_owns_sync(runner_id):
-                    update_runtime_state(status='error', trigger='manual', runner_id=runner_id, last_error=str(e))
+                    update_runtime_state(status='error', trigger='manual', runner_id=runner_id, last_error=str(e), cancel_requested=False)
                 yield self._sync_event("error", f"同步失败：{str(e)}")
 
         return StreamingHttpResponse(stream_generator(), content_type='application/x-ndjson')
@@ -842,11 +842,11 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 yield self._sync_event("done", "✅ 云端同步完成，本地数据与资源已刷新")
             except SyncError as e:
                 if acquired and runner_owns_sync(runner_id):
-                    update_runtime_state(status='error', trigger='manual-pull', runner_id=runner_id, last_error=str(e))
+                    update_runtime_state(status='error', trigger='manual-pull', runner_id=runner_id, last_error=str(e), cancel_requested=False)
                 yield self._sync_event("error", str(e))
             except Exception as e:
                 if acquired and runner_owns_sync(runner_id):
-                    update_runtime_state(status='error', trigger='manual-pull', runner_id=runner_id, last_error=str(e))
+                    update_runtime_state(status='error', trigger='manual-pull', runner_id=runner_id, last_error=str(e), cancel_requested=False)
                 yield self._sync_event("error", ErrorCode.WEBDEV_DOWNLOAD_FAIL.message)
 
         return StreamingHttpResponse(stream_generator(), content_type='application/x-ndjson')
