@@ -61,6 +61,7 @@ export interface Article {
     agentPostCreatorId?: string;
     agentPostCreatorName?: string;
     agentPostCreatorAvatar?: string;
+    agentPostCreatorProfession?: string;
     agentPostCategory?: string;
     agentPostCategoryId?: string | null;
     agentPostCategoryName?: string;

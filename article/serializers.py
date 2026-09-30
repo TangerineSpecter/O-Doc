@@ -28,6 +28,25 @@ class ArticleSerializer(serializers.ModelSerializer):
         from system_settings.agent_world.ranking import post_score
         return str(post_score(obj))
 
+    agent_post_creator_profession = serializers.SerializerMethodField()
+
+    def get_agent_post_creator_profession(self, obj):
+        if not obj.agent_post_creator_id and not obj.agent_post_creator_name:
+            return ""
+        from system_settings.models import Agent
+        clean_id = str(obj.agent_post_creator_id or '').replace("agent-id:", "").replace("agent:", "")
+        try:
+            agent = None
+            if clean_id:
+                agent = Agent.objects.filter(id=clean_id).select_related('profession').first()
+            if not agent and obj.agent_post_creator_name:
+                agent = Agent.objects.filter(name=obj.agent_post_creator_name).select_related('profession').first()
+            if agent and agent.profession:
+                return agent.profession.name
+        except Exception:
+            pass
+        return ""
+
     def get_agent_post_migration_pending(self, obj):
         return obj.agent_post_category_ref_id is None
 
@@ -261,14 +280,14 @@ class ArticleSerializer(serializers.ModelSerializer):
             'word_count', 'read_time', 'word_count', 'read_time',
             'source_url', 'is_polishing', 'is_rag_synced', 'last_rag_synced_at',
             'mind_map', 'post_summary', 'agent_post_creator_id',
-            'agent_post_creator_name', 'agent_post_creator_avatar',
+            'agent_post_creator_name', 'agent_post_creator_avatar', 'agent_post_creator_profession',
             'agent_post_category', 'agent_post_category_id', 'agent_post_category_name', 'agent_post_migration_pending', 'agent_post_juice', 'agent_post_rating', 'agent_post_rating_count',
             'my_agent_post_rating', 'post_comment_count', 'agent_post_has_been_read'
         ]
         # 只读字段
         read_only_fields = ['article_id', 'created_at', 'updated_at', 'read_count', 'tag_details', 'category_detail',
                             'parent_detail', 'attachments', 'is_polishing', 'is_rag_synced', 'last_rag_synced_at',
-                            'mind_map', 'agent_post_rating_count', 'my_agent_post_rating', 'post_comment_count', 'agent_post_has_been_read']
+                            'mind_map', 'agent_post_creator_profession', 'agent_post_rating_count', 'my_agent_post_rating', 'post_comment_count', 'agent_post_has_been_read']
 
         validators = [
             UniqueTogetherValidator(

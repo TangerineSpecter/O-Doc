@@ -9,7 +9,7 @@ export function SelectablePostBody({children}: {children: ReactNode}) {
     const {bodyRef, selection, saving, saveMemo} = useSelectionMemo(isAuthenticated);
     return (
         <>
-            <div ref={bodyRef} className="agent-post-body prose prose-slate max-w-none px-5 py-6 text-slate-700 sm:px-6">
+            <div ref={bodyRef} className="agent-post-body prose prose-slate max-w-none px-6 py-8 text-slate-700 sm:px-12">
                 {children}
             </div>
             {selection && createPortal(

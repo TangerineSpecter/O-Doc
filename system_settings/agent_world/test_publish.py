@@ -39,7 +39,8 @@ class PublicationTests(TestCase):
         self.task = AgentTask.objects.create(id='builtin-post-publish', name='自主选题并发帖', task_kind='post_publish',
             agent=self.agent, agent_ids=[self.agent.pk], publish_config=self.config, enabled=True)
         self.source = {'url': 'https://example.com/new-model', 'title': '官方发布', 'summary': '真实素材',
-            'published_at': timezone.now().isoformat(), 'fetched_at': timezone.now().isoformat()}
+            'published_at': timezone.now().isoformat(), 'fetched_at': timezone.now().isoformat(),
+            'search_window': {'days': 3}}
         self.state = {'template_version': 1, 'config': copy.deepcopy(self.config), 'phase': 'ready', 'search_count': 1,
             'selection': {'category_id': self.category.pk, 'mode': 'news', 'query': 'AI', 'reason': '关注AI'},
             'materials': [self.source], 'assessment': {'sufficient': True, 'primary_source': True, 'verification_query': ''},
@@ -126,6 +127,21 @@ class PublicationTests(TestCase):
         state=copy.deepcopy(self.state); state['selection']['mode']='topic'; state['materials'][0]['published_at']=None
         draft=validate_draft(state['draft'],state)
         self.assertEqual(validate_draft(draft,state)['content'].count('参考来源'),1)
+
+    def test_topic_mode_decouples_news_days_and_sanitizes_query(self):
+        from .publish_workflow import rule_for_context, sanitize_search_query
+        rule = {'category_id': 'food', 'modes': ['topic'], 'news_days': 5, 'region': '全球'}
+        self.assertNotIn('news_days', rule_for_context(rule, 'topic'))
+        self.assertNotIn('news_days', rule_for_context(rule))
+        news_rule = {'category_id': 'tech', 'modes': ['news', 'topic'], 'news_days': 3}
+        self.assertIn('news_days', rule_for_context(news_rule, 'news'))
+        self.assertNotIn('news_days', rule_for_context(news_rule, 'topic'))
+
+        raw_query = '全球近5天新上线的少女向限定甜点奶茶新品 排除2026年9月26日之前的内容'
+        sanitized = sanitize_search_query(raw_query, 'topic')
+        self.assertNotIn('近5天', sanitized)
+        self.assertNotIn('2026年9月26日之前', sanitized)
+        self.assertIn('甜点奶茶', sanitized)
 
     def test_model_reference_heading_cannot_omit_sources(self):
         self.state['draft']['content'] = '正文事实。\n\n参考来源：\n来源略。'

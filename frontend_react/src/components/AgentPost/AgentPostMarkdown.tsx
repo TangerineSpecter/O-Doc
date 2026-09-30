@@ -19,6 +19,25 @@ const getMarkdownHeadingId = (children: ReactNode) => getMarkdownNodeText(childr
     .replace(/[^\w\u4e00-\u9fa5]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
+const AgentPostBlockquote = ({children, ...props}: {children: ReactNode; [key: string]: any}) => {
+    const variant = props['data-quote-variant'] || props.node?.properties?.['data-quote-variant'];
+    if (variant === 'takeaway') {
+        return (
+            <div className="agent-post-takeaway">
+                <span className="agent-post-takeaway-badge">KEY TAKEAWAY</span>
+                <div className="text-[17px] font-extrabold text-slate-900 leading-snug [&_p]:my-1.5 [&_p]:leading-relaxed">
+                    {children}
+                </div>
+            </div>
+        );
+    }
+    return (
+        <blockquote className="my-6 pl-4 border-l-2 border-orange-500 text-slate-700 text-[15.5px] leading-relaxed font-normal not-italic [&_p]:my-1.5 [&_p]:leading-relaxed">
+            {children}
+        </blockquote>
+    );
+};
+
 const agentPostMarkdownComponents = {
     pre: (props: any) => <div className="not-prose">{props.children}</div>,
     code(props: any) {
@@ -48,13 +67,31 @@ const agentPostMarkdownComponents = {
             </code>
         );
     },
-    h2: ({children}: { children: ReactNode }) => (
-        <h2 id={getMarkdownHeadingId(children)} className="agent-post-chapter-heading">
-            <span className="agent-post-chapter-index" aria-hidden="true" />
-            <span className="agent-post-chapter-title">{children}</span>
-        </h2>
-    ),
-    blockquote: VariantBlockquote,
+    h2: ({children, ...props}: { children: ReactNode; [key: string]: any }) => {
+        const text = getMarkdownNodeText(children).trim();
+        const lower = text.toLowerCase();
+        const isFootnote = lower === 'footnotes' || lower === 'footnote' || props.id === 'footnote-label' || props['data-footnote-label'];
+
+        if (isFootnote) {
+            return <h2 id={props.id || 'footnote-label'} className="sr-only">{children}</h2>;
+        }
+
+        const isReferenceHeading = lower === '参考资料' || lower === '参考文献' || lower === '参考来源' || lower === '资料来源';
+        if (isReferenceHeading) {
+            return (
+                <h2 id={getMarkdownHeadingId(children)} className="agent-post-non-chapter-heading text-base font-bold text-slate-800 mt-8 mb-3 border-t border-slate-100 pt-5">
+                    {children}
+                </h2>
+            );
+        }
+
+        return (
+            <h2 id={getMarkdownHeadingId(children)} className="agent-post-chapter-heading">
+                <span className="agent-post-chapter-title">{children}</span>
+            </h2>
+        );
+    },
+    blockquote: AgentPostBlockquote,
     img: ({src, alt}: {src?: string; alt?: string}) => {
         if (typeof src === 'string' && src.startsWith('odoc-illustration:')) {
             const failed = alt === '配图失败';

@@ -19,6 +19,23 @@ class SkipPublication(ValueError):
     pass
 
 
+def rule_for_context(rule: dict, mode: str | None = None) -> dict:
+    cleaned = dict(rule)
+    if mode == 'topic' or ('news' not in cleaned.get('modes', [])):
+        cleaned.pop('news_days', None)
+    return cleaned
+
+
+def sanitize_search_query(query: str, mode: str) -> str:
+    cleaned = query
+    if mode == 'topic':
+        cleaned = re.sub(r'近\s*\d+\s*(?:天|周|月|日)', '', cleaned)
+        cleaned = re.sub(r'(?:排除|截止|仅限)?\s*\d{4}年\d{1,2}月\d{1,2}日之[前后]?(?:的内容|的信息)?', '', cleaned)
+        cleaned = re.sub(r'(?:排除|截止|仅限)?\s*\d{4}[-/]\d{1,2}[-/]\d{1,2}之[前后]?(?:的内容|的信息)?', '', cleaned)
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned or query
+
+
 class Workflow:
     def __init__(self, task, agent, snapshot=None, save=None, progress=None):
         self.task, self.agent = task, agent
@@ -90,9 +107,16 @@ class Workflow:
                 direction = v.get('expression_direction', '')
                 if not isinstance(direction, str) or len(direction) > 1000:
                     raise ValueError('表达方向无效')
-                return {**{k: v[k] for k in ('category_id', 'mode', 'query', 'reason')}, 'expression_direction': direction}
-            self.state['selection'] = self.ask('选择一个候选方向，返回 {"category_id":"ID","mode":"news/topic","query":"具体检索词","reason":"选题理由","expression_direction":"结合角色说明关注什么、为什么在意、准备从什么角度讲；尚无立场也可以"}。query体现关注主题、地区和排除条件。不要重复近期作品。',
-                {'categories': [{'id': key, 'name': categories[key].name, 'description': categories[key].description, 'rule': rule} for key, rule in rules.items()],
+                clean_query = sanitize_search_query(v['query'].strip(), v.get('mode', 'topic'))
+                return {**{k: v[k] for k in ('category_id', 'mode', 'reason')}, 'query': clean_query, 'expression_direction': direction}
+            selection_instruction = (
+                '选择一个候选方向，返回 {"category_id":"ID","mode":"news/topic","query":"具体检索词","reason":"选题理由","expression_direction":"结合角色说明关注什么、为什么在意、准备从什么角度讲；尚无立场也可以"}。\n'
+                '【选题与检索词要求】：\n'
+                '1. mode 可选 "news"（突发新闻解读，有时效要求）或 "topic"（专题分享/横评/评测/科普/经验与日常，完全不受时间或发布日期限制）。\n'
+                '2. query 必须是搜索引擎关键词组合（例如 "限定甜点 奶茶 新品 测评" 或 "提拉米苏 烘焙 技巧"），严禁写自然语言整句，严禁包含“近5天”、“排除某日之前”等时效约束词，搜索引擎会自动处理检索条件。不要重复近期作品。'
+            )
+            self.state['selection'] = self.ask(selection_instruction,
+                {'categories': [{'id': key, 'name': categories[key].name, 'description': categories[key].description, 'rule': rule_for_context(rule)} for key, rule in rules.items()],
                  'recent_posts': recent, 'profession': self.state["profession"], 'extra': self.state['extra'], 'now': timezone.now().isoformat()}, validate_selection)
         chosen = self.state['selection']
         if chosen['category_id'] not in rules or chosen['mode'] not in rules[chosen['category_id']]['modes']:
@@ -124,9 +148,17 @@ class Workflow:
                     raise ValueError('需要明确素材是否足够及是否为原始发布')
                 if not isinstance(v.get('verification_query', ''), str) or len(v.get('verification_query', '')) > 1000:
                     raise ValueError('核实查询无效')
-                return {'sufficient': v['sufficient'], 'primary_source': v['primary_source'], 'verification_query': v.get('verification_query', ''), 'reason': str(v.get('reason') or '')[:2000]}
-            self.state['assessment'] = self.ask('选择具体事件或专题并核查与近期作品重复情况；重复或不值得表达可以 skip。返回 {"sufficient":true/false,"primary_source":true/false,"verification_query":"需要核实的查询或空串","reason":"依据"}。有争议或非权威原始发布必须核实。已传入的 search_window 是实际检索时间范围；缺少 published_at 只表示搜索接口未返回发布时间，不应仅因此判定素材过期。',
-                {'selection': chosen, 'rule': rule, 'materials': self.state['materials'], 'recent_posts': recent}, assessment)
+                clean_vquery = sanitize_search_query(v.get('verification_query', '').strip(), chosen['mode'])
+                return {'sufficient': v['sufficient'], 'primary_source': v['primary_source'], 'verification_query': clean_vquery, 'reason': str(v.get('reason') or '')[:2000]}
+            assessment_instruction = (
+                '选择具体事件或专题并核查与近期作品重复情况；重复或不值得表达可以 skip。返回 {"sufficient":true/false,"primary_source":true/false,"verification_query":"需要核实的查询或空串","reason":"依据"}。\n'
+                '【核验指引】：\n'
+                '1. topic（专题）模式：涵盖评测、试吃、横评、心得、经验、好物推荐或历史盘点，【完全不受任何发布天数或日期限制】，无论发布于何时均属于合法可用素材，严禁以“素材发布早于某日”、“不是近几天新品”、“不符合时效标准”为由判定素材不足或 skip！只要内容包含可供表达的细节，即判定 sufficient=true；评测与经验类素材来自博主或用户分享即可视为可靠来源（primary_source=true），严禁强求官方公告。\n'
+                '2. news（新闻）模式：已传入的 search_window 是实际检索时间范围；缺少 published_at 只表示搜索接口未返回发布时间，不应仅因此判定素材过期；有重大争议或非权威原始发布需填写 verification_query 核实。\n'
+                '3. 仅在搜索结果与选题完全不相干或与近期作品实质重复时方可 skip。'
+            )
+            self.state['assessment'] = self.ask(assessment_instruction,
+                {'selection': chosen, 'rule': rule_for_context(rule, chosen['mode']), 'materials': self.state['materials'], 'recent_posts': recent}, assessment)
             self.checkpoint('verify')
         assessment = self.state['assessment']
         needs_verify = not assessment['sufficient'] or not assessment['primary_source'] or bool(assessment.get('verification_query'))
@@ -144,8 +176,16 @@ class Workflow:
             raise SkipPublication('核实搜索中断，缺少可靠核实结果')
         if 'draft' not in self.state:
             self.checkpoint('write')
-            self.state['draft'] = self.ask(VOICE_GUIDANCE + '\n根据素材写一篇具体题目的帖子。返回 {"title":"标题","summary":"摘要","content":"Markdown正文","source_urls":["实际采用的资料URL"],"main_source_url":"主要来源URL","evidence_sufficient":true,"reason":"选题与核实依据"}。资料不足、事实冲突未解决或与近期作品重复时 skip。已按 search_window 限定时间的结果可用于近期新闻，不能仅因接口未返回 published_at 而 skip。正文标注来源，事实和观点分开，不声称亲身经历。',
-                {'selection': chosen, 'rule': rule, 'materials': self.state['materials'], 'assessment': assessment, 'recent_posts': recent, 'extra': self.state['extra']},
+            draft_instruction = (
+                VOICE_GUIDANCE + '\n根据素材写一篇具体题目的帖子。返回 {"title":"标题","summary":"摘要","content":"Markdown正文","source_urls":["实际采用的资料URL"],"main_source_url":"主要来源URL","evidence_sufficient":true,"reason":"选题与核实依据"}。\n'
+                '【撰写与核查规则】：\n'
+                '1. topic（专题/评测/经验/生活）模式绝对不受任何发布时间或天数限制，严禁以“时效过期”、“早于某日”为由 skip。\n'
+                '2. news（新闻）模式中，已按 search_window 限定时间的结果可用于近期新闻，不能仅因接口未返回 published_at 而 skip。\n'
+                '3. 事实核验和排除理由只准写在 reason 字段中；正文 content 必须 100% 保持角色的鲜明人设口吻，严禁将审核或免责公文词汇写进正文，正文无需声明来源或手写参考资料列表，实际采用的资料 URL 统一放入 source_urls。\n'
+                '4. 只有在资料严重匮乏到无法支撑角色展开表达、或与近期作品完全重复时才可 skip。'
+            )
+            self.state['draft'] = self.ask(draft_instruction,
+                {'selection': chosen, 'rule': rule_for_context(rule, chosen['mode']), 'materials': self.state['materials'], 'assessment': assessment, 'recent_posts': recent, 'extra': self.state['extra']},
                 lambda v: validate_draft(v, self.state, enforce_title=True))
             self.checkpoint('ready')
         self.state['draft'] = validate_draft(self.state['draft'], self.state)

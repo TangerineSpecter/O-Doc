@@ -54,6 +54,7 @@ import {useRandomTaskProgress} from './agent/useRandomTaskProgress';
 import {useAgentMemories} from './agent/useAgentMemories';
 import {AgentMemoryModal} from './agent/AgentMemoryModal';
 import {useAgentAvatarUpload} from './agent/useAgentAvatarUpload';
+import {AgentAvatarField} from './agent/AgentAvatarField';
 import {AgentFullBodyImageField} from './agent/AgentFullBodyImageField';
 import {isImageAvatarValue} from '@/utils/avatar';
 import {AgentPromptGenerator} from './agent/AgentPromptGenerator';
@@ -1669,48 +1670,18 @@ export const AgentSettings = ({
                         </div>
 
                         <div className="p-6 space-y-6 max-h-[72vh] overflow-y-auto">
-                            <div className="flex flex-col items-center text-center">
-                                <AgentAvatar agent={{name: form.name || 'Agent', avatar: avatarPreviewUrl || form.avatar}} size="xl"/>
-                                <input
-                                    ref={avatarInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={event => handleAvatarUpload(event.target.files?.[0])}
-                                />
-                                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => avatarInputRef.current?.click()}
-                                        disabled={avatarUploading}
-                                        className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-white shadow-sm shadow-orange-500/20 transition-colors hover:bg-orange-600 disabled:opacity-60"
-                                    >
-                                        {avatarUploading ? (
-                                            <div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"/>
-                                        ) : (
-                                            <Upload className="w-3.5 h-3.5"/>
-                                        )}
-                                        上传头像
-                                    </button>
-                                    {form.avatar && (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                clearAvatarPreview();
-                                                setForm({...form, avatar: ''});
-                                            }}
-                                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 transition-colors hover:bg-red-50 hover:border-red-100 hover:text-red-600"
-                                        >
-                                            <X className="w-3.5 h-3.5"/>
-                                            移除
-                                        </button>
-                                    )}
-                                </div>
-                                <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400">
-                                    <ImagePlus className="w-3 h-3"/>
-                                    不上传时使用名称首字母
-                                </div>
-                            </div>
+                            <AgentAvatarField
+                                name={form.name || 'Agent'}
+                                avatar={form.avatar}
+                                previewUrl={avatarPreviewUrl}
+                                uploading={avatarUploading}
+                                inputRef={avatarInputRef}
+                                onUpload={handleAvatarUpload}
+                                onRemove={() => {
+                                    clearAvatarPreview();
+                                    setForm({...form, avatar: ''});
+                                }}
+                            />
 
                             <AgentFullBodyImageField
                                 value={form.fullBodyImage}

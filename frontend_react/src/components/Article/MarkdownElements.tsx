@@ -22,7 +22,7 @@ import {
     YAxis,
 } from 'recharts';
 
-export type QuoteVariant = 'default' | 'danger' | 'warning' | 'info';
+export type QuoteVariant = 'default' | 'danger' | 'warning' | 'info' | 'takeaway';
 
 export const QUOTE_VARIANT_STYLES: Record<QuoteVariant, {
     container: string;
@@ -44,29 +44,50 @@ export const QUOTE_VARIANT_STYLES: Record<QuoteVariant, {
         container: 'border-slate-400 bg-gradient-to-r from-slate-50 to-transparent text-slate-700',
         mark: 'text-slate-500/10',
     },
+    takeaway: {
+        container: 'border-orange-500 bg-orange-50/40 text-slate-800',
+        mark: 'text-orange-500/10',
+    },
 };
 
 const QUOTE_MARKER_VARIANTS: Record<string, QuoteVariant> = {
     d: 'danger',
     w: 'warning',
     i: 'info',
+    '!': 'takeaway',
 };
 
 export const remarkQuoteVariants = () => {
     const visit = (node: any) => {
         if (node.type === 'blockquote') {
-            const firstText = node.children?.[0]?.children?.[0];
+            const firstPara = node.children?.[0];
+            const firstText = firstPara?.children?.[0];
             if (firstText?.type === 'text') {
-                const match = firstText.value.match(/^([dwi])(?:[ \t]+|(?=\n|$))(.*)$/s);
+                const match = firstText.value.match(/^([dwi!]|\[!takeaway\])(?:[ \t]+|(?=\n|$))(.*)$/is);
                 if (match) {
-                    firstText.value = match[2];
+                    let content = match[2];
+                    const key = match[1].toLowerCase().replace(/[\[\]!]/g, '') || '!';
+                    const variant = key === 'takeaway' ? 'takeaway' : QUOTE_MARKER_VARIANTS[match[1]];
+                    if (variant === 'takeaway') {
+                        content = content.replace(/^(?:核心(?:金句|结论|观点|提要)|金句|结论|观点|KEY\s*TAKEAWAY|TAKEAWAY)[:：\s\-·]*/i, '');
+                    }
+                    firstText.value = content;
                     node.data = {
                         ...node.data,
                         hProperties: {
                             ...node.data?.hProperties,
-                            'data-quote-variant': QUOTE_MARKER_VARIANTS[match[1]],
+                            'data-quote-variant': variant,
                         },
                     };
+                    if (variant === 'takeaway' && !content.trim() && firstPara?.children?.[1]?.type === 'strong') {
+                        const strongText = firstPara.children[1].children?.[0];
+                        if (strongText?.type === 'text' && /^(?:核心(?:金句|结论|观点|提要)|金句|结论|观点)$/.test(strongText.value.trim())) {
+                            firstPara.children.splice(1, 1);
+                            if (firstPara.children[1]?.type === 'text') {
+                                firstPara.children[1].value = firstPara.children[1].value.replace(/^[:：\s]+/, '');
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -225,25 +246,79 @@ export const CUSTOM_STYLES = `
   .agent-post-body hr {
     display: none !important;
   }
+  .agent-post-body p {
+    line-height: 1.82;
+    letter-spacing: 0.012em;
+    margin-bottom: 1.15rem;
+  }
+  .agent-post-body sup {
+    font-size: 0.72em;
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+    top: -0.45em;
+  }
+  .agent-post-body strong {
+    font-weight: 600;
+    color: #ea580c;
+  }
+  .agent-post-body blockquote {
+    margin: 1.75rem 0 !important;
+    padding: 0.25rem 0 0.25rem 1.1rem !important;
+    border-left: 2.5px solid #f97316 !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    color: #334155 !important;
+    font-size: 0.975rem !important;
+    line-height: 1.82 !important;
+  }
+  .agent-post-body blockquote::before,
+  .agent-post-body blockquote::after {
+    display: none !important;
+  }
+  .agent-post-body blockquote p {
+    margin: 0.35rem 0 !important;
+    line-height: 1.82 !important;
+  }
+  .agent-post-takeaway {
+    margin: 2.5rem 0 !important;
+    padding: 1.5rem 1rem !important;
+    text-align: center !important;
+    border-top: 1px solid #f1f5f9 !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    background: transparent !important;
+  }
+  .agent-post-takeaway-badge {
+    display: block;
+    color: #ea580c;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+  }
+  .agent-post-takeaway p {
+    font-size: 1.15rem !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    line-height: 1.5 !important;
+    margin: 0 !important;
+  }
   .prose .agent-post-chapter-heading {
     counter-increment: agent-post-chapter;
     position: relative;
-    display: flex;
-    align-items: flex-start;
-    min-height: 6.5rem;
-    margin: 2.6rem 0 1.55rem;
-    padding: 2.45rem 0 0.7rem 5.25rem;
+    display: block;
+    margin: 3.25rem 0 1.25rem;
+    padding: 0 !important;
     border: 0 !important;
     border-top: 0 !important;
     border-bottom: 0 !important;
-    color: #0f172a;
-    font-size: 1.85rem;
-    font-weight: 800;
-    line-height: 1.25;
-    letter-spacing: -0.025em;
+    box-shadow: none !important;
   }
   .prose .agent-post-chapter-heading:first-child {
-    margin-top: 0.75rem;
+    margin-top: 1.25rem;
   }
   .agent-post-body > h2,
   .agent-post-body :where(h2.agent-post-chapter-heading) {
@@ -252,72 +327,69 @@ export const CUSTOM_STYLES = `
     box-shadow: none !important;
   }
   .prose .agent-post-chapter-heading::before {
-    content: "CHAPTER " counter(agent-post-chapter, decimal-leading-zero);
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 1;
-    color: #94a3b8;
-    font-size: 0.82rem;
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    line-height: 1;
-    white-space: nowrap;
+    content: "CHAPTER · " counter(agent-post-chapter, decimal-leading-zero);
+    display: block;
+    margin-bottom: 0.45rem;
+    color: #ea580c;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    letter-spacing: 0.15em;
+    line-height: 1.2;
+    text-transform: uppercase;
   }
   .prose .agent-post-chapter-heading::after {
-    content: "";
-    position: absolute;
-    top: 0.38rem;
-    left: 7.2rem;
-    right: 0;
-    height: 1px;
-    background: #e2e8f0;
+    display: none !important;
   }
   .agent-post-chapter-index {
-    position: absolute;
-    left: 0;
-    top: 1.1rem;
-    height: 4.4rem;
-    z-index: 0;
-    display: flex;
-    align-items: center;
-    color: #a7f3d0;
-    font-size: 5.35rem;
-    font-weight: 900;
-    letter-spacing: -0.05em;
-    line-height: 0.82;
-    opacity: 0.8;
-    pointer-events: none;
-    user-select: none;
-  }
-  .agent-post-chapter-index::before {
-    content: counter(agent-post-chapter, decimal-leading-zero);
+    display: none !important;
   }
   .agent-post-chapter-title {
-    position: relative;
-    z-index: 1;
     display: block;
-    min-width: 0;
+    color: #0f172a;
+    font-size: 1.625rem;
+    font-weight: 800;
+    line-height: 1.32;
+    letter-spacing: -0.025em;
   }
   @media (max-width: 640px) {
     .prose .agent-post-chapter-heading {
-      min-height: 5.4rem;
-      margin: 2.2rem 0 1.25rem;
-      padding: 2.2rem 0 0.55rem 3.95rem;
-      font-size: 1.45rem;
+      margin: 2.5rem 0 1rem;
     }
     .prose .agent-post-chapter-heading::before {
       font-size: 0.68rem;
-      letter-spacing: 0.08em;
     }
-    .prose .agent-post-chapter-heading::after {
-      left: 5.8rem;
+    .agent-post-chapter-title {
+      font-size: 1.38rem;
     }
-    .agent-post-chapter-index {
-      top: 1.1rem;
-      height: 3.2rem;
-      font-size: 3.5rem;
-    }
+  }
+
+  /* 排除脚注与非章节标题的编号样式 */
+  .agent-post-body section[data-footnotes] h2,
+  .agent-post-body .footnotes h2,
+  .agent-post-body #footnote-label,
+  .agent-post-body .agent-post-non-chapter-heading {
+    counter-increment: none !important;
+  }
+  .agent-post-body section[data-footnotes] h2::before,
+  .agent-post-body .footnotes h2::before,
+  .agent-post-body #footnote-label::before,
+  .agent-post-body .agent-post-non-chapter-heading::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  /* 脚注列表美化 */
+  .agent-post-body section[data-footnotes] ol,
+  .agent-post-body .footnotes ol {
+    padding-left: 1.25rem !important;
+    font-size: 0.85rem !important;
+    color: #64748b !important;
+    line-height: 1.7 !important;
+  }
+  .agent-post-body section[data-footnotes] li,
+  .agent-post-body .footnotes li {
+    margin-bottom: 0.5rem !important;
   }
 
   /* 5. Mermaid 缩放滑条 */

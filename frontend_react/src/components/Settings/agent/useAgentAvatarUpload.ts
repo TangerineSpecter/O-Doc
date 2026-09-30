@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 
 import {uploadResource} from '@/api/resources';
+import {isImageUploadFile} from '@/utils/imageUpload';
 import {useToast} from '../../common/ToastProvider';
 
 export const useAgentAvatarUpload = (onUploaded: (avatarUrl: string) => void, label = '头像') => {
@@ -39,7 +40,7 @@ export const useAgentAvatarUpload = (onUploaded: (avatarUrl: string) => void, la
 
     const handleAvatarUpload = async (file?: File) => {
         if (!file || uploadInFlight.current) return;
-        if (!file.type.startsWith('image/')) {
+        if (!isImageUploadFile(file)) {
             toast.warning(`请选择图片文件作为${label}`);
             return;
         }

@@ -64,6 +64,10 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+.font-num {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
 html,
 body {
   touch-action: manipulation;

@@ -6,7 +6,9 @@ import {SelectablePostBody} from '../components/AgentPost/SelectablePostBody';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {AgentPostMarkdown} from '../components/AgentPost/AgentPostMarkdown';
 import {postDisplayTitle} from '../components/AgentPost/postPresentation';
-import {AlertCircle, ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, RefreshCw, Search, Send, Star, Trash2, X} from 'lucide-react';
+import {AlertCircle, ArrowLeft, ArrowUp, Bot, Clock, ListTree, Lock, Menu, MessageCircle, RefreshCw, Search, Send, Sparkles, Star, Trash2, X} from 'lucide-react';
+import {getAgents, type AgentConfig} from '../api/setting';
+import {ProfessionBadge} from '../components/AgentWorld/ProfessionBadge';
 import {useNavigate} from 'react-router-dom';
 import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 import Article from './Article';
@@ -72,7 +74,7 @@ const AgentAvatar = ({name, avatar, className = ''}: { name?: string; avatar?: s
             {isImage ? (
                 <img src={value} alt={name || 'Agent'} className="h-full w-full object-cover" />
             ) : (
-                <span className="text-xs font-bold text-indigo-700">{value || initial}</span>
+                <span className="text-[10px] font-bold text-indigo-700 leading-none select-none">{value || initial}</span>
             )}
         </span>
     );
@@ -119,7 +121,28 @@ function AgentPostCollectionView({
     const [migrationTarget, setMigrationTarget] = useState<{oldCategory: string; postId?: string}>();
     const [ratingSubmitting, setRatingSubmitting] = useState(false);
     const [latestComments, setLatestComments] = useState<AgentPostLatestCommentListResult['comments']>([]);
+    const [agentList, setAgentList] = useState<AgentConfig[]>([]);
     const toast = useToast();
+
+    useEffect(() => {
+        getAgents().then(setAgentList).catch(() => {});
+    }, []);
+
+    const activePostAgent = useMemo(() => {
+        if (!activePost) return null;
+        const cid = activePost.agentPostCreatorId || '';
+        const cleanId = cid.replace(/^(agent-id:|agent:)/, '');
+        return agentList.find(a => String(a.id) === cleanId || a.name === activePost.agentPostCreatorName) || null;
+    }, [agentList, activePost]);
+
+    const activePostProfession = activePost?.agentPostCreatorProfession || activePostAgent?.professionName || (activePostAgent as any)?.profession_name || null;
+
+    const estimatedReadTime = useMemo(() => {
+        if (!activePost) return 3;
+        if (activePost.readTime && activePost.readTime > 0) return activePost.readTime;
+        const charCount = (activePost.content || '').length;
+        return Math.max(1, Math.ceil(charCount / 400));
+    }, [activePost]);
 
     const categoryKey = (post: ArticleType) => post.agentPostCategoryId || `legacy:${post.agentPostCategory || ''}`;
     const categoryStats = posts.reduce<Array<{ key: string; name: string; oldCategory: string; pending: boolean; count: number }>>((acc, post) => {
@@ -348,42 +371,35 @@ function AgentPostCollectionView({
                         type="danger"
                     />
                 )}
-                <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+                <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
                     <button
                         type="button"
                         onClick={() => onNavigate?.('article', {collId})}
-                        className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-white hover:text-indigo-700"
+                        className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-white hover:text-orange-600"
                     >
                         <ArrowLeft className="h-4 w-4" />
                         返回帖子列表
                     </button>
 
                     {postLoading || !activePost ? (
-                        <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-slate-100 bg-white">
+                        <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white">
                             <StarLoader />
                             <span className="mt-2 text-xs font-medium text-slate-400">正在加载帖子...</span>
                         </div>
                     ) : (
-                        <article className="rounded-xl border border-indigo-200 bg-white shadow-sm">
-                            <header className="border-b border-slate-100 p-5 sm:p-6">
-                                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700">
-                                    <ListTree className="h-3.5 w-3.5" />
-                                    {activePost.agentPostCategory || '未分类'}
-                                </div>
-                                <div className="flex items-start justify-between gap-4">
-                                    <div className="min-w-0">
-                                        <h1 className="text-2xl font-bold leading-tight text-slate-900">{postDisplayTitle(activePost.title)}</h1>
-                                        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-500">
-                                            <span className="inline-flex items-center gap-1.5">
-                                                <MessageCircle className="h-4 w-4" />
-                                                {activePost.postCommentCount || comments.length || 0}
-                                            </span>
-                                            <span className="inline-flex items-center gap-1.5 text-amber-500">
-                                                <Star className="h-4 w-4 fill-current" />
-                                                {activePost.agentPostRating ? `${activePost.agentPostRating}/10` : '未评分'}
-                                                {activePost.agentPostRatingCount ? <span className="text-slate-400">({activePost.agentPostRatingCount})</span> : null}
-                                            </span>
-                                        </div>
+                        <article className="rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_3px_0_rgba(0,0,0,0.02),0_20px_45px_-15px_rgba(15,23,42,0.05)] overflow-hidden">
+                            <header className="border-b border-slate-100 p-6 sm:p-8">
+                                <div className="flex items-center justify-between mb-4 text-xs sm:text-[13px] text-slate-400 font-medium tracking-wider">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-bold text-orange-600">
+                                            {(activePost.agentPostCategoryName || activePost.agentPostCategory || activePost.categoryDetail?.name)
+                                                ? ((activePost.agentPostCategoryName || activePost.agentPostCategory || activePost.categoryDetail?.name || '').includes('特辑') || (activePost.agentPostCategoryName || activePost.agentPostCategory || activePost.categoryDetail?.name || '').includes('专栏')
+                                                    ? (activePost.agentPostCategoryName || activePost.agentPostCategory || activePost.categoryDetail?.name)
+                                                    : `${activePost.agentPostCategoryName || activePost.agentPostCategory || activePost.categoryDetail?.name}特辑`)
+                                                : '精选特辑'}
+                                        </span>
+                                        <span className="text-slate-300">·</span>
+                                        <span className="text-slate-500">{estimatedReadTime} 分钟阅读</span>
                                     </div>
                                     {canManage && (
                                         <button
@@ -396,13 +412,34 @@ function AgentPostCollectionView({
                                         </button>
                                     )}
                                 </div>
-                                <div className="mt-5 flex items-center gap-2">
-                                    <AgentAvatar name={activePost.agentPostCreatorName} avatar={activePost.agentPostCreatorAvatar} />
-                                    <div className="min-w-0">
-                                        <div className="truncate text-sm font-semibold text-slate-800">{activePost.agentPostCreatorName || 'Agent'}</div>
-                                        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400">
-                                            <Clock className="h-3.5 w-3.5" />
-                                            {formatPostTime(activePost.createdAt)}
+
+                                <h1 className="text-2xl sm:text-[32px] font-extrabold leading-[1.26] tracking-tight text-slate-900 mb-6">
+                                    {postDisplayTitle(activePost.title)}
+                                </h1>
+
+                                <div className="flex items-center justify-between pt-5 border-t border-slate-100 text-xs">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <AgentAvatar name={activePost.agentPostCreatorName} avatar={activePost.agentPostCreatorAvatar} />
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-bold text-slate-900 text-sm truncate">{activePost.agentPostCreatorName || 'Agent'}</span>
+                                                {activePostProfession ? (
+                                                    <ProfessionBadge professionName={activePostProfession} size="xs" variant="purple" />
+                                                ) : null}
+                                            </div>
+                                            <div className="text-slate-400 mt-0.5 flex items-center gap-1.5 font-mono text-[11px]">
+                                                <Clock className="h-3 w-3" />
+                                                {formatPostTime(activePost.createdAt)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="shrink-0">
+                                        <div className="text-amber-500 font-num font-bold text-xs sm:text-sm tracking-tight select-none">
+                                            {activePost.agentPostRating ? (
+                                                `★ ${Number(activePost.agentPostRating).toFixed(1)} / 10 (${activePost.agentPostRatingCount || 1} 人评)`
+                                            ) : (
+                                                <span className="text-slate-400 font-normal">★ 暂无评分</span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -412,7 +449,7 @@ function AgentPostCollectionView({
                                 <AgentPostMarkdown content={activePost.content || ''} materials={activePost.postSources} />
                             </SelectablePostBody>
 
-                            <section className="border-t border-slate-100 px-5 py-5 sm:px-6">
+                            <section className="border-t border-slate-100 px-6 py-6 sm:px-10">
                                 <div className="mb-5 rounded-xl border border-amber-100 bg-amber-50/50 p-4">
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                         <div>
@@ -514,52 +551,104 @@ function AgentPostCollectionView({
                 {/* 纯净去框排版 Header */}
                 <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
                     <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
-                        {/* 左侧：图标与标题并排，自然纯粹排版 */}
-                        <div className="min-w-0 max-w-2xl space-y-2">
-                            <div className="flex items-center gap-3">
-                                {anthologyInfo?.iconId ? (
-                                    <span className="flex shrink-0 items-center justify-center">
-                                        {getIconComponent(anthologyInfo.iconId, 'w-7 h-7 sm:w-8 sm:h-8')}
-                                    </span>
-                                ) : (
-                                    <ListTree className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 text-orange-500" />
-                                )}
-                                <h1 className="truncate text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-                                    {anthologyInfo?.title || 'Agent 专栏'}
-                                </h1>
+                        {/* 左侧：专栏视觉身份与概览信息 */}
+                        <div className="flex items-start gap-4 sm:gap-5 min-w-0 max-w-3xl">
+                            {/* 图标展示盒：立体质感底座 + 专属 Agent 浮动角标 */}
+                            <div className="relative shrink-0 mt-0.5">
+                                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-indigo-50/60 via-white to-slate-50 border border-slate-200/90 shadow-xs flex items-center justify-center transition-all duration-200 hover:shadow-sm hover:border-indigo-200">
+                                    {anthologyInfo?.iconId ? (
+                                        getIconComponent(anthologyInfo.iconId, 'w-7 h-7 sm:w-8 sm:h-8')
+                                    ) : (
+                                        <ListTree className="w-7 h-7 sm:w-8 sm:h-8 text-indigo-500" />
+                                    )}
+                                </div>
+                                <div
+                                    className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white shadow-xs ring-2 ring-white"
+                                    title="Agent 智能体专栏"
+                                >
+                                    <Bot className="w-3 h-3" />
+                                </div>
                             </div>
 
-                            <p className="text-sm text-slate-500 leading-relaxed line-clamp-2">
-                                {anthologyInfo?.description || '暂无专栏简介'}
-                            </p>
+                            {/* 专栏主体信息：标题、专栏标识、简介与共创智能体阵容 */}
+                            <div className="min-w-0 flex-1 space-y-2">
+                                {/* 标题与徽章行 */}
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
+                                        {anthologyInfo?.title || 'Agent 专栏'}
+                                    </h1>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 shadow-xs">
+                                            <Sparkles className="w-3 h-3 text-indigo-500" />
+                                            Agent 专栏
+                                        </span>
+                                        {anthologyInfo?.permission === 'private' && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200 shadow-xs">
+                                                <Lock className="w-3 h-3" />
+                                                私密
+                                            </span>
+                                        )}
+                                        {anthologyInfo?.isTop && (
+                                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold text-red-600 bg-red-50 border border-red-100 shadow-xs">
+                                                <ArrowUp className="w-3 h-3" strokeWidth={3} />
+                                                置顶
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
 
-                            {/* 驻留智能体阵容 */}
-                            <div className="flex flex-wrap items-center gap-3 pt-0.5 text-xs text-slate-400">
-                                {residentAgents.length > 0 && (
-                                    <>
-                                        <div className="flex items-center -space-x-1.5">
-                                            {residentAgents.slice(0, 5).map((agent, i) => (
-                                                <AgentAvatar
-                                                    key={agent.name + i}
-                                                    name={agent.name}
-                                                    avatar={agent.avatar}
-                                                    className="h-5 w-5 rounded-full ring-2 ring-white shadow-xs"
-                                                />
-                                            ))}
+                                {/* 专栏简介 */}
+                                <p className="text-sm text-slate-600 leading-relaxed line-clamp-2 max-w-2xl">
+                                    {anthologyInfo?.description?.trim() ? (
+                                        anthologyInfo.description
+                                    ) : (
+                                        <span className="text-slate-400 italic">暂无专栏简介</span>
+                                    )}
+                                </p>
+
+                                {/* 驻留共创智能体与最新发布动态 */}
+                                <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
+                                    {residentAgents.length > 0 && (
+                                        <div
+                                            className="inline-flex items-center gap-2 rounded-full bg-slate-50/90 px-2.5 py-1 border border-slate-200/80 shadow-xs hover:bg-slate-100/80 transition-colors"
+                                            title={`共创智能体：${residentAgents.map(a => a.name).join('、')}`}
+                                        >
+                                            <div className="flex items-center -space-x-1.5">
+                                                {residentAgents.slice(0, 5).map((agent, i) => (
+                                                    <div key={agent.name + i} title={agent.name} className="relative transition-transform hover:scale-110 hover:z-10">
+                                                        <AgentAvatar
+                                                            name={agent.name}
+                                                            avatar={agent.avatar}
+                                                            className="h-5 w-5 rounded-full ring-2 ring-white shadow-xs"
+                                                        />
+                                                    </div>
+                                                ))}
+                                                {residentAgents.length > 5 && (
+                                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-700 ring-2 ring-white">
+                                                        +{residentAgents.length - 5}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className="text-xs font-medium text-slate-600">
+                                                <span className="font-semibold text-slate-800">{residentAgents.length}</span> 位智能体创作
+                                            </span>
                                         </div>
-                                        <span className="font-medium text-slate-600">
-                                            {residentAgents.length} 位智能体创作
-                                        </span>
-                                    </>
-                                )}
-                                {posts.length > 0 && (
-                                    <>
-                                        <span className="text-slate-300">·</span>
-                                        <span className="text-slate-400">
-                                            最新发布于 {formatPostTime(posts[0].createdAt)}
-                                        </span>
-                                    </>
-                                )}
+                                    )}
+
+                                    {posts.length > 0 && (
+                                        <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-50/70 px-2.5 py-1 border border-slate-200/60 text-xs text-slate-500 shadow-xs">
+                                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                            <span>最新发布于 {formatPostTime(posts[0].createdAt)}</span>
+                                        </div>
+                                    )}
+
+                                    {residentAgents.length === 0 && posts.length === 0 && (
+                                        <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 border border-slate-200/60 text-xs text-slate-400">
+                                            <Bot className="w-3.5 h-3.5 text-slate-400" />
+                                            <span>等待智能体创作首篇内容</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 

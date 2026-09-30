@@ -23,9 +23,27 @@ export function PostPublishFields({value, onChange, servers}: Props) {
                 <div className="flex items-center justify-between gap-3"><h5 className="text-sm font-semibold text-slate-800">{categories.find(c => c.id === rule.categoryId)?.name || '已失效分类'}</h5><button type="button" className="shrink-0 whitespace-nowrap text-xs text-slate-500 hover:text-red-600" onClick={() => onChange({...value, rules: value.rules.filter(r => r.categoryId !== rule.categoryId)})}>移除</button></div>
                 <div className="inline-flex flex-wrap gap-1 rounded-full border border-slate-200 bg-white p-1">{(['news', 'topic'] as const).map(mode => <button type="button" key={mode} aria-pressed={rule.modes.includes(mode)} onClick={() => patchRule(rule.categoryId, {modes: rule.modes.includes(mode) ? rule.modes.filter(m => m !== mode) : [...rule.modes, mode]})} className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs ${rule.modes.includes(mode) ? 'bg-orange-50 text-orange-700' : 'text-slate-500'}`}>{mode === 'news' ? '新闻解读' : '专题分享'}</button>)}</div>
                 <label className="block space-y-1 text-xs text-slate-600"><span>关注主题</span><textarea className={inputClass} rows={2} value={rule.topics} placeholder="如 AI、机器人、开源软件；留空参考分类描述和角色兴趣" onChange={e => patchRule(rule.categoryId, {topics: e.target.value})}/></label>
-                <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-xs text-slate-600"><span>新闻时间范围（天）</span><input className={inputClass} type="number" min={1} max={365} value={rule.newsDays} onChange={e => patchRule(rule.categoryId, {newsDays: Number(e.target.value)})}/></label><label className="space-y-1 text-xs text-slate-600"><span>关注地区</span><input className={inputClass} value={rule.region} onChange={e => patchRule(rule.categoryId, {region: e.target.value})}/></label></div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                    {rule.modes.includes('news') ? (
+                        <label className="space-y-1 text-xs text-slate-600">
+                            <span>新闻时间范围（天）</span>
+                            <input className={inputClass} type="number" min={1} max={365} value={rule.newsDays} onChange={e => patchRule(rule.categoryId, {newsDays: Number(e.target.value)})}/>
+                        </label>
+                    ) : (
+                        <div className="space-y-1 text-xs text-slate-600">
+                            <span>时效要求</span>
+                            <div className="rounded-lg border border-slate-200 bg-slate-100/70 px-3 py-2 text-xs text-slate-500">
+                                专题与评测无时效限制
+                            </div>
+                        </div>
+                    )}
+                    <label className="space-y-1 text-xs text-slate-600">
+                        <span>关注地区</span>
+                        <input className={inputClass} value={rule.region} onChange={e => patchRule(rule.categoryId, {region: e.target.value})}/>
+                    </label>
+                </div>
                 <label className="block space-y-1 text-xs text-slate-600"><span>排除主题</span><input className={inputClass} value={rule.excludedTopics} placeholder="如无来源传闻、营销软文" onChange={e => patchRule(rule.categoryId, {excludedTopics: e.target.value})}/></label>
-                <p className="text-xs text-slate-500">专题资料不限时间；新闻按配置时间范围检索，接口未返回发布时间时不影响采用。</p>
+                <p className="text-xs text-slate-500">专题与评测资料不限发布时间；新闻按配置时间范围检索（接口未返回发布时间时不影响采用）。</p>
             </div>)}
         </>}
         <div className="grid gap-4 sm:grid-cols-2"><label className="space-y-2 text-sm text-slate-700"><span>每位 Agent 发帖冷却（小时）</span><input className={inputClass} type="number" min={1} max={720} value={value.cooldownHours} onChange={e => onChange({...value, cooldownHours: Number(e.target.value)})}/></label><label className="space-y-2 text-sm text-slate-700"><span>未读积压检查篇数</span><input className={inputClass} type="number" min={1} max={100} disabled={!value.unreadEnabled} value={value.unreadCount} onChange={e => onChange({...value, unreadCount: Number(e.target.value)})}/></label></div>
