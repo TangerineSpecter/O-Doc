@@ -9,6 +9,7 @@ import WorldDialog from './WorldDialog';
 import {Network, Users} from 'lucide-react';
 import {circularRelationAvatar} from '../../utils/relationAvatar';
 import {escapeRelationText as escapeXml, relationNodeTooltip} from '../../utils/relationTooltip';
+import {chooseRelationTooltipPosition, relationTooltipScene} from '../../utils/relationTooltipLayout';
 import './AgentRelationTooltip.css';
 
 echarts.use([GraphChart, TooltipComponent, CanvasRenderer]);
@@ -64,7 +65,24 @@ export default function AgentRelationCard({
                 borderColor: '#e2e8f0',
                 borderWidth: 1,
                 padding: 10,
+                className: 'relation-tooltip-container',
+                transitionDuration: 0.12,
                 extraCssText: 'border-radius:12px;box-shadow:0 8px 28px rgba(15,23,42,0.12);max-width:calc(100% - 12px);',
+                position: (point, _params, element, rect, size) => {
+                    const hovered = rect || {x: point[0], y: point[1], width: 1, height: 1};
+                    const scene = relationTooltipScene(chart.getZr().storage.getDisplayList(), hovered);
+                    const container = element instanceof HTMLElement ? element : null;
+                    container?.classList.remove('is-compact');
+                    const measure = (): [number, number] => container
+                        ? [container.offsetWidth, container.offsetHeight]
+                        : size.contentSize;
+                    let layout = chooseRelationTooltipPosition(hovered, measure(), size.viewSize, scene);
+                    if (layout.overlap && container) {
+                        container.classList.add('is-compact');
+                        layout = chooseRelationTooltipPosition(hovered, measure(), size.viewSize, scene);
+                    }
+                    return layout.position;
+                },
                 formatter: (params) => {
                     const item = params as {dataType?: string; data?: {id?: string}};
                     if (item.dataType !== 'node') return '';
@@ -79,7 +97,31 @@ export default function AgentRelationCard({
                 draggable: true,
                 force: {repulsion: 420, edgeLength: 160, gravity: 0.08},
                 label: {show: true, position: 'bottom', fontSize: 12, color: '#334155', formatter: '{b}'},
-                lineStyle: {curveness: 0.15, width: 3, opacity: 0.65},
+                lineStyle: {curveness: 0.15, width: 1.4, opacity: 0.58},
+                edgeLabel: {
+                    show: true,
+                    position: 'middle',
+                    color: '#64748b',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    backgroundColor: '#ffffff',
+                    padding: [3, 7],
+                    borderRadius: 10,
+                },
+                emphasis: {
+                    focus: 'adjacency',
+                    scale: false,
+                    itemStyle: {opacity: 1},
+                    label: {color: '#0f172a', opacity: 1, fontWeight: 'bold'},
+                    lineStyle: {opacity: 1, width: 1.8},
+                    edgeLabel: {color: '#334155', opacity: 1},
+                },
+                blur: {
+                    itemStyle: {opacity: 0.12},
+                    label: {opacity: 0.16},
+                    lineStyle: {opacity: 0.08},
+                    edgeLabel: {opacity: 0.12},
+                },
                 data: graph.nodes.map(node => ({
                     id: node.id,
                     name: node.name,
@@ -91,6 +133,7 @@ export default function AgentRelationCard({
                 links: graph.edges.map(edge => ({
                     source: edge.sourceId,
                     target: edge.targetId,
+                    label: {formatter: edge.tier},
                     lineStyle: {color: TIER_COLOR[edge.tier] || '#94a3b8'},
                 })),
             }],

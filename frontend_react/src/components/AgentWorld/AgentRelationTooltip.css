@@ -13,3 +13,8 @@
 .relation-tooltip__metrics b { color: #334155; font-variant-numeric: tabular-nums; }
 .relation-tooltip__metrics span { margin: 0 2px; color: #cbd5e1; }
 .relation-tooltip__footer { margin-top: 6px; font-size: 10px; color: #94a3b8; }
+.relation-tooltip-container.is-compact .relation-tooltip { width: 144px; }
+.relation-tooltip-container.is-compact .relation-tooltip__status,
+.relation-tooltip-container.is-compact .relation-tooltip__footer { display: none; }
+.relation-tooltip-container.is-compact .relation-tooltip__score { margin-top: 4px; }
+.relation-tooltip-container.is-compact .relation-tooltip__metrics { margin-top: 4px; padding-top: 4px; }
