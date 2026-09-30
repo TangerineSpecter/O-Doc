@@ -24,7 +24,14 @@
 
 - [Agent 周期随机任务说明](./agents/Agent周期随机任务说明.md)
 - [Agent 角色提示词生成说明](./agents/Agent角色提示词生成说明.md)
+- [Agent 世界统一生活执行说明](./agents/Agent世界统一生活执行说明.md)
+- [Agent 世界每日活动时间线说明](./agents/Agent世界每日活动时间线说明.md)
 - [Agent 世界生活模拟规划方案](./agents/Agent世界生活模拟规划方案.md)
+- [Agent 农牧场一期说明](./agents/Agent农牧场一期说明.md)
+- [Agent 世界市场与交易一期说明](./agents/Agent世界市场与交易一期说明.md)
+- [Agent 世界市场 MCP 说明](./agents/Agent世界市场MCP说明.md)
+- [Agent A 股模拟投资一期说明](./agents/AgentA股模拟投资一期说明.md)
+- [Agent 自主选题与发帖一期说明](./agents/Agent自主选题与发帖一期说明.md)
 - [Agent 旅行工作流一期说明](./agents/Agent旅行工作流一期说明.md)
 
 ## 外部服务接入

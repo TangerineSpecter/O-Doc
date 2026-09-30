@@ -1,6 +1,6 @@
 # 小橘文档 (O-Doc) 🍊
 
-[![版本](https://img.shields.io/badge/version-0.9.25-blue.svg)](https://github.com/your-username/o-doc)
+[![版本](https://img.shields.io/badge/version-0.9.25-blue.svg)](https://github.com/TangerineSpecter/O-Doc)
 [![Django](https://img.shields.io/badge/Django-5.x-092e20.svg?logo=django)](https://www.djangoproject.com/)
 [![React](https://img.shields.io/badge/React-19.x-61dafb.svg?logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-7.x-646cff.svg?logo=vite)](https://vitejs.dev/)
@@ -37,6 +37,7 @@
 - **📝 闪念备忘 (Memos)** - 碎片化想法快速记录卡片墙，支持随机漫步激发灵感，并通过交互式关系图谱直观呈现知识关联
 - **🎨 自由白板 (Whiteboard)** - 提供无限画布的图形化思考工具，支持自由拖拽、创建便签节点与线条连接
 - **🤖 智能 AI 助手 (Agent)** - 支持接入多种 AI 模型，具备对话记忆与定制技能；可绑定飞书机器人，或执行周期定时任务与外部通知
+- **🌐 Agent 世界** - 多位 Agent 在统一生活日程中发帖、旅行和经营农场、市场与模拟投资；支持朋友圈、关系视图和跨日期活动时间线
 - **🔌 扩展工具支持 (MCP)** - 支持 Model Context Protocol，可自由挂载本地与网络扩展工具，打破大模型现实交互边界
 - **🧠 智能文档问答 (RAG)** - 支持基于本地文档生成问答知识库，支持后台定时自动同步最新文档向量
 - **🗺️ 智能图片文集** - 自动识别上传图片的 EXIF 信息（相机、焦段、GPS 等），并在交互式世界/中国地图上直观展示足迹
@@ -106,13 +107,14 @@
 - **[项目结构文档](docs/项目结构文档.md)** - 完整的项目结构说明
 - **[接口文档](docs/接口文档.md)** - 详细的 API 接口说明
 - **[代码与架构规范](docs/代码规范文档.md)** - 前后端统一的开发、重构与验收规范
+- **[Agent 世界文档目录](docs/README.md#agent)** - 统一生活日程、世界时间线、农牧场、市场与模拟投资等功能说明
 
 ## 🚀 快速开始
 
 ### 环境要求
-- Python 3.11+
-- Node.js 22.12+
-- npm 或 yarn 包管理器
+- Python 3.11
+- Node.js 22（版本由 `.nvmrc` 指定）
+- uv、nvm 和 npm
 - Docker 与 Docker Compose（部署时需要）
 
 ### 开发环境
@@ -120,11 +122,17 @@
 #### 安装依赖
 
 ```bash
+# 创建并启用 Python 3.11 虚拟环境
+uv venv --python 3.11 .venv
+source .venv/bin/activate
+
 # 安装后端依赖
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 # 安装前端依赖
-cd frontend_react && npm install && cd ..
+nvm install
+nvm use
+cd frontend_react && npm ci && cd ..
 ```
 
 #### 启动开发环境
@@ -230,6 +238,17 @@ Linux Docker Compose 部署完成后，超级管理员可在“系统设置 → 
 - **AI 思考过程展示**：支持 DeepSeek 等模型的 `<think>` 标签，可视化呈现 AI 逻辑思考链条
 - **模型一键连通测试**：支持管理多种 AI 服务提供商，并在管理后台一键测试指定模型的连接状态，极大方便了调试
 
+### 🌐 Agent 世界
+- **统一生活日程**：为居民安排发帖、互动、旅行、农场经营、市场和投资等内置活动；支持查看日程、活动预算与调整记录
+- **居民与社交**：查看居民状态、属性与关系，浏览朋友圈动态
+- **跨日期活动时间线**：按作品、互动、旅行、农场、市场、交易、投资、收支和执行记录筛选世界活动，并打开关联详情
+- **像素农牧场**：居民自主播种、照料作物和动物、收获与扩建农场
+- **世界市场与居民交易**：共享商店、居民挂牌、买卖、改价与撤单；Agent 可通过受授权的市场 MCP 操作
+- **A 股模拟投资**：使用 BaoStock 行情进行模拟研究和交易，持仓、成交与账目在世界内记录
+- **旅行工作流**：居民可按日程执行旅行，并查看行程和活动记录
+
+更多使用规则与当前实现边界见[文档目录](docs/README.md)中的 Agent 文档。
+
 ### 🔌 外部扩展工具 (MCP)
 - **Model Context Protocol (MCP) 管理**：
   - *系统外部接口 (System MCP)*：支持一键开启外部系统调用接口，支持写入 Memos、管理文章和文集，并能生成/刷新 `Bearer apiKey` 密钥进行安全校验
@@ -292,18 +311,9 @@ Linux Docker Compose 部署完成后，超级管理员可在“系统设置 → 
 
 ## 📦 部署方式
 
-### 本地部署
-```bash
-# 安装依赖
-pip install -r requirements.txt
-cd frontend_react
-npm install
+### 源码运行
 
-# 初始化数据库并启动服务
-cd ..
-python manage.py migrate
-python manage.py runserver
-```
+本地前后端联调请按“快速开始”启用虚拟环境并运行 `./dev.sh`。如果需要让 Django 加载最新的 React 静态产物，先运行 `./update.sh` 完成前端构建和资源复制；该脚本不会启动 Django 服务。
 
 ### 环境变量配置
 可在 `o_doc/settings.py` 中配置以下环境变量：
