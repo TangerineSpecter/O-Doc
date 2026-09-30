@@ -1,6 +1,8 @@
 import {ReactNode} from 'react';
 import ReactMarkdown, {defaultUrlTransform} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import {AgentPostReferences} from './AgentPostReferences';
+import {splitPostReferences} from './postPresentation';
 import {CodeBlock, CUSTOM_STYLES, MermaidChart, rehypeInlineStyleSyntax, remarkQuoteVariants, SimpleChart, VariantBlockquote} from '../Article/MarkdownElements';
 
 const getMarkdownNodeText = (node: ReactNode): string => {
@@ -72,11 +74,12 @@ const agentPostMarkdownComponents = {
     },
 };
 
-export function AgentPostMarkdown({content}: {content: string}) {
+export function AgentPostMarkdown({content, materials}: {content: string; materials?: {url: string; title: string}[]}) {
+    const {body, references} = splitPostReferences(content);
     return <><style>{CUSTOM_STYLES}</style><ReactMarkdown
         remarkPlugins={[remarkQuoteVariants, remarkGfm]}
         rehypePlugins={[rehypeInlineStyleSyntax]}
         components={agentPostMarkdownComponents as any}
         urlTransform={url => url.startsWith('odoc-illustration:') ? url : defaultUrlTransform(url)}
-    >{content}</ReactMarkdown></>;
+    >{body}</ReactMarkdown><AgentPostReferences references={references} materials={materials}/></>;
 }

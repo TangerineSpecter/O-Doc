@@ -12,6 +12,7 @@ from .publish_config import categories_for, own_posts
 from .publish_search import canonical_url, search
 from .publish_voice import writing_context, VOICE_GUIDANCE
 from .publish_format import validate_format
+from .publish_title import validate_title
 
 
 class SkipPublication(ValueError):
@@ -145,17 +146,19 @@ class Workflow:
             self.checkpoint('write')
             self.state['draft'] = self.ask(VOICE_GUIDANCE + '\n根据素材写一篇具体题目的帖子。返回 {"title":"标题","summary":"摘要","content":"Markdown正文","source_urls":["实际采用的资料URL"],"main_source_url":"主要来源URL","evidence_sufficient":true,"reason":"选题与核实依据"}。资料不足、事实冲突未解决或与近期作品重复时 skip。已按 search_window 限定时间的结果可用于近期新闻，不能仅因接口未返回 published_at 而 skip。正文标注来源，事实和观点分开，不声称亲身经历。',
                 {'selection': chosen, 'rule': rule, 'materials': self.state['materials'], 'assessment': assessment, 'recent_posts': recent, 'extra': self.state['extra']},
-                lambda v: validate_draft(v, self.state))
+                lambda v: validate_draft(v, self.state, enforce_title=True))
             self.checkpoint('ready')
         self.state['draft'] = validate_draft(self.state['draft'], self.state)
         self.checkpoint('ready')
         return self.state
 
 
-def validate_draft(value: dict, state: dict) -> dict:
+def validate_draft(value: dict, state: dict, *, enforce_title=False) -> dict:
     for field, maximum in [('title', 200), ('summary', 300), ('content', 60000), ('reason', 2000)]:
         if not isinstance(value.get(field), str) or not 0 < len(value[field].strip()) <= maximum:
             raise ValueError('正文结构或长度无效')
+    if enforce_title:
+        validate_title(value['title'])
     if value.get('evidence_sufficient') is not True:
         raise SkipPublication('素材不足，未发布')
     if not isinstance(value.get('source_urls'), list) or not value['source_urls']:
@@ -188,5 +191,5 @@ def validate_draft(value: dict, state: dict) -> dict:
     content = content.split(source_heading, 1)[0].rstrip()
     content += source_heading + '\n'.join(f'- [{i+1}]({u})' for i, u in enumerate(urls))
     value = {k: value[k] for k in ('title', 'summary', 'content', 'reason', 'evidence_sufficient')}
-    value.update(content=content, source_urls=urls, main_source_url=main)
+    value.update(title=value['title'].strip(), content=content, source_urls=urls, main_source_url=main)
     return value

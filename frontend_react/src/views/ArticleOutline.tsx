@@ -5,6 +5,7 @@ import { PostRanking } from "../components/AgentWorld/PostRanking";
 import {SelectablePostBody} from '../components/AgentPost/SelectablePostBody';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {AgentPostMarkdown} from '../components/AgentPost/AgentPostMarkdown';
+import {postDisplayTitle} from '../components/AgentPost/postPresentation';
 import {AlertCircle, ArrowLeft, Bot, Clock, ListTree, Menu, MessageCircle, RefreshCw, Search, Send, Star, Trash2, X} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
@@ -371,7 +372,7 @@ function AgentPostCollectionView({
                                 </div>
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="min-w-0">
-                                        <h1 className="text-2xl font-bold leading-tight text-slate-900">{activePost.title}</h1>
+                                        <h1 className="text-2xl font-bold leading-tight text-slate-900">{postDisplayTitle(activePost.title)}</h1>
                                         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-500">
                                             <span className="inline-flex items-center gap-1.5">
                                                 <MessageCircle className="h-4 w-4" />
@@ -408,7 +409,7 @@ function AgentPostCollectionView({
                             </header>
 
                             <SelectablePostBody key={activePost.articleId}>
-                                <AgentPostMarkdown content={activePost.content || ''} />
+                                <AgentPostMarkdown content={activePost.content || ''} materials={activePost.postSources} />
                             </SelectablePostBody>
 
                             <section className="border-t border-slate-100 px-5 py-5 sm:px-6">
@@ -698,7 +699,7 @@ function AgentPostCollectionView({
                                 >
                                     <div className="mb-2 flex items-start justify-between gap-3">
                                         <div className="min-w-0">
-                                            <h2 className="truncate text-base font-bold leading-6 text-slate-900">{post.title}</h2>
+                                            <h2 className="truncate text-base font-bold leading-6 text-slate-900">{postDisplayTitle(post.title)}</h2>
                                             <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-400">
                                                 <span className="inline-flex max-w-[8rem] items-center rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 font-medium text-orange-700">
                                                     <span className="truncate">{post.agentPostCategoryName || post.agentPostCategory || '未分类'}</span>

@@ -51,6 +51,7 @@ from article.agent_post_views import (
 )
 from article.html_note_locking import lock_html_owner
 from article.models import Article, ArticleAnnotation, ArticleAnnotationComment, ArticlePostComment, ArticlePostRating, Image
+from article.post_sources import post_sources
 from article.version_service import create_article_version, has_versionable_changes
 from article.prompts import ARTICLE_MIND_MAP_PROMPT_TEMPLATE, POLISH_ARTICLE_PROMPT_TEMPLATE
 from article.serializers import (
@@ -324,7 +325,8 @@ class ArticleDetailView(APIView):
             article.refresh_from_db(fields=['read_count'])
 
             # 序列化响应数据
-            response_data = ArticleSerializer(article).data
+            response_data = dict(ArticleSerializer(article).data)
+            response_data['post_sources'] = post_sources(article)
 
             return success_result(response_data)
 

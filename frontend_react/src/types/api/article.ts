@@ -57,6 +57,7 @@ export interface Article {
     lastRagSyncedAt?: string;
     mindMap?: MindMapNode;
     postSummary?: string;
+    postSources?: Array<{url: string; title: string}>;
     agentPostCreatorId?: string;
     agentPostCreatorName?: string;
     agentPostCreatorAvatar?: string;
