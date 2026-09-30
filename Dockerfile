@@ -31,11 +31,8 @@ RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir -r re
 COPY . .
 
 COPY --from=frontend-builder /frontend/dist/index.html /app/templates/index.html
-COPY --from=frontend-builder /frontend/dist/assets /app/static/assets
-COPY --from=frontend-builder /frontend/dist/maps /app/static/maps
-COPY --from=frontend-builder /frontend/dist/favicon.svg /app/static/favicon.svg
-
-RUN chmod +x /app/start.sh
+COPY --from=frontend-builder /frontend/dist/ /app/static/
+RUN rm -f /app/static/index.html && chmod +x /app/start.sh
 
 EXPOSE 11800
 

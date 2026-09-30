@@ -494,6 +494,8 @@ class SystemConfigViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def get_webdav_status(self, request):
         runtime_state = get_runtime_state()
+        if runtime_state.get('status') == 'running' and not is_sync_running(runtime_state):
+            runtime_state = get_runtime_state()
         return success_result(self._status_payload(runtime_state))
 
     @action(detail=False, methods=['post'])

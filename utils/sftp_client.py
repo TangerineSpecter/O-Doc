@@ -212,6 +212,9 @@ class SftpClient:
         try:
             entries = self._connect().listdir(self._normalize_remote_path(remote_dir))
             return [name for name in entries if name not in ('.', '..')]
+        except (FileNotFoundError, IOError):
+            # 远端目录尚未创建（例如新备份目录尚未生成 snapshots），属于正常情况
+            return []
         except Exception as e:
             logger.exception('SFTP directory listing failed: path=%s', remote_dir)
             return None

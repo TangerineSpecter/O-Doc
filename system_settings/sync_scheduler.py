@@ -318,6 +318,16 @@ def cancel_running_sync(reason='同步已取消'):
     if runtime_state.get('status') != 'running':
         return False, runtime_state
 
+    # 若已经是正在终止状态（二次点击终止），或本地进程已不存在，直接强制重置为结束状态
+    if runtime_state.get('cancel_requested') or _local_scheduler_process_is_alive(runtime_state) is False:
+        state = update_runtime_state(
+            status='error',
+            last_error=reason,
+            cancel_requested=False,
+            last_summary=(list(runtime_state.get('last_summary') or []) + [reason])[-50:],
+        )
+        return True, state
+
     state = update_runtime_state(
         # 保持运行占用到实际同步线程退出并释放远端锁；否则用户可以立即启动
         # 第二个任务，造成“另一台设备正在同步”的假冲突，甚至并发写远端快照。
