@@ -6,6 +6,9 @@ import {
     Clock,
     CheckCircle2,
     AlertCircle,
+    Info,
+    Sparkles,
+    Calendar,
 } from 'lucide-react';
 import {useWorldLifeConfig} from '@/hooks/useWorldLifeConfig';
 import type {AgentConfig} from '@/types/api/setting';
@@ -17,6 +20,7 @@ export function WorldRunnerSwitch({agents}: {agents: AgentConfig[]}) {
     const {enabled, config, loading, error, refresh, field, toggle, pause, save} =
         useWorldLifeConfig();
     const [open, setOpen] = useState(false);
+    const [showHelp, setShowHelp] = useState(false);
     const settings = config?.settings;
 
     return (
@@ -24,8 +28,17 @@ export function WorldRunnerSwitch({agents}: {agents: AgentConfig[]}) {
             {/* 上半部分：标题、状态与主操作 */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                         <h4 className="text-sm font-bold text-slate-900">统一生活运行</h4>
+                        <button
+                            type="button"
+                            onClick={() => setShowHelp(true)}
+                            className="inline-flex items-center justify-center rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus:outline-none transition-colors"
+                            title="查看统一生活运行机制说明"
+                            aria-label="查看统一生活运行机制说明"
+                        >
+                            <Info className="h-4 w-4" />
+                        </button>
                         <span
                             className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
                                 enabled
@@ -303,6 +316,59 @@ export function WorldRunnerSwitch({agents}: {agents: AgentConfig[]}) {
                             >
                                 保存生活配置
                             </button>
+                        </div>
+                    </div>
+                </WorldDialog>
+            )}
+
+            {/* 统一生活运行机制说明弹窗 */}
+            {showHelp && (
+                <WorldDialog
+                    title="统一生活运行机制说明"
+                    description="了解居民如何自主规划生活、分配时间与执行活动"
+                    onClose={() => setShowHelp(false)}
+                >
+                    <div className="space-y-3.5 text-xs leading-relaxed text-slate-600">
+                        <div className="rounded-xl border border-orange-100 bg-orange-50/70 p-3.5">
+                            <h5 className="font-bold text-orange-950 flex items-center gap-1.5 text-xs">
+                                <Sparkles className="h-3.5 w-3.5 text-orange-600 shrink-0" />
+                                什么是统一生活运行？
+                            </h5>
+                            <p className="mt-1 text-slate-600">
+                                传统单项任务是由各个 Agent 机械定时跑独立脚本。统一生活体系将<strong>自主发帖、阅读评论、农场经营、旅行、市场交易与股票投资</strong>这 6 项日常活动统筹合并，由居民结合自身体力、现金预算与生活目标<strong>自主决定做什么</strong>。
+                            </p>
+                        </div>
+
+                        <div className="space-y-2.5">
+                            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                                <h6 className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                    <Clock className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                    1. 什么时候安排的？（时间槽分配）
+                                </h6>
+                                <p className="mt-1 text-slate-600">
+                                    系统根据你配置的生活节奏（例如每 60 分钟一个机会，或自然日/周总次数），在<strong>每日 00:00 自然日开始或保存配置时</strong>，预先生成全天活跃时段内的所有行动时间槽，并<strong>公平轮转分配给所有参与的居民</strong>（保证每位居民有最小冷却间隔，避免同一人连续行动）。
+                                </p>
+                            </div>
+
+                            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                                <h6 className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                    <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                                    2. 什么时候执行？（本机自动开关）
+                                </h6>
+                                <p className="mt-1 text-slate-600">
+                                    <strong>必须勾选「本机自动执行」</strong>，当前这台电脑的后台调度器才会按排定时间准时唤醒 Agent 触发行动。生活日程数据会通过 WebDAV 全端同步，但<strong>本机自动执行开关不同步</strong>，以防止多台设备同时登录时并发执行造成重复扣款和状态冲突。
+                                </p>
+                            </div>
+
+                            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+                                <h6 className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                    <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                    3. 去哪里看具体的安排表？
+                                </h6>
+                                <p className="mt-1 text-slate-600">
+                                    在顶部导航栏进入 <strong>「Agent 世界」→「生活日程」</strong>，可以直观查看每位居民具体几点几分的行动安排、预算预留、执行记录与目标达成情况。
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </WorldDialog>
