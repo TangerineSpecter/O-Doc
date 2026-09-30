@@ -1,3 +1,4 @@
+import {failChatTurn, recoverInterruptedChat} from '../chatFailure';
 import { diagnosticReader, diagnosticFetch, reportDiagnostic } from '@/utils/diagnostics';
 // frontend_react/src/components/AIChatWindow/hooks/useChatSession.ts
 
@@ -292,6 +293,12 @@ export const useChatSession = ({
     const streamFinishedRef = useRef(true);
     const conversationKeyRef = useRef('');
     const generationConversationKeyRef = useRef('');
+    const requestControllerRef = useRef<AbortController | null>(null);
+
+    useEffect(() => () => {
+        generationConversationKeyRef.current = '';
+        requestControllerRef.current?.abort();
+    }, []);
 
     const updateConversationMessages = (conversationKey: string, updater: (prev: Message[]) => Message[]) => {
         if (conversationKeyRef.current === conversationKey) {
@@ -328,7 +335,8 @@ export const useChatSession = ({
         if (conversationKeyRef.current === activeConversationKey) return;
 
         conversationKeyRef.current = activeConversationKey;
-        setMessages(loadStoredMessages(activeConversationKey));
+        const stored = loadStoredMessages(activeConversationKey);
+        setMessages(generationConversationKeyRef.current === activeConversationKey ? stored : recoverInterruptedChat(stored));
         setMessagesConversationKey(activeConversationKey);
         setActivitySteps([]);
         setIsLoading(isThinkingRef.current && generationConversationKeyRef.current === activeConversationKey);
@@ -448,6 +456,8 @@ export const useChatSession = ({
     };
 
     const confirmClear = () => {
+        generationConversationKeyRef.current = '';
+        requestControllerRef.current?.abort();
         tokenQueueRef.current = [];
         thinkingQueueRef.current = [];
         streamFinishedRef.current = true;
@@ -477,11 +487,22 @@ export const useChatSession = ({
             useThinking: boolean;
             selectedSkillIds: string[];
             imageAnthologies: Anthology[];
-        }
+        },
+        retryUserIndex?: number,
     ) => {
-        if (!userMsg.trim() || isLoading) return;
+        if (!userMsg.trim() || isThinkingRef.current) return;
 
         const requestConversationKey = activeConversationKey;
+        const history = retryUserIndex === undefined ? messages : messages.slice(0, retryUserIndex);
+        const controller = new AbortController();
+        requestControllerRef.current = controller;
+        let timedOut = false;
+        let idleTimer: ReturnType<typeof setTimeout>;
+        const resetIdleTimer = () => {
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => { timedOut = true; controller.abort(); }, 120_000);
+        };
+        resetIdleTimer();
 
         tokenQueueRef.current = [];
         thinkingQueueRef.current = [];
@@ -521,7 +542,7 @@ export const useChatSession = ({
             );
             setActivitySteps(nextActivitySteps);
             updateConversationMessages(requestConversationKey, prev => [
-                ...prev,
+                ...(retryUserIndex === undefined ? prev : prev.slice(0, retryUserIndex)),
                 { role: 'user', content: userMsg },
                 ...buildStatusMessages(nextActivitySteps),
             ]);
@@ -569,10 +590,11 @@ export const useChatSession = ({
 
             const response = await diagnosticFetch('/api/ai/chat/', {
                 method: 'POST',
+                signal: controller.signal,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: messageForAI,
-                    history: messages.map(m => ({ role: m.role, content: m.content })),
+                    history: history.filter(m => !m.status && !m.error).map(m => ({ role: m.role, content: m.content })),
                     use_knowledge_base: effectiveUseKb && !usePhotographyAssistant,
                     coll_id: effectiveUseKb && !usePhotographyAssistant && settings.selectedCollId ? settings.selectedCollId : undefined,
                     include_thinking: effectiveUseThinking,
@@ -596,7 +618,7 @@ export const useChatSession = ({
                         throw new AIConfigError('未配置大模型，请先在系统设置中配置 AI 模型');
                     }
                 }
-                throw new Error('AI 请求失败');
+                throw new Error(`AI 请求未完成（HTTP ${response.status}），请稍后重试。`);
             }
 
             if (!response.body) throw new Error("No response body");
@@ -606,6 +628,8 @@ export const useChatSession = ({
             let fullText = '';
             let buffer = '';
             let hasCreatedAnswerBubble = false;
+            let receivedAnswer = false;
+            let receivedDone = false;
 
             const ensureAnswerBubble = () => {
                 if (!hasCreatedAnswerBubble) {
@@ -625,6 +649,8 @@ export const useChatSession = ({
             };
 
             const appendAnswer = (content: string) => {
+                if (!content) return;
+                receivedAnswer = true;
                 ensureAnswerBubble();
                 for (const char of content) {
                     tokenQueueRef.current.push({ conversationKey: requestConversationKey, value: char });
@@ -644,6 +670,7 @@ export const useChatSession = ({
                 try {
                     const event = JSON.parse(line);
                     const content = normalizeStreamContent(event.content);
+                    if (event.type === 'done') { receivedDone = true; return; }
 
                     if (event.type === 'error') {
                         reportDiagnostic({ errorType: 'stream', module: 'stream', requestId: response.headers.get('X-Request-ID') || '', path: '/api/ai/chat/' });
@@ -751,6 +778,8 @@ export const useChatSession = ({
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
+                if (controller.signal.aborted) throw new Error('本次生成已停止');
+                resetIdleTimer();
 
                 const chunk = decoder.decode(value, { stream: true });
                 fullText += chunk;
@@ -774,25 +803,32 @@ export const useChatSession = ({
             if (buffer.trim()) {
                 handleStreamLine(buffer);
             }
+            if (!receivedDone) throw new Error('连接提前结束，回答未完整接收。');
+            if (!receivedAnswer) throw new Error('没有收到回答，请重试。');
         } catch (error) {
+            if (generationConversationKeyRef.current !== requestConversationKey || requestControllerRef.current !== controller) return;
             console.error(error);
+            const reason = timedOut ? '等待回答超时，请检查网络或代理后重试。'
+                : error instanceof TypeError ? '连接中断，请检查网络或代理后重试。'
+                : error instanceof Error ? error.message : '网络连接异常，请稍后重试。';
+            reportDiagnostic({ errorType: timedOut ? 'timeout' : 'chat_failed', module: 'stream', path: '/api/ai/chat/' });
+            const pendingAnswer = tokenQueueRef.current.map(char => char.value).join('');
+            const pendingThinking = thinkingQueueRef.current.map(char => char.value).join('');
             tokenQueueRef.current = [];
             thinkingQueueRef.current = [];
             streamFinishedRef.current = true;
             isThinkingRef.current = false;
+            generationConversationKeyRef.current = '';
             setIsLoading(false);
             setActivitySteps([]);
-            updateConversationMessages(requestConversationKey, prev => {
-                const newMsgs = [...prev];
-                if (error instanceof AIConfigError) {
-                    newMsgs[newMsgs.length - 1].content = `⚠️ ${error.message}`;
-                } else {
-                    newMsgs[newMsgs.length - 1].content = error instanceof Error ? error.message : '网络连接异常，请检查后端服务。';
-                }
-                return newMsgs;
-            });
+            updateConversationMessages(requestConversationKey, prev => failChatTurn(prev, reason, pendingAnswer, pendingThinking));
         } finally {
-            streamFinishedRef.current = true;
+            clearTimeout(idleTimer!);
+            controller.abort();
+            if (requestControllerRef.current === controller) {
+                requestControllerRef.current = null;
+                streamFinishedRef.current = true;
+            }
         }
     };
 

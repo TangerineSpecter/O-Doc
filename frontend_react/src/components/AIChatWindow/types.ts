@@ -8,6 +8,7 @@ export interface Message {
     role: 'user' | 'assistant';
     content: string;
     thinking?: string;
+    error?: string;
     statusId?: string;
     status?: ActivityStatus;
     meta?: MessageMeta;

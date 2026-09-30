@@ -36,11 +36,12 @@ export default function MemoCard({
     const author = getMemoAuthorMeta(memo);
     const AuthorIcon = author.isAgent ? Bot : User;
 
+    // 每张卡片独立分层，悬停菜单所在卡片覆盖相邻卡片的操作按钮。
     return (
         <article
             key={memo.memoId}
             onDoubleClick={() => onEdit(memo)}
-            className={`group relative rounded-xl border bg-white p-4 shadow-sm shadow-slate-900/5 transition-all duration-200 hover:border-orange-200 hover:shadow-md ${
+            className={`group relative isolate z-0 hover:z-20 focus-within:z-10 rounded-xl border bg-white p-4 shadow-sm shadow-slate-900/5 transition-[border-color,box-shadow] duration-200 hover:border-orange-200 hover:shadow-md ${
                 isPinnedSection ? 'border-orange-200 ring-1 ring-orange-100/80' : 'border-slate-200'
             }`}
         >
@@ -55,7 +56,7 @@ export default function MemoCard({
                         <MoreHorizontal className="h-4 w-4"/>
                     </button>
                     <div
-                        className="pointer-events-none absolute right-0 top-full hidden w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm opacity-0 shadow-xl shadow-slate-900/10 transition group-hover/menu:pointer-events-auto group-hover/menu:block group-hover/menu:opacity-100"
+                        className="pointer-events-none absolute right-0 top-full hidden w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm opacity-0 shadow-xl shadow-slate-900/10 transition group-hover/menu:pointer-events-auto group-hover/menu:block group-hover/menu:opacity-100 group-focus-within/menu:pointer-events-auto group-focus-within/menu:block group-focus-within/menu:opacity-100"
                         onDoubleClick={(event) => event.stopPropagation()}
                     >
                         <button

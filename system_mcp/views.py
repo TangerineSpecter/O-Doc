@@ -97,6 +97,9 @@ def _anthology_to_dict(anthology):
 def _memo_to_dict(memo):
     return {
         'memo_id': memo.memo_id,
+        'creator_type': memo.creator_type,
+        'creator_id': memo.creator_id,
+        'creator_name': memo.creator_name,
         'content': memo.content,
         'tag': memo.tag,
         'is_pinned': memo.is_pinned,
@@ -914,8 +917,7 @@ class ODocSystemMCPView(APIView):
             return handler(arguments, self.agent_context)
         raise ValueError(f'未知 Tool：{name}')
 
-    @staticmethod
-    def _create_memo(arguments):
+    def _create_memo(self, arguments):
         content = str(arguments.get('content') or '').strip()
         if not content:
             raise ValueError('content 不能为空')
@@ -926,6 +928,10 @@ class ODocSystemMCPView(APIView):
             tag=str(arguments.get('tag') or '').strip(),
             is_pinned=bool(arguments.get('is_pinned', False)),
             user_id='admin',
+            # 账号归属与实际创建者分开，身份仅取服务端执行上下文。
+            creator_type=Memo.CREATOR_TYPE_AGENT if self.agent_context else Memo.CREATOR_TYPE_USER,
+            creator_id=str(self.agent_context.pk) if self.agent_context else 'admin',
+            creator_name=self.agent_context.name[:150] if self.agent_context else '',
         )
         return {'memo': _memo_to_dict(memo)}
 

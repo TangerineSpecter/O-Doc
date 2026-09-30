@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import { Bot, User, WandSparkles, Check, BrainCircuit, ChevronDown, Loader2 } from 'lucide-react';
+import { Bot, User, WandSparkles, Check, BrainCircuit, ChevronDown, Loader2, RotateCw } from 'lucide-react';
 
 import { type Message, type ActivityStep, type LoadedSkill } from './types';
 import { type AgentConfig } from '../../api/setting';
@@ -25,6 +25,7 @@ import {isImageAvatarValue} from '../../utils/avatar';
 
 interface ChatMessageListProps {
     messages: Message[];
+    onRetry: (index: number) => void;
     isLoading: boolean;
     activitySteps: ActivityStep[];
     activeAgent: AgentConfig | null;
@@ -76,6 +77,7 @@ const formatSkillLine = (skill: LoadedSkill) => {
 };
 
 export const ChatMessageList = ({
+    onRetry,
     messages,
     isLoading,
     activitySteps,
@@ -367,6 +369,18 @@ export const ChatMessageList = ({
                                         >
                                             {msg.content}
                                         </ReactMarkdown>
+                                        {msg.error && (
+                                            <div className="mt-3 border-t border-slate-200/80 pt-2.5">
+                                                <p role="alert" className="text-xs leading-5 text-slate-500">{msg.error}</p>
+                                                {idx === messages.length - 1 && (
+                                                    <button type="button" title="重新生成回复" aria-label="重新生成回复"
+                                                        disabled={isLoading} onClick={() => onRetry(idx)}
+                                                        className="mt-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-white hover:text-orange-600 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/30">
+                                                        <RotateCw className="h-4 w-4"/>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
                                     </>
                                 )
                             ) : (

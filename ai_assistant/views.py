@@ -79,6 +79,7 @@ class ChatView(APIView):
                 include_thinking = False
 
             # 2. 准备 Prompt 和 上下文
+            agent = None
             system_prompt = ""
             sources_markdown = ""
 
@@ -162,6 +163,7 @@ class ChatView(APIView):
                 agent_server_ids=agent_mcp_server_ids,
                 chat_server_ids=chat_mcp_server_ids,
             )
+            tool_context['agent'] = agent
             if tool_context['tools']:
                 tool_system_prompt = (
                     system_prompt
@@ -303,7 +305,8 @@ class ChatView(APIView):
         entry = tool_context['tool_map'].get(safe_tool_name)
         if not entry:
             raise RuntimeError(f"未知 MCP Tool：{safe_tool_name}")
-        result, error_msg = call_mcp_tool(entry['server'], entry['tool_name'], arguments)
+        result, error_msg = call_mcp_tool(entry['server'], entry['tool_name'], arguments,
+                                              agent=tool_context.get('agent'))
         if error_msg:
             raise RuntimeError(f"{entry['server'].name}.{entry['tool_name']} 调用失败：{error_msg}")
         return result
@@ -332,6 +335,7 @@ class ChatView(APIView):
             if sources_markdown:
                 yield json.dumps({'type': 'answer', 'content': sources_markdown}, ensure_ascii=False) + "\n"
 
+            yield json.dumps({'type': 'done'}, ensure_ascii=False) + "\n"
         except ValueError as e:
             if str(e) == 'No default model configured':
                 logger.warning('AI chat requested without a default model')
@@ -407,6 +411,7 @@ class ChatView(APIView):
             if event is done_marker:
                 break
             yield json.dumps(event, ensure_ascii=False) + "\n"
+        yield json.dumps({'type': 'done'}, ensure_ascii=False) + "\n"
 
 
 class WhiteboardInsightView(APIView):

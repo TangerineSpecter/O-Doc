@@ -1,3 +1,4 @@
+import {previousUserIndex} from './chatFailure';
 // frontend_react/src/components/AIChatWindow/index.tsx
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -241,7 +242,7 @@ export const AIChatWindow = ({
         );
     }
 
-    const inputSendHandler = (userMsg: string) => {
+    const inputSendHandler = (userMsg: string, retryUserIndex?: number) => {
         handleSend(userMsg, {
             assistantMode,
             selectedMcpIds,
@@ -251,7 +252,7 @@ export const AIChatWindow = ({
             useThinking,
             selectedSkillIds,
             imageAnthologies,
-        });
+        }, retryUserIndex);
     };
 
     return (
@@ -385,6 +386,10 @@ export const AIChatWindow = ({
                     {/* 对话消息列表 */}
                     <ChatMessageList
                         messages={messages}
+                        onRetry={(index) => {
+                            const userIndex = previousUserIndex(messages, index);
+                            if (userIndex >= 0) inputSendHandler(messages[userIndex].content, userIndex);
+                        }}
                         isLoading={isLoading}
                         activitySteps={activitySteps}
                         activeAgent={activeAgent}
