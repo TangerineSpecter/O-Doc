@@ -3,6 +3,7 @@ import copy
 import hashlib
 import json
 import logging
+import time
 import uuid
 from datetime import timedelta
 
@@ -101,7 +102,12 @@ def preview(task, agent):
         with execution_lease(AgentExecutionLease, {'agent': agent}) as token:
             if not token:
                 return {'status': 'skipped', 'reason': 'Agent 正在执行其他任务'}
-            flow = Workflow(task, agent)
+            from .publish_diagnostics import logger as diagnostic_logger
+            started = time.monotonic()
+            def progress(phase):
+                diagnostic_logger.info('发帖预览阶段 task=%s agent=%s stage=%s duration_ms=%s',
+                                       task.pk, agent.pk, phase, round((time.monotonic()-started)*1000))
+            flow = Workflow(task, agent, progress=progress)
             try:
                 state = flow.run()
                 if duplicate_source(agent, state['draft']['main_source_url']):
@@ -109,6 +115,14 @@ def preview(task, agent):
                 return {'status': 'ready', 'reason': '预览完成，尚未发布', 'snapshot': state}
             except SkipPublication as exc:
                 return {'status': 'skipped', 'reason': str(exc), 'snapshot': flow.state}
+            except Exception as exc:
+                from system_logs.capture import capture
+                duration = round((time.monotonic()-started)*1000)
+                capture('发帖预览阶段失败', module='agent_world', exc=exc, task_id=str(task.pk),
+                        agent_id=str(agent.pk), publish_stage=flow.state.get('phase'), duration_ms=duration)
+                diagnostic_logger.error('发帖预览阶段失败 task=%s agent=%s stage=%s duration_ms=%s exception=%s',
+                                        task.pk, agent.pk, flow.state.get('phase'), duration, type(exc).__name__)
+                raise
 
 
 def run_publish_opportunity(task, scheduler, *, key=None, manual=False, locked=False):

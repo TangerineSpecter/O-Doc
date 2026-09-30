@@ -295,9 +295,12 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
             return valid_result('无权管理输出文集', status=403)
         try:
             return success_result(preview(task, agent))
-        except Exception:
+        except Exception as exc:
+            from .agent_world.publish_diagnostics import PublishSearchError, logger as publish_logger
+            publish_logger.error('发帖预览失败 task=%s agent=%s exception=%s', task.pk, agent.pk, type(exc).__name__)
             logger.exception('发帖预览失败 task=%s', task.pk)
-            return valid_result('预览失败，请检查搜索或模型配置', status=502)
+            reason = str(exc) if isinstance(exc, PublishSearchError) else '请检查搜索或模型配置，并查看系统日志'
+            return valid_result(f'预览失败：{reason}', status=502)
 
     @action(detail=True, methods=['post'])
     def run_now(self, request, pk=None):

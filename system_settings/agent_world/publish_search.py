@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_date
 from utils.mcp_client import call_mcp_tool
 from .publish_config import SEARCH_NAMES, search_server
+from .publish_diagnostics import PublishSearchError, search_error, report_search_failure
 
 
 def canonical_url(value: str) -> str:
@@ -69,19 +70,29 @@ def search(config: dict, query: str, mode: str, days: int, deadline: float, *, s
     remaining = deadline-time.monotonic()
     if remaining <= 0:
         raise TimeoutError('发帖流程达到5分钟时限')
+    started = time.monotonic()
     inbox = queue.Queue(maxsize=1)
     def request():
         try:
             inbox.put(call_mcp_tool(server, tool['name'], args, timeout=min(10, remaining / 12)))
-        except Exception:
-            inbox.put((None, '搜索调用异常'))
+        except Exception as exc:
+            inbox.put((None, exc))
     threading.Thread(target=request, daemon=True, name='agent-publish-search').start()
     try:
         payload, error = inbox.get(timeout=min(30, remaining))
-    except queue.Empty as exc:
-        raise TimeoutError('搜索达到时限，未发布') from exc
+    except queue.Empty:
+        failure = PublishSearchError('搜索达到时限，未发布', error_type='timeout')
+        report_search_failure(failure, server=server, tool_name=tool['name'],
+                              duration_ms=round((time.monotonic()-started)*1000), stage='search_wait')
+        raise failure from None
+    if not error and isinstance(payload, dict) and payload.get('isError'):
+        error = ' '.join(str(row.get('text', '')) for row in payload.get('content', [])
+                         if isinstance(row, dict) and row.get('type') == 'text') or 'MCP 工具返回错误'
     if error:
-        raise ValueError('搜索服务调用失败，请检查搜索配置')
+        failure = search_error(error)
+        report_search_failure(failure, server=server, tool_name=tool['name'],
+                              duration_ms=round((time.monotonic()-started)*1000), stage='search_call')
+        raise failure
     if isinstance(payload, dict) and isinstance(payload.get('content'), list):
         texts = [x.get('text', '') for x in payload['content'] if x.get('type') == 'text']
         try:
