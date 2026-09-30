@@ -22,7 +22,7 @@ def ask(journey, instruction, context, validate, *, skill=''):
     text = prompt + '\n' + instruction + '\n上下文：' + json.dumps(context, ensure_ascii=False, default=str)
     for attempt in range(2):
         raw = complete(AIService.get_client_config_for_model(journey.agent.model_id), text,
-            json_output=True, max_tokens=6000, extra_body={}, deadline_seconds=120)
+            json_output=True, extra_body={}, deadline_seconds=120)
         try:
             value = json.loads(AIService.strip_thinking(raw).strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
             if not isinstance(value, dict):

@@ -16,7 +16,6 @@ from openai import APIConnectionError, APIError, APIStatusError, AsyncOpenAI, Au
 from .ai_observer import check_ai_control, emit_ai_event
 
 DEADLINE_SECONDS = 120
-MAX_OUTPUT_CHARS = 80000
 
 
 class AIRequestTimeout(TimeoutError):
@@ -58,14 +57,12 @@ async def _receive(config: dict, parameters: dict, seconds: float, inbox: queue.
                         if len(parts) == 1 or elapsed - last_progress >= 2:
                             inbox.put(('event', ('model_first_output' if len(parts) == 1 else 'model_progress', '收到首个输出，继续接收' if len(parts) == 1 else '正在接收模型输出', {'chars': count, 'duration_ms': elapsed * 1000})))
                             last_progress = elapsed
-                        if count > MAX_OUTPUT_CHARS:
-                            raise AIOutputTruncated('模型输出超过安全预算，请缩小正文范围')
                     if isinstance(choice.finish_reason, str):
                         finish = choice.finish_reason
         finally:
             await stream.close()
     if finish == 'length':
-        raise AIOutputTruncated('模型输出达到 token 上限，未发布本次结果')
+        raise AIOutputTruncated('模型接口返回输出长度限制，结果不完整，本次未采用')
     if finish != 'stop':
         raise AIStreamIncomplete('模型输出未正常结束，未发布本次结果')
     inbox.put(('event', ('model_response', '模型已完整返回，准备检查输出', {'chars': count, 'finish_reason': finish, 'duration_ms': (time.monotonic() - started) * 1000})))
@@ -133,7 +130,7 @@ def _json_unsupported(exc: Exception) -> bool:
     return ('response_format' in message or 'json_object' in message) and any(word in message for word in ('unsupported', 'not support', 'unknown', 'unrecognized', 'not permitted', '不支持'))
 
 
-def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int, extra_body: dict, deadline_seconds: float = DEADLINE_SECONDS) -> str:
+def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int | None = None, extra_body: dict, deadline_seconds: float = DEADLINE_SECONDS) -> str:
     deadline = time.monotonic() + min(DEADLINE_SECONDS, deadline_seconds)
     network_retries, request_attempt = 0, 0
     use_json = json_output
@@ -146,7 +143,9 @@ def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int, e
         metadata = {key: config.get(key, '') for key in ('provider_name', 'model_name', 'model_role')}
         thinking_disabled = extra_body.get('enable_thinking') is False or extra_body.get('thinking', {}).get('type') == 'disabled'
         metadata.update(request_id=uuid.uuid4().hex, request_attempt=request_attempt, streaming=1, timeout_seconds=math.ceil(remaining), deadline_seconds=DEADLINE_SECONDS, sdk_retries=0, max_tokens=max_tokens, json_mode='json_object' if use_json else 'prompt' if json_output else 'text', thinking_mode='disabled' if thinking_disabled else 'provider_default')
-        parameters = {'model': config['model_name'], 'messages': [{'role': 'user', 'content': prompt}], 'stream': True, 'max_tokens': max_tokens, 'temperature': .2}
+        parameters = {'model': config['model_name'], 'messages': [{'role': 'user', 'content': prompt}], 'stream': True, 'temperature': .2}
+        if max_tokens is not None:
+            parameters['max_tokens'] = max_tokens
         if config.get('provider_type') in ('OpenAi', 'DeepSeek', 'MiniMax'):
             parameters['stream_options'] = {'include_usage': True}
         if extra_body:

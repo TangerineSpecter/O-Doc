@@ -158,7 +158,7 @@ class AIService:
 
     @classmethod
     @model_operation
-    def chat_completion(cls, prompt, use_simple_model=False, *, bounded=False, json_output=False, max_tokens=4096):
+    def chat_completion(cls, prompt, use_simple_model=False, *, bounded=False, json_output=False, max_tokens=None):
         """执行 AI 对话"""
         if bounded:
             from .bounded_completion import complete

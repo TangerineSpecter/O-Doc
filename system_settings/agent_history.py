@@ -69,6 +69,10 @@ def freeze_agent_history(sender, instance, using, **kwargs):
         return
     agent = instance
     identity = snapshot(agent)
+    from .agent_world.social_models import SocialRelation
+    _save_identity(SocialRelation.objects.using(using).filter(counterpart_id=f'agent-id:{agent.pk}'), {
+        'counterpart_identity': identity,
+    })
     activities = AgentActivity.objects.using(using).filter(agent_id=agent.pk)
     annotation_ids = list(activities.filter(artifact_kind='articleAnnotation').filter(
         Q(action='annotate') | Q(event_key__startswith='legacy:annotation:')

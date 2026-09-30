@@ -1,4 +1,5 @@
-import {useEffect, useRef} from 'react';
+import {useEffect, useRef, useState} from 'react';
+import {useAgentRelation} from '../../hooks/useAgentRelation';
 import * as echarts from 'echarts/core';
 import {GraphChart} from 'echarts/charts';
 import {TooltipComponent} from 'echarts/components';
@@ -34,6 +35,9 @@ interface AgentRelationCardProps {
     onClose: () => void;
 }
 
+const nodeName = (node: AgentRelationNode) => node.departed ? `${node.name}（已离开）`
+    : node.kind === 'user' ? `${node.name}（用户）` : node.name;
+
 const firstGlyph = (value: string) => Array.from(value.trim())[0] || '人';
 
 const isImageAvatar = (avatar?: string) => Boolean(avatar && /^(https?:|data:|\/)/.test(avatar));
@@ -46,15 +50,22 @@ const nodeSymbol = (node: AgentRelationNode) => {
 };
 
 export default function AgentRelationCard({
-    graph,
-    loading,
-    error,
-    selectedEdge,
+    graph: currentGraph,
+    loading: currentLoading,
+    error: currentError,
+    selectedEdge: currentSelectedEdge,
     onSelectEdge,
     onSelectAgent,
     onClose,
 }: AgentRelationCardProps) {
     const chartRef = useRef<HTMLDivElement>(null);
+    const [showDeparted, setShowDeparted] = useState(false);
+    const history = useAgentRelation(showDeparted, true);
+    const graph = showDeparted ? history.graph : currentGraph;
+    const loading = showDeparted ? history.loading : currentLoading;
+    const error = showDeparted ? history.error : currentError;
+    const selectedEdge = graph?.edges.some(edge => edge.sourceId === currentSelectedEdge?.sourceId
+        && edge.targetId === currentSelectedEdge?.targetId) ? currentSelectedEdge : null;
 
     useEffect(() => {
         if (!chartRef.current || loading || error || !graph?.nodes.length) return undefined;
@@ -127,10 +138,11 @@ export default function AgentRelationCard({
                 },
                 data: graph.nodes.map(node => ({
                     id: node.id,
-                    name: node.name,
+                    name: nodeName(node),
                     value: node.creativity,
                     symbol: nodeSymbol(node),
                     symbolSize: 54 + Math.round(node.creativity / 8),
+                    itemStyle: {opacity: node.departed ? 0.45 : 1},
                     emphasis: {label: {fontWeight: 'bold' as const}},
                 })),
                 links: graph.edges.map(edge => ({
@@ -148,17 +160,19 @@ export default function AgentRelationCard({
             if (disposed) return;
             chart.setOption({series: [{data: graph.nodes.map((node, index) => ({
                 id: node.id,
-                name: node.name,
+                name: nodeName(node),
                 value: node.creativity,
                 symbol: symbols[index] || nodeSymbol(node),
                 symbolSize: 54 + Math.round(node.creativity / 8),
+                    itemStyle: {opacity: node.departed ? 0.45 : 1},
                 emphasis: {label: {fontWeight: 'bold' as const}},
             }))}]});
         });
         chart.on('click', params => {
             if (params.dataType === 'node') {
                 const node = params.data as {id?: string};
-                if (node.id && !node.id.startsWith('user:')) onSelectAgent(node.id);
+                const resident = graph.nodes.find(item => item.id === node.id);
+                if (resident && resident.kind !== 'user' && !resident.departed) onSelectAgent(resident.id);
                 return;
             }
             if (params.dataType === 'edge') {
@@ -180,7 +194,12 @@ export default function AgentRelationCard({
     }, [graph, loading, error, onSelectAgent, onSelectEdge]);
 
     return (
-        <WorldDialog size="wide" title="关系图谱" description="点击节点查看居民动态，点击连线查看双方好感。" onClose={onClose}>
+        <WorldDialog size="wide" title="关系图谱" description="点击当前居民查看动态，点击连线查看双方好感；已离开居民仅展示历史关系。" onClose={onClose}>
+            <label className="mb-4 flex w-fit cursor-pointer items-center gap-2 text-sm text-slate-600">
+                <input type="checkbox" checked={showDeparted} className="h-4 w-4 accent-orange-500"
+                    onChange={event => {setShowDeparted(event.target.checked); onSelectEdge(null);}}/>
+                显示已离开居民
+            </label>
             {loading ? <p className="py-16 text-center text-xs text-slate-400">正在整理最近的互动...</p> : null}
             {error ? <p className="py-12 text-center text-xs text-red-600">{error}</p> : null}
             {!loading && !error && graph && !graph.nodes.length ? (
@@ -190,7 +209,8 @@ export default function AgentRelationCard({
                 <div className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
                         <div className="flex items-center gap-4 text-slate-500">
-                            <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5"/><b className="text-slate-800">{graph.nodes.length}</b> 位居民</span>
+                            <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5"/><b className="text-slate-800">{graph.nodes.filter(node => node.kind !== 'user' && !node.departed).length}</b> 位当前居民
+                                {showDeparted ? <span> · {graph.nodes.filter(node => node.departed).length} 位已离开</span> : null}</span>
                             <span className="flex items-center gap-1.5"><Network className="h-3.5 w-3.5"/><b className="text-slate-800">{graph.edges.length}</b> 条关系</span>
                         </div>
                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500">长期关系 · 情绪会缓解</span>

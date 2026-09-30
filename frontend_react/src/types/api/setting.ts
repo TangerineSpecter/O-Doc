@@ -228,6 +228,7 @@ export interface AgentActivityListResult {
 }
 
 export interface AgentRelationNode {
+    departed?: boolean;
     kind?: 'agent' | 'user';
     inventoryCount?: number;
     professionName?: string;

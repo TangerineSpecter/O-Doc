@@ -237,7 +237,7 @@ export const getAgentActivities = (params: {
 
 export const getAgentWorldSummary = (signal?: AbortSignal) => request.get<unknown, AgentWorldSummary>('/settings/agent-activities/today-summary/', {signal});
 
-export const getAgentRelations = (signal?: AbortSignal) => request.get<unknown, AgentRelationGraph>('/settings/agent-relations/', {signal});
+export const getAgentRelations = (signal?: AbortSignal, includeDeparted = false) => request.get<unknown, AgentRelationGraph>('/settings/agent-relations/', {signal, params: {includeDeparted}});
 
 export const getMCPServers = () => request.get<MCPServerConfig[]>('/settings/mcp-servers/');
 

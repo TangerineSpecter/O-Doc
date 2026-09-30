@@ -38,7 +38,10 @@ class AgentRelationView(APIView):
     def get(self, request):
         from system_settings.agent_relation import relation_graph
         from utils.drf_utils import get_current_user_identifier
-        return success_result(relation_graph(owner_id=get_current_user_identifier(request)))
+        return success_result(relation_graph(
+            owner_id=get_current_user_identifier(request),
+            include_departed=request.query_params.get('includeDeparted', '').lower() == 'true',
+        ))
 
 
 def _local_now():

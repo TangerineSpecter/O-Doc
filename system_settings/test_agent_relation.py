@@ -224,3 +224,59 @@ class AgentRelationFlowTests(TestCase):
         old.refresh_from_db()
         self.assertEqual(old.event_key, f'comment:{comment.pk}')
         self.assertEqual(AgentActivity.objects.filter(artifact_id=comment.pk).count(), 1)
+
+
+class DepartedRelationGraphTests(TestCase):
+    def setUp(self):
+        self.current = Agent.objects.create(name='现在居民')
+        self.departed = Agent.objects.create(name='旧居民', avatar='🐱')
+        self.old_id = self.departed.pk
+        self.relation = SocialRelation.objects.create(
+            id='departed-relation', owner_id='owner', actor_id=self.current.pk,
+            counterpart_id=f'agent-id:{self.old_id}',
+            counterpart_identity={'name': '过期名字', 'avatar': ''},
+        )
+        self.departed.delete()
+
+    def test_default_hides_departed_and_their_edges(self):
+        graph = relation_graph('owner')
+        self.assertNotIn(self.old_id, [node['id'] for node in graph['nodes']])
+        self.assertEqual(graph['edges'], [])
+
+    def test_opt_in_recovers_snapshot_and_edge_without_binding_namesake(self):
+        namesake = Agent.objects.create(name='旧居民')
+        graph = relation_graph('owner', include_departed=True)
+        old = next(node for node in graph['nodes'] if node['id'] == self.old_id)
+        self.assertTrue(old['departed'])
+        self.assertEqual((old['name'], old['avatar']), ('旧居民', '🐱'))
+        self.assertEqual(len(graph['edges']), 1)
+        self.assertNotIn(namesake.pk, [graph['edges'][0]['source_id'], graph['edges'][0]['target_id']])
+        self.relation.refresh_from_db()
+        self.assertEqual(self.relation.counterpart_identity['name'], '旧居民')
+
+    def test_old_user_snapshot_is_never_a_departed_resident(self):
+        SocialRelation.objects.create(id='user-relation', owner_id='owner', actor_id=self.current.pk,
+            counterpart_id='user:owner', counterpart_identity={'name': 'Agent'})
+        graph = relation_graph('owner', include_departed=True)
+        user = next(node for node in graph['nodes'] if node['id'] == 'user:owner')
+        self.assertEqual(user['kind'], 'user')
+        self.assertEqual(user['name'], '我')
+        self.assertFalse(user.get('departed', False))
+
+    def test_history_is_scoped_to_owner_even_when_both_endpoints_departed(self):
+        self.current.delete()
+        graph = relation_graph('owner', include_departed=True)
+        self.assertEqual(len(graph['edges']), 1)
+        self.assertTrue(all(node.get('departed') for node in graph['nodes']))
+        other = relation_graph('other', include_departed=True)
+        self.assertEqual(other, {'nodes': [], 'edges': []})
+
+    def test_endpoint_accepts_explicit_history_switch(self):
+        from unittest.mock import patch
+        user = User.objects.create_user('history-switch')
+        request = APIRequestFactory().get('/api/settings/agent-relations/', {'includeDeparted': 'true'})
+        force_authenticate(request, user=user)
+        with patch('system_settings.agent_relation.relation_graph', return_value={'nodes': [], 'edges': []}) as graph:
+            response = AgentRelationView.as_view()(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(graph.call_args.kwargs['include_departed'])

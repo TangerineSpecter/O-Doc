@@ -247,7 +247,7 @@ def generate_agent_prompt(data: dict) -> dict:
     if research_context:
         material['web_research'] = research_context
     raw = complete(config, GENERATION_INSTRUCTION + '\n角色资料：\n' + json.dumps(material, ensure_ascii=False),
-                   json_output=True, max_tokens=3500, extra_body=thinking_options(config))
+                   json_output=True, extra_body=thinking_options(config))
     result = render_generated_prompt(AIService.strip_thinking(raw))
     result.update({
         'research_used': bool(research_context),

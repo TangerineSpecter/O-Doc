@@ -238,7 +238,7 @@ def backfill_relation_events():
         )
 
 
-def relation_graph(owner_id=None):
+def relation_graph(owner_id=None, include_departed=False):
     from .agent_world.execution import stamina
     from .agent_world.travel_models import AgentInventoryItem
     from django.db.models import Sum
@@ -268,7 +268,7 @@ def relation_graph(owner_id=None):
             'status': 'running' if agent.id in running_ids else 'idle',
         })
     from .agent_world.social_graph import graph_edges
-    edges = graph_edges(owner_id, nodes)
+    edges = graph_edges(owner_id, nodes, include_departed=include_departed)
     return {'nodes': nodes, 'edges': edges}
 
 

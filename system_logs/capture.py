@@ -17,15 +17,16 @@ _queue = None
 _pid = None
 _thread = None
 _dropped = 0
-_sensitive = re.compile(r'(?i)(authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|token|password|secret|cookie)([\s\"\x27:=]+)([^\s,;}]+)')
+_sensitive = re.compile(r'(?i)(authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|cookie)([\s\"\x27:=]+)([^\s,;}]+)')
 
 
 def sanitize(value, limit=4000):
     text = str(value)
-    text = re.sub(r'(?i)\b(Bearer|Token)\s+[^\s,;]+', r'\1 [REDACTED]', text)
+    text = re.sub(r'(?i)\b(Bearer|Token)\s+[A-Za-z0-9._~+/=-]+', r'\1 [REDACTED]', text)
     text = re.sub(r'\bsk-[\w-]+', '[REDACTED]', text)
     text = re.sub(r'(https?://)[^/\s:@]+:[^/\s@]+@', r'\1[REDACTED]@', text)
     text = _sensitive.sub(r'\1=[REDACTED]', text)
+    text = re.sub(r'''(?i)\btoken\b[\s"']*[:=][\s"']*[^\s,;}]+''', 'token=[REDACTED]', text)
     text = re.sub(r'(https?://[^\s?]+)\?[^\s]+', r'\1?[REDACTED]', text)
     return text[:limit]
 

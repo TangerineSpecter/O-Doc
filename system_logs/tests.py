@@ -120,6 +120,12 @@ class CaptureTests(unittest.TestCase):
         for value in ('sk-abcdef', 'abcdef', 'user:pass', 'token=abcd', 'password=secret'):
             self.assertNotIn(value, result)
 
+    def test_token_budget_message_is_not_treated_as_a_credential(self):
+        message = '模型输出达到 token 上限，未发布本次结果'
+        self.assertEqual(sanitize(message), message)
+        for raw in ('token=private-token', 'token: private-token', 'Token private-token', 'token private-token', 'Bearer private-token'):
+            self.assertNotIn('private-token', sanitize(raw))
+
     def test_fail_open_and_request_correlation(self):
         inbox = SimpleNamespace(put_nowait=lambda event: (_ for _ in ()).throw(RuntimeError()))
         with patch('system_logs.capture.start', return_value=inbox), patch('system_logs.capture._fallback'):

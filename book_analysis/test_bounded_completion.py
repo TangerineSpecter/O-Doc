@@ -70,6 +70,27 @@ class BoundedCompletionTests(SimpleTestCase):
         with patch('utils.bounded_completion.AsyncOpenAI', side_effect=factory), patch('utils.bounded_completion.DEADLINE_SECONDS', seconds), observe_ai(lambda kind, title, level, details: self.events.append((kind, details)), check_cancel=control):
             return complete(CONFIG, 'private book text; JSON requested', json_output=json_output, max_tokens=6000, extra_body={})
 
+    def test_default_omits_output_budget_for_online_providers(self):
+        for provider in ('OpenAi', 'DeepSeek', 'MiniMax'):
+            with self.subTest(provider=provider):
+                requests, clients = [], []
+                stream = FakeStream('{"content":"完成"}')
+                factory = fake_factory(lambda _: stream, requests, clients)
+                with patch('utils.bounded_completion.AsyncOpenAI', side_effect=factory):
+                    result = complete({**CONFIG, 'provider_type': provider}, 'Write a post',
+                                      json_output=True, extra_body={})
+                self.assertEqual(result, stream.content)
+                for name in ('max_tokens', 'max_completion_tokens', 'max_output_tokens'):
+                    self.assertNotIn(name, requests[0])
+                self.assertEqual(requests[0]['stream_options'], {'include_usage': True})
+                self.assertTrue(stream.closed)
+
+    def test_default_accepts_output_larger_than_old_character_cap(self):
+        requests, clients = [], []
+        stream = FakeStream('文' * 100000)
+        with patch('utils.bounded_completion.AsyncOpenAI', side_effect=fake_factory(lambda _: stream, requests, clients)):
+            self.assertEqual(complete(CONFIG, 'Write', json_output=False, extra_body={}), stream.content)
+
     def test_stream_controls_progress_and_no_raw_content_in_events(self):
         stream = FakeStream('{"nodes":[],"edges":[]}')
         self.assertEqual(self.call(lambda _: stream), stream.content)
@@ -183,6 +204,12 @@ class BoundedCompletionTests(SimpleTestCase):
         self.assertEqual(requests[0]['response_format'], {'type': 'json_object'})
         self.assertEqual([d['completion_tokens'] for k, d in events if k == 'model_usage'], [8])
         self.assertTrue(clients[0].is_closed())
+        # 同一 SDK 的默认请求在 HTTP JSON 中完全省略输出预算字段。
+        with patch('utils.bounded_completion.AsyncOpenAI', side_effect=factory):
+            complete({**CONFIG, 'provider_type': 'OpenAi'}, 'Return JSON', json_output=True, extra_body={})
+        for name in ('max_tokens', 'max_completion_tokens', 'max_output_tokens'):
+            self.assertNotIn(name, requests[1])
+        self.assertTrue(clients[1].is_closed())
 
     def test_truncated_or_incomplete_stream_is_never_returned_even_if_json_parses(self):
         for finish, error in (('length', AIOutputTruncated), (None, AIStreamIncomplete)):

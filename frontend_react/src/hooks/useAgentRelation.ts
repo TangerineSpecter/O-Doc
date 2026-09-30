@@ -2,7 +2,7 @@ import {useCallback, useEffect, useState} from 'react';
 import {getAgentRelations} from '../api/setting';
 import type {AgentRelationEdge, AgentRelationGraph} from '../types/api/setting';
 
-export function useAgentRelation(enabled: boolean) {
+export function useAgentRelation(enabled: boolean, includeDeparted = false) {
     const [graph, setGraph] = useState<AgentRelationGraph | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -11,7 +11,7 @@ export function useAgentRelation(enabled: boolean) {
     const reload = useCallback((signal?: AbortSignal) => {
         setLoading(true);
         setError('');
-        return getAgentRelations(signal)
+        return getAgentRelations(signal, includeDeparted)
             .then(data => {
                 if (signal?.aborted) return;
                 setGraph(data);
@@ -23,7 +23,7 @@ export function useAgentRelation(enabled: boolean) {
             .finally(() => {
                 if (!signal?.aborted) setLoading(false);
             });
-    }, []);
+    }, [includeDeparted]);
 
     useEffect(() => {
         if (!enabled) return undefined;
