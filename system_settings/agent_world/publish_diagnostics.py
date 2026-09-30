@@ -37,6 +37,8 @@ def search_error(error: object) -> PublishSearchError:
         kind, reason = 'tls', '搜索服务 TLS 连接或证书校验失败'
     elif any(word in lower for word in ('connection', 'connect', 'resolve', 'name resolution')):
         kind, reason = 'connection', '无法连接搜索服务，请检查后端网络与服务地址'
+    elif any(word in lower for word in ('literal_error', 'validation error', 'invalid argument', 'input should be', 'invalid params', 'invalid parameter')):
+        kind, reason = 'invalid_arguments', '搜索工具参数不符合服务要求，请核对工具 schema 的 const、enum 和必填项'
     elif status:
         kind, reason = f'http_{status}', f'搜索服务返回 HTTP {status}'
     elif '无法解析' in text:

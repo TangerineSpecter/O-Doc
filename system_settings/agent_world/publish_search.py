@@ -4,6 +4,7 @@ import json
 import time
 import queue
 import threading
+from datetime import timedelta
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from django.conf import settings
 from django.utils import timezone
@@ -62,8 +63,23 @@ def search(config: dict, query: str, mode: str, days: int, deadline: float, *, s
     args = {'query': query}
     for key, value in [('max_results', 5), ('search_depth', search_depth), ('topic', 'news' if mode == 'news' else 'general'), ('days', days)]:
         spec = properties.get(key, {})
-        if key in properties and (key != 'days' or mode == 'news') and ('enum' not in spec or value in spec['enum']):
-            args[key] = value
+        if key in properties and (key != 'days' or mode == 'news'):
+            # Tavily MCP 的 topic 可能被 const 限定为 general；不能只检查 enum。
+            if 'const' in spec:
+                args[key] = spec['const']
+            elif 'enum' not in spec or value in spec['enum']:
+                args[key] = value
+    if mode == 'news' and 'days' not in args:
+        now = timezone.now()
+        today = timezone.localtime(now).date() if timezone.is_aware(now) else now.date()
+        for key, value in [('start_date', (today-timedelta(days=days)).isoformat()),
+                           ('end_date', (today+timedelta(days=1)).isoformat())]:
+            if key in properties:
+                spec = properties[key]
+                if 'const' in spec:
+                    args[key] = spec['const']
+                elif 'enum' not in spec or value in spec['enum']:
+                    args[key] = value
     missing = set(schema.get('required', [])) - set(args)
     if missing:
         raise ValueError('搜索工具 schema 包含不支持的必填参数，请更新服务配置')
@@ -71,15 +87,19 @@ def search(config: dict, query: str, mode: str, days: int, deadline: float, *, s
     if remaining <= 0:
         raise TimeoutError('发帖流程达到5分钟时限')
     started = time.monotonic()
+    from .publish_diagnostics import logger as diagnostic_logger
+    options = {key: value for key, value in args.items() if key != 'query'}
+    diagnostic_logger.info('发帖搜索参数 server=%s tool=%s mode=%s options=%s',
+                           server.pk, tool['name'], mode, options)
     inbox = queue.Queue(maxsize=1)
     def request():
         try:
-            inbox.put(call_mcp_tool(server, tool['name'], args, timeout=min(10, remaining / 12)))
+            inbox.put(call_mcp_tool(server, tool['name'], args, timeout=min(30, remaining)))
         except Exception as exc:
             inbox.put((None, exc))
     threading.Thread(target=request, daemon=True, name='agent-publish-search').start()
     try:
-        payload, error = inbox.get(timeout=min(30, remaining))
+        payload, error = inbox.get(timeout=min(90, remaining))
     except queue.Empty:
         failure = PublishSearchError('搜索达到时限，未发布', error_type='timeout')
         report_search_failure(failure, server=server, tool_name=tool['name'],
