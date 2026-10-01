@@ -4,6 +4,8 @@ import type {Moment, MomentComment, SocialConfiguration, SocialNotification} fro
 const base = '/settings/agent-world';
 export const getMoments = (params: {actorId?: string; related?: string; before?: string}, signal?: AbortSignal) =>
     request.get<unknown, {moments: Moment[]; nextCursor: string | null}>(`${base}/moments/`, {params, signal});
+export const getMoment = (id: string, signal?: AbortSignal) =>
+    request.get<unknown, Moment>(`${base}/moments/${id}/`, {signal});
 export const publishMoment = (content: string, images: string[]) => request.post<unknown, {moment: Moment}>(`${base}/moments/`, {content, images});
 export const deleteMoment = (id: string) => request.delete(`${base}/moments/${id}/`);
 export const likeMoment = (id: string, active: boolean) => request.post<unknown, Moment>(`${base}/moments/${id}/like/`, {active});

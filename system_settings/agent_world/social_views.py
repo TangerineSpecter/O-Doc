@@ -50,6 +50,10 @@ class SocialView(APIView):
             if not Moment.objects.filter(pk=identity, owner_id=owner, is_valid=True).exists(): return valid_result('动态不存在', status=404)
             rows = MomentComment.objects.filter(moment_id=identity, is_valid=True).order_by('created_at', 'pk')
             return success_result({'comments': [comment_data(c) for c in rows]})
+        if identity and self.kind == 'moments':
+            moment = Moment.objects.filter(pk=identity, owner_id=owner, is_valid=True).first()
+            if not moment: return valid_result('动态不存在', status=404)
+            return success_result(moment_data(moment, actor))
         rows = Moment.objects.filter(owner_id=owner, is_valid=True).order_by('-created_at', '-pk')
         selected = request.query_params.get('actor_id') or request.query_params.get('actorId')
         if selected == 'me': selected = actor

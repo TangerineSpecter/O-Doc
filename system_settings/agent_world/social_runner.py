@@ -175,11 +175,12 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
         op.status = 'completed'; op.result = {**value, 'action': action}; op.save()
         WorldAction.objects.update_or_create(pk=op.pk, defaults={'agent': agent, 'actor_id': agent.pk, 'status': 'success',
             'energy_cost': 0 if action == 'rest' else ENERGY_COST, 'consumed_at': timezone.now(), 'effects_done': True, 'snapshot': {'social': True, 'owner_id': op.owner_id}, 'result': op.result})
+        target_mid = value.get('moment_id') or (ids[0] if action == 'read' and ids else '') or (incoming.content_id if incoming and incoming.source_kind == 'moment' else '')
         AgentActivity.objects.get_or_create(event_key=f'social:{op.pk}', defaults={'agent': agent, 'activity_type': 'interaction',
             'status': 'success', 'action': f'social_{action}', 'title': f'{agent.name}的社交时间', 'summary': value.get('content', value['reason'])[:1200],
             'metadata': {'owner_id': op.owner_id, 'social_opportunity_id': op.pk, 'agentSnapshot': agent_identity(agent)},
             'current_action': {'reply': '回复了评论', 'publish': '分享了朋友圈', 'read': '读了朋友圈'}.get(action, '决定暂时不交流'),
-            'artifact_kind': 'moment' if value.get('moment_id') else '', 'artifact_id': value.get('moment_id', '')})
+            'artifact_kind': 'moment' if target_mid else '', 'artifact_id': target_mid or ''})
 
 
 def run(op, agent):

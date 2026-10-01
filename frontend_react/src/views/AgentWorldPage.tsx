@@ -26,6 +26,7 @@ const LifeScheduleDialog = lazy(preloadLifeSchedule);
 const MarketDialog = lazy(preloadMarket);
 const FarmDialog = lazy(preloadFarm);
 const MomentsDialog = lazy(() => import('../components/AgentWorld/MomentsDialog'));
+const MomentDetailDialog = lazy(() => import('../components/AgentWorld/MomentDetailDialog'));
 const ItemCatalogDialog = lazy(preloadCatalog);
 const InvestmentDialog = lazy(preloadInvestment);
 const TravelJourneyDialog = lazy(preloadTravel);
@@ -34,6 +35,7 @@ export default function AgentWorldPage() {
     const navigate = useNavigate();
     const [lifeOpen, setLifeOpen] = useState(false);
     const [travelArchiveId, setTravelArchiveId] = useState('');
+    const [momentDetailId, setMomentDetailId] = useState<string | null>(null);
     const [feedRefreshToken, setFeedRefreshToken] = useState(0);
     const closeLife = useCallback(() => setLifeOpen(false), []);
     const [investmentOpen, setInvestmentOpen] = useState(false);
@@ -86,6 +88,10 @@ export default function AgentWorldPage() {
     const openDailyTarget = (event: DailyFeedEvent) => {
         const target = event.target;
         if (!target) return;
+        if (target.artifactKind === 'moment' && target.artifactId) {
+            setMomentDetailId(target.artifactId);
+            return;
+        }
         if (target.kind === 'activity' && target.collId && target.articleId) {
             const anchor = target.artifactKind === 'articleComment' ? `#comment-${encodeURIComponent(target.artifactId || '')}` : target.artifactKind === 'articleAnnotation' ? `#annotation-${encodeURIComponent(target.artifactId || '')}` : '';
             navigate(`/article/${target.collId}/${target.articleId}${anchor}`);
@@ -268,6 +274,7 @@ export default function AgentWorldPage() {
             {marketOpen && <WorldDialogSuspense title="世界市场 · 集市大厅" onClose={closeMarket} size="wide" fallback={<WorldOrbitLoader title="正在连接世界市场" subtitle="检索集市货架 · 实时计算商品供需物价"/>}><MarketDialog onClose={closeMarket} residents={world.summary?.agents || []}/></WorldDialogSuspense>}
             {farmOpen && <WorldDialogSuspense title="像素农场" onClose={closeFarm} size="extra-wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在铺开像素农场" subtitle="构建地形图块 · 加载农作物生长状态"/>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></WorldDialogSuspense>}
             {momentsOpen && <WorldDialogSuspense title="朋友圈" size="wide" onClose={() => setMomentsOpen(false)} fallback={<WorldOrbitLoader title="正在读取朋友圈" subtitle="整理生活分享与讨论"/>}><MomentsDialog onClose={() => setMomentsOpen(false)}/></WorldDialogSuspense>}
+            {momentDetailId && <WorldDialogSuspense title="朋友圈动态" size="compact" onClose={() => setMomentDetailId(null)} fallback={<WorldOrbitLoader title="正在读取动态" subtitle="加载朋友圈内容与讨论"/>}><MomentDetailDialog momentId={momentDetailId} onClose={() => setMomentDetailId(null)}/></WorldDialogSuspense>}
             {catalogOpen && <WorldDialogSuspense title="物品图鉴" onClose={closeCatalog} size="wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在翻开物品图鉴" subtitle="整理物品分类 · 计算稀有度与用途估值"/>}><ItemCatalogDialog onClose={closeCatalog}/></WorldDialogSuspense>}
             {worldManagementOpen && <WorldManagementDialog onClose={() => setWorldManagementOpen(false)} />}
             <AgentRunDrawer

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Briefcase, Loader2, X, Sparkles } from 'lucide-react';
 import type { WorldBonus, WorldCategory, WorldProfession } from '../../types/api/agentWorld';
 import { useEscapeDismissal } from '../../hooks/useEscapeDismissal';
@@ -59,12 +60,15 @@ export function WorldProfessionModal({
         });
     };
 
-    return (
+    return createPortal(
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+            className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-200"
             role="dialog"
             aria-modal="true"
             aria-labelledby="profession-modal-title"
+            onClick={e => {
+                if (e.target === e.currentTarget && !saving) onClose();
+            }}
         >
             <div className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-xl border border-slate-100 animate-in zoom-in-95 duration-150">
                 {/* 头部 */}
@@ -94,7 +98,7 @@ export function WorldProfessionModal({
                 </div>
 
                 {/* 表单滚动内容 */}
-                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-5">
                     <div>
                         <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                             职业名称 <span className="text-orange-500">*</span>
@@ -156,7 +160,7 @@ export function WorldProfessionModal({
                                 暂无可选分类，请先在“分类管理”中创建分类
                             </div>
                         ) : (
-                            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                            <div className="space-y-2 max-h-56 overflow-y-auto scrollbar-hide pr-1">
                                 {categories.map(c => {
                                     const bonus = bonuses.find(b => b.category === c.id);
                                     const isChecked = Boolean(bonus);
@@ -230,6 +234,7 @@ export function WorldProfessionModal({
                     </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

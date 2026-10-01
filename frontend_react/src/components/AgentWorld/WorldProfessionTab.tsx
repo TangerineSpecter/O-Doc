@@ -7,6 +7,8 @@ import {
     Cpu,
     Edit2,
     GraduationCap,
+    Heart,
+    HeartPulse,
     Sparkles,
     TrendingUp,
     Utensils,
@@ -60,6 +62,24 @@ function getProfessionVisual(name: string) {
             border: 'border-orange-200/80',
             badge: 'bg-orange-50 text-orange-700 border-orange-200/80',
             Icon: Utensils,
+        };
+    }
+    if (/健康|医疗|医学|养生|保健|医生|医师|医药|医/i.test(name)) {
+        return {
+            bg: 'bg-teal-50',
+            text: 'text-teal-600',
+            border: 'border-teal-200/80',
+            badge: 'bg-teal-50 text-teal-700 border-teal-200/80',
+            Icon: HeartPulse,
+        };
+    }
+    if (/情感|恋爱|心理|社交|生活/i.test(name)) {
+        return {
+            bg: 'bg-pink-50',
+            text: 'text-pink-600',
+            border: 'border-pink-200/80',
+            badge: 'bg-pink-50 text-pink-700 border-pink-200/80',
+            Icon: Heart,
         };
     }
     if (/阅读|文学|书|写作|小说|笔/i.test(name)) {

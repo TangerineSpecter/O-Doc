@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { FolderTree, Loader2, X } from 'lucide-react';
 import type { WorldCategory } from '../../types/api/agentWorld';
 import { useEscapeDismissal } from '../../hooks/useEscapeDismissal';
@@ -38,12 +39,15 @@ export function WorldCategoryModal({
         });
     };
 
-    return (
+    return createPortal(
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+            className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-200"
             role="dialog"
             aria-modal="true"
             aria-labelledby="category-modal-title"
+            onClick={e => {
+                if (e.target === e.currentTarget && !saving) onClose();
+            }}
         >
             <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl border border-slate-100 animate-in zoom-in-95 duration-150">
                 {/* 头部 */}
@@ -136,6 +140,7 @@ export function WorldCategoryModal({
                     </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

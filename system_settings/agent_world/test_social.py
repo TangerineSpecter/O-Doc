@@ -255,3 +255,42 @@ class SocialTests(TestCase):
         self.assertEqual(MomentLike.objects.filter(is_valid=True).count(), 1)
         self.assertEqual(SocialRelation.objects.get(actor_id=self.agent.pk).familiarity, 2)
         self.assertFalse(WorldActionRuntime.objects.get(pk='world').enabled)
+
+    def test_get_single_moment_and_daily_feed_backfill(self):
+        # 1. 验证根据 identity 获取单条动态
+        res = self.client.get(f'/api/settings/agent-world/moments/{self.moment.pk}/')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()['data']
+        self.assertEqual(data['id'], self.moment.pk)
+        self.assertEqual(data['content'], self.moment.content)
+
+        # 2. 验证不存在的动态返回 404
+        not_found = self.client.get('/api/settings/agent-world/moments/non-existent-id/')
+        self.assertEqual(not_found.status_code, 404)
+
+        # 3. 验证 daily_feed 中针对历史点赞记录的 artifact 回填
+        from system_settings.models import AgentActivity
+        from .social_models import SocialOpportunity
+        from .daily_feed import day_events, _window
+        from .life_time import local_time, storage_time
+        now = local_time()
+        op = SocialOpportunity.objects.create(
+            id='test-op-backfill', owner_id=self.owner, actor_id=self.agent.pk,
+            business_date=now.date(), kind='daily', snapshot={},
+            result={'action': 'read', 'likes': [self.moment.pk], 'reason': '内心OS'}
+        )
+        activity = AgentActivity.objects.create(
+            event_key='social:test-op-backfill', agent=self.agent,
+            activity_type='interaction', action='social_read', title='测试社交时间',
+            summary='内心OS', occurred_at=storage_time(now),
+            metadata={'owner_id': self.owner, 'social_opportunity_id': op.pk}
+        )
+        from rest_framework.test import APIRequestFactory
+        req = APIRequestFactory().get('/')
+        req.user = self.user
+        events, _, _, _, _ = day_events(req, self.owner, now.date())
+        matched = [e for e in events if e.get('id') == f'activity:{activity.pk}']
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]['target']['artifactKind'], 'moment')
+        self.assertEqual(matched[0]['target']['artifactId'], self.moment.pk)
+

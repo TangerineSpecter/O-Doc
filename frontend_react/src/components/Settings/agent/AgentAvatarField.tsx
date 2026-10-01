@@ -1,8 +1,9 @@
 import React, {useState} from 'react';
-import {Camera, ImagePlus, Loader2, Upload, UploadCloud, X} from 'lucide-react';
+import {Camera, Crop, ImagePlus, Loader2, Upload, UploadCloud, X} from 'lucide-react';
 import {isImageAvatarValue} from '@/utils/avatar';
 import {isImageUploadFile} from '@/utils/imageUpload';
 import {useToast} from '../../common/ToastProvider';
+import {AvatarCropModal} from '../../common/AvatarCropModal';
 
 interface AgentAvatarFieldProps {
     name: string;
@@ -24,11 +25,47 @@ export const AgentAvatarField = ({
     onRemove,
 }: AgentAvatarFieldProps) => {
     const [isDragging, setIsDragging] = useState(false);
+    const [cropModalOpen, setCropModalOpen] = useState(false);
+    const [selectedFileForCrop, setSelectedFileForCrop] = useState<File | null>(null);
+    const [selectedUrlForCrop, setSelectedUrlForCrop] = useState<string | null>(null);
     const toast = useToast();
 
     const displayAvatar = previewUrl || avatar;
     const initialLetter = name?.trim().slice(0, 1).toUpperCase() || 'A';
     const isImage = isImageAvatarValue(displayAvatar);
+
+    const handleInitiateCropWithFile = (file: File) => {
+        if (!isImageUploadFile(file)) {
+            toast.warning('请选择图片文件作为头像');
+            return;
+        }
+        setSelectedFileForCrop(file);
+        setSelectedUrlForCrop(null);
+        setCropModalOpen(true);
+    };
+
+    const handleInitiateCropWithCurrentAvatar = () => {
+        if (!displayAvatar) return;
+        setSelectedFileForCrop(null);
+        setSelectedUrlForCrop(displayAvatar);
+        setCropModalOpen(true);
+    };
+
+    const handleCropConfirm = (croppedFile: File) => {
+        onUpload(croppedFile);
+        setCropModalOpen(false);
+        setSelectedFileForCrop(null);
+        setSelectedUrlForCrop(null);
+    };
+
+    const handleCropClose = () => {
+        setCropModalOpen(false);
+        setSelectedFileForCrop(null);
+        setSelectedUrlForCrop(null);
+        if (inputRef.current) {
+            inputRef.current.value = '';
+        }
+    };
 
     const handleDragEnter = (e: React.DragEvent) => {
         e.preventDefault();
@@ -62,12 +99,7 @@ export const AgentAvatarField = ({
         const file = e.dataTransfer.files?.[0];
         if (!file) return;
 
-        if (!isImageUploadFile(file)) {
-            toast.warning('请选择图片文件作为头像');
-            return;
-        }
-
-        onUpload(file);
+        handleInitiateCropWithFile(file);
     };
 
     const handleClickUpload = () => {
@@ -97,7 +129,7 @@ export const AgentAvatarField = ({
                 aria-label="上传头像文件"
                 onChange={event => {
                     const file = event.target.files?.[0];
-                    if (file) onUpload(file);
+                    if (file) handleInitiateCropWithFile(file);
                 }}
             />
 
@@ -145,7 +177,7 @@ export const AgentAvatarField = ({
                 ) : (
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-900/35 text-white opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[1px]">
                         <Camera className="w-5 h-5 text-white/90 mb-1" />
-                        <span className="text-[10px] font-medium text-white/90">更换头像</span>
+                        <span className="text-[10px] font-medium text-white/90">{displayAvatar ? '更换头像' : '上传头像'}</span>
                     </div>
                 )}
             </div>
@@ -163,8 +195,20 @@ export const AgentAvatarField = ({
                     ) : (
                         <Upload className="w-3.5 h-3.5" />
                     )}
-                    上传头像
+                    {displayAvatar ? '更换头像' : '上传头像'}
                 </button>
+                {isImage && (
+                    <button
+                        type="button"
+                        onClick={handleInitiateCropWithCurrentAvatar}
+                        disabled={uploading}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-orange-50 hover:border-orange-200 hover:text-orange-700 disabled:opacity-60"
+                        title="重新调整头像框选范围"
+                    >
+                        <Crop className="w-3.5 h-3.5" />
+                        裁切
+                    </button>
+                )}
                 {displayAvatar && (
                     <button
                         type="button"
@@ -183,15 +227,25 @@ export const AgentAvatarField = ({
                 {isDragging ? (
                     <>
                         <UploadCloud className="w-3.5 h-3.5 text-orange-500 animate-bounce" />
-                        <span className="font-medium text-orange-600">释放鼠标立即上传头像</span>
+                        <span className="font-medium text-orange-600">释放鼠标进行头像裁切</span>
                     </>
                 ) : (
                     <>
                         <ImagePlus className="w-3 h-3 text-slate-400" />
-                        <span className="text-slate-400">支持拖拽或点击上传 · 不上传时使用名称首字母</span>
+                        <span className="text-slate-400">支持拖拽或点击上传 · 可框选 1:1 方形头像范围</span>
                     </>
                 )}
             </div>
+
+            {/* 头像裁切弹窗 */}
+            <AvatarCropModal
+                isOpen={cropModalOpen}
+                file={selectedFileForCrop}
+                imageUrl={selectedUrlForCrop}
+                onClose={handleCropClose}
+                onConfirm={handleCropConfirm}
+            />
         </div>
     );
 };
+

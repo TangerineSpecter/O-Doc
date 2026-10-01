@@ -15,7 +15,7 @@
     "test:book-analysis": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/readingGraph.test.ts src/utils/readingExecution.test.ts src/utils/bookReaderLocation.test.ts src/utils/readingAnswer.test.ts src/utils/biographyFlow.test.ts",
     "test:whiteboard": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/whiteboardOps.test.ts src/utils/whiteboardInsight.test.ts",
     "test:markdown-security": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/markdownSecurity.test.ts",
-    "test:avatar": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/avatar.test.ts",
+    "test:avatar": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/avatar.test.ts src/utils/avatarCrop.test.ts",
     "test:image-upload": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/imageUpload.test.ts",
     "test:system-update": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/systemUpdate.test.ts",
     "test:article-templates": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/articleTemplates.test.ts",

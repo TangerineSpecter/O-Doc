@@ -31,6 +31,12 @@ export function getCategoryColorClass(name?: string): string {
     if (/美食|料理|烹饪|餐饮|吃/i.test(raw)) {
         return 'bg-orange-500 text-white';
     }
+    if (/健康|医疗|医学|养生|保健|医药|医/i.test(raw)) {
+        return 'bg-teal-500 text-white';
+    }
+    if (/情感|恋爱|心理|社交|生活/i.test(raw)) {
+        return 'bg-pink-500 text-white';
+    }
     if (/阅读|文学|书|写作|小说|笔/i.test(raw)) {
         return 'bg-purple-500 text-white';
     }

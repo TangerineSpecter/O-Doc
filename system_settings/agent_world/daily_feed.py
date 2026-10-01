@@ -187,6 +187,13 @@ def day_events(request, owner, day, actor_id=''):
         Q(run_record_id__in=day_activities.exclude(activity_type='work').exclude(run_record_id=None).values('run_record_id')))
     from system_settings.agent_activity_presentation import grouped_activities, activity_title, activity_rating
     activities = grouped_activities(activities)
+    social_op_ids = [
+        row.metadata.get('social_opportunity_id')
+        for row in activities
+        if row.action.startswith('social_') and not row.artifact_id and isinstance(row.metadata, dict) and row.metadata.get('social_opportunity_id')
+    ]
+    from .social_models import SocialOpportunity
+    social_ops = {op.pk: op for op in SocialOpportunity.objects.filter(pk__in=social_op_ids)} if social_op_ids else {}
     recorded_runs = set()
     for row in activities:
         historical_name = ''
@@ -199,6 +206,21 @@ def day_events(request, owner, day, actor_id=''):
                      or (snapshot.get('id') if isinstance(snapshot, dict) else ''))
         if row.run_record_id and row.activity_type == 'work':
             recorded_runs.add(row.run_record_id)
+        artifact_kind = row.artifact_kind or ''
+        artifact_id = row.artifact_id or ''
+        if row.action.startswith('social_') and not artifact_id:
+            op_id = row.metadata.get('social_opportunity_id') if isinstance(row.metadata, dict) else None
+            op = social_ops.get(op_id) if op_id else None
+            if op and isinstance(op.result, dict):
+                res = op.result
+                moment_id = res.get('moment_id')
+                if not moment_id and res.get('likes'):
+                    likes = res.get('likes')
+                    if isinstance(likes, list) and likes:
+                        moment_id = likes[0]
+                if moment_id:
+                    artifact_kind = 'moment'
+                    artifact_id = moment_id
         event = _event('record' if row.activity_type == 'work' else row.activity_type,
                        'activity', row.pk, row.occurred_at, actor_key,
                        row.agent.name if row.agent else historical_name or (row.run_record.agent_name if row.run_record else ''),
@@ -207,8 +229,8 @@ def day_events(request, owner, day, actor_id=''):
                                'runRecordId': row.run_record_id or '',
                                'collId': row.artifact_coll_id or '',
                                'articleId': row.artifact_article_id or '',
-                               'artifactId': row.artifact_id or '',
-                               'artifactKind': row.artifact_kind or ''})
+                               'artifactId': artifact_id,
+                               'artifactKind': artifact_kind})
         event['rating'] = activity_rating(row)
         if row.run_record_id and row.activity_type != 'work':
             event['_execution_group'] = 'activity:' + row.run_record_id

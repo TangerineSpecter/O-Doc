@@ -46,6 +46,22 @@ function money(value: string) {
     return `${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${fraction.padEnd(2, '0').slice(0, 2)}`;
 }
 
+function getEventActionLabel(target?: DailyFeedEvent['target']): string | null {
+    if (!target) return null;
+    const kindLabels: Record<string, string> = {
+        farm: '打开农场',
+        market: '打开市场',
+        investment: '打开投资',
+        travel: '查看旅行',
+        life: '查看日程',
+    };
+    if (kindLabels[target.kind]) return kindLabels[target.kind];
+    if (target.artifactKind === 'moment' && target.artifactId) return '查看动态';
+    if (target.kind === 'activity' && target.collId && target.articleId) return '查看详情';
+    if ((target.kind === 'activity' || target.kind === 'run') && (target.runRecordId || target.kind === 'run')) return '查看详情';
+    return null;
+}
+
 function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents: AgentWorldAgentStatus[]; onOpen: (event: DailyFeedEvent) => void}) {
     const [expanded, setExpanded] = useState(false);
     const agent = residents.find(item => item.id === event.actorId);
@@ -53,6 +69,7 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
     const Icon = badge?.icon || Activity;
     const amount = event.amount;
     const expense = amount?.startsWith('-') || false;
+    const actionLabel = getEventActionLabel(event.target);
     return <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex items-start gap-3">
             <AgentAvatar name={agent?.name || event.actorName} avatar={agent?.avatar || ''} size="md"/>
@@ -72,8 +89,8 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
                 <div className="mt-2 flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-slate-800">{event.title}</h3><PostRatingBadge rating={event.rating}/></div>
                 {event.detail && <div className="mt-1.5"><AgentActivitySummary text={event.detail} expanded={expanded} onExpandedChange={setExpanded} variant={event.category === 'interaction' ? 'interaction' : event.category === 'publication' ? 'publication' : 'work'}/></div>}
                 {!!event.steps?.length && <ExecutionFeedSteps steps={event.steps}/>}
-                {(amount !== null || event.target) && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
-                    {event.target && <button type="button" onClick={() => onOpen(event)} className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-100">{{farm: '打开农场', market: '打开市场', investment: '打开投资', travel: '查看旅行', life: '查看日程'}[event.target.kind] || '查看详情'}</button>}
+                {(amount !== null || actionLabel) && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+                    {actionLabel && <button type="button" onClick={() => onOpen(event)} className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-100">{actionLabel}</button>}
                     {amount !== null && <span className={`ml-auto inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${expense ? 'text-red-600' : 'text-emerald-600'}`}>
                         {expense ? <ArrowDown className="h-3.5 w-3.5"/> : <ArrowUp className="h-3.5 w-3.5"/>}{expense ? '-' : '+'}{money(amount)} 世界币
                     </span>}
