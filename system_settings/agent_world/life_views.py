@@ -10,7 +10,7 @@ from .farm_gate import guarded
 from .life_models import LifeProfile, LifeGoal, LifeItem, LifeCycle
 from .life_config import config_for, validate_settings, ensure_profiles, effective_settings, DEFAULTS
 from .life_time import storage_time,local_time
-from .life_schedule import OPEN, SHANGHAI, recover, revise
+from .life_schedule import OPEN, SHANGHAI, recover, revise, requeue, retry_failed
 
 
 def owner_of(request):
@@ -178,11 +178,25 @@ class LifeScheduleView(APIView):
                 config.paused_agents=sorted(paused);config.save()
                 recover(config,resume_actor=actor)
                 return success_result({'paused_agents':config.paused_agents})
-            item=LifeItem.objects.select_for_update().filter(pk=identity,owner_id=owner).first()
-            if not item:return valid_result('安排不存在',status=404)
             reason=request.data.get('reason','')
             if not isinstance(reason,str) or not reason.strip():raise ValueError('调整须说明原因')
-            if action not in ('cancel','replan'):raise ValueError('无效的日程操作')
+            if action=='replan_failed':
+                actor=request.data.get('actor_id');actor_for(owner,actor)
+                start=datetime.fromisoformat(str(request.data.get('start',local_time().date().isoformat())))
+                end=datetime.fromisoformat(str(request.data.get('end',(start+timedelta(days=7)).isoformat())))
+                if start.tzinfo is None:start=start.replace(tzinfo=SHANGHAI)
+                if end.tzinfo is None:end=end.replace(tzinfo=SHANGHAI)
+                if not timedelta(0)<end-start<=timedelta(days=366):raise ValueError('查询范围须为1至366天')
+                rows=list(LifeItem.objects.select_for_update().filter(
+                    owner_id=owner,actor_id=actor,status='failed',record_id='',
+                    scheduled_at__gte=storage_time(start),scheduled_at__lt=storage_time(end)).exclude(activity='market_prepare'))
+                for row in rows:requeue(row,reason)
+                if rows:
+                    recover(config,resume_actor=actor,delay_reason='人工补做，过期时间点已顺延到可执行空档')
+                return success_result({'count':len(rows)})
+            item=LifeItem.objects.select_for_update().filter(pk=identity,owner_id=owner).first()
+            if not item:return valid_result('安排不存在',status=404)
+            if action not in ('cancel','replan','retry'):raise ValueError('无效的日程操作')
             if item.status=='running':
                 from system_settings.models import AgentExecutionLease
                 if action!='cancel' or AgentExecutionLease.objects.filter(agent_id=item.actor_id,until__gt=timezone.now()).exists():
@@ -202,9 +216,12 @@ class LifeScheduleView(APIView):
                         record.save(update_fields=['status','summary','updated_at'])
                 else:
                     raise ValueError('须先核对该活动的执行事实再取消')
-            if item.status not in OPEN:raise ValueError('安排已经结束')
-            if action=='cancel':revise(item,reason,status='cancelled')
-            elif action=='replan':revise(item,reason,activity='unplanned',task_id='',budget=item.spent,status='pending')
-            else:raise ValueError('无效的日程操作')
+            if action=='cancel':
+                if item.status not in OPEN:raise ValueError('安排已经结束')
+                revise(item,reason,status='cancelled')
+            else:
+                retry_failed(item,reason) if action=='retry' else requeue(item,reason)
+                recover(config,resume_actor=item.actor_id,delay_reason='人工补做，过期时间点已顺延到可执行空档')
+                item.refresh_from_db()
             return success_result(item_data(item,True))
         except (ValueError,TypeError) as exc:return valid_result(str(exc),status=400)

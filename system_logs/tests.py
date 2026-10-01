@@ -152,6 +152,11 @@ class CaptureTests(unittest.TestCase):
         with patch('system_logs.capture.start') as start:
             capture('用户停止任务', exc=Cancelled())
             start.assert_not_called()
+        class ToolStop(Exception):
+            expected_tool_stop = True
+        with patch('system_logs.capture.start') as start:
+            capture('大模型调用异常', module='ai', exc=ToolStop('Agent 已离开市场'))
+            start.assert_not_called()
 
     def test_model_stream_and_return_contract(self):
         from .ai import model_operation
@@ -167,6 +172,15 @@ class CaptureTests(unittest.TestCase):
             self.assertEqual(next(iterator), 'first')
             with self.assertRaises(TimeoutError): next(iterator)
             self.assertEqual(collect.call_count, 1)
+        class ToolStop(Exception):
+            expected_tool_stop = True
+        @model_operation
+        def leave():
+            raise ToolStop('Agent 已离开市场或会话达到上限')
+        with patch('system_logs.ai.capture') as collect:
+            with self.assertRaises(ToolStop):
+                leave()
+            collect.assert_not_called()
 
     def test_permissions_export_validation(self):
         from .views import Administrator, render_event

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class MarketFinished(Exception):
-    pass
+    expected_tool_stop = True
 
 
 def run_market_opportunity(task: AgentTask, scheduler=None, *, key=None, manual=False) -> AgentRunRecord | None:

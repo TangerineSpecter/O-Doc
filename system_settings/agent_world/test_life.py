@@ -11,7 +11,8 @@ from rest_framework.test import APIClient
 from system_settings.models import Agent, AgentTask, WorldActionRuntime, AgentRunRecord, WorldAction, AIProvider, AIModel, SystemSetting
 from .life_models import LifeConfig, LifeProfile, LifeGoal, LifeCycle, LifeItem
 from .life_config import DEFAULTS, validate_settings, ensure_profiles
-from .life_schedule import SHANGHAI, allocation_times, ensure_cycle, recover, stable_id
+from .life_schedule import SHANGHAI, allocation_times, ensure_cycle, recover, requeue, stable_id
+from .life_time import local_time
 from .life_budget import charge_budget, adjust_budget
 from .life_scope import life_scope
 from .life_planner import apply_plan, check_goals
@@ -300,6 +301,17 @@ class LifeTests(TestCase):
             tick_life(None)
             self.assertEqual(run.call_count,1)
 
+    def test_planning_failure_keeps_model_reason_on_schedule(self):
+        from .life_runner import tick_life
+        item=self.item(scheduled_at=timezone.now(),activity='unplanned')
+        with patch('system_settings.agent_world.life_runner.prepare_market'), \
+             patch('system_settings.agent_world.life_planner.ask',side_effect=ValueError('规划必须为本次每个时间点指定且仅指定一次活动')):
+            tick_life(None)
+        item.refresh_from_db()
+        self.assertEqual(item.status,'deferred')
+        self.assertIn('规划必须为本次每个时间点指定',item.result['reason'])
+        self.assertIn('规划必须为本次每个时间点指定',item.revisions.latest('created_at').reason)
+
     def test_frozen_migration_keeps_future_slots_and_disables_auto(self):
         import importlib
         from django.apps import apps
@@ -345,6 +357,96 @@ class LifeTests(TestCase):
         response=client.post('/api/settings/agent-world/life/schedule/'+item.pk+'/',{'action':'cancel','reason':'不再继续'},format='json')
         self.assertEqual(response.status_code,200)
         trip.refresh_from_db();self.assertEqual(trip.status,'cancelled')
+
+    def test_failed_planning_can_be_requeued(self):
+        item=self.item(activity='unplanned',status='failed',attempts=3,result={'reason':'规划必须为本次每个时间点指定且仅指定一次活动'},
+                       context={'planning_retry_at':NOW.isoformat(),'planned_on':'2026-09-29'})
+        executed=self.item('done',status='failed',record_id='rec1',attempts=1,activity='investment',task_id=self.task.pk,intent='试单',budget=2000)
+        prepare=self.item('prep',activity='market_prepare',status='failed')
+        user=User.objects.create_user('admin',is_superuser=True)
+        client=APIClient();client.force_authenticate(user)
+        blocked_prep=client.post('/api/settings/agent-world/life/schedule/'+prepare.pk+'/',{'action':'replan','reason':'补做失败安排'},format='json')
+        self.assertEqual(blocked_prep.status_code,400)
+        retried=client.post('/api/settings/agent-world/life/schedule/'+executed.pk+'/',{'action':'retry','reason':'字段超长已修复，重试投资'},format='json')
+        self.assertEqual(retried.status_code,200,retried.data)
+        executed.refresh_from_db()
+        self.assertIn(executed.status,('pending','deferred'))
+        self.assertEqual(executed.activity,'investment')
+        self.assertEqual(executed.intent,'试单')
+        self.assertEqual(executed.record_id,'')
+        self.assertTrue(executed.context.get('execution_key'))
+        self.assertNotEqual(executed.context['execution_key'],executed.pk)
+        response=client.post('/api/settings/agent-world/life/schedule/'+item.pk+'/',{'action':'replan','reason':'规划误失败，重新排队'},format='json')
+        self.assertEqual(response.status_code,200,response.data)
+        item.refresh_from_db()
+        self.assertIn(item.status,('pending','deferred'))
+        self.assertEqual(item.activity,'unplanned')
+        self.assertEqual(item.attempts,0)
+        self.assertEqual(item.result,{})
+        self.assertNotIn('planning_retry_at',item.context)
+        self.assertGreaterEqual(local_time(item.scheduled_at), local_time()-timedelta(seconds=90))
+        bulk=client.post('/api/settings/agent-world/life/schedule/',{'action':'replan_failed','actorId':self.ids[0],'reason':'批量补做本周失败安排','start':'2026-09-29','end':'2026-10-06'},format='json')
+        self.assertEqual(bulk.status_code,200,bulk.data)
+        self.assertEqual(bulk.data['data']['count'],0)
+        other=self.item('more',actor_id=self.ids[0],status='failed',scheduled_at=NOW+timedelta(hours=1))
+        bulk=client.post('/api/settings/agent-world/life/schedule/',{'action':'replan_failed','actorId':self.ids[0],'reason':'批量补做本周失败安排','start':'2026-09-29','end':'2026-10-06'},format='json')
+        self.assertEqual(bulk.status_code,200,bulk.data)
+        self.assertEqual(bulk.data['data']['count'],1)
+        other.refresh_from_db()
+        self.assertIn(other.status,('pending','deferred'))
+        self.assertGreaterEqual(local_time(other.scheduled_at), local_time()-timedelta(seconds=90))
+
+    def test_requeue_advances_overdue_slots_in_original_order(self):
+        early=self.item('early',status='failed',scheduled_at=NOW.replace(hour=4))
+        mid=self.item('mid',status='failed',scheduled_at=NOW.replace(hour=5))
+        future=self.item('later',scheduled_at=NOW+timedelta(hours=4))
+        requeue(early,'规划误失败，重新排队')
+        requeue(mid,'规划误失败，重新排队')
+        recover(self.config,NOW,resume_actor=self.ids[0],delay_reason='人工补做，过期时间点已顺延到可执行空档')
+        early.refresh_from_db();mid.refresh_from_db();future.refresh_from_db()
+        self.assertGreaterEqual(local_time(early.scheduled_at), NOW+timedelta(minutes=5))
+        self.assertGreaterEqual(local_time(mid.scheduled_at)-local_time(early.scheduled_at), timedelta(minutes=15))
+        self.assertEqual(local_time(future.scheduled_at), NOW+timedelta(hours=4))
+        self.assertIn('人工补做', early.revisions.latest('created_at').reason)
+
+    def test_retry_execute_uses_new_opportunity_key(self):
+        from .life_runner import execute_item
+        item=self.item(activity='investment',task_id=self.task.pk,status='pending',budget=2000,scheduled_at=timezone.now(),
+                       context={'execution_key':'retry-key-1','planned_on':timezone.now().date().isoformat()})
+        record=AgentRunRecord.objects.create(task=self.task,agent=self.agents[0],task_name='投资',status='success',summary='观望')
+        with patch('system_settings.agent_world.life_runner.plan_items'), \
+             patch('system_settings.agent_world.investment_runner.run_investment_opportunity',return_value=record) as run:
+            execute_item(item,None)
+        self.assertEqual(run.call_args.kwargs['key'],'retry-key-1')
+        item.refresh_from_db()
+        self.assertEqual(item.status,'completed')
+        self.assertEqual(item.record_id,record.pk)
+
+    def test_planned_retry_mints_key_without_record(self):
+        from .life_schedule import retry_failed
+        item=self.item(activity='investment',task_id=self.task.pk,status='failed',intent='试单',budget=2000,
+                       result={'reason':'本次活动失败，已提交业务保留'})
+        retry_failed(item,'字段超长已修复，重试投资')
+        item.refresh_from_db()
+        self.assertIn(item.status,('pending','deferred'))
+        self.assertEqual(item.activity,'investment')
+        self.assertTrue(item.context.get('execution_key'))
+        self.assertNotEqual(item.context['execution_key'],item.pk)
+
+    def test_finish_running_uses_retry_opportunity_not_old_item_key(self):
+        from .life_runner import finish_running
+        record=AgentRunRecord.objects.create(task=self.task,agent=self.agents[0],task_name='投资',status='success',summary='买入观察')
+        item=self.item(activity='investment',status='running',task_id=self.task.pk,context={'execution_key':'retry-key-done'})
+        WorldAction.objects.create(pk=item.pk,task=self.task,agent=self.agents[0],actor_id=self.ids[0],status='failed',
+                                   result={'reason':'旧失败'},snapshot={'investment':True})
+        WorldAction.objects.create(pk='retry-key-done',task=self.task,agent=self.agents[0],actor_id=self.ids[0],
+                                   record=record,status='success',result={'reason':'买入观察'},snapshot={'investment':True})
+        LifeItem.objects.filter(pk=item.pk).update(updated_at=timezone.now()-timedelta(minutes=20))
+        finish_running(self.config,local_time())
+        item.refresh_from_db()
+        self.assertEqual(item.status,'completed')
+        self.assertEqual(item.record_id,record.pk)
+        self.assertEqual(item.result.get('reason'),'买入观察')
 
     def test_snapshot_keeps_skipped_opportunity_without_selected_actor(self):
         item=self.item(activity='investment',task_id=self.task.pk,status='rest')

@@ -9,7 +9,9 @@ export const getLifeGoals = (actorId?: string, signal?: AbortSignal, page = 1) =
 export const saveLifeGoal = (value: Partial<LifeGoal>) => request.post<never, {id: string}>(`${base}/goals/`, value);
 export const getLifeSchedule = (params: {start: string; end: string; actorId?: string; status?: string; page?: number}, signal?: AbortSignal) => request.get<never, LifeSchedule>(`${base}/schedule/`, {params, signal});
 export const getLifeItem = (id: string, signal?: AbortSignal) => request.get<never, LifeItem>(`${base}/schedule/${id}/`, {signal});
-export const changeLifeItem = (id: string, action: 'cancel' | 'replan', reason: string) => request.post<never, LifeItem>(`${base}/schedule/${id}/`, {action, reason});
+export const changeLifeItem = (id: string, action: 'cancel' | 'replan' | 'retry', reason: string) => request.post<never, LifeItem>(`${base}/schedule/${id}/`, {action, reason});
+export const replanFailedLifeItems = (actorId: string, reason: string, start: string, end: string) =>
+    request.post<never, {count: number}>(`${base}/schedule/`, {action: 'replan_failed', actorId, reason, start, end});
 export const pauseLifeAgent = (actorId: string, paused: boolean) => request.post<never, {pausedAgents: string[]}>(`${base}/schedule/`, {actorId, action: paused ? 'pause' : 'resume'});
 export const getLifeAgents = (signal?: AbortSignal) => request.get<never, import('../types/api/setting').AgentConfig[]>('/settings/agents/', {signal});
 export const runLifeActivity = (taskId: string, actorId: string) => request.post(`/settings/agent-tasks/${taskId}/run_now/`, {actorId});

@@ -128,7 +128,7 @@ export default function LifeItemDetails({
         return () => c.abort();
     }, [id]);
 
-    const change = async (action: 'cancel' | 'replan') => {
+    const change = async (action: 'cancel' | 'replan' | 'retry') => {
         setBusy(true);
         try {
             setItem(await changeLifeItem(id, action, reason));
@@ -331,7 +331,8 @@ export default function LifeItemDetails({
                         </section>
 
                         {/* 调整表单操作 */}
-                        {['pending', 'deferred', 'paused', 'running'].includes(item.status) && (
+                        {(['pending', 'deferred', 'paused', 'running'].includes(item.status) ||
+                            (item.status === 'failed' && item.activity !== 'market_prepare')) && (
                             <div className="space-y-3 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
@@ -346,36 +347,61 @@ export default function LifeItemDetails({
                                     rows={3}
                                     value={reason}
                                     onChange={(e) => setReason(e.target.value)}
-                                    placeholder="请输入重新规划或取消的原因…"
+                                    placeholder={
+                                        item.status === 'failed'
+                                            ? '请说明重试或重新规划的原因…'
+                                            : '请输入重新规划或取消的原因…'
+                                    }
                                     className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all leading-relaxed"
                                 />
                                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                                     <span className="text-[11px] text-slate-400">
                                         {!reason.trim()
                                             ? '请先填写调整原因，再执行相应操作'
-                                            : '调整操作将记录进历史流水'}
+                                            : item.status === 'failed'
+                                              ? '重试会保留这次活动；已经过点的时间会顺延到可执行空档'
+                                              : '调整操作将记录进历史流水'}
                                     </span>
                                     <div className="flex items-center gap-2">
+                                        {item.status === 'failed' && item.activity !== 'travel' && (
+                                            <button
+                                                type="button"
+                                                disabled={busy || !reason.trim()}
+                                                onClick={() => void change('retry')}
+                                                className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-medium text-white shadow-xs shadow-orange-500/20 hover:bg-orange-600 active:bg-orange-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                <RotateCw
+                                                    className={`h-3.5 w-3.5 shrink-0 ${busy ? 'animate-spin' : ''}`}
+                                                />
+                                                <span>重试</span>
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
                                             disabled={busy || !reason.trim() || item.status === 'running'}
                                             onClick={() => void change('replan')}
-                                            className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-medium text-white shadow-xs shadow-orange-500/20 hover:bg-orange-600 active:bg-orange-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                                                item.status === 'failed' && item.activity !== 'travel'
+                                                    ? 'border border-slate-200 bg-white text-slate-700 shadow-xs hover:bg-slate-50'
+                                                    : 'bg-orange-500 text-white shadow-xs shadow-orange-500/20 hover:bg-orange-600 active:bg-orange-700 active:scale-95'
+                                            }`}
                                         >
                                             <RotateCw
-                                                className={`h-3.5 w-3.5 shrink-0 ${busy ? 'animate-spin' : ''}`}
+                                                className={`h-3.5 w-3.5 shrink-0 ${busy && item.status !== 'failed' ? 'animate-spin' : ''}`}
                                             />
                                             <span>重新规划</span>
                                         </button>
-                                        <button
-                                            type="button"
-                                            disabled={busy || !reason.trim()}
-                                            onClick={() => void change('cancel')}
-                                            className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl border border-red-200 bg-red-50/40 px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 hover:border-red-300 active:bg-red-100 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                                        >
-                                            <Ban className="h-3.5 w-3.5 shrink-0" />
-                                            <span>取消安排</span>
-                                        </button>
+                                        {item.status !== 'failed' && (
+                                            <button
+                                                type="button"
+                                                disabled={busy || !reason.trim()}
+                                                onClick={() => void change('cancel')}
+                                                className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl border border-red-200 bg-red-50/40 px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 hover:border-red-300 active:bg-red-100 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                <Ban className="h-3.5 w-3.5 shrink-0" />
+                                                <span>取消安排</span>
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>

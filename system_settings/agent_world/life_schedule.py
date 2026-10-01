@@ -130,9 +130,56 @@ def revise(item: LifeItem, reason: str, **changes) -> None:
     LifeRevision.objects.create(item=item, before=before, after=item_state(item), reason=reason)
 
 
+def execution_key(item: LifeItem) -> str:
+    return item.context.get('execution_key') or item.pk
+
+
+def _retry_context(item: LifeItem, *, clear_plan: bool) -> dict:
+    context = {key: value for key, value in item.context.items() if key != 'planning_retry_at'}
+    if clear_plan:
+        context.pop('planned_on', None)
+    # 已规划或已有执行身份必须换键，避免 runner 撞上旧 WorldAction。
+    if item.record_id or context.get('execution_key') or item.activity not in ('unplanned', ''):
+        context['execution_key'] = stable_id(item.pk, 'retry', timezone.now().isoformat())
+    return context
+
+
+def requeue(item: LifeItem, reason: str) -> None:
+    """把安排重新变成待规划，供下一次规划消费。"""
+    if item.status == 'running':
+        raise ValueError('活动正在执行')
+    if item.activity == 'market_prepare':
+        raise ValueError('市场准备不是生活次数，不能当作机会重新规划')
+    if item.activity == 'travel':
+        from .travel_models import TravelJourney
+        if TravelJourney.objects.filter(pk=item.pk).exists():
+            raise ValueError('旅行请在旅行面板继续或取消')
+    if item.status not in (*OPEN, 'failed'):
+        raise ValueError('安排已经结束')
+    revise(item, reason, activity='unplanned', task_id='', intent='', budget=item.spent, status='pending',
+           attempts=0, context=_retry_context(item, clear_plan=True), result={}, record_id='')
+
+
+def retry_failed(item: LifeItem, reason: str) -> None:
+    """保留已规划活动，换新的执行键再跑一次；规划失败则重新排队。"""
+    if item.status != 'failed':
+        raise ValueError('只能重试失败的安排')
+    if item.activity == 'market_prepare':
+        raise ValueError('市场准备不是生活次数，不能重试')
+    if item.activity == 'travel':
+        from .travel_models import TravelJourney
+        if TravelJourney.objects.filter(pk=item.pk).exists():
+            raise ValueError('旅行请在旅行面板继续或取消')
+    if item.activity in ('unplanned', ''):
+        requeue(item, reason)
+        return
+    revise(item, reason, status='pending', attempts=0, record_id='', result={},
+           context=_retry_context(item, clear_plan=False))
+
+
 @guarded
 @transaction.atomic
-def recover(config, now=None, *, resume_actor=None):
+def recover(config, now=None, *, resume_actor=None, delay_reason=None):
     now = local_time(now)
     settings = {**DEFAULTS, **config.settings}
     rows = list(LifeItem.objects.select_for_update().filter(owner_id=config.pk, status__in=OPEN).order_by('scheduled_at', 'id'))
@@ -174,4 +221,4 @@ def recover(config, now=None, *, resume_actor=None):
             point = window(settings, point.date()+timedelta(days=1))[0]
         last[item.actor_id] = point
         occupied.setdefault(item.actor_id,[]).append((item.pk,point))
-        revise(item, '暂停恢复顺延' if item.status == 'paused' else '故障或离线后顺延，保持原顺序', scheduled_at=point, status='deferred')
+        revise(item, delay_reason or ('暂停恢复顺延' if item.status == 'paused' else '故障或离线后顺延，保持原顺序'), scheduled_at=point, status='deferred')

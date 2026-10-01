@@ -110,7 +110,7 @@ flowchart TD
 | `life_budget`、`life_travel_budget` | 实际支出保护及可解释重分配 |
 | `life_views`、`life_sync`、`life_snapshot` | 账号隔离接口、来源快照校验、合并指纹及恢复关联检查 |
 
-接口前缀 `/api/settings/agent-world/life/`：`config/`、`profiles/<actor>/`、`goals/`、`schedule/`、`schedule/<id>/`。日程支持日期范围、居民、状态和分页；操作支持暂停、恢复、取消与人工重规划。目标选项通过 `goals/?options=1` 获取。前端 API、类型、Hook 和展示组件独立组织，复用 `WorldDialog` 及公共 `Select`。
+接口前缀 `/api/settings/agent-world/life/`：`config/`、`profiles/<actor>/`、`goals/`、`schedule/`、`schedule/<id>/`。日程支持日期范围、居民、状态和分页；操作支持暂停、恢复、取消与人工重规划。失败安排可在详情里重试：保留原活动并换新的执行键，避免撞上旧的失败机会记录；核对在途安排时按该执行键读取机会，而不是生活安排主键。也可以重新规划。已经过点的时间按原顺序顺延到活动窗口内下一个可执行空档。市场准备不能当生活次数重试；已有旅行行程请在旅行面板继续或取消。规划失败且尚未执行的安排仍可按居民批量重新排队。目标选项通过 `goals/?options=1` 获取。前端 API、类型、Hook 和展示组件独立组织，复用 `WorldDialog` 及公共 `Select`。
 
 ## 6. 迁移和 WebDAV
 

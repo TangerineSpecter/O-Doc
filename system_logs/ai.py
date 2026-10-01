@@ -25,8 +25,9 @@ def model_operation(function):
                 else:
                     return function(*args, **kwargs)
             except Exception as exc:
-                capture('大模型调用异常', module='ai', exc=exc,
-                        duration_ms=round((time.monotonic() - started) * 1000))
+                if not getattr(exc, 'expected_tool_stop', False):
+                    capture('大模型调用异常', module='ai', exc=exc,
+                            duration_ms=round((time.monotonic() - started) * 1000))
                 raise
             finally:
                 request_context.reset(token)

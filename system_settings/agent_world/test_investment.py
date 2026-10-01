@@ -108,8 +108,20 @@ class InvestmentTests(TestCase):
         self.agent.refresh_from_db();self.account.refresh_from_db()
         self.assertEqual(self.agent.money,9990);self.assertEqual(self.account.positions['000001']['quantity'],1)
         self.assertEqual(InvestmentTrade.objects.count(),1)
-        self.assertEqual(WorldAction.objects.filter(snapshot__investment_energy=True).count(),1)
+        energy=WorldAction.objects.get(snapshot__investment_energy=True)
+        self.assertEqual(energy.pk,'investment-energy:op1')
+        self.assertEqual(energy.energy_cost,5)
         with self.assertRaisesRegex(ValueError,'不同参数'):self.trade(quantity=2)
+
+    def test_life_schedule_decision_id_fits_energy_action(self):
+        key='a'*64
+        decision=self.make_decision(key)
+        self.trade('life-buy',decision=decision)
+        energy=WorldAction.objects.get(snapshot__investment_energy=True)
+        self.assertLessEqual(len(energy.pk),64)
+        self.assertNotEqual(energy.pk,'investment-energy:'+key)
+        self.trade('life-buy-2',decision=decision)
+        self.assertEqual(WorldAction.objects.filter(snapshot__investment_energy=True).count(),1)
 
     def test_weighted_cost_partial_full_sale(self):
         self.trade('a',quantity=10,price='10',available='2026-09-28')

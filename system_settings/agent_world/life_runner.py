@@ -6,7 +6,7 @@ from django.utils import timezone
 from system_settings.models import Agent, AgentTask, AgentRunRecord, WorldAction, WorldActionRuntime
 from .life_models import LifeConfig, LifeItem
 from .life_config import tasks_for
-from .life_schedule import OPEN, SHANGHAI, ensure_cycle, recover, revise, window
+from .life_schedule import OPEN, SHANGHAI, ensure_cycle, recover, revise, window, execution_key
 from .life_scope import life_scope, CURRENT
 from .life_context import build_context
 from .life_planner import prepare_market, plan_items, check_goals
@@ -20,16 +20,19 @@ logger=logging.getLogger(__name__)
 def finish_running(config, now):
     from .travel_models import TravelJourney
     for item in LifeItem.objects.filter(owner_id=config.pk,status='running'):
-        trip=TravelJourney.objects.filter(pk=item.pk).first()
+        key=execution_key(item)
+        trip=TravelJourney.objects.filter(pk=key).first()
+        if not trip and key!=item.pk:
+            trip=TravelJourney.objects.filter(pk=item.pk).first()
         if trip:
             if trip.status in ('completed','skipped','failed','cancelled') or trip.phase=='done':
-                action=WorldAction.objects.filter(pk=item.pk).first()
+                action=WorldAction.objects.filter(pk=trip.pk).first() or WorldAction.objects.filter(pk=key).first()
                 revise(item,'旅行工作流结束',status='completed' if trip.status=='completed' else 'rest' if trip.status=='skipped' else 'cancelled' if trip.status=='cancelled' else 'failed',record_id=action.record_id if action and action.record_id else '',result={'reason':trip.snapshot.get('skip_reason','旅行结束')})
                 if trip.agent:check_goals(config.pk,trip.agent)
             elif trip.status in ('manual','paused') and item.result.get('reason')!='旅行工作流待人工处理，可在旅行面板继续或说明原因取消':
                 revise(item,'旅行需要人工接续',result={'reason':'旅行工作流待人工处理，可在旅行面板继续或说明原因取消'})
             continue
-        action=WorldAction.objects.filter(pk=item.pk).first()
+        action=WorldAction.objects.filter(pk=key).first()
         if action and action.status in ('success','failed','skipped'):
             revise(item,'已核对实际执行事实',status={'success':'completed','failed':'failed','skipped':'rest'}[action.status],record_id=action.record_id or '',result=action.result)
         elif local_time(item.updated_at) < now-timedelta(minutes=15) and not action:
@@ -83,7 +86,7 @@ def execute_item(item: LifeItem, scheduler) -> None:
                 if market:
                     from .market_runner import run_market_opportunity
                     from .life_schedule import stable_id
-                    run_market_opportunity(market,scheduler,key=stable_id(item.pk,'supplies'))
+                    run_market_opportunity(market,scheduler,key=stable_id(execution_key(item),'supplies'))
                     item.refresh_from_db();agent.refresh_from_db()
                     CURRENT.get()['context']=build_context(item.owner_id,agent,item)
             if item.activity=='farm':
@@ -98,11 +101,11 @@ def execute_item(item: LifeItem, scheduler) -> None:
                 from .travel_runner import run_travel_opportunity as run
             else:
                 raise ValueError('未支持的生活活动')
-            outcome=run(task,scheduler,key=item.pk)
+            outcome=run(task,scheduler,key=execution_key(item))
         item.refresh_from_db()
         if item.activity=='travel':
             return  # 后续节点只继续本次 workflow。
-        action=WorldAction.objects.filter(pk=item.pk).first()
+        action=WorldAction.objects.filter(pk=execution_key(item)).first()
         status='failed' if outcome and outcome.status=='failed' else 'rest' if action and action.status=='skipped' else 'completed'
         if not outcome:
             status='failed'
@@ -129,8 +132,12 @@ def tick_life(scheduler) -> None:
                 from .travel_models import TravelRuntime,TravelJourney
                 running=LifeItem.objects.filter(owner_id=config.pk,status='running',activity='travel').exclude(actor_id__in=config.paused_agents)
                 for pending in running:
-                    if TravelJourney.objects.filter(pk=pending.pk,status__in=['active','waiting']).exists():
-                        TravelRuntime.objects.update_or_create(pk=pending.pk,defaults={'authorized':True})
+                    journey_id=execution_key(pending)
+                    trip=TravelJourney.objects.filter(pk=journey_id,status__in=['active','waiting']).first()
+                    if not trip and journey_id!=pending.pk:
+                        trip=TravelJourney.objects.filter(pk=pending.pk,status__in=['active','waiting']).first()
+                    if trip:
+                        TravelRuntime.objects.update_or_create(pk=trip.pk,defaults={'authorized':True})
                 # 90秒正常轮询容差内的 due 由执行器消费，不能反复向后挪。
                 if LifeItem.objects.filter(owner_id=config.pk,status__in=['pending','deferred'],scheduled_at__lt=storage_time(now-timedelta(seconds=90))).exists():
                     recover(config,now)
@@ -164,12 +171,13 @@ def tick_life(scheduler) -> None:
                         try:
                             plan_items(config,agent,entries[:50])
                         except Exception as exc:
+                            detail=str(exc)[:500]
                             for entry in entries[:50]:
                                 entry.attempts+=1
                                 terminal=entry.attempts>=3
-                                revise(entry,'生活规划未通过校验，保留失败原因',status='failed' if terminal else 'deferred',
+                                revise(entry,f'生活规划未通过校验：{detail}',status='failed' if terminal else 'deferred',
                                        context={**entry.context,'planning_retry_at':(now+timedelta(minutes=5)).isoformat()},
-                                       result={'reason':str(exc)[:500]})
+                                       result={'reason':detail})
             due=LifeItem.objects.filter(owner_id=config.pk,status__in=['pending','deferred'],scheduled_at__lte=timezone.now()).exclude(actor_id__in=config.paused_agents).order_by('scheduled_at').first()
             if due and (not due.context.get('planning_retry_at') or local_time(timezone.datetime.fromisoformat(due.context['planning_retry_at']))<=now):execute_item(due,scheduler)
         except Exception:

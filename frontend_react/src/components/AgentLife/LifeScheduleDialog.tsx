@@ -18,6 +18,7 @@ import {getLifeAgents, getLifeConfig} from '../../api/agentLife';
 import type {AgentConfig} from '../../types/api/setting';
 import {useAgentLifeSchedule} from '../../hooks/useAgentLifeSchedule';
 import LifeItemDetails from './LifeItemDetails';
+import LifeFailedReplanBar from './LifeFailedReplanBar';
 import LifeProfilePanel from './LifeProfilePanel';
 import LifeScheduleWeekView from './LifeScheduleWeekView';
 import LifeScheduleListView from './LifeScheduleListView';
@@ -314,6 +315,10 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                 {schedule.error}
                             </div>
                         )}
+
+                        {actorId ? (
+                            <LifeFailedReplanBar actorId={actorId} start={start} end={end} onDone={schedule.refresh} />
+                        ) : null}
 
                         {/* 视图展示 */}
                         <div className="flex flex-1 min-h-0 flex-col overflow-hidden">

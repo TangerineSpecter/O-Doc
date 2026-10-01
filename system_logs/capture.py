@@ -124,7 +124,8 @@ def start():
 def capture(title, module='backend', exc=None, **metadata):
     if not getattr(settings, 'SYSTEM_LOG_ENABLED', True):
         return
-    if exc is not None and (getattr(exc, 'status', None) == 499 or type(exc).__name__ in {'CancelledError', 'CanceledError'}):
+    if exc is not None and (getattr(exc, 'status', None) == 499 or type(exc).__name__ in {'CancelledError', 'CanceledError'}
+                            or getattr(exc, 'expected_tool_stop', False)):
         return
     try:
         context = {key: value for key, value in request_context.get().items() if key != 'exclude'}

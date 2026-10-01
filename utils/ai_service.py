@@ -345,6 +345,9 @@ class AIService:
         except AuthenticationError as exc:
             cls._raise_authentication_error(exc, config)
         except Exception as e:
+            # leave_market / finish 用异常结束工具循环，不是模型故障。
+            if getattr(e, 'expected_tool_stop', False):
+                return str(e) or None
             logger.error(f"AI Tool Call Error: {e}")
             raise e
 

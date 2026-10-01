@@ -5,7 +5,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
 from django.contrib.auth.models import User
-from django.test import TestCase, SimpleTestCase
+from django.test import TestCase, SimpleTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 from system_settings.models import Agent, AgentTask, AIModel, AIProvider, AgentExecutionLease, WorldAction, WorldActionRuntime, SystemSetting
@@ -448,15 +448,19 @@ class MarketTests(TestCase):
             tool.model_dump=lambda index=index,name=name,args=args:{'id':str(index),'type':'function','function':{'name':name,'arguments':json.dumps(args)}}
             responses.append(SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=None,tool_calls=[tool]))]))
         client=MagicMock();client.chat.completions.create.side_effect=responses
+        events=[]
         with patch('system_settings.agent_world.market_runner.select_agent',return_value=self.a), \
              patch.object(AIService,'get_client_config_for_model',return_value={'api_key':'mock','base_url':'https://example.invalid','model_name':'mock-model'}), \
-             patch('utils.ai_service.OpenAI',return_value=client) as factory:
+             patch('utils.ai_service.OpenAI',return_value=client) as factory, \
+             override_settings(SYSTEM_LOG_ENABLED=True), \
+             patch('system_logs.capture.start',return_value=SimpleNamespace(put_nowait=events.append)):
             record=run_market_opportunity(self.task,key='real-adapter',manual=True)
         self.assertEqual(record.status,'success')
         self.assertEqual(client.chat.completions.create.call_count,4)
         self.assertEqual(factory.call_args.kwargs['max_retries'],0)
         self.assertTrue(all(0<c.kwargs['timeout']<=120 for c in client.chat.completions.create.call_args_list))
         self.assertEqual(stock_quantity(self.a.pk,'admin','feed'),2)
+        self.assertFalse(any(event.get('error_type')=='MarketFinished' or 'MarketFinished' in str(event.get('title','')) for event in events), events)
 
     def test_skip_never_charges_and_dead_process_closes(self):
         close_session(self.sa,'done');close_session(self.sb,'done')

@@ -19,6 +19,12 @@ CENT = Decimal('.01')
 COST_PRECISION = Decimal('.000000000001')
 
 
+def energy_action_id(decision_id: str) -> str:
+    # 生活安排主键已是 64 位哈希；再加前缀会超过 WorldAction.id。短机会键保持旧格式。
+    raw = 'investment-energy:' + decision_id
+    return raw if len(raw) <= 64 else hashlib.sha256(raw.encode()).hexdigest()
+
+
 def validate_agents(owner: str, ids: list[str]) -> None:
     for task in AgentTask.objects.filter(task_kind='investment'):
         if task.investment_config.get('owner_id') != owner and set(ids) & set(task.agent_ids or [task.agent_id]):
@@ -122,7 +128,7 @@ def commit(decision: InvestmentDecision, agent: Agent, key: str, operation: dict
     if operation['side'] == 'buy' and amount > balance:
         raise ValueError('可用余额不足')
     positions, allocated = apply_position(account.positions, operation, price, available_on)
-    energy_key = 'investment-energy:' + decision.pk
+    energy_key = energy_action_id(decision.pk)
     first = not WorldAction.objects.filter(pk=energy_key).exists()
     if first and stamina(agent) < 5:
         raise ValueError('体力不足')

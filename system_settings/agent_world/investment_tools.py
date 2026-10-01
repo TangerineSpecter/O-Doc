@@ -28,7 +28,7 @@ TOOLS=[BUDGET_TOOL,
 
 
 class Finished(Exception):
-    pass
+    expected_tool_stop = True
 
 
 class InvestmentTools:

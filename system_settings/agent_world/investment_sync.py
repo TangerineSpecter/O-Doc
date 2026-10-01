@@ -4,7 +4,7 @@ import json
 from decimal import Decimal
 from django.core.serializers.json import DjangoJSONEncoder
 from .investment_models import InvestmentAccount, InvestmentTrade, InvestmentIntegrity, InvestmentDecision, InvestmentNewsClaim
-from .investment_service import apply_position
+from .investment_service import apply_position, energy_action_id
 
 
 def fingerprints(owner):
@@ -61,7 +61,7 @@ def reconcile_investments():
             ledger_id = 'investment:'+key; expected_ledger.append(ledger_id)
             WorldLedger.objects.update_or_create(pk=ledger_id, defaults={'agent_id':account.pk,'agent_name':t.actor_name,
                 'kind':'investment','amount':delta,'created_at':t.created_at,'snapshot':{'trade_id':key,'code':t.operation['code'],'side':t.operation['side'],'price_date':t.result['price_date']}})
-            energy_id = 'investment-energy:'+t.decision_id
+            energy_id = energy_action_id(t.decision_id)
             if energy_id not in expected_energy:
                 expected_energy.append(energy_id)
                 WorldAction.objects.update_or_create(pk=energy_id, defaults={'actor_id':account.pk,'task':t.decision.task,
