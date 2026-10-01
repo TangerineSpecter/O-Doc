@@ -62,9 +62,10 @@ class AIService:
         if not disable_thinking:
             return extra_body
 
-        # DashScope/Qwen OpenAI-compatible endpoints support this flag.
-        if provider_type == 'Qwen':
+        if provider_type in ('Qwen', 'SiliconFlow'):
             extra_body["enable_thinking"] = False
+        elif provider_type in ('DeepSeek', 'Doubao', 'Xiaomi', 'MiniMax'):
+            extra_body["thinking"] = {"type": "disabled"}
 
         return extra_body
 

@@ -3,7 +3,7 @@ import ReactMarkdown, {defaultUrlTransform} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {AgentPostReferences} from './AgentPostReferences';
 import {splitPostReferences} from './postPresentation';
-import {CodeBlock, CUSTOM_STYLES, MermaidChart, rehypeInlineStyleSyntax, remarkQuoteVariants, SimpleChart, VariantBlockquote} from '../Article/MarkdownElements';
+import {CodeBlock, CUSTOM_STYLES, MermaidChart, rehypeInlineStyleSyntax, remarkQuoteVariants, SimpleChart} from '../Article/MarkdownElements';
 
 const getMarkdownNodeText = (node: ReactNode): string => {
     if (typeof node === 'string' || typeof node === 'number') return String(node);

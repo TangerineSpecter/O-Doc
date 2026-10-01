@@ -441,8 +441,8 @@ class ArticlePostCommentSerializer(serializers.ModelSerializer):
 class AgentPostLatestCommentSerializer(serializers.ModelSerializer):
     article_id = serializers.CharField(source='article.article_id', read_only=True)
     post_title = serializers.CharField(source='article.title', read_only=True)
-    agent_name = serializers.CharField(source='article.agent_post_creator_name', read_only=True)
-    agent_avatar = serializers.CharField(source='article.agent_post_creator_avatar', read_only=True)
+    agent_name = serializers.CharField(source='creator_name', read_only=True)
+    agent_avatar = serializers.CharField(source='creator_avatar', read_only=True)
 
     class Meta:
         model = ArticlePostComment

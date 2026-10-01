@@ -18,6 +18,7 @@ import SaveWebpageModal, {type WebpageImportOptions, type WebpageImportProgress}
 import OutlineSidebar from '../components/Outline/OutlineSidebar';
 import OutlineContent from '../components/Outline/OutlineContent';
 import {isImageAvatarValue} from '../utils/avatar';
+import {getCategoryColorClass} from '../utils/categoryColor';
 import {useArticleTree} from '../hooks/useArticleTree';
 import {useAgentPostReadTracking} from '../hooks/useAgentPostReadTracking';
 import {useAgentPostIllustrationRefresh} from '../hooks/useAgentPostIllustrationRefresh';
@@ -109,6 +110,17 @@ function AgentPostCollectionView({
     const [activePost, setActivePost] = useState<ArticleType | null>(null);
     useAgentPostIllustrationRefresh(articleId, activePost, setActivePost);
     useAgentPostReadTracking(articleId, activePost, setActivePost);
+
+    // 阅读状态变化时同步更新列表中的已读状态，确保返回列表时角标自然消除
+    useEffect(() => {
+        if (activePost?.articleId && activePost.agentPostHasBeenRead) {
+            setPosts(prev => prev.map(p =>
+                p.articleId === activePost.articleId && !p.agentPostHasBeenRead
+                    ? {...p, agentPostHasBeenRead: true}
+                    : p
+            ));
+        }
+    }, [activePost?.articleId, activePost?.agentPostHasBeenRead]);
     const [postLoading, setPostLoading] = useState(false);
     const [comments, setComments] = useState<AgentPostComment[]>([]);
     const [commentsLoading, setCommentsLoading] = useState(false);
@@ -117,6 +129,9 @@ function AgentPostCollectionView({
     const [commentSubmitting, setCommentSubmitting] = useState(false);
     const [activeCategory, setActiveCategory] = useState('all');
     const [searchKeyword, setSearchKeyword] = useState('');
+    const [visibleCount, setVisibleCount] = useState(30);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [migrationTarget, setMigrationTarget] = useState<{oldCategory: string; postId?: string}>();
     const [ratingSubmitting, setRatingSubmitting] = useState(false);
@@ -125,7 +140,7 @@ function AgentPostCollectionView({
     const toast = useToast();
 
     useEffect(() => {
-        getAgents().then(setAgentList).catch(() => {});
+        getAgents().then(res => setAgentList((res as unknown as AgentConfig[]) || [])).catch(() => {});
     }, []);
 
     const activePostAgent = useMemo(() => {
@@ -179,7 +194,7 @@ function AgentPostCollectionView({
     }, [posts]);
 
     // 分类 + 关键词过滤
-    const visiblePosts = useMemo(() => {
+    const filteredPosts = useMemo(() => {
         let list = activeCategory === 'all' ? posts : posts.filter(post => categoryKey(post) === activeCategory);
         if (searchKeyword.trim()) {
             const q = searchKeyword.trim().toLowerCase();
@@ -192,6 +207,58 @@ function AgentPostCollectionView({
         }
         return list;
     }, [posts, activeCategory, searchKeyword]);
+
+    // 分页切片：首屏固定展示 30 条，下滑动态追加
+    const visiblePosts = useMemo(() => {
+        return filteredPosts.slice(0, visibleCount);
+    }, [filteredPosts, visibleCount]);
+
+    const hasMore = visiblePosts.length < filteredPosts.length;
+
+    // 分类切换或搜索词变化时，重置分页到首屏 30
+    useEffect(() => {
+        setVisibleCount(30);
+    }, [activeCategory, searchKeyword]);
+
+    // 滚动监听加载更多（与首页文集列表行为一致）
+    const handleScroll = useCallback(() => {
+        if (isLoadingMore || !hasMore || articleId) return;
+        const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        const scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+        const clientHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+
+        if (scrollTop + clientHeight >= scrollHeight - 200) {
+            setIsLoadingMore(true);
+            setTimeout(() => {
+                setVisibleCount(prev => prev + 15);
+                setIsLoadingMore(false);
+            }, 300);
+        }
+    }, [isLoadingMore, hasMore, articleId]);
+
+    useEffect(() => {
+        window.addEventListener('scroll', handleScroll, {passive: true});
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [handleScroll]);
+
+    // 底部视口观察器（对移动端下滑与触屏手势滚动更敏锐）
+    useEffect(() => {
+        if (!sentinelRef.current || !hasMore || isLoadingMore || articleId) return;
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting) {
+                    setIsLoadingMore(true);
+                    setTimeout(() => {
+                        setVisibleCount(prev => prev + 15);
+                        setIsLoadingMore(false);
+                    }, 300);
+                }
+            },
+            {rootMargin: '200px'}
+        );
+        observer.observe(sentinelRef.current);
+        return () => observer.disconnect();
+    }, [hasMore, isLoadingMore, articleId]);
 
     const truncateText = (value?: string, max = 56) => {
         const text = (value || '').replace(/\s+/g, ' ').trim();
@@ -316,8 +383,8 @@ function AgentPostCollectionView({
                 articleId: activePost.articleId,
                 postTitle: activePost.title,
                 content: result.comment.content,
-                agentName: activePost.agentPostCreatorName || 'Agent',
-                agentAvatar: activePost.agentPostCreatorAvatar || '',
+                agentName: result.comment.creatorName || '我',
+                agentAvatar: result.comment.creatorAvatar || '',
                 createdAt: result.comment.createdAt
             }, ...prev].slice(0, 10));
             setCommentDraft('');
@@ -767,7 +834,7 @@ function AgentPostCollectionView({
                     </div>
                     {searchKeyword && (
                         <div className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-400 shrink-0">
-                            找到 <span className="font-semibold text-orange-600">{visiblePosts.length}</span> 条结果
+                            找到 <span className="font-semibold text-orange-600">{filteredPosts.length}</span> 条结果
                         </div>
                     )}
                 </div>
@@ -779,60 +846,90 @@ function AgentPostCollectionView({
                     </div>
                 ) : visiblePosts.length > 0 ? (
                     <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px] min-[1900px]:relative min-[1900px]:block">
-                        <div className="grid grid-cols-1 content-start auto-rows-max gap-5 md:grid-cols-2 2xl:grid-cols-3 min-[1900px]:mx-auto min-[1900px]:max-w-[1120px]">
-                            {visiblePosts.map(post => (
-                                <article
-                                    key={post.articleId}
-                                    onClick={() => onNavigate?.('article', {collId, articleId: post.articleId})}
-                                    className="flex h-full cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
-                                >
-                                    <div className="mb-2 flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <h2 className="truncate text-base font-bold leading-6 text-slate-900">{postDisplayTitle(post.title)}</h2>
-                                            <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-400">
-                                                <span className="inline-flex max-w-[8rem] items-center rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 font-medium text-orange-700">
-                                                    <span className="truncate">{post.agentPostCategoryName || post.agentPostCategory || '未分类'}</span>
-                                                </span>
-                                                <span className="inline-flex items-center gap-1">
-                                                    <MessageCircle className="h-3.5 w-3.5" />
-                                                    {post.postCommentCount || 0}
-                                                </span>
-                                                <span className="inline-flex items-center gap-1 text-amber-500">
-                                                    <Star className="h-3.5 w-3.5 fill-current" />
-                                                    {post.agentPostRating ? `${post.agentPostRating}/10` : '-'}
+                        <div className="min-w-0 flex-1 space-y-6">
+                            <div className="grid grid-cols-1 content-start auto-rows-max gap-5 md:grid-cols-2 2xl:grid-cols-3 min-[1900px]:mx-auto min-[1900px]:max-w-[1120px]">
+                                {visiblePosts.map(post => (
+                                    <article
+                                        key={post.articleId}
+                                        onClick={() => {
+                                            if (!post.agentPostHasBeenRead) {
+                                                setPosts(prev => prev.map(p => p.articleId === post.articleId ? {...p, agentPostHasBeenRead: true} : p));
+                                            }
+                                            onNavigate?.('article', {collId, articleId: post.articleId});
+                                        }}
+                                        className="group relative flex h-full cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
+                                    >
+                                        {!post.agentPostHasBeenRead && (
+                                            <div className="pointer-events-none absolute -left-2 -top-2 z-10 transition-transform duration-300">
+                                                <span className="inline-flex -rotate-12 items-center rounded-lg bg-orange-500 px-2 py-0.5 text-[11px] font-black text-white shadow-md ring-2 ring-white select-none">
+                                                    NEW
                                                 </span>
                                             </div>
-                                        </div>
-                                        {canMigrate && !post.agentPostCategoryId && <MigrationAlert onClick={() => setMigrationTarget({oldCategory: post.agentPostCategory || '', postId: post.articleId})}/>}
-                                        {canManage && (
-                                            <button
-                                                type="button"
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    setDeleteTarget(post);
-                                                }}
-                                                className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
-                                                title="删除帖子"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
                                         )}
-                                    </div>
+                                        <div className="mb-2 flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <h2 className="truncate text-base font-bold leading-6 text-slate-900">{postDisplayTitle(post.title)}</h2>
+                                                <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-400">
+                                                    <span className={`inline-flex max-w-[8rem] items-center rounded-md px-1.5 py-0.5 text-xs font-semibold shadow-2xs ${getCategoryColorClass(post.agentPostCategoryName || post.agentPostCategory)}`}>
+                                                        <span className="truncate">{post.agentPostCategoryName || post.agentPostCategory || '未分类'}</span>
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1">
+                                                        <MessageCircle className="h-3.5 w-3.5" />
+                                                        {post.postCommentCount || 0}
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1 text-amber-500">
+                                                        <Star className="h-3.5 w-3.5 fill-current" />
+                                                        {post.agentPostRating ? `${post.agentPostRating}/10` : '-'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            {canMigrate && !post.agentPostCategoryId && <MigrationAlert onClick={() => setMigrationTarget({oldCategory: post.agentPostCategory || '', postId: post.articleId})}/>}
+                                            {canManage && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        setDeleteTarget(post);
+                                                    }}
+                                                    className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
+                                                    title="删除帖子"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            )}
+                                        </div>
 
-                                    <p className="mb-3 line-clamp-2 min-h-10 text-sm leading-5 text-slate-600">{getPostSummary(post) || '暂无摘要'}</p>
+                                        <p className="mb-3 line-clamp-2 min-h-10 text-sm leading-5 text-slate-600">{getPostSummary(post) || '暂无摘要'}</p>
 
-                                    <div className="mt-auto flex items-center gap-2 border-t border-slate-100 pt-2.5">
-                                        <AgentAvatar name={post.agentPostCreatorName} avatar={post.agentPostCreatorAvatar} className="h-7 w-7 rounded-lg" />
-                                        <div className="flex min-w-0 flex-1 items-center gap-2">
-                                            <div className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-700">{post.agentPostCreatorName || 'Agent'}</div>
-                                            <div className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-400">
-                                                <Clock className="h-3.5 w-3.5" />
-                                                {formatPostTime(post.createdAt)}
+                                        <div className="mt-auto flex items-center gap-2 border-t border-slate-100 pt-2.5">
+                                            <AgentAvatar name={post.agentPostCreatorName} avatar={post.agentPostCreatorAvatar} className="h-7 w-7 rounded-lg" />
+                                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                                                <div className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-700">{post.agentPostCreatorName || 'Agent'}</div>
+                                                <div className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-400">
+                                                    <Clock className="h-3.5 w-3.5" />
+                                                    {formatPostTime(post.createdAt)}
+                                                </div>
                                             </div>
                                         </div>
+                                    </article>
+                                ))}
+                            </div>
+
+                            {/* 底部滚动加载指示器与触底标识 */}
+                            <div ref={sentinelRef} className="flex justify-center py-6 min-[1900px]:mx-auto min-[1900px]:max-w-[1120px]">
+                                {isLoadingMore ? (
+                                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full shadow-sm text-xs text-slate-600">
+                                        <div className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                                        <span>正在加载更多帖子...</span>
                                     </div>
-                                </article>
-                            ))}
+                                ) : hasMore ? (
+                                    <span className="text-xs text-slate-400 font-medium">向下滚动加载更多</span>
+                                ) : filteredPosts.length > 0 ? (
+                                    <div className="text-xs text-slate-400 font-medium bg-slate-100/60 px-4 py-1.5 rounded-full">
+                                        — 已经到底了，共 {filteredPosts.length} 篇帖子 —
+                                    </div>
+                                ) : null}
+                            </div>
                         </div>
 
                         <aside className="space-y-5 min-[1900px]:absolute min-[1900px]:left-[calc(50%+584px)] min-[1900px]:top-0 min-[1900px]:w-[360px]">
@@ -847,17 +944,38 @@ function AgentPostCollectionView({
                                             key={comment.commentId}
                                             type="button"
                                             onClick={() => onNavigate?.('article', {collId, articleId: comment.articleId})}
-                                            className="flex w-full gap-3 px-5 py-4 text-left transition-colors hover:bg-orange-50/50"
+                                            className="group flex w-full items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-orange-50/40"
                                         >
-                                            <AgentAvatar name={comment.agentName} avatar={comment.agentAvatar} />
-                                            <span className="min-w-0 flex-1">
-                                                <span className="flex items-center justify-between gap-2">
-                                                    <span className="truncate text-sm font-semibold text-slate-800">{comment.agentName || 'Agent'}</span>
-                                                    <span className="shrink-0 text-[11px] text-slate-400">{formatPostTime(comment.createdAt)}</span>
-                                                </span>
-                                                <span className="mt-1 block truncate text-xs font-medium text-slate-500">{comment.postTitle}</span>
-                                                <span className="mt-1 block text-xs leading-5 text-slate-500">{truncateText(comment.content, 64) || '暂无内容'}</span>
-                                            </span>
+                                            <div className="shrink-0 mt-0.5">
+                                                <AgentAvatar name={comment.agentName} avatar={comment.agentAvatar} className="h-8 w-8 rounded-full" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center justify-between gap-2 mb-1.5">
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                        <span className="truncate text-sm font-bold text-slate-800 group-hover:text-orange-600 transition-colors">
+                                                            {comment.agentName || 'Agent'}
+                                                        </span>
+                                                        <span className="shrink-0 text-xs text-slate-400 font-normal">评论了</span>
+                                                    </div>
+                                                    <span className="shrink-0 text-[11px] text-slate-400 font-mono">
+                                                        {formatPostTime(comment.createdAt)}
+                                                    </span>
+                                                </div>
+
+                                                <div className="mb-2">
+                                                    <span className="block truncate text-xs font-bold text-slate-800 group-hover:text-orange-600 transition-colors">
+                                                        {/^[《【\[]/.test(postDisplayTitle(comment.postTitle || ''))
+                                                            ? postDisplayTitle(comment.postTitle || '')
+                                                            : `《${postDisplayTitle(comment.postTitle || '')}》`}
+                                                    </span>
+                                                </div>
+
+                                                <div className="border-l-2 border-orange-400 bg-orange-50/40 pl-2.5 py-1 rounded-r-md">
+                                                    <p className="line-clamp-3 text-xs leading-relaxed text-slate-600">
+                                                        {truncateText(comment.content, 80) || '暂无内容'}
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </button>
                                     )) : (
                                         <div className="px-5 py-8 text-center text-sm text-slate-400">暂无最新评论</div>

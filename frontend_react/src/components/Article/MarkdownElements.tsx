@@ -121,6 +121,7 @@ const COMPACT_QUOTE_VARIANT_STYLES: Record<QuoteVariant, string> = {
     danger: 'border-red-300 bg-red-50/55 text-red-800',
     warning: 'border-amber-300 bg-amber-50/55 text-amber-800',
     info: 'border-slate-300 bg-white/55 text-slate-700',
+    takeaway: 'border-orange-300 bg-orange-50/55 text-orange-900',
 };
 
 export const CompactVariantBlockquote = ({children, ...props}: { children: React.ReactNode; node?: any; [key: string]: any }) => {

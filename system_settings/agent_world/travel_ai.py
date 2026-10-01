@@ -20,9 +20,12 @@ def ask(journey, instruction, context, validate, *, skill=''):
     if item and journey.agent:
         context={**context,'life':build_context(item.owner_id,journey.agent,item)}
     text = prompt + '\n' + instruction + '\n上下文：' + json.dumps(context, ensure_ascii=False, default=str)
+    from utils.completion_options import thinking_options
+    config = AIService.get_client_config_for_model(journey.agent.model_id)
+    extra_body = thinking_options(config)
     for attempt in range(2):
-        raw = complete(AIService.get_client_config_for_model(journey.agent.model_id), text,
-            json_output=True, extra_body={}, deadline_seconds=120)
+        raw = complete(config, text,
+            json_output=True, extra_body=extra_body, deadline_seconds=120)
         try:
             value = json.loads(AIService.strip_thinking(raw).strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
             if not isinstance(value, dict):

@@ -130,10 +130,18 @@ def _json_unsupported(exc: Exception) -> bool:
     return ('response_format' in message or 'json_object' in message) and any(word in message for word in ('unsupported', 'not support', 'unknown', 'unrecognized', 'not permitted', '不支持'))
 
 
+def _thinking_unsupported(exc: Exception) -> bool:
+    if not isinstance(exc, APIStatusError) or exc.status_code not in (400, 422):
+        return False
+    message = str(exc.body).lower()
+    return ('thinking' in message or 'enable_thinking' in message) and any(word in message for word in ('unsupported', 'not support', 'unknown', 'unrecognized', 'not permitted', 'extra input', '不支持'))
+
+
 def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int | None = None, extra_body: dict, deadline_seconds: float = DEADLINE_SECONDS) -> str:
     deadline = time.monotonic() + min(DEADLINE_SECONDS, deadline_seconds)
     network_retries, request_attempt = 0, 0
     use_json = json_output
+    current_extra_body = dict(extra_body)
     while True:
         check_ai_control()
         remaining = deadline - time.monotonic()
@@ -141,15 +149,15 @@ def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int | 
             raise AIRequestTimeout('模型调用达到 120 秒硬时限')
         request_attempt += 1
         metadata = {key: config.get(key, '') for key in ('provider_name', 'model_name', 'model_role')}
-        thinking_disabled = extra_body.get('enable_thinking') is False or extra_body.get('thinking', {}).get('type') == 'disabled'
+        thinking_disabled = current_extra_body.get('enable_thinking') is False or current_extra_body.get('thinking', {}).get('type') == 'disabled'
         metadata.update(request_id=uuid.uuid4().hex, request_attempt=request_attempt, streaming=1, timeout_seconds=math.ceil(remaining), deadline_seconds=DEADLINE_SECONDS, sdk_retries=0, max_tokens=max_tokens, json_mode='json_object' if use_json else 'prompt' if json_output else 'text', thinking_mode='disabled' if thinking_disabled else 'provider_default')
         parameters = {'model': config['model_name'], 'messages': [{'role': 'user', 'content': prompt}], 'stream': True, 'temperature': .2}
         if max_tokens is not None:
             parameters['max_tokens'] = max_tokens
         if config.get('provider_type') in ('OpenAi', 'DeepSeek', 'MiniMax'):
             parameters['stream_options'] = {'include_usage': True}
-        if extra_body:
-            parameters['extra_body'] = extra_body
+        if current_extra_body:
+            parameters['extra_body'] = current_extra_body
         if use_json:
             parameters['response_format'] = {'type': 'json_object'}
         emit_ai_event('model_request_started', '正在请求模型，等待首个输出', **metadata)
@@ -161,10 +169,15 @@ def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int | 
                     model_request_id=metadata['request_id'], provider_name=config.get('provider_name', ''),
                     model_name=config.get('model_name', ''), sdk_retries=0)
             error_type = 'output_limit' if isinstance(exc, AIOutputTruncated) else 'timeout' if isinstance(exc, (TimeoutError, APIConnectionError)) and 'Timeout' in type(exc).__name__ else type(exc).__name__
-            emit_ai_event('model_request_failed', '本次模型请求未完成', 'warning' if _json_unsupported(exc) else 'error', **metadata, error_type=error_type)
+            emit_ai_event('model_request_failed', '本次模型请求未完成', 'warning' if (_json_unsupported(exc) or _thinking_unsupported(exc)) else 'error', **metadata, error_type=error_type)
             if use_json and _json_unsupported(exc):
                 use_json = False
                 emit_ai_event('model_compatibility', '接口明确不支持 JSON 模式，回退提示词约束', 'warning', **metadata)
+                continue
+            if ('thinking' in current_extra_body or 'enable_thinking' in current_extra_body) and _thinking_unsupported(exc):
+                current_extra_body.pop('thinking', None)
+                current_extra_body.pop('enable_thinking', None)
+                emit_ai_event('model_compatibility', '接口明确不支持思考控制参数，回退默认调用', 'warning', **metadata)
                 continue
             retryable = isinstance(exc, APIConnectionError) and 'Timeout' not in type(exc).__name__ or isinstance(exc, APIStatusError) and exc.status_code in (408, 409, 429) or isinstance(exc, APIStatusError) and exc.status_code >= 500
             if retryable and network_retries == 0 and deadline - time.monotonic() > 1:

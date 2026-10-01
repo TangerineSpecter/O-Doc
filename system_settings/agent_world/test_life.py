@@ -622,3 +622,70 @@ class LifeMarketTests(TestCase):
         trade(second,self.agent,'repeat',{'kind':'buy_shop','batch_id':batch.pk,'slot_id':'0','quantity':2})
         trade(second,self.agent,'feed',{'kind':'buy_shop','batch_id':batch.pk,'slot_id':'feed','quantity':1})
         batch.refresh_from_db();self.assertEqual(batch.slots[0]['remaining_quantity'],0)
+
+
+class LifeProposalParsingTests(SimpleTestCase):
+    def test_parse_clean_json(self):
+        from .life_planner import parse_life_proposal
+        res = parse_life_proposal('{"plans": [{"id": "1", "activity": "rest"}]}')
+        self.assertEqual(res, {"plans": [{"id": "1", "activity": "rest"}]})
+
+    def test_parse_with_thinking_tags(self):
+        from .life_planner import parse_life_proposal
+        raw = '<think>I should rest today because stamina is low.</think>\n{"plans": [{"id": "1", "activity": "rest"}]}'
+        res = parse_life_proposal(raw)
+        self.assertEqual(res, {"plans": [{"id": "1", "activity": "rest"}]})
+
+    def test_parse_with_thinking_and_markdown_fences(self):
+        from .life_planner import parse_life_proposal
+        raw = '<think>\n规划分析...\n</think>\n```json\n{"plans": [{"id": "1", "activity": "farm"}]}\n```'
+        res = parse_life_proposal(raw)
+        self.assertEqual(res, {"plans": [{"id": "1", "activity": "farm"}]})
+
+    def test_parse_with_surrounding_commentary(self):
+        from .life_planner import parse_life_proposal
+        raw = '好的，这是为你规划的活动：\n```json\n{"plans": []}\n```\n祝你今天开心！'
+        res = parse_life_proposal(raw)
+        self.assertEqual(res, {"plans": []})
+
+    def test_parse_empty_or_thinking_only_raises_friendly_error(self):
+        from .life_planner import parse_life_proposal
+        with self.assertRaisesMessage(ValueError, '生活规划返回内容为空'):
+            parse_life_proposal('')
+        with self.assertRaisesMessage(ValueError, '生活规划未返回有效正文'):
+            parse_life_proposal('<think>正在思考但是没有生成正文...</think>')
+
+    def test_ask_passes_thinking_disabled_and_strips_thinking(self):
+        from unittest.mock import MagicMock, patch
+        from .life_planner import ask
+        mock_agent = MagicMock()
+        mock_agent.name = '菲伦'
+        mock_agent.prompt = '冷静专注的魔法使'
+        mock_agent.model_id = 'mod_minimax'
+
+        mock_config = {'provider_type': 'MiniMax', 'model_name': 'MiniMax-M3', 'api_key': 'k', 'base_url': 'http://test'}
+
+        with patch('utils.ai_service.AIService.get_client_config_for_model', return_value=mock_config), \
+             patch('system_settings.agent_world.life_planner.complete', return_value='<think>思考...</think>{"plans": []}') as mock_complete:
+            res = ask(mock_agent, '规划', {})
+            self.assertEqual(res, {'plans': []})
+            self.assertEqual(mock_complete.call_args.kwargs['extra_body'], {'thinking': {'type': 'disabled'}})
+
+    def test_ask_retries_when_first_attempt_fails(self):
+        from unittest.mock import MagicMock, patch
+        from .life_planner import ask
+        mock_agent = MagicMock()
+        mock_agent.name = '菲伦'
+        mock_agent.prompt = '冷静'
+        mock_agent.model_id = 'mod_minimax'
+        mock_config = {'provider_type': 'MiniMax', 'model_name': 'MiniMax-M3'}
+
+        responses = ['invalid json text', '{"plans": [{"id": "1", "activity": "rest"}]}']
+        with patch('utils.ai_service.AIService.get_client_config_for_model', return_value=mock_config), \
+             patch('system_settings.agent_world.life_planner.complete', side_effect=responses) as mock_complete:
+            res = ask(mock_agent, '规划', {})
+            self.assertEqual(res, {'plans': [{"id": "1", "activity": "rest"}]})
+            self.assertEqual(mock_complete.call_count, 2)
+            self.assertIn('【格式修正要求】', mock_complete.call_args_list[1].args[1])
+
+

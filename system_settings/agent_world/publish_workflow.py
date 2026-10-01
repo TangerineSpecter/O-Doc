@@ -67,8 +67,10 @@ class Workflow:
             remaining = self.deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError('发帖流程达到5分钟时限')
-            raw = complete(AIService.get_client_config_for_model(self.agent.model_id), messages,
-                           json_output=True, extra_body={}, deadline_seconds=remaining)
+            from utils.completion_options import thinking_options
+            config = AIService.get_client_config_for_model(self.agent.model_id)
+            raw = complete(config, messages,
+                           json_output=True, extra_body=thinking_options(config), deadline_seconds=remaining)
             try:
                 value = json.loads(AIService.strip_thinking(raw).strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
                 if not isinstance(value, dict):

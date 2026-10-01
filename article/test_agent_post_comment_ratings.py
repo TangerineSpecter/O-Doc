@@ -14,7 +14,8 @@ class PostCommentRatingTests(TestCase):
         self.agent = Agent.objects.create(name='菲伦')
 
     def comment(self, **values):
-        return ArticlePostComment.objects.create(article=self.post, content='评论',
+        content = values.pop('content', '评论')
+        return ArticlePostComment.objects.create(article=self.post, content=content,
             **{'actor_agent_id': self.agent.pk, 'creator_id': 'agent:菲伦', 'creator_name': '菲伦', **values})
 
     def rating(self, **values):
@@ -66,3 +67,21 @@ class PostCommentRatingTests(TestCase):
         rating.save()
         with self.assertNumQueries(1):
             self.assertEqual(comment_ratings([*comments, own]), {own.pk: 8})
+
+    def test_latest_comments_returns_commenter_not_article_author(self):
+        # 帖子创建人为猫猫
+        self.post.agent_post_creator_name = '猫猫'
+        self.post.agent_post_creator_avatar = 'maomao_avatar.png'
+        self.post.save()
+
+        # 评论者为菲伦
+        self.comment(creator_name='菲伦', creator_avatar='fern_avatar.png', content='药师视角写食疗')
+
+        response = APIClient().get(f'/api/article/agent-posts/collections/{self.collection.pk}/latest-comments')
+        self.assertEqual(response.status_code, 200)
+        comments = response.data['data']['comments']
+        self.assertEqual(len(comments), 1)
+        # 应展示评论人菲伦的信息，而非帖子作者猫猫
+        self.assertEqual(comments[0]['agent_name'], '菲伦')
+        self.assertEqual(comments[0]['agent_avatar'], 'fern_avatar.png')
+        self.assertEqual(comments[0]['post_title'], '帖子')

@@ -343,8 +343,10 @@ class ExtractionRepairTests(SimpleTestCase):
                 extract_segment('短正文内容。', self.chapter, 0, 'story', [])
 
     def test_simple_model_only_sends_verified_existing_thinking_flag(self):
-        self.assertEqual(thinking_options({'provider_type': 'Qwen'}), {'enable_thinking': False})
-        for provider, model in (('MiniMax', 'MiniMax-M3'), ('DeepSeek', 'deepseek-flash')):
-            self.assertEqual(thinking_options({'provider_type': provider, 'model_name': model}), {'thinking': {'type': 'disabled'}})
+        for provider in ('Qwen', 'SiliconFlow'):
+            self.assertEqual(thinking_options({'provider_type': provider}), {'enable_thinking': False})
+        for provider in ('DeepSeek', 'Doubao', 'Xiaomi'):
+            self.assertEqual(thinking_options({'provider_type': provider}), {'thinking': {'type': 'disabled'}})
+        self.assertEqual(thinking_options({'provider_type': 'MiniMax', 'model_name': 'MiniMax-M3'}), {'thinking': {'type': 'disabled'}})
         self.assertEqual(thinking_options({'provider_type': 'MiniMax', 'model_name': 'MiniMax-M2.7'}), {})
         self.assertEqual(thinking_options({'provider_type': 'custom', 'model_name': 'MiniMax-M3'}), {})
