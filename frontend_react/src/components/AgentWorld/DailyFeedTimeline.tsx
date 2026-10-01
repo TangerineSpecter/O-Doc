@@ -1,6 +1,6 @@
 import {ExecutionFeedSteps} from './ExecutionFeedSteps';
 import PostRatingBadge from '../AgentPost/PostRatingBadge';
-import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, MapPin, MessageCircle, Package, RefreshCw, Sprout, Store, TrendingUp} from 'lucide-react';
+import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, CornerDownRight, Heart, MapPin, MessageCircle, MessageSquare, Package, RefreshCw, Sparkles, Sprout, Star, Store, TrendingUp} from 'lucide-react';
 import {useEffect, useState} from 'react';
 import type {DailyFeedCategory, DailyFeedEvent} from '../../types/api/dailyFeed';
 import type {AgentActivity, AgentWorldAgentStatus} from '../../types/api/setting';
@@ -46,6 +46,44 @@ function money(value: string) {
     return `${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${fraction.padEnd(2, '0').slice(0, 2)}`;
 }
 
+function getInteractionBadge(event: DailyFeedEvent) {
+    if (event.category !== 'interaction') return null;
+    const action = event.subAction || event.currentAction || '';
+    if (action === 'like' || action === '动态点赞' || action.includes('点赞')) {
+        return {label: '动态点赞', icon: Heart, className: 'bg-rose-50 text-rose-700 border-rose-200/80'};
+    }
+    if (action === 'comment' || action === '动态评论' || action.includes('动态评论')) {
+        return {label: '动态评论', icon: MessageSquare, className: 'bg-violet-50 text-violet-700 border-violet-200/80'};
+    }
+    if (action === 'reply' || action === '回复了评论' || action === '回复评论' || action.includes('回复')) {
+        return {label: '回复评论', icon: CornerDownRight, className: 'bg-blue-50 text-blue-700 border-blue-200/80'};
+    }
+    if (action === 'publish' || action === '朋友圈动态' || action === '分享了朋友圈' || action.includes('朋友圈')) {
+        return {label: '朋友圈动态', icon: Sparkles, className: 'bg-amber-50 text-amber-700 border-amber-200/80'};
+    }
+    if (action === 'annotate' || action === '文章批注' || action.includes('批注')) {
+        return {label: '文章批注', icon: BookOpenText, className: 'bg-purple-50 text-purple-700 border-purple-200/80'};
+    }
+    if (action === 'annotate_reply' || action === '继续讨论' || action.includes('讨论')) {
+        return {label: '继续讨论', icon: MessageSquare, className: 'bg-indigo-50 text-indigo-700 border-indigo-200/80'};
+    }
+    if (action === 'rate' || action === '文章评分' || action.includes('评分')) {
+        return {label: '文章评分', icon: Star, className: 'bg-yellow-50 text-yellow-700 border-yellow-200/80'};
+    }
+    return null;
+}
+
+function renderHighlightedTitle(title: string) {
+    if (!title.includes('@')) return title;
+    const parts = title.split(/(@[^\s，。！？、]+)/g);
+    return parts.map((part, index) => {
+        if (part.startsWith('@')) {
+            return <span key={index} className="font-semibold text-orange-600">{part}</span>;
+        }
+        return part;
+    });
+}
+
 function getEventActionLabel(target?: DailyFeedEvent['target']): string | null {
     if (!target) return null;
     const kindLabels: Record<string, string> = {
@@ -56,7 +94,7 @@ function getEventActionLabel(target?: DailyFeedEvent['target']): string | null {
         life: '查看日程',
     };
     if (kindLabels[target.kind]) return kindLabels[target.kind];
-    if (target.artifactKind === 'moment' && target.artifactId) return '查看动态';
+    if (target.artifactKind === 'moment' && target.artifactId) return '查看关联动态';
     if (target.kind === 'activity' && target.collId && target.articleId) return '查看详情';
     if ((target.kind === 'activity' || target.kind === 'run') && (target.runRecordId || target.kind === 'run')) return '查看详情';
     return null;
@@ -66,17 +104,28 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
     const [expanded, setExpanded] = useState(false);
     const agent = residents.find(item => item.id === event.actorId);
     const badge = tabs.find(item => item.value === event.category);
-    const Icon = badge?.icon || Activity;
+    const customBadge = getInteractionBadge(event);
+    const badgeLabel = customBadge ? customBadge.label : (badge?.label || event.category);
+    const BadgeIcon = customBadge ? customBadge.icon : (badge?.icon || Activity);
+    const badgeClass = customBadge ? customBadge.className : categoryStyles[event.category].badge;
     const amount = event.amount;
     const expense = amount?.startsWith('-') || false;
     const actionLabel = getEventActionLabel(event.target);
-    return <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    const isMotive = event.category === 'interaction' && Boolean(
+        event.isMotive ||
+        event.currentAction === '读了朋友圈' ||
+        event.currentAction === '动态点赞' ||
+        (event.currentAction?.includes('点赞') && !event.subAction?.includes('publish')) ||
+        (event.title.includes('社交时间') && !event.currentAction?.includes('朋友圈动态'))
+    );
+
+    return <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 transition-all hover:border-orange-200/80">
         <div className="flex items-start gap-3">
             <AgentAvatar name={agent?.name || event.actorName} avatar={agent?.avatar || ''} size="md"/>
             <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-bold text-slate-900">{agent?.name || event.actorName}</span>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${categoryStyles[event.category].badge}`}><Icon className="h-3 w-3"/>{badge?.label || event.category}</span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border ${badgeClass}`}><BadgeIcon className="h-3 w-3"/>{badgeLabel}</span>
                     {event.status === 'failed' && <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] text-red-700">失败</span>}
                     {event.status === 'running' && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700">进行中</span>}
                     {event.status === 'skipped' && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">跳过</span>}
@@ -86,11 +135,27 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
                     {event.category === 'travel' && event.status === 'paused' && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">已暂停</span>}
                     <time className="ml-auto text-xs tabular-nums text-slate-400" dateTime={event.occurredAt}>{clock(event.occurredAt)}</time>
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-slate-800">{event.title}</h3><PostRatingBadge rating={event.rating}/></div>
-                {event.detail && <div className="mt-1.5"><AgentActivitySummary text={event.detail} expanded={expanded} onExpandedChange={setExpanded} variant={event.category === 'interaction' ? 'interaction' : event.category === 'publication' ? 'publication' : 'work'}/></div>}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-800">{renderHighlightedTitle(event.title)}</h3>
+                    <PostRatingBadge rating={event.rating}/>
+                </div>
+                {event.detail && (
+                    <div className="mt-1.5">
+                        {isMotive ? (
+                            <div className="mt-2.5 rounded-r-lg border-l-2 border-orange-400 bg-orange-50/30 py-1.5 pl-3">
+                                <span className="mb-1 flex items-center gap-1 text-xs font-semibold text-slate-700">
+                                    <span>💭</span> 内心动机：
+                                </span>
+                                <AgentActivitySummary text={event.detail} expanded={expanded} onExpandedChange={setExpanded} variant="interaction"/>
+                            </div>
+                        ) : (
+                            <AgentActivitySummary text={event.detail} expanded={expanded} onExpandedChange={setExpanded} variant={event.category === 'interaction' ? 'interaction' : event.category === 'publication' ? 'publication' : 'work'}/>
+                        )}
+                    </div>
+                )}
                 {!!event.steps?.length && <ExecutionFeedSteps steps={event.steps}/>}
                 {(amount !== null || actionLabel) && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
-                    {actionLabel && <button type="button" onClick={() => onOpen(event)} className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-100">{actionLabel}</button>}
+                    {actionLabel && <button type="button" onClick={() => onOpen(event)} className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-100 transition-colors">{actionLabel}</button>}
                     {amount !== null && <span className={`ml-auto inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${expense ? 'text-red-600' : 'text-emerald-600'}`}>
                         {expense ? <ArrowDown className="h-3.5 w-3.5"/> : <ArrowUp className="h-3.5 w-3.5"/>}{expense ? '-' : '+'}{money(amount)} 世界币
                     </span>}

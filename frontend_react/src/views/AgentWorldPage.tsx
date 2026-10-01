@@ -88,8 +88,12 @@ export default function AgentWorldPage() {
     const openDailyTarget = (event: DailyFeedEvent) => {
         const target = event.target;
         if (!target) return;
-        if (target.artifactKind === 'moment' && target.artifactId) {
-            setMomentDetailId(target.artifactId);
+        if (target.artifactKind === 'moment' || target.kind === 'moment') {
+            if (target.artifactId) {
+                setMomentDetailId(target.artifactId);
+            } else {
+                setMomentsOpen(true);
+            }
             return;
         }
         if (target.kind === 'activity' && target.collId && target.articleId) {

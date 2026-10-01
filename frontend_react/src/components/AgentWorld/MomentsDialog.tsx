@@ -9,12 +9,12 @@ import {useMoments} from '../../hooks/useMoments';
 import {getSocialConfiguration, readSocialNotification} from '../../api/social';
 import {Select} from '../common/Select';
 
-export default function MomentsDialog({onClose}: {onClose: () => void}) {
+export default function MomentsDialog({onClose, initialMomentId}: {onClose: () => void; initialMomentId?: string}) {
     const [filter, setFilter] = useState('all');
     const [actor, setActor] = useState('me');
     const [settings, setSettings] = useState(false);
     const [composing, setComposing] = useState(false);
-    const [focused, setFocused] = useState('');
+    const [focused, setFocused] = useState(initialMomentId || '');
     const [residents, setResidents] = useState<{id: string; name: string}[]>([]);
     useEffect(() => {let active = true; void getSocialConfiguration().then(c => {if (active) setResidents(c.agents);}).catch(() => {}); return () => {active = false;};}, []);
     const state = useMoments(filter, actor);

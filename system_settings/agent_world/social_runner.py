@@ -176,10 +176,16 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
         WorldAction.objects.update_or_create(pk=op.pk, defaults={'agent': agent, 'actor_id': agent.pk, 'status': 'success',
             'energy_cost': 0 if action == 'rest' else ENERGY_COST, 'consumed_at': timezone.now(), 'effects_done': True, 'snapshot': {'social': True, 'owner_id': op.owner_id}, 'result': op.result})
         target_mid = value.get('moment_id') or (ids[0] if action == 'read' and ids else '') or (incoming.content_id if incoming and incoming.source_kind == 'moment' else '')
+        action_label = {'reply': '回复了评论', 'publish': '分享了朋友圈'}.get(action)
+        if not action_label:
+            if action == 'read':
+                action_label = '动态评论' if value.get('content') else '动态点赞' if ids else '读了朋友圈'
+            else:
+                action_label = '决定暂时不交流'
         AgentActivity.objects.get_or_create(event_key=f'social:{op.pk}', defaults={'agent': agent, 'activity_type': 'interaction',
             'status': 'success', 'action': f'social_{action}', 'title': f'{agent.name}的社交时间', 'summary': value.get('content', value['reason'])[:1200],
             'metadata': {'owner_id': op.owner_id, 'social_opportunity_id': op.pk, 'agentSnapshot': agent_identity(agent)},
-            'current_action': {'reply': '回复了评论', 'publish': '分享了朋友圈', 'read': '读了朋友圈'}.get(action, '决定暂时不交流'),
+            'current_action': action_label,
             'artifact_kind': 'moment' if target_mid else '', 'artifact_id': target_mid or ''})
 
 

@@ -190,10 +190,26 @@ def day_events(request, owner, day, actor_id=''):
     social_op_ids = [
         row.metadata.get('social_opportunity_id')
         for row in activities
-        if row.action.startswith('social_') and not row.artifact_id and isinstance(row.metadata, dict) and row.metadata.get('social_opportunity_id')
+        if row.action.startswith('social_') and isinstance(row.metadata, dict) and row.metadata.get('social_opportunity_id')
     ]
-    from .social_models import SocialOpportunity
+    from .social_models import SocialOpportunity, Moment
     social_ops = {op.pk: op for op in SocialOpportunity.objects.filter(pk__in=social_op_ids)} if social_op_ids else {}
+
+    moment_ids = set()
+    for row in activities:
+        if row.artifact_id and row.artifact_kind == 'moment':
+            moment_ids.add(row.artifact_id)
+    for op in social_ops.values():
+        if isinstance(op.result, dict):
+            res = op.result
+            if res.get('moment_id'):
+                moment_ids.add(res['moment_id'])
+            if isinstance(res.get('likes'), list):
+                for mid in res['likes']:
+                    if mid:
+                        moment_ids.add(mid)
+    moments_map = {m.pk: m for m in Moment.objects.filter(pk__in=moment_ids)} if moment_ids else {}
+
     recorded_runs = set()
     for row in activities:
         historical_name = ''
@@ -204,27 +220,101 @@ def day_events(request, owner, day, actor_id=''):
         actor_key = (row.agent_id
                      or (row.run_record.agent_id if row.activity_type == 'work' and row.run_record else '')
                      or (snapshot.get('id') if isinstance(snapshot, dict) else ''))
+        actor_name = row.agent.name if row.agent else historical_name or (row.run_record.agent_name if row.run_record else '')
         if row.run_record_id and row.activity_type == 'work':
             recorded_runs.add(row.run_record_id)
         artifact_kind = row.artifact_kind or ''
         artifact_id = row.artifact_id or ''
-        if row.action.startswith('social_') and not artifact_id:
+        current_action = row.current_action or ''
+        sub_action = row.action or ''
+        title = activity_title(row)
+        is_motive = False
+        target_author = ''
+
+        if row.action.startswith('social_'):
             op_id = row.metadata.get('social_opportunity_id') if isinstance(row.metadata, dict) else None
             op = social_ops.get(op_id) if op_id else None
-            if op and isinstance(op.result, dict):
-                res = op.result
-                moment_id = res.get('moment_id')
-                if not moment_id and res.get('likes'):
-                    likes = res.get('likes')
-                    if isinstance(likes, list) and likes:
-                        moment_id = likes[0]
-                if moment_id:
-                    artifact_kind = 'moment'
-                    artifact_id = moment_id
+            res = op.result if (op and isinstance(op.result, dict)) else {}
+            raw_action = res.get('action') or row.action.replace('social_', '')
+
+            # 解析关联朋友圈动态
+            target_mid = artifact_id if artifact_kind == 'moment' else None
+            if not target_mid:
+                target_mid = res.get('moment_id')
+                if not target_mid and isinstance(res.get('likes'), list) and res['likes']:
+                    target_mid = res['likes'][0]
+            if target_mid:
+                artifact_kind = 'moment'
+                artifact_id = target_mid
+                target_m = moments_map.get(target_mid)
+                if target_m and isinstance(target_m.identity, dict):
+                    target_author = target_m.identity.get('name') or ''
+
+            if not target_author:
+                target_author = row.counterpart_name or ''
+
+            # 判断内容是否为内心思考依据
+            if res.get('reason') and (not res.get('content') or row.summary == str(res['reason'])[:1200]):
+                is_motive = True
+
+            if raw_action == 'publish':
+                sub_action = 'publish'
+                current_action = '朋友圈动态'
+                title = f'{actor_name}在朋友圈分享了新动态' if actor_name else '在朋友圈分享了新动态'
+                is_motive = False
+            elif raw_action == 'read':
+                has_comment = bool(res.get('content'))
+                has_like = bool(res.get('likes'))
+                if has_comment and has_like:
+                    sub_action = 'comment'
+                    current_action = '动态评论'
+                    title = f'浏览了 @{target_author} 的朋友圈动态并点赞评论' if target_author else '浏览了朋友圈动态并点赞评论'
+                elif has_comment:
+                    sub_action = 'comment'
+                    current_action = '动态评论'
+                    title = f'在 @{target_author} 的朋友圈动态下留言' if target_author else '在朋友圈动态下留言'
+                elif has_like:
+                    sub_action = 'like'
+                    current_action = '动态点赞'
+                    title = f'浏览了 @{target_author} 的朋友圈动态并点赞' if target_author else '浏览了朋友圈动态并点赞'
+                    is_motive = True
+                else:
+                    sub_action = 'read'
+                    current_action = '读了朋友圈'
+                    title = f'浏览了 @{target_author} 的朋友圈动态' if target_author else '浏览了朋友圈动态'
+                    is_motive = True
+            elif raw_action == 'reply':
+                sub_action = 'reply'
+                current_action = '回复了评论'
+                title = f'回复了 @{target_author} 的评论' if target_author else '回复了评论'
+            elif raw_action in ('rest', 'ignore', 'defer'):
+                sub_action = 'rest'
+                current_action = '决定暂时不交流'
+                title = f'{actor_name}决定暂时不交流' if actor_name else '决定暂时不交流'
+                is_motive = True
+            else:
+                current_action = row.current_action or '动态互动'
+        elif row.activity_type == 'interaction':
+            if row.action == 'comment':
+                sub_action = 'comment'
+                current_action = '文章评论'
+            elif row.action == 'rate':
+                sub_action = 'rate'
+                current_action = '文章评分'
+            elif row.action == 'annotate':
+                sub_action = 'annotate'
+                current_action = '文章批注'
+            elif row.action == 'annotate_reply':
+                sub_action = 'annotate_reply'
+                current_action = '继续讨论'
+            else:
+                sub_action = row.action or 'interaction'
+                current_action = row.current_action or '互动'
+
         event = _event('record' if row.activity_type == 'work' else row.activity_type,
                        'activity', row.pk, row.occurred_at, actor_key,
-                       row.agent.name if row.agent else historical_name or (row.run_record.agent_name if row.run_record else ''),
-                       activity_title(row), row.summary, status=row.status,
+                       actor_name,
+                       title, row.summary, status=row.status,
                        target={'kind': 'activity', 'id': row.pk,
                                'runRecordId': row.run_record_id or '',
                                'collId': row.artifact_coll_id or '',
@@ -234,8 +324,11 @@ def day_events(request, owner, day, actor_id=''):
         event['rating'] = activity_rating(row)
         if row.run_record_id and row.activity_type != 'work':
             event['_execution_group'] = 'activity:' + row.run_record_id
-        if row.action.startswith('social_'):
-            event['currentAction'] = row.current_action or ''
+        event['currentAction'] = current_action
+        event['subAction'] = sub_action
+        event['isMotive'] = is_motive
+        if target_author:
+            event['counterpartName'] = target_author
         if row.activity_type == 'work':
             event['currentAction'] = row.current_action or ''
             metadata = row.metadata if isinstance(row.metadata, dict) else {}

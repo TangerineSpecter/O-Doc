@@ -15,6 +15,9 @@ export interface DailyFeedEvent {
     status: string;
     amount: string | null;
     currentAction?: string;
+    subAction?: string;
+    isMotive?: boolean;
+    counterpartName?: string;
     outputPreview?: string;
     target: {kind: string; id: string; [key: string]: string | undefined} | null;
 }
