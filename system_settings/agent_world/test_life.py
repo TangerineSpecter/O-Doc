@@ -486,6 +486,121 @@ class LifeTests(TestCase):
             self.config.paused_agents=[self.ids[0]];self.config.save()
             with self.assertRaises(ValueError):check_current_authorization()
 
+    def test_due_planned_item_runs_before_later_planning(self):
+        from .life_runner import tick_life
+        today=local_time().date().isoformat()
+        item=self.item(activity='investment',task_id=self.task.pk,scheduled_at=timezone.now(),context={'planned_on':today})
+        self.item('later',actor_id=self.ids[1],activity='unplanned',scheduled_at=timezone.now()+timedelta(hours=3))
+        record=AgentRunRecord.objects.create(task=self.task,agent=self.agents[0],task_name='投资',status='success',summary='观望')
+        order=[]
+        with patch('system_settings.agent_world.life_runner.prepare_market',side_effect=lambda *args,**kwargs: order.append('market')), \
+             patch('system_settings.agent_world.life_runner.plan_items',side_effect=lambda *args,**kwargs: order.append('plan')), \
+             patch('system_settings.agent_world.investment_runner.run_investment_opportunity',side_effect=lambda *args,**kwargs: order.append('run') or record):
+            tick_life(None)
+        item.refresh_from_db()
+        self.assertEqual(item.status,'completed')
+        self.assertLess(order.index('run'),order.index('market'))
+
+    def test_planner_lock_does_not_skip_due_planned_item(self):
+        from .life_runner import tick_life
+        today=local_time().date().isoformat()
+        item=self.item(activity='investment',task_id=self.task.pk,scheduled_at=timezone.now(),context={'planned_on':today})
+        WorldActionRuntime.objects.create(pk='life-planner',token='held',until=timezone.now()+timedelta(minutes=10))
+        record=AgentRunRecord.objects.create(task=self.task,agent=self.agents[0],task_name='投资',status='success',summary='观望')
+        with patch('system_settings.agent_world.life_runner.plan_items'), \
+             patch('system_settings.agent_world.investment_runner.run_investment_opportunity',return_value=record):
+            tick_life(None)
+        item.refresh_from_db()
+        self.assertEqual(item.status,'completed')
+        self.assertEqual(item.record_id,record.pk)
+
+    def test_overdue_planned_item_is_deferred_instead_of_remaining_silent(self):
+        from .life_runner import tick_life
+        today=local_time().date().isoformat()
+        original=timezone.now()-timedelta(minutes=10)
+        item=self.item(activity='investment',task_id=self.task.pk,scheduled_at=original,context={'planned_on':today})
+        with patch('system_settings.agent_world.life_runner.plan_items'), \
+             patch('system_settings.agent_world.investment_runner.run_investment_opportunity') as run:
+            tick_life(None)
+        item.refresh_from_db()
+        self.assertEqual(item.status,'deferred')
+        self.assertGreater(item.scheduled_at,timezone.now())
+        self.assertIn('顺延',item.revisions.latest('created_at').reason)
+        run.assert_not_called()
+
+    def test_busy_world_lock_closes_finished_work_and_leaves_due_slot(self):
+        from .action_runner import tick
+        today=local_time().date().isoformat()
+        record=AgentRunRecord.objects.create(task=self.task,agent=self.agents[0],task_name='投资',status='success',summary='已结束')
+        done=self.item('done',activity='investment',status='running',task_id=self.task.pk,context={'execution_key':'done-key'})
+        WorldAction.objects.create(pk='done-key',task=self.task,agent=self.agents[0],actor_id=self.ids[0],record=record,
+                                   status='success',result={'reason':'已结束'},snapshot={'investment':True})
+        due=self.item(activity='investment',task_id=self.task.pk,scheduled_at=timezone.now(),context={'planned_on':today})
+        WorldActionRuntime.objects.filter(pk='world').update(token='held',until=timezone.now()+timedelta(minutes=10))
+        with patch('system_settings.agent_world.investment_runner.run_investment_opportunity') as run:
+            tick(None)
+        done.refresh_from_db();due.refresh_from_db()
+        self.assertEqual(done.status,'completed')
+        self.assertEqual(due.status,'pending')
+        run.assert_not_called()
+
+    def test_replan_that_loses_the_world_lock_leaves_the_slot_pending(self):
+        from .life_runner import tick_life
+        today=local_time().date().isoformat()
+        scheduled=timezone.now()
+        item=self.item(activity='investment',task_id=self.task.pk,scheduled_at=scheduled,context={'planned_on':today})
+        item.refresh_from_db()
+        scheduled=item.scheduled_at
+        def hold_lock(*args, **kwargs):
+            WorldActionRuntime.objects.filter(pk='world').update(token='held', until=timezone.now()+timedelta(minutes=10))
+        with patch('system_settings.agent_world.life_runner.plan_items', side_effect=hold_lock), \
+             patch('system_settings.agent_world.investment_runner.run_investment_opportunity') as run:
+            tick_life(None)
+        item.refresh_from_db()
+        self.assertEqual(item.status,'pending')
+        self.assertEqual(item.scheduled_at, scheduled)
+        self.assertFalse(item.record_id)
+        self.assertFalse(WorldAction.objects.filter(pk=item.pk).exists())
+        run.assert_not_called()
+
+    def test_runner_that_loses_the_world_lock_rolls_the_slot_back(self):
+        from .life_runner import tick_life
+        today=local_time().date().isoformat()
+        item=self.item(activity='investment',task_id=self.task.pk,scheduled_at=timezone.now(),context={'planned_on':today,'execution_started':'stale'})
+        item.refresh_from_db()
+        scheduled=item.scheduled_at
+        WorldActionRuntime.objects.filter(pk='world').update(token='held', until=timezone.now()+timedelta(minutes=10))
+        with patch('system_settings.agent_world.life_runner.world_execution_busy', return_value=False), \
+             patch('system_settings.agent_world.life_runner.plan_items'):
+            tick_life(None)
+        item.refresh_from_db()
+        self.assertEqual(item.status,'pending')
+        self.assertEqual(item.scheduled_at, scheduled)
+        self.assertNotIn('execution_started', item.context)
+        self.assertFalse(item.record_id)
+        self.assertFalse(WorldAction.objects.exists())
+        self.assertFalse(AgentRunRecord.objects.exists())
+
+    def test_busy_world_does_not_record_market_prepare(self):
+        from .life_planner import prepare_market
+        AgentTask.objects.create(name='市场',agent=self.agents[0],agent_ids=[self.ids[0]],task_kind='market',market_config={'owner_id':'admin'},enabled=True)
+        WorldActionRuntime.objects.filter(pk='world').update(token='held', until=timezone.now()+timedelta(minutes=10))
+        with patch('system_settings.agent_world.life_planner.ask') as ask:
+            prepare_market(self.config, self.agents[0], None)
+        ask.assert_not_called()
+        self.assertFalse(LifeItem.objects.filter(activity='market_prepare').exists())
+
+    def test_market_prepare_is_removed_when_shopping_finds_the_world_busy(self):
+        from .life_planner import prepare_market
+        AgentTask.objects.create(name='市场',agent=self.agents[0],agent_ids=[self.ids[0]],task_kind='market',market_config={'owner_id':'admin'},enabled=True)
+        def shop_after_lock(*args, **kwargs):
+            WorldActionRuntime.objects.filter(pk='world').update(token='held', until=timezone.now()+timedelta(minutes=10))
+            return {'go': True, 'budget': '0.00', 'reason': '要买种子'}
+        with patch('system_settings.agent_world.life_planner.ask', side_effect=shop_after_lock):
+            prepare_market(self.config, self.agents[0], object())
+        self.assertFalse(LifeItem.objects.filter(activity='market_prepare').exists())
+        self.assertFalse(WorldAction.objects.exists())
+
 
 @override_settings(USE_TZ=True)
 class LifeMarketTests(TestCase):

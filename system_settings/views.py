@@ -44,7 +44,7 @@ from utils.remote_storage import (
     public_sync_config,
     validate_sync_config,
 )
-from utils.sync_manager import SyncError, SyncManager
+from utils.sync_manager import SyncError, SyncManager, format_sync_result
 from .feishu_im import (
     FeishuIMError,
     handle_feishu_message_event,
@@ -731,7 +731,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     yield self._sync_event("error", "已有同步任务正在运行，请等待当前任务完成后再操作。", record=False)
                     return
 
-                yield self._sync_event('init', '正在创建本机完整安全快照，并执行三方合并…')
+                yield self._sync_event('init', '正在比对修订清单与媒体哈希…')
                 snapshot, summary, safety_backup = manager.sync_v2(
                     source='manual', runner_id=runner_id,
                     base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
@@ -741,10 +741,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     recover_owned_remote_lock=recover_owned_remote_lock,
                 )
                 snapshot_meta = snapshot['meta']
-                yield self._sync_event(
-                    'summary',
-                    f"v2 合并完成：新增 {summary['created']}、更新 {summary['updated']}、删除 {summary['deleted']}、冲突自动处理 {summary['conflicts']}；本机安全快照：{os.path.basename(safety_backup)}"
-                )
+                yield self._sync_event('summary', format_sync_result(summary, safety_backup))
                 update_runtime_state(
                     status='success',
                     trigger='manual',
@@ -763,7 +760,10 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     last_merge_summary=summary,
                     sync_progress=100,
                 )
-                append_sync_message('同步快照已发布，远端 current 指针已更新。', runner_id=runner_id, progress=100)
+                append_sync_message(
+                    '数据与媒体均未变化，远端快照保持不变。' if summary.get('unchanged') else '同步快照已发布，远端 current 指针已更新。',
+                    runner_id=runner_id, progress=100,
+                )
                 yield self._sync_event("done", "✅ 所有同步已完成！")
             except SyncError as e:
                 if acquired and runner_owns_sync(runner_id):
@@ -809,7 +809,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 remote = manager.get_v2_current()
                 if not remote:
                     raise SyncError('远端尚未升级为安全同步 v2；请先在拥有最新数据的设备执行一次上传同步。')
-                yield self._sync_event('init', '正在创建本机完整安全快照，并合并远端 v2 快照…')
+                yield self._sync_event('init', '正在比对修订清单与媒体哈希…')
                 snapshot, summary, safety_backup = manager.sync_v2(
                     source='manual-pull', runner_id=runner_id,
                     base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
@@ -818,10 +818,7 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     should_abort=lambda: should_abort_sync(runner_id),
                     recover_owned_remote_lock=recover_owned_remote_lock,
                 )
-                yield self._sync_event(
-                    'summary',
-                    f"v2 合并完成：新增 {summary['created']}、更新 {summary['updated']}、删除 {summary['deleted']}、冲突自动处理 {summary['conflicts']}；本机安全快照：{os.path.basename(safety_backup)}"
-                )
+                yield self._sync_event('summary', format_sync_result(summary, safety_backup))
                 update_runtime_state(
                     status='success',
                     trigger='manual-pull',
@@ -840,7 +837,10 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     last_merge_summary=summary,
                     sync_progress=100,
                 )
-                append_sync_message('云端同步快照已发布，本地与远端已完成对齐。', runner_id=runner_id, progress=100)
+                append_sync_message(
+                    '数据与媒体均未变化，远端快照保持不变。' if summary.get('unchanged') else '云端同步快照已发布，本地与远端已完成对齐。',
+                    runner_id=runner_id, progress=100,
+                )
                 yield self._sync_event("done", "✅ 云端同步完成，本地数据与资源已刷新")
             except SyncError as e:
                 if acquired and runner_owns_sync(runner_id):

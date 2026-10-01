@@ -9,7 +9,7 @@ from system_settings.agent_activity import update_work_activity
 from system_settings.agent_prompts import build_agent_system_prompt
 from utils.ai_service import AIService
 from .run_diagnostics import failure_detail, progress, finish_record
-from .execution import execution_lease, stamina
+from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
 from .action_schedule import select_agent, take_due
 from .farm_catalog import catalog_for
 from .farm_models import AgentFarm, FarmOperation
@@ -25,11 +25,13 @@ def candidates(farm, money):
     options = []
     def add(op, detail):
         options.append({'id': str(len(options)), 'operation': op, 'description': detail})
-    empty = [p['id'] for p in state['plots'] if not p['crop']]
+    # 同一次机会会连续提交多个候选。空地按作物分完，避免两种种子都指向同一批地块。
+    remaining = [p['id'] for p in state['plots'] if not p['crop']]
     for kind, rule in rules['crops'].items():
         quantity = stock_quantity(farm.pk, farm.owner_id, 'seed.'+kind)
-        ids = empty[:min(4, quantity)]
+        ids = remaining[:min(4, quantity)]
         if ids:
+            del remaining[:len(ids)]
             add({'kind': 'plant', 'crop': kind, 'targets': ids}, f'种植{rule["name"]}')
     growing = [p['id'] for p in state['plots'] if p['crop'] and p['crop']['grown'] < p['crop']['rules']['growth_seconds'] and p['watered_until'] < timezone.now().timestamp()+43200]
     ripe = [p['id'] for p in state['plots'] if p['crop'] and p['crop']['grown'] >= p['crop']['rules']['growth_seconds']]
@@ -110,6 +112,8 @@ def run_farm_opportunity(task, scheduler=None, *, key=None, manual=False, locked
         with execution_lease(WorldActionRuntime, {'pk': 'world'}) as token:
             if token:
                 return run_farm_opportunity(task, scheduler, key=key, manual=manual, locked=token)
+        if defer_when_world_busy.get():
+            raise WorldLeaseBusy()
         if scheduler:
             from .action_runner import record_busy_opportunity
             return record_busy_opportunity(task, scheduler, key, manual)
@@ -169,6 +173,8 @@ def run_farm_opportunity(task, scheduler=None, *, key=None, manual=False, locked
         action.status, action.result = 'failed', {'reason': failure_detail(phase, exc)}
         action.save(update_fields=['status', 'result', 'updated_at'])
     finish(action, scheduler)
+    # 失败路径会刷新行动并清掉关联缓存，终态写在另一份记录上。返回前同步，生活安排才能看到失败。
+    record.refresh_from_db()
     if scheduler and action.status == 'success':
         scheduler._send_task_notification(task, record)
     return record

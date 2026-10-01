@@ -2,6 +2,7 @@
 import threading
 import uuid
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import timedelta
 from decimal import Decimal
 
@@ -14,6 +15,12 @@ from system_settings.models import WorldAction
 ENERGY_MAX = Decimal('100')
 INTERACTION_COST = Decimal('10')
 RECOVERY_PER_HOUR = Decimal('5')
+# 生活调度在占用失败时要保留原安排。手动执行仍走忙碌跳过。
+defer_when_world_busy = ContextVar('defer_when_world_busy', default=False)
+
+
+class WorldLeaseBusy(Exception):
+    """世界执行位被占用，调用方应把生活安排留在原时间。"""
 
 
 def stamina(agent, now=None) -> Decimal:

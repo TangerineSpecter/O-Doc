@@ -10,6 +10,12 @@ from django.utils import timezone
 DEVICE_SETTING_KEY = 'system_sync_v2_device'
 # A normal SHA-256 hash is hexadecimal; this marker fits the existing 64-character field.
 PERMANENT_DELETE_HASH_PREFIX = '!'
+# 这些系统设置只属于当前这台设备，不进入快照，也不记入修订清单。
+LOCAL_ONLY_SYSTEM_SETTING_KEYS = frozenset({
+    'system_webdav_config',
+    'system_webdav_sync_runtime',
+    'system_sync_v2_device',
+})
 LOCAL_ONLY_MODEL_LABELS = frozenset({
     'system_settings.investmentcache',
     'system_settings.marketruntime',
@@ -97,8 +103,14 @@ def should_track(sender):
     )
 
 
+def _is_device_local_setting(model_label, object_pk):
+    return model_label == 'system_settings.systemsetting' and str(object_pk) in LOCAL_ONLY_SYSTEM_SETTING_KEYS
+
+
 def record_change(sender, instance, deleted=False):
     if is_tracking_suspended() or not should_track(sender):
+        return
+    if _is_device_local_setting(sender._meta.label_lower, instance.pk):
         return
     from system_settings.models import SyncEntityState
     fields = {
@@ -125,6 +137,8 @@ def record_bulk_change(queryset):
     if is_tracking_suspended() or not should_track(queryset.model):
         return
     object_pks = list(queryset.values_list(queryset.model._meta.pk.attname, flat=True))
+    if queryset.model._meta.label_lower == 'system_settings.systemsetting':
+        object_pks = [pk for pk in object_pks if not _is_device_local_setting(queryset.model._meta.label_lower, pk)]
     if not object_pks:
         return
     from system_settings.models import SyncEntityState

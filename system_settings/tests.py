@@ -34,7 +34,7 @@ from system_settings.feishu_im import (
     _select_context_records,
     _trim_to_estimated_tokens,
 )
-from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentLongTermMemory, AgentShortTermMemory, MCPServer, Skill, SystemSetting
+from system_settings.models import Agent, AgentIMMessage, AgentIMSession, AgentLongTermMemory, AgentShortTermMemory, MCPServer, Skill, SyncEntityState, SystemSetting
 from system_settings.sync_scheduler import (
     WebDavAutoSyncScheduler,
     cancel_running_sync,
@@ -314,6 +314,128 @@ class SyncManagerTests(TestCase):
         self.assertEqual(len(history), 10)
         pointer = json.loads(client.get_file_content(manager.v2_current_file))
         self.assertIn(pointer['snapshot_id'], {item['snapshot_id'] for item in history})
+
+    def _publish_aligned_snapshot(self):
+        client = MemoryStorageClient()
+        manager = SyncManager(client, '/o-doc-sync/')
+        data = manager.build_snapshot_data()
+        revisions = manager._build_revision_manifest(data)
+        snapshot = manager.publish_v2_snapshot(source='test', data_list=data, revisions=revisions)
+        manager._apply_v2_revisions(revisions)
+        return client, manager, snapshot
+
+    def test_aligned_unchanged_sync_skips_export_and_publish(self):
+        user = User.objects.create_user(username='aligned-user', password='password')
+        client, manager, snapshot = self._publish_aligned_snapshot()
+        snapshot_id = snapshot['meta']['snapshot_id']
+        user_state = SyncEntityState.objects.get(model_label='auth.user', object_pk=f'username:{user.username}')
+        SyncEntityState.objects.create(
+            model_label='auth.user:username',
+            object_pk=user.username,
+            content_hash=user_state.content_hash,
+            revision_at=user_state.revision_at,
+            origin_device=user_state.origin_device,
+            is_deleted=False,
+        )
+        SyncEntityState.objects.create(
+            model_label='system_settings.systemsetting',
+            object_pk='system_sync_v2_device',
+            content_hash='device-local',
+            revision_at=timezone.now(),
+            origin_device='local',
+            is_deleted=False,
+        )
+
+        with patch.object(SyncManager, 'build_snapshot_data', side_effect=AssertionError('should not export')):
+            result, summary, safety_backup = manager.sync_v2(base_snapshot_id=snapshot_id)
+
+        self.assertTrue(summary['unchanged'])
+        self.assertEqual(safety_backup, '')
+        self.assertEqual(result['meta']['snapshot_id'], snapshot_id)
+        pointer = json.loads(client.get_file_content(manager.v2_current_file))
+        self.assertEqual(pointer['snapshot_id'], snapshot_id)
+        self.assertFalse(SyncEntityState.objects.filter(model_label__contains=':').exists())
+        self.assertTrue(SyncEntityState.objects.filter(model_label='auth.user', object_pk=f'username:{user.username}').exists())
+
+    def test_local_change_publishes_without_full_merge(self):
+        client, manager, snapshot = self._publish_aligned_snapshot()
+        snapshot_id = snapshot['meta']['snapshot_id']
+        memo = Memo.objects.create(memo_id='memo_fast_sync', content='刚写下的闪念', user_id='snapshot-user')
+
+        with patch.object(SyncManager, 'get_v2_snapshot', side_effect=AssertionError('should not download data')), \
+             patch.object(SyncManager, 'create_local_safety_backup', side_effect=AssertionError('should not zip')), \
+             patch.object(SyncManager, 'apply_snapshot_data', side_effect=AssertionError('should not rewrite')):
+            result, summary, safety_backup = manager.sync_v2(base_snapshot_id=snapshot_id)
+
+        self.assertFalse(summary['unchanged'])
+        self.assertGreaterEqual(summary['created'], 1)
+        self.assertEqual(safety_backup, '')
+        self.assertNotEqual(result['meta']['snapshot_id'], snapshot_id)
+        self.assertTrue(Memo.objects.filter(memo_id=memo.memo_id).exists())
+        remote_data = client.get_file_content(manager._snapshot_path(result['meta']['snapshot_id'], 'data_index.json'))
+        self.assertIn('memo_fast_sync', remote_data)
+
+    def test_newer_revision_timestamp_with_same_content_skips_publish(self):
+        client, manager, snapshot = self._publish_aligned_snapshot()
+        snapshot_id = snapshot['meta']['snapshot_id']
+        state = SyncEntityState.objects.order_by('model_label', 'object_pk').first()
+        self.assertIsNotNone(state)
+        state.revision_at = state.revision_at + timedelta(hours=1)
+        state.save(update_fields=['revision_at', 'updated_at'])
+
+        with patch('article.version_service.enforce_article_version_retention', return_value=0):
+            result, summary, safety_backup = manager.sync_v2(base_snapshot_id=snapshot_id)
+
+        self.assertTrue(summary['unchanged'])
+        self.assertEqual(safety_backup, '')
+        pointer = json.loads(client.get_file_content(manager.v2_current_file))
+        self.assertEqual(pointer['snapshot_id'], snapshot_id)
+        self.assertEqual(result['meta']['snapshot_id'], snapshot_id)
+
+    def test_article_read_count_update_publishes_on_aligned_sync(self):
+        from rest_framework.test import APIRequestFactory
+
+        from article.models import Article
+        from article.views import ArticleDetailView
+
+        Anthology.objects.create(coll_id='coll_read', title='阅读', type='article', permission='public', user_id='admin')
+        article = Article.objects.create(article_id='art_read', title='阅读', content='正文', coll_id='coll_read')
+        client, manager, snapshot = self._publish_aligned_snapshot()
+        snapshot_id = snapshot['meta']['snapshot_id']
+        request = APIRequestFactory().get(f'/api/article/detail/{article.pk}')
+        response = ArticleDetailView.as_view()(request, article.pk)
+        self.assertEqual(response.status_code, 200)
+        article.refresh_from_db()
+        self.assertEqual(article.read_count, 1)
+
+        with patch('article.version_service.enforce_article_version_retention', return_value=0):
+            result, summary, safety_backup = manager.sync_v2(base_snapshot_id=snapshot_id)
+
+        self.assertFalse(summary['unchanged'])
+        self.assertEqual(safety_backup, '')
+        self.assertNotEqual(result['meta']['snapshot_id'], snapshot_id)
+        remote_data = client.get_file_content(manager._snapshot_path(result['meta']['snapshot_id'], 'data_index.json'))
+        self.assertIn('"read_count":1', remote_data.replace(' ', ''))
+
+    def test_safety_backup_keeps_three_zips_beside_the_hash_index(self):
+        root = os.path.join(self._test_media_root.name, '.sync-v2-safety')
+        os.makedirs(root)
+        for name in ('20260101010101-a.zip', '20260101010102-b.zip', '20260101010103-c.zip'):
+            with open(os.path.join(root, name), 'wb') as handle:
+                handle.write(b'zip')
+        with open(os.path.join(root, 'media-hash-index.json'), 'w', encoding='utf-8') as handle:
+            handle.write('{}')
+        with open(os.path.join(root, 'media-hash-index.json.tmp'), 'w', encoding='utf-8') as handle:
+            handle.write('{}')
+        manager = SyncManager(MemoryStorageClient(), '/o-doc-sync/')
+        with patch.object(SyncManager, 'build_snapshot_data', return_value=[]):
+            manager.create_local_safety_backup('before-sync')
+        names = set(os.listdir(root))
+        zips = [name for name in names if name.endswith('.zip')]
+        self.assertEqual(len(zips), 3)
+        self.assertNotIn('20260101010101-a.zip', names)
+        self.assertIn('media-hash-index.json', names)
+        self.assertIn('media-hash-index.json.tmp', names)
 
     def test_v2_snapshot_uploads_images_attachments_archives_and_avatars_as_blobs(self):
         client = MemoryStorageClient()

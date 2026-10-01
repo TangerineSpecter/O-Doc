@@ -14,7 +14,7 @@ from article.models import Article
 from system_settings.agent_activity import record_post_publication, update_work_activity
 from system_settings.models import Agent, AgentExecutionLease, AgentRunRecord, AgentTask, WorldAction, WorldActionRuntime
 from .action_schedule import select_agent
-from .execution import execution_lease, stamina
+from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
 from .publish_config import PUBLISH_COST, categories_for, eligibility, own_posts
 from .publish_search import canonical_url
 from .publish_workflow import SkipPublication, Workflow, validate_draft
@@ -141,6 +141,8 @@ def run_publish_opportunity(task, scheduler, *, key=None, manual=False, locked=F
     if not locked:
         with execution_lease(WorldActionRuntime, {'pk': 'world'}) as world_token:
             if not world_token:
+                if defer_when_world_busy.get():
+                    raise WorldLeaseBusy()
                 return record_busy_opportunity(task, scheduler, key, manual)
             return run_publish_opportunity(task, scheduler, key=key, manual=manual, locked=world_token)
     task.refresh_from_db()

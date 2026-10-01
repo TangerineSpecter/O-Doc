@@ -114,12 +114,18 @@ def check_goals(owner: str, agent) -> None:
 
 
 def prepare_market(config, agent, scheduler):
+    from system_settings.models import WorldActionRuntime
+    from .execution import WorldLeaseBusy, defer_when_world_busy
     today = local_time().date().isoformat()
     identity = stable_id(config.pk, agent.pk, today, 'market-prepare')
     if LifeItem.objects.filter(pk=identity).exists():
         return
     task = next((t for t in tasks_for(config.pk) if t.enabled and t.task_kind=='market'),None)
     if not task:
+        return
+    # 采购要占世界执行位。锁已被占用时不写当天准备记录，下一轮再决定是否购买。
+    runtime = WorldActionRuntime.objects.filter(pk='world').only('token', 'until').first()
+    if runtime and runtime.token and runtime.until and runtime.until > timezone.now():
         return
     now = timezone.now()
     item = LifeItem.objects.create(pk=identity,owner_id=config.pk,actor_id=agent.pk,original_at=now,scheduled_at=now,activity='market_prepare',task_id=task.pk,status='running')
@@ -132,8 +138,15 @@ def prepare_market(config, agent, scheduler):
         adjust_budget(config.pk,agent.pk,[{'id':item.pk,'budget':str(money(decision.get('budget','0')))}], str(decision.get('reason','市场准备')))
         if decision['go']:
             from .market_runner import run_market_opportunity
-            with life_scope(item,build_context(config.pk,agent,item)):
-                record=run_market_opportunity(task,scheduler,key=identity)
+            marker = defer_when_world_busy.set(True)
+            try:
+                with life_scope(item,build_context(config.pk,agent,item)):
+                    record=run_market_opportunity(task,scheduler,key=identity)
+            except WorldLeaseBusy:
+                item.delete()
+                return
+            finally:
+                defer_when_world_busy.reset(marker)
             item.record_id=record.pk if record else ''
             item.status='failed' if record and record.status=='failed' else 'completed'
             item.result={'reason':record.summary if record else '居民忙碌，市场准备结束'}

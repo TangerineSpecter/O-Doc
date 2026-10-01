@@ -18,7 +18,7 @@ from django.shortcuts import get_object_or_404
 from PIL import Image as PILImage
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
-from system_settings.sync_state import permanent_deletion
+from system_settings.sync_state import permanent_deletion, record_bulk_change
 
 from article.annotation_service import (
     AnnotationError,
@@ -318,10 +318,10 @@ class ArticleDetailView(APIView):
             if not can_access_anthology(request, article.coll_id):
                 return error_result(ErrorCode.RESOURCE_NOT_FOUND)
 
-            # 更新阅读次数
-            Article.objects.filter(article_id=article.article_id).update(
-                read_count=models.F('read_count') + 1
-            )
+            # QuerySet.update 不触发保存信号，须先记下修订，对齐后的同步才会发布新的阅读次数。
+            read_rows = Article.objects.filter(article_id=article.article_id)
+            record_bulk_change(read_rows)
+            read_rows.update(read_count=models.F('read_count') + 1)
             article.refresh_from_db(fields=['read_count'])
 
             # 序列化响应数据

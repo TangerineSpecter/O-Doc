@@ -223,7 +223,9 @@ class FarmTests(TestCase):
     def test_autonomous_plan_partial_failure_does_not_recall_model(self):
         AgentExecutionLease.objects.all().delete()
         with patch('system_settings.agent_world.farm_runner.decide',return_value={'choices':['0','1'],'reason':'买饲料'}), patch('system_settings.agent_world.farm_runner.commit_operation',side_effect=[None,ValueError('资金变化')]) as commit:
-            run_farm_opportunity(self.task,key='run',locked='w')
+            record = run_farm_opportunity(self.task,key='run',locked='w')
+            self.assertEqual(record.status, 'failed')
+            self.assertIn('资金变化', record.summary)
             run_farm_opportunity(self.task,key='run',locked='w')
             self.assertEqual(commit.call_count,2)
         self.assertEqual(WorldAction.objects.get(pk='run').status,'failed')
@@ -247,6 +249,28 @@ class FarmTests(TestCase):
         SyncManager().apply_snapshot_data(data)
         self.assertEqual(stock(farm,'feed').quantity,4)
         self.assertAlmostEqual(stamina(self.agent),before,places=3)
+
+    def test_two_crops_receive_distinct_empty_plots_and_both_plant(self):
+        from .travel_models import AgentInventoryItem
+        for sku, name in (('seed.potato', '土豆种子'), ('seed.corn', '玉米种子')):
+            AgentInventoryItem.objects.create(id=sku, actor_id=self.agent.pk, owner_id='admin',
+                kind='seed', name=name, quantity=2, source={'sku': sku})
+        farm = AgentFarm.objects.get(pk=self.agent.pk)
+        planting = [o for o in candidates(farm, self.agent.money) if o['operation']['kind'] == 'plant']
+        self.assertEqual([o['operation']['targets'] for o in planting], [['0', '1'], ['2', '3']])
+        self.assertEqual([o['operation']['crop'] for o in planting], ['potato', 'corn'])
+
+        def choose(_task, _agent, _farm, options):
+            return {'choices': [o['id'] for o in options if o['operation']['kind'] == 'plant'], 'reason': '两种种子分别种进空地'}
+
+        AgentExecutionLease.objects.all().delete()
+        with patch('system_settings.agent_world.farm_runner.decide', side_effect=choose):
+            record = run_farm_opportunity(self.task, key='two-crops', locked='w')
+        self.assertEqual(record.status, 'success')
+        plots = self.state()['plots']
+        self.assertEqual([p['crop']['kind'] if p['crop'] else None for p in plots], ['potato', 'potato', 'corn', 'corn'])
+        self.assertEqual(FarmOperation.objects.filter(opportunity_id='two-crops').count(), 2)
+        self.assertEqual(WorldAction.objects.get(pk='two-crops').status, 'success')
 
     def test_common_backpack_seeds_from_other_sources_can_be_planted(self):
         from .travel_models import AgentInventoryItem

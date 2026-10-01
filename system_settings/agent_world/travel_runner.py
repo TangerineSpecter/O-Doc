@@ -8,7 +8,7 @@ from django.db.models import Q
 from django.utils import timezone
 from system_settings.models import AgentTask, AgentExecutionLease, WorldActionRuntime, WorldAction
 from .action_schedule import select_agent, take_due
-from .execution import execution_lease
+from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease
 from .travel_models import TravelJourney, TravelRuntime, TravelNode
 from .travel_candidates import candidates
 from .travel_config import TravelConfigSerializer
@@ -26,6 +26,8 @@ def run_travel_opportunity(task, scheduler=None, *, key=None, manual=False, lock
         with execution_lease(WorldActionRuntime, {'pk': 'world'}) as token:
             if token:
                 return run_travel_opportunity(task, scheduler, key=key, manual=manual, locked=token)
+        if defer_when_world_busy.get():
+            raise WorldLeaseBusy()
         return None
     key = key or hashlib.sha256(f'manual:{uuid.uuid4()}'.encode()).hexdigest()
     existing = TravelJourney.objects.filter(pk=key).first()

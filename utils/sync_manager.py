@@ -22,8 +22,8 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from system_settings.sync_state import (
-    LOCAL_ONLY_MODEL_LABELS, PERMANENT_DELETE_HASH_PREFIX, canonical_hash, get_device_id, is_tracking_suspended, suspend_tracking,
-    sync_entity_identity,
+    LOCAL_ONLY_MODEL_LABELS, LOCAL_ONLY_SYSTEM_SETTING_KEYS, PERMANENT_DELETE_HASH_PREFIX, canonical_hash, get_device_id,
+    is_tracking_suspended, suspend_tracking, sync_entity_identity,
 )
 
 
@@ -34,6 +34,16 @@ class SyncError(Exception):
     """同步过程中的显式失败。"""
 
 
+def format_sync_result(summary, safety_backup=''):
+    if summary.get('unchanged'):
+        return '数据与媒体均未变化，已跳过全量合并与上传。'
+    backup_name = os.path.basename(safety_backup) if safety_backup else '未创建'
+    return (
+        f"v2 合并完成：新增 {summary.get('created', 0)}、更新 {summary.get('updated', 0)}、"
+        f"删除 {summary.get('deleted', 0)}、冲突自动处理 {summary.get('conflicts', 0)}；本机安全快照：{backup_name}"
+    )
+
+
 class SyncManager:
     SNAPSHOT_FORMAT = 2
     SNAPSHOT_RETENTION = 10
@@ -42,12 +52,6 @@ class SyncManager:
         'article', 'anthology', 'categories', 'tags',
         'assets', 'prompts', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis', 'whiteboard', 'memos', 'message'
     ]
-    LOCAL_ONLY_SYSTEM_SETTING_KEYS = frozenset({
-        'system_webdav_config',
-        'system_webdav_sync_runtime',
-        'system_sync_v2_device',
-    })
-
     def __init__(self, storage_client=None, remote_base_path=''):
         self.client = storage_client
         if storage_client is None:
@@ -214,7 +218,7 @@ class SyncManager:
     def _queryset_for_export(self, model):
         queryset = model.objects.all()
         if model._meta.label_lower == 'system_settings.systemsetting':
-            queryset = queryset.exclude(key__in=self.LOCAL_ONLY_SYSTEM_SETTING_KEYS)
+            queryset = queryset.exclude(key__in=LOCAL_ONLY_SYSTEM_SETTING_KEYS)
         return queryset
 
     def _drop_local_only_settings(self, data_list):
@@ -222,7 +226,7 @@ class SyncManager:
         for item in data_list:
             if (
                 item.get('model') == 'system_settings.systemsetting'
-                and str(item.get('pk')) in self.LOCAL_ONLY_SYSTEM_SETTING_KEYS
+                and str(item.get('pk')) in LOCAL_ONLY_SYSTEM_SETTING_KEYS
             ):
                 continue
             filtered.append(item)
@@ -800,7 +804,7 @@ class SyncManager:
                         continue
                     remote_pks = set(remote_pk_map.get(model_label, set()))
                     if model._meta.label_lower == 'system_settings.systemsetting':
-                        remote_pks.update(self.LOCAL_ONLY_SYSTEM_SETTING_KEYS)
+                        remote_pks.update(LOCAL_ONLY_SYSTEM_SETTING_KEYS)
                     local_objects = model.objects.all()
 
                     stale_pks = [
@@ -1367,7 +1371,8 @@ class SyncManager:
             state = states.get(key)
             item_hash = canonical_hash(item.get('fields') or {})
             if state is None:
-                model_label, pk = key.rsplit(':', 1)
+                # 身份本身可以带冒号（username:、skill:），只能从左边拆一次。
+                model_label, pk = key.split(':', 1)
                 rev_at = self._item_revision_at(item)
                 state = SyncEntityState(
                     model_label=model_label, object_pk=pk, content_hash=item_hash,
@@ -1503,25 +1508,70 @@ class SyncManager:
         refresh_merged_integrity(result, result_revisions)
         return result, result_revisions, summary
 
-    def _build_v2_media_manifest(self, previous_media=None):
+    def _media_hash_cache_path(self):
+        return os.path.join(str(settings.MEDIA_ROOT), '.sync-v2-safety', 'media-hash-index.json')
+
+    def _load_media_hash_cache(self):
+        path = self._media_hash_cache_path()
+        try:
+            with open(path, encoding='utf-8') as cache_file:
+                payload = json.load(cache_file)
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+    def _save_media_hash_cache(self, cache, keep_paths):
+        retained = {path: entry for path, entry in cache.items() if path in keep_paths}
+        path = self._media_hash_cache_path()
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            temporary = path + '.tmp'
+            with open(temporary, 'w', encoding='utf-8') as cache_file:
+                json.dump(retained, cache_file, ensure_ascii=False)
+            os.replace(temporary, path)
+        except OSError:
+            return
+
+    def _digest_media_file(self, rel_path, cache):
+        local_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+        file_stat = os.stat(local_path)
+        cached = cache.get(rel_path) or {}
+        if (
+            cached.get('size') == file_stat.st_size
+            and cached.get('mtime_ns') == file_stat.st_mtime_ns
+            and cached.get('hash')
+        ):
+            return cached['hash'], file_stat.st_size
+        digest = self._hash_file(local_path)
+        cache[rel_path] = {'size': file_stat.st_size, 'mtime_ns': file_stat.st_mtime_ns, 'hash': digest}
+        return digest, file_stat.st_size
+
+    def _compose_media_manifest(self, previous_media=None, *, allow_missing=False):
         previous_media = previous_media or {}
-        media = {}
         paths, missing = self._collect_media_relative_paths()
         if missing:
+            if allow_missing:
+                return None
             raise SyncError('无法创建安全快照，本地存在缺失资源：' + '，'.join(missing[:3]))
+        cache = self._load_media_hash_cache()
+        media = {}
         for rel_path in paths:
             local_path = os.path.join(settings.MEDIA_ROOT, rel_path)
             if not os.path.isfile(local_path):
                 continue
-            digest = self._hash_file(local_path)
-            media[rel_path] = {'hash': digest, 'size': os.path.getsize(local_path)}
-        # 只有明确释放的 cloud_only 图书正文保留上一个 v2 快照的 blob 引用；
-        # 其他资源缺失时不能静默延续旧引用。
+            digest, size = self._digest_media_file(rel_path, cache)
+            media[rel_path] = {'hash': digest, 'size': size}
+        self._save_media_hash_cache(cache, set(media))
         released_book_paths = set(self._released_book_rel_paths())
         for rel_path, entry in previous_media.items():
             if rel_path in released_book_paths and rel_path not in media and entry.get('hash'):
-                media[rel_path] = entry
+                media[rel_path] = {'hash': entry.get('hash'), 'size': int(entry.get('size') or 0)}
         return media
+
+    def _build_v2_media_manifest(self, previous_media=None):
+        # 只有明确释放的 cloud_only 图书正文保留上一个 v2 快照的 blob 引用；
+        # 其他资源缺失时不能静默延续旧引用。
+        return self._compose_media_manifest(previous_media)
 
     @staticmethod
     def _format_size(size):
@@ -1756,7 +1806,7 @@ class SyncManager:
         from system_settings.models import SyncEntityState
         with suspend_tracking():
             for key, revision in revisions.items():
-                model_label, object_pk = key.rsplit(':', 1)
+                model_label, object_pk = key.split(':', 1)
                 SyncEntityState.objects.update_or_create(
                     model_label=model_label, object_pk=object_pk,
                     defaults={
@@ -1778,27 +1828,295 @@ class SyncManager:
             for rel_path in self._list_local_files(str(settings.MEDIA_ROOT)):
                 if rel_path.startswith('.sync-v2-safety/'):
                     continue
-                archive.write(os.path.join(str(settings.MEDIA_ROOT), rel_path), arcname=f'media/{rel_path}')
-        backups = sorted(self._list_local_files(root))
+                # 图片和压缩包再压一次几乎不减小体积，却会占满 NAS 的 CPU。
+                archive.write(
+                    os.path.join(str(settings.MEDIA_ROOT), rel_path),
+                    arcname=f'media/{rel_path}',
+                    compress_type=zipfile.ZIP_STORED,
+                )
+        # 哈希索引和中断残留的临时文件与快照放在同一目录，不能占用三份备份的名额。
+        backups = [path for path in self._list_local_files(root) if path.endswith('.zip')]
         for rel_path in backups[:-3]:
             os.remove(os.path.join(root, rel_path))
         return path
+
+    def _normalize_revision_time(self, value):
+        if value is None or value == '':
+            return None
+        parsed = value if not isinstance(value, str) else parse_datetime(value)
+        if parsed is None:
+            return None
+        now_is_aware = timezone.is_aware(timezone.now())
+        if now_is_aware and timezone.is_naive(parsed):
+            return timezone.make_aware(parsed, timezone.get_current_timezone())
+        if not now_is_aware and timezone.is_aware(parsed):
+            return timezone.make_naive(parsed, timezone.get_current_timezone())
+        return parsed
+
+    def _local_revision_is_newer(self, local_at, remote_at):
+        local_parsed = self._normalize_revision_time(local_at)
+        remote_parsed = self._normalize_revision_time(remote_at)
+        if local_parsed is None or remote_parsed is None:
+            return False
+        return local_parsed > remote_parsed
+
+    def _read_aligned_head(self, base_snapshot_id):
+        """读取当前指针、修订和媒体清单。数据正文留到确认有变更后再下载。"""
+        pointer = self._read_remote_json(self.v2_current_file)
+        if not pointer or pointer.get('format') != self.SNAPSHOT_FORMAT:
+            return None
+        snapshot_id = pointer.get('snapshot_id') or ''
+        if snapshot_id != base_snapshot_id:
+            return None
+        meta = self._read_remote_json(self._snapshot_path(snapshot_id, 'snapshot_meta.json'), required=True)
+        if meta.get('format') != self.SNAPSHOT_FORMAT:
+            return None
+        self.validate_remote_snapshot_version(meta)
+        revisions = self._read_remote_json(self._snapshot_path(snapshot_id, 'revisions.json'), required=True)
+        media = self._read_remote_json(self._snapshot_path(snapshot_id, 'media_manifest.json'), required=True)
+        if not isinstance(revisions, dict) or not isinstance(media, dict):
+            raise SyncError('远端修订或媒体清单格式不正确')
+        meta.setdefault('snapshot_id', snapshot_id)
+        return {'meta': meta, 'revisions': revisions, 'media': media}
+
+    def _repair_miskeyed_revisions(self):
+        """把曾经从右边拆开的修订键改回「模型:身份」。"""
+        from system_settings.models import SyncEntityState
+        corrupt_rows = list(SyncEntityState.objects.filter(model_label__contains=':'))
+        for state in corrupt_rows:
+            fixed_label, fixed_pk = f'{state.model_label}:{state.object_pk}'.split(':', 1)
+            if ':' in fixed_label:
+                state.delete()
+                continue
+            existing = SyncEntityState.objects.filter(
+                model_label=fixed_label, object_pk=fixed_pk,
+            ).exclude(pk=state.pk).first()
+            if existing is None:
+                state.model_label = fixed_label
+                state.object_pk = fixed_pk
+                state.save(update_fields=['model_label', 'object_pk', 'updated_at'])
+                continue
+            if (
+                not existing.content_hash
+                and state.content_hash
+                and not self._local_revision_is_newer(existing.revision_at, state.revision_at)
+            ):
+                existing.content_hash = state.content_hash
+                existing.is_deleted = state.is_deleted
+                existing.revision_at = state.revision_at
+                existing.origin_device = state.origin_device or existing.origin_device
+                existing.save(update_fields=['content_hash', 'is_deleted', 'revision_at', 'origin_device', 'updated_at'])
+            state.delete()
+
+    @staticmethod
+    def _revision_key_is_device_local(key):
+        prefix = 'system_settings.systemsetting:'
+        return key.startswith(prefix) and key[len(prefix):] in LOCAL_ONLY_SYSTEM_SETTING_KEYS
+
+    def _revisions_match_stored_index(self, remote_revisions):
+        from system_settings.models import SyncEntityState
+        self._repair_miskeyed_revisions()
+        remote_revisions = {
+            key: revision for key, revision in remote_revisions.items()
+            if not self._revision_key_is_device_local(key)
+        }
+        local = {}
+        for state in SyncEntityState.objects.all().iterator(chunk_size=2000):
+            if (
+                state.model_label == 'system_settings.systemsetting'
+                and state.object_pk in LOCAL_ONLY_SYSTEM_SETTING_KEYS
+            ):
+                continue
+            local[self._revision_key(state.model_label, state.object_pk)] = state
+        if set(local) != set(remote_revisions):
+            return False
+        for key, remote_rev in remote_revisions.items():
+            state = local[key]
+            if bool(state.is_deleted) != bool(remote_rev.get('deleted')):
+                return False
+            if (state.content_hash or '') != (remote_rev.get('hash') or ''):
+                return False
+            if self._local_revision_is_newer(state.revision_at, remote_rev.get('revision_at')):
+                return False
+        return True
+
+    @staticmethod
+    def _revision_content_same(left, right):
+        if set(left) != set(right):
+            return False
+        for key, revision in left.items():
+            other = right.get(key) or {}
+            if (revision.get('hash') or '') != (other.get('hash') or ''):
+                return False
+            if bool(revision.get('deleted')) != bool(other.get('deleted')):
+                return False
+        return True
+
+    @staticmethod
+    def _media_manifest_same(left, right):
+        left = left or {}
+        right = right or {}
+        if set(left) != set(right):
+            return False
+        for key, entry in left.items():
+            if (entry or {}).get('hash') != (right.get(key) or {}).get('hash'):
+                return False
+        return True
+
+    def _local_matches_head(self, head):
+        if not self._revisions_match_stored_index(head['revisions']):
+            return False
+        local_media = self._compose_media_manifest(head.get('media'), allow_missing=True)
+        if local_media is None:
+            return False
+        return self._media_manifest_same(local_media, head.get('media'))
+
+    @staticmethod
+    def _unchanged_sync_result(head):
+        return (
+            {'meta': head['meta'], 'revisions': head['revisions'], 'media': head['media']},
+            {'created': 0, 'updated': 0, 'deleted': 0, 'conflicts': 0, 'unchanged': True},
+            '',
+        )
+
+    @staticmethod
+    def _revision_change_summary(previous, current):
+        summary = {'created': 0, 'updated': 0, 'deleted': 0, 'conflicts': 0, 'unchanged': False}
+        for key in set(previous) | set(current):
+            before = previous.get(key) or {}
+            after = current.get(key) or {}
+            if not before and after and not after.get('deleted'):
+                summary['created'] += 1
+            elif after.get('deleted') and not before.get('deleted'):
+                summary['deleted'] += 1
+            elif before and after and before.get('hash') != after.get('hash') and not after.get('deleted'):
+                summary['updated'] += 1
+        return summary
+
+    def _publish_local_delta(
+        self, head, *, source, runner_id, base_snapshot_id, report, should_abort, recover_owned_remote_lock,
+    ):
+        """远端头仍是本机上次对齐的快照时，只导出并发布本机变更，不回写数据库。"""
+        from article.version_service import enforce_article_version_retention
+
+        report('本机有变更，正在导出并发布快照。', 20)
+        self._ensure_not_aborted(should_abort)
+        with self._remote_sync_lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
+            pointer = self._read_remote_json(self.v2_current_file) or {}
+            if pointer.get('snapshot_id') != base_snapshot_id:
+                safety_backup = self.create_local_safety_backup('before-sync')
+                enforce_article_version_retention()
+                self.reconcile_missing_book_media(drop_missing_assets=False)
+                snapshot, summary = self._merge_while_locked(
+                    report, base_snapshot_id=base_snapshot_id, source=source, runner_id=runner_id, should_abort=should_abort,
+                )
+                return snapshot, summary, safety_backup
+
+            enforce_article_version_retention()
+            self.reconcile_missing_book_media(drop_missing_assets=False)
+            local_data = self.build_snapshot_data()
+            local_revisions = self._build_revision_manifest(local_data)
+            local_media = self._build_v2_media_manifest(head.get('media'))
+            if (
+                self._revision_content_same(local_revisions, head['revisions'])
+                and self._media_manifest_same(local_media, head.get('media'))
+            ):
+                report('数据与媒体均未变化，已跳过全量合并与上传。', 100)
+                return self._unchanged_sync_result(head)
+
+            summary = self._revision_change_summary(head['revisions'], local_revisions)
+            report('正在发布新的 v2 合并快照。', 75)
+            snapshot = self.publish_v2_snapshot(
+                source=source, runner_id=runner_id, base_snapshot_id=base_snapshot_id,
+                previous_media=head.get('media'), data_list=local_data, revisions=local_revisions,
+                report=report,
+            )
+        return snapshot, summary, ''
+
+    def _merge_while_locked(self, report, *, base_snapshot_id, source, runner_id, should_abort):
+        from article.version_service import enforce_article_version_retention
+
+        report('已获取远端同步锁，正在读取当前快照。', 28)
+        self._ensure_not_aborted(should_abort)
+        remote = self.get_v2_current() or self._get_legacy_snapshot()
+        report('远端快照读取完成，正在合并本机与云端数据。', 40)
+        self._ensure_not_aborted(should_abort)
+        local_data = self.build_snapshot_data()
+        local_revisions = self._build_revision_manifest(local_data)
+        base = None
+        if base_snapshot_id:
+            try:
+                base = self.get_v2_snapshot(base_snapshot_id)
+            except SyncError:
+                base = None
+        if remote:
+            merged_data, merged_revisions, summary = self.merge_v2_data(base, local_data, local_revisions, remote)
+            report('正在校验并恢复非图书媒体资源。', 58)
+            # 此后会先覆盖媒体，再提交数据库并发布新指针；这些步骤必须作为一个
+            # 不可中断的提交段完成，避免取消后留下媒体与数据库不一致的本地状态。
+            self._ensure_not_aborted(should_abort)
+            self._restore_v2_media(
+                remote.get('media'),
+                skip_paths=self._book_body_paths_from_snapshot(remote.get('data')),
+            )
+            with transaction.atomic():
+                with suspend_tracking():
+                    self.apply_snapshot_data(merged_data, full_overwrite=True)
+                self._apply_v2_revisions(merged_revisions)
+                # A three-way merge can combine independently retained histories.
+                # Pruning after revision import records tombstones for every device.
+                enforce_article_version_retention()
+            # 远端新图书的正文被刻意跳过下载；写入数据库后立即将其转为
+            # 仅云端状态，确保本次同步完成后书架就能触发按需恢复。
+            self.reconcile_missing_book_media()
+            merged_data = self.build_snapshot_data()
+            merged_revisions = self._build_revision_manifest(merged_data)
+            previous_media = remote.get('media') if not remote.get('legacy') else None
+        else:
+            merged_data, merged_revisions, summary = local_data, local_revisions, {
+                'created': len(local_data), 'updated': 0, 'deleted': 0, 'conflicts': 0,
+            }
+            previous_media = None
+            self.reconcile_missing_book_media(drop_missing_assets=True)
+            merged_data = self.build_snapshot_data()
+            merged_revisions = self._build_revision_manifest(merged_data)
+        report('正在发布新的 v2 合并快照。', 75)
+        if not remote:
+            self._ensure_not_aborted(should_abort)
+        snapshot = self.publish_v2_snapshot(
+            source=source, runner_id=runner_id, base_snapshot_id=(remote or {}).get('meta', {}).get('snapshot_id', ''),
+            previous_media=previous_media, data_list=merged_data, revisions=merged_revisions,
+            report=report,
+        )
+        return snapshot, summary
 
     @farm_sync_guard
     def sync_v2(
         self, *, source='manual', runner_id='', base_snapshot_id='', on_progress=None,
         should_abort=None, recover_owned_remote_lock=False,
     ):
-        """Merge the current v2 head into local state, then publish one immutable merged snapshot."""
+        """本机已对齐当前远端快照且没有变更时直接结束；否则再合并或发布。"""
         def report(message, progress=None):
             if callable(on_progress):
                 on_progress(message, progress)
 
         self._ensure_not_aborted(should_abort)
-        report('正在创建本机完整安全快照。', 5)
-        safety_backup = self.create_local_safety_backup('before-sync')
+        report('正在比对修订清单与媒体哈希。', 8)
+        if base_snapshot_id:
+            head = self._read_aligned_head(base_snapshot_id)
+            if head is not None:
+                if self._local_matches_head(head):
+                    report('数据与媒体均未变化，已跳过全量合并与上传。', 100)
+                    return self._unchanged_sync_result(head)
+                return self._publish_local_delta(
+                    head, source=source, runner_id=runner_id, base_snapshot_id=base_snapshot_id,
+                    report=report, should_abort=should_abort, recover_owned_remote_lock=recover_owned_remote_lock,
+                )
+
         from article.version_service import enforce_article_version_retention
 
+        report('正在创建本机完整安全快照。', 5)
+        safety_backup = self.create_local_safety_backup('before-sync')
         enforce_article_version_retention()
         report('本机安全快照已完成，正在连接远端并获取同步锁。', 18)
         self._ensure_not_aborted(should_abort)
@@ -1806,55 +2124,8 @@ class SyncManager:
         # 在媒体恢复完成（或确认远端不存在）后再执行实际清理。
         self.reconcile_missing_book_media(drop_missing_assets=False)
         with self._remote_sync_lock(runner_id, recover_owned_lock=recover_owned_remote_lock):
-            report('已获取远端同步锁，正在读取当前快照。', 28)
-            self._ensure_not_aborted(should_abort)
-            remote = self.get_v2_current() or self._get_legacy_snapshot()
-            report('远端快照读取完成，正在合并本机与云端数据。', 40)
-            self._ensure_not_aborted(should_abort)
-            local_data = self.build_snapshot_data()
-            local_revisions = self._build_revision_manifest(local_data)
-            base = None
-            if base_snapshot_id:
-                try:
-                    base = self.get_v2_snapshot(base_snapshot_id)
-                except SyncError:
-                    base = None
-            if remote:
-                merged_data, merged_revisions, summary = self.merge_v2_data(base, local_data, local_revisions, remote)
-                report('正在校验并恢复非图书媒体资源。', 58)
-                # 此后会先覆盖媒体，再提交数据库并发布新指针；这些步骤必须作为一个
-                # 不可中断的提交段完成，避免取消后留下媒体与数据库不一致的本地状态。
-                self._ensure_not_aborted(should_abort)
-                self._restore_v2_media(
-                    remote.get('media'),
-                    skip_paths=self._book_body_paths_from_snapshot(remote.get('data')),
-                )
-                with transaction.atomic():
-                    with suspend_tracking():
-                        self.apply_snapshot_data(merged_data, full_overwrite=True)
-                    self._apply_v2_revisions(merged_revisions)
-                    # A three-way merge can combine independently retained histories.
-                    # Pruning after revision import records tombstones for every device.
-                    enforce_article_version_retention()
-                # 远端新图书的正文被刻意跳过下载；写入数据库后立即将其转为
-                # 仅云端状态，确保本次同步完成后书架就能触发按需恢复。
-                self.reconcile_missing_book_media()
-                merged_data = self.build_snapshot_data()
-                merged_revisions = self._build_revision_manifest(merged_data)
-                previous_media = remote.get('media') if not remote.get('legacy') else None
-            else:
-                merged_data, merged_revisions, summary = local_data, local_revisions, {'created': len(local_data), 'updated': 0, 'deleted': 0, 'conflicts': 0}
-                previous_media = None
-                self.reconcile_missing_book_media(drop_missing_assets=True)
-                merged_data = self.build_snapshot_data()
-                merged_revisions = self._build_revision_manifest(merged_data)
-            report('正在发布新的 v2 合并快照。', 75)
-            if not remote:
-                self._ensure_not_aborted(should_abort)
-            snapshot = self.publish_v2_snapshot(
-                source=source, runner_id=runner_id, base_snapshot_id=(remote or {}).get('meta', {}).get('snapshot_id', ''),
-                previous_media=previous_media, data_list=merged_data, revisions=merged_revisions,
-                report=report,
+            snapshot, summary = self._merge_while_locked(
+                report, base_snapshot_id=base_snapshot_id, source=source, runner_id=runner_id, should_abort=should_abort,
             )
         return snapshot, summary, safety_backup
 

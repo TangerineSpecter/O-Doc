@@ -8,7 +8,7 @@ from system_settings.models import AgentTask, AgentRunRecord, WorldAction, World
 from system_settings.agent_prompts import build_agent_system_prompt
 from system_settings.agent_activity import update_work_activity
 from utils.ai_service import AIService
-from .execution import execution_lease
+from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease
 from .action_schedule import select_agent
 from .investment_data import local_day, reference_day, QUERY_DEADLINE
 from .investment_models import InvestmentDecision, InvestmentTrade
@@ -28,7 +28,9 @@ def run_investment_opportunity(task,scheduler=None,*,key=None,manual=False):
     old=WorldAction.objects.filter(pk=key).first()
     if old:return old.record
     with execution_lease(WorldActionRuntime,{'pk':'world'}) as world_token:
-        if not world_token:return None
+        if not world_token:
+            if defer_when_world_busy.get():raise WorldLeaseBusy()
+            return None
         old=WorldAction.objects.filter(pk=key).first()
         if old:return old.record
         task.refresh_from_db()

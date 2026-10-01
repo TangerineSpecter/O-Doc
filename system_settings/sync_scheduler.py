@@ -544,7 +544,7 @@ class WebDavAutoSyncScheduler:
                 return
 
             manager = self._build_sync_manager(config)
-            append_sync_message('自动同步正在创建本机安全快照并执行 v2 三方合并。', runner_id=self.runner_id)
+            append_sync_message('自动同步正在比对修订清单与媒体哈希。', runner_id=self.runner_id)
             snapshot, summary, safety_backup = manager.sync_v2(
                 source='scheduler', runner_id=self.runner_id,
                 base_snapshot_id=runtime_state.get('last_synced_snapshot_id', ''),
@@ -553,10 +553,13 @@ class WebDavAutoSyncScheduler:
                 should_abort=lambda: should_abort_sync(self.runner_id),
             )
             snapshot_meta = snapshot['meta']
-            messages = [
-                f"v2 合并：新增 {summary['created']}、更新 {summary['updated']}、删除 {summary['deleted']}、冲突 {summary['conflicts']}",
-                f'本机安全快照：{safety_backup}',
-            ]
+            if summary.get('unchanged'):
+                messages = ['数据与媒体均未变化，已跳过全量合并与上传。']
+            else:
+                messages = [
+                    f"v2 合并：新增 {summary['created']}、更新 {summary['updated']}、删除 {summary['deleted']}、冲突 {summary['conflicts']}",
+                    f'本机安全快照：{safety_backup}',
+                ]
 
             if not runner_owns_sync(self.runner_id):
                 return
@@ -580,7 +583,10 @@ class WebDavAutoSyncScheduler:
                 last_merge_summary=summary,
                 sync_progress=100,
             )
-            append_sync_message('自动同步快照已发布，远端 current 指针已更新。', runner_id=self.runner_id, progress=100)
+            append_sync_message(
+                '数据与媒体均未变化，远端快照保持不变。' if summary.get('unchanged') else '自动同步快照已发布，远端 current 指针已更新。',
+                runner_id=self.runner_id, progress=100,
+            )
             logger.info('WebDAV auto sync finished successfully')
         except Exception as exc:
             if not runner_owns_sync(self.runner_id):

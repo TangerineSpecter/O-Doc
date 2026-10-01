@@ -21,7 +21,7 @@
     "test:article-templates": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/articleTemplates.test.ts",
     "test:prompts": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/promptRenderer.test.ts",
     "test:prevent-zoom": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/preventZoom.test.ts",
-    "test:system-logs": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/diagnostics.test.ts"
+    "test:system-logs": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/diagnostics.test.ts src/utils/dateRangeUtils.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

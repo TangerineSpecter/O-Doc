@@ -21,7 +21,7 @@ from .action_schedule import select_agent, take_due
 from .action_activity import finish_activity
 from .farm_gate import guarded
 from .comments import create_comment
-from .execution import INTERACTION_COST, execution_lease, stamina
+from .execution import INTERACTION_COST, WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
 from .post_interaction import candidate_posts, merged_scope
 from .ratings import rate_post
 
@@ -180,6 +180,8 @@ def run_opportunity(task, scheduler, *, key=None, manual=False, locked=False):
     if not locked:
         with execution_lease(WorldActionRuntime, {'pk': 'world'}) as world_token:
             if not world_token:
+                if defer_when_world_busy.get():
+                    raise WorldLeaseBusy()
                 return record_busy_opportunity(task, scheduler, key, manual)
             return run_opportunity(task, scheduler, key=key, manual=manual, locked=world_token)
     task.refresh_from_db()
@@ -281,6 +283,9 @@ def tick(scheduler):
     for action in WorldAction.objects.filter(record_id__in=record_ids, status='failed').select_related('record', 'agent'):
         repair_effects(action)
     runtime, _ = WorldActionRuntime.objects.get_or_create(pk='world')
+    # 到期生活安排先于发帖恢复。世界执行锁被占用时也不跳过生活循环，否则到点日程会一直停在待执行。
+    from .life_runner import tick_life
+    tick_life(scheduler)
     with execution_lease(WorldActionRuntime, {'pk': 'world'}) as token:
         if not token:
             return
@@ -289,8 +294,6 @@ def tick(scheduler):
         from .farm_runner import tick_farms
         tick_farms(scheduler, token, runtime.enabled)
         if not runtime.enabled:
-            from .life_runner import tick_life
-            tick_life(scheduler)
             return
         # 恢复可能继续检索、写作和发布，同样受本机开关与世界执行锁约束。
         publications = WorldAction.objects.filter(status='claimed', updated_at__lt=stale, task__task_kind='post_publish').select_related('task')
@@ -298,7 +301,5 @@ def tick(scheduler):
             from .publish_runner import run_publish_opportunity
             run_publish_opportunity(pending.task, scheduler, key=pending.pk, manual=False, locked=token)
     if runtime.enabled:
-        from .life_runner import tick_life
-        tick_life(scheduler)
         from .social_runner import tick_social
         tick_social(scheduler)

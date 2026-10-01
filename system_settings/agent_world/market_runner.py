@@ -11,7 +11,7 @@ from system_settings.agent_prompts import build_agent_system_prompt
 from utils.ai_service import AIService
 from .run_diagnostics import failure_detail, progress, finish_record
 from .action_schedule import select_agent
-from .execution import execution_lease
+from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease
 from .market_tools import MARKET_TOOLS, call_market_tool
 from .market_queries import actor_context
 from .market_sessions import owner_for, cleanup, close_session
@@ -32,6 +32,8 @@ def run_market_opportunity(task: AgentTask, scheduler=None, *, key=None, manual=
     # Only the opportunity claim holds the world lease, never the model loop.
     with execution_lease(WorldActionRuntime, {'pk':'world'}) as world_token:
         if not world_token:
+            if defer_when_world_busy.get():
+                raise WorldLeaseBusy()
             if scheduler:
                 from .action_runner import record_busy_opportunity
                 return record_busy_opportunity(task, scheduler, key, manual)

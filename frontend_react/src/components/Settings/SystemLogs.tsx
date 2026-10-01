@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     AlertCircle,
     AlertTriangle,
@@ -10,11 +10,13 @@ import {
     Search,
     Trash2,
 } from 'lucide-react';
+import dayjs from 'dayjs';
 import { useSystemLogs } from '@/hooks/useSystemLogs';
 import { SystemLogDetail } from './SystemLogDetail';
 import ConfirmationModal from '@/components/common/ConfirmationModal';
 import { Select } from '@/components/common/Select';
 import { Checkbox } from '@/components/common/Checkbox';
+import { DateRangePicker, type DateRange } from '@/components/common/DateRangePicker';
 
 const time = (value: number | null) => (value ? new Date(value * 1000).toLocaleString() : '暂无');
 
@@ -31,18 +33,30 @@ export function SystemLogs() {
     const days = policyDraft?.days ?? logs.overview?.policy.days ?? 30;
     const mb = policyDraft?.mb ?? logs.overview?.policy.maxMb ?? 100;
 
-    const filter = (key: 'module' | 'q' | 'since' | 'until', value: string) => {
+    const filter = (key: 'module' | 'q', value: string) => {
         logs.setQuery(previous => ({
             ...previous,
             page: 1,
-            [key]:
-                key === 'since' || key === 'until'
-                    ? value
-                        ? new Date(value).getTime() / 1000
-                        : undefined
-                    : value,
+            [key]: value,
         }));
     };
+
+    const handleDateRangeChange = (range: DateRange | null) => {
+        logs.setQuery(previous => ({
+            ...previous,
+            page: 1,
+            since: range?.startDate ? dayjs(range.startDate).startOf('day').unix() : undefined,
+            until: range?.endDate ? dayjs(range.endDate).endOf('day').unix() : undefined,
+        }));
+    };
+
+    const currentDateRange = useMemo<DateRange | null>(() => {
+        if (!logs.query.since || !logs.query.until) return null;
+        return {
+            startDate: dayjs.unix(logs.query.since).format('YYYY-MM-DD'),
+            endDate: dayjs.unix(logs.query.until).format('YYYY-MM-DD'),
+        };
+    }, [logs.query.since, logs.query.until]);
 
     const isAllCurrentPageSelected =
         logs.page.list.length > 0 && logs.page.list.every(item => selected.includes(item.id));
@@ -241,27 +255,13 @@ export function SystemLogs() {
                             />
                         </div>
 
-                        {/* 开始时间 */}
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                            <span className="shrink-0">从</span>
-                            <input
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                                aria-label="开始时间"
-                                type="datetime-local"
-                                onChange={e => filter('since', e.target.value)}
-                            />
-                        </div>
-
-                        {/* 结束时间 */}
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                            <span className="shrink-0">至</span>
-                            <input
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 transition-all focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                                aria-label="结束时间"
-                                type="datetime-local"
-                                onChange={e => filter('until', e.target.value)}
-                            />
-                        </div>
+                        {/* 日期范围选择器 */}
+                        <DateRangePicker
+                            value={currentDateRange}
+                            onChange={handleDateRangeChange}
+                            placeholder="选择日期范围"
+                            buttonClassName="!h-[31px] !min-h-[31px] w-[180px] px-3 !py-1 text-xs"
+                        />
                     </div>
 
                     {/* 批量操作与统计行 */}

@@ -72,4 +72,6 @@ python init_categories.py
 # --bind 0.0.0.0:11800 表示监听所有网络接口的11800端口
 # o_doc.wsgi 是你的项目的 WSGI 应用程序入口
 echo "开始启动服务..."
-exec gunicorn --bind "0.0.0.0:${APP_PORT}" --timeout "${GUNICORN_TIMEOUT:-90}" o_doc.wsgi:application
+# gthread 在长同步期间仍会向主进程报心跳，并留出线程处理状态查询。
+# 同步 worker 会把超过 timeout 的同一次请求直接杀掉。
+exec gunicorn --bind "0.0.0.0:${APP_PORT}" --worker-class gthread --threads "${GUNICORN_THREADS:-4}" --timeout "${GUNICORN_TIMEOUT:-120}" o_doc.wsgi:application

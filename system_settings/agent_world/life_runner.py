@@ -1,4 +1,4 @@
-"""统一入口：先规划，后按持久时间点消费指定居民的一次机会。"""
+"""统一入口：已规划且到点的安排先执行，再补规划，避免后续规划拖住当前机会。"""
 import logging
 from datetime import timedelta
 from django.db import transaction
@@ -11,7 +11,7 @@ from .life_scope import life_scope, CURRENT
 from .life_context import build_context
 from .life_planner import prepare_market, plan_items, check_goals
 from .life_time import local_time,storage_time
-from .execution import execution_lease, stamina
+from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
 from .farm_gate import farm_gate
 
 logger=logging.getLogger(__name__)
@@ -37,6 +37,31 @@ def finish_running(config, now):
             revise(item,'已核对实际执行事实',status={'success':'completed','failed':'failed','skipped':'rest'}[action.status],record_id=action.record_id or '',result=action.result)
         elif local_time(item.updated_at) < now-timedelta(minutes=15) and not action:
             revise(item,'准备阶段中断，没有业务提交，本机会结束',status='failed',result={'reason':'执行准备中断'})
+
+
+def due_item(config, now):
+    due = LifeItem.objects.filter(
+        owner_id=config.pk, status__in=['pending', 'deferred'], scheduled_at__lte=timezone.now(),
+    ).exclude(actor_id__in=config.paused_agents).order_by('scheduled_at').first()
+    if not due:
+        return None
+    retry = due.context.get('planning_retry_at')
+    if retry and local_time(timezone.datetime.fromisoformat(retry)) > now:
+        return None
+    return due
+
+
+def world_execution_busy() -> bool:
+    row = WorldActionRuntime.objects.filter(pk='world').only('token', 'until').first()
+    return bool(row and row.token and row.until and row.until > timezone.now())
+
+
+def ready_without_replanning(item: LifeItem, now) -> bool:
+    """刚到点且今天已经规划过的安排直接执行。更早的过期安排仍先顺延，避免离线后集中补跑。"""
+    today = local_time(now).date().isoformat()
+    if item.activity in ('unplanned', '') or item.context.get('planned_on') != today:
+        return False
+    return local_time(item.scheduled_at) >= now - timedelta(seconds=90)
 
 
 def execute_item(item: LifeItem, scheduler) -> None:
@@ -69,39 +94,48 @@ def execute_item(item: LifeItem, scheduler) -> None:
         if point>=right:point=window(config.settings,point.date()+timedelta(days=1))[0]
         revise(item,'暂时忙碌或体力不足，顺延',status='deferred',scheduled_at=max(point,left));return
     # 即使资源变化也先给居民一次重新安排预算的机会。
+    prior_status=item.status
     try:
         plan_items(config,agent,[item]);item.refresh_from_db()
         task=AgentTask.objects.filter(pk=item.task_id,enabled=True).first()
         if item.activity=='rest':
             revise(item,'执行前选择休息',status='rest',result={'reason':item.intent});return
+        # 重新规划可能耗时，执行前再确认一次，避免把本轮记成休息或失败。
+        if world_execution_busy():
+            logger.warning('世界执行位忙碌，到期生活安排留到下一轮 item=%s',item.pk)
+            return
         with farm_gate(), transaction.atomic():
             locked=LifeItem.objects.select_for_update().get(pk=item.pk)
             if locked.status not in ('pending','deferred'):
                 return
             locked.status='running';locked.context={**locked.context,'execution_started':timezone.now().isoformat()};locked.save()
-        with life_scope(item,build_context(item.owner_id,agent,item)):
-            from .life_budget_policy import allows_spending
-            if allows_spending(item.activity) and item.context.get('needs_market'):
-                market=next((t for t in tasks_for(item.owner_id) if t.enabled and t.task_kind=='market'),None)
-                if market:
-                    from .market_runner import run_market_opportunity
-                    from .life_schedule import stable_id
-                    run_market_opportunity(market,scheduler,key=stable_id(execution_key(item),'supplies'))
-                    item.refresh_from_db();agent.refresh_from_db()
-                    CURRENT.get()['context']=build_context(item.owner_id,agent,item)
-            if item.activity=='farm':
-                from .farm_runner import run_farm_opportunity as run
-            elif item.activity=='investment':
-                from .investment_runner import run_investment_opportunity as run
-            elif item.activity=='post_interaction':
-                from .action_runner import run_opportunity as run
-            elif item.activity=='post_publish':
-                from .publish_runner import run_publish_opportunity as run
-            elif item.activity=='travel':
-                from .travel_runner import run_travel_opportunity as run
-            else:
-                raise ValueError('未支持的生活活动')
-            outcome=run(task,scheduler,key=execution_key(item))
+        marker=defer_when_world_busy.set(True)
+        try:
+            with life_scope(item,build_context(item.owner_id,agent,item)):
+                from .life_budget_policy import allows_spending
+                if allows_spending(item.activity) and item.context.get('needs_market'):
+                    market=next((t for t in tasks_for(item.owner_id) if t.enabled and t.task_kind=='market'),None)
+                    if market:
+                        from .market_runner import run_market_opportunity
+                        from .life_schedule import stable_id
+                        run_market_opportunity(market,scheduler,key=stable_id(execution_key(item),'supplies'))
+                        item.refresh_from_db();agent.refresh_from_db()
+                        CURRENT.get()['context']=build_context(item.owner_id,agent,item)
+                if item.activity=='farm':
+                    from .farm_runner import run_farm_opportunity as run
+                elif item.activity=='investment':
+                    from .investment_runner import run_investment_opportunity as run
+                elif item.activity=='post_interaction':
+                    from .action_runner import run_opportunity as run
+                elif item.activity=='post_publish':
+                    from .publish_runner import run_publish_opportunity as run
+                elif item.activity=='travel':
+                    from .travel_runner import run_travel_opportunity as run
+                else:
+                    raise ValueError('未支持的生活活动')
+                outcome=run(task,scheduler,key=execution_key(item))
+        finally:
+            defer_when_world_busy.reset(marker)
         item.refresh_from_db()
         if item.activity=='travel':
             return  # 后续节点只继续本次 workflow。
@@ -111,6 +145,14 @@ def execute_item(item: LifeItem, scheduler) -> None:
             status='failed'
         revise(item,'本次活动结束',status=status,record_id=outcome.pk if outcome else '',result={'reason':outcome.summary if outcome else '活动未能启动'})
         check_goals(item.owner_id,agent)
+    except WorldLeaseBusy:
+        item.refresh_from_db()
+        if item.status=='running':
+            item.status=prior_status if prior_status in ('pending','deferred') else 'pending'
+            item.context={key:value for key,value in item.context.items() if key!='execution_started'}
+            item.save(update_fields=['status','context','updated_at'])
+        logger.warning('世界执行位忙碌，到期生活安排留到下一轮 item=%s',item.pk)
+        return
     except Exception as exc:
         logger.exception('生活活动失败 item=%s',item.pk)
         item.refresh_from_db()
@@ -127,58 +169,81 @@ def tick_life(scheduler) -> None:
     for config in configs:
         now=local_time()
         try:
+            ran=False
+            due=due_item(config,now)
+            # 世界执行位被其他任务占用时留在原时间，下一轮再试，避免把机会记成休息或失败。
+            if due and ready_without_replanning(due,now) and not world_execution_busy():
+                execute_item(due,scheduler)
+                ran=True
             with execution_lease(WorldActionRuntime,{'pk':'life-planner'}) as token:
-                if not token:return
-                from .travel_models import TravelRuntime,TravelJourney
-                running=LifeItem.objects.filter(owner_id=config.pk,status='running',activity='travel').exclude(actor_id__in=config.paused_agents)
-                for pending in running:
-                    journey_id=execution_key(pending)
-                    trip=TravelJourney.objects.filter(pk=journey_id,status__in=['active','waiting']).first()
-                    if not trip and journey_id!=pending.pk:
-                        trip=TravelJourney.objects.filter(pk=pending.pk,status__in=['active','waiting']).first()
-                    if trip:
-                        TravelRuntime.objects.update_or_create(pk=trip.pk,defaults={'authorized':True})
-                # 90秒正常轮询容差内的 due 由执行器消费，不能反复向后挪。
-                if LifeItem.objects.filter(owner_id=config.pk,status__in=['pending','deferred'],scheduled_at__lt=storage_time(now-timedelta(seconds=90))).exists():
-                    recover(config,now)
-                cycle=ensure_cycle(config,now)
-                from .life_config import effective_settings
-                active_ids=effective_settings(config,now).get('agent_ids',[])
-                for capability in tasks_for(config.pk):
-                    if not capability.enabled:continue
-                    if capability.task_kind=='farm':
-                        from .farm_service import ensure_farms
-                        ensure_farms(capability)
-                    elif capability.task_kind=='investment':
-                        from .investment_service import validate_agents,account_for
-                        validate_agents(config.pk,active_ids)
-                        for resident in Agent.objects.filter(pk__in=active_ids):account_for(config.pk,resident)
-                candidates=LifeItem.objects.filter(owner_id=config.pk,status__in=['pending','deferred']).order_by('scheduled_at')
-                today=local_time(now).date().isoformat()
-                actor=None
-                for entry in candidates:
-                    if entry.actor_id in config.paused_agents:continue
-                    retry=entry.context.get('planning_retry_at')
-                    if retry and local_time(timezone.datetime.fromisoformat(retry))>now:continue
-                    if entry.activity=='unplanned' or (local_time(entry.scheduled_at).date().isoformat()==today and entry.context.get('planned_on')!=today):
-                        actor=entry.actor_id;break
-                if actor:
-                    agent=Agent.objects.select_related('model').filter(pk=actor).first()
-                    if agent:
-                        prepare_market(config,agent,scheduler)
-                        entries=[i for i in candidates if i.actor_id==actor and (i.activity=='unplanned' or local_time(i.scheduled_at).date().isoformat()==today)]
-                        # 大周期分批规划，但不把剩余计划全部装进单次上下文。
-                        try:
-                            plan_items(config,agent,entries[:50])
-                        except Exception as exc:
-                            detail=str(exc)[:500]
-                            for entry in entries[:50]:
-                                entry.attempts+=1
-                                terminal=entry.attempts>=3
-                                revise(entry,f'生活规划未通过校验：{detail}',status='failed' if terminal else 'deferred',
-                                       context={**entry.context,'planning_retry_at':(now+timedelta(minutes=5)).isoformat()},
-                                       result={'reason':detail})
-            due=LifeItem.objects.filter(owner_id=config.pk,status__in=['pending','deferred'],scheduled_at__lte=timezone.now()).exclude(actor_id__in=config.paused_agents).order_by('scheduled_at').first()
-            if due and (not due.context.get('planning_retry_at') or local_time(timezone.datetime.fromisoformat(due.context['planning_retry_at']))<=now):execute_item(due,scheduler)
+                if not token:
+                    logger.warning('生活规划锁被占用，本轮跳过重新规划 owner=%s',config.pk)
+                else:
+                    _plan_cycle(config,scheduler,now)
+            if ran or world_execution_busy():
+                if not ran and world_execution_busy():
+                    logger.warning('世界执行位忙碌，到期生活安排留到下一轮 owner=%s',config.pk)
+                continue
+            due=due_item(config,now)
+            if due:execute_item(due,scheduler)
         except Exception:
             logger.exception('生活周期处理失败 owner=%s',config.pk)
+
+
+def _plan_cycle(config, scheduler, now):
+    from .travel_models import TravelRuntime, TravelJourney
+    running = LifeItem.objects.filter(owner_id=config.pk, status='running', activity='travel').exclude(actor_id__in=config.paused_agents)
+    for pending in running:
+        journey_id = execution_key(pending)
+        trip = TravelJourney.objects.filter(pk=journey_id, status__in=['active', 'waiting']).first()
+        if not trip and journey_id != pending.pk:
+            trip = TravelJourney.objects.filter(pk=pending.pk, status__in=['active', 'waiting']).first()
+        if trip:
+            TravelRuntime.objects.update_or_create(pk=trip.pk, defaults={'authorized': True})
+    # 90秒正常轮询容差内的 due 由执行器消费，不能反复向后挪。
+    if LifeItem.objects.filter(owner_id=config.pk, status__in=['pending', 'deferred'], scheduled_at__lt=storage_time(now - timedelta(seconds=90))).exists():
+        recover(config, now)
+    ensure_cycle(config, now)
+    from .life_config import effective_settings
+    active_ids = effective_settings(config, now).get('agent_ids', [])
+    for capability in tasks_for(config.pk):
+        if not capability.enabled:
+            continue
+        if capability.task_kind == 'farm':
+            from .farm_service import ensure_farms
+            ensure_farms(capability)
+        elif capability.task_kind == 'investment':
+            from .investment_service import validate_agents, account_for
+            validate_agents(config.pk, active_ids)
+            for resident in Agent.objects.filter(pk__in=active_ids):
+                account_for(config.pk, resident)
+    candidates = LifeItem.objects.filter(owner_id=config.pk, status__in=['pending', 'deferred']).order_by('scheduled_at')
+    today = local_time(now).date().isoformat()
+    actor = None
+    for entry in candidates:
+        if entry.actor_id in config.paused_agents:
+            continue
+        retry = entry.context.get('planning_retry_at')
+        if retry and local_time(timezone.datetime.fromisoformat(retry)) > now:
+            continue
+        if entry.activity == 'unplanned' or (local_time(entry.scheduled_at).date().isoformat() == today and entry.context.get('planned_on') != today):
+            actor = entry.actor_id
+            break
+    if not actor:
+        return
+    agent = Agent.objects.select_related('model').filter(pk=actor).first()
+    if not agent:
+        return
+    prepare_market(config, agent, scheduler)
+    entries = [i for i in candidates if i.actor_id == actor and (i.activity == 'unplanned' or local_time(i.scheduled_at).date().isoformat() == today)]
+    # 大周期分批规划，但不把剩余计划全部装进单次上下文。
+    try:
+        plan_items(config, agent, entries[:50])
+    except Exception as exc:
+        detail = str(exc)[:500]
+        for entry in entries[:50]:
+            entry.attempts += 1
+            terminal = entry.attempts >= 3
+            revise(entry, f'生活规划未通过校验：{detail}', status='failed' if terminal else 'deferred',
+                   context={**entry.context, 'planning_retry_at': (now + timedelta(minutes=5)).isoformat()},
+                   result={'reason': detail})
