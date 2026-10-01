@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import dayjs from 'dayjs';
 import {
     CalendarDays,
-    LayoutList,
+    Columns3,
     SlidersHorizontal,
     ChevronLeft,
     ChevronRight,
@@ -106,8 +106,8 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                     : 'font-medium text-slate-600 hover:text-slate-900'
                             }`}
                         >
-                            <LayoutList className="h-3.5 w-3.5 shrink-0" />
-                            <span>列表</span>
+                            <Columns3 className="h-3.5 w-3.5 shrink-0" />
+                            <span>状态看板</span>
                         </button>
                         <button
                             type="button"
@@ -341,7 +341,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                     )}
                                 </div>
                             ) : (
-                                <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide pr-0.5">
+                                <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
                                     <LifeScheduleListView
                                         items={schedule.data.items}
                                         names={names}
@@ -351,6 +351,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                         onSelectItem={setSelected}
                                         dateKey={dateKey}
                                         density={density}
+                                        statusFilter={status}
                                     />
                                 </div>
                             )}

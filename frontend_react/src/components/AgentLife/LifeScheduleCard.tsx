@@ -130,18 +130,25 @@ export default function LifeScheduleCard({
         className: 'bg-slate-50 text-slate-600 border-slate-200',
     };
 
-    const timeString = new Date(item.scheduledAt).toLocaleTimeString('zh-CN', {
+    const dateObj = new Date(item.scheduledAt);
+    const timeString = dateObj.toLocaleTimeString('zh-CN', {
         timeZone: 'Asia/Shanghai',
         hour: '2-digit',
         minute: '2-digit',
     });
+    const monthDayString = dateObj.toLocaleDateString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        month: '2-digit',
+        day: '2-digit',
+    }).replace(/\//g, '-');
+    const fullTimeString = `${monthDayString} ${timeString}`;
 
     const showBudget = showsLifeBudget(item);
     const hasSpent = parseFloat(item.spent || '0') > 0;
-    const tooltipText = `${activityLabels[item.activity] || item.activity} · ${actorName || '居民'}\n时间：${timeString}\n状态：${statusInfo.label}${item.intent ? `\n意图：${item.intent}` : ''}${showBudget ? `\n预算：${item.budget} · 已用：${item.spent}` : ''}`;
+    const tooltipText = `${activityLabels[item.activity] || item.activity} · ${actorName || '居民'}\n时间：${fullTimeString}\n状态：${statusInfo.label}${item.intent ? `\n意图：${item.intent}` : ''}${showBudget ? `\n预算：${item.budget} · 已用：${item.spent}` : ''}`;
 
     // ==========================================
-    // 列表视图专用卡片：适度增加高度，收缩宽度，排版更具呼吸感
+    // 列表/看板视图专用卡片
     // ==========================================
     if (viewMode === 'list') {
         if (density === 'compact') {
@@ -150,55 +157,49 @@ export default function LifeScheduleCard({
                     type="button"
                     onClick={onClick}
                     title={tooltipText}
-                    className="group relative flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-3 text-left shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-xs hover:bg-orange-50/10 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                    style={{minHeight: '84px'}}
+                    className="group relative block w-full rounded-xl border border-slate-200/80 bg-white p-2 px-2.5 text-left shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-xs hover:bg-orange-50/15 focus:outline-none focus:ring-1 focus:ring-orange-500/20"
                 >
                     {/* 左侧彩色标识条 */}
                     <span
-                        className={`absolute bottom-2.5 left-0 top-2.5 w-1 rounded-r-full ${config.accentBar}`}
+                        className={`absolute bottom-1.5 left-0 top-1.5 w-1 rounded-r-full ${config.accentBar}`}
                         aria-hidden="true"
                     />
 
-                    {/* 顶栏：时间 + 状态微标 */}
-                    <div className="flex items-center justify-between gap-1.5 pl-1.5">
-                        <span className="font-mono text-xs font-bold text-slate-800">
-                            {timeString}
-                        </span>
-                        <span
-                            className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none ${statusInfo.className}`}
-                        >
-                            {statusInfo.showPulse && (
-                                <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-blue-600" />
-                            )}
-                            {statusInfo.label}
-                        </span>
-                    </div>
-
-                    {/* 中间栏：活动图标 + 活动名称 + 居民名 */}
-                    <div className="mt-1.5 flex items-center gap-2 pl-1.5">
-                        <span
-                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border shadow-2xs ${config.badgeColor}`}
-                        >
-                            <Icon className="h-3.5 w-3.5" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                                <span className="truncate text-xs font-bold text-slate-900">
-                                    {activityLabels[item.activity] || item.activity}
-                                </span>
-                                <span className="truncate text-[11px] text-slate-500 font-medium">
-                                    · {actorName || '居民'}
-                                </span>
-                            </div>
+                    {/* 第一行：日期时间 + 活动图标 + 活动名 + 居民名 */}
+                    <div className="flex items-center justify-between gap-1.5 pl-1">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                            <span className="font-mono text-[11px] font-bold text-slate-800 shrink-0">
+                                {fullTimeString}
+                            </span>
+                            <span
+                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${config.badgeColor}`}
+                            >
+                                <Icon className="h-2.5 w-2.5" />
+                            </span>
+                            <span className="truncate text-xs font-bold text-slate-900">
+                                {activityLabels[item.activity] || item.activity}
+                            </span>
                         </div>
+
+                        <span className="truncate text-[11px] text-slate-500 font-medium shrink-0 max-w-[72px]">
+                            {actorName || '居民'}
+                        </span>
                     </div>
 
-                    {/* 底栏：意图摘要与预算 */}
-                    <div className="mt-2 flex items-center justify-between gap-1 border-t border-slate-100/80 pt-1.5 pl-1.5 text-[10px]">
-                        <span className="truncate text-slate-500 max-w-[130px]">
-                            {item.intent || '安排已就绪'}
+                    {/* 第二行：意图摘要/失败原因 + 预算/支出 */}
+                    <div className="mt-1 flex items-center justify-between gap-1 pl-1 text-[10px]">
+                        <span
+                            className={`truncate max-w-[70%] ${
+                                item.status === 'failed' && item.result?.reason
+                                    ? 'text-rose-600 font-medium'
+                                    : 'text-slate-500'
+                            }`}
+                        >
+                            {item.status === 'failed' && item.result?.reason
+                                ? item.result.reason
+                                : item.intent || '安排已就绪'}
                         </span>
-                        <span className="shrink-0 font-mono text-slate-400">
+                        <span className="shrink-0 font-mono text-[10px] text-slate-400">
                             {hasSpent ? (
                                 <span className="font-semibold text-orange-600">支 ¥{item.spent}</span>
                             ) : (
@@ -210,7 +211,7 @@ export default function LifeScheduleCard({
             );
         }
 
-        // 列表视图详细模式（高度约 115px，展示意图卡片）
+        // 列表/看板视图详细模式（展示意图卡片及失败详情）
         return (
             <button
                 type="button"
@@ -223,11 +224,11 @@ export default function LifeScheduleCard({
                     className={`absolute bottom-3 left-0 top-3 w-1.5 rounded-r-full ${config.accentBar}`}
                     aria-hidden="true"
                 />
-                {/* 顶栏：时间 + 居民名 + 状态徽标 */}
+                {/* 顶栏：日期时间 + 居民名 + 状态徽标 */}
                 <div className="flex items-center justify-between gap-1.5 pl-1.5">
                     <div className="flex items-center gap-2">
                         <span className="font-mono text-xs font-bold text-slate-800">
-                            {timeString}
+                            {fullTimeString}
                         </span>
                         <span className="text-[11px] text-slate-500 font-medium">
                             {actorName || '居民'}
@@ -255,8 +256,16 @@ export default function LifeScheduleCard({
                     </span>
                 </div>
 
+                {/* 失败简述展示 */}
+                {item.status === 'failed' && item.result?.reason && (
+                    <div className="mt-2 ml-1.5 rounded-lg border border-rose-200 bg-rose-50/90 p-2 text-[11px] text-rose-700 leading-tight">
+                        <span className="font-semibold">失败原因：</span>
+                        <span className="line-clamp-2">{item.result.reason}</span>
+                    </div>
+                )}
+
                 {/* 意图说明 */}
-                {item.intent && (
+                {item.intent && item.status !== 'failed' && (
                     <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50/70 p-2 pl-2.5 ml-1.5">
                         <p className="line-clamp-2 text-[11px] leading-relaxed text-slate-600">
                             {item.intent}
