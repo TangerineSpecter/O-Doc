@@ -38,7 +38,31 @@ const saveStoredMessages = (conversationKey: string, messages: Message[]) => {
             updatedAt: new Date().toISOString(),
         }));
     } catch (error) {
-        console.warn('保存本地聊天记录失败:', error);
+        console.warn('保存本地聊天记录超出配额，尝试缩减图片体积后重试:', error);
+        try {
+            // 降级：仅保留最近 2 条消息的图片，更早的历史消息移除图片 base64
+            const compacted = messages.map((m, idx) => {
+                if (idx < messages.length - 2 && m.images) {
+                    return { ...m, images: undefined };
+                }
+                return m;
+            });
+            localStorage.setItem(getChatStorageKey(conversationKey), JSON.stringify({
+                messages: compacted,
+                updatedAt: new Date().toISOString(),
+            }));
+        } catch {
+            try {
+                // 二次降级：完全移除图片 base64，仅保留文本记录
+                const textOnly = messages.map(m => m.images ? { ...m, images: undefined } : m);
+                localStorage.setItem(getChatStorageKey(conversationKey), JSON.stringify({
+                    messages: textOnly,
+                    updatedAt: new Date().toISOString(),
+                }));
+            } catch (finalErr) {
+                console.warn('保存本地聊天记录彻底失败:', finalErr);
+            }
+        }
     }
 };
 
@@ -489,8 +513,11 @@ export const useChatSession = ({
             imageAnthologies: Anthology[];
         },
         retryUserIndex?: number,
+        userImages?: string[],
     ) => {
-        if (!userMsg.trim() || isThinkingRef.current) return;
+        const hasText = Boolean(userMsg.trim());
+        const hasImages = Boolean(userImages && userImages.length > 0);
+        if ((!hasText && !hasImages) || isThinkingRef.current) return;
 
         const requestConversationKey = activeConversationKey;
         const history = retryUserIndex === undefined ? messages : messages.slice(0, retryUserIndex);
@@ -515,10 +542,10 @@ export const useChatSession = ({
         isThinkingRef.current = true;
 
         try {
-            let messageForAI = userMsg;
+            let messageForAI = userMsg.trim() || (hasImages ? '请结合图片进行分析' : '');
             const isDefaultAgent = !activeAgent;
 
-            const usePhotographyAssistant = isDefaultAgent && (settings.assistantMode === 'manual'
+            const usePhotographyAssistant = isDefaultAgent && !hasImages && (settings.assistantMode === 'manual'
                 ? settings.selectedMcpIds.includes(PHOTOGRAPHY_MCP_ID)
                 : settings.assistantMode === 'auto' && shouldUsePhotographyAssistant(userMsg));
 
@@ -543,7 +570,7 @@ export const useChatSession = ({
             setActivitySteps(nextActivitySteps);
             updateConversationMessages(requestConversationKey, prev => [
                 ...(retryUserIndex === undefined ? prev : prev.slice(0, retryUserIndex)),
-                { role: 'user', content: userMsg },
+                { role: 'user', content: userMsg, images: userImages },
                 ...buildStatusMessages(nextActivitySteps),
             ]);
 
@@ -594,7 +621,12 @@ export const useChatSession = ({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: messageForAI,
-                    history: history.filter(m => !m.status && !m.error).map(m => ({ role: m.role, content: m.content })),
+                    images: userImages,
+                    history: history.filter(m => !m.status && !m.error).map(m => ({
+                        role: m.role,
+                        content: m.content,
+                        images: m.images,
+                    })),
                     use_knowledge_base: effectiveUseKb && !usePhotographyAssistant,
                     coll_id: effectiveUseKb && !usePhotographyAssistant && settings.selectedCollId ? settings.selectedCollId : undefined,
                     include_thinking: effectiveUseThinking,

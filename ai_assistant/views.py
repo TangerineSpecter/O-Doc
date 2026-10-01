@@ -61,6 +61,9 @@ class ChatView(APIView):
             # 1. 获取请求数据
             data = request.data
             message = data.get('message', '')
+            images = data.get('images', [])
+            if not isinstance(images, list):
+                images = []
             history = data.get('history', [])
             use_kb = data.get('use_knowledge_base', False) or data.get('useKb', False)
             coll_id = data.get('coll_id') or data.get('collId')
@@ -156,8 +159,10 @@ class ChatView(APIView):
 
             # 4. 构建完整消息链
             # 格式：[System, ...History, User]
-            full_messages = [{'role': 'system', 'content': system_prompt}] + history + [
-                {'role': 'user', 'content': message}]
+            formatted_history = [self._format_chat_item(item) for item in history]
+            user_content = self._format_message_content(message, images)
+            user_message = {'role': 'user', 'content': user_content}
+            full_messages = [{'role': 'system', 'content': system_prompt}] + formatted_history + [user_message]
 
             tool_context = self._build_mcp_tool_context(
                 agent_server_ids=agent_mcp_server_ids,
@@ -170,8 +175,7 @@ class ChatView(APIView):
                     + "\n\n当前对话已装载 MCP Tools。凡是用户请求需要外部信息、检索、读取链接、操作系统或调用工具时，必须优先调用合适的 Tool；"
                     + "如果缺少必要参数，请先向用户追问，不要编造参数。"
                 )
-                tool_messages = [{'role': 'system', 'content': tool_system_prompt}] + history + [
-                    {'role': 'user', 'content': message}]
+                tool_messages = [{'role': 'system', 'content': tool_system_prompt}] + formatted_history + [user_message]
                 return StreamingHttpResponse(
                     self._stream_tool_response_generator(tool_messages, tool_context, include_thinking, use_simple_model, loaded_skills),
                     content_type='text/event-stream'
@@ -207,6 +211,41 @@ class ChatView(APIView):
                 seen_ids.add(aid)
 
         return markdown
+
+    @staticmethod
+    def _format_message_content(text, images=None):
+        """构建兼容 OpenAI 原生规范的图文混合消息内容。
+        纯文本返回字符串；含有图片时返回多模态 content parts 列表。
+        """
+        if not images or not isinstance(images, list):
+            return text or ''
+
+        parts = []
+        text_content = (text or '').strip()
+        if text_content:
+            parts.append({'type': 'text', 'text': text_content})
+
+        for img in images:
+            if isinstance(img, str) and (
+                img.startswith('data:image/') or img.startswith('http://') or img.startswith('https://')
+            ):
+                parts.append({'type': 'image_url', 'image_url': {'url': img}})
+
+        if not parts:
+            return text or ''
+        return parts
+
+    @classmethod
+    def _format_chat_item(cls, item):
+        """格式化单条历史消息，支持多模态内容。"""
+        if not isinstance(item, dict):
+            return item
+        role = item.get('role', 'user')
+        content = item.get('content', '')
+        images = item.get('images')
+        if role == 'user' and images:
+            return {'role': role, 'content': cls._format_message_content(content, images)}
+        return {'role': role, 'content': content}
 
     @classmethod
     def _build_mcp_tool_context(cls, server_ids=None, *, agent_server_ids=None, chat_server_ids=None):

@@ -11,8 +11,12 @@ export function FarmCanvas({farm,onSelect}:{farm:FarmState;onSelect:(value:FarmS
         const controller=new FarmScene(host.current,value=>select.current(value));scene.current=controller;
         void controller.init().then(()=>{if(alive){controller.update(latest.current);setReady(true);}}).catch(()=>{if(alive)setError(true);});
         return ()=>{alive=false;controller.dispose();scene.current=null;};
-    },[farm.id,retry]);
-    useEffect(()=>scene.current?.update(farm),[farm]);
+    },[retry]);
+    useEffect(()=>{
+        if(ready && scene.current) {
+            scene.current.update(farm);
+        }
+    },[farm, ready]);
     return <div className="relative overflow-hidden rounded-2xl border border-lime-200 bg-[#abc17b]" style={{aspectRatio:'3 / 2'}}>
         <div ref={host}/>
         {!ready && <div className="absolute inset-0 flex items-center justify-center bg-lime-50/95 text-sm text-lime-800">{error?<div className="text-center">像素场景加载失败，仍可查看下方农场状态。<br/><button className="mt-3 rounded-lg bg-white px-4 py-2" onClick={()=>setRetry(v=>v+1)}>重新加载场景</button></div>:'正在铺开农场地图…'}</div>}

@@ -119,12 +119,75 @@ class ChatViewStreamErrorTests(TestCase):
                 {'tools': [], 'tool_map': {}},
             ))
 
-        self.assertEqual(json.loads(payload), {
+        lines = [json.loads(line) for line in payload.splitlines() if line.strip()]
+        self.assertEqual(lines[0], {
             'type': 'error',
             'content': '请先在系统设置中配置默认对话模型',
         })
         logger.warning.assert_called_once()
         logger.exception.assert_not_called()
+
+
+class ChatViewMultimodalTests(TestCase):
+    def test_pure_text_message_keeps_string_format(self):
+        content = ChatView._format_message_content('你好，请介绍一下 O-Doc')
+        self.assertEqual(content, '你好，请介绍一下 O-Doc')
+
+    def test_message_with_images_formats_openai_vision_parts(self):
+        images = [
+            'data:image/jpeg;base64,abc123456',
+            'https://example.com/photo.png'
+        ]
+        content = ChatView._format_message_content('这张图里是什么？', images)
+        self.assertIsInstance(content, list)
+        self.assertEqual(len(content), 3)
+        self.assertEqual(content[0], {'type': 'text', 'text': '这张图里是什么？'})
+        self.assertEqual(content[1], {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,abc123456'}})
+        self.assertEqual(content[2], {'type': 'image_url', 'image_url': {'url': 'https://example.com/photo.png'}})
+
+    def test_chat_view_passes_multimodal_messages_to_ai_service(self):
+        captured = {}
+
+        def fake_stream(messages, **kwargs):
+            captured['messages'] = messages
+            yield {'type': 'answer', 'content': '已识别图片'}
+
+        request = APIRequestFactory().post('/api/ai/chat/', {
+            'message': '描述这张图片',
+            'images': ['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='],
+            'history': [
+                {
+                    'role': 'user',
+                    'content': '前一张图',
+                    'images': ['data:image/jpeg;base64,previmage']
+                },
+                {
+                    'role': 'assistant',
+                    'content': '上一张图是一只猫'
+                }
+            ]
+        }, format='json')
+
+        with patch('ai_assistant.views.AIService.stream_chat_completion', side_effect=fake_stream):
+            response = ChatView.as_view()(request)
+            payload = b''.join(response.streaming_content).decode('utf-8')
+
+        self.assertIn('messages', captured)
+        messages = captured['messages']
+        # messages: [system, history[0], history[1], current_user]
+        self.assertEqual(messages[0]['role'], 'system')
+        # 历史第1条
+        self.assertEqual(messages[1]['role'], 'user')
+        self.assertIsInstance(messages[1]['content'], list)
+        self.assertEqual(messages[1]['content'][1]['image_url']['url'], 'data:image/jpeg;base64,previmage')
+        # 历史第2条
+        self.assertEqual(messages[2]['role'], 'assistant')
+        self.assertEqual(messages[2]['content'], '上一张图是一只猫')
+        # 当前用户消息
+        self.assertEqual(messages[3]['role'], 'user')
+        self.assertIsInstance(messages[3]['content'], list)
+        self.assertEqual(messages[3]['content'][0], {'type': 'text', 'text': '描述这张图片'})
+        self.assertEqual(messages[3]['content'][1]['image_url']['url'], 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
 
 
 class WhiteboardInsightHelperTests(TestCase):

@@ -384,7 +384,27 @@ export const ChatMessageList = ({
                                     </>
                                 )
                             ) : (
-                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                                <div className="space-y-2">
+                                    {msg.images && msg.images.length > 0 && (
+                                        <div className={`grid gap-2 ${msg.images.length === 1 ? 'grid-cols-1' : msg.images.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
+                                            {msg.images.map((imgUrl, imgIdx) => (
+                                                <div
+                                                    key={imgIdx}
+                                                    className="overflow-hidden rounded-xl bg-black/20 border border-white/10 group/img relative shadow-xs"
+                                                >
+                                                    <img
+                                                        src={imgUrl}
+                                                        alt={`上传图片 ${imgIdx + 1}`}
+                                                        className="max-h-52 w-full object-cover rounded-xl cursor-zoom-in hover:opacity-90 transition-opacity"
+                                                        onClick={() => window.open(imgUrl, '_blank')}
+                                                        title="点击查看原图"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {msg.content && <div className="whitespace-pre-wrap">{msg.content}</div>}
+                                </div>
                             )}
 
                             {/* Loading 动画 */}

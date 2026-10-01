@@ -242,7 +242,7 @@ export const AIChatWindow = ({
         );
     }
 
-    const inputSendHandler = (userMsg: string, retryUserIndex?: number) => {
+    const inputSendHandler = (userMsg: string, images?: string[], retryUserIndex?: number) => {
         handleSend(userMsg, {
             assistantMode,
             selectedMcpIds,
@@ -252,7 +252,7 @@ export const AIChatWindow = ({
             useThinking,
             selectedSkillIds,
             imageAnthologies,
-        }, retryUserIndex);
+        }, retryUserIndex, images);
     };
 
     return (
@@ -388,7 +388,7 @@ export const AIChatWindow = ({
                         messages={messages}
                         onRetry={(index) => {
                             const userIndex = previousUserIndex(messages, index);
-                            if (userIndex >= 0) inputSendHandler(messages[userIndex].content, userIndex);
+                            if (userIndex >= 0) inputSendHandler(messages[userIndex].content, messages[userIndex].images, userIndex);
                         }}
                         isLoading={isLoading}
                         activitySteps={activitySteps}
@@ -432,7 +432,7 @@ export const AIChatWindow = ({
                                 input={input}
                                 setInput={setInput}
                                 isLoading={isLoading}
-                                onSend={inputSendHandler}
+                                onSend={(msg, images) => inputSendHandler(msg, images)}
                             />
                         </div>
                     </div>

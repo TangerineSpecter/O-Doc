@@ -7,6 +7,7 @@ export type ActivityStatus = 'queued' | 'active' | 'done';
 export interface Message {
     role: 'user' | 'assistant';
     content: string;
+    images?: string[];
     thinking?: string;
     error?: string;
     statusId?: string;
