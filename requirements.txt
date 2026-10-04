@@ -12,6 +12,7 @@ readability-lxml>=0.8.4.1
 lxml_html_clean>=0.4.1
 beautifulsoup4>=4.13.3
 markdownify>=1.1.0
+markdown-it-py>=4.0,<5
 openai>=1.0.0
 webdavclient3>=3.14.6
 paramiko>=3.4.0

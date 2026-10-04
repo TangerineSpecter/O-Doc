@@ -81,7 +81,7 @@ class Article(models.Model):
     )
 
     source_url = models.URLField(
-        max_length=500,
+        max_length=2048,
         blank=True,
         null=True,
         help_text="文章来源网址",

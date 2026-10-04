@@ -16,7 +16,7 @@ from system_settings.models import Agent, AgentExecutionLease, AgentRunRecord, A
 from .action_schedule import select_agent
 from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
 from .publish_config import PUBLISH_COST, categories_for, eligibility, own_posts
-from .publish_search import canonical_url
+from utils.source_urls import duplicate_source_key
 from .publish_workflow import SkipPublication, Workflow, validate_draft
 from .publishing import publish_post
 
@@ -26,7 +26,7 @@ PHASE_LABELS = {'select': '正在自主选题', 'search': '正在搜索素材', 
 
 def duplicate_source(agent, main: str) -> bool:
     recent = own_posts(agent).filter(created_at__gte=timezone.now()-timedelta(days=7)).exclude(source_url__isnull=True).values_list('source_url', flat=True)
-    return any(canonical_url(url or '') == main for url in recent)
+    return any(duplicate_source_key(url or '') == duplicate_source_key(main) for url in recent)
 
 
 @transaction.atomic
@@ -62,6 +62,7 @@ def commit_publication(action_id: str, token: str, world_token: str, *, manual=F
     article, _, _ = publish_post({'title': draft['title'], 'content': draft['content'], 'summary': draft['summary'],
         'coll_id': task.publish_config['collection_id'], 'category_id': selection['category_id'],
         'source_url': draft['main_source_url'], 'skip_illustration': True}, identity=get_agent_identity(agent, stable=True), agent=agent)
+    snapshot['draft'] = draft
     action.status = 'success'
     action.energy_cost = PUBLISH_COST
     action.consumed_at = timezone.now()

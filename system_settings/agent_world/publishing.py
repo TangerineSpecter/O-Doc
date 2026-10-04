@@ -4,6 +4,7 @@ from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from anthology.models import Anthology
 from article.models import Article
+from utils.source_urls import normalize_source_url
 
 
 def _build_summary(content, summary=''):
@@ -24,6 +25,7 @@ def _argument_flag(value):
 
 
 def publish_post(arguments: dict, *, identity: dict, agent=None, illustration_enabled=False):
+    source_url = normalize_source_url(arguments.get('source_url') or '', required=False) or None
     title = str(arguments.get('title') or '').strip()
     content = str(arguments.get('content') or '')
     coll_id = str(arguments.get('coll_id') or '').strip()
@@ -67,7 +69,7 @@ def publish_post(arguments: dict, *, identity: dict, agent=None, illustration_en
                 author=anthology.user_id,
                 permission=permission,
                 sort=int(arguments.get('sort') or 0),
-                source_url=str(arguments.get('source_url') or '').strip() or None,
+                source_url=source_url,
                 post_summary=_build_summary(_summary_source(content), arguments.get('summary')),
                 agent_post_creator_id=identity['creator_id'],
                 agent_post_creator_name=identity['creator_name'],

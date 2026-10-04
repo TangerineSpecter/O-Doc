@@ -147,16 +147,16 @@ class PublicationTests(TestCase):
         self.state['draft']['content'] = '正文事实。\n\n参考来源：\n来源略。'
         action = self.commit(self.action())
         content = Article.objects.get(pk=action.result['post_id']).content
-        self.assertEqual(content, f'正文事实。\n\n参考来源：\n- [1]({self.source["url"]})')
+        self.assertEqual(content, f'正文事实。\n\n参考来源：\n来源略。\n\n参考来源：\n- [1]({self.source["url"]})')
 
-    def test_partial_reference_list_is_rebuilt_and_idempotent(self):
+    def test_authored_reference_list_is_preserved_and_append_is_idempotent(self):
         second = {**self.source, 'url': 'https://other.example.com/confirm'}
         self.state['materials'].append(second)
         self.state['draft']['source_urls'].append(second['url'])
         self.state['draft']['content'] += f'\n\n参考来源：\n- [旧引用]({self.source["url"]})'
         draft = validate_draft(self.state['draft'], self.state)
         self.assertIn(f'- [2]({second["url"]})', draft['content'])
-        self.assertNotIn('旧引用', draft['content'])
+        self.assertIn('旧引用', draft['content'])
         self.assertEqual(validate_draft(draft, self.state), draft)
 
     def test_fabricated_source_is_rejected(self):
@@ -173,9 +173,9 @@ class PublicationTests(TestCase):
         Article.objects.update(created_at=timezone.now()-timedelta(days=1))
         with self.assertRaises(SkipPublication): self.commit(self.action())
 
-    def test_urls_reject_local_and_normalize_tracking(self):
+    def test_urls_reject_local_and_preserve_query_and_fragment(self):
         self.assertEqual(canonical_url('http://127.0.0.1/a'),'')
-        self.assertEqual(canonical_url('https://example.com/a?utm_source=x&b=2#fragment'),'https://example.com/a?b=2')
+        self.assertEqual(canonical_url('https://example.com/a?utm_source=x&b=2#fragment'),'https://example.com/a?utm_source=x&b=2#fragment')
 
     @patch('system_settings.agent_world.publish_search.call_mcp_tool')
     def test_search_uses_schema_and_limits_results(self, call):
@@ -385,3 +385,119 @@ class PublicationTests(TestCase):
         self.assertEqual(action.status,'skipped')
         self.assertTrue(action.effects_done)
         self.assertFalse(Article.objects.exists())
+
+    def use_source(self, source):
+        self.source['url'] = source
+        self.state['draft'].update(source_urls=[source], main_source_url=source)
+
+    def test_long_markdown_source_persists_and_references_are_idempotent(self):
+        from utils.test_source_urls import LONG_URL
+        self.use_source(f'[来源]({LONG_URL})')
+        self.state['draft']['main_source_url'] = LONG_URL
+        self.state['draft']['content'] += f'\n\n参考来源：\n- [1]([来源]({LONG_URL}))'
+        normalized = validate_draft(self.state['draft'], self.state)
+        self.assertEqual(validate_draft(normalized, self.state), normalized)
+        action = self.commit(self.action())
+        self.assertEqual(action.snapshot['draft']['source_urls'], [LONG_URL])
+        article = Article.objects.get(pk=action.result['post_id'])
+        self.assertEqual(article.source_url, LONG_URL)
+        self.assertEqual(article.content.count('参考来源：'), 1)
+        self.assertIn(f'- [1]({LONG_URL})', article.content)
+        self.assertNotIn(']([', article.content)
+        self.assertEqual(action.snapshot['materials'][0]['url'], LONG_URL)
+
+    def test_normalization_does_not_trust_unsearched_source(self):
+        self.state['draft'].update(source_urls=['[伪造](https://other.example.com/)'], main_source_url='https://other.example.com/')
+        with self.assertRaisesRegex(ValueError, '引用不属于实际搜索资料'):
+            self.commit(self.action())
+        self.assertFalse(Article.objects.exists())
+
+    def test_overlong_source_has_field_error_and_no_writes(self):
+        self.use_source('https://example.com/' + 'x' * (2049 - len('https://example.com/')))
+        action = self.action()
+        with self.assertRaisesRegex(ValueError, 'source_urls.*2048'):
+            self.commit(action)
+        action.refresh_from_db()
+        self.assertEqual(action.status, 'claimed')
+        self.assertFalse(Article.objects.exists())
+        self.assertFalse(WorldLedger.objects.filter(kind='post').exists())
+
+    def test_direct_publication_entry_validates_before_writing(self):
+        from .publishing import publish_post
+        from article.annotation_service import get_agent_identity
+        args = dict(title='直接发布', content='正文', coll_id=self.collection.pk,
+                    category_id=self.category.pk, source_url='https://example.com/' + 'x' * (2049 - len('https://example.com/')))
+        with self.assertRaisesRegex(ValueError, 'source_url.*2048'):
+            publish_post(args, identity=get_agent_identity(self.agent), agent=self.agent)
+        self.assertFalse(Article.objects.exists())
+        url = 'https://example.com/' + 'x' * (2048 - len('https://example.com/'))
+        args['source_url'] = f'[来源]({url})'
+        article, _, _ = publish_post(args, identity=get_agent_identity(self.agent), agent=self.agent)
+        self.assertEqual(article.source_url, url)
+        self.assertEqual(len(article.source_url), 2048)
+
+    @patch('system_settings.agent_world.publish_search.call_mcp_tool')
+    def test_search_normalizes_markdown_and_discards_unsafe_sources(self, call):
+        call.return_value = ({'results': [
+            {'url': '[来源](https://example.com/a?utm_source=x)'},
+            {'url': '[重复](https://example.com/a)'},
+            {'url': '[内网](http://127.0.0.1/a)'},
+            {'url': 'https://example.com/' + 'x' * (2049 - len('https://example.com/'))},
+        ]}, None)
+        rows = search(self.config, '查询', 'topic', 3, time.monotonic() + 60)
+        self.assertEqual([row['url'] for row in rows], ['https://example.com/a?utm_source=x', 'https://example.com/a'])
+
+    def test_long_source_rolls_back_when_final_action_save_fails(self):
+        from utils.test_source_urls import LONG_URL
+        self.use_source(LONG_URL)
+        WorldIncomeConfig.objects.create(enabled=True, post_amount=Decimal('2'))
+        self.test_transaction_rolls_back_post_and_income()
+
+    def test_parenthesized_pdf_is_published_without_changing_body(self):
+        from .test_publish_references import PDF, ESCAPED_PDF
+        from utils.source_urls import normalize_source_url
+        self.use_source(f'[PDF]({ESCAPED_PDF})')
+        self.state['draft']['content'] = f'保留正文 [资料]({PDF}) 保留结尾。'
+        body = self.state['draft']['content']
+        action = self.commit(self.action())
+        article = Article.objects.get(pk=action.result['post_id'])
+        self.assertEqual(article.source_url, normalize_source_url(PDF))
+        self.assertTrue(article.content.startswith(body))
+        self.assertEqual(action.snapshot['draft']['main_source_url'], article.source_url)
+
+    def test_broken_reference_does_not_write_or_replace_saved_draft(self):
+        from .test_publish_references import PDF, BROKEN
+        self.use_source(PDF)
+        self.state['draft']['content'] += '\n\n参考来源：\n' + BROKEN
+        action = self.action()
+        snapshot = copy.deepcopy(action.snapshot)
+        with self.assertRaisesRegex(ValueError, '引用'):
+            self.commit(action)
+        action.refresh_from_db()
+        self.assertEqual(action.snapshot, snapshot)
+        self.assertEqual(action.status, 'claimed')
+        self.assertFalse(Article.objects.exists())
+        self.assertFalse(WorldLedger.objects.filter(kind='post').exists())
+
+
+    def test_direct_publication_preserves_query_semantics(self):
+        from .publishing import publish_post
+        from article.annotation_service import get_agent_identity
+        for index, suffix in enumerate(['?download=', '?item=z&item=a', '?utm_source=x&flag=']):
+            url = 'https://example.com/a' + suffix
+            post, _, _ = publish_post(dict(title=f'查询参数{index}', content='正文',
+                coll_id=self.collection.pk, category_id=self.category.pk, source_url=url),
+                identity=get_agent_identity(self.agent), agent=self.agent)
+            post.refresh_from_db()
+            self.assertEqual(post.source_url, url)
+
+    def test_iri_material_and_markdown_body_publish_consistently(self):
+        from utils.source_urls import normalize_source_url
+        url = 'https://例子.中国/中文?flag=&item=z&item=a'
+        self.use_source(url)
+        self.state['draft']['main_source_url'] = f'[来源]({url})'
+        self.state['draft']['content'] = f'保留正文 [来源]({url})'
+        action = self.commit(self.action())
+        post = Article.objects.get(pk=action.result['post_id'])
+        self.assertEqual(post.source_url, normalize_source_url(url))
+        self.assertEqual(action.snapshot['materials'][0]['url'], post.source_url)

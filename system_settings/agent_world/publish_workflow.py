@@ -9,10 +9,12 @@ from system_settings.agent_prompts import build_agent_system_prompt
 from utils.ai_service import AIService
 from utils.bounded_completion import complete
 from .publish_config import categories_for, own_posts
-from .publish_search import canonical_url, search
+from .publish_search import search
 from .publish_voice import writing_context, VOICE_GUIDANCE
 from .publish_format import validate_format
+from utils.source_urls import canonical_url, normalize_source_url
 from .publish_title import validate_title
+from .publish_references import rebuild_references
 
 
 class SkipPublication(ValueError):
@@ -205,9 +207,13 @@ def validate_draft(value: dict, state: dict, *, enforce_title=False) -> dict:
         raise SkipPublication('素材不足，未发布')
     if not isinstance(value.get('source_urls'), list) or not value['source_urls']:
         raise ValueError('必须引用实际采用的来源')
-    materials = {m['url']: m for m in state['materials']}
-    urls = list(dict.fromkeys(canonical_url(u) for u in value['source_urls'] if isinstance(u, str)))
-    main = canonical_url(str(value.get('main_source_url') or ''))
+    materials = {}
+    for material in state['materials']:
+        url = canonical_url(material.get('url'))
+        if url:
+            materials.setdefault(url, {**material, 'url': url})
+    urls = list(dict.fromkeys(normalize_source_url(u, field='source_urls') for u in value['source_urls']))
+    main = normalize_source_url(value.get('main_source_url'), field='main_source_url')
     if not urls or any(u not in materials for u in urls) or main not in urls:
         raise ValueError('引用不属于实际搜索资料')
     assessment = state['assessment']
@@ -224,14 +230,8 @@ def validate_draft(value: dict, state: dict, *, enforce_title=False) -> dict:
         validate_format(content)
     if re.search(r'!\[|\{\{illustration', content):
         raise ValueError('一期正文不生成配图')
-    links = re.findall(r'\[[^\]]*\]\((https?://[^\s)]+)\)', content)
-    if any(canonical_url(link) not in urls for link in links):
-        raise ValueError('正文引用不属于采用的素材')
-    # 参考来源是服务端管理的末尾区段，重建模型输出或上次校验的列表。
-    # 不能仅凭标题判定引用完整；重复校验也不得重复追加。
-    source_heading = '\n\n参考来源：\n'
-    content = content.split(source_heading, 1)[0].rstrip()
-    content += source_heading + '\n'.join(f'- [{i+1}]({u})' for i, u in enumerate(urls))
+    content = rebuild_references(content, urls)
     value = {k: value[k] for k in ('title', 'summary', 'content', 'reason', 'evidence_sufficient')}
     value.update(title=value['title'].strip(), content=content, source_urls=urls, main_source_url=main)
+    state['materials'] = list(materials.values())
     return value

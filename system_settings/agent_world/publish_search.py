@@ -1,36 +1,17 @@
 """有界 Tavily 适配；只持久化采用的资料，不保存原始响应。"""
-import ipaddress
 import json
 import time
 import queue
 import threading
 from datetime import timedelta
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from django.conf import settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime, parse_date
 from utils.mcp_client import call_mcp_tool
 from .publish_config import SEARCH_NAMES, search_server
+from utils.source_urls import canonical_url
 from .publish_diagnostics import PublishSearchError, search_error, report_search_failure
 
-
-def canonical_url(value: str) -> str:
-    try:
-        url = urlsplit(value.strip())
-        if url.scheme not in ('https', 'http') or not url.hostname or url.username or url.password:
-            return ''
-        host = url.hostname.lower()
-        if host == 'localhost' or host.endswith(('.local', '.internal')):
-            return ''
-        try:
-            if not ipaddress.ip_address(host).is_global:
-                return ''
-        except ValueError:
-            pass
-        query = [(k, v) for k, v in parse_qsl(url.query) if not k.lower().startswith('utm_') and k.lower() not in {'fbclid', 'gclid'}]
-        return urlunsplit((url.scheme.lower(), url.netloc.lower(), url.path.rstrip('/') or '/', urlencode(sorted(query)), ''))
-    except (ValueError, TypeError):
-        return ''
 
 
 def date_value(value):
