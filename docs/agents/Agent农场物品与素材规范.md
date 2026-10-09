@@ -33,7 +33,7 @@
 ## 3. 新增作物时的更新路径
 
 1. 在后端 `farm_catalog.DEFAULT_RULES.crops` 定义稳定作物ID、中文名、生长时间、种子价、产量及回收价。沿用 `seed.<kind>` 与 `crop.<kind>`，已有ID不能为了改名而更换。
-2. 在前端 `types/api/farm.ts` 的 `cropKinds` 加入同一ID。`components/Farm/assets.ts` 从此列表生成图片白名单，不另建一份遗漏新种子的列表。
+2. 在前端 `types/api/farm.ts` 的 `cropKinds` 加入同一ID。`components/Farm/assets.ts` 从此列表生成图片白名单，物品图鉴的 `cropKindFor()` 也使用同一列表识别规则编辑入口；不得另建只包含部分作物的硬编码名单。
 3. 在素材脚本的 `CROP_KINDS` 添加同一ID，扩展 `crop()` 的三个生长阶段，并给 `seed_packet()` 配置袋口辅色。成熟作物必须有独立、可辨认的形态。
 4. 重建图集、清单及种子／产物PNG；确认每种作物有 `<kind>-0/1/2`、`item-seed.<kind>`、`item-crop.<kind>`，以及独立 `seed.<kind>.png`、`crop.<kind>.png`。
 5. 更新市场说明及农牧场文档。旧目录补齐缺失内置项时，不覆盖用户规则、图标关联、天气种子和进行中的生产快照；不重建已生成的市场小时批次。
