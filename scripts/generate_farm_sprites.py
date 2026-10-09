@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1] / 'frontend_react/public/farm'
 FRAMES = []
+CROP_KINDS = ('radish', 'potato', 'corn', 'peanut', 'soybean', 'strawberry', 'pumpkin', 'sunflower', 'wheat', 'rice', 'tomato', 'cabbage', 'cucumber', 'eggplant', 'chili', 'onion')
 PALETTES = ['#e87c52', '#659bb3', '#889957', '#aa7eaa']
 
 
@@ -12,6 +13,7 @@ def sprite(name, draw, size=32):
     im = Image.new('RGBA', (size, size))
     draw(ImageDraw.Draw(im))
     FRAMES.append((name, im))
+    return im
 
 
 def person(d, style, palette, direction, frame, work=''):
@@ -108,11 +110,103 @@ def crop(d, kind, phase):
         elif kind == 'potato':
             for x,y in ((9,23),(17,25),(14,19)):
                 d.rectangle((x,y,x+5,y+4), fill='#c49b68'); d.point((x+2,y+2), fill='#957446')
-        else:
+        elif kind == 'corn':
             d.rectangle((17,13,21,24), fill='#e6ba57'); d.rectangle((18,14,19,22), fill='#ffdc81')
+        elif kind == 'peanut':
+            for x,y in ((7,23),(18,24)):
+                d.rectangle((x,y,x+6,y+3), fill='#957446')
+                d.rectangle((x+1,y-2,x+5,y+5), fill='#c49b68')
+                d.rectangle((x+2,y-1,x+3,y+4), fill='#e0bd87')
+                d.point((x+4,y+1), fill='#957446')
+            d.rectangle((8,18,13,21), fill='#6a934d')
+        elif kind == 'soybean':
+            for x,y in ((8,18),(19,19),(12,24)):
+                d.rectangle((x,y,x+4,y+6), fill='#557847')
+                d.rectangle((x+1,y,x+3,y+5), fill='#a0b86b')
+                for offset in (1,3,5):
+                    d.point((x+2,y+offset), fill='#d0cc83')
+        elif kind == 'strawberry':
+            for x,y in ((8,21),(18,23),(15,16)):
+                d.rectangle((x,y,x+5,y+3), fill='#c77772')
+                d.rectangle((x+1,y+4,x+4,y+5), fill='#b85f59')
+                d.rectangle((x+2,y+6,x+3,y+6), fill='#b85f59')
+                d.rectangle((x+1,y-1,x+4,y), fill='#557847')
+                d.point((x+1,y+2), fill='#eadbbf'); d.point((x+4,y+3), fill='#eadbbf')
+        elif kind == 'pumpkin':
+            d.rectangle((7,22,25,28), fill='#b87846')
+            d.rectangle((9,19,23,30), fill='#d89b52')
+            d.rectangle((12,18,20,30), fill='#e9b966')
+            d.rectangle((15,17,17,20), fill='#557847')
+            d.rectangle((11,21,12,28), fill='#c48c49')
+            d.rectangle((20,21,21,28), fill='#c48c49')
+            d.rectangle((15,21,16,28), fill='#f1cc7e')
+        elif kind == 'sunflower':
+            d.rectangle((13,5,20,19), fill='#e6ba57')
+            d.rectangle((9,9,24,15), fill='#e6ba57')
+            d.rectangle((11,7,22,17), fill='#ffdc81')
+            d.rectangle((13,9,20,15), fill='#795637')
+            d.rectangle((15,10,19,14), fill='#957446')
+            for x,y in ((14,10),(18,12),(15,14)):
+                d.point((x,y), fill='#c49b68')
 
 
-for kind in ('radish','potato','corn'):
+        elif kind in ('wheat', 'rice'):
+            grain = '#e6ba57' if kind == 'wheat' else '#d0cc83'
+            highlight = '#ffdc81' if kind == 'wheat' else '#eadbbf'
+            for x,y in ((8,12),(15,7),(22,10)):
+                d.rectangle((x,y,x+1,28), fill='#a0b86b')
+                for offset in (0,4,8):
+                    d.rectangle((x-3,y+offset,x-1,y+offset+2), fill=grain)
+                    d.rectangle((x+2,y+offset+1,x+4,y+offset+3), fill=grain)
+                    d.point((x-2,y+offset), fill=highlight)
+                if kind == 'rice':
+                    d.rectangle((x+2,y-2,x+6,y), fill=grain)
+                    d.rectangle((x+5,y+1,x+7,y+4), fill=highlight)
+        elif kind == 'tomato':
+            for x,y in ((7,19),(18,20),(13,12)):
+                d.rectangle((x,y+1,x+7,y+6), fill='#b85f59')
+                d.rectangle((x+1,y,x+6,y+7), fill='#c77772')
+                d.rectangle((x+2,y+1,x+3,y+2), fill='#e6a08b')
+                d.rectangle((x+2,y-1,x+5,y), fill='#557847')
+        elif kind == 'cabbage':
+            d.rectangle((7,21,25,28), fill='#557847')
+            d.rectangle((9,18,23,30), fill='#6a934d')
+            d.rectangle((11,17,21,29), fill='#a0b86b')
+            d.rectangle((13,19,19,27), fill='#c2cf91')
+            d.line((8,24,13,28), fill='#83a45d', width=2)
+            d.line((24,23,20,28), fill='#83a45d', width=2)
+            d.rectangle((15,21,16,26), fill='#a0b86b')
+        elif kind == 'cucumber':
+            for x,y in ((8,19),(20,17)):
+                d.rectangle((x,y+1,x+4,y+10), fill='#557847')
+                d.rectangle((x+1,y,x+3,y+11), fill='#6a934d')
+                d.rectangle((x+1,y+2,x+1,y+8), fill='#a0b86b')
+                d.point((x+3,y+3), fill='#83a45d')
+                d.point((x+3,y+7), fill='#83a45d')
+        elif kind == 'eggplant':
+            for x,y in ((7,19),(19,17)):
+                d.rectangle((x,y+2,x+6,y+8), fill='#665477')
+                d.rectangle((x+1,y,x+5,y+10), fill='#80678f')
+                d.rectangle((x+1,y+2,x+2,y+6), fill='#aa7eaa')
+                d.rectangle((x+2,y-2,x+4,y+1), fill='#557847')
+        elif kind == 'chili':
+            for x,y in ((8,18),(19,20),(14,12)):
+                d.rectangle((x,y,x+3,y+6), fill='#c77772')
+                d.rectangle((x+1,y+6,x+3,y+8), fill='#b85f59')
+                d.rectangle((x+3,y+8,x+4,y+9), fill='#b85f59')
+                d.rectangle((x,y-2,x+2,y-1), fill='#557847')
+                d.rectangle((x+1,y+1,x+1,y+4), fill='#e6a08b')
+        elif kind == 'onion':
+            d.rectangle((14,12,15,23), fill='#6a934d')
+            d.rectangle((18,10,19,23), fill='#83a45d')
+            d.rectangle((9,23,23,28), fill='#b87846')
+            d.rectangle((11,21,21,30), fill='#c49b68')
+            d.rectangle((14,20,18,30), fill='#e0bd87')
+            d.rectangle((13,24,14,28), fill='#eadbbf')
+            d.rectangle((15,30,17,31), fill='#957446')
+
+
+for kind in CROP_KINDS:
     for phase in range(3):
         sprite(f'{kind}-{phase}', lambda d,k=kind,p=phase: crop(d,k,p))
 
@@ -167,13 +261,37 @@ def item_icon(d, kind, gold=False):
     if gold:
         d.rectangle((25,3,27,9),fill='#ffe488');d.rectangle((23,5,29,7),fill='#ffe488')
 
+def seed_packet(kind):
+    """Use a printed crop label so identity does not rely on color or text alone."""
+    band_colors = {
+        'radish': '#c77772', 'potato': '#c49b68', 'corn': '#e6ba57',
+        'peanut': '#c49b68', 'soybean': '#83a45d', 'strawberry': '#c77772',
+        'pumpkin': '#d89b52', 'sunflower': '#e6ba57', 'wheat': '#e6ba57',
+        'rice': '#d0cc83', 'tomato': '#c77772', 'cabbage': '#a0b86b',
+        'cucumber': '#6a934d', 'eggplant': '#80678f', 'chili': '#b85f59',
+        'onion': '#c49b68',
+    }
+    def packet(d):
+        d.rectangle((6,7,26,30), fill='#8a6543')
+        d.rectangle((7,8,25,29), fill='#c8a16b')
+        d.rectangle((7,5,25,7), fill='#d9ba7d')
+        d.rectangle((8,9,24,10), fill=band_colors[kind])
+        d.rectangle((8,12,24,28), fill='#eee6cd')
+    im = sprite(f'item-seed.{kind}', packet)
+    printed = Image.new('RGBA', (32,32))
+    crop(ImageDraw.Draw(printed), kind, 2)
+    # Crop around the shared plant footprint, retaining crisp nearest-neighbor pixels.
+    printed = printed.crop((6,4,27,32)).resize((15,16), Image.Resampling.NEAREST)
+    im.paste(printed, (9,12), printed)
+
+
 for kind in ('chicken','cow','sheep'):
     for quality in ('normal','gold'):
         sprite(f'item-product.{kind}.{quality}',lambda d,k=kind,q=quality:item_icon(d,k,q=='gold'))
 sprite('item-feed',lambda d:item_icon(d,'feed'))
-for kind in ('radish','potato','corn'):
+for kind in CROP_KINDS:
     sprite(f'item-crop.{kind}',lambda d,k=kind:crop(d,k,2))
-    sprite(f'item-seed.{kind}',lambda d:item_icon(d,'seed'))
+    seed_packet(kind)
 
 ROOT.mkdir(parents=True,exist_ok=True)
 atlas=Image.new('RGBA',(1024,((len(FRAMES)+15)//16)*64))

@@ -19,7 +19,7 @@ import {ItemIconImage} from './ItemIconImage';
 import {farmItemIcon} from '../Farm/assets';
 import {useItemCatalog} from '../../hooks/useItemCatalog';
 import type {CatalogItem, ItemCategory} from '../../types/api/itemCatalog';
-import type {CropKind} from '../../types/api/farm';
+import {cropKinds, type CropKind} from '../../types/api/farm';
 import {ItemIconPicker} from './ItemIconPicker';
 import {ItemIconLibraryDialog} from './ItemIconLibraryDialog';
 import {CropRuleEditor} from './CropRuleEditor';
@@ -29,7 +29,7 @@ import {setCatalogItemIcon, setCatalogInventoryIcon} from '../../api/itemCatalog
 function cropKindFor(item: CatalogItem): CropKind | null {
     if (item.category !== 'crop' && item.category !== 'seed') return null;
     const kind = item.sku.split('.')[1];
-    return kind === 'radish' || kind === 'potato' || kind === 'corn' ? kind : null;
+    return cropKinds.find(cropKind => cropKind === kind) ?? null;
 }
 
 const categoryDefs: {value: 'all' | ItemCategory; label: string}[] = [

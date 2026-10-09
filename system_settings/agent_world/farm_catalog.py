@@ -8,7 +8,20 @@ DEFAULT_RULES = {
     'crops': {
         'radish': {'name': '萝卜', 'growth_seconds': 3600, 'seed_price': 10, 'yield': 1, 'sale_price': 18},
         'potato': {'name': '土豆', 'growth_seconds': 7200, 'seed_price': 20, 'yield': 2, 'sale_price': 18},
-        'corn': {'name': '玉米', 'growth_seconds': 14400, 'seed_price': 35, 'yield': 3, 'sale_price': 20}},
+        'corn': {'name': '玉米', 'growth_seconds': 14400, 'seed_price': 35, 'yield': 3, 'sale_price': 20},
+        'peanut': {'name': '花生', 'growth_seconds': 21600, 'seed_price': 50, 'yield': 4, 'sale_price': 23},
+        'soybean': {'name': '大豆', 'growth_seconds': 10800, 'seed_price': 28, 'yield': 3, 'sale_price': 17},
+        'strawberry': {'name': '草莓', 'growth_seconds': 7200, 'seed_price': 40, 'yield': 2, 'sale_price': 35},
+        'pumpkin': {'name': '南瓜', 'growth_seconds': 28800, 'seed_price': 70, 'yield': 2, 'sale_price': 65},
+        'sunflower': {'name': '向日葵', 'growth_seconds': 43200, 'seed_price': 90, 'yield': 5, 'sale_price': 34},
+        'wheat': {'name': '小麦', 'growth_seconds': 21600, 'seed_price': 45, 'yield': 4, 'sale_price': 21},
+        'rice': {'name': '水稻', 'growth_seconds': 28800, 'seed_price': 60, 'yield': 4, 'sale_price': 28},
+        'tomato': {'name': '番茄', 'growth_seconds': 10800, 'seed_price': 30, 'yield': 3, 'sale_price': 19},
+        'cabbage': {'name': '卷心菜', 'growth_seconds': 14400, 'seed_price': 32, 'yield': 2, 'sale_price': 29},
+        'cucumber': {'name': '黄瓜', 'growth_seconds': 7200, 'seed_price': 24, 'yield': 2, 'sale_price': 21},
+        'eggplant': {'name': '茄子', 'growth_seconds': 14400, 'seed_price': 38, 'yield': 3, 'sale_price': 23},
+        'chili': {'name': '辣椒', 'growth_seconds': 10800, 'seed_price': 26, 'yield': 4, 'sale_price': 13},
+        'onion': {'name': '洋葱', 'growth_seconds': 18000, 'seed_price': 36, 'yield': 3, 'sale_price': 23}},
     'animals': {
         'chicken': {'name': '鸡', 'product': '鸡蛋', 'period_seconds': 86400, 'price': 150, 'sale_price': 30, 'building': 'coop'},
         'cow': {'name': '牛', 'product': '牛奶', 'period_seconds': 172800, 'price': 600, 'sale_price': 100, 'building': 'barn'},
@@ -20,13 +33,19 @@ DEFAULT_RULES = {
 
 
 def catalog_for(owner: str) -> FarmCatalog:
-    return FarmCatalog.objects.get_or_create(pk=owner, defaults={'seed': uuid.uuid4().hex, 'rules': copy.deepcopy(DEFAULT_RULES)})[0]
+    catalog = FarmCatalog.objects.get_or_create(pk=owner, defaults={'seed': uuid.uuid4().hex, 'rules': copy.deepcopy(DEFAULT_RULES)})[0]
+    # Derive missing built-ins without changing synchronized snapshot timestamps on reads.
+    # Configuration writes persist this complete catalog; running crops keep their snapshots.
+    catalog.rules = normalized_rules(catalog.rules)
+    return catalog
 
 
 def normalized_rules(value: dict | None) -> dict:
     rules = copy.deepcopy(value if isinstance(value, dict) else DEFAULT_RULES)
     # Existing WebDAV snapshots may predate catalog-level image overrides.
     rules.setdefault('item_icons', {})
+    for kind, rule in DEFAULT_RULES['crops'].items():
+        rules.setdefault('crops', {}).setdefault(kind, copy.deepcopy(rule))
     return rules
 
 
@@ -35,6 +54,9 @@ def validate_rules(value: dict) -> dict:
         value = {**value, 'item_icons': {}}
     if not isinstance(value, dict) or set(value) != set(DEFAULT_RULES):
         raise serializers.ValidationError('目录必须包含完整的作物、动物、建筑、土地及饲料配置')
+    if not isinstance(value['crops'], dict) or not {'radish', 'potato', 'corn'} <= set(value['crops']):
+        raise serializers.ValidationError('作物目录不完整')
+    value = normalized_rules(value)
     for group in ('crops', 'animals', 'buildings'):
         if not isinstance(value[group], dict) or set(value[group]) != set(DEFAULT_RULES[group]):
             raise serializers.ValidationError('首版目录类型不能增删')

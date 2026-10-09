@@ -1,4 +1,5 @@
-export type CropKind = 'radish' | 'potato' | 'corn';
+export const cropKinds = ['radish', 'potato', 'corn', 'peanut', 'soybean', 'strawberry', 'pumpkin', 'sunflower', 'wheat', 'rice', 'tomato', 'cabbage', 'cucumber', 'eggplant', 'chili', 'onion'] as const;
+export type CropKind = typeof cropKinds[number];
 export type AnimalKind = 'chicken' | 'cow' | 'sheep';
 export type BuildingKind = 'coop' | 'barn';
 export interface CropRule {name: string; growthSeconds: number; seedPrice: number; yield: number; salePrice: number}

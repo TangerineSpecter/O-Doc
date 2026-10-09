@@ -16,6 +16,7 @@
 - 编辑器状态与操作指令：`frontend_react/src/hooks/useEditor.tsx`
 - 通用下拉选择组件：`frontend_react/src/components/common/Select.tsx`
 - UI 视觉规范：`docs/UI设计规范文档.md`
+- 农场种子、作物及饲料素材：修改或新增前先查阅 `docs/agents/Agent农场物品与素材规范.md`；种子必须使用统一纸袋及对应作物标签，不得恢复为共用旧袋子图标。
 
 # 前端开发规范与红线
 - **【严禁原生下拉】全系统严禁直接使用 HTML 原生 `<select>` 标签**。所有表单输入、筛选条、设置面板和弹窗中的下拉框，必须统一使用 `frontend_react/src/components/common/Select.tsx`，模态弹窗（Modal）中应显式配置 `menuPortal={true}` 避免被滚动条截断。

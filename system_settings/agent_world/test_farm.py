@@ -31,6 +31,15 @@ class FarmClockTests(SimpleTestCase):
                 with self.assertRaises(ValidationError):
                     validate_rules(rules)
 
+    def test_catalog_rejects_invalid_crop_group_and_unknown_crop(self):
+        from rest_framework.exceptions import ValidationError
+        for crops in ([], None, {'unknown': {}}):
+            with self.subTest(crops=crops):
+                rules = copy.deepcopy(DEFAULT_RULES)
+                rules['crops'] = crops
+                with self.assertRaises(ValidationError):
+                    validate_rules(rules)
+
     def test_crop_effective_time_and_rain_tail(self):
         with patch('system_settings.agent_world.farm_clock.weather', return_value='sun'):
             self.assertEqual(wet_intervals('seed', 100, 100+2*DAY, 100+DAY), [(100, 100+DAY)])
@@ -134,6 +143,57 @@ class FarmTests(TestCase):
         self.agent.refresh_from_db()
         self.assertEqual(self.agent.money, Decimal(10049))
         self.assertEqual(FarmOperation.objects.count(), 15)
+
+    def test_new_crops_use_market_seed_inventory_and_keep_rule_snapshot(self):
+        from .inventory_stock import add_stock
+        from .market_shop import product_pool
+        from .farm_catalog import catalog_for
+        farm = AgentFarm.objects.get(pk=self.agent.pk)
+        # Simulate market-origin inventory, then use the real farm transaction path.
+        for kind in DEFAULT_RULES['crops']:
+            if kind in ('radish', 'potato', 'corn'):
+                continue
+            with self.subTest(kind=kind):
+                rule = DEFAULT_RULES['crops'][kind]
+                add_stock(farm.pk, farm.owner_id, farm.actor_name, 'seed.'+kind, 1,
+                          rule['name']+'种子', 'seed', rule['seed_price'], 'market-'+kind)
+                self.assertIn('seed.'+kind, [p['sku'] for p in product_pool(catalog_for('admin').rules)])
+                self.op('plant', crop=kind, targets=['0'])
+                self.op('water', targets=['0'])
+                catalog = FarmCatalog.objects.get(pk='admin')
+                catalog.rules['crops'][kind]['yield'] = 99
+                catalog.save()
+                at = self.now + timedelta(seconds=rule['growth_seconds'])
+                advance_farm(farm.pk, at)
+                result = self.op('harvest', at=at, targets=['0'], key='new-'+kind)
+                item = stock(farm, 'crop.'+kind)
+                self.assertEqual(item.quantity, rule['yield'])
+                self.assertEqual(item.value, rule['sale_price'])
+                repeated = self.op('harvest', at=at, targets=['0'], key='new-'+kind)
+                self.assertEqual(repeated.pk, result.pk)
+                self.assertEqual(stock(farm, 'crop.'+kind).quantity, rule['yield'])
+                self.now = at + timedelta(days=1)
+
+    def test_legacy_catalog_read_upgrade_preserves_custom_rules_and_timestamp(self):
+        from .farm_catalog import catalog_for, normalized_rules
+        legacy = copy.deepcopy(DEFAULT_RULES)
+        legacy['crops'] = {k: legacy['crops'][k] for k in ('radish', 'potato', 'corn')}
+        legacy['crops']['radish']['seed_price'] = 77
+        legacy['item_icons'] = {}
+        FarmCatalog.objects.filter(pk='admin').update(rules=legacy)
+        saved = FarmCatalog.objects.get(pk='admin')
+        rules = catalog_for('admin').rules
+        self.assertEqual(set(rules['crops']), set(DEFAULT_RULES['crops']))
+        self.assertEqual(rules['crops']['radish']['seed_price'], 77)
+        self.assertEqual(rules['item_icons'], legacy['item_icons'])
+        self.assertEqual(normalized_rules(rules), rules)
+        self.assertEqual(FarmCatalog.objects.get(pk='admin').updated_at, saved.updated_at)
+        self.assertEqual(FarmCatalog.objects.get(pk='admin').rules, legacy)
+        self.assertEqual(self.client.get('/api/settings/agent-world/farm-catalog/').data['data']['crops'], rules['crops'])
+        # A legacy configuration payload can still be saved after an upgrade.
+        response = self.client.patch('/api/settings/agent-world/farm-catalog/', {'rules': legacy}, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(FarmCatalog.objects.get(pk='admin').rules, rules)
 
     def test_dry_pause_and_restart(self):
         self.op('buy_supply', sku='seed.radish', quantity=1)
@@ -475,6 +535,21 @@ class FarmTests(TestCase):
         catalog.save()
         self.op('upgrade', building='coop', key='capacity-retry')
         self.assertEqual(self.state()['buildings']['coop'], {'level': 3, 'capacity': 6})
+
+    def test_new_crop_snapshot_round_trip_is_repeatable(self):
+        from utils.sync_manager import SyncManager
+        from .farm_catalog import catalog_for
+        self.op('buy_supply', sku='seed.peanut', quantity=2)
+        self.op('plant', crop='peanut', targets=['0'])
+        self.op('water', targets=['0'])
+        before = copy.deepcopy(self.state())
+        manager = SyncManager()
+        data = manager.build_snapshot_data()
+        for _ in range(2):
+            manager.apply_snapshot_data(copy.deepcopy(data))
+            self.assertEqual(self.state(), before)
+            self.assertEqual(stock(AgentFarm.objects.get(pk=self.agent.pk), 'seed.peanut').quantity, 1)
+            self.assertEqual(catalog_for('admin').rules['crops']['peanut'], DEFAULT_RULES['crops']['peanut'])
 
     def test_incomplete_restore_rejects_and_rolls_back(self):
         from utils.sync_manager import SyncManager, SyncError
