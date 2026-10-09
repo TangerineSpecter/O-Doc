@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     'whiteboard.apps.WhiteboardConfig',
     'knowledge_maintenance.apps.KnowledgeMaintenanceConfig',
     'book_analysis.apps.BookAnalysisConfig',
+    'learning.apps.LearningConfig',
 ]
 
 # DRF全局配置

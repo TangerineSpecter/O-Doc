@@ -17,6 +17,7 @@ LOCAL_ONLY_SYSTEM_SETTING_KEYS = frozenset({
     'system_sync_v2_device',
 })
 LOCAL_ONLY_MODEL_LABELS = frozenset({
+    'learning.runtime', 'learning.devicejob', 'learning.goaljob',
     'system_settings.investmentcache',
     'system_settings.marketruntime',
     'system_settings.travelruntime', 'system_settings.travelmaterialcache',
@@ -96,7 +97,7 @@ def should_track(sender):
     return (
         sender._meta.app_label in {
             'article', 'anthology', 'categories', 'tags', 'assets', 'prompts', 'stats',
-            'ai_assistant', 'system_settings', 'user', 'auth', 'book_analysis', 'whiteboard', 'memos', 'message',
+            'ai_assistant', 'system_settings', 'user', 'auth', 'book_analysis', 'whiteboard', 'memos', 'message', 'learning',
         }
         and sender._meta.label_lower not in LOCAL_ONLY_MODEL_LABELS
         and not sender._meta.auto_created

@@ -35,3 +35,15 @@ class AnthologySerializer(serializers.ModelSerializer):
         if value and len(value) > 100:
             raise serializers.ValidationError("文集简介不能超过100个字符")
         return value
+
+    def validate(self, attrs):
+        kind = attrs.get('type', self.instance.type if self.instance else 'article')
+        if self.instance and kind != self.instance.type and 'learning' in (kind, self.instance.type):
+            raise serializers.ValidationError('学习文集不能与其他类型互相转换')
+        if kind == 'learning':
+            if self.instance and attrs.get('permission') == 'public':
+                raise serializers.ValidationError('学习文集一期仅限本人私密使用')
+            if not self.context.get('request') or not self.context['request'].user.is_authenticated:
+                raise serializers.ValidationError('请登录后创建学习文集')
+            attrs['permission'] = 'private'
+        return attrs

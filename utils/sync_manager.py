@@ -28,6 +28,7 @@ from system_settings.sync_state import (
 
 
 from system_settings.agent_world.farm_gate import guarded as farm_sync_guard
+from learning.locking import snapshot_guard as learning_sync_guard
 
 
 class SyncError(Exception):
@@ -50,7 +51,7 @@ class SyncManager:
     REMOTE_LOCK_TTL_SECONDS = 2 * 60 * 60
     TARGET_APPS = [
         'article', 'anthology', 'categories', 'tags',
-        'assets', 'prompts', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis', 'whiteboard', 'memos', 'message'
+        'assets', 'prompts', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis', 'whiteboard', 'memos', 'message', 'learning'
     ]
     def __init__(self, storage_client=None, remote_base_path=''):
         self.client = storage_client
@@ -162,6 +163,8 @@ class SyncManager:
         return remote_parts > current_parts
 
     def validate_remote_snapshot_version(self, remote_meta):
+        if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
+            raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('cooking_schema_version', 0) > 1:
             raise SyncError('烹饪快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
@@ -723,11 +726,14 @@ class SyncManager:
                 Book.objects.filter(book_id=book.book_id).update(remote_available=True, remote_hash=book.asset.file_hash)
 
     @farm_sync_guard
+    @learning_sync_guard
     def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None):
         """把快照写回数据库。full_overwrite 用于本地压缩包导入，按备份全量覆盖。"""
         from article.image_search_service import delete_image_vectors
         from article.models import ImageVisualIndex
 
+        from learning.sync import validate as validate_learning
+        validate_learning(data_list, remote_meta)
         expected_social = (remote_meta or {}).get('social_owners')
         if expected_social is not None:
             restored_social = {str(item.get('pk')) for item in data_list
@@ -840,6 +846,8 @@ class SyncManager:
 
             from system_settings.agent_world.cooking_sync import reconcile_cooking
             reconcile_cooking()
+            from learning.sync import reset_execution
+            reset_execution()
             from system_settings.agent_world.market_sync import reconcile_market
             reconcile_market()
             from system_settings.agent_world.investment_sync import reconcile_investments
@@ -1118,10 +1126,12 @@ class SyncManager:
         except json.JSONDecodeError as exc:
             raise SyncError(f"远端快照元数据损坏：{exc}")
 
-    def build_snapshot_meta(self, source='manual', runner_id=''):
+    def build_snapshot_meta(self, source='manual', runner_id='', data_list=None):
         from system_settings.agent_world.social_models import SocialIntegrity
         from system_settings.agent_world.cooking_models import CookingIntegrity
+        from learning.sync import metadata as learning_metadata
         return {
+            **learning_metadata(data_list),
             'cooking_schema_version': 1,
             'cooking_owners': list(CookingIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
             'social_schema_version': 1,
@@ -1135,6 +1145,8 @@ class SyncManager:
         }
 
     def validate_import_snapshot_version(self, remote_meta):
+        if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
+            raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('cooking_schema_version', 0) > 1:
             raise SyncError('烹饪快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
@@ -1150,6 +1162,7 @@ class SyncManager:
             )
 
     @farm_sync_guard
+    @learning_sync_guard
     def build_snapshot_data(self):
         from system_settings.agent_world.life_sync import checkpoint_all
         checkpoint_all()
@@ -1182,7 +1195,7 @@ class SyncManager:
     @farm_sync_guard
     def write_local_backup_zip(self, zip_path, source='local-export', runner_id=''):
         data_list = self.build_snapshot_data()
-        meta = self.build_snapshot_meta(source=source, runner_id=runner_id)
+        meta = self.build_snapshot_meta(source=source, runner_id=runner_id, data_list=data_list)
         media_paths, _missing = self._collect_media_relative_paths()
         book_bodies = self._book_body_rel_path_set()
         with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
@@ -1352,6 +1365,8 @@ class SyncManager:
             raise SyncError('远端快照格式不受支持，请升级客户端')
         self.validate_remote_snapshot_version(meta)
         data = self._read_remote_json(self._snapshot_path(snapshot_id, 'data_index.json'), required=True)
+        from learning.sync import validate as validate_learning
+        validate_learning(data, meta)
         return {
             'meta': meta,
             'data': self._strip_device_local_user_fields(data),
@@ -1637,7 +1652,7 @@ class SyncManager:
         snapshot_dir = f'{self.v2_snapshots_dir}/{snapshot_id}'
         self.client.ensure_directory(snapshot_dir)
         meta = {
-            **self.build_snapshot_meta(source=source, runner_id=runner_id),
+            **self.build_snapshot_meta(source=source, runner_id=runner_id, data_list=data_list),
             'snapshot_id': snapshot_id,
             'format': self.SNAPSHOT_FORMAT,
             'base_snapshot_id': base_snapshot_id,

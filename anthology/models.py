@@ -48,6 +48,7 @@ class Anthology(models.Model):
             ('image', '图片文集'),
             ('agent', 'Agent 文集'),
             ('book', '图书文集'),
+            ('learning', '学习文集'),
         ],
         default='article',
         verbose_name='文集类型',

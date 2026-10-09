@@ -29,6 +29,7 @@ urlpatterns = [
     path('api/system/logs/', include('system_logs.urls')),
     path('api/', include('user.urls')),
     path('api/anthology/', include('anthology.urls')),  # 文集接口
+    path('api/learning/', include('learning.urls')),
     path('api/book-analysis/', include('book_analysis.urls')),
     path('api/article/', include('article.urls')),  # 文章接口
     path('api/category/', include('categories.urls')),  # 分类接口

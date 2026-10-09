@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Globe, Lock, Loader2, Save, Plus, Pin, FileText, Image, EyeOff, Bot, Library } from 'lucide-react';
+import { X, Globe, Lock, Loader2, Save, Plus, Pin, FileText, Image, EyeOff, Bot, Library, GraduationCap } from 'lucide-react';
 import { AVAILABLE_ICONS } from '../constants/iconList';
 import {useEscapeDismissal} from '../hooks/useEscapeDismissal';
 
@@ -14,7 +14,7 @@ export interface AnthologyFormData {
     hideCoverContent?: boolean;
     hide_cover_content?: boolean;
     sort?: number;
-    type?: 'article' | 'image' | 'agent' | 'book';
+    type?: 'article' | 'image' | 'agent' | 'book' | 'learning';
 }
 
 interface CreateAnthologyModalProps {
@@ -73,7 +73,7 @@ export default function CreateAnthologyModal({
         if (!formData.description) return;
         setIsSubmitting(true);
         try {
-            await onSubmit(formData);
+            await onSubmit(formData.type === 'learning' ? {...formData, permission: 'private'} : formData);
             onClose();
         } finally {
             setIsSubmitting(false);
@@ -108,7 +108,7 @@ export default function CreateAnthologyModal({
                 </div>
 
                 {/* Body */}
-                <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto"> {/* 增加滚动支持以防内容过长 */}
+                <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto scrollbar-hide"> {/* 增加滚动支持以防内容过长 */}
 
                     {/* Title */}
                     <div className="space-y-1.5">
@@ -149,7 +149,7 @@ export default function CreateAnthologyModal({
                     <div className="space-y-2">
                         <label className="text-sm font-semibold text-slate-700">选择图标</label>
                         <div
-                            className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent -mx-1 px-1">
+                            className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
                             {AVAILABLE_ICONS.map((item) => (
                                 <button
                                     key={item.id}
@@ -168,8 +168,8 @@ export default function CreateAnthologyModal({
                         <label className="text-sm font-semibold text-slate-700">访问权限</label>
                         <div className="grid grid-cols-2 gap-3">
                             <div
-                                onClick={() => !isSubmitting && setFormData({ ...formData, permission: 'public' })}
-                                className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.permission === 'public' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                onClick={() => !isSubmitting && formData.type !== 'learning' && setFormData({ ...formData, permission: 'public' })}
+                                className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.permission === 'public' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting || formData.type === 'learning' ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 <div
                                     className={`p-2 rounded-full ${formData.permission === 'public' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
@@ -198,49 +198,50 @@ export default function CreateAnthologyModal({
                     <div className="space-y-2">
                         <label className="text-sm font-semibold text-slate-700">文集类型</label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div
-                                onClick={() => !isSubmitting && setFormData({ ...formData, type: 'article' })}
-                                className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.type === 'article' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <div
-                                    className={`p-2 rounded-full ${formData.type === 'article' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
-                                    <FileText className="w-4 h-4" /></div>
-                                <div className="min-w-0">
-                                    <div className="text-sm font-medium text-slate-800 whitespace-nowrap">文章文集</div>
-                                    <div className="text-xs text-slate-500 truncate">存储文章内容</div>
-                                </div>
-                            </div>
-                            <div
-                                onClick={() => !isSubmitting && setFormData({ ...formData, type: 'book' })}
-                                className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.type === 'book' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <div className={`p-2 rounded-full ${formData.type === 'book' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}><Library className="w-4 h-4" /></div>
-                                <div className="min-w-0"><div className="text-sm font-medium text-slate-800 whitespace-nowrap">图书文集</div><div className="text-xs text-slate-500 truncate">书架与在线阅读</div></div>
-                            </div>
-                            <div
-                                onClick={() => !isSubmitting && setFormData({ ...formData, type: 'image' })}
-                                className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.type === 'image' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <div
-                                    className={`p-2 rounded-full ${formData.type === 'image' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
-                                    <Image className="w-4 h-4" /></div>
-                                <div className="min-w-0">
-                                    <div className="text-sm font-medium text-slate-800 whitespace-nowrap">图片文集</div>
-                                    <div className="text-xs text-slate-500 truncate">存储图片资源</div>
-                                </div>
-                            </div>
-                            <div
-                                onClick={() => !isSubmitting && setFormData({ ...formData, type: 'agent' })}
-                                className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${formData.type === 'agent' ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500' : 'bg-white border-slate-200 hover:border-slate-300'} ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <div
-                                    className={`p-2 rounded-full ${formData.type === 'agent' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
-                                    <Bot className="w-4 h-4" /></div>
-                                <div className="min-w-0">
-                                    <div className="text-sm font-medium text-slate-800 whitespace-nowrap">Agent</div>
-                                    <div className="text-xs text-slate-500 truncate">Agent 发帖展示</div>
-                                </div>
-                            </div>
+                            {[
+                                { type: 'learning' as const, label: '学习文集', description: 'Agent 老师、练习与复习 · 私密', icon: GraduationCap },
+                                { type: 'article' as const, label: '文章文集', description: '存储文章内容', icon: FileText },
+                                { type: 'book' as const, label: '图书文集', description: '书架与在线阅读', icon: Library },
+                                { type: 'image' as const, label: '图片文集', description: '存储图片资源', icon: Image },
+                                { type: 'agent' as const, label: 'Agent', description: 'Agent 发帖展示', icon: Bot },
+                            ]
+                                .filter((item) => !isEditing || formData.type === 'learning' || item.type !== 'learning')
+                                .map((item) => {
+                                    const Icon = item.icon;
+                                    const isSelected = formData.type === item.type;
+                                    const isDisabled = isSubmitting || (isEditing && initialData?.type === 'learning' && item.type !== 'learning');
+
+                                    return (
+                                        <div
+                                            key={item.type}
+                                            onClick={() => {
+                                                if (isDisabled) return;
+                                                setFormData({
+                                                    ...formData,
+                                                    type: item.type,
+                                                    ...(item.type === 'learning' ? { permission: 'private' } : {})
+                                                });
+                                            }}
+                                            className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${
+                                                isSelected
+                                                    ? 'bg-orange-50 border-orange-500 ring-1 ring-orange-500'
+                                                    : 'bg-white border-slate-200 hover:border-slate-300'
+                                            } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        >
+                                            <div
+                                                className={`p-2 rounded-full shrink-0 ${
+                                                    isSelected ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500'
+                                                }`}
+                                            >
+                                                <Icon className="w-4 h-4" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="text-sm font-medium text-slate-800 whitespace-nowrap">{item.label}</div>
+                                                <div className="text-xs text-slate-500 truncate" title={item.description}>{item.description}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                         </div>
                     </div>
 

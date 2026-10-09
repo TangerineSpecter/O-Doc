@@ -6,7 +6,7 @@ from utils.drf_utils import get_current_user_identifier
 
 
 def get_visible_anthology_queryset(request):
-    queryset = Anthology.objects.filter(is_valid=True)
+    queryset = Anthology.objects.filter(is_valid=True).exclude(type='learning')
     if request.user and request.user.is_authenticated:
         current_user_id = get_current_user_identifier(request)
         return queryset.filter(Q(permission='public') | Q(user_id=current_user_id))

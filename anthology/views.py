@@ -1,6 +1,9 @@
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from rest_framework.views import APIView
+from rest_framework.exceptions import ValidationError
+from utils.response_utils import valid_result
 
 from article.models import Article, Image
 from article.access import get_visible_article_queryset
@@ -17,19 +20,18 @@ def get_visible_anthology_queryset(request):
     当前系统的 admin 业务用户通过 get_current_user_identifier 兼容为 user_id='admin'。
     """
     queryset = Anthology.objects.filter(is_valid=True)
-
     if request.user and request.user.is_authenticated:
         current_user_id = get_current_user_identifier(request)
-        return queryset.filter(Q(permission='public') | Q(user_id=current_user_id))
-
-    return queryset.filter(permission='public')
+        return queryset.filter(
+            Q(user_id=current_user_id)
+            | (Q(permission='public') & ~Q(type='learning'))
+        )
+    return queryset.filter(permission='public').exclude(type='learning')
 
 
 def get_owned_anthology_queryset(request):
-    return Anthology.objects.filter(
-        user_id=get_current_user_identifier(request),
-        is_valid=True
-    )
+    queryset = Anthology.objects.filter(user_id=get_current_user_identifier(request), is_valid=True)
+    return queryset if request.user.is_authenticated else queryset.exclude(type='learning')
 
 
 class AnthologyCreateView(APIView):
@@ -105,6 +107,10 @@ class AnthologyListView(APIView):
                                 'imageUrl': image.image_url,
                                 'date': image.created_at.strftime('%m-%d')
                             })
+                elif anthology.type == 'learning':
+                    from learning.models import Exercise
+                    from learning.services import ACTIVE
+                    item_count = Exercise.objects.filter(course_id=anthology.pk, attempt__grade__isnull=False).distinct().count()
                 elif anthology.type == 'book':
                     book_qs = Book.objects.filter(anthology=anthology, is_valid=True).select_related('cover_asset')
                     item_count = book_qs.count()
@@ -163,6 +169,9 @@ class AnthologyListView(APIView):
                     'type': anthology.type
                 }
 
+                if anthology.type == 'learning':
+                    anthology_data['pending_count'] = Exercise.objects.filter(course_id=anthology.pk, status__in=ACTIVE).count()
+                    anthology_data['rag_not_synced_count'] = 0
                 result_list.append(anthology_data)
 
             return success_result(data=result_list)
@@ -243,6 +252,10 @@ class AnthologyUpdateView(APIView):
             # 返回更新后的数据
             return success_result(data=AnthologySerializer(updated_anthology).data)
 
+        except ValidationError as e:
+            return valid_result(msg=str(e.detail), status=400)
+        except Http404:
+            return valid_result(msg='文集不存在或无权访问', status=404)
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
 
@@ -261,5 +274,7 @@ class AnthologyDeleteView(APIView):
 
             return success_result()
 
+        except Http404:
+            return valid_result(msg='文集不存在或无权访问', status=404)
         except Exception as e:
             return error_result(error=ErrorCode.SYSTEM_ERROR, data=str(e))
