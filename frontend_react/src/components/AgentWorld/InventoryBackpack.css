@@ -76,47 +76,38 @@
 .inventory-backpack-initial {font-family:'Songti SC','STSong',serif;font-size:clamp(19px,4cqi,28px);font-weight:700;color:var(--item-color);text-shadow:0 2px 3px #000c}
 .inventory-backpack-stars {
     position: absolute;
-    top: 2px;
+    top: 1.5px;
     left: 2px;
     z-index: 4;
-    min-width: 14px;
-    height: 14px;
-    padding: 0 3px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    font-weight: 700;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    color: #fbbf24;
-    background: rgba(14, 25, 27, 0.9);
-    border: 1px solid rgba(245, 158, 11, 0.6);
-    border-radius: 999px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+    font-size: 9.5px;
+    font-weight: 800;
     line-height: 1;
+    color: #fbbf24;
+    text-shadow:
+        1px 1px 0 #000,
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        0 1px 2px rgba(0, 0, 0, 0.9);
     pointer-events: none;
     letter-spacing: -0.2px;
 }
 .inventory-backpack-quantity {
     position: absolute;
-    bottom: 2px;
+    bottom: 1.5px;
     right: 2px;
     z-index: 5;
-    min-width: 14px;
-    height: 14px;
-    padding: 0 3.5px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    font-weight: 700;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    color: #fff9ea;
-    background: rgba(14, 25, 27, 0.88);
-    border: 1px solid rgba(226, 190, 122, 0.6);
-    border-radius: 999px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+    font-size: 9.5px;
+    font-weight: 800;
     line-height: 1;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif;
+    color: #ffffff;
+    text-shadow:
+        1px 1px 0 #000,
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        0 1px 2px rgba(0, 0, 0, 0.9);
     pointer-events: none;
     letter-spacing: -0.2px;
 }

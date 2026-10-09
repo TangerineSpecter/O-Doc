@@ -58,7 +58,7 @@ export function relationGraphOption(graph: AgentRelationGraph, compact: boolean,
             },
         },
         series: [{
-            type: 'graph', layout: 'force', preserveAspect: true,
+            type: 'graph', coordinateSystem: 'view', layout: 'force', preserveAspect: true,
             force: {initLayout: 'none', repulsion: compact ? 180 : 1000,
                 edgeLength, gravity: 0.08, friction: 0.12, layoutAnimation: true},
             stateAnimation: {duration: 0},
