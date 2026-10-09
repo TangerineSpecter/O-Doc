@@ -83,7 +83,7 @@ def execute_item(item: LifeItem, scheduler) -> None:
         revise(item,'居民选择休息',status='rest',result={'reason':item.intent});check_goals(item.owner_id,agent);return
     from .travel_candidates import travelling_ids
     from system_settings.models import AgentExecutionLease
-    costs={'post_interaction':10,'post_publish':20,'investment':5,'farm':2,'travel':task.travel_config.get('energy_cost',20) if task else 20}
+    costs={'cooking':1,'post_interaction':10,'post_publish':20,'investment':5,'farm':2,'travel':task.travel_config.get('energy_cost',20) if task else 20}
     busy=item.actor_id in travelling_ids() or AgentExecutionLease.objects.filter(agent_id=item.actor_id,until__gt=timezone.now()).exists()
     if busy or stamina(agent)<costs.get(item.activity,2):
         if item.attempts>=3:
@@ -121,7 +121,9 @@ def execute_item(item: LifeItem, scheduler) -> None:
                         run_market_opportunity(market,scheduler,key=stable_id(execution_key(item),'supplies'))
                         item.refresh_from_db();agent.refresh_from_db()
                         CURRENT.get()['context']=build_context(item.owner_id,agent,item)
-                if item.activity=='farm':
+                if item.activity=='cooking':
+                    from .cooking_runner import run_cooking_opportunity as run
+                elif item.activity=='farm':
                     from .farm_runner import run_farm_opportunity as run
                 elif item.activity=='investment':
                     from .investment_runner import run_investment_opportunity as run

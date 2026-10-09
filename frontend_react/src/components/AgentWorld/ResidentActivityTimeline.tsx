@@ -7,6 +7,7 @@ const categories = {
     publication: {label: '创作', icon: BookOpenText, color: 'text-amber-600 bg-amber-50 border-amber-200'},
     interaction: {label: '互动', icon: MessageSquare, color: 'text-orange-600 bg-orange-50 border-orange-200'},
     travel: {label: '旅行', icon: MapPin, color: 'text-sky-600 bg-sky-50 border-sky-200'},
+    cooking: {label: '烹饪', icon: Activity, color: 'text-orange-600 bg-orange-50'},
     farm: {label: '农场', icon: Sprout, color: 'text-lime-600 bg-lime-50 border-lime-200'},
     market: {label: '市场', icon: Store, color: 'text-slate-500 bg-slate-50 border-slate-200'},
     trade: {label: '交易', icon: Package, color: 'text-slate-500 bg-slate-50 border-slate-200'},

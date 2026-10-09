@@ -15,6 +15,8 @@ from .travel_models import TravelDestination, TravelJourney
 def build_context(owner: str, agent, item: LifeItem | None = None) -> dict:
     profile = LifeProfile.objects.filter(pk=agent.pk, owner_id=owner).first()
     context = actor_context(owner, agent)
+    from .cooking_queries import overview as cooking_overview, recipes as cooking_recipes
+    context['cooking'] = {'skill': cooking_overview(owner, agent.pk), 'recipes': cooking_recipes(owner, agent)}
     context['inventory_total']=len(context['inventory'])
     context['inventory']=context['inventory'][:100]
     try:
@@ -41,6 +43,14 @@ def build_context(owner: str, agent, item: LifeItem | None = None) -> dict:
     if farm_tasks:
         rules = catalog_for(owner).rules
         context['farm_prices'] = {'land':rules['land_prices'], 'buildings':{k:v['prices'] for k,v in rules['buildings'].items()}}
+        farm_state = context.get('farm')
+        if farm_state:
+            plots = len(farm_state['plots'])
+            group = plots // 4
+            context['farm_prices']['current_expansion'] = {
+                'plots': plots, 'next_plots': plots + 4 if group < 4 else None,
+                'cost': str(rules['land_prices'][group - 1]) if 1 <= group < 4 else None,
+            }
     from .travel_config import bound_skill
     context['activities'] = [{'kind':t.task_kind,'task_id':t.pk,'preference':t.prompt,'allows_spending':allows_spending(t.task_kind)} for t in tasks_for(owner) if t.enabled and t.task_kind != 'market' and (t.task_kind != 'travel' or bound_skill(agent,'odoc_travel_journal'))]
     context['custom_commitments'] = [{'name':t.name,'schedule':t.schedule,'time':t.schedule_time} for t in AgentTask.objects.filter(task_kind='custom',enabled=True) if agent.pk in (t.agent_ids or [t.agent_id])][:20]

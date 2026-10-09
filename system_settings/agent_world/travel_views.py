@@ -21,13 +21,20 @@ class JourneySerializer(serializers.ModelSerializer):
 class InventorySerializer(serializers.ModelSerializer):
     actor_name = serializers.SerializerMethodField()
     icon_url = serializers.SerializerMethodField()
+    icon_asset_id = serializers.SerializerMethodField()
+
+    def get_icon_asset_id(self, item):
+        if (item.source or {}).get('sku', '').startswith('dish.'):
+            return self.context.get('dish_icons', {}).get(item.source['sku'])
+        return item.icon_asset_id
 
     def get_icon_url(self, item):
+        asset_id = self.get_icon_asset_id(item)
         valid = self.context.get('icon_assets')
         if valid is None:
-            valid = set(Asset.objects.filter(pk=item.icon_asset_id, uploader=item.owner_id,
+            valid = set(Asset.objects.filter(pk=asset_id, uploader=item.owner_id,
                 source_type='item_icon', file_type='image', is_valid=True).values_list('pk', flat=True))
-        return f'/api/resource/view/{item.icon_asset_id}' if item.icon_asset_id in valid else ''
+        return f'/api/resource/view/{asset_id}' if asset_id in valid else ''
 
     def get_actor_name(self, item):
         return self.context.get('actor_names', {}).get(item.actor_id, item.actor_name)
@@ -38,9 +45,13 @@ class InventorySerializer(serializers.ModelSerializer):
 
 
 def inventory_context(items, owner):
+    from .cooking_models import CookingCatalog
+    catalog = CookingCatalog.objects.filter(pk=owner).first()
+    dish_icons = catalog.item_icons if catalog else {}
     return {
+        'dish_icons': dish_icons,
         'actor_names': dict(Agent.objects.filter(pk__in={item.actor_id for item in items}).values_list('pk', 'name')),
-        'icon_assets': set(Asset.objects.filter(pk__in={item.icon_asset_id for item in items if item.icon_asset_id},
+        'icon_assets': set(Asset.objects.filter(pk__in=({item.icon_asset_id for item in items if item.icon_asset_id} | set(dish_icons.values())),
             uploader=owner, source_type='item_icon', file_type='image', is_valid=True).values_list('pk', flat=True)),
     }
 

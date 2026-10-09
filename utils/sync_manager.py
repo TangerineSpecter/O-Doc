@@ -162,6 +162,8 @@ class SyncManager:
         return remote_parts > current_parts
 
     def validate_remote_snapshot_version(self, remote_meta):
+        if remote_meta and remote_meta.get('cooking_schema_version', 0) > 1:
+            raise SyncError('烹饪快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
             raise SyncError('社交快照版本高于本机，请升级后同步。')
         if not remote_meta:
@@ -733,6 +735,11 @@ class SyncManager:
             if set(expected_social) != restored_social:
                 raise SyncError('社交快照缺少完整性记录，拒绝恢复')
 
+        expected_cooking = (remote_meta or {}).get('cooking_owners')
+        if expected_cooking is not None:
+            actual = {str(item.get('pk')) for item in data_list if item.get('model') == 'system_settings.cookingintegrity'}
+            if set(expected_cooking) != actual:
+                raise SyncError('烹饪快照缺少完整性记录，拒绝恢复')
         data_list = self._drop_local_only_settings(data_list)
         self._strip_device_local_user_fields(data_list)
         self._restore_device_local_user_fields(data_list)
@@ -831,6 +838,8 @@ class SyncManager:
                             stale = stale.exclude(pk__in=[asset.pk for asset in owned])
                         stale.delete()
 
+            from system_settings.agent_world.cooking_sync import reconcile_cooking
+            reconcile_cooking()
             from system_settings.agent_world.market_sync import reconcile_market
             reconcile_market()
             from system_settings.agent_world.investment_sync import reconcile_investments
@@ -1111,7 +1120,10 @@ class SyncManager:
 
     def build_snapshot_meta(self, source='manual', runner_id=''):
         from system_settings.agent_world.social_models import SocialIntegrity
+        from system_settings.agent_world.cooking_models import CookingIntegrity
         return {
+            'cooking_schema_version': 1,
+            'cooking_owners': list(CookingIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
             'social_schema_version': 1,
             'social_owners': list(SocialIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
             'snapshot_id': uuid.uuid4().hex,
@@ -1123,6 +1135,8 @@ class SyncManager:
         }
 
     def validate_import_snapshot_version(self, remote_meta):
+        if remote_meta and remote_meta.get('cooking_schema_version', 0) > 1:
+            raise SyncError('烹饪快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
             raise SyncError('社交快照版本高于本机，请升级后恢复。')
         if not remote_meta or not remote_meta.get('app_version'):
@@ -1139,6 +1153,8 @@ class SyncManager:
     def build_snapshot_data(self):
         from system_settings.agent_world.life_sync import checkpoint_all
         checkpoint_all()
+        from system_settings.agent_world.cooking_sync import checkpoint_all as checkpoint_cooking
+        checkpoint_cooking()
         from system_settings.agent_world.social_sync import checkpoint_all as checkpoint_social
         checkpoint_social()
         all_data = []

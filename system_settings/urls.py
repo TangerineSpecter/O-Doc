@@ -43,7 +43,13 @@ from .agent_world.daily_feed_views import DailyFeedView
 
 from .agent_world.social_views import SocialView
 
+from .agent_world.cooking_views import CookingRecipesView, CookingRecipeView, CookingSkillView, CookingHistoryView
+
 urlpatterns = [
+    path('agent-world/cooking/recipes/', CookingRecipesView.as_view()),
+    path('agent-world/cooking/recipes/<str:recipe_id>/', CookingRecipeView.as_view()),
+    path('agent-world/cooking/agents/<str:agent_id>/', CookingSkillView.as_view()),
+    path('agent-world/cooking/agents/<str:agent_id>/history/', CookingHistoryView.as_view()),
     path('agent-world/social/config/', SocialView.as_view(kind='config')),
     path('agent-world/social/inbox/', SocialView.as_view(kind='inbox')),
     path('agent-world/social/inbox/<str:identity>/read/', SocialView.as_view(kind='inbox')),

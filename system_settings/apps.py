@@ -8,6 +8,8 @@ class SystemSettingsConfig(AppConfig):
     def ready(self):
         from .agent_world.market_sync import register_market_signals
         register_market_signals()
+        from .agent_world.cooking_sync import register_signals
+        register_signals()
         from . import sync_signals  # noqa: F401
         from . import agent_history  # noqa: F401
         from .agent_world import history  # noqa: F401

@@ -16,6 +16,7 @@ from .farm_models import AgentFarm, FarmOperation
 from .farm_service import ensure_farms, advance_farm, commit_operation, LABELS
 
 from .inventory_stock import inventory_items, stock_quantity
+from .farm_planning import spending_context, validate_plan_budget
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,8 @@ logger = logging.getLogger(__name__)
 def candidates(farm, money):
     rules, state = catalog_for(farm.owner_id).rules, farm.state
     options = []
-    def add(op, detail):
-        options.append({'id': str(len(options)), 'operation': op, 'description': detail})
+    def add(op, detail, cost=0):
+        options.append({'id': str(len(options)), 'operation': op, 'description': detail, 'cost': str(cost)})
     # 同一次机会会连续提交多个候选。空地按作物分完，避免两种种子都指向同一批地块。
     remaining = [p['id'] for p in state['plots'] if not p['crop']]
     for kind, rule in rules['crops'].items():
@@ -49,13 +50,13 @@ def candidates(farm, money):
         add({'kind': 'collect', 'targets': ready[offset:offset+4]}, '领取已经生产的产物')
     group = len(state['plots'])//4
     if group < 4 and money >= rules['land_prices'][group-1]:
-        add({'kind': 'expand'}, '购买相邻四块耕地')
+        add({'kind': 'expand'}, f'购买相邻四块耕地（{len(state["plots"])}→{len(state["plots"])+4}块，费用{rules["land_prices"][group-1]}世界币）', rules['land_prices'][group-1])
     for kind, rule in rules['buildings'].items():
         level = state['buildings'].get(kind, {}).get('level', 0)
         capacity = state['buildings'].get(kind, {}).get('capacity', 0)
         occupied = sum(a['building'] == kind for a in state['animals'])
         if level < 3 and money >= rule['prices'][level] and rule['capacities'][level] > capacity and rule['capacities'][level] >= occupied:
-            add({'kind': 'upgrade' if level else 'build', 'building': kind}, f'{"升级" if level else "建造"}{rule["name"]}')
+            add({'kind': 'upgrade' if level else 'build', 'building': kind}, f'{"升级" if level else "建造"}{rule["name"]}（费用{rule["prices"][level]}世界币）', rule['prices'][level])
     return options
 
 
@@ -71,10 +72,12 @@ def decide(task, agent, farm, options):
     from .farm_bonus import yield_bonus
     context['farm_bonus'] = yield_bonus(agent)
     context['yield_remainders'] = farm.state.get('yield_remainders', {})
+    context['spending'] = spending_context(agent)
     from .life_scope import enrich
     context=enrich(context)
     prompt = build_agent_system_prompt(f'当前 Agent：{agent.name}\n{agent.prompt}', conversation=False)
     prompt += '\n你在经营自己的农场。按兴趣选择最多六个不同候选，按顺序执行，允许休息。优先考虑照料、收获及资金；不必花光余额。需要调整生活预留时可增加 budget_allocations=[{"id":"安排ID","budget":"总预算"}] 和 budget_reason。仅输出 JSON {"choices":["候选ID"],"reason":"简短理由"}，休息时 choices=[]。'
+    prompt += '\n每个候选的cost是本次实际费用，扩地按当前地块阶段收费，不能沿用首次价格。所选候选cost之和不得超过spending.spendable；余额不等于本次可用预算。预算调整必须覆盖整份计划且保留后续预留；不足时优先选择免费种植、照料或收获，不可假定尚未发生的收入。'
     messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(context, ensure_ascii=False)+'\n补充经营偏好：'+task.prompt}]
     for attempt in range(2):
         output = AIService.chat_completion_messages(messages, model_id=agent.model_id) or ''
@@ -85,11 +88,13 @@ def decide(task, agent, farm, options):
                 raise ValueError('经营候选无效')
             if not isinstance(value.get('reason'), str) or not value['reason'].strip() or len(value['reason']) > 500:
                 raise ValueError('经营理由无效')
+            validate_plan_budget(agent, options, value)
             return value
-        except (ValueError, TypeError, KeyError):
+        except (ValueError, TypeError, KeyError) as exc:
             if attempt:
-                raise ValueError('模型未返回有效经营计划')
-            messages.append({'role': 'user', 'content': '格式不符合要求，请只返回候选 ID 列表和不超过500字的理由。'})
+                raise ValueError(f'模型未返回有效经营计划：{exc}') from exc
+            messages.append({'role': 'assistant', 'content': output})
+            messages.append({'role': 'user', 'content': f'经营计划校验失败：{exc}。请重新选择可执行候选，只返回候选 ID 列表、不超过500字的理由及必要的预算调整。'})
 
 
 def finish(action, scheduler=None):

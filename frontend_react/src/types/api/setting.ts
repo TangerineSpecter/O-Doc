@@ -121,7 +121,7 @@ export type AgentRunStepStatus = AgentRunStatus | 'info';
 
 export interface AgentTaskConfig {
     investmentConfig?: import('./investment').InvestmentConfig;
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking';
     publishConfig?: import('./agentPublish').AgentPublishConfig;
     travelConfig?: import('./travel').TravelConfig;
     postCollectionIds?: string[];
@@ -237,6 +237,7 @@ export interface AgentRelationNode {
     avatar: string;
     money: string;
     stamina?: string;
+    cooking?: import('./cooking').CookingSkill;
     creativity: number;
     postCount: number;
     ratedPostCount: number;

@@ -462,6 +462,90 @@ class FarmTests(TestCase):
         self.client.post('/api/settings/agent-tasks/',{**payload,'enabled':True},format='json')
         self.assertEqual(AgentFarm.objects.count(),1);self.assertEqual(AgentTask.objects.filter(task_kind='farm').count(),1)
 
+    def test_candidate_expansion_prices_match_actual_charge(self):
+        from .farm_service import perform
+        farm = AgentFarm.objects.get(pk=self.agent.pk)
+        catalog = FarmCatalog.objects.get(pk=farm.owner_id)
+        catalog.rules['land_prices'] = [600, 1200, 2400]
+        catalog.save()
+        for plots, expected in ((4, 600), (8, 1200), (12, 2400)):
+            with self.subTest(plots=plots):
+                farm.state['plots'] = [{'id': str(i), 'crop': None, 'watered_until': 0} for i in range(plots)]
+                option = next(o for o in candidates(farm, self.agent.money) if o['operation']['kind'] == 'expand')
+                self.assertEqual(Decimal(option['cost']), expected)
+                self.assertIn(f'{plots}→{plots+4}', option['description'])
+                amount, _ = perform(copy.deepcopy(farm), option['operation'], catalog.rules, timezone.now().timestamp(), 'price')
+                self.assertEqual(-amount, Decimal(option['cost']))
+        farm.state['plots'] = [{'id': str(i), 'crop': None, 'watered_until': 0} for i in range(16)]
+        self.assertFalse(any(o['operation']['kind'] == 'expand' for o in candidates(farm, self.agent.money)))
+
+    def farm_life_item(self, identity, budget):
+        from .life_models import LifeItem
+        return LifeItem.objects.create(pk=identity, owner_id='admin', actor_id=self.agent.pk,
+            activity='farm', budget=budget, original_at=timezone.now(), scheduled_at=timezone.now())
+
+    def test_life_planning_gets_current_expansion_price(self):
+        from .life_context import build_context
+        farm = AgentFarm.objects.get(pk=self.agent.pk)
+        farm.state['plots'].extend({'id': str(i), 'crop': None, 'watered_until': 0} for i in range(4, 8))
+        farm.save()
+        context = build_context('admin', self.agent)
+        self.assertEqual(context['farm_prices']['current_expansion'], {'plots': 8, 'next_plots': 12, 'cost': '1000'})
+
+    def test_underbudget_expansion_is_corrected_before_execution(self):
+        from .farm_runner import decide
+        from .life_scope import life_scope
+        farm = AgentFarm.objects.get(pk=self.agent.pk)
+        farm.state['plots'].extend({'id': str(i), 'crop': None, 'watered_until': 0} for i in range(4, 8))
+        options = candidates(farm, self.agent.money)
+        expand = next(o for o in options if o['operation']['kind'] == 'expand')
+        item = self.farm_life_item('farm-plan', 500)
+        initial = json.dumps({'choices': [expand['id']], 'reason': '扩地只要500'})
+        with life_scope(item, {}), patch('system_settings.agent_world.farm_runner.AIService.chat_completion_messages',
+                side_effect=[initial, '{"choices":[],"reason":"先照料，暂不扩地"}']) as call:
+            decision = decide(self.task, self.agent, farm, options)
+            context = json.loads(call.call_args.args[0][1]['content'].split('\n补充经营偏好：')[0])
+            self.assertEqual(context['spending']['spendable'], '500.00')
+            self.assertIn('需要 1000', call.call_args.args[0][-1]['content'])
+            self.assertEqual(decision['choices'], [])
+            self.assertEqual(call.call_count, 2)
+        item.refresh_from_db()
+        self.assertEqual(item.spent, 0)
+        self.assertEqual(item.budget, 500)
+        self.assertFalse(FarmOperation.objects.exists())
+
+    def test_plan_checks_combined_cost_and_allows_explicit_budget_adjustment(self):
+        from .farm_planning import validate_plan_budget
+        from .life_scope import life_scope
+        item = self.farm_life_item('farm-plan', 500)
+        future = self.farm_life_item('future', 9500)
+        options = [{'id': '0', 'cost': '300'}, {'id': '1', 'cost': '300'}, {'id': '2', 'cost': '0'}]
+        decision = {'choices': ['0', '1']}
+        with life_scope(item, {}):
+            with self.assertRaisesRegex(ValueError, '合计需要 600'):
+                validate_plan_budget(self.agent, options, decision)
+            validate_plan_budget(self.agent, options, {'choices': ['2']})
+            decision.update(budget_allocations=[{'id': item.pk, 'budget': '600'},
+                {'id': future.pk, 'budget': '9400'}], budget_reason='为当前两座建筑重新分配预算')
+            validate_plan_budget(self.agent, options, decision)
+            decision['budget_allocations'][1]['budget'] = '9500'
+            with self.assertRaisesRegex(ValueError, '超出真实余额'):
+                validate_plan_budget(self.agent, options, decision)
+        item.refresh_from_db()
+        self.assertEqual(item.budget, 500)  # 校验不提前写入预算或支出。
+
+    def test_farm_spendable_protects_future_reservations_and_used_budget(self):
+        from .farm_planning import spending_context
+        from .life_scope import life_scope
+        item = self.farm_life_item('farm-plan', 1500)
+        item.spent = 200; item.save()
+        self.farm_life_item('future', 9000)
+        with life_scope(item, {}):
+            self.assertEqual(Decimal(spending_context(self.agent)['spendable']), 1000)
+        item.budget = 500; item.save()
+        with life_scope(item, {}):
+            self.assertEqual(Decimal(spending_context(self.agent)['spendable']), 300)
+
     def test_invalid_model_format_only_one_correction(self):
         from .farm_runner import decide
         farm=AgentFarm.objects.get(pk=self.agent.pk)

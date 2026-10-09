@@ -126,6 +126,11 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
         if local_time().date() != op.business_date: raise ValueError('社交机会已跨日')
         action = value['action']
         own_key = f'agent-id:{agent.pk}'
+        artifact = {}
+        # 回复目标来自已锁定的收件箱；模型的可选 moment_id 不参与关联。
+        if action != 'read':
+            value.pop('moment_id', None)
+            value.pop('likes', None)
         if incoming:
             incoming = SocialInbox.objects.select_for_update().get(pk=incoming.pk)
             current = thread_context(incoming)
@@ -143,8 +148,12 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
                     post = Article.objects.select_for_update().get(pk=incoming.content_id, is_valid=True)
                     result = create_comment(post, value['content'], get_agent_identity(agent, stable=True), agent,
                                             incoming.source_id, incoming.sender_id)
+                    artifact = {'artifact_kind': 'articleComment', 'artifact_id': result.pk,
+                                'artifact_article_id': post.pk, 'artifact_coll_id': post.coll_id}
                 else:
                     result = comment(op.owner_id, incoming.content_id, own_key, agent_identity(agent), value['content'], incoming.source_id, incoming.sender_id)
+                    value['moment_id'] = result.moment_id
+                    artifact = {'artifact_kind': 'momentComment', 'artifact_id': result.pk}
                 apply_event(op.owner_id, agent.pk, incoming.sender_id, f'sent:{result.pk}', value.get('sent_appraisal'), incoming.identity)
                 incoming.status = 'replied'
             elif action == 'ignore': incoming.status = 'ignored'
@@ -174,10 +183,16 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
                 if selected.updated_at != allowed[mid].updated_at: raise ValueError('动态已修改')
                 result = comment(op.owner_id, mid, own_key, agent_identity(agent), value['content'])
                 apply_event(op.owner_id, agent.pk, selected.actor_id, f'sent:{result.pk}', value.get('sent_appraisal'), selected.identity)
+            else:
+                value.pop('moment_id', None)
         op.status = 'completed'; op.result = {**value, 'action': action}; op.save()
         WorldAction.objects.update_or_create(pk=op.pk, defaults={'agent': agent, 'actor_id': agent.pk, 'status': 'success',
             'energy_cost': 0 if action == 'rest' else ENERGY_COST, 'consumed_at': timezone.now(), 'effects_done': True, 'snapshot': {'social': True, 'owner_id': op.owner_id}, 'result': op.result})
-        target_mid = value.get('moment_id') or (ids[0] if action == 'read' and ids else '') or (incoming.content_id if incoming and incoming.source_kind == 'moment' else '')
+        target_mid = value.get('moment_id') if action == 'publish' or (action == 'read' and value.get('content')) else ''
+        if action == 'read' and not target_mid and ids:
+            target_mid = ids[0]
+        if not artifact and target_mid:
+            artifact = {'artifact_kind': 'moment', 'artifact_id': target_mid}
         action_label = {'reply': '回复了评论', 'publish': '分享了朋友圈'}.get(action)
         if not action_label:
             if action == 'read':
@@ -188,7 +203,7 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
             'status': 'success', 'action': f'social_{action}', 'title': f'{agent.name}的社交时间', 'summary': value.get('content', value['reason'])[:1200],
             'metadata': {'owner_id': op.owner_id, 'social_opportunity_id': op.pk, 'agentSnapshot': agent_identity(agent)},
             'current_action': action_label,
-            'artifact_kind': 'moment' if target_mid else '', 'artifact_id': target_mid or ''})
+            **artifact})
 
 
 def run(op, agent):

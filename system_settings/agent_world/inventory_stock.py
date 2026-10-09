@@ -31,7 +31,7 @@ def add_stock(actor_id: str, owner_id: str, actor_name: str, sku: str, quantity:
     if separate_origin:
         row = None
     if row:
-        if sku.startswith(('crop.', 'product.')):
+        if sku.startswith(('crop.', 'product.', 'dish.')):
             source = dict(row.source)
             lots = source.get('lots') or [{'quantity': row.quantity, 'price': str(row.value)}]
             row.source = {**source, 'lots': [*lots, {'quantity': quantity, 'price': str(price)}]}
@@ -45,7 +45,7 @@ def add_stock(actor_id: str, owner_id: str, actor_name: str, sku: str, quantity:
         name=name, kind=kind, quantity=quantity, value=price,
         rarity='rare' if sku.endswith('.gold') else 'common',
         source={'sku': sku, 'operation_id': operation_id, 'quality': 'gold' if sku.endswith('.gold') else 'normal',
-                'lots': [{'quantity': quantity, 'price': str(price)}] if sku.startswith(('crop.', 'product.')) else []})
+                'lots': [{'quantity': quantity, 'price': str(price)}] if sku.startswith(('crop.', 'product.', 'dish.')) else []})
 
 
 @guarded

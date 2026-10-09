@@ -47,7 +47,8 @@ def catalog_item_names(rules: dict) -> dict[str, str]:
 
 def catalog_icon_usage_counts(resource_ids=None) -> dict[str, int]:
     allowed = set(resource_ids) if resource_ids is not None else None
-    usage = Counter()
+    from .cooking_icons import usage_counts
+    usage = usage_counts(resource_ids)
     for catalog in FarmCatalog.objects.only('rules').iterator():
         icons = (catalog.rules or {}).get('item_icons') or {}
         usage.update(asset_id for asset_id in icons.values()
@@ -72,6 +73,9 @@ def validate_catalog_icon_assets(owner: str, rules: dict) -> None:
 
 def set_catalog_item_icon(owner: str, sku: str, asset_id: str | None) -> str | None:
     """Bind one catalog SKU to an owned icon; null clears the override."""
+    if sku.startswith('dish.'):
+        from .cooking_icons import set_icon
+        return set_icon(owner, sku, asset_id)
     with farm_gate(), transaction.atomic():
         asset = None
         if asset_id:

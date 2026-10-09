@@ -39,6 +39,7 @@ const categoryDefs: {value: 'all' | ItemCategory; label: string}[] = [
     {value: 'feed', label: '饲料'},
     {value: 'crop', label: '农作物'},
     {value: 'animal_product', label: '畜产品'},
+    {value: 'dish', label: '美食'},
     {value: 'other', label: '其他'},
 ];
 
@@ -191,7 +192,7 @@ export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
                 {/* 辅助说明条 */}
                 <div className="flex shrink-0 items-center gap-2 rounded-xl bg-slate-50 px-3.5 py-1.5 text-xs text-slate-500 border border-slate-100">
                     <Info className="h-3.5 w-3.5 shrink-0 text-orange-400" />
-                    <span>农牧物品显示当前世界目录；纪念品及其他物品来自居民现有背包。数量为所有居民当前持有总数。</span>
+                    <span>农牧物品与美食显示当前世界目录；纪念品及其他物品来自居民现有背包。数量为所有居民当前持有总数。</span>
                 </div>
 
                 {/* 主内容区域：固定高度区域，左侧列表独立滚动，右侧详情紧凑固定 */}

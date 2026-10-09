@@ -57,28 +57,37 @@ export default function LoginPage() {
     const [isLoading, setIsLoading] = useState(false);
     const savedAccount = getRememberedAccount();
     // 3. 若本地存有已记住账号，则自动回填并默认勾选“记住我”
-    const [formData, setFormData] = useState({email: savedAccount, password: ''});
     const [rememberMe, setRememberMe] = useState(Boolean(savedAccount));
 
     // 2. 获取 toast 方法
     const {success, error, warning} = useToast();
 
     // 4. 给表单提交事件加类型
-    const handleLogin = async (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (isLoading) return;
+        // Password managers may fill the DOM without firing React change events.
+        const submittedForm = new FormData(e.currentTarget);
+        const credentials = {
+            email: String(submittedForm.get('username') || '').trim(),
+            password: String(submittedForm.get('password') || ''),
+        };
+        if (!credentials.email || !credentials.password) {
+            error('账号和密码不能为空');
+            return;
+        }
         setIsLoading(true);
 
         try {
             // 这里的 res 已经是后端返回的 data 部分了（因为拦截器处理过）
-            const res = await login(formData);
-            console.log('登录成功:', res);
+            const res = await login(credentials);
 
             // 保存 token：普通登录有效期 7 天；勾选“记住我”长期保存。
             saveAuthToken(res.token, rememberMe);
 
             // 记住或清除账号信息
             if (rememberMe) {
-                saveRememberedAccount(formData.email);
+                saveRememberedAccount(credentials.email);
             } else {
                 clearRememberedAccount();
             }
@@ -90,7 +99,6 @@ export default function LoginPage() {
                 window.location.href = '/';
             }, 400);
         } catch (err: any) {
-            console.error('登录失败', err);
             const errorMsg = err.response?.data?.msg || err.message || '登录失败，请检查账号密码';
             error(errorMsg);
             // 这里可以加一个 Toast 提示错误
@@ -171,8 +179,7 @@ export default function LoginPage() {
                                     type="email"
                                     autoComplete="username"
                                     required
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                    defaultValue={savedAccount}
                                     className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-lg py-2.5 transition-all"
                                     placeholder="name@company.com"
                                 />
@@ -193,8 +200,6 @@ export default function LoginPage() {
                                     type="password"
                                     autoComplete="current-password"
                                     required
-                                    value={formData.password}
-                                    onChange={(e) => setFormData({...formData, password: e.target.value})}
                                     className="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-lg py-2.5 transition-all"
                                     placeholder="••••••••"
                                 />

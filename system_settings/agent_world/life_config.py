@@ -4,7 +4,7 @@ from system_settings.models import Agent, AgentTask
 from .life_time import storage_time
 from .life_models import LifeConfig, LifeProfile, LifeCycle
 
-KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment')
+KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking')
 DEFAULTS = {'agent_ids': [], 'mode': 'fixed', 'period': 'daily', 'count': 12,
             'interval_minutes': 60, 'active_start': '00:00', 'active_end': '24:00',
             'min_gap_minutes': 15, 'min_remaining_minutes': 240}
@@ -75,5 +75,7 @@ def ensure_profiles(owner: str, ids: list[str]) -> None:
     from .investment_models import InvestmentAccount
     if any(not owns_actor(owner, actor) for actor in ids) or AgentFarm.objects.filter(pk__in=ids).exclude(owner_id=owner).exists() or InvestmentAccount.objects.filter(pk__in=ids).exclude(owner_id=owner).exists():
         raise ValueError('参与居民已有其他账号的生活或资产归属')
+    from .cooking_queries import validate_cooking_agents
+    validate_cooking_agents(owner, ids)
     for actor in ids:
         LifeProfile.objects.get_or_create(pk=actor, defaults={'owner_id': owner})

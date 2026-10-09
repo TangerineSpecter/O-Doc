@@ -18,7 +18,20 @@ def listings(owner: str, arguments: dict) -> dict:
     if arguments.get('seller_id'): rows = rows.filter(seller_id=arguments['seller_id'])
     if arguments.get('status', 'active') != 'all': rows = rows.filter(status=arguments.get('status','active'))
     if arguments.get('search'): rows = rows.filter(item__name__icontains=str(arguments['search'])[:200])
-    return {'total':rows.count(), 'page':page, 'items':list(rows.values()[size*(page-1):size*page])}
+    items = list(rows.values()[size*(page-1):size*page])
+    from .cooking_models import CookingCatalog
+    catalog = CookingCatalog.objects.filter(pk=owner).first()
+    icons = catalog.item_icons if catalog else {}
+    from assets.models import Asset
+    valid = set(Asset.objects.filter(pk__in=icons.values(), uploader=owner, is_valid=True).values_list('pk', flat=True))
+    for row in items:
+        item = row.get('item') or {}
+        sku = (item.get('source') or {}).get('sku', '')
+        if sku.startswith('dish.'):
+            asset_id = icons.get(sku)
+            item['icon_asset_id'] = asset_id if asset_id in valid else None
+            item['icon_url'] = f'/api/resource/view/{asset_id}' if asset_id in valid else ''
+    return {'total':rows.count(), 'page':page, 'items':items}
 
 
 def history(owner: str, arguments: dict) -> dict:
@@ -28,7 +41,7 @@ def history(owner: str, arguments: dict) -> dict:
         from django.db.models import Q
         rows = rows.filter(Q(actor_id=arguments['actor_id']) | Q(result__seller_id=arguments['actor_id']))
     if arguments.get('session_id'): rows = rows.filter(session_id=arguments['session_id'])
-    return {'total':rows.count(), 'page':page, 'items':list(rows.values()[size*(page-1):size*page])}
+    return {'total': rows.count(), 'page': page, 'items': list(rows.values()[size*(page-1):size*page])}
 
 
 def sessions(owner: str, arguments: dict) -> dict:

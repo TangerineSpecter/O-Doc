@@ -17,7 +17,7 @@ from .models import WorldLedger
 from .travel_models import TravelJourney
 
 
-CATEGORIES = {'publication', 'interaction', 'travel', 'farm', 'market', 'trade', 'investment', 'finance', 'record'}
+CATEGORIES = {'publication', 'interaction', 'travel', 'farm', 'cooking', 'market', 'trade', 'investment', 'finance', 'record'}
 MARKET_LABELS = {
     'buy_shop': '商店购买', 'sell': '商店回收', 'list': '居民上架',
     'buy_listing': '购买居民商品', 'reprice': '调整挂牌价格', 'withdraw': '撤回挂牌',
@@ -80,6 +80,9 @@ def latest_event_day(request, owner, before, category='all'):
         collect(records.filter(status__in=('success', 'failed')), 'updated_at')
         collect(LifeItem.objects.filter(owner_id=owner, status__in=('rest', 'failed', 'cancelled')), 'updated_at')
         collect(LifeRevision.objects.filter(item__owner_id=owner), 'created_at')
+    if category in ('all', 'cooking'):
+        from .cooking_models import CookingOperation
+        collect(CookingOperation.objects.filter(owner_id=owner), 'created_at')
     if category in ('all', 'farm'):
         collect(FarmOperation.objects.filter(farm__owner_id=owner), 'created_at')
     if category in ('all', 'market', 'trade'):
@@ -194,6 +197,8 @@ def day_events(request, owner, day, actor_id=''):
     ]
     from .social_models import SocialOpportunity, Moment
     social_ops = {op.pk: op for op in SocialOpportunity.objects.filter(pk__in=social_op_ids)} if social_op_ids else {}
+    from .social_targets import reply_targets
+    social_reply_targets = reply_targets(activities, owner, visible_colls)
 
     moment_ids = set()
     for row in activities:
@@ -208,7 +213,9 @@ def day_events(request, owner, day, actor_id=''):
                 for mid in res['likes']:
                     if mid:
                         moment_ids.add(mid)
-    moments_map = {m.pk: m for m in Moment.objects.filter(pk__in=moment_ids)} if moment_ids else {}
+    moment_ids.update(target['artifactId'] for target in social_reply_targets.values()
+                      if target.get('artifactKind') == 'moment')
+    moments_map = {m.pk: m for m in Moment.objects.filter(pk__in=moment_ids, owner_id=owner, is_valid=True)} if moment_ids else {}
 
     recorded_runs = set()
     for row in activities:
@@ -238,17 +245,24 @@ def day_events(request, owner, day, actor_id=''):
             raw_action = res.get('action') or row.action.replace('social_', '')
 
             # 解析关联朋友圈动态
+            reply_target = social_reply_targets.get(row.pk)
+            if reply_target is not None:
+                artifact_kind = reply_target.get('artifactKind', '')
+                artifact_id = reply_target.get('artifactId', '')
             target_mid = artifact_id if artifact_kind == 'moment' else None
-            if not target_mid:
-                target_mid = res.get('moment_id')
-                if not target_mid and isinstance(res.get('likes'), list) and res['likes']:
+            if not target_mid and reply_target is None and raw_action in ('publish', 'read'):
+                target_mid = res.get('moment_id') if raw_action == 'publish' or res.get('content') else None
+                if raw_action == 'read' and not target_mid and isinstance(res.get('likes'), list) and res['likes']:
                     target_mid = res['likes'][0]
-            if target_mid:
+            if target_mid and target_mid in moments_map:
                 artifact_kind = 'moment'
                 artifact_id = target_mid
                 target_m = moments_map.get(target_mid)
                 if target_m and isinstance(target_m.identity, dict):
                     target_author = target_m.identity.get('name') or ''
+            elif artifact_kind == 'moment':
+                artifact_kind = ''
+                artifact_id = ''
 
             if not target_author:
                 target_author = row.counterpart_name or ''
@@ -279,10 +293,8 @@ def day_events(request, owner, day, actor_id=''):
                     title = f'浏览了 @{target_author} 的朋友圈动态并点赞' if target_author else '浏览了朋友圈动态并点赞'
                     is_motive = True
                 else:
-                    sub_action = 'read'
-                    current_action = '读了朋友圈'
-                    title = f'浏览了 @{target_author} 的朋友圈动态' if target_author else '浏览了朋友圈动态'
-                    is_motive = True
+                    # 纯浏览保留执行事实，但不作为互动事件进入时间线和统计。
+                    continue
             elif raw_action == 'reply':
                 sub_action = 'reply'
                 current_action = '回复了评论'
@@ -322,6 +334,8 @@ def day_events(request, owner, day, actor_id=''):
                                'artifactId': artifact_id,
                                'artifactKind': artifact_kind})
         event['rating'] = activity_rating(row)
+        if row.pk in social_reply_targets:
+            event['target'].update({'collId': '', 'articleId': '', **social_reply_targets[row.pk]})
         if row.run_record_id and row.activity_type != 'work':
             event['_execution_group'] = 'activity:' + row.run_record_id
         event['currentAction'] = current_action
@@ -359,6 +373,14 @@ def day_events(request, owner, day, actor_id=''):
         event['outputPreview'] = str(row.output or '')[:300]
         events.append(event)
 
+    from .cooking_models import CookingOperation
+    for row in CookingOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end):
+        detail = f"经验 +{row.result['experience_gained']} · {row.reason}"
+        if row.result['level_after'] > row.result['level_before']:
+            detail += f" · 厨艺升至 Lv.{row.result['level_after']}"
+        events.append(_event('cooking', 'cooking', row.pk, row.created_at, row.actor_id,
+                             names.get(row.actor_id, row.actor_name), row.snapshot['name'] + ' ×1', detail,
+                             target={'kind': 'cooking', 'id': row.pk}))
     day_farms = FarmOperation.objects.filter(farm__owner_id=owner, created_at__gte=start, created_at__lt=end)
     opportunity_ids = day_farms.exclude(opportunity_id='').values_list('opportunity_id', flat=True)
     farm_actions = dict(WorldAction.objects.filter(pk__in=opportunity_ids).values_list('pk', 'status'))

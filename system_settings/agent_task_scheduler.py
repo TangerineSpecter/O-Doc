@@ -273,6 +273,9 @@ class AgentTaskScheduler:
         if task.task_kind == 'market':
             from .agent_world.market_runner import run_market_opportunity
             return self._run_world_task(run_market_opportunity, task, life_key, trigger)
+        if task.task_kind == 'cooking':
+            from .agent_world.cooking_runner import run_cooking_opportunity
+            return self._run_world_task(run_cooking_opportunity, task, life_key, trigger)
         if task.task_kind == 'farm':
             from .agent_world.farm_runner import run_farm_opportunity
             return self._run_world_task(run_farm_opportunity, task, life_key, trigger)

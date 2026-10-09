@@ -1,6 +1,7 @@
 """隔离数据库验证投资资产与有界工具，不请求模型、搜索或行情服务。"""
 import copy
 import time
+from types import SimpleNamespace
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -77,6 +78,24 @@ class IndicatorTests(SimpleTestCase):
     def test_large_page(self):
         self.assertEqual(page(list(range(45)),2)['items'],list(range(20,40)))
         with self.assertRaises(ValueError):page([],0)
+
+
+class InvestmentAccountListTests(SimpleTestCase):
+    def test_account_list_reports_current_position_count(self):
+        client = APIClient()
+        client.force_authenticate(User(username='admin', is_superuser=True))
+        account = SimpleNamespace(pk='resident', actor_name='小橘', positions={})
+        with patch('system_settings.agent_world.investment_views.get_current_user_identifier', return_value='admin'), \
+             patch('system_settings.agent_world.investment_views.InvestmentAccount.objects.filter') as accounts:
+            accounts.return_value.order_by.return_value = [account]
+            for holdings, expected in (({}, 0), ({'000001': {'quantity': 10}}, 1),
+                                       ({'000001': {'quantity': 10}, '600011': {'quantity': 400}}, 2), ({}, 0)):
+                account.positions = holdings
+                response = client.get('/api/settings/agent-world/investment/accounts/')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data['data'], [{'id': 'resident', 'name': '小橘', 'position_count': expected}])
+                self.assertEqual(response.json()['data'][0]['positionCount'], expected)
+                accounts.assert_called_with(owner_id='admin')
 
 
 class InvestmentTests(TestCase):

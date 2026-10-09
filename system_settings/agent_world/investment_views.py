@@ -16,7 +16,7 @@ class InvestmentView(APIView):
         actor=request.query_params.get('actor_id','')
         with farm_gate():
             if self.kind=='accounts':
-                return success_result([{'id':a.pk,'name':a.actor_name} for a in InvestmentAccount.objects.filter(owner_id=owner).order_by('actor_name','pk')])
+                return success_result([{'id':a.pk,'name':a.actor_name,'position_count':len(a.positions)} for a in InvestmentAccount.objects.filter(owner_id=owner).order_by('actor_name','pk')])
             account=InvestmentAccount.objects.filter(pk=actor,owner_id=owner).first()
             if not account:return valid_result('当前账号没有该投资账户',status=404)
             try:

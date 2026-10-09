@@ -190,7 +190,7 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         from django.db.models import Q
         from utils.drf_utils import get_current_user_identifier
         owner=get_current_user_identifier(self.request)
-        rows=super().get_queryset().filter(~Q(task_kind='market') | Q(market_config__owner_id=owner)).filter(~Q(task_kind='investment') | Q(investment_config__owner_id=owner))
+        rows=super().get_queryset().filter(~Q(task_kind='cooking') | Q(cooking_config__owner_id=owner)).filter(~Q(task_kind='market') | Q(market_config__owner_id=owner)).filter(~Q(task_kind='investment') | Q(investment_config__owner_id=owner))
         for kind,field in [('farm','farm_config'),('travel','travel_config'),('post_publish','publish_config'),('post_interaction','world_state')]:
             rows=rows.filter(~Q(task_kind=kind) | Q(**{field+'__owner_id':owner}) | Q(**{field+'__owner_id__isnull':True}))
         return rows
@@ -272,7 +272,7 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         return success_result(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
-        if self.get_object().task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment'):
+        if self.get_object().task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking'):
             return valid_result('内置系统任务不能删除，请关闭任务', status=400)
         self.perform_destroy(self.get_object())
         return success_result()

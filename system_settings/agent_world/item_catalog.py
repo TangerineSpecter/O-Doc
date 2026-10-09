@@ -39,6 +39,12 @@ def item_catalog(owner: str) -> list[dict]:
                 f"{animal['name']}的一轮有效生产时间为 {animal['period_seconds'] / 3600:g} 小时；缺饲料暂停生产。",
                 sale=animal['sale_price'] * (3 if gold else 1), quality=quality)
 
+    from .cooking_queries import recipes
+    for recipe in recipes(owner):
+        entries[recipe['sku']] = dict(id=recipe['sku'], sku=recipe['sku'], name=recipe['name'], category='dish',
+            description=recipe['description'], purchase_price=None, sale_price=recipe['sale_price'],
+            quality='normal', quantity=0, reference_value=recipe['sale_price'],
+            icon_asset_id=recipe['icon_asset_id'], icon_url=recipe['icon_url'])
     rows = list(AgentInventoryItem.objects.filter(owner_id=owner).order_by('created_at', 'id'))
     serialized = InventorySerializer(rows, many=True, context=inventory_context(rows, owner)).data
     for row in serialized:

@@ -64,6 +64,11 @@ def lock_owned_icon(owner: str, asset_id: str | None):
 
 @transaction.atomic
 def bind_icon(item_id: str, owner: str, asset_id: str | None) -> AgentInventoryItem:
+    dish = AgentInventoryItem.objects.filter(pk=item_id, owner_id=owner, source__sku__startswith='dish.').first()
+    if dish:
+        from .cooking_icons import set_icon
+        set_icon(owner, dish.source['sku'], asset_id)
+        return dish
     # 同图标删除与绑定按资源锁串行；不改变其他物品的关联。
     asset = lock_owned_icon(owner, asset_id)
     item = AgentInventoryItem.objects.select_for_update().filter(pk=item_id, owner_id=owner).first()

@@ -1,5 +1,5 @@
 export interface InvestmentConfig {ownerId?: string; searchServerId?: string}
-export interface InvestmentResident {id: string; name: string}
+export interface InvestmentResident {id: string; name: string; positionCount?: number}
 export interface InvestmentPage<T> {items: T[]; total: number; page: number}
 export type InvestmentTab = 'positions' | 'trades' | 'decisions';
 export interface InvestmentPosition {

@@ -118,6 +118,110 @@ class SocialTests(TestCase):
         with patch('system_settings.agent_world.life_planner.ask', return_value={'action': 'ignore', 'reason': '不想继续'}): run(self.op(), self.agent)
         incoming.refresh_from_db(); self.assertEqual(incoming.status, 'ignored')
 
+    def feed_activity(self, activity):
+        from .daily_feed import day_events
+        from rest_framework.test import APIRequestFactory
+        request = APIRequestFactory().get('/')
+        request.user = self.user
+        events, _, _, _, _ = day_events(request, self.owner, local_time().date())
+        return next(event for event in events if event['id'] == f'activity:{activity.pk}')
+
+    def run_reply(self, content, model_id='wrong-model-id'):
+        from system_settings.models import AgentActivity
+        op = self.op()
+        with patch('system_settings.agent_world.life_planner.ask', return_value={
+                'action': 'reply', 'reason': '继续讨论', 'content': content, 'moment_id': model_id}), \
+                patch('system_settings.agent_world.social_runner.local_time', return_value=local_time().replace(hour=12)):
+            run(op, self.agent)
+        op.refresh_from_db()
+        self.assertEqual(op.status, 'completed', op.result)
+        return AgentActivity.objects.get(event_key=f'social:{op.pk}')
+
+    def test_reply_target_ignores_model_id_and_deleted_moment(self):
+        first = comment(self.owner, self.moment.pk, user_actor(self.owner), {}, '请解释')
+        activity = self.run_reply('这是我的解释')
+        reply = self.moment.comments.exclude(pk=first.pk).get()
+        self.assertEqual(activity.artifact_kind, 'momentComment')
+        self.assertEqual(activity.artifact_id, reply.pk)
+        target = self.feed_activity(activity)['target']
+        self.assertEqual(target['artifactId'], self.moment.pk)
+        self.assertEqual(target['artifactKind'], 'moment')
+        self.assertEqual(self.client.get(f"/api/settings/agent-world/moments/{target['artifactId']}/").status_code, 200)
+        # 历史活动缺少评论 ID、并保存了错误动态 ID，仍按实际回复恢复。
+        activity.artifact_kind = 'moment'; activity.artifact_id = 'wrong-model-id'; activity.save()
+        self.assertEqual(self.feed_activity(activity)['target']['artifactId'], self.moment.pk)
+        activity.refresh_from_db()
+        self.assertEqual(activity.artifact_id, 'wrong-model-id')
+        delete_moment(self.owner, self.moment.pk, self.moment.actor_id)
+        self.assertEqual(self.feed_activity(activity)['target']['artifactId'], '')
+
+    def test_post_reply_opens_article_instead_of_moment(self):
+        coll = Anthology.objects.create(title='世界', type='agent', user_id=self.owner)
+        post = Article.objects.create(title='观点', coll_id=coll.pk, agent_post_author_id=self.agent.pk, is_valid=True)
+        from .comments import create_comment
+        first = create_comment(post, '请解释', {'creator_id': self.owner, 'creator_name': '我'})
+        activity = self.run_reply('文章回复')
+        reply = ArticlePostComment.objects.get(parent_comment_id=first.pk)
+        self.assertEqual(activity.artifact_kind, 'articleComment')
+        target = self.feed_activity(activity)['target']
+        self.assertEqual(target['artifactKind'], 'articleComment')
+        self.assertEqual(target['artifactId'], reply.pk)
+        self.assertEqual(target['articleId'], post.pk)
+        self.assertEqual(target['collId'], coll.pk)
+        activity.artifact_kind = 'moment'; activity.artifact_id = 'wrong-model-id'; activity.save()
+        self.assertEqual(self.feed_activity(activity)['target'], target)
+
+    def test_ambiguous_historical_reply_does_not_guess_target(self):
+        comment(self.owner, self.moment.pk, user_actor(self.owner), {}, '请解释')
+        activity = self.run_reply('相同回复')
+        from .social_models import MomentComment
+        reply = self.moment.comments.get(content='相同回复')
+        MomentComment.objects.create(moment=self.moment, actor_id=reply.actor_id, content=reply.content,
+                                     parent_id=reply.parent_id, created_at=reply.created_at)
+        # 新记录的稳定评论 ID 不受重复正文影响。
+        self.assertEqual(self.feed_activity(activity)['target']['artifactId'], self.moment.pk)
+        activity.artifact_kind = 'moment'; activity.artifact_id = 'wrong-model-id'; activity.save()
+        self.assertEqual(self.feed_activity(activity)['target']['artifactId'], '')
+
+    def test_invalid_and_foreign_moment_targets_are_not_exposed(self):
+        from system_settings.models import AgentActivity
+        self.moment.owner_id = 'another-owner'; self.moment.save()
+        op = self.op('daily')
+        op.result = {'action': 'read', 'likes': [self.moment.pk]}
+        op.save()
+        activity = AgentActivity.objects.create(event_key='social:foreign', agent=self.agent,
+            activity_type='interaction', action='social_read', title='读了动态', summary='看看',
+            artifact_kind='moment', artifact_id=self.moment.pk,
+            metadata={'owner_id': self.owner, 'social_opportunity_id': op.pk})
+        self.assertEqual(self.feed_activity(activity)['target']['artifactId'], '')
+
+    def test_read_without_comment_drops_untrusted_model_target(self):
+        from system_settings.models import AgentActivity
+        other_moment = publish(self.owner, f'agent-id:{self.other.pk}', {}, '另一个动态')
+        op = self.op('daily')
+        with patch('system_settings.agent_world.life_planner.ask', return_value={
+                'action': 'read', 'reason': '只看看', 'moment_id': self.moment.pk, 'likes': []}), \
+                patch('system_settings.agent_world.social_runner.local_time', return_value=local_time().replace(hour=12)):
+            run(op, self.agent)
+        op.refresh_from_db()
+        self.assertEqual(op.status, 'completed', op.result)
+        self.assertNotIn('moment_id', op.result)
+        activity = AgentActivity.objects.get(event_key=f'social:{op.pk}')
+        from .daily_feed import day_events
+        from rest_framework.test import APIRequestFactory
+        request = APIRequestFactory().get('/')
+        request.user = self.user
+        all_events, events, counts, total, actor_counts = day_events(request, self.owner, local_time().date())
+        self.assertNotIn(f'activity:{activity.pk}', {event['id'] for event in events})
+        self.assertEqual(all_events, [])
+        self.assertEqual(counts.get('interaction', 0), 0)
+        self.assertEqual(total, 0)
+        self.assertEqual(actor_counts, {})
+        self.assertTrue(AgentActivity.objects.filter(pk=activity.pk).exists())
+        # 历史点赞的 moment_id 也不能盖过真实点赞对象。
+        op.result.update(moment_id=self.moment.pk, likes=[other_moment.pk]); op.save()
+        self.assertEqual(self.feed_activity(activity)['target']['artifactId'], other_moment.pk)
+
     def test_like_toggle_cannot_farm_affinity(self):
         actor = f'agent-id:{self.other.pk}'
         for active in (True, False, True, False, True): like(self.owner, self.moment.pk, actor, {'name': '菲伦'}, active)

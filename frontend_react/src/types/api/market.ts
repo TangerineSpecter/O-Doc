@@ -5,5 +5,4 @@ export interface MarketItem {name: string; kind: string; quantity: number; rarit
 export interface MarketListing {id: string; sellerId: string; sellerName: string; item: MarketItem; initialQuantity: number; remainingQuantity: number; unitPrice: string; version: number; status: string; createdAt: string; repricedAt?: string; history: Array<{from: string; to: string; at: string}>}
 export interface MarketTransaction {id: string; actorId: string; actorName: string; sessionId: string; operation: {kind: string}; result: {kind: string; name?: string; quantity?: number; total?: string; listingId?: string}; createdAt: string}
 export interface MarketSession {id: string; actorId: string; actorName: string; status: string; mode: string; callCount: number; createdAt: string; expiresAt: string; endedAt?: string; reason: string; calls: Array<{name: string; at: string; arguments: Record<string, unknown>; result?: {name?: string; quantity?: number; total?: string; error?: string; budgetBefore?: string; budgetAfter?: string; reason?: string}}>}
-export interface MarketConfig {slotCount: number}
 export type MarketTab = 'shop' | 'listings' | 'transactions' | 'sessions';

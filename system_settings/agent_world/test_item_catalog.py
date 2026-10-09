@@ -24,8 +24,8 @@ class ItemCatalogTests(TestCase):
 
     def test_empty_world_has_complete_catalog_without_creating_farm(self):
         rows = self.entries()
-        self.assertEqual(len(rows), 2 * len(DEFAULT_RULES['crops']) + 7)
-        self.assertEqual({row['category'] for row in rows}, {'seed', 'feed', 'crop', 'animal_product'})
+        self.assertEqual(len(rows), 2 * len(DEFAULT_RULES['crops']) + 7 + 20)
+        self.assertEqual({row['category'] for row in rows}, {'seed', 'feed', 'crop', 'animal_product', 'dish'})
         self.assertFalse(FarmCatalog.objects.exists())
         self.assertFalse(AgentFarm.objects.exists())
         self.assertFalse(AgentInventoryItem.objects.exists())
@@ -36,7 +36,7 @@ class ItemCatalogTests(TestCase):
         self.add_item('private-seed', owner='private', quantity=99, source={'sku': 'seed.radish'})
         self.add_item('private-souvenir', owner='private')
         rows = self.entries()
-        self.assertEqual(len(rows), 2 * len(DEFAULT_RULES['crops']) + 7)
+        self.assertEqual(len(rows), 2 * len(DEFAULT_RULES['crops']) + 7 + 20)
         self.assertEqual(next(row for row in rows if row['sku'] == 'seed.radish')['quantity'], 9)
 
     def test_souvenirs_merge_same_identity_but_keep_different_destinations(self):

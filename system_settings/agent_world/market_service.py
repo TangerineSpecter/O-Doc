@@ -52,7 +52,7 @@ def change_money(agent, amount, key, at):
 
 def tradable(item):
     sku = item.source.get('sku', '')
-    return item.kind == 'souvenir' or sku.startswith(('crop.', 'product.'))
+    return item.kind == 'souvenir' or sku.startswith(('crop.', 'product.', 'dish.'))
 
 
 def check_session(session, at):
@@ -121,8 +121,8 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         item = AgentInventoryItem.objects.select_for_update().filter(pk=operation.get('item_id'), actor_id=agent.pk, owner_id=owner).first()
         if not item or not tradable(item): raise ValueError('物品不存在或不可交易')
         count = quantity(operation.get('quantity'))
-        if kind == 'sell' and not item.source.get('sku','').startswith(('crop.','product.')):
-            raise ValueError('商店仅回收农作物及畜产品')
+        if kind == 'sell' and not item.source.get('sku','').startswith(('crop.','product.','dish.')):
+            raise ValueError('商店仅回收农作物、畜产品及美食')
         payload = split_item(item, count)
         result.update(name=payload['name'], quantity=count)
         if kind == 'sell':

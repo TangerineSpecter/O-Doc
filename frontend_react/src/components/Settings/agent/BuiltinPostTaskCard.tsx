@@ -30,6 +30,7 @@ const activityTheme: Record<
         color: string;
     }
 > = {
+    cooking: {icon: BookOpen, color: 'bg-orange-50 text-orange-600 border-orange-100'},
     investment: {
         icon: TrendingUp,
         color: 'bg-emerald-50 text-emerald-600 border-emerald-100',
@@ -72,7 +73,7 @@ export function BuiltinPostTaskCard({
     const Icon = theme.icon;
 
     const description =
-        task.taskKind === 'investment'
+        task.taskKind === 'cooking' ? '用自己的食材制作美食，获得厨艺经验并解锁高级食谱；成品可在市场出售。' : task.taskKind === 'investment'
             ? '查询市场新闻和行业，按需分析股票，自主买卖或观望。持仓与收益可在股票投资查看。'
             : task.taskKind === 'market'
               ? '自主进入市场，购买农资与动物、出售产物或上架商品。进入消耗体力并自由交易。'

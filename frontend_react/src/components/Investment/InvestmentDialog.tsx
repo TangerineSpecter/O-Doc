@@ -85,8 +85,8 @@ export default function InvestmentDialog({
                         </div>
 
                         {/* 右侧居民选择与刷新 */}
-                        <div className="flex items-center gap-2">
-                            <div className="w-40">
+                        <div className="flex w-full items-center gap-2 sm:w-auto">
+                            <div className="min-w-0 flex-1 sm:w-60 sm:flex-none">
                                 <Select
                                     menuPortal
                                     value={investment.actorId}
@@ -94,12 +94,27 @@ export default function InvestmentDialog({
                                         setDetail(null);
                                         investment.setActorId(value);
                                     }}
-                                    options={investment.residents.map((r) => ({
+                                    options={[...investment.residents].sort((a, b) =>
+                                        Number((b.positionCount ?? 0) > 0) - Number((a.positionCount ?? 0) > 0)
+                                    ).map((r) => ({
                                         value: r.id,
-                                        label: r.name,
+                                        textLabel: r.name,
+                                        label: (
+                                            <span className="flex min-w-0 items-center justify-between gap-2">
+                                                <span className="truncate font-medium">{r.name}</span>
+                                                <span className={`shrink-0 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                                                    (r.positionCount ?? 0) > 0
+                                                        ? 'bg-orange-100 text-orange-700'
+                                                        : 'bg-slate-100 text-slate-400'
+                                                }`}>
+                                                    {r.positionCount === undefined ? '持仓待更新' : r.positionCount > 0 ? `持仓 ${r.positionCount} 只` : '空仓'}
+                                                </span>
+                                            </span>
+                                        ),
                                     }))}
                                     placeholder="选择投资居民"
                                     buttonClassName="!py-1.5 text-xs"
+                                    menuClassName="scrollbar-hide"
                                 />
                             </div>
 

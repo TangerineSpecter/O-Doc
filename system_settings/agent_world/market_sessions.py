@@ -41,6 +41,8 @@ def owner_for(agent: Agent) -> str:
 
 
 def validate_market_agents(owner: str, actor_ids: list[str]) -> None:
+    from .cooking_queries import validate_cooking_agents
+    validate_cooking_agents(owner, actor_ids)
     from .investment_models import InvestmentAccount
     if InvestmentAccount.objects.filter(pk__in=actor_ids).exclude(owner_id=owner).exists():
         raise ValueError('居民投资账户属于其他账号')
