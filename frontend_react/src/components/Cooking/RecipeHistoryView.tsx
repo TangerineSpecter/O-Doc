@@ -48,7 +48,7 @@ export function RecipeHistoryView({
                                         </div>
                                         <div>
                                             <h5 className="text-xs font-bold text-slate-800">
-                                                {row.snapshot.name}
+                                                {row.snapshot.name} <span className="ml-1 text-amber-600">★{row.result.stars ?? 1}</span>
                                                 <span className="ml-1 text-[11px] font-normal text-slate-500">×1 份</span>
                                             </h5>
                                             <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px]">
@@ -74,6 +74,13 @@ export function RecipeHistoryView({
                                     </time>
                                 </div>
 
+                                {row.result.unitPrice != null && <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600">
+                                    <span>回收价值 {row.result.unitPrice} 币</span>
+                                    <span>原料价值 {row.result.ingredientValue} 币</span>
+                                    <span>加工差额 {row.result.processingGain} 币</span>
+                                    {row.result.materialStars && <span>材料均星 {Number(row.result.materialStars).toFixed(2)}</span>}
+                                    {row.snapshot.ingredientStrategy && <span>{row.snapshot.ingredientStrategy === 'high_stars_first' ? '精品制作' : '日常制作'}</span>}
+                                </p>}
                                 {row.reason && (
                                     <div className="mt-2.5 rounded-xl bg-slate-50/80 px-2.5 py-1.5 text-[11px] text-slate-600 border border-slate-100/60 leading-relaxed">
                                         <span className="font-medium text-slate-500">制作心得：</span>

@@ -52,7 +52,7 @@ def validate_rule(value: dict) -> dict:
     if not isinstance(value, dict) or set(value) != {'ingredients', 'required_level', 'sale_price', 'experience', 'energy_cost'}:
         raise serializers.ValidationError('请提供完整的材料、等级、售价、经验和体力规则')
     result = copy.deepcopy(value)
-    for field, upper in (('required_level', 10), ('experience', 1000000), ('energy_cost', 100)):
+    for field, upper in (('required_level', 99), ('experience', 1000000), ('energy_cost', 100)):
         if type(value[field]) is not int or not 1 <= value[field] <= upper:
             raise serializers.ValidationError(f'{field} 必须为 1 至 {upper} 的整数')
     try:
@@ -75,9 +75,5 @@ def validate_rule(value: dict) -> dict:
     return result
 
 
-def skill_progress(experience: int) -> dict:
-    level = max(i for i in range(1, 11) if experience >= 100 * (i - 1) ** 2)
-    floor = 100 * (level - 1) ** 2
-    ceiling = 100 * level ** 2 if level < 10 else None
-    return {'level': level, 'experience': experience, 'level_experience': experience - floor,
-            'next_level_experience': ceiling, 'progress': min(1, (experience - floor) / (ceiling - floor)) if ceiling else 1}
+# Keep the existing import contract; growth is owned by the pure quality module.
+from .cooking_quality import skill_progress  # noqa: E402,F401

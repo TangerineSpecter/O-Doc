@@ -1,8 +1,9 @@
 import {useRef, useState} from 'react';
-import {ArrowLeft, GraduationCap, Settings2, Sparkles} from 'lucide-react';
+import {ArrowLeft, GraduationCap, Settings2} from 'lucide-react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {learningApi} from '../api/learning';
 import {useLearning} from '../hooks/useLearning';
+import LearningHeroCard from '../components/Learning/LearningHeroCard';
 import LearningSettings from '../components/Learning/LearningSettings';
 import ExercisePanel from '../components/Learning/ExercisePanel';
 import TeacherChat from '../components/Learning/TeacherChat';
@@ -35,7 +36,7 @@ export default function LearningPage() {
             <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
                 <div className="min-w-0 space-y-5">
                     {exerciseId ? exercise && <ExercisePanel key={exercise.id} collId={collId} exercise={exercise} busy={busy} refresh={refresh} act={run} ask={setQuestionId} flushRef={flush}/> : <>
-                        <section className={`${cardClass} relative overflow-hidden`}><div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-orange-50"/><div className="relative"><p className="text-xs font-medium text-orange-600">一点一点，学会应用</p><h2 className="mt-3 text-lg font-semibold">{course.config.goal}</h2><div className="mt-5 flex flex-wrap items-center gap-4"><span className="text-sm text-slate-500">每次约 {course.config.minutes} 分钟</span><span className="text-sm text-slate-500">待完成 {course.pendingCount}/{course.config.pendingLimit} 份</span><span className="text-sm text-slate-500">已完成 {course.completedCount} 份</span></div><div className="mt-5 flex flex-wrap gap-3"><button disabled={busy || !course.modelAvailable || (course.pendingCount || 0) >= course.config.pendingLimit || (!!course.plan && !course.plan.confirmed)} className={`${buttonClass} flex items-center gap-2`} onClick={generate}><Sparkles size={16}/>准备下一份练习</button>{course.exercises?.find(e => ['ready', 'in_progress', 'grading', 'failed_grading'].includes(e.status)) && <button className="rounded-xl border border-orange-200 px-4 py-2 text-sm text-orange-700" onClick={() => open(course.exercises!.find(e => ['ready', 'in_progress', 'grading', 'failed_grading'].includes(e.status))!.id)}>继续已有练习</button>}</div><p className="mt-3 text-xs text-slate-400">达到上限暂停出题。中断学习后先回顾，不补发积压作业。</p></div></section>
+                        <LearningHeroCard course={course} busy={busy} onGenerate={generate} onOpenExercise={open}/>
                         <nav aria-label="学习内容" className="flex gap-1 overflow-x-auto rounded-full bg-slate-100 p-1 scrollbar-hide">{['今日学习', '复习', '学习画像', '学习记录'].map(v => <button key={v} aria-current={tab === v ? 'page' : undefined} onClick={() => setTab(v)} className={`flex-1 whitespace-nowrap rounded-full px-3 py-2 text-sm ${tab === v ? 'bg-white font-medium text-orange-600 shadow-sm' : 'text-slate-500'}`}>{v}</button>)}</nav>
                         {tab === '今日学习' && <><ExerciseList course={course} history={false} open={open}/><PlanEditor course={course} busy={busy} save={async (stages, stage) => {await learningApi.plan(collId, course.plan!.id, stages, stage); await refresh();}}/></>}
                         {tab === '复习' && <KnowledgeList knowledge={course.knowledge || []} dueOnly open={open}/>}

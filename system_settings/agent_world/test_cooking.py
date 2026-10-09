@@ -30,12 +30,12 @@ class CookingRuleTests(SimpleTestCase):
             self.assertEqual(skill_progress(floor)['level'], level)
             if level > 1:
                 self.assertEqual(skill_progress(floor - 1)['level'], level - 1)
-        self.assertEqual(skill_progress(100000)['level'], 10)
+        self.assertEqual(skill_progress(331904)['level'], 99)
         self.assertEqual(skill_progress(100000)['experience'], 100000)
 
     def test_invalid_rules(self):
         original = {k: v for k, v in DEFAULT_RULES['baked_potato'].items() if k != 'name'}
-        for field, value in [('required_level', 11), ('experience', True), ('energy_cost', 101), ('sale_price', 'NaN'), ('sale_price', '1.001'), ('ingredients', [{'sku': 'product.cow.gold', 'quantity': 1}]), ('ingredients', [])]:
+        for field, value in [('required_level', 100), ('experience', True), ('energy_cost', 101), ('sale_price', 'NaN'), ('sale_price', '1.001'), ('ingredients', [{'sku': 'product.cow.gold', 'quantity': 1}]), ('ingredients', [])]:
             with self.subTest(field=field, value=value), self.assertRaises(ValidationError):
                 validate_rule({**original, field: value})
         with self.assertRaises(ValidationError):

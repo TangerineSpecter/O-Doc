@@ -1,3 +1,4 @@
+import {hasItemStars} from '../../utils/itemQuality';
 import {farmItemIcon} from '../Farm/assets';
 import {useRef, useState, type CSSProperties} from 'react';
 import {RefreshCw, X} from 'lucide-react';
@@ -48,10 +49,10 @@ export function InventoryBackpack({items, name = '居民', onClose, onRefresh, l
                         const rarity = inventoryRarities[item.rarity] || inventoryRarities.common;
                         return <button key={item.id} type="button" className="inventory-backpack-slot inventory-backpack-item"
                             style={{'--item-color': rarity.color} as CSSProperties}
-                            aria-label={`${item.name}，${item.source.sku?.startsWith('crop.') ? `${item.source.stars || 1}星` : rarity.label}，${item.quantity} 件`} aria-pressed={selected?.id === item.id}
-                            title={`${item.name} · ${item.source.sku?.startsWith('crop.') ? `${item.source.stars || 1}星` : rarity.label} · ×${item.quantity}`} onClick={event => {selectedButton.current = event.currentTarget; setSelectedId(item.id);}}>
+                            aria-label={`${item.name}，${hasItemStars(item.source.sku) ? `${item.source.stars || 1}星` : rarity.label}，${item.quantity} 件`} aria-pressed={selected?.id === item.id}
+                            title={`${item.name} · ${hasItemStars(item.source.sku) ? `${item.source.stars || 1}星` : rarity.label} · ×${item.quantity}`} onClick={event => {selectedButton.current = event.currentTarget; setSelectedId(item.id);}}>
                             <ItemIconImage src={item.iconUrl || (farmItemIcon(item.source.sku || ''))} alt={item.name} className="absolute inset-0 h-full w-full object-cover rounded-[6px]" fallback={<span className="inventory-backpack-initial">{Array.from(item.name.trim())[0] || '物'}</span>}/>
-                            {item.source.sku?.startsWith('crop.') && <span className="absolute left-1 top-1 rounded bg-white/90 px-1 text-[10px] font-bold text-amber-700">★{item.source.stars || 1}</span>}
+                            {hasItemStars(item.source.sku) && <span className="absolute left-1 top-1 rounded bg-white/90 px-1 text-[10px] font-bold text-amber-700">★{item.source.stars || 1}</span>}
                             <span className="inventory-backpack-quantity">×{item.quantity}</span>
                         </button>;
                     })}

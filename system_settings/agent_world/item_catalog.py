@@ -45,11 +45,14 @@ def item_catalog(owner: str) -> list[dict]:
                 sale=animal['sale_price'] * (3 if gold else 1), quality=quality)
 
     from .cooking_queries import recipes
+    from .cooking_quality import unit_value as dish_value
     for recipe in recipes(owner):
         entries[recipe['sku']] = dict(id=recipe['sku'], sku=recipe['sku'], name=recipe['name'], category='dish',
             description=recipe['description'], purchase_price=None, sale_price=recipe['sale_price'],
             quality='normal', quantity=0, reference_value=recipe['sale_price'],
-            icon_asset_id=recipe['icon_asset_id'], icon_url=recipe['icon_url'])
+            icon_asset_id=recipe['icon_asset_id'], icon_url=recipe['icon_url'],
+            star_quantities={str(s): 0 for s in range(1, 6)},
+            star_values={str(s): str(dish_value(recipe['sale_price'], s)) for s in range(1, 6)})
     rows = list(AgentInventoryItem.objects.filter(owner_id=owner).order_by('created_at', 'id'))
     serialized = InventorySerializer(rows, many=True, context=inventory_context(rows, owner)).data
     for row in serialized:
@@ -57,12 +60,13 @@ def item_catalog(owner: str) -> list[dict]:
         sku = source.get('sku', '')
         if sku in entries:
             entries[sku]['quantity'] += row['quantity']
-            if sku.startswith('crop.'):
+            if sku.startswith(('crop.', 'dish.')):
                 from .farm_quality import unit_value
                 stars = source.get('stars', 1)
                 counts = entries[sku].setdefault('star_quantities', {str(s): 0 for s in range(1, 6)})
                 counts[str(stars)] += row['quantity']
-                entries[sku]['star_values'] = {str(s): unit_value(entries[sku]['sale_price'], s) for s in range(1, 6)}
+                value_for = dish_value if sku.startswith('dish.') else unit_value
+                entries[sku]['star_values'] = {str(s): (str(value_for(entries[sku]['sale_price'], s)) if sku.startswith('dish.') else value_for(entries[sku]['sale_price'], s)) for s in range(1, 6)}
             continue
         # 无稳定 SKU 的旅行纪念品按名称、品质及目的地归类，避免把不同旅行物品合并。
         destination = source.get('destination') or {}

@@ -96,11 +96,12 @@ export default function CookingDialog({
                 {/* 顶部工具栏：居民厨艺卡片 + 搜索 */}
                 <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50/80 p-2.5 border border-slate-100">
                     {/* 左侧：居民身份与厨艺经验条 */}
-                    <div className="flex flex-1 min-w-[280px] items-center gap-3">
+                    <div className="flex w-full min-w-0 flex-col gap-3 sm:min-w-[440px] sm:flex-1 sm:flex-row sm:items-center">
                         {/* 居民选择下拉框 */}
                         <div className="w-36 shrink-0">
                             <Select
                                 menuPortal
+                                menuClassName="scrollbar-hide"
                                 value={agentId}
                                 options={residents.map(row => ({value: row.id, label: row.name}))}
                                 onChange={id => {
@@ -113,14 +114,14 @@ export default function CookingDialog({
 
                         {/* 厨艺等级与经验进度 */}
                         {skill ? (
-                            <div className="flex flex-1 items-center gap-3 min-w-0 pr-2">
+                            <div className="flex w-full min-w-0 items-center gap-3 pr-2 sm:w-auto sm:flex-1">
                                 <div className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-orange-100/80 px-2 py-1 text-xs font-bold text-orange-800 shadow-2xs">
                                     <Sparkles className="h-3.5 w-3.5 text-orange-500" />
-                                    <span>Lv.{skill.level}</span>
+                                    <span>Lv.{skill.level}/99</span>
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                                        <span className="font-medium text-slate-700">厨艺经验</span>
+                                        <span className="whitespace-nowrap font-medium text-slate-700">厨艺经验</span>
                                         <span>
                                             {skill.experience}
                                             {skill.nextLevelExperience !== null

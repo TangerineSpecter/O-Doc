@@ -25,11 +25,11 @@ def stock_quantity(actor_id: str, owner_id: str, sku: str) -> int:
 def add_stock(actor_id: str, owner_id: str, actor_name: str, sku: str, quantity: int,
               name: str, kind: str, price=0, operation_id: str = '', *, stars: int = 1):
     # 有多条来源记录时追加到最后一条，避免新产物排在其他旧批次之前被消费。
-    if sku.startswith('crop.'):
+    if sku.startswith(('crop.', 'dish.')):
         from .farm_quality import unit_value
         unit_value(1, stars)
     rows = stock_rows(actor_id, owner_id, sku).select_for_update()
-    if sku.startswith('crop.'):
+    if sku.startswith(('crop.', 'dish.')):
         rows = rows.filter(source__stars=stars) if stars != 1 else rows.filter(
             Q(source__stars=1) |
             Q(source__stars__isnull=True))
@@ -47,13 +47,13 @@ def add_stock(actor_id: str, owner_id: str, actor_name: str, sku: str, quantity:
         row.save(update_fields=['quantity', 'source'])
         return row
     return AgentInventoryItem.objects.create(
-        pk=uuid.uuid4().hex if separate_origin else hashlib.sha256((f'inventory:{owner_id}:{actor_id}:{sku}' + (f':stars:{stars}' if sku.startswith('crop.') and stars != 1 else '')).encode()).hexdigest(),
+        pk=uuid.uuid4().hex if separate_origin else hashlib.sha256((f'inventory:{owner_id}:{actor_id}:{sku}' + (f':stars:{stars}' if sku.startswith(('crop.', 'dish.')) and stars != 1 else '')).encode()).hexdigest(),
         actor_id=actor_id, owner_id=owner_id, actor_name=actor_name,
         origin_actor_id=actor_id, origin_actor_name=actor_name,
         name=name, kind=kind, quantity=quantity, value=price,
         rarity='rare' if sku.endswith('.gold') else 'common',
         source={'sku': sku, 'operation_id': operation_id, 'quality': 'gold' if sku.endswith('.gold') else 'normal',
-                **({'stars': stars} if sku.startswith('crop.') else {}),
+                **({'stars': stars} if sku.startswith(('crop.', 'dish.')) else {}),
                 'lots': [{'quantity': quantity, 'price': str(price)}] if sku.startswith(('crop.', 'product.', 'dish.', 'fertilizer.')) else []})
 
 
@@ -61,7 +61,7 @@ def add_stock(actor_id: str, owner_id: str, actor_name: str, sku: str, quantity:
 @transaction.atomic
 def take_stock(actor_id: str, owner_id: str, sku: str, quantity: int) -> Decimal:
     rows = list(stock_rows(actor_id, owner_id, sku).select_for_update())
-    if sku.startswith('crop.'):
+    if sku.startswith(('crop.', 'dish.')):
         rows.sort(key=lambda row: (row.source.get('stars', 1), row.created_at, row.pk))
     if quantity < 1 or sum(row.quantity for row in rows) < quantity:
         raise ValueError('库存不足')
@@ -97,7 +97,7 @@ def take_stock(actor_id: str, owner_id: str, sku: str, quantity: int) -> Decimal
 def preview_cost(actor_id: str, owner_id: str, sku: str, quantity: int) -> Decimal:
     """Read the same low-star/FIFO selection used by take_stock, without consuming."""
     rows = list(stock_rows(actor_id, owner_id, sku))
-    if sku.startswith('crop.'):
+    if sku.startswith(('crop.', 'dish.')):
         rows.sort(key=lambda row: (row.source.get('stars', 1), row.created_at, row.pk))
     remaining, amount = quantity, Decimal(0)
     for row in rows:

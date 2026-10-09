@@ -57,7 +57,7 @@ export function RecipeCard({recipe, isSelected, onClick}: RecipeCardProps) {
                     {/* 回收单价 */}
                     <div className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-50/80 px-1.5 py-0.5 text-xs font-bold text-amber-700 border border-amber-200/60 shadow-2xs">
                         <Coins className="h-3 w-3 text-amber-500" />
-                        <span>{recipe.salePrice}</span>
+                        <span>★1 {recipe.salePrice}</span>
                     </div>
                 </div>
 

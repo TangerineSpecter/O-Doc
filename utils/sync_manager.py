@@ -167,7 +167,7 @@ class SyncManager:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
             raise SyncError('农作物快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('cooking_schema_version', 0) > 1:
+        if remote_meta and remote_meta.get('cooking_schema_version', 0) > 2:
             raise SyncError('烹饪快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
             raise SyncError('社交快照版本高于本机，请升级后同步。')
@@ -738,6 +738,8 @@ class SyncManager:
         validate_learning(data_list, remote_meta)
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
         validate_crops(data_list, remote_meta)
+        from system_settings.agent_world.cooking_quality_sync import validate_source as validate_dishes
+        cooking_source_hashes = validate_dishes(data_list, remote_meta)
         expected_social = (remote_meta or {}).get('social_owners')
         if expected_social is not None:
             restored_social = {str(item.get('pk')) for item in data_list
@@ -849,7 +851,7 @@ class SyncManager:
                         stale.delete()
 
             from system_settings.agent_world.cooking_sync import reconcile_cooking
-            reconcile_cooking()
+            reconcile_cooking(source_hashes=cooking_source_hashes)
             from learning.sync import reset_execution
             reset_execution()
             from system_settings.agent_world.market_sync import reconcile_market
@@ -860,6 +862,8 @@ class SyncManager:
             reconcile_farms()
             from system_settings.agent_world.farm_quality_sync import normalize_legacy_inventory
             normalize_legacy_inventory()
+            from system_settings.agent_world.cooking_quality_sync import normalize_legacy_inventory as normalize_dishes
+            normalize_dishes()
             from system_settings.agent_world.cooking_sync import checkpoint_all as checkpoint_cooking
             checkpoint_cooking()
             from system_settings.agent_world.market_sync import end_restored_sessions, refresh_restored_checkpoints
@@ -1136,14 +1140,13 @@ class SyncManager:
 
     def build_snapshot_meta(self, source='manual', runner_id='', data_list=None):
         from system_settings.agent_world.social_models import SocialIntegrity
-        from system_settings.agent_world.cooking_models import CookingIntegrity
+        from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
         from learning.sync import metadata as learning_metadata
         from system_settings.agent_world.farm_quality_sync import metadata as crop_metadata
         return {
             **learning_metadata(data_list),
             **crop_metadata(data_list),
-            'cooking_schema_version': 1,
-            'cooking_owners': list(CookingIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
+            **cooking_metadata(data_list),
             'social_schema_version': 1,
             'social_owners': list(SocialIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
             'snapshot_id': uuid.uuid4().hex,
@@ -1159,7 +1162,7 @@ class SyncManager:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
             raise SyncError('农作物快照版本过新，请升级所有设备')
-        if remote_meta and remote_meta.get('cooking_schema_version', 0) > 1:
+        if remote_meta and remote_meta.get('cooking_schema_version', 0) > 2:
             raise SyncError('烹饪快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
             raise SyncError('社交快照版本高于本机，请升级后恢复。')
@@ -1504,6 +1507,9 @@ class SyncManager:
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crop_source
         validate_crop_source(local_data)
         validate_crop_source(remote.get('data') or [], remote.get('meta'))
+        from system_settings.agent_world.cooking_quality_sync import validate_source as validate_cooking_source, metadata as cooking_metadata
+        validate_cooking_source(local_data, cooking_metadata(local_data))
+        validate_cooking_source(remote.get('data') or [], remote.get('meta'))
         base_data = self._item_map((base or {}).get('data') or [])
         base_revisions = (base or {}).get('revisions') or {}
         local_map = self._item_map(local_data)
@@ -1554,6 +1560,9 @@ class SyncManager:
                 elif local_changed or remote_changed:
                     summary['updated'] += 1
         refresh_merged_integrity(result, result_revisions)
+        # Keep cooking asset checkpoints intact: reject partial domain merges rather
+        # than manufacturing a new checkpoint for an inconsistent XP/material chain.
+        validate_cooking_source(result, cooking_metadata(result))
         return result, result_revisions, summary
 
     def _media_hash_cache_path(self):
@@ -2109,7 +2118,8 @@ class SyncManager:
             )
             with transaction.atomic():
                 with suspend_tracking():
-                    self.apply_snapshot_data(merged_data, full_overwrite=True)
+                    from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
+                    self.apply_snapshot_data(merged_data, remote_meta=cooking_metadata(merged_data), full_overwrite=True)
                 self._apply_v2_revisions(merged_revisions)
                 # A three-way merge can combine independently retained histories.
                 # Pruning after revision import records tombstones for every device.

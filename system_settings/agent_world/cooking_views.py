@@ -37,7 +37,10 @@ class CookingRecipeView(APIView):
     def patch(self, request, recipe_id):
         if recipe_id not in DEFAULT_RULES:
             return valid_result('食谱不存在', status=404)
-        rule = validate_rule(request.data)
+        try:
+            rule = validate_rule(request.data)
+        except ValidationError as exc:
+            return valid_result('食谱规则无效', data={'detail': exc.detail}, status=400)
         owner = get_current_user_identifier(request)
         with farm_gate(), transaction.atomic():
             catalog_for(owner)

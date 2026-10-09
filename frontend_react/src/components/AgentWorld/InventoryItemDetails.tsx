@@ -1,3 +1,4 @@
+import {hasItemStars} from '../../utils/itemQuality';
 import {farmItemIcon} from '../Farm/assets';
 import type {CSSProperties} from 'react';
 import {
@@ -17,13 +18,14 @@ import {inventoryRarities} from './inventoryRarities';
 import {ItemIconImage} from './ItemIconImage';
 
 export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onClose: () => void}) {
-    const isFarm = Boolean(farmItemIcon(item.source.sku || ''));
+    const isDish = Boolean(item.source.sku?.startsWith('dish.'));
+    const isFarm = hasItemStars(item.source.sku) || Boolean(farmItemIcon(item.source.sku || ''));
     const rarity = inventoryRarities[item.rarity] || inventoryRarities.common;
     const value = item.value ?? item.source.unitPrice;
     const number = value ? Number(value) : NaN;
     const displayValue = Number.isFinite(number) ? number.toLocaleString('zh-CN', {maximumFractionDigits: 2}) : '—';
     const firstChar = Array.from(item.name.trim())[0] || '物';
-    const destination = [item.source.destination?.country, item.source.destination?.city].filter(Boolean).join(' · ') || (isFarm ? '世界物品' : '未明旅途');
+    const destination = [item.source.destination?.country, item.source.destination?.city].filter(Boolean).join(' · ') || (isDish ? '居民制作' : isFarm ? '世界物品' : '未明旅途');
 
     return (
         <section
@@ -55,9 +57,9 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                     <span className="relic-dossier-pill">DOSSIER</span>
                 </div>
                 <div className="inventory-item-header-actions">
-                    <span className="relic-rarity-seal" title={`品质等级：${rarity.label}`}>
+                    <span className="relic-rarity-seal" title={hasItemStars(item.source.sku) ? `星级：${item.source.stars || 1}` : `品质等级：${rarity.label}`}>
                         <Sparkles size={11} className="relic-rarity-sparkle" />
-                        <span className="relic-rarity-text">{item.source.sku?.startsWith('crop.') ? `${item.source.stars || 1} 星` : rarity.label}</span>
+                        <span className="relic-rarity-text">{hasItemStars(item.source.sku) ? `${item.source.stars || 1} 星` : rarity.label}</span>
                     </span>
                     <button
                         type="button"
@@ -82,7 +84,7 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                 <div className="inventory-item-hero-meta">
                     <div className="inventory-item-badge-tag">
                         <Compass size={11} />
-                        <span>{isFarm ? '经营物品' : '旅行纪念珍藏'}</span>
+                        <span>{isDish ? '美食成品' : isFarm ? '经营物品' : '旅行纪念珍藏'}</span>
                     </div>
                     <h3 className="inventory-item-title" title={item.name}>{item.name}</h3>
                 </div>
@@ -95,7 +97,7 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                         <Coins size={15} />
                     </div>
                     <div className="relic-val-label-texts">
-                        <span className="relic-val-title">{item.source.sku?.startsWith('crop.') ? '当前首批回收单价' : '公会参考估价'}</span>
+                        <span className="relic-val-title">{hasItemStars(item.source.sku) ? '当前首批回收单价' : '公会参考估价'}</span>
                         <span className="relic-val-sub">VALUATION</span>
                     </div>
                 </div>

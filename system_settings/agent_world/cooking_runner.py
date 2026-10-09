@@ -4,6 +4,7 @@ import json
 import logging
 import uuid
 from django.utils import timezone
+from django.db import transaction
 from system_settings.models import AgentRunRecord, WorldAction, WorldActionRuntime, AgentExecutionLease, SystemSetting
 from system_settings.agent_activity import update_work_activity
 from system_settings.agent_prompts import build_agent_system_prompt
@@ -12,8 +13,12 @@ from .run_diagnostics import failure_detail, progress, finish_record
 from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
 from .action_schedule import select_agent
 from .cooking_models import CookingOperation
+from .cooking_catalog import catalog_for
 from .cooking_queries import recipes, overview, validate_actor
 from .cooking_service import commit_portion
+from .cooking_plan import build_plan
+from .cooking_quality import STRATEGIES
+from .farm_gate import farm_gate
 
 
 logger = logging.getLogger(__name__)
@@ -24,17 +29,19 @@ def decide(task, agent, options):
     context = enrich({'skill': overview(task.cooking_config['owner_id'], agent.pk),
                       'stamina': str(stamina(agent)), 'recipes': options})
     prompt = build_agent_system_prompt(f'当前 Agent：{agent.name}\n{agent.prompt}', conversation=False)
-    prompt += '\n你用自己的食材制作美食。根据偏好、收益和成长选择可制作菜，合计最多六份，也可休息。仅输出 JSON {"choices":[{"recipe_id":"食谱ID","quantity":1}],"reason":"简短理由"}。不修改规则。'
+    prompt += '\n你用自己的食材制作美食。根据偏好、原料机会成本、预期收益和成长选择可制作菜，合计最多六份，也可休息。每道菜选择 low_stars_first（日常制作）或 high_stars_first（精品制作），同星先进先出；高星材料不保证加工盈利，挂牌溢价不计保证收入。quality_previews 按当前等级估算，实际每份采用制作时等级。仅输出 JSON {"choices":[{"recipe_id":"食谱ID","quantity":1,"ingredient_strategy":"low_stars_first"}],"reason":"简短理由"}。不修改规则。'
     messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(context, ensure_ascii=False) + '\n制作偏好：' + task.prompt}]
     for attempt in range(2):
         output = AIService.chat_completion_messages(messages, model_id=agent.model_id) or ''
         try:
             value = json.loads(output.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
-            return validate_decision(value, options)
-        except (ValueError, TypeError, KeyError):
+            decision = validate_decision(value, options)
+            build_plan(task.cooking_config['owner_id'], agent.pk, decision['choices'], options, stamina(agent))
+            return decision
+        except (ValueError, TypeError, KeyError) as exc:
             if attempt:
                 raise ValueError('模型未返回有效制作计划')
-            messages.append({'role': 'user', 'content': '请仅返回 choices 和 reason，选择合法食谱，数量合计不超过六份。'})
+            messages.append({'role': 'user', 'content': f'计划无效：{exc}。请仅返回 choices 和 reason，选择合法食谱和材料策略，确保材料和体力满足整个计划，数量合计不超过六份。'})
 
 
 def validate_decision(value, options):
@@ -44,7 +51,8 @@ def validate_decision(value, options):
     available = {row['id']: row for row in options}
     total, seen = 0, set()
     for choice in choices:
-        if not isinstance(choice, dict) or set(choice) != {'recipe_id', 'quantity'}:
+        if (not isinstance(choice, dict) or set(choice) not in ({'recipe_id', 'quantity'}, {'recipe_id', 'quantity', 'ingredient_strategy'})
+                or choice.get('ingredient_strategy', 'low_stars_first') not in STRATEGIES):
             raise ValueError('制作选择格式无效')
         key, quantity = choice['recipe_id'], choice['quantity']
         if not isinstance(key, str) or key not in available or key in seen or type(quantity) is not int or not 1 <= quantity <= available[key]['max_portions']:
@@ -117,11 +125,14 @@ def run_cooking_opportunity(task, scheduler=None, *, key=None, manual=False, loc
                 phase = '模型选择制作计划'
                 progress(record, phase)
                 decision = decide(task, agent, options) if options else {'choices': [], 'reason': '暂时没有可执行的制作操作'}
-                rules = {row['id']: {field: row[field] for field in ('name', 'required_level', 'sale_price', 'experience', 'energy_cost')} | {'ingredients': [{'sku': i['sku'], 'quantity': i['quantity']} for i in row['ingredients']]} for row in options}
-                selected = [{'recipe_id': choice['recipe_id'], 'rule': rules[choice['recipe_id']]}
-                            for choice in decision['choices'] for _ in range(choice['quantity'])]
-                action.snapshot = {'cooking': True, 'owner_id': owner, 'plan': selected, 'reason': decision['reason']}
-                action.save(update_fields=['snapshot', 'updated_at'])
+                with farm_gate(), transaction.atomic():
+                    selected = build_plan(owner, agent.pk, decision['choices'], options, stamina(agent))
+                    if selected:
+                        # Protect the confirmed plan even if execution stops before
+                        # its first portion creates a skill/operation record.
+                        catalog_for(owner)
+                    action.snapshot = {'cooking': True, 'owner_id': owner, 'plan': selected, 'reason': decision['reason']}
+                    action.save(update_fields=['snapshot', 'updated_at'])
                 for index, operation in enumerate(selected):
                     phase = '制作' + operation['rule']['name']
                     progress(record, phase, f'第 {index + 1}/{len(selected)} 项制作操作')

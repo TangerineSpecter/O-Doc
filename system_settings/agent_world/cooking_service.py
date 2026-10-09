@@ -1,6 +1,7 @@
 """每份制作短事务，原料、成品、经验和体力不可拆开提交。"""
 import copy
 import hashlib
+from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 from system_settings.models import Agent, AgentTask, AgentExecutionLease, WorldActionRuntime, WorldAction, SystemSetting
@@ -10,6 +11,8 @@ from .cooking_catalog import catalog_for, skill_progress
 from .cooking_queries import validate_actor
 from .inventory_stock import take_stock, add_stock
 from .execution import stamina
+from .cooking_materials import consume
+from .cooking_quality import outcome
 from .life_scope import allowed, check_current_authorization
 
 
@@ -54,11 +57,18 @@ def commit_portion(actor_id: str, opportunity_id: str, index: int, recipe_id: st
         raise ValueError('厨艺等级不足')
     if stamina(agent, now) < snapshot['energy_cost']:
         raise ValueError('体力不足')
-    cost = 0
-    for row in snapshot['ingredients']:
-        cost += take_stock(actor_id, owner, row['sku'], row['quantity'])
-    add_stock(actor_id, owner, agent.name, 'dish.' + recipe_id, 1, snapshot['name'], 'dish', snapshot['sale_price'], key)
-    skill.experience += snapshot['experience']
+    quality = {}
+    if 'quality_rules' in snapshot:
+        from .cooking_plan import validate_quality_snapshot
+        validate_quality_snapshot(snapshot)
+        cost = consume(actor_id, owner, snapshot['materials'])
+        quality = outcome(key, before['level'], snapshot['materials'], snapshot)
+    else:
+        cost = sum((take_stock(actor_id, owner, row['sku'], row['quantity']) for row in snapshot['ingredients']), 0)
+    price = quality.get('unit_price', snapshot['sale_price'])
+    gained = quality.get('experience_gained', snapshot['experience'])
+    add_stock(actor_id, owner, agent.name, 'dish.' + recipe_id, 1, snapshot['name'], 'dish', price, key, stars=quality.get('stars', 1))
+    skill.experience += gained
     skill.actor_name, skill.updated_at = agent.name, now
     skill.save(update_fields=['experience', 'actor_name', 'updated_at'])
     after = skill_progress(skill.experience)
@@ -67,7 +77,8 @@ def commit_portion(actor_id: str, opportunity_id: str, index: int, recipe_id: st
         consumed_at=now, effects_done=True, snapshot={'cooking_energy': True, 'owner_id': owner}, result={'operation_id': key})
     row = CookingOperation.objects.create(pk=key, owner_id=owner, actor_id=actor_id, actor_name=agent.name,
         opportunity_id=opportunity_id, recipe_id=recipe_id, snapshot=copy.deepcopy(snapshot), reason=reason, created_at=now,
-        result={'quantity': 1, 'ingredient_value': str(cost), 'experience_gained': snapshot['experience'],
+        result={**quality, 'quantity': 1, 'ingredient_value': str(cost), 'unit_price': str(price),
+                'stars': quality.get('stars', 1), 'processing_gain': str(Decimal(str(price)) - cost), 'experience_gained': gained,
                 'experience_before': before['experience'], 'experience_after': after['experience'],
                 'level_before': before['level'], 'level_after': after['level'], 'energy_cost': snapshot['energy_cost']})
     from .cooking_sync import checkpoint

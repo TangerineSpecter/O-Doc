@@ -1,3 +1,4 @@
+import {RecipeQualityPreview} from './RecipeQualityPreview';
 import {useRef, useState, useEffect} from 'react';
 import {
     ChefHat,
@@ -94,8 +95,8 @@ export function RecipeDetails({
             />
 
             {/* 顶部页签切换栏 */}
-            <div className="mb-3 flex shrink-0 items-center justify-between border-b border-slate-100 pb-2.5">
-                <div className="flex gap-1 rounded-xl bg-slate-100 p-1 border border-slate-200/60">
+            <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                <div className="flex shrink-0 gap-1 whitespace-nowrap rounded-xl bg-slate-100 p-1 border border-slate-200/60">
                     <button
                         type="button"
                         onClick={() => setActiveTab('details')}
@@ -251,7 +252,7 @@ export function RecipeDetails({
                                     <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-amber-100/90 text-amber-600">
                                         <Coins className="h-3.5 w-3.5" />
                                     </span>
-                                    <span className="text-[11px] font-medium text-slate-500">回收单价</span>
+                                    <span className="text-[11px] font-medium text-slate-500">一星回收单价</span>
                                     <span className="text-sm font-extrabold text-amber-800 tracking-tight leading-none">
                                         {recipe.salePrice}
                                     </span>
@@ -353,7 +354,7 @@ export function RecipeDetails({
                             <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 transition-all hover:bg-slate-50">
                                 <div className="flex items-center gap-1 text-[11px] text-slate-500">
                                     <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-                                    <span>加工差额</span>
+                                    <span>一星加工差额</span>
                                 </div>
                                 <div className="mt-1 flex items-baseline gap-1">
                                     <span className={`text-base font-bold ${Number(recipe.processingGain) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -369,7 +370,7 @@ export function RecipeDetails({
                             <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 transition-all hover:bg-slate-50">
                                 <div className="flex items-center gap-1 text-[11px] text-slate-500">
                                     <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                                    <span>厨艺经验</span>
+                                    <span>基础经验</span>
                                 </div>
                                 <div className="mt-1 flex items-baseline gap-1">
                                     <span className="text-base font-bold text-amber-600">
@@ -378,7 +379,7 @@ export function RecipeDetails({
                                     <span className="text-[10px] text-slate-400">EXP</span>
                                 </div>
                                 <p className="mt-0.5 text-[10px] text-slate-400">
-                                    每份制作获取
+                                    一星成品获取
                                 </p>
                             </div>
 
@@ -417,6 +418,8 @@ export function RecipeDetails({
                             </div>
                         </div>
                     </div>
+
+                    <RecipeQualityPreview key={recipe.id} recipe={recipe}/>
 
                     {/* 美食描述与制作贴士 */}
                     {recipe.description && (

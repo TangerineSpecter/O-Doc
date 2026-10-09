@@ -376,10 +376,12 @@ def day_events(request, owner, day, actor_id=''):
     from .cooking_models import CookingOperation
     for row in CookingOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end):
         detail = f"经验 +{row.result['experience_gained']} · {row.reason}"
+        if "unit_price" in row.result:
+            detail += f" · 回收价值 {row.result['unit_price']} 币 · 加工差额 {row.result['processing_gain']} 币"
         if row.result['level_after'] > row.result['level_before']:
             detail += f" · 厨艺升至 Lv.{row.result['level_after']}"
         events.append(_event('cooking', 'cooking', row.pk, row.created_at, row.actor_id,
-                             names.get(row.actor_id, row.actor_name), row.snapshot['name'] + ' ×1', detail,
+                             names.get(row.actor_id, row.actor_name), row.snapshot['name'] + f" ★{row.result.get('stars', 1)} ×1", detail,
                              target={'kind': 'cooking', 'id': row.pk}))
     day_farms = FarmOperation.objects.filter(farm__owner_id=owner, created_at__gte=start, created_at__lt=end)
     opportunity_ids = day_farms.exclude(opportunity_id='').values_list('opportunity_id', flat=True)

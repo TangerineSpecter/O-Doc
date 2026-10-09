@@ -5,6 +5,10 @@ from system_settings.models import Agent
 from .cooking_models import CookingSkill, CookingOperation, CookingCatalog
 from .cooking_catalog import rules_for, INGREDIENTS, DESCRIPTION, skill_progress
 from .inventory_stock import inventory_items, preview_cost
+from .cooking_materials import material_pool, allocate
+from .cooking_quality import STRATEGIES, estimate
+from .cooking_plan import base_values_for
+import copy
 from .execution import stamina
 from .farm_catalog import DEFAULT_RULES, normalized_rules
 from .farm_models import FarmCatalog
@@ -48,6 +52,8 @@ def recipes(owner: str, agent: Agent | None = None) -> list[dict]:
     farm_rules = normalized_rules(farm.rules if farm else DEFAULT_RULES)
     prices = {f'crop.{k}': Decimal(str(v['sale_price'])) for k, v in farm_rules['crops'].items()}
     prices.update({'product.chicken.normal': Decimal(str(farm_rules['animals']['chicken']['sale_price'])), 'product.cow.normal': Decimal(str(farm_rules['animals']['cow']['sale_price']))})
+    pool = material_pool(agent.pk, owner) if agent else []
+    base_values = base_values_for(owner)
     result = []
     for key, rule in rules_for(owner).items():
         ingredients = [{**row, 'name': INGREDIENTS[row['sku']], 'owned': quantities.get(row['sku'], 0)} for row in rule['ingredients']]
@@ -56,9 +62,16 @@ def recipes(owner: str, agent: Agent | None = None) -> list[dict]:
         asset_id = icons.get('dish.' + key)
         raw_value = (sum((preview_cost(agent.pk, owner, row['sku'], row['quantity']) for row in ingredients), Decimal(0))
                      if agent and portions else sum(prices[row['sku']] * row['quantity'] for row in ingredients))
+        previews = []
+        if agent and portions:
+            for strategy in STRATEGIES:
+                simulated = copy.deepcopy(pool)
+                preview_portions = [estimate(rule, progress['level'], allocate(simulated, rule['ingredients'], strategy), base_values)
+                                    for _ in range(min(6, portions, int(energy // rule['energy_cost'])))]
+                previews.append({'ingredient_strategy': strategy, 'portions': preview_portions})
         result.append({**rule, 'id': key, 'sku': 'dish.' + key, 'description': DESCRIPTION,
             'ingredients': ingredients, 'state': state, 'max_portions': min(6, portions, int(energy // rule['energy_cost'])) if state == 'ready' else 0,
-            'times_made': counts.get(key, 0), 'ingredient_value': str(raw_value), 'processing_gain': str(Decimal(rule['sale_price']) - raw_value),
+            'quality_previews': previews, 'times_made': counts.get(key, 0), 'ingredient_value': str(raw_value), 'processing_gain': str(Decimal(rule['sale_price']) - raw_value),
             'icon_asset_id': asset_id if asset_id in valid else None,
             'icon_url': f'/api/resource/view/{asset_id}' if asset_id in valid else ''})
     return result

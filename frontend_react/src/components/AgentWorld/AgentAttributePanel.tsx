@@ -109,7 +109,7 @@ function AttributeRow({
                         </div>
                     </div>
 
-                    <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-2"><p className="flex justify-between text-[11px] text-slate-600"><span>厨艺 Lv.{node.cooking?.level || 1}</span><span>{node.cooking?.experience || 0} 经验</span></p><div className="mt-2 h-1 overflow-hidden rounded-full bg-orange-100"><div className="h-full bg-orange-400" style={{width: `${(node.cooking?.progress || 0) * 100}%`}}/></div></div>
+                    <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-2"><p className="flex justify-between text-[11px] text-slate-600"><span>厨艺 Lv.{node.cooking?.level || 1}/99</span><span>{node.cooking?.experience || 0} 经验</span></p><div className="mt-2 h-1 overflow-hidden rounded-full bg-orange-100"><div className="h-full bg-orange-400" style={{width: `${(node.cooking?.progress || 0) * 100}%`}}/></div></div>
                     {/* 体力 */}
                     <div
                         className="rounded-xl border border-lime-100/90 bg-lime-50/40 p-2"

@@ -1,3 +1,4 @@
+import {hasItemStars} from '../../utils/itemQuality';
 import {Clock, Coins, Sparkles, Building2, TrendingUp, Info, User, ArrowRight, ShieldCheck, Flame} from 'lucide-react';
 import type {MarketSlot, MarketListing, MarketTransaction, MarketSupply} from '../../types/api/market';
 import {ItemIconImage} from '../AgentWorld/ItemIconImage';
@@ -228,7 +229,7 @@ export function MarketDetailSidebar({
                                 <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none ${
                                     isGold ? 'bg-amber-50 border-amber-200 text-amber-700' : isSouvenir ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-slate-100 text-slate-600'
                                 }`}>
-                                    {isGold ? '金色品质' : isSouvenir ? '旅行纪念品' : '标准农产品'}
+                                    {hasItemStars(item.source?.sku) ? `★${item.source?.stars || 1} ${item.source?.sku?.startsWith('dish.') ? '美食' : '农作物'}` : isGold ? '金色品质' : isSouvenir ? '旅行纪念品' : '标准农产品'}
                                 </span>
                             </div>
                             <h3 className="mt-1.5 text-sm font-bold text-slate-900 truncate">{item.name}</h3>
@@ -270,7 +271,7 @@ export function MarketDetailSidebar({
                             <span className="font-semibold text-slate-700">{item.originActorName ? `${item.originActorName} 的背包` : '自产自销'}</span>
                         </div>
                         <div className="flex justify-between text-slate-500">
-                            <span>商品原始估值</span>
+                            <span>{hasItemStars(item.source?.sku) ? '首批回收单价' : '商品原始估值'}</span>
                             <span className="font-semibold text-slate-700">{marketMoney(item.value || '0')} 世界币</span>
                         </div>
                     </div>
