@@ -484,12 +484,13 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                                                         key={`${p.sku}:${i}`}
                                                         className="text-[10px] text-lime-700"
                                                     >
-                                                        {p.name} ×{p.quantity}（基础
+                                                        {p.name} {p.sku.startsWith('crop.') ? `★${p.stars || 1}` : ''} ×{p.quantity}（基础
                                                         {p.baseQuantity}，额外
-                                                        {p.extraQuantity}）
+                                                        {p.extraQuantity}）{p.event === 'pests' ? ' · 轻微虫害' : p.event === 'cold' ? ' · 低温降星' : ''}
                                                     </p>
                                                 ))}
 
+                                                {o.result.experienceGained !== undefined && <p className="mt-1 text-[10px] text-lime-700">种植经验 +{o.result.experienceGained} · 累计 {o.result.experienceAfter}</p>}
                                                 <time className="mt-1 block font-mono text-[9px] text-slate-400">
                                                     {new Date(o.createdAt).toLocaleString(
                                                         'zh-CN',

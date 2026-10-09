@@ -20,7 +20,7 @@ def calculate_yield(base: int, percentage: str, remainder: str) -> tuple[int, st
     return base + extra, str(accumulated-extra)
 
 
-def add_production(farm: AgentFarm, sku: str, base: int, name: str, kind: str, price: int, key: str, bonus: dict) -> dict:
+def add_production(farm: AgentFarm, sku: str, base: int, name: str, kind: str, price: int, key: str, bonus: dict, *, stars: int = 1, fertilizer_extra: int = 0, event: str = 'normal') -> dict:
     from .inventory_stock import add_stock
     remainders = farm.state.setdefault('yield_remainders', {})
     keys = farm.state.setdefault('yield_bonus_keys', [])
@@ -32,9 +32,13 @@ def add_production(farm: AgentFarm, sku: str, base: int, name: str, kind: str, p
         remainders[sku] = after
     else:
         remainders.pop(sku, None)
-    add_stock(farm.pk, farm.owner_id, farm.actor_name, sku, quantity, name, kind, price, key)
+    from .farm_quality import event_quantity
+    profession_quantity = quantity
+    quantity = event_quantity(quantity + fertilizer_extra, event)
+    add_stock(farm.pk, farm.owner_id, farm.actor_name, sku, quantity, name, kind, price, key, stars=stars)
     return {'sku': sku, 'name': name, 'base_quantity': base, 'quantity': quantity,
-            'extra_quantity': quantity-base, 'remainder_before': before, 'remainder_after': after, **bonus}
+            'extra_quantity': quantity-base, 'profession_quantity': profession_quantity,
+            'fertilizer_extra': fertilizer_extra, 'event': event, 'stars': stars, 'remainder_before': before, 'remainder_after': after, **bonus}
 
 
 def validate_bonus_chain(state: dict, operations: list) -> None:
@@ -53,6 +57,11 @@ def validate_bonus_chain(state: dict, operations: list) -> None:
                     raise ValueError('增产操作无效')
                 before = remainders.get(sku, '0')
                 quantity, after = calculate_yield(entry['base_quantity'], entry['percentage'], before)
+                if 'profession_quantity' in entry:
+                    from .farm_quality import event_quantity
+                    if quantity != entry['profession_quantity']:
+                        raise ValueError('职业产量不一致')
+                    quantity = event_quantity(quantity + entry['fertilizer_extra'], entry['event'])
                 if Decimal(entry['remainder_before']) != Decimal(before) or Decimal(entry['remainder_after']) != Decimal(after) or entry['quantity'] != quantity or entry['extra_quantity'] != quantity-entry['base_quantity']:
                     raise ValueError('增产事实不一致')
                 if Decimal(after):

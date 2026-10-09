@@ -35,7 +35,7 @@ def set_catalog_inventory_icon(owner: str, item_id: str, asset_id: str | None) -
 
 
 def catalog_item_names(rules: dict) -> dict[str, str]:
-    names = {'feed': '饲料'}
+    names = {'feed': '饲料', 'fertilizer.quality': '品质肥', 'fertilizer.yield': '增产肥'}
     for kind, crop in rules.get('crops', {}).items():
         names[f'seed.{kind}'] = crop['name'] + '种子'
         names[f'crop.{kind}'] = crop['name']

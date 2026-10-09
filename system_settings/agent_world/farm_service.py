@@ -17,8 +17,8 @@ from .income import ensure_opening
 from .execution import stamina
 from .farm_bonus import yield_bonus, add_production
 
-KINDS = ('buy_supply', 'plant', 'water', 'feed', 'harvest', 'collect', 'sell', 'expand', 'build', 'upgrade', 'buy_animal')
-LABELS = dict(zip(KINDS, ('购买农资', '播种', '浇水', '喂养', '收获', '领取畜牧产物', '出售', '扩地', '建造', '升级', '购买动物')))
+KINDS = ('buy_supply', 'plant', 'water', 'feed', 'harvest', 'collect', 'sell', 'expand', 'build', 'upgrade', 'buy_animal', 'fertilize')
+LABELS = dict(zip(KINDS, ('购买农资', '播种', '浇水', '喂养', '收获', '领取畜牧产物', '出售', '扩地', '建造', '升级', '购买动物', '施肥')))
 
 
 def initial_state() -> dict:
@@ -112,8 +112,37 @@ def perform(farm, op, rules, at, key):
         if any(p['crop'] for p in plots):
             raise ValueError('地块已有作物')
         take_stock(farm, 'seed.'+crop_id, len(plots))
+        from .market_shop import effective_fertilizers
+        fertilizer_rules = effective_fertilizers(farm.owner_id, timezone.datetime.fromtimestamp(at, tz=timezone.get_default_timezone()))
         for plot in plots:
-            plot['crop'] = {'kind': crop_id, 'grown': 0, 'checked_at': at, 'planted_at': at, 'rules': copy.deepcopy(rules['crops'][crop_id])}
+            from .farm_quality import skill_progress
+            cycle_id = hashlib.sha256(f'{key}:plot:{plot["id"]}'.encode()).hexdigest()
+            state.setdefault('planting_experience', 0)
+            state['crop_schema_version'] = 1
+            plot['crop'] = {'kind': crop_id, 'grown': 0, 'checked_at': at, 'planted_at': at,
+                'rules': copy.deepcopy(rules['crops'][crop_id]), 'quality_version': 1,
+                'cycle_id': cycle_id, 'random_seed': cycle_id,
+                'planting_level': skill_progress(state['planting_experience'])['level'],
+                'fertilizer_rules': copy.deepcopy(fertilizer_rules), 'fertilizer': None}
+            plot['watered_until'] = max(plot['watered_until'], at + rules['crops'][crop_id]['growth_seconds'])
+        return amount, {'label': '播种并浇水', 'cycles': [copy.deepcopy(p['crop']) for p in plots]}
+    elif kind == 'fertilize':
+        from .inventory_stock import preview_cost
+        fertilizer_kind = op.get('fertilizer')
+        if fertilizer_kind not in ('quality', 'yield'):
+            raise ValueError('肥料类型无效')
+        plots = targets(state, op, 'plots')
+        if any(not p['crop'] or p['crop'].get('quality_version') != 1 or p['crop']['grown'] >= p['crop']['rules']['growth_seconds'] or p['crop'].get('fertilizer') for p in plots):
+            raise ValueError('仅未成熟且未施肥的新周期可以施肥')
+        sku = 'fertilizer.' + fertilizer_kind
+        costs = []
+        for plot in plots:
+            cost = preview_cost(farm.pk, farm.owner_id, sku, 1)
+            take_stock(farm, sku, 1)
+            plot['crop']['fertilizer'] = {**copy.deepcopy(plot['crop']['fertilizer_rules'][fertilizer_kind]),
+                'kind': fertilizer_kind, 'operation_id': key, 'cost': str(cost)}
+            costs.append(str(cost))
+        return amount, {'label': LABELS[kind], 'fertilizer': sku, 'costs': costs, 'cycles': [p['crop']['cycle_id'] for p in plots]}
     elif kind == 'water':
         plots = targets(state, op, 'plots')
         if all(p['watered_until'] >= at + DAY-60 for p in plots):
@@ -124,12 +153,27 @@ def perform(farm, op, rules, at, key):
         plots = targets(state, op, 'plots')
         if any(not p['crop'] or p['crop']['grown'] < p['crop']['rules']['growth_seconds'] for p in plots):
             raise ValueError('作物尚未成熟')
-        production = []
+        from .farm_quality import experience_for
+        production, harvested = [], []
+        before = state.get('planting_experience', 0)
+        gained = 0
         for plot in plots:
             crop = plot['crop']; rule = crop['rules']
-            production.append(add_production(farm, 'crop.'+crop['kind'], rule['yield'], rule['name'], 'farm_crop', rule['sale_price'], key, bonus))
+            result = crop.get('result') if crop.get('quality_version') == 1 else {
+                'stars': 1, 'event': 'normal', 'event_name': '旧周期', 'fertilizer_extra': 0,
+                'unit_price': rule['sale_price'], 'experience': experience_for(rule['growth_seconds'], 1)}
+            if not result:
+                raise ValueError('作物成熟品质结果缺失')
+            production.append(add_production(farm, 'crop.'+crop['kind'], rule['yield'], rule['name'], 'farm_crop',
+                result['unit_price'], key, bonus, stars=result['stars'],
+                fertilizer_extra=result['fertilizer_extra'], event=result['event']))
+            harvested.append({'plot_id': plot['id'], 'crop': copy.deepcopy(crop), 'result': result})
+            gained += result['experience']
             plot['crop'] = None
-        return amount, {'label': LABELS[kind], 'production_bonus': production}
+        state['planting_experience'] = before + gained
+        state['crop_schema_version'] = 1
+        return amount, {'label': LABELS[kind], 'production_bonus': production, 'harvested': harvested,
+            'experience_before': before, 'experience_gained': gained, 'experience_after': before + gained}
     elif kind == 'feed':
         animals = targets(state, op, 'animals')
         if any(a['fed_until'] >= at + DAY-60 for a in animals):

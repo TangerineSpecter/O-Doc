@@ -1,4 +1,5 @@
 """市场可见性统一按账号过滤，分页避免将无限挂牌装进模型上下文。"""
+from decimal import Decimal
 from .market_models import MarketListing, MarketTransaction, MarketSession
 from .inventory_stock import inventory_items
 from .farm_models import AgentFarm
@@ -70,11 +71,19 @@ def actor_context(owner: str, agent) -> dict:
         from .farm_clock import advance_state
         state = copy.deepcopy(farm.state)
         advance_state(state, catalog_for(owner).seed, timezone.now().timestamp())
-        farm_state = {key:state[key] for key in ('plots','buildings','animals')}
+        from .market_visibility import visible_farm_state
+        farm_state = visible_farm_state(state)
     inventory = list(inventory_items(agent.pk, owner).values('id','name','quantity','value','source','kind','rarity'))
     # No audit chains or historical price lots in the model's demand summary.
     for row in inventory:
-        row['source'] = {key:row['source'][key] for key in ('sku','quality') if key in row['source']}
+        row['recoverable_value'] = str(sum((Decimal(l['price']) * l['quantity'] for l in row['source'].get('lots', [])), Decimal(0))) if row['source'].get('lots') else row['value']
+        row['source'] = {key:row['source'][key] for key in ('sku','quality','stars') if key in row['source']}
     from .market_spending import spending_context
-    return {'spending': spending_context(owner, agent.pk), 'balance':str(agent.money), 'stamina':str(stamina(agent)), 'farm':farm_state,
+    from .farm_quality import skill_progress
+    from .farm_economics import planting_context
+    from .market_shop import shop_payload
+    from .farm_bonus import yield_bonus
+    shop = shop_payload(owner)
+    planting = planting_context(farm, catalog_for(owner).rules, shop['supplies'], yield_bonus(agent), shop['expires_at']) if farm else {'skill': skill_progress(0)}
+    return {'planting': planting, 'spending': spending_context(owner, agent.pk), 'balance':str(agent.money), 'stamina':str(stamina(agent)), 'farm':farm_state,
             'inventory':inventory, 'listings':listings(owner, {'seller_id':agent.pk,'status':'all'})}

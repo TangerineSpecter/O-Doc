@@ -165,6 +165,8 @@ class SyncManager:
     def validate_remote_snapshot_version(self, remote_meta):
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
+        if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
+            raise SyncError('农作物快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('cooking_schema_version', 0) > 1:
             raise SyncError('烹饪快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
@@ -734,6 +736,8 @@ class SyncManager:
 
         from learning.sync import validate as validate_learning
         validate_learning(data_list, remote_meta)
+        from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
+        validate_crops(data_list, remote_meta)
         expected_social = (remote_meta or {}).get('social_owners')
         if expected_social is not None:
             restored_social = {str(item.get('pk')) for item in data_list
@@ -854,6 +858,10 @@ class SyncManager:
             reconcile_investments()
             from system_settings.agent_world.farm_sync import reconcile_farms
             reconcile_farms()
+            from system_settings.agent_world.farm_quality_sync import normalize_legacy_inventory
+            normalize_legacy_inventory()
+            from system_settings.agent_world.cooking_sync import checkpoint_all as checkpoint_cooking
+            checkpoint_cooking()
             from system_settings.agent_world.market_sync import end_restored_sessions, refresh_restored_checkpoints
             end_restored_sessions()
             refresh_restored_checkpoints()
@@ -1130,8 +1138,10 @@ class SyncManager:
         from system_settings.agent_world.social_models import SocialIntegrity
         from system_settings.agent_world.cooking_models import CookingIntegrity
         from learning.sync import metadata as learning_metadata
+        from system_settings.agent_world.farm_quality_sync import metadata as crop_metadata
         return {
             **learning_metadata(data_list),
+            **crop_metadata(data_list),
             'cooking_schema_version': 1,
             'cooking_owners': list(CookingIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
             'social_schema_version': 1,
@@ -1147,6 +1157,8 @@ class SyncManager:
     def validate_import_snapshot_version(self, remote_meta):
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
+        if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
+            raise SyncError('农作物快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('cooking_schema_version', 0) > 1:
             raise SyncError('烹饪快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('social_schema_version', 0) > 1:
@@ -1367,6 +1379,8 @@ class SyncManager:
         data = self._read_remote_json(self._snapshot_path(snapshot_id, 'data_index.json'), required=True)
         from learning.sync import validate as validate_learning
         validate_learning(data, meta)
+        from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
+        validate_crops(data, meta)
         return {
             'meta': meta,
             'data': self._strip_device_local_user_fields(data),
@@ -1487,6 +1501,9 @@ class SyncManager:
         from system_settings.agent_world.life_snapshot import validate_source, refresh_merged_integrity
         validate_source(local_data)
         validate_source(remote.get('data') or [])
+        from system_settings.agent_world.farm_quality_sync import validate_source as validate_crop_source
+        validate_crop_source(local_data)
+        validate_crop_source(remote.get('data') or [], remote.get('meta'))
         base_data = self._item_map((base or {}).get('data') or [])
         base_revisions = (base or {}).get('revisions') or {}
         local_map = self._item_map(local_data)
@@ -2162,18 +2179,24 @@ class SyncManager:
 
     @farm_sync_guard
     def restore_v2_snapshot(self, snapshot_id, *, runner_id=''):
+        from article.version_service import enforce_article_version_retention
+
         safety_backup = self.create_local_safety_backup('before-restore')
         with self._remote_sync_lock(runner_id):
             snapshot = self.get_v2_snapshot(snapshot_id)
             self._restore_v2_media(snapshot.get('media'))
             with transaction.atomic():
                 with suspend_tracking():
-                    self.apply_snapshot_data(snapshot['data'], full_overwrite=True)
+                    self.apply_snapshot_data(snapshot['data'], remote_meta=snapshot['meta'], full_overwrite=True)
                 self._apply_v2_revisions(snapshot['revisions'])
                 enforce_article_version_retention()
+                # Restore may normalize legacy fields, close sessions or prune versions.
+                # Publish that resulting state with matching hashes, not the original payload.
+                restored_data = self.build_snapshot_data()
+                restored_revisions = self._build_revision_manifest(restored_data)
             restored = self.publish_v2_snapshot(
                 source='history-restore', runner_id=runner_id, base_snapshot_id=snapshot_id,
-                previous_media=snapshot.get('media'), data_list=snapshot['data'], revisions=snapshot['revisions'],
+                previous_media=snapshot.get('media'), data_list=restored_data, revisions=restored_revisions,
             )
         return restored, safety_backup
 

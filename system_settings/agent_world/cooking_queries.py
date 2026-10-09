@@ -4,7 +4,7 @@ from django.db.models import Sum, Count
 from system_settings.models import Agent
 from .cooking_models import CookingSkill, CookingOperation, CookingCatalog
 from .cooking_catalog import rules_for, INGREDIENTS, DESCRIPTION, skill_progress
-from .inventory_stock import inventory_items
+from .inventory_stock import inventory_items, preview_cost
 from .execution import stamina
 from .farm_catalog import DEFAULT_RULES, normalized_rules
 from .farm_models import FarmCatalog
@@ -38,7 +38,7 @@ def overview(owner: str, actor_id: str) -> dict:
 def recipes(owner: str, agent: Agent | None = None) -> list[dict]:
     progress = overview(owner, agent.pk) if agent else skill_progress(0)
     energy = stamina(agent) if agent else Decimal(0)
-    quantities = dict(inventory_items(agent.pk, owner).values('source__sku').annotate(total=Sum('quantity')).values_list('source__sku', 'total')) if agent else {}
+    quantities = dict(inventory_items(agent.pk, owner).order_by().values('source__sku').annotate(total=Sum('quantity')).values_list('source__sku', 'total')) if agent else {}
     counts = dict(CookingOperation.objects.filter(owner_id=owner, **({'actor_id': agent.pk} if agent else {})).values('recipe_id').annotate(total=Count('pk')).values_list('recipe_id', 'total'))
     catalog = CookingCatalog.objects.filter(pk=owner).first()
     icons = catalog.item_icons if catalog else {}
@@ -54,7 +54,8 @@ def recipes(owner: str, agent: Agent | None = None) -> list[dict]:
         portions = min(row['owned'] // row['quantity'] for row in ingredients)
         state = 'unselected' if not agent else 'locked' if progress['level'] < rule['required_level'] else 'missing' if not portions else 'tired' if energy < rule['energy_cost'] else 'ready'
         asset_id = icons.get('dish.' + key)
-        raw_value = sum(prices[row['sku']] * row['quantity'] for row in ingredients)
+        raw_value = (sum((preview_cost(agent.pk, owner, row['sku'], row['quantity']) for row in ingredients), Decimal(0))
+                     if agent and portions else sum(prices[row['sku']] * row['quantity'] for row in ingredients))
         result.append({**rule, 'id': key, 'sku': 'dish.' + key, 'description': DESCRIPTION,
             'ingredients': ingredients, 'state': state, 'max_portions': min(6, portions, int(energy // rule['energy_cost'])) if state == 'ready' else 0,
             'times_made': counts.get(key, 0), 'ingredient_value': str(raw_value), 'processing_gain': str(Decimal(rule['sale_price']) - raw_value),

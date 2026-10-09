@@ -11,8 +11,17 @@ ASSET_MODELS = (MarketBatch, MarketListing, MarketSession, MarketTransaction, Ag
 
 
 def fingerprints(owner: str) -> dict[str, str]:
-    return {model.__name__:hashlib.sha256(json.dumps(list(model.objects.filter(owner_id=owner).order_by('pk').values()),
-            cls=DjangoJSONEncoder, sort_keys=True, separators=(',', ':')).encode()).hexdigest() for model in ASSET_MODELS}
+    result = {}
+    for model in ASSET_MODELS:
+        rows = list(model.objects.filter(owner_id=owner).order_by('pk').values())
+        if model is MarketBatch:
+            # The added empty field must not invalidate original legacy checkpoint hashes.
+            for row in rows:
+                if not row['supplies']:
+                    row.pop('supplies')
+        result[model.__name__] = hashlib.sha256(json.dumps(rows, cls=DjangoJSONEncoder,
+            sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return result
 
 
 def update_checkpoint(sender, instance, **kwargs):

@@ -21,6 +21,7 @@ import {
     HelpCircle,
     Info,
 } from 'lucide-react';
+import {FertilizerRuleEditor} from './FertilizerRuleEditor';
 import {getFarmRules, saveFarmAppearance, saveFarmRules} from '../../api/farm';
 import type {FarmState, FarmRules} from '../../types/api/farm';
 
@@ -63,7 +64,7 @@ function formatHumanDuration(seconds: number): string {
     return `${secs}秒`;
 }
 
-type TabKey = 'appearance' | 'animals' | 'buildings';
+type TabKey = 'appearance' | 'animals' | 'buildings' | 'fertilizers';
 
 export function FarmConfiguration({
     farm,
@@ -238,7 +239,7 @@ export function FarmConfiguration({
 
                 {/* 2. 胶囊分段控制器 (Segmented Tab Bar) */}
                 <div className="border-b border-slate-100 px-6 pt-3 pb-2.5 bg-slate-50/50">
-                    <div className="flex rounded-xl bg-slate-200/60 p-1 border border-slate-200/40">
+                    <div className="grid grid-cols-2 gap-1 sm:flex rounded-xl bg-slate-200/60 p-1 border border-slate-200/40">
                         <button
                             type="button"
                             onClick={() => setActiveTab('appearance')}
@@ -277,11 +278,13 @@ export function FarmConfiguration({
                             <Warehouse className="h-3.5 w-3.5 shrink-0" />
                             <span>建筑与地皮</span>
                         </button>
+                        <button type="button" onClick={() => setActiveTab('fertilizers')} className={`flex-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-semibold ${activeTab === 'fertilizers' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600'}`}>肥料</button>
                     </div>
                 </div>
 
                 {/* 3. 弹窗主内容区域 (禁止原生滚动条，统一 scrollbar-hide) */}
                 <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-6">
+                    {activeTab === 'fertilizers' && rules && <FertilizerRuleEditor rules={rules} onChange={setRules}/>}
                     {/* TAB 1: 居民像素形象 */}
                     {activeTab === 'appearance' && (
                         <div className="space-y-6 animate-in fade-in duration-150">
@@ -740,7 +743,7 @@ export function FarmConfiguration({
                 <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/80 px-6 py-4">
                     <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500">
                         <HelpCircle className="h-3.5 w-3.5 text-slate-400" />
-                        <span>数值修改将即时作用于当前世界的模拟机制</span>
+                        <span>肥料配置下个整点生效，已播种周期保留原规则</span>
                     </div>
 
                     <div className="flex items-center justify-end gap-3 w-full sm:w-auto">

@@ -400,7 +400,10 @@ def day_events(request, owner, day, actor_id=''):
         produced = result.get('products') or result.get('production_bonus') or []
         for item in produced if isinstance(produced, list) else []:
             if isinstance(item, dict):
-                parts.append(f"{item.get('name') or item.get('sku') or '产物'} × {item.get('quantity', 1)}")
+                stars = f" ★{item.get('stars', 1)}" if item.get('sku', '').startswith('crop.') else ''
+                parts.append(f"{item.get('name') or item.get('sku') or '产物'}{stars} × {item.get('quantity', 1)}")
+        if result.get('experience_gained') is not None:
+            parts.append(f"种植经验 +{result['experience_gained']}")
         if row.reason:
             parts.append(row.reason)
         events.append(_event('farm', 'farm', row.pk, row.created_at, row.farm_id,

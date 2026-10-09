@@ -96,7 +96,7 @@ export class FarmScene {
             this.lastOperation=last.id;
             const op=last.operation;
             let destination: Cell={x:12,y:12};
-            if(op.targets?.length && ['plant','water','harvest'].includes(op.kind)) {const p=plotCell(op.targets[0]);destination={x:p.x+1,y:p.y};}
+            if(op.targets?.length && ['plant','water','harvest','fertilize'].includes(op.kind)) {const p=plotCell(op.targets[0]);destination={x:p.x+1,y:p.y};}
             else if(op.targets?.length) {const a=data.state.animals.find(v=>v.id===op.targets![0]);destination={x:14,y:a?.building==='coop'?12:8};}
             else if(op.building) destination={x:15,y:op.building==='coop'?10:5};
             this.path=findPath({x:Math.round(this.actor.x/TILE),y:Math.round(this.actor.y/TILE)},destination,this.blocked);

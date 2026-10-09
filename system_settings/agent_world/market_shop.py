@@ -37,6 +37,9 @@ def current_batch(owner: str, now=None) -> MarketBatch:
     key = hashlib.sha256(f'market:{owner}:{start.isoformat()}'.encode()).hexdigest()
     previous = MarketBatch.objects.filter(pk=key).first()
     if previous:
+        if not previous.supplies:
+            previous.supplies = supply_quotes(owner, previous.pk)
+            previous.save(update_fields=['supplies', 'updated_at'])
         return previous
     config = config_for(owner)
     rules = catalog_for(owner).rules
@@ -53,7 +56,7 @@ def current_batch(owner: str, now=None) -> MarketBatch:
         slots.append({**item, 'id': str(index), 'initial_quantity': quantity, 'remaining_quantity': quantity})
     stored_start = start if settings.USE_TZ else timezone.make_naive(start, timezone.get_default_timezone())
     return MarketBatch.objects.create(pk=key, owner_id=owner, starts_at=stored_start, expires_at=stored_start+timedelta(hours=1),
-                                      slots=slots, feed_price=rules['feed_price'])
+                                      slots=slots, feed_price=rules['feed_price'], supplies=supply_quotes(owner, key))
 
 
 def market_iso(value):
@@ -63,6 +66,30 @@ def market_iso(value):
 
 def shop_payload(owner: str, now=None) -> dict:
     batch = current_batch(owner, now)
+    from .market_visibility import visible_supply
     return {'id': batch.pk, 'starts_at': market_iso(batch.starts_at), 'expires_at': market_iso(batch.expires_at),
-            'slots': batch.slots, 'feed': {'sku': 'feed', 'name': '饲料', 'price': str(batch.feed_price)},
+            'slots': batch.slots, 'supplies': [visible_supply(quote) for quote in batch.supplies], 'feed': {'sku': 'feed', 'name': '饲料', 'price': str(batch.feed_price)},
             'server_time': market_iso(now or timezone.now())}
+
+
+def supply_quotes(owner: str, batch_id: str) -> list[dict]:
+    seed = config_for(owner).seed
+    rules = catalog_for(owner).rules
+    result = []
+    for kind, rule in rules['fertilizers'].items():
+        sku = 'fertilizer.' + kind
+        rng = random.Random(f'{seed}:{batch_id}:{sku}:crop-v1')
+        actual = rule['base_price'] + rng.randint(-rule['fluctuation'], rule['fluctuation'])
+        result.append({'id': sku, 'sku': sku, 'name': rule['name'], 'kind': 'fertilizer',
+            **{key: value for key, value in rule.items() if key != 'name'},
+            'price': str(actual), 'price_delta': actual - rule['base_price'],
+            'min_price': rule['base_price'] - rule['fluctuation'],
+            'max_price': rule['base_price'] + rule['fluctuation'], 'version': 1})
+    return result
+
+
+def effective_fertilizers(owner: str, now=None) -> dict:
+    """Configuration changes start with the next hourly batch, including effects."""
+    from .farm_quality import FERTILIZERS
+    return {row['sku'].split('.')[1]: {key: row[key] for key in FERTILIZERS[row['sku'].split('.')[1]]}
+            for row in current_batch(owner, now).supplies}

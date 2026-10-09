@@ -293,6 +293,24 @@ for kind in CROP_KINDS:
     sprite(f'item-crop.{kind}',lambda d,k=kind:crop(d,k,2))
     seed_packet(kind)
 
+def fertilizer_icon(d, quality):
+    # Wide lidded tub, distinct from the paper seed packets and feed sacks.
+    d.rectangle((7, 8, 25, 28), fill='#697365')
+    d.rectangle((8, 10, 24, 27), fill='#aa7eaa' if quality else '#889957')
+    d.rectangle((6, 6, 26, 9), fill='#d9ba7d')
+    d.rectangle((10, 13, 22, 25), fill='#eee6cd')
+    if quality:
+        for box in ((15, 14, 17, 23), (12, 17, 20, 19), (13, 16, 19, 20)):
+            d.rectangle(box, fill='#aa7eaa')
+        d.rectangle((15, 17, 17, 19), fill='#e6ba57')
+    else:
+        for x in (12, 16, 20):
+            d.line((x, 17, x, 24), fill='#889957', width=1)
+            d.rectangle((x-1, 14, x+1, 18), fill='#e6ba57')
+
+sprite('item-fertilizer.quality', lambda d: fertilizer_icon(d, True))
+sprite('item-fertilizer.yield', lambda d: fertilizer_icon(d, False))
+
 ROOT.mkdir(parents=True,exist_ok=True)
 atlas=Image.new('RGBA',(1024,((len(FRAMES)+15)//16)*64))
 manifest={}

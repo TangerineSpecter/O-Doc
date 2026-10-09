@@ -20,10 +20,10 @@ def spending_context(owner: str, actor: str) -> dict:
     batch = current_batch(owner)
     bought = sorted(set(str(v) for v in MarketTransaction.objects.filter(
         owner_id=owner, actor_id=actor, operation__kind='buy_shop', operation__batch_id=batch.pk
-    ).exclude(operation__slot_id='feed').values_list('operation__slot_id', flat=True)))
+    ).exclude(operation__slot_id__in=['feed', *[s['id'] for s in batch.supplies]]).values_list('operation__slot_id', flat=True)))
     result = {'balance': str(agent.money), 'spendable': str(agent.money), 'batch_id': batch.pk,
               'purchased_slot_ids': bought, 'slots_remaining': max(0, 2-len(bought)),
-              'feed_uses_slot': False}
+              'feed_uses_slot': False, 'fertilizer_uses_slot': False}
     scope = CURRENT.get()
     if scope and scope['actor_id'] == actor and scope['owner_id'] == owner:
         item = LifeItem.objects.get(pk=scope['item_id'], actor_id=actor, owner_id=owner)
@@ -46,12 +46,15 @@ def check_purchase(owner: str, actor: str, operation: dict) -> None:
         if operation.get('batch_id') != batch.pk:
             return  # 报价及库存错误沿用成交服务的校验与记录。
         slot = operation.get('slot_id')
+        supply = next((r for r in batch.supplies if r['id'] == slot), None)
         item = next((r for r in batch.slots if r['id'] == slot), None)
         if slot == 'feed':
             unit_price = batch.feed_price
+        elif supply:
+            unit_price = price(supply['price'])
         elif item:
             if slot not in context['purchased_slot_ids'] and context['slots_remaining'] == 0:
-                raise MarketPurchaseBlocked('market_slot_limit', '本小时商品格额度已用尽；只能购买已选商品格的剩余库存、饲料或居民挂牌，不能重复尝试新商品格。', context)
+                raise MarketPurchaseBlocked('market_slot_limit', '本小时商品格额度已用尽；只能购买已选商品格的剩余库存、常驻农资或居民挂牌，不能重复尝试新商品格。', context)
             unit_price = price(item['price'])
         else:
             return

@@ -324,6 +324,81 @@ class SyncManagerTests(TestCase):
         manager._apply_v2_revisions(revisions)
         return client, manager, snapshot
 
+    def test_v2_history_restore_reexports_normalized_legacy_crops(self):
+        from system_settings.agent_world.farm_quality_sync import validate_source
+        from system_settings.agent_world.travel_models import AgentInventoryItem
+        from system_settings.sync_state import canonical_hash
+
+        client = MemoryStorageClient()
+        manager = SyncManager(client, '/o-doc-sync/')
+        item = AgentInventoryItem.objects.create(
+            pk='legacy-crop', actor_id='historical-gardener', owner_id='history',
+            name='土豆', kind='farm_crop', quantity=3, value=18,
+            source={'sku': 'crop.potato', 'lots': [{'quantity': 3, 'price': '18'}]},
+        )
+        data = manager.build_snapshot_data()
+        revisions = manager._build_revision_manifest(data)
+        legacy_meta = {key: value for key, value in manager.build_snapshot_meta(data_list=data).items()
+                       if not key.startswith('crop_')}
+        with patch.object(manager, 'build_snapshot_meta', return_value=legacy_meta):
+            legacy = manager.publish_v2_snapshot(source='test-legacy', data_list=data, revisions=revisions)
+        legacy_id = legacy['meta']['snapshot_id']
+        legacy_bytes = dict(client.files)
+        key = f'system_settings.agentinventoryitem:{item.pk}'
+        item.source = {**item.source, 'stars': 5}
+        item.save(update_fields=['source'])
+
+        with tempfile.TemporaryDirectory(prefix='odoc-outside-media-') as outside:
+            sentinel = os.path.join(outside, 'untouched.txt')
+            with open(sentinel, 'wb') as stream:
+                stream.write(b'outside media')
+            for _ in range(2):
+                restored, backup = manager.restore_v2_snapshot(legacy_id, runner_id='test-restore')
+                self.assertTrue(os.path.realpath(backup).startswith(os.path.realpath(self._test_media_root.name) + os.sep))
+                self.assertTrue(os.path.isfile(backup))
+                current = manager.get_v2_current()
+                self.assertEqual(current['meta']['snapshot_id'], restored['meta']['snapshot_id'])
+                self.assertNotEqual(current['meta']['snapshot_id'], legacy_id)
+                validate_source(current['data'], current['meta'])
+                published = next(row for row in current['data'] if row['model'] == 'system_settings.agentinventoryitem')
+                self.assertEqual(published['fields']['source'],
+                                 {'sku': 'crop.potato', 'lots': [{'quantity': 3, 'price': '18'}], 'stars': 1})
+                self.assertEqual(current['revisions'][key]['hash'], canonical_hash(published['fields']))
+                self.assertNotEqual(current['revisions'][key]['hash'], revisions[key]['hash'])
+                self.assertEqual(SyncEntityState.objects.get(model_label='system_settings.agentinventoryitem',
+                                                           object_pk=item.pk).content_hash, current['revisions'][key]['hash'])
+                manager.apply_snapshot_data(current['data'], remote_meta=current['meta'], full_overwrite=True)
+                item.refresh_from_db()
+                self.assertEqual((item.quantity, item.value, item.source['stars']), (3, 18, 1))
+            with open(sentinel, 'rb') as stream:
+                self.assertEqual(stream.read(), b'outside media')
+        for path, content in legacy_bytes.items():
+            if path.startswith(f'{manager.v2_snapshots_dir}/{legacy_id}/'):
+                self.assertEqual(client.files[path], content)
+
+    def test_v2_history_restore_rejects_missing_crop_stars_before_media(self):
+        from system_settings.agent_world.travel_models import AgentInventoryItem
+
+        item = AgentInventoryItem.objects.create(
+            pk='quality-crop', actor_id='historical-gardener', owner_id='history',
+            name='土豆', kind='farm_crop', quantity=1, value=40,
+            source={'sku': 'crop.potato', 'stars': 5},
+        )
+        client, manager, snapshot = self._publish_aligned_snapshot()
+        snapshot_id = snapshot['meta']['snapshot_id']
+        data_path = manager._snapshot_path(snapshot_id, 'data_index.json')
+        broken = json.loads(client.get_file_content(data_path))
+        next(row for row in broken if row['model'] == 'system_settings.agentinventoryitem')['fields']['source'].pop('stars')
+        manager._write_remote_json(broken, data_path)
+        pointer = client.files[manager.v2_current_file]
+        with patch.object(manager, '_restore_v2_media') as restore_media:
+            with self.assertRaisesMessage(SyncError, '农作物库存星级无效或缺失'):
+                manager.restore_v2_snapshot(snapshot_id, runner_id='test-restore')
+            restore_media.assert_not_called()
+        item.refresh_from_db()
+        self.assertEqual(item.source['stars'], 5)
+        self.assertEqual(client.files[manager.v2_current_file], pointer)
+
     def test_aligned_unchanged_sync_skips_export_and_publish(self):
         user = User.objects.create_user(username='aligned-user', password='password')
         client, manager, snapshot = self._publish_aligned_snapshot()

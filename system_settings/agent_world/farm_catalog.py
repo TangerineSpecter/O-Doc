@@ -3,6 +3,7 @@ import copy
 import uuid
 from rest_framework import serializers
 from .farm_models import FarmCatalog
+from .farm_quality import FERTILIZERS
 
 DEFAULT_RULES = {
     'crops': {
@@ -28,6 +29,7 @@ DEFAULT_RULES = {
         'sheep': {'name': '羊', 'product': '羊毛', 'period_seconds': 172800, 'price': 500, 'sale_price': 90, 'building': 'barn'}},
     'buildings': {'coop': {'name': '鸡舍', 'prices': [300, 600, 1200], 'capacities': [2, 4, 6]},
                   'barn': {'name': '牛羊舍', 'prices': [800, 1600, 3200], 'capacities': [2, 4, 6]}},
+    'fertilizers': copy.deepcopy(FERTILIZERS),
     'land_prices': [500, 1000, 2000], 'feed_price': 5, 'item_icons': {},
 }
 
@@ -44,6 +46,7 @@ def normalized_rules(value: dict | None) -> dict:
     rules = copy.deepcopy(value if isinstance(value, dict) else DEFAULT_RULES)
     # Existing WebDAV snapshots may predate catalog-level image overrides.
     rules.setdefault('item_icons', {})
+    rules.setdefault('fertilizers', copy.deepcopy(FERTILIZERS))
     for kind, rule in DEFAULT_RULES['crops'].items():
         rules.setdefault('crops', {}).setdefault(kind, copy.deepcopy(rule))
     return rules
@@ -52,6 +55,8 @@ def normalized_rules(value: dict | None) -> dict:
 def validate_rules(value: dict) -> dict:
     if isinstance(value, dict) and 'item_icons' not in value:
         value = {**value, 'item_icons': {}}
+    if isinstance(value, dict) and 'fertilizers' not in value:
+        value = {**value, 'fertilizers': copy.deepcopy(FERTILIZERS)}
     if not isinstance(value, dict) or set(value) != set(DEFAULT_RULES):
         raise serializers.ValidationError('目录必须包含完整的作物、动物、建筑、土地及饲料配置')
     if not isinstance(value['crops'], dict) or not {'radish', 'potato', 'corn'} <= set(value['crops']):
@@ -78,6 +83,18 @@ def validate_rules(value: dict) -> dict:
         raise serializers.ValidationError('需要三个有效土地价格')
     if type(value['feed_price']) is not int or not 1 <= value['feed_price'] <= 1000000:
         raise serializers.ValidationError('饲料价格无效')
+    fertilizers = value['fertilizers']
+    if not isinstance(fertilizers, dict) or set(fertilizers) != set(FERTILIZERS):
+        raise serializers.ValidationError('两种肥料配置不完整')
+    for kind, row in fertilizers.items():
+        if not isinstance(row, dict) or set(row) != set(FERTILIZERS[kind]) or row['name'] != FERTILIZERS[kind]['name']:
+            raise serializers.ValidationError('肥料字段无效')
+        if type(row['base_price']) is not int or not 1 <= row['base_price'] <= 1000000 or type(row['fluctuation']) is not int or not 0 <= row['fluctuation'] < row['base_price']:
+            raise serializers.ValidationError('肥料价格与波动范围无效')
+        if isinstance(row['quality_bonus'], bool) or not isinstance(row['quality_bonus'], (int, float)) or not 0 <= row['quality_bonus'] <= .2 or type(row['yield_percentage']) is not int or not 0 <= row['yield_percentage'] <= 100:
+            raise serializers.ValidationError('肥料效果无效')
+        if (kind == 'quality' and row['yield_percentage'] != 0) or (kind == 'yield' and row['quality_bonus'] != 0):
+            raise serializers.ValidationError('品质肥与增产肥职责不能混用')
     if not isinstance(value['item_icons'], dict):
         raise serializers.ValidationError('物品图标配置无效')
     from .item_catalog_icons import catalog_item_names

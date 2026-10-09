@@ -82,8 +82,9 @@ export function MarketListings({items}: {items: MarketListing[]}) {
                                             </span>
                                         </div>
 
+                                        {item.item.source?.sku?.startsWith('crop.') && <p className="text-[10px] text-slate-500">首批回收参考 {marketMoney(item.item.value)} 币／个 · 挂牌可溢价</p>}
                                         <h4 className="mt-1 text-xs font-bold text-slate-800 truncate" title={item.item.name}>
-                                            {item.item.name}
+                                            {item.item.name} {item.item.source?.sku?.startsWith('crop.') ? `★${item.item.source.stars || 1}` : ''}
                                         </h4>
 
                                         <div className="mt-1 flex items-baseline justify-between">

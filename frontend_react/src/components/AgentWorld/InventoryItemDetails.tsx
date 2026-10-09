@@ -57,7 +57,7 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                 <div className="inventory-item-header-actions">
                     <span className="relic-rarity-seal" title={`品质等级：${rarity.label}`}>
                         <Sparkles size={11} className="relic-rarity-sparkle" />
-                        <span className="relic-rarity-text">{rarity.label}</span>
+                        <span className="relic-rarity-text">{item.source.sku?.startsWith('crop.') ? `${item.source.stars || 1} 星` : rarity.label}</span>
                     </span>
                     <button
                         type="button"
@@ -95,7 +95,7 @@ export function InventoryItemDetails({item, onClose}: {item: InventoryItem; onCl
                         <Coins size={15} />
                     </div>
                     <div className="relic-val-label-texts">
-                        <span className="relic-val-title">公会参考估价</span>
+                        <span className="relic-val-title">{item.source.sku?.startsWith('crop.') ? '当前首批回收单价' : '公会参考估价'}</span>
                         <span className="relic-val-sub">VALUATION</span>
                     </div>
                 </div>

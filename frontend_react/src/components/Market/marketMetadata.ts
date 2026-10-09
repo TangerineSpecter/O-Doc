@@ -1,7 +1,9 @@
+import type {MarketSupply} from '../../types/api/market';
+
 export interface SkuKnowledge {
     sku: string;
     name: string;
-    category: 'crop' | 'animal' | 'feed' | 'other';
+    category: 'crop' | 'animal' | 'feed' | 'fertilizer' | 'other';
     categoryLabel: string;
     categoryColor: string;
     badgeBg: string;
@@ -13,8 +15,29 @@ export interface SkuKnowledge {
     productEstimatedYield?: string;
     estimatedRevenue?: string;
     profitRate?: string;
+    operatingFacts?: Array<{kind: 'dose' | 'timing' | 'effect' | 'rule' | 'quote'; label: string; value: string}>;
     summary: string;
     tips: string;
+}
+
+export function getSupplyKnowledge(supply: MarketSupply): SkuKnowledge {
+    if (supply.kind !== 'fertilizer') return getSkuKnowledge(supply.sku, supply.name);
+    const quality = supply.sku === 'fertilizer.quality';
+    const effect = quality ? supply.qualityBonus : supply.yieldPercentage;
+    return {
+        sku: supply.sku, name: supply.name, category: 'fertilizer',
+        categoryLabel: quality ? '品质培育' : '丰收增产', categoryColor: 'amber',
+        badgeBg: 'bg-amber-50 border-amber-200 text-amber-800', badgeText: '常驻物资',
+        summary: quality ? '提升高星作物的收获概率，适合追求精品收成的种植经营。' : '增加本轮作物的收获数量，适合追求丰收产量的种植经营。',
+        operatingFacts: [
+            {kind: 'dose', label: '使用用量', value: '每块地每轮 1 份'},
+            {kind: 'timing', label: '施用时机', value: '播种后、成熟前'},
+            {kind: 'effect', label: '施肥效果', value: effect === undefined ? '以播种周期规则为准' : quality ? `品质参数 +${effect}` : `基础产量 +${effect}%`},
+            {kind: 'rule', label: '同轮规则', value: '两种肥料互斥'},
+            {kind: 'quote', label: '报价刷新', value: '每小时整点'},
+        ],
+        tips: quality ? '结合种植等级、作物价值和当前报价选择投入；高星作物可按回收价出售，也可自主加价挂牌。' : '结合基础产量、库存和当前报价选择投入；额外产量与职业增产相加，收成仍受轻事件影响。',
+    };
 }
 
 export const SKU_KNOWLEDGE_BASE: Record<string, SkuKnowledge> = {

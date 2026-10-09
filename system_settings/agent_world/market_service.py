@@ -86,13 +86,15 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         count = quantity(operation.get('quantity'))
         slot_id = operation.get('slot_id')
         slots = copy.deepcopy(batch.slots)
-        item = next((s for s in slots if s['id'] == slot_id), None) if slot_id != 'feed' else {'sku':'feed','name':'饲料','kind':'feed','price':str(batch.feed_price)}
+        constant_ids = {'feed', *[s['id'] for s in batch.supplies]}
+        item = ({'sku':'feed','name':'饲料','kind':'feed','price':str(batch.feed_price)} if slot_id == 'feed' else
+                next((s for s in [*slots, *batch.supplies] if s['id'] == slot_id), None))
         if not item: raise ValueError('商品位不存在')
-        if slot_id != 'feed' and count > item['remaining_quantity']: raise ValueError('商品库存不足')
-        if slot_id != 'feed':
-            bought = set(str(value) for value in MarketTransaction.objects.filter(owner_id=owner,actor_id=agent.pk,operation__kind='buy_shop',operation__batch_id=batch.pk).exclude(operation__slot_id='feed').values_list('operation__slot_id',flat=True))
+        if slot_id not in constant_ids and count > item['remaining_quantity']: raise ValueError('商品库存不足')
+        if slot_id not in constant_ids:
+            bought = set(str(value) for value in MarketTransaction.objects.filter(owner_id=owner,actor_id=agent.pk,operation__kind='buy_shop',operation__batch_id=batch.pk).exclude(operation__slot_id__in=constant_ids).values_list('operation__slot_id',flat=True))
             if slot_id not in bought and len(bought)>=2:
-                raise ValueError('本小时最多购买两个商品格，饲料不占额度')
+                raise ValueError('本小时最多购买两个商品格，常驻农资不占额度')
         amount = price(item['price'])*count
         change_money(agent, -amount, key, at)
         if item['kind'] == 'animal':
@@ -112,7 +114,7 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         else:
             stock = add_stock(agent.pk, owner, agent.name, item['sku'], count, item['name'], 'farm_seed' if item['kind']=='seed' else 'farm_supply', Decimal(item['price']), key)
             result['item_id'] = stock.pk
-        if slot_id != 'feed': item['remaining_quantity'] -= count
+        if slot_id not in constant_ids: item['remaining_quantity'] -= count
         batch.slots, batch.purchase_keys = slots, [*batch.purchase_keys, key]
         batch.save(update_fields=['slots','purchase_keys','updated_at'])
         result.update(name=item['name'], quantity=count, total=str(amount), unit_price=item['price'], batch_id=batch.pk, slot_id=slot_id)
@@ -124,7 +126,7 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         if kind == 'sell' and not item.source.get('sku','').startswith(('crop.','product.','dish.')):
             raise ValueError('商店仅回收农作物、畜产品及美食')
         payload = split_item(item, count)
-        result.update(name=payload['name'], quantity=count)
+        result.update(name=payload['name'], quantity=count, stars=payload['source'].get('stars'))
         if kind == 'sell':
             lots = payload['source'].get('lots')
             amount = sum((Decimal(l['price'])*l['quantity'] for l in lots), Decimal(0)) if lots else Decimal(payload['value'])*count
@@ -153,7 +155,7 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
             result['item_id'] = deliver(owner, agent, payload, key).pk
             listing.item, listing.remaining_quantity = remaining, remaining['quantity']
             if not listing.remaining_quantity: listing.status = 'sold'
-            result.update(name=payload['name'], quantity=count, total=str(amount), unit_price=str(listing.unit_price), seller_id=seller.pk, seller_balance=str(seller.money))
+            result.update(name=payload['name'], quantity=count, stars=payload['source'].get('stars'), total=str(amount), unit_price=str(listing.unit_price), seller_id=seller.pk, seller_balance=str(seller.money))
             deltas.extend([{'actor_id':agent.pk,'amount':str(-amount)}, {'actor_id':seller.pk,'amount':str(amount)}])
         else:
             if listing.seller_id != agent.pk: raise ValueError('只能修改自己的挂牌')

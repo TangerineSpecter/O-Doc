@@ -19,6 +19,7 @@ class MarketBatch(models.Model):
     starts_at = models.DateTimeField()
     expires_at = models.DateTimeField()
     slots = models.JSONField(default=list)
+    supplies = models.JSONField(default=list)
     feed_price = models.DecimalField(max_digits=12, decimal_places=2)
     purchase_keys = models.JSONField(default=list)
     updated_at = models.DateTimeField(auto_now=True)

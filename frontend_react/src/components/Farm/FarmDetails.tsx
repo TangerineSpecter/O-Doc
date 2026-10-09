@@ -36,6 +36,7 @@ export function FarmDetails({
 
     return (
         <div className="space-y-3">
+            <div className="rounded-xl border border-lime-200 bg-lime-50 p-3 text-xs text-lime-900">种植 Lv.{farm.planting?.level || 1} · {farm.planting?.experience || 0} 经验<div className="mt-2 h-1 rounded-full bg-lime-100"><div className="h-full rounded-full bg-lime-500" style={{width: `${(farm.planting?.progress || 0) * 100}%`}}/></div></div>
             {/* 职业产量加成 */}
             <FarmBonus farm={farm} />
 
@@ -188,6 +189,7 @@ export function FarmDetails({
                 )}
             </div>
 
+            {plot?.crop?.qualityVersion === 1 && <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600"><p>播种等级 Lv.{plot.crop.plantingLevel} · {plot.crop.fertilizer?.name || '未施肥'} · 整轮自动保湿</p>{plot.crop.result ? <p className="mt-1 font-semibold text-amber-700">★{plot.crop.result.stars} · {plot.crop.result.eventName}</p> : <p className="mt-1">{plot.crop.starProbabilities?.map((p, i) => `${i + 1}星 ${(p * 100).toFixed(1)}%`).join(' · ')}</p>}</div>}
             {/* 耕地地块快速点选 */}
             <div>
                 <div className="flex items-center justify-between text-xs">

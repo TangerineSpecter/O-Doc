@@ -1,10 +1,11 @@
 import {useEffect, useState, useMemo} from 'react';
-import {Package, Sprout, Clock, Wheat} from 'lucide-react';
+import {Package, Sprout, Clock} from 'lucide-react';
 import type {MarketShop as Shop, MarketTransaction} from '../../types/api/market';
 import {ItemIconImage} from '../AgentWorld/ItemIconImage';
 import {farmItemIcon} from '../Farm/assets';
 import {marketMoney} from './marketPresentation';
 import {getSkuKnowledge} from './marketMetadata';
+import {MarketSupplies} from './MarketSupplies';
 import {MarketDetailSidebar} from './MarketDetailSidebar';
 
 interface MarketShopProps {
@@ -36,6 +37,7 @@ export function MarketShop({shop, recentTransactions = []}: MarketShopProps) {
     }, [shop.slots, filterCategory]);
 
     // 当前选中的商品数据
+    const selectedSupply = shop.supplies?.find(s => s.id === selectedSlotId);
     const isSelectedFeed = selectedSlotId === 'feed';
     const currentSelectedSlot = useMemo(() => {
         if (isSelectedFeed) return null;
@@ -183,49 +185,8 @@ export function MarketShop({shop, recentTransactions = []}: MarketShopProps) {
                     </div>
                 </div>
 
-                {/* 3. 常驻农资专柜卡片 (shrink-0 固定吸附在底部，永远不被遮挡或滚出) */}
-                <div className="shrink-0 pt-2">
-                    <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setSelectedSlotId('feed')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedSlotId('feed')}
-                        className={`group relative flex flex-wrap items-center justify-between gap-2.5 rounded-xl border px-3 py-2 transition-all duration-150 cursor-pointer outline-none ${
-                            isSelectedFeed
-                                ? 'border-amber-400 bg-amber-50/50 shadow-xs ring-2 ring-amber-500/20'
-                                : 'border-amber-200/80 bg-gradient-to-r from-amber-50/40 via-white to-amber-50/20 hover:border-amber-300 hover:shadow-2xs'
-                        }`}
-                    >
-                        <div className="flex items-center gap-2.5">
-                            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-100/70 p-1 shadow-inner group-hover:scale-105 transition-transform">
-                                <ItemIconImage
-                                    src={farmItemIcon('feed')}
-                                    alt="饲料"
-                                    className="h-6 w-6"
-                                    fallback={<Wheat className="h-5 w-5 text-amber-600" />}
-                                />
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-bold text-slate-800">🌾 农资常驻供销处 · 基础饲料</span>
-                                    <span className="rounded-full bg-amber-100 px-1.5 py-0.2 text-[9px] font-bold text-amber-800 border border-amber-200">
-                                        不限购 · 持续稳定供应
-                                    </span>
-                                </div>
-                                <p className="text-[10px] text-slate-500 leading-tight">
-                                    牲畜维持生命产出的刚需口粮，不占用上方随机轮换货架。
-                                </p>
-                            </div>
-                        </div>
+                <MarketSupplies shop={shop} selectedId={selectedSlotId} onSelect={setSelectedSlotId}/>
 
-                        <div className="flex items-baseline gap-0.5 text-right sm:shrink-0">
-                            <span className="text-sm font-extrabold text-amber-700 tabular-nums">
-                                {marketMoney(shop.feed.price)}
-                            </span>
-                            <span className="text-[10px] text-amber-600/80 font-medium">世界币 / 份</span>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             {/* 右侧：黄金情报站与选品物语 */}
@@ -233,6 +194,7 @@ export function MarketShop({shop, recentTransactions = []}: MarketShopProps) {
                 <MarketDetailSidebar
                     type="shop-slot"
                     shopSlot={currentSelectedSlot}
+                    supply={selectedSupply}
                     isFeed={isSelectedFeed}
                     feedPrice={shop.feed.price}
                     recentTransactions={recentTransactions}

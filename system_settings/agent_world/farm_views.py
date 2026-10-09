@@ -12,6 +12,7 @@ from .farm_models import AgentFarm, FarmCatalog
 from .farm_catalog import DEFAULT_RULES, normalized_rules, validate_crop_rule, validate_rules
 from .farm_clock import weather, advance_state, wet_intervals
 from .farm_gate import farm_gate
+from .farm_quality import skill_progress, probabilities
 from .farm_runner import farm_inventory
 from .item_catalog_icons import validate_catalog_icon_assets
 
@@ -23,7 +24,9 @@ def present(farm):
     # GET 只推导展示状态；生产品质采用确定性抽取，业务库存仍仅在事务中领取。
     advance_state(state, catalog.seed, now.timestamp())
     for plot in state['plots']:
-        plot['wet'] = bool(wet_intervals(catalog.seed, now.timestamp(), now.timestamp() + .001, plot['watered_until']))
+        if plot.get('crop') and plot['crop'].get('quality_version') == 1:
+            plot['crop']['star_probabilities'] = probabilities(plot['crop']['planting_level'], (plot['crop'].get('fertilizer') or {}).get('quality_bonus', 0))
+        plot['wet'] = bool(plot.get('crop') and plot['crop'].get('quality_version') == 1) or bool(wet_intervals(catalog.seed, now.timestamp(), now.timestamp() + .001, plot['watered_until']))
     agent = Agent.objects.select_related('profession').filter(pk=farm.pk).first()
     from .farm_bonus import yield_bonus
     current = WorldAction.objects.filter(actor_id=farm.pk, snapshot__farm=True, status='claimed').order_by('-created_at').first()
@@ -31,10 +34,11 @@ def present(farm):
     return {'id': farm.pk, 'actor_name': agent.name if agent else farm.actor_name, 'appearance': farm.appearance,
         'balance': str(agent.money) if agent else None, 'revision': farm.revision, 'server_time': now,
         'weather': weather(catalog.seed, now.timestamp()), 'hour': now.astimezone(__import__('zoneinfo').ZoneInfo('Asia/Shanghai')).hour,
+        'planting': skill_progress(state.get('planting_experience', 0)),
         'state': state, 'farm_bonus': yield_bonus(agent), 'current_action': activity.current_action if activity else current.record.summary if current and current.record else None,
         'avatar': agent.avatar if agent else '',
         'profession_name': agent.profession.name if (agent and agent.profession) else None,
-        'inventory': [{'id': i.pk, 'name': i.name, 'quantity': i.quantity, 'value': str(i.value), 'sku': i.source.get('sku', ''), 'quality': i.source.get('quality', 'normal')} for i in farm_inventory(farm)]}
+        'inventory': [{'id': i.pk, 'name': i.name, 'quantity': i.quantity, 'value': str(i.value), 'sku': i.source.get('sku', ''), 'stars': i.source.get('stars', 1) if i.source.get('sku', '').startswith('crop.') else None, 'quality': i.source.get('quality', 'normal')} for i in farm_inventory(farm)]}
 
 
 class FarmListView(APIView):

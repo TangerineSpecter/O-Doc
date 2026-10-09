@@ -104,7 +104,7 @@ def run_market_opportunity(task: AgentTask, scheduler=None, *, key=None, manual=
             from .life_scope import enrich
             context=enrich(context)
             prompt = build_agent_system_prompt(f'当前 Agent：{agent.name}\n{agent.prompt}',conversation=False)
-            prompt += '\n你获得一次逛市场机会。先结合真实余额、农场需求与挂牌决定进入或不去；不去直接说明。进入固定消耗5体力，交易不另扣体力。按工具返回的真实行情自主买卖，不必花光钱。购买前检查spending.spendable及slots_remaining；预算为0或不足时先调用adjust_life_budget，预算调整成功后再买。每次交易按返回的实时额度决定下一笔，不使用旧余额。采购被拦截时应调整预算、减少数量或离场，不能在条件未变化时重复尝试；额度用尽不能继续买新商品格，饲料不占格。你可以上架、改价、撤单。操作使用唯一request_id，重试复用。完成后调用leave_market，不可声称未成交的操作成功。最多5分钟20次市场调用。'
+            prompt += '\n你获得一次逛市场机会。先结合真实余额、农场需求与挂牌决定进入或不去；不去直接说明。进入固定消耗5体力，交易不另扣体力。按工具返回的真实行情自主买卖，不必花光钱。购买前检查spending.spendable及slots_remaining；预算为0或不足时先调用adjust_life_budget，预算调整成功后再买。每次交易按返回的实时额度决定下一笔，不使用旧余额。采购被拦截时应调整预算、减少数量或离场，不能在条件未变化时重复尝试；额度用尽不能继续买新商品格，饲料和两种肥料均为常驻供给、不占格。肥料每小时随机报价：根据当前报价、以往实际成交、库存采购成本和种植预期收益自行判断价格是否合适，可以备货或等待下一次机会，不保证下次降价。高星农作物可自主溢价挂牌，也可按批次价格立即回收；挂牌溢价未成交不算收入。你可以上架、改价、撤单。操作使用唯一request_id，重试复用。完成后调用leave_market，不可声称未成交的操作成功。最多5分钟20次市场调用。'
             phase = '模型市场决策'
             progress(record, phase)
             summary = AIService.chat_completion_messages_with_tools(

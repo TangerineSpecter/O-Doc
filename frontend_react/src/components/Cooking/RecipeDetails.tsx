@@ -356,8 +356,8 @@ export function RecipeDetails({
                                     <span>加工差额</span>
                                 </div>
                                 <div className="mt-1 flex items-baseline gap-1">
-                                    <span className="text-base font-bold text-emerald-600">
-                                        +{recipe.processingGain}
+                                    <span className={`text-base font-bold ${Number(recipe.processingGain) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                        {Number(recipe.processingGain) > 0 ? '+' : ''}{recipe.processingGain}
                                     </span>
                                 </div>
                                 <p className="mt-0.5 text-[10px] text-slate-400">

@@ -34,7 +34,7 @@ def candidates(farm, money):
         if ids:
             del remaining[:len(ids)]
             add({'kind': 'plant', 'crop': kind, 'targets': ids}, f'种植{rule["name"]}')
-    growing = [p['id'] for p in state['plots'] if p['crop'] and p['crop']['grown'] < p['crop']['rules']['growth_seconds'] and p['watered_until'] < timezone.now().timestamp()+43200]
+    growing = [p['id'] for p in state['plots'] if p['crop'] and p['crop']['grown'] < p['crop']['rules']['growth_seconds'] and p['crop'].get('quality_version') != 1 and p['watered_until'] < timezone.now().timestamp()+43200]
     ripe = [p['id'] for p in state['plots'] if p['crop'] and p['crop']['grown'] >= p['crop']['rules']['growth_seconds']]
     for ids, kind in ((growing, 'water'), (ripe, 'harvest')):
         for offset in range(0, len(ids), 4):
@@ -66,17 +66,23 @@ def farm_inventory(farm):
 
 def decide(task, agent, farm, options):
     # 同步审计链与库存批次不属于决策输入，不能随经营历史扩大模型上下文。
-    state = {field: farm.state[field] for field in ('plots', 'buildings', 'animals')}
+    from .market_visibility import visible_farm_state
+    state = visible_farm_state(farm.state)
     context = {'balance': str(agent.money), 'stamina': str(stamina(agent)), 'farm': state,
-               'inventory': [{'name': i.name, 'quantity': i.quantity} for i in farm_inventory(farm)], 'candidates': options}
+               'inventory': [{'name': i.name, 'quantity': i.quantity, 'sku': i.source.get('sku'), 'stars': i.source.get('stars'), 'value': str(i.value)} for i in farm_inventory(farm)], 'candidates': options}
     from .farm_bonus import yield_bonus
     context['farm_bonus'] = yield_bonus(agent)
+    from .farm_economics import planting_context
+    from .market_shop import shop_payload
+    shop = shop_payload(farm.owner_id)
+    context['planting'] = planting_context(farm, catalog_for(farm.owner_id).rules, shop['supplies'], context['farm_bonus'], shop['expires_at'])
     context['yield_remainders'] = farm.state.get('yield_remainders', {})
     context['spending'] = spending_context(agent)
     from .life_scope import enrich
     context=enrich(context)
     prompt = build_agent_system_prompt(f'当前 Agent：{agent.name}\n{agent.prompt}', conversation=False)
     prompt += '\n你在经营自己的农场。按兴趣选择最多六个不同候选，按顺序执行，允许休息。优先考虑照料、收获及资金；不必花光余额。需要调整生活预留时可增加 budget_allocations=[{"id":"安排ID","budget":"总预算"}] 和 budget_reason。仅输出 JSON {"choices":["候选ID"],"reason":"简短理由"}，休息时 choices=[]。'
+    prompt += '\n按当前阶段选择操作，最多remaining_operations项，不得选择目标冲突的播种或施肥方案。施肥是可选投入，应比较实际报价、库存成本和预期净收益；可以为精品或未来挂牌投入，但不保证溢价成交。'
     prompt += '\n每个候选的cost是本次实际费用，扩地按当前地块阶段收费，不能沿用首次价格。所选候选cost之和不得超过spending.spendable；余额不等于本次可用预算。预算调整必须覆盖整份计划且保留后续预留；不足时优先选择免费种植、照料或收获，不可假定尚未发生的收入。'
     messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(context, ensure_ascii=False)+'\n补充经营偏好：'+task.prompt}]
     for attempt in range(2):
@@ -84,10 +90,14 @@ def decide(task, agent, farm, options):
         try:
             value = json.loads(output.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
             choices = value['choices']
-            if not isinstance(choices, list) or len(choices) > 6 or any(not isinstance(i, str) or i not in {o['id'] for o in options} for i in choices) or len(set(choices)) != len(choices):
+            if not isinstance(choices, list) or len(choices) > (options[0].get('remaining_operations', 6) if options else 6) or any(not isinstance(i, str) or i not in {o['id'] for o in options} for i in choices) or len(set(choices)) != len(choices):
                 raise ValueError('经营候选无效')
             if not isinstance(value.get('reason'), str) or not value['reason'].strip() or len(value['reason']) > 500:
                 raise ValueError('经营理由无效')
+            from .farm_plan import validate_resources
+            validate_resources(farm, [options[int(i)]['operation'] for i in choices])
+            if len(choices) * 2 > stamina(agent):
+                raise ValueError('整份阶段计划的体力不足，每项需要两点体力')
             validate_plan_budget(agent, options, value)
             return value
         except (ValueError, TypeError, KeyError) as exc:
@@ -154,23 +164,34 @@ def run_farm_opportunity(task, scheduler=None, *, key=None, manual=False, locked
                 progress(record, phase)
                 farm = advance_farm(agent.pk)
                 update_work_activity(record, agent, status='running', current_action='正在决定农场经营')
-                options = candidates(farm, agent.money)
-                phase = '模型选择经营计划'
-                progress(record, phase)
-                decision = decide(task, agent, farm, options) if options else {'choices': [], 'reason': '暂时没有可执行的经营操作'}
-                if decision.get('budget_allocations'):
-                    from .life_budget import budget_tool
-                    budget_tool({'allocations':decision['budget_allocations'],'reason':decision.get('budget_reason')})
-                selected = [options[int(i)]['operation'] for i in decision['choices']]
-                action.snapshot = {'farm': True, 'plan': selected, 'reason': decision['reason']}
-                action.save(update_fields=['snapshot', 'updated_at'])
-                for index, operation in enumerate(selected):
-                    phase = LABELS[operation['kind']]
-                    progress(record, phase, f'第 {index + 1}/{len(selected)} 项经营操作')
-                    update_work_activity(record, agent, status='running', current_action=phase)
-                    commit_operation(agent.pk, key, index, operation, decision['reason'], task, token, locked)
-                action.status = 'success' if selected else 'skipped'
-                action.result = {'reason': decision['reason']}
+                from .farm_plan import stage_options
+                reasons, all_selected = [], []
+                for stage in ('manage', 'plant', 'fertilize'):
+                    remaining = 6 - len(all_selected)
+                    if not remaining:
+                        break
+                    farm = advance_farm(agent.pk)
+                    options = stage_options(farm, candidates(farm, agent.money), stage, remaining)
+                    if not options:
+                        continue
+                    phase = '模型选择经营计划：' + stage
+                    progress(record, phase)
+                    decision = decide(task, agent, farm, options)
+                    if decision.get('budget_allocations'):
+                        from .life_budget import budget_tool
+                        budget_tool({'allocations': decision['budget_allocations'], 'reason': decision.get('budget_reason')})
+                    selected = [options[int(i)]['operation'] for i in decision['choices']]
+                    reasons.append(decision['reason'])
+                    action.snapshot = {'farm': True, 'plan': [*all_selected, *selected], 'reason': '；'.join(reasons), 'stage': stage}
+                    action.save(update_fields=['snapshot', 'updated_at'])
+                    for operation in selected:
+                        phase = LABELS[operation['kind']]
+                        progress(record, phase, f'第 {len(all_selected) + 1}/6 项经营操作')
+                        update_work_activity(record, agent, status='running', current_action=phase)
+                        commit_operation(agent.pk, key, len(all_selected), operation, decision['reason'], task, token, locked)
+                        all_selected.append(operation)
+                action.status = 'success' if all_selected else 'skipped'
+                action.result = {'reason': '；'.join(reasons) or '暂时没有可执行的经营操作'}
         action.save()
     except Exception as exc:
         logger.exception('农场机会执行失败 action=%s', key)

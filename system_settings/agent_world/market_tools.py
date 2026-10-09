@@ -26,7 +26,7 @@ MARKET_TOOLS = [
     schema('get_my_market_transactions', '查看自己的市场成交与操作记录。', {'page':N}),
     schema('get_market_context', '查看自己的余额、背包、农场需求与建筑容量。'),
     schema('enter_market', '进入市场一次扣5体力，最多5分钟20次调用。不想逛市场时无需进入。', {'request_id':S}, ['request_id']),
-    schema('buy_market_shop', '购买系统商品。slot_id为商品位ID或feed，必须提供本小时batch_id。', {**WRITE,'batch_id':S,'slot_id':S,'quantity':N}, ['request_id','batch_id','slot_id','quantity']),
+    schema('buy_market_shop', '购买系统商品。slot_id为商品位ID、feed或fertilizer.quality/fertilizer.yield，必须提供本小时batch_id。', {**WRITE,'batch_id':S,'slot_id':S,'quantity':N}, ['request_id','batch_id','slot_id','quantity']),
     schema('buy_market_listing', '购买其他居民挂牌，使用查询时的version，报价变化时需重查。', {**WRITE,'listing_id':S,'version':N,'quantity':N}, ['request_id','listing_id','version','quantity']),
     schema('sell_to_market_shop', '将自己背包中的农作物、畜产品或美食按已有批次回收价出售。', {**WRITE,'item_id':S,'quantity':N}, ['request_id','item_id','quantity']),
     schema('create_market_listing', '自主定价上架农作物、畜产品、美食或纪念品，数量立即转入托管。', {**WRITE,'item_id':S,'quantity':N,'unit_price':S}, ['request_id','item_id','quantity','unit_price']),

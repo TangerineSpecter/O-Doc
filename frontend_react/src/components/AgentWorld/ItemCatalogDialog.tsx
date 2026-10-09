@@ -36,6 +36,7 @@ const categoryDefs: {value: 'all' | ItemCategory; label: string}[] = [
     {value: 'all', label: '全部'},
     {value: 'souvenir', label: '纪念品'},
     {value: 'seed', label: '种子'},
+    {value: 'fertilizer', label: '肥料'},
     {value: 'feed', label: '饲料'},
     {value: 'crop', label: '农作物'},
     {value: 'animal_product', label: '畜产品'},
@@ -481,7 +482,7 @@ export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
                                                         <span>购买单价</span>
                                                     </div>
                                                     <span className="mt-0.5 text-xs font-semibold text-slate-800">
-                                                        {selected.purchasePrice !== null ? `${selected.purchasePrice} 世界币` : '暂不可购'}
+                                                        {selected.purchasePrice !== null ? `${selected.purchasePrice} 世界币` : selected.category === 'fertilizer' ? '以商店当前报价为准' : '暂不可购'}
                                                     </span>
                                                 </div>
                                             )}
@@ -494,11 +495,12 @@ export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
                                                         <span>购买单价</span>
                                                     </div>
                                                     <span className="text-xs font-medium text-slate-600">
-                                                        {selected.purchasePrice !== null ? `${selected.purchasePrice} 世界币` : '暂不可购'}
+                                                        {selected.purchasePrice !== null ? `${selected.purchasePrice} 世界币` : selected.category === 'fertilizer' ? '以商店当前报价为准' : '暂不可购'}
                                                     </span>
                                                 </div>
                                             )}
 
+                                            {selected.starQuantities && <p className="text-xs text-amber-700">{Object.entries(selected.starQuantities).map(([s, n]) => `${s}星 ×${n} · 参考${selected.starValues?.[s] || 0}币`).join(' / ')}</p>}
                                             {selected.salePrice !== null && (
                                                 <div className="col-span-2 flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 px-2.5 py-1.5">
                                                     <div className="flex items-center gap-1.5 text-[11px] text-slate-500">

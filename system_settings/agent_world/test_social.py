@@ -40,6 +40,48 @@ class SocialTests(TestCase):
         return SocialOpportunity.objects.create(id=stable_id('op', str(SocialOpportunity.objects.count())), owner_id=self.owner,
             actor_id=self.agent.pk, business_date=local_time().date(), kind=kind, snapshot=self.config.settings)
 
+    def test_daily_opportunity_can_rest_without_publishing(self):
+        op = self.op('daily')
+        before = Moment.objects.count()
+        with patch('system_settings.agent_world.life_planner.ask', return_value={
+                'action': 'rest', 'reason': '现在没有什么想分享的'}), \
+                patch('system_settings.agent_world.social_runner.local_time', return_value=local_time().replace(hour=12)):
+            run(op, self.agent)
+        op.refresh_from_db()
+        self.assertEqual(op.status, 'completed', op.result)
+        self.assertEqual(Moment.objects.count(), before)
+        self.assertEqual(WorldAction.objects.get(pk=op.pk).energy_cost, 0)
+
+    def test_short_share_uses_dated_background_and_preserves_evidence(self):
+        self.moment.created_at = timezone.now() - timedelta(days=1)
+        self.moment.save()
+        peer = publish(self.owner, f'agent-id:{self.other.pk}', {'name': self.other.name}, '旧话题')
+        from system_settings.models import AgentRunRecord
+        record = AgentRunRecord.objects.create(agent=self.agent, task_name='阅读', status='success', summary='读了一条帖子')
+        previous = self.op()
+        previous.status = 'completed'
+        previous.result = {'action': 'reply', 'content': '原来的回复', 'reason': '内部决策理由'}
+        previous.save()
+        op = self.op('daily')
+        with patch('system_settings.agent_world.life_planner.ask', return_value={
+                'action': 'publish', 'reason': '想随口问问', 'content': '你们更喜欢哪种做法？', 'image_choice': 'none'}) as model, \
+                patch('system_settings.agent_world.social_runner.local_time', return_value=local_time().replace(hour=12)):
+            run(op, self.agent)
+        op.refresh_from_db()
+        self.assertEqual(op.status, 'completed', op.result)
+        row = Moment.objects.get(pk=op.result['moment_id'])
+        self.assertEqual(row.content, '你们更喜欢哪种做法？')
+        self.assertTrue(any(item['id'] == record.pk for item in row.evidence))
+        context = model.call_args.args[2]
+        self.assertIn('now', context)
+        self.assertEqual(context['moments'][0]['id'], peer.pk)
+        self.assertIn('created_at', context['moments'][0])
+        self.assertNotIn('upcoming', context['life'])
+        history = context['life']['recent_social'][0]
+        self.assertEqual(history['content_excerpt'], '原来的回复')
+        self.assertNotIn('result', history)
+        self.assertNotIn('reason', history)
+
     def test_generate_without_prompt_preserves_text_and_records_failure(self):
         self.config.settings.update(image_enabled=True, daily_moments=2)
         self.config.save()

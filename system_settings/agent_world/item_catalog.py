@@ -26,11 +26,16 @@ def item_catalog(owner: str) -> list[dict]:
                             icon_url=f'/api/resource/view/{asset_id}' if asset_id in icon_assets else '')
 
     add('feed', '饲料', 'feed', '每份为一只动物补足最多 24 小时的喂养覆盖，缺饲料时暂停生产。', rules['feed_price'])
+    for kind, fertilizer in rules['fertilizers'].items():
+        add('fertilizer.' + kind, fertilizer['name'], 'fertilizer', '每块地每轮最多一份；常驻供应，当前价格以商店实际报价为准。')
     for kind, crop in rules['crops'].items():
         hours = crop['growth_seconds'] / 3600
         add(f'seed.{kind}', crop['name'] + '种子', 'seed',
-            f"每块地播种一份；有效生长 {hours:g} 小时，收获 {crop['yield']} 个{crop['name']}。缺水暂停生长。", crop['seed_price'])
-        add(f'crop.{kind}', crop['name'], 'crop', '成熟后由居民收获，可出售给世界商店。', sale=crop['sale_price'])
+            f"每块地播种一份；有效生长 {hours:g} 小时，收获 {crop['yield']} 个{crop['name']}。播种包含整轮基础浇水。", crop['seed_price'])
+        add(f'crop.{kind}', crop['name'], 'crop', '成熟后由居民收获，可回收或按星级溢价挂牌。', sale=crop['sale_price'])
+        from .farm_quality import unit_value
+        entries[f'crop.{kind}']['star_quantities'] = {str(s): 0 for s in range(1, 6)}
+        entries[f'crop.{kind}']['star_values'] = {str(s): unit_value(crop['sale_price'], s) for s in range(1, 6)}
     for kind, animal in rules['animals'].items():
         for quality in ('normal', 'gold'):
             gold = quality == 'gold'
@@ -52,6 +57,12 @@ def item_catalog(owner: str) -> list[dict]:
         sku = source.get('sku', '')
         if sku in entries:
             entries[sku]['quantity'] += row['quantity']
+            if sku.startswith('crop.'):
+                from .farm_quality import unit_value
+                stars = source.get('stars', 1)
+                counts = entries[sku].setdefault('star_quantities', {str(s): 0 for s in range(1, 6)})
+                counts[str(stars)] += row['quantity']
+                entries[sku]['star_values'] = {str(s): unit_value(entries[sku]['sale_price'], s) for s in range(1, 6)}
             continue
         # 无稳定 SKU 的旅行纪念品按名称、品质及目的地归类，避免把不同旅行物品合并。
         destination = source.get('destination') or {}

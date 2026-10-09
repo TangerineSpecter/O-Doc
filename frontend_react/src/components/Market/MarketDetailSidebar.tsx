@@ -1,13 +1,14 @@
 import {Clock, Coins, Sparkles, Building2, TrendingUp, Info, User, ArrowRight, ShieldCheck, Flame} from 'lucide-react';
-import type {MarketSlot, MarketListing, MarketTransaction} from '../../types/api/market';
+import type {MarketSlot, MarketListing, MarketTransaction, MarketSupply} from '../../types/api/market';
 import {ItemIconImage} from '../AgentWorld/ItemIconImage';
 import {farmItemIcon} from '../Farm/assets';
-import {getSkuKnowledge} from './marketMetadata';
+import {getSkuKnowledge, getSupplyKnowledge} from './marketMetadata';
 import {marketMoney, marketTime, marketOperationLabels} from './marketPresentation';
 
 export interface MarketSidebarProps {
     type: 'shop-slot' | 'listing' | 'empty';
     shopSlot?: MarketSlot | null;
+    supply?: MarketSupply | null;
     isFeed?: boolean;
     feedPrice?: string;
     listing?: MarketListing | null;
@@ -17,17 +18,18 @@ export interface MarketSidebarProps {
 export function MarketDetailSidebar({
     type,
     shopSlot,
+    supply,
     isFeed,
     feedPrice,
     listing,
     recentTransactions = [],
 }: MarketSidebarProps) {
-    // 1. 如果是商店的物品或者是饲料
+    // 常驻农资与随机商品共用详情卡，内容来自各自的经营档案。
     if (type === 'shop-slot' || isFeed) {
-        const sku = isFeed ? 'feed' : shopSlot?.sku || 'seed.radish';
-        const name = isFeed ? '常驻饲料' : shopSlot?.name || '未知商品';
-        const price = isFeed ? feedPrice || '5' : shopSlot?.price || '0';
-        const knowledge = getSkuKnowledge(sku, name);
+        const sku = supply?.sku || (isFeed ? 'feed' : shopSlot?.sku || 'seed.radish');
+        const name = sku === 'feed' ? '常驻饲料' : supply?.name || shopSlot?.name || '未知商品';
+        const price = supply?.price || (isFeed ? feedPrice || '5' : shopSlot?.price || '0');
+        const knowledge = supply ? getSupplyKnowledge(supply) : getSkuKnowledge(sku, name);
         const iconSrc = farmItemIcon(sku);
 
         return (
@@ -44,7 +46,7 @@ export function MarketDetailSidebar({
                                 className="h-10 w-10 transition-transform duration-200 hover:scale-110"
                                 fallback={<Sparkles className="h-8 w-8 text-orange-400" />}
                             />
-                            {isFeed && (
+                            {(supply || isFeed) && (
                                 <span className="absolute -bottom-1 -right-1 rounded-full bg-amber-500 px-1 py-0.2 text-[9px] font-bold text-white shadow-xs">
                                     常驻
                                 </span>
@@ -83,6 +85,13 @@ export function MarketDetailSidebar({
                     </div>
 
                     <div className="mt-3 space-y-2.5">
+                        {knowledge.operatingFacts?.map(fact => {
+                            const Icon = {dose: Coins, timing: Clock, effect: Sparkles, rule: ShieldCheck, quote: Clock}[fact.kind];
+                            return <div key={fact.kind} className="flex items-start justify-between gap-3">
+                                <span className="flex shrink-0 items-center gap-1 text-slate-500"><Icon className="h-3 w-3 text-slate-400"/>{fact.label}</span>
+                                <span className={`text-right font-semibold ${fact.kind === 'effect' ? 'text-emerald-600' : 'text-slate-700'}`}>{fact.value}</span>
+                            </div>;
+                        })}
                         {knowledge.growthTimeText && (
                             <div className="flex items-center justify-between">
                                 <span className="flex items-center gap-1 text-slate-500">

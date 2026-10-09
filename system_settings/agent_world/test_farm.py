@@ -115,6 +115,9 @@ class FarmTests(TestCase):
         AgentExecutionLease.objects.create(agent=self.agent, token='a', until=self.now+timedelta(days=30))
         WorldActionRuntime.objects.create(pk='world', token='w', until=self.now+timedelta(days=30))
         self.counter = 0
+        quality_roll = patch('system_settings.agent_world.farm_quality.roll', return_value=.5)
+        quality_roll.start()
+        self.addCleanup(quality_roll.stop)
 
     def op(self, kind, *, at=None, key=None, **params):
         self.counter += 1
@@ -159,7 +162,8 @@ class FarmTests(TestCase):
                           rule['name']+'种子', 'seed', rule['seed_price'], 'market-'+kind)
                 self.assertIn('seed.'+kind, [p['sku'] for p in product_pool(catalog_for('admin').rules)])
                 self.op('plant', crop=kind, targets=['0'])
-                self.op('water', targets=['0'])
+                # New cycles include automatic watering.
+
                 catalog = FarmCatalog.objects.get(pk='admin')
                 catalog.rules['crops'][kind]['yield'] = 99
                 catalog.save()
@@ -198,6 +202,12 @@ class FarmTests(TestCase):
     def test_dry_pause_and_restart(self):
         self.op('buy_supply', sku='seed.radish', quantity=1)
         self.op('plant', crop='radish', targets=['0'])
+        # Simulate a pre-upgrade in-ground crop: its water rules remain unchanged.
+        farm = AgentFarm.objects.get(pk=self.agent.pk)
+        plot = farm.state['plots'][0]
+        plot['crop'] = {k: v for k, v in plot['crop'].items() if k in ('kind', 'grown', 'checked_at', 'planted_at', 'rules')}
+        plot['watered_until'] = 0
+        farm.save()
         with patch('system_settings.agent_world.farm_clock.weather', return_value='sun'):
             advance_farm(self.agent.pk, self.now+timedelta(hours=5))
             self.assertEqual(self.state()['plots'][0]['crop']['grown'], 0)

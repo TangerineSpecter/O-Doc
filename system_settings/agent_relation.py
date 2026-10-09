@@ -257,6 +257,12 @@ def relation_graph(owner_id=None, include_departed=False):
     if owner_id is not None:
         cooking_skills = cooking_skills.filter(owner_id=owner_id)
     cooking_experience = dict(cooking_skills.values_list('pk', 'experience'))
+    from .agent_world.farm_models import AgentFarm
+    from .agent_world.farm_quality import skill_progress as planting_progress
+    farms = AgentFarm.objects.all()
+    if owner_id:
+        farms = farms.filter(owner_id=owner_id)
+    planting_experience = {f.pk: f.state.get('planting_experience', 0) for f in farms}
     for agent in agents:
         snapshot = creativity.get(agent.id)
         nodes.append({
@@ -267,6 +273,7 @@ def relation_graph(owner_id=None, include_departed=False):
             'inventory_count': inventory_counts.get(agent.id, 0),
             'stamina': format(stamina(agent), '.1f'),
             'cooking': skill_progress(cooking_experience.get(agent.id, 0)),
+            'planting': planting_progress(planting_experience.get(agent.id, 0)),
             'profession_name': agent.profession.name if agent.profession else '',
             'creativity': snapshot.score if snapshot else 0,
             'post_count': snapshot.post_count if snapshot else 0,

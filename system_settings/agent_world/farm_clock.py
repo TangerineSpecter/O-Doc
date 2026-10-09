@@ -49,9 +49,12 @@ def advance_state(state: dict, seed: str, now: float) -> bool:
         start = crop['checked_at']
         if now <= start:
             continue
-        elapsed = sum(b-a for a, b in wet_intervals(seed, start, now, plot['watered_until']))
+        elapsed = now - start if crop.get('quality_version') == 1 else sum(b-a for a, b in wet_intervals(seed, start, now, plot['watered_until']))
         crop['grown'] = min(crop['rules']['growth_seconds'], crop['grown'] + elapsed)
         crop['checked_at'] = now
+        if crop.get('quality_version') == 1 and crop['grown'] >= crop['rules']['growth_seconds']:
+            from .farm_quality import crop_result
+            crop['result'] = crop_result(crop)
         changed = True
     for animal in state['animals']:
         cycle = animal['cycle']
