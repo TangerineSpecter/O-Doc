@@ -74,9 +74,32 @@
 .inventory-backpack-item:hover,.inventory-backpack-item[aria-pressed='true'] {outline:2px solid #ead8a0;outline-offset:2px;filter:brightness(1.15);z-index:1}
 .inventory-backpack-item:focus-visible {outline:3px solid #fff2c0;outline-offset:2px}
 .inventory-backpack-initial {font-family:'Songti SC','STSong',serif;font-size:clamp(19px,4cqi,28px);font-weight:700;color:var(--item-color);text-shadow:0 2px 3px #000c}
-.inventory-backpack-quantity {
+.inventory-backpack-stars {
     position: absolute;
     top: 2px;
+    left: 2px;
+    z-index: 4;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #fbbf24;
+    background: rgba(14, 25, 27, 0.9);
+    border: 1px solid rgba(245, 158, 11, 0.6);
+    border-radius: 999px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+    line-height: 1;
+    pointer-events: none;
+    letter-spacing: -0.2px;
+}
+.inventory-backpack-quantity {
+    position: absolute;
+    bottom: 2px;
     right: 2px;
     z-index: 5;
     min-width: 14px;

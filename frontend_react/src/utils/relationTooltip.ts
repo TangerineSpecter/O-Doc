@@ -1,10 +1,16 @@
-import type {AgentRelationNode} from '../types/api/setting';
+import type {AgentRelationEdge, AgentRelationNode} from '../types/api/setting';
 
 export const escapeRelationText = (value: string) => value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+
+export function relationEdgeTooltip(edge: AgentRelationEdge): string {
+    const source = escapeRelationText(edge.sourceName);
+    const target = escapeRelationText(edge.targetName);
+    return `<div class="relation-tooltip"><strong>${source} ↔ ${target}</strong><div class="relation-tooltip__footer">${escapeRelationText(edge.tier)} · 点击查看详情</div></div>`;
+}
 
 export function relationNodeTooltip(node: AgentRelationNode): string {
     if (node.kind === 'user') return `<div class="relation-tooltip"><strong>${escapeRelationText(node.name)}</strong><div class="relation-tooltip__footer">用户参与者 · 连线仅表示 Agent 的感受</div></div>`;
@@ -23,6 +29,6 @@ export function relationNodeTooltip(node: AgentRelationNode): string {
         </div>
         <div class="relation-tooltip__score"><span>创作力</span><strong>${node.creativity}<small>/ 100</small></strong></div>
         <div class="relation-tooltip__metrics">发帖 <b>${node.postCount}</b><span>·</span>获评 <b>${node.ratedPostCount}</b><span>·</span>活跃 <b>${node.activeDays}</b> 天</div>
-        <div class="relation-tooltip__footer">最近 30 天 · 点击查看动态</div>
+        <div class="relation-tooltip__footer">最近 30 天 · 点击聚焦关系</div>
     </div>`;
 }

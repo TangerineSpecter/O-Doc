@@ -1,5 +1,5 @@
 import {RecipeQualityPreview} from './RecipeQualityPreview';
-import {useRef, useState, useEffect} from 'react';
+import {useRef, useState, useEffect, useMemo} from 'react';
 import {
     ChefHat,
     ImagePlus,
@@ -23,6 +23,7 @@ import {setCatalogItemIcon} from '../../api/itemCatalog';
 import type {CookingRecipe, CookingHistory} from '../../types/api/cooking';
 import {recipeStateConfigs} from './recipePresentation';
 import {RecipeHistoryView} from './RecipeHistoryView';
+import {recipeStarPrices, recipeStarTiers} from './recipePricing';
 
 export interface RecipeDetailsProps {
     recipe: CookingRecipe;
@@ -58,6 +59,11 @@ export function RecipeDetails({
     }, [recipe.id]);
 
     const stateConfig = recipeStateConfigs[recipe.state] || recipeStateConfigs.unselected;
+
+    // 各星级回收单价：优先取品质预览计算的真实单价，若无则按官方倍率阶梯计算
+    const starPrices = useMemo(() => recipeStarPrices(
+        recipe.salePrice, recipe.qualityPreviews?.[0]?.portions?.[0]?.starValues,
+    ), [recipe.salePrice, recipe.qualityPreviews]);
 
     // 处理图片本地直接上传并绑定 SKU
     const handleFileUpload = async (file: File) => {
@@ -176,99 +182,136 @@ export function RecipeDetails({
                         </div>
                     )}
 
-                    {/* 头部大图橱窗与核心概览 */}
-                    <div className="relative flex flex-col sm:flex-row items-center gap-4 rounded-2xl border border-amber-100/60 bg-gradient-to-br from-amber-50/50 via-orange-50/20 to-white p-3.5">
-                        {/* 拖拽/点击上传大图框 */}
-                        <div
-                            role="button"
-                            tabIndex={0}
-                            aria-label="点击或拖入更换菜品图片"
-                            onClick={() => !uploadingImage && fileInputRef.current?.click()}
-                            onKeyDown={e => {
-                                if ((e.key === 'Enter' || e.key === ' ') && !uploadingImage) {
+                    {/* 头部大图橱窗与核心概览（包含上半部基本信息与下半部5星单价阶梯） */}
+                    <div className="relative flex flex-col rounded-2xl border border-amber-100/60 bg-gradient-to-br from-amber-50/50 via-orange-50/20 to-white p-3.5 shadow-2xs">
+                        {/* 上半部分：大图框 + 菜名/等级/单价区间 */}
+                        <div className="flex flex-col sm:flex-row items-center gap-4">
+                            {/* 拖拽/点击上传大图框 */}
+                            <div
+                                role="button"
+                                tabIndex={0}
+                                aria-label="点击或拖入更换菜品图片"
+                                onClick={() => !uploadingImage && fileInputRef.current?.click()}
+                                onKeyDown={e => {
+                                    if ((e.key === 'Enter' || e.key === ' ') && !uploadingImage) {
+                                        e.preventDefault();
+                                        fileInputRef.current?.click();
+                                    }
+                                }}
+                                onDragEnter={e => {
                                     e.preventDefault();
-                                    fileInputRef.current?.click();
-                                }
-                            }}
-                            onDragEnter={e => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                if (!uploadingImage) setIsDragging(true);
-                            }}
-                            onDragOver={e => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                if (!uploadingImage) setIsDragging(true);
-                            }}
-                            onDragLeave={e => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setIsDragging(false);
-                            }}
-                            onDrop={e => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setIsDragging(false);
-                                if (uploadingImage) return;
-                                const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('image/'));
-                                if (file) void handleFileUpload(file);
-                            }}
-                            className={`group/img relative flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border transition-all duration-200 outline-none select-none ${
-                                isDragging
-                                    ? 'border-2 border-dashed border-orange-500 bg-orange-100 scale-105 shadow-md ring-4 ring-orange-400/20'
-                                    : 'border-amber-200/60 bg-white shadow-2xs hover:border-orange-300 hover:shadow-xs'
-                            }`}
-                        >
-                            <ItemIconImage
-                                src={recipe.iconUrl}
-                                alt={recipe.name}
-                                className="h-full w-full object-cover rounded-2xl"
-                                fallback={<ChefHat className="h-9 w-9 text-orange-300" />}
-                            />
+                                    e.stopPropagation();
+                                    if (!uploadingImage) setIsDragging(true);
+                                }}
+                                onDragOver={e => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (!uploadingImage) setIsDragging(true);
+                                }}
+                                onDragLeave={e => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setIsDragging(false);
+                                }}
+                                onDrop={e => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setIsDragging(false);
+                                    if (uploadingImage) return;
+                                    const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('image/'));
+                                    if (file) void handleFileUpload(file);
+                                }}
+                                className={`group/img relative flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border transition-all duration-200 outline-none select-none ${
+                                    isDragging
+                                        ? 'border-2 border-dashed border-orange-500 bg-orange-100 scale-105 shadow-md ring-4 ring-orange-400/20'
+                                        : 'border-amber-200/60 bg-white shadow-2xs hover:border-orange-300 hover:shadow-xs'
+                                }`}
+                            >
+                                <ItemIconImage
+                                    src={recipe.iconUrl}
+                                    alt={recipe.name}
+                                    className="h-full w-full object-cover rounded-2xl"
+                                    fallback={<ChefHat className="h-9 w-9 text-orange-300" />}
+                                />
 
-                            {/* 悬停快捷更换浮层 */}
-                            {!isDragging && !uploadingImage && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity duration-150 group-hover/img:opacity-100 rounded-2xl text-white">
-                                    <Upload className="h-5 w-5 mb-0.5 text-white drop-shadow-xs" />
-                                    <span className="text-[9px] font-semibold tracking-tight">换图</span>
+                                {/* 悬停快捷更换浮层 */}
+                                {!isDragging && !uploadingImage && (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity duration-150 group-hover/img:opacity-100 rounded-2xl text-white">
+                                        <Upload className="h-5 w-5 mb-0.5 text-white drop-shadow-xs" />
+                                        <span className="text-[9px] font-semibold tracking-tight">换图</span>
+                                    </div>
+                                )}
+
+                                {uploadingImage && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-xs">
+                                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 菜名、单价区间与状态徽章 */}
+                            <div className="min-w-0 flex-1 text-center sm:text-left">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+                                    <h3 className="truncate text-lg font-bold text-slate-800">
+                                        {recipe.name}
+                                    </h3>
+                                    {/* 售价区间徽章 */}
+                                    <div
+                                        title="各星级品质回收单价区间（1星基础至5星2.2倍）"
+                                        className="inline-flex self-center sm:self-auto items-center gap-1.5 rounded-xl border border-amber-200/80 bg-amber-50/80 px-2.5 py-1 text-xs shadow-2xs"
+                                    >
+                                        <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-amber-100/90 text-amber-600">
+                                            <Coins className="h-3.5 w-3.5" />
+                                        </span>
+                                        <span className="text-[11px] font-medium text-slate-500">回收单价</span>
+                                        <span className="text-sm font-extrabold text-amber-800 tracking-tight leading-none">
+                                            {starPrices[0]} ~ {starPrices[4]}
+                                        </span>
+                                    </div>
                                 </div>
-                            )}
 
-                            {uploadingImage && (
-                                <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-xs">
-                                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
-                                </div>
-                            )}
-                        </div>
-
-                        {/* 菜名、单价与状态徽章 */}
-                        <div className="min-w-0 flex-1 text-center sm:text-left">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
-                                <h3 className="truncate text-lg font-bold text-slate-800">
-                                    {recipe.name}
-                                </h3>
-                                {/* 售价徽章 */}
-                                <div className="inline-flex self-center sm:self-auto items-center gap-1.5 rounded-xl border border-amber-200/80 bg-amber-50/80 px-2.5 py-1 text-xs shadow-2xs">
-                                    <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-amber-100/90 text-amber-600">
-                                        <Coins className="h-3.5 w-3.5" />
+                                <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
+                                    <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
+                                        要求厨艺 Lv.{recipe.requiredLevel}
                                     </span>
-                                    <span className="text-[11px] font-medium text-slate-500">一星回收单价</span>
-                                    <span className="text-sm font-extrabold text-amber-800 tracking-tight leading-none">
-                                        {recipe.salePrice}
+                                    <span
+                                        className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-semibold ${stateConfig.badgeClass}`}
+                                    >
+                                        <span className={`h-1.5 w-1.5 rounded-full ${stateConfig.dotClass}`} />
+                                        {stateConfig.label}
                                     </span>
                                 </div>
                             </div>
+                        </div>
 
-                            <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
-                                <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
-                                    要求厨艺 Lv.{recipe.requiredLevel}
+                        {/* 下半部分：5星回收单价阶梯 */}
+                        <div className="mt-3.5 border-t border-amber-100/80 pt-2.5">
+                            <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold text-amber-900">
+                                <span className="flex items-center gap-1">
+                                    <Sparkles className="h-3 w-3 text-amber-500" />
+                                    <span>各星级品质回收单价</span>
                                 </span>
-                                <span
-                                    className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-semibold ${stateConfig.badgeClass}`}
-                                >
-                                    <span className={`h-1.5 w-1.5 rounded-full ${stateConfig.dotClass}`} />
-                                    {stateConfig.label}
+                                <span className="text-[10px] font-normal text-amber-700/80">
+                                    基础 1.0x · 最高 2.2x
                                 </span>
+                            </div>
+                            <div className="grid grid-cols-5 gap-1.5">
+                                {recipeStarTiers.map((tier, idx) => (
+                                    <div
+                                        key={tier.star}
+                                        className="flex flex-col items-center justify-center rounded-xl border border-amber-100/90 bg-white/95 p-1.5 text-center shadow-2xs"
+                                    >
+                                        <span className="text-[10px] font-bold text-amber-700 leading-none">
+                                            ★{tier.star}
+                                        </span>
+                                        <span className="mt-1 text-xs font-extrabold text-amber-900 leading-none">
+                                            {starPrices[idx]}
+                                        </span>
+                                        <span className="mt-0.5 text-[9px] text-slate-400 leading-none">
+                                            {tier.rate}x
+                                        </span>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>

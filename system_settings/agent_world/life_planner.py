@@ -2,16 +2,14 @@
 import json
 from decimal import Decimal
 from django.db import transaction
-from django.utils import timezone
 from utils.ai_service import AIService
 from system_settings.agent_prompts import build_agent_system_prompt
 from .life_budget_policy import remaining_reservation, validate_activity_budget
 from .life_models import LifeItem, LifeGoal
-from .life_schedule import OPEN, SHANGHAI, revise, stable_id
+from .life_schedule import OPEN, revise
 from .life_context import build_context
 from .life_config import tasks_for
-from .life_budget import money, adjust_budget, future_allocations
-from .life_scope import life_scope
+from .life_budget import money, future_allocations
 from .farm_gate import guarded
 from .life_time import local_time
 
@@ -95,6 +93,8 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict) -> None
     from .travel_config import bound_skill
     available = {t.task_kind:t for t in tasks_for(owner) if t.enabled and t.task_kind != 'market' and (t.task_kind != 'travel' or bound_skill(agent,'odoc_travel_journal'))}
     expected = {r.pk:r for r in LifeItem.objects.select_for_update().filter(pk__in=[i.pk for i in items], actor_id=agent.pk, owner_id=owner, status__in=OPEN)}
+    if any(item.activity == 'market_prepare' for item in expected.values()):
+        raise ValueError('每日市场机会独立排程，不能改作普通生活活动')
     plans = proposal.get('plans')
     if not isinstance(plans, list) or any(not isinstance(p,dict) for p in plans) or {p.get('id') for p in plans} != set(expected) or len(plans) != len(expected):
         raise ValueError('规划必须为本次每个时间点指定且仅指定一次活动')
@@ -110,7 +110,7 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict) -> None
         budget = money(plan.get('budget','0'))
         if budget < item.spent:
             raise ValueError('预算小于已经支出')
-        if item.activity != 'market_prepare' and item.status == 'running':
+        if item.status == 'running':
             raise ValueError('不能覆盖正在执行的活动')
         needs_market=plan.get('needs_market',False)
         if type(needs_market) is not bool:raise ValueError('补给意向须为布尔值')
@@ -167,50 +167,6 @@ def check_goals(owner: str, agent) -> None:
         if reached:
             goal.status,goal.reason='completed','已按真实资金或活动事实核实完成'
             goal.save()
-
-
-def prepare_market(config, agent, scheduler):
-    from system_settings.models import WorldActionRuntime
-    from .execution import WorldLeaseBusy, defer_when_world_busy
-    today = local_time().date().isoformat()
-    identity = stable_id(config.pk, agent.pk, today, 'market-prepare')
-    if LifeItem.objects.filter(pk=identity).exists():
-        return
-    task = next((t for t in tasks_for(config.pk) if t.enabled and t.task_kind=='market'),None)
-    if not task:
-        return
-    # 采购要占世界执行位。锁已被占用时不写当天准备记录，下一轮再决定是否购买。
-    runtime = WorldActionRuntime.objects.filter(pk='world').only('token', 'until').first()
-    if runtime and runtime.token and runtime.until and runtime.until > timezone.now():
-        return
-    now = timezone.now()
-    item = LifeItem.objects.create(pk=identity,owner_id=config.pk,actor_id=agent.pk,original_at=now,scheduled_at=now,activity='market_prepare',task_id=task.pk,status='running')
-    try:
-        check_goals(config.pk,agent)
-        context = build_context(config.pk, agent)
-        decision = ask(agent, '先根据目标、现有库存与今天的行动机会决定是否逛市场及预算。返回 {"go":true,"budget":"0.00","reason":"原因"}。go=true且计划购买时必须为实际采购分配正数预算，不要以0预算开始采购；仅浏览不购买可填0。不要提前把采购视作完成。',context)
-        if type(decision.get('go')) is not bool:
-            raise ValueError('是否进入市场须为布尔值')
-        adjust_budget(config.pk,agent.pk,[{'id':item.pk,'budget':str(money(decision.get('budget','0')))}], str(decision.get('reason','市场准备')))
-        if decision['go']:
-            from .market_runner import run_market_opportunity
-            marker = defer_when_world_busy.set(True)
-            try:
-                with life_scope(item,build_context(config.pk,agent,item)):
-                    record=run_market_opportunity(task,scheduler,key=identity)
-            except WorldLeaseBusy:
-                item.delete()
-                return
-            finally:
-                defer_when_world_busy.reset(marker)
-            item.record_id=record.pk if record else ''
-            item.status='failed' if record and record.status=='failed' else 'completed'
-            item.result={'reason':record.summary if record else '居民忙碌，市场准备结束'}
-        else:
-            item.status='rest';item.result={'reason':str(decision.get('reason','不需要采购'))}
-    except Exception as exc:
-        item.status='failed';item.result={'reason':str(exc)[:500]}
-    item.save(update_fields=['status','result','record_id','updated_at'])
 
 
 def plan_items(config, agent, items: list[LifeItem]) -> None:

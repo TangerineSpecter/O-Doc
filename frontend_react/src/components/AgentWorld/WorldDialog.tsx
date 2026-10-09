@@ -9,6 +9,7 @@ import {WorldDialogContext} from './WorldDialogContext';
 export interface WorldDialogProps {
     title: string;
     description?: string;
+    titleAction?: ReactNode;
     onClose: () => void;
     children: ReactNode;
     size?: 'compact' | 'default' | 'wide' | 'extra-wide' | 'full';
@@ -19,6 +20,7 @@ export interface WorldDialogProps {
 function WorldDialogFrame({
     title,
     description,
+    titleAction,
     onClose,
     children,
     size = 'default',
@@ -128,7 +130,10 @@ function WorldDialogFrame({
             >
                 <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
                     <div>
-                        <h2 className="text-sm font-bold text-slate-900">{title}</h2>
+                        <div className="flex items-center gap-1.5">
+                            <h2 className="text-sm font-bold text-slate-900">{title}</h2>
+                            {titleAction}
+                        </div>
                         {description ? <p className="mt-0.5 text-[11px] text-slate-400">{description}</p> : null}
                     </div>
                     <button
@@ -148,9 +153,9 @@ function WorldDialogFrame({
     );
 }
 
-function LoadedDialogContent({title, description, size, fixedHeight, children}: WorldDialogProps) {
+function LoadedDialogContent({title, description, titleAction, size, fixedHeight, children}: WorldDialogProps) {
     const update = useContext(WorldDialogContext);
-    useEffect(() => {update?.update({title, description, size, fixedHeight});}, [update, title, description, size, fixedHeight]);
+    useEffect(() => {update?.update({title, description, titleAction, size, fixedHeight});}, [update, title, description, titleAction, size, fixedHeight]);
     return <WorldDialogContext.Provider value={null}><div className="world-dialog-content-enter flex min-h-0 min-w-0 w-full flex-1 flex-col">{children}</div></WorldDialogContext.Provider>;
 }
 

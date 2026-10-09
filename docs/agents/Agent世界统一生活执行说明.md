@@ -1,6 +1,6 @@
 # Agent 世界统一生活规划与执行
 
-更新时间：2026-09-30。本文描述统一生活入口的代码行为；数据库迁移、真实模型及双设备 WebDAV 接续分别验收。
+更新时间：2026-10-10。本文描述统一生活入口的代码行为；数据库迁移、真实模型及双设备 WebDAV 接续分别验收。
 
 ## 1. 入口与执行流程
 
@@ -13,8 +13,10 @@ flowchart TD
     A[开启或轮询] --> B[核对已有执行事实与遗留]
     B --> C[按生效周期分配居民和时间]
     C --> D[读取目标及真实资源]
-    D --> E[逐人决定市场准备]
-    E --> F[实际成交后固化活动及预算]
+    D --> F[按现有资源固化活动及预算]
+    C --> E[独立分散排程每日市场机会]
+    E --> M[市场到点后决定去不去及实际采购]
+    M --> I
     F --> G[到点复核资源与后续预留]
     G --> H[指定居民执行一次活动或工作流]
     H --> I[保存结果并核实目标]
@@ -74,7 +76,9 @@ flowchart LR
 
 ## 4. 市场与预算
 
-每日市场准备不占行动次数，同一居民同一天用稳定身份，重启不重复整套准备。市场会话仍允许自由买入、上架、出售、改价及主动离开，沿用调用数和时限。缺货后按照真实库存规划，中途补给使用原行动预算且刷新执行上下文。
+每位生效参与居民每天有一次独立逛市场机会，不占普通行动次数。在当天活动窗口内分段随机分散安排，时间写入生活日程；启动较晚时使用当天剩余时间。到点才读取最新行情、真实库存和后续预算，由居民决定进入或不去；不去、明确失败均结束当天机会。市场不再作为生活规划的前置步骤，规划先使用现有资源。市场执行器可说明原因调整采购预算，再按真实成交刷新资产。
+
+同一居民同一天沿用稳定身份，重启和同步恢复不重新抽时间，旧版当天已完成的市场准备也不会重复。世界执行位忙碌时保留机会；居民忙碌或体力不足可在当天顺延，超出窗口或持续不可执行则结束。暂停恢复只保留尚在当天窗口内的市场机会，过期机会不跨天积攒补跑。市场会话仍允许自由买入、上架、出售、改价及主动离开，沿用调用数和时限。旅行、农场等活动仍可在执行前按需补给，使用该活动原预算并刷新执行上下文；此类补给和手动执行不计作额外的每日自动逛市场机会。
 
 每小时新商店批次商品格数为生效参与人数 × 2。每位居民在一个批次内最多选两个商品格；重复 SKU 的不同格分别计额度，已选格可继续买剩余库存。跨会话由实际成交记录累计校验。饲料不占格额度但仍扣款，居民挂牌不受该格额度限制。人数变化不改写已经生成的批次；历史批次不变。
 
@@ -84,8 +88,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    A[读取目标、真实资产和后续承诺] --> B[决定市场准备与采购预算]
-    B --> C[按实际成交后的资源制定计划]
+    A[读取目标、真实资产和后续承诺] --> C[按现有资源制定计划]
     C --> D[保存每个安排的总预算]
     D --> E[执行时申请实际支出]
     E --> F{本次额度及其他预留是否足够}
@@ -105,12 +108,13 @@ flowchart TD
 | --- | --- |
 | `life_models`、`life_config` | 生活配置、资料、目标、周期、安排、调整及归属 |
 | `life_schedule`、`life_time` | 上海时间、分配、持久身份、暂停及恢复 |
-| `life_context`、`life_planner` | 有界真实上下文、市场准备、活动提议及目标检查 |
+| `life_context`、`life_planner` | 有界真实上下文、活动提议及目标检查 |
+| `life_market` | 每日市场机会独立排程、到点执行及当天恢复 |
 | `life_scope`、`life_runner`、`life_manual` | 指定居民、统一触发及兼容手动入口 |
 | `life_budget`、`life_travel_budget` | 实际支出保护及可解释重分配 |
 | `life_views`、`life_sync`、`life_snapshot` | 账号隔离接口、来源快照校验、合并指纹及恢复关联检查 |
 
-接口前缀 `/api/settings/agent-world/life/`：`config/`、`profiles/<actor>/`、`goals/`、`schedule/`、`schedule/<id>/`。日程支持日期范围、居民、状态和分页；操作支持暂停、恢复、取消与人工重规划。失败安排可在详情里重试：保留原活动并换新的执行键，避免撞上旧的失败机会记录；核对在途安排时按该执行键读取机会，而不是生活安排主键。也可以重新规划。已经过点的时间按原顺序顺延到活动窗口内下一个可执行空档。市场准备不能当生活次数重试；已有旅行行程请在旅行面板继续或取消。规划失败且尚未执行的安排仍可按居民批量重新排队。目标选项通过 `goals/?options=1` 获取。前端 API、类型、Hook 和展示组件独立组织，复用 `WorldDialog` 及公共 `Select`。
+接口前缀 `/api/settings/agent-world/life/`：`config/`、`profiles/<actor>/`、`goals/`、`schedule/`、`schedule/<id>/`。日程支持日期范围、居民、状态和分页；操作支持暂停、恢复、取消与人工重规划。失败安排可在详情里重试：保留原活动并换新的执行键，避免撞上旧的失败机会记录；核对在途安排时按该执行键读取机会，而不是生活安排主键。也可以重新规划。已经过点的时间按原顺序顺延到活动窗口内下一个可执行空档。每日市场机会不能当生活次数重试；已有旅行行程请在旅行面板继续或取消。规划失败且尚未执行的安排仍可按居民批量重新排队。目标选项通过 `goals/?options=1` 获取。前端 API、类型、Hook 和展示组件独立组织，复用 `WorldDialog` 及公共 `Select`。
 
 ## 6. 迁移和 WebDAV
 
@@ -151,7 +155,7 @@ flowchart TD
 回归命令：
 
 ```bash
-.venv/bin/python manage.py test system_settings.agent_world.test_life system_settings.agent_world.test_market system_settings.agent_world.test_farm system_settings.agent_world.test_travel system_settings.test_agent_world system_settings.agent_world.test_investment system_settings.agent_world.test_farm_bonus system_settings.tests.SyncManagerTests system_settings.test_agent_random_schedule --settings=book_analysis.test_settings --noinput
+.venv/bin/python manage.py test system_settings.agent_world.test_life_market_schedule system_settings.agent_world.test_life system_settings.agent_world.test_market system_settings.agent_world.test_farm system_settings.agent_world.test_travel system_settings.test_agent_world system_settings.agent_world.test_investment system_settings.agent_world.test_farm_bonus system_settings.tests.SyncManagerTests system_settings.test_agent_random_schedule --settings=book_analysis.test_settings --noinput
 cd frontend_react
 npm run type-check
 npm run build
@@ -164,7 +168,7 @@ npm run build
 | 一个入口统一分配，任务只提供能力 | 世界配置、周期及指定居民执行；自定义任务保留原调度 |
 | 公平分配机会，余数随机且不跨天补齐 | 周期内随机顺序轮转，时间及居民身份持久化 |
 | 能理解过去、现在、接下来的生活 | 共享角色、资源、有效目标、近期结果和后续安排上下文 |
-| 买到物资后规划，超预算可以调整 | 市场准备与实际资源刷新、说明原因后调整预留、实际扣款事务校验 |
+| 根据真实资源规划，超预算可以调整 | 先按现有库存规划，市场独立到点决策及活动执行前按需补给，说明原因后调整预留 |
 | 完成远期目标后不再反复规划 | 持久化目标状态，完成与放弃退出有效输入，历史保留 |
 | 重启不重抽、不重复消费、遗留优先 | 稳定安排身份、原业务事实接续、故障及暂停分别恢复 |
 | 日程和持久资料同步，本机授权不随同步开启 | 日程界面、来源及恢复校验、本机执行状态排除同步 |
@@ -184,3 +188,9 @@ npm run build
 纪念品仍为3～5种地方主题虚拟商品，单价采用路线费约1%～10%的既有10币步长范围。新生成候选在正常价格下限不高于可消费购物额度时，多数从正常价域与可承担价域的交集中抽取，留一个完整价域候选。额度低于正常下限时不强行降价。已有报价、参考价值、稀有度及购物决策不因恢复而重生成，Agent仍可选择空篮；不保证买多件的合计都能承担。
 
 购物节点重新读取实际生活剩余额度、其他安排预留、购物上限和余额，以最小值作为可消费金额，并要求按数量核算合计。界面旅行费用展示路线费，不把它称为含购物的总额。本轮仅复用已同步选择、商品报价及预算字段；实时额度为只读派生计算，不新增数据库字段或WebDAV数据。
+
+### 每日市场机会独立排程（2026-10-10）
+
+复用已同步的 `LifeItem`，继续使用历史 `market_prepare` 活动值和每日稳定身份；显示名称改为“每日市场机会”。机会的时间、状态、预算、执行关联及调整记录随既有 WebDAV 快照同步，不新增模型、字段或快照格式。普通周期分配、活动规划和遗留重排不会将独立市场机会计入普通行动次数或改作其他活动。小时市场批次仍按实际执行时间读取，不为提前规划固化报价。
+
+本轮验证：每日市场排程新增13项通过，包含零预算调整后实际工具采购、账本及生活同步校验，以及项目无时区存储模式。生活、市场、农场、旅行、投资相关252项通过（排除并单独复现4项旧生活预算夹具失败：未规划活动被当作可消费活动）；Node 22前端类型检查通过。使用隔离数据库与模拟模型，未修改实际用户日程、部署或调用真实模型。

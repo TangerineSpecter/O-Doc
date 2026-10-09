@@ -38,7 +38,7 @@ export class FarmScene {
             if(this.disposed) {this.app.destroy(true); return;}
             atlas.source.scaleMode = 'nearest';
             for(const [name,frame] of Object.entries(frames)) this.textures.set(name,new Texture({source:atlas.source,frame:new Rectangle(frame.x,frame.y,frame.width,frame.height)}));
-            this.host.appendChild(this.app.canvas); this.app.canvas.style.width='100%';this.app.canvas.style.height='auto';this.app.canvas.style.imageRendering='pixelated';
+            this.host.appendChild(this.app.canvas); this.app.canvas.style.width='100%';this.app.canvas.style.height='100%';this.app.canvas.style.display='block';this.app.canvas.style.imageRendering='pixelated';
             this.app.canvas.setAttribute('aria-label','像素农场地图；地块与动物详情也可通过下方列表查看');
             this.app.stage.addChild(terrain(),this.objects,this.creatures,this.lighting,this.rain,this.label);
             this.label.position.set(28,43);

@@ -239,15 +239,6 @@ class LifeTests(TestCase):
         response=client.post('/api/settings/agent-world/life/goals/',{'id':foreign.pk,'status':'abandoned','reason':'x'},format='json')
         self.assertEqual(response.status_code,404)
 
-    def test_market_preparation_not_repeated(self):
-        from .life_planner import prepare_market
-        now=timezone.now().astimezone(SHANGHAI)
-        identity=stable_id('admin',self.ids[0],now.date().isoformat(),'market-prepare')
-        self.item(identity,activity='market_prepare',status='completed')
-        with patch('system_settings.agent_world.life_planner.ask') as ask:
-            prepare_market(self.config,self.agents[0],None)
-            ask.assert_not_called()
-
     def test_snapshot_round_trip_keeps_identity_and_disables_runner(self):
         from utils.sync_manager import SyncManager
         from .life_schedule import revise
@@ -304,8 +295,7 @@ class LifeTests(TestCase):
     def test_planning_failure_keeps_model_reason_on_schedule(self):
         from .life_runner import tick_life
         item=self.item(scheduled_at=timezone.now(),activity='unplanned')
-        with patch('system_settings.agent_world.life_runner.prepare_market'), \
-             patch('system_settings.agent_world.life_planner.ask',side_effect=ValueError('规划必须为本次每个时间点指定且仅指定一次活动')):
+        with patch('system_settings.agent_world.life_planner.ask',side_effect=ValueError('规划必须为本次每个时间点指定且仅指定一次活动')):
             tick_life(None)
         item.refresh_from_db()
         self.assertEqual(item.status,'deferred')
@@ -493,13 +483,12 @@ class LifeTests(TestCase):
         self.item('later',actor_id=self.ids[1],activity='unplanned',scheduled_at=timezone.now()+timedelta(hours=3))
         record=AgentRunRecord.objects.create(task=self.task,agent=self.agents[0],task_name='投资',status='success',summary='观望')
         order=[]
-        with patch('system_settings.agent_world.life_runner.prepare_market',side_effect=lambda *args,**kwargs: order.append('market')), \
-             patch('system_settings.agent_world.life_runner.plan_items',side_effect=lambda *args,**kwargs: order.append('plan')), \
+        with patch('system_settings.agent_world.life_runner.plan_items',side_effect=lambda *args,**kwargs: order.append('plan')), \
              patch('system_settings.agent_world.investment_runner.run_investment_opportunity',side_effect=lambda *args,**kwargs: order.append('run') or record):
             tick_life(None)
         item.refresh_from_db()
         self.assertEqual(item.status,'completed')
-        self.assertLess(order.index('run'),order.index('market'))
+        self.assertEqual(order, ['plan', 'run', 'plan'])
 
     def test_planner_lock_does_not_skip_due_planned_item(self):
         from .life_runner import tick_life
@@ -581,25 +570,6 @@ class LifeTests(TestCase):
         self.assertFalse(WorldAction.objects.exists())
         self.assertFalse(AgentRunRecord.objects.exists())
 
-    def test_busy_world_does_not_record_market_prepare(self):
-        from .life_planner import prepare_market
-        AgentTask.objects.create(name='市场',agent=self.agents[0],agent_ids=[self.ids[0]],task_kind='market',market_config={'owner_id':'admin'},enabled=True)
-        WorldActionRuntime.objects.filter(pk='world').update(token='held', until=timezone.now()+timedelta(minutes=10))
-        with patch('system_settings.agent_world.life_planner.ask') as ask:
-            prepare_market(self.config, self.agents[0], None)
-        ask.assert_not_called()
-        self.assertFalse(LifeItem.objects.filter(activity='market_prepare').exists())
-
-    def test_market_prepare_is_removed_when_shopping_finds_the_world_busy(self):
-        from .life_planner import prepare_market
-        AgentTask.objects.create(name='市场',agent=self.agents[0],agent_ids=[self.ids[0]],task_kind='market',market_config={'owner_id':'admin'},enabled=True)
-        def shop_after_lock(*args, **kwargs):
-            WorldActionRuntime.objects.filter(pk='world').update(token='held', until=timezone.now()+timedelta(minutes=10))
-            return {'go': True, 'budget': '0.00', 'reason': '要买种子'}
-        with patch('system_settings.agent_world.life_planner.ask', side_effect=shop_after_lock):
-            prepare_market(self.config, self.agents[0], object())
-        self.assertFalse(LifeItem.objects.filter(activity='market_prepare').exists())
-        self.assertFalse(WorldAction.objects.exists())
 
 
 @override_settings(USE_TZ=True)

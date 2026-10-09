@@ -91,7 +91,7 @@ def ensure_cycle(config, now=None):
     if (today_end-max(now,today_start)).total_seconds() < settings['min_remaining_minutes']*60:
         return None
     # 当前周期正常未来安排不是遗留；跨周期未结束 workflow 及逾期安排优先。
-    blocked = set(LifeItem.objects.filter(owner_id=config.pk, status__in=OPEN).values_list('actor_id', flat=True))
+    blocked = set(LifeItem.objects.filter(owner_id=config.pk, status__in=OPEN).exclude(activity='market_prepare').values_list('actor_id', flat=True))
     ids = [a for a in settings['agent_ids'] if a not in blocked and a not in config.paused_agents]
     settings['agent_ids'] = ids
     ensure_profiles(config.pk, ids)
@@ -149,7 +149,7 @@ def requeue(item: LifeItem, reason: str) -> None:
     if item.status == 'running':
         raise ValueError('活动正在执行')
     if item.activity == 'market_prepare':
-        raise ValueError('市场准备不是生活次数，不能当作机会重新规划')
+        raise ValueError('每日市场机会不是普通生活次数，不能当作机会重新规划')
     if item.activity == 'travel':
         from .travel_models import TravelJourney
         if TravelJourney.objects.filter(pk=item.pk).exists():
@@ -165,7 +165,7 @@ def retry_failed(item: LifeItem, reason: str) -> None:
     if item.status != 'failed':
         raise ValueError('只能重试失败的安排')
     if item.activity == 'market_prepare':
-        raise ValueError('市场准备不是生活次数，不能重试')
+        raise ValueError('每日市场机会不是普通生活次数，不能重试')
     if item.activity == 'travel':
         from .travel_models import TravelJourney
         if TravelJourney.objects.filter(pk=item.pk).exists():
@@ -185,10 +185,15 @@ def recover(config, now=None, *, resume_actor=None, delay_reason=None):
     rows = list(LifeItem.objects.select_for_update().filter(owner_id=config.pk, status__in=OPEN).order_by('scheduled_at', 'id'))
     occupied={}
     for row in rows:
-        if row.status!='paused' and local_time(row.scheduled_at)>=now:
+        if row.activity != 'market_prepare' and row.status!='paused' and local_time(row.scheduled_at)>=now:
             occupied.setdefault(row.actor_id,[]).append((row.pk,local_time(row.scheduled_at)))
     last = {}
     for item in rows:
+        if item.activity == 'market_prepare':
+            if not resume_actor or item.actor_id == resume_actor:
+                from .life_market import recover_daily_market
+                recover_daily_market(item, config, now)
+            continue
         if item.actor_id in config.paused_agents:
             if item.status != 'running' and item.status != 'paused':
                 revise(item, '居民暂停，保留安排', status='paused')

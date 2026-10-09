@@ -54,10 +54,13 @@ export function RecipeCard({recipe, isSelected, onClick}: RecipeCardProps) {
                     <span className="truncate text-sm font-bold text-slate-800 transition-colors group-hover:text-orange-600">
                         {recipe.name}
                     </span>
-                    {/* 回收单价 */}
-                    <div className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-50/80 px-1.5 py-0.5 text-xs font-bold text-amber-700 border border-amber-200/60 shadow-2xs">
+                    {/* 回收单价（清爽单价徽章，避免星级与数字粘连） */}
+                    <div
+                        title="一星基准回收单价（高星品质最高可达 2.2 倍）"
+                        className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-50/90 px-1.5 py-0.5 text-xs font-bold text-amber-700 border border-amber-200/60 shadow-2xs"
+                    >
                         <Coins className="h-3 w-3 text-amber-500" />
-                        <span>★1 {recipe.salePrice}</span>
+                        <span>{recipe.salePrice}</span>
                     </div>
                 </div>
 

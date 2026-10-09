@@ -500,7 +500,44 @@ export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
                                                 </div>
                                             )}
 
-                                            {selected.starQuantities && <p className="text-xs text-amber-700">{Object.entries(selected.starQuantities).map(([s, n]) => `${s}星 ×${n} · 参考${selected.starValues?.[s] || 0}币`).join(' / ')}</p>}
+                                            {/* 各星级品质持有明细与参考单价阶梯 */}
+                                            {selected.starQuantities && (
+                                                <div className="col-span-2 rounded-xl border border-amber-200/80 bg-gradient-to-b from-amber-50/60 to-amber-50/20 p-2.5 space-y-1.5">
+                                                    <div className="flex items-center justify-between text-[11px] font-bold text-amber-800">
+                                                        <span className="flex items-center gap-1">
+                                                            <Sparkles className="h-3 w-3 text-amber-500" />
+                                                            <span>各星级持有与回收单价</span>
+                                                        </span>
+                                                        <span className="text-[10px] font-normal text-amber-700/80">按星级浮动</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-5 gap-1.5">
+                                                        {Object.entries(selected.starQuantities).map(([star, count]) => {
+                                                            const val = selected.starValues?.[star] || 0;
+                                                            const hasStock = Number(count) > 0;
+                                                            return (
+                                                                <div
+                                                                    key={star}
+                                                                    className="flex flex-col items-center justify-center rounded-lg border border-amber-100/90 bg-white/95 p-1.5 text-center shadow-2xs"
+                                                                >
+                                                                    <span className="text-[10px] font-bold text-amber-700 leading-none">
+                                                                        ★{star}
+                                                                    </span>
+                                                                    <span
+                                                                        className={`mt-1 text-[11px] font-bold leading-none ${
+                                                                            hasStock ? 'text-emerald-600' : 'text-slate-400'
+                                                                        }`}
+                                                                    >
+                                                                        ×{count}
+                                                                    </span>
+                                                                    <span className="mt-1 text-[10px] font-medium text-slate-500 leading-none">
+                                                                        {val}币
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
                                             {selected.salePrice !== null && (
                                                 <div className="col-span-2 flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 px-2.5 py-1.5">
                                                     <div className="flex items-center gap-1.5 text-[11px] text-slate-500">

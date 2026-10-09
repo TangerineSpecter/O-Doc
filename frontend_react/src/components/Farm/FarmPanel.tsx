@@ -179,9 +179,9 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
     };
 
     return (
-        <div className="w-full min-w-0 space-y-3">
+        <div className="w-full min-w-0 flex-1 flex flex-col min-h-0 gap-3">
             {/* 顶部单行一体化控制栏 */}
-            <div className="w-full min-w-0 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 p-2 text-xs">
+            <div className="w-full min-w-0 shrink-0 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 p-2 text-xs">
                 {/* 左侧：天气、余额、行动 */}
                 <div className="flex flex-wrap items-center gap-2.5">
                     {farm && (
@@ -288,15 +288,15 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                 </section>
             ) : (
                 /* 主体分栏：移动端自适应流动，PC 端左右等高分栏（消除弹窗纵向滚动） */
-                <div className="w-full min-w-0 grid gap-3.5 lg:grid-cols-[minmax(0,1fr)_360px] lg:h-[calc(88vh-145px)] lg:min-h-[480px]">
+                <div className="w-full min-w-0 flex-1 min-h-0 grid gap-3.5 lg:grid-cols-[minmax(0,1fr)_360px]">
                     {/* 左侧：像素画布与居民切换展示 */}
-                    <div className="w-full min-w-0 flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-3 shadow-2xs">
+                    <div className="w-full min-w-0 flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-3 shadow-2xs min-h-0">
                         <div className="w-full min-w-0 flex-1 flex items-center justify-center min-h-0">
                             <FarmCanvas farm={farm} onSelect={handleSelect} />
                         </div>
 
                         {/* 底部居民头像+名字快速切换栏 */}
-                        <div className="w-full min-w-0 mt-2.5 flex flex-col gap-2 pt-2 border-t border-slate-100">
+                        <div className="w-full min-w-0 shrink-0 mt-2.5 flex flex-col gap-2 pt-2 border-t border-slate-100">
                             <div className="w-full min-w-0 flex items-center gap-1.5">
                                 {farms.length > 1 && (
                                     <button
@@ -384,9 +384,9 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                     </div>
 
                     {/* 右侧：一体化观察与记录面板 */}
-                    <div className="w-full min-w-0 flex flex-col rounded-2xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
+                    <div className="w-full min-w-0 flex flex-col rounded-2xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden min-h-0">
                         {/* 顶部 Tab 切换控制器 */}
-                        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 p-2">
+                        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/70 p-2">
                             <div className="flex rounded-lg bg-slate-200/60 p-0.5">
                                 <button
                                     type="button"
@@ -425,7 +425,7 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                         </div>
 
                         {/* 内容区：独立内部平滑滚动 */}
-                        <div className="flex-1 min-h-0 overflow-y-auto p-3">
+                        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide p-3">
                             {activeTab === 'details' ? (
                                 <FarmDetails
                                     farm={farm}

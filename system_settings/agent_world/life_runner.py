@@ -9,7 +9,8 @@ from .life_config import tasks_for
 from .life_schedule import OPEN, SHANGHAI, ensure_cycle, recover, revise, window, execution_key
 from .life_scope import life_scope, CURRENT
 from .life_context import build_context
-from .life_planner import prepare_market, plan_items, check_goals
+from .life_planner import plan_items, check_goals
+from .life_market import ensure_daily_market, execute_daily_market
 from .life_time import local_time,storage_time
 from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
 from .farm_gate import farm_gate
@@ -59,6 +60,8 @@ def world_execution_busy() -> bool:
 def ready_without_replanning(item: LifeItem, now) -> bool:
     """刚到点且今天已经规划过的安排直接执行。更早的过期安排仍先顺延，避免离线后集中补跑。"""
     today = local_time(now).date().isoformat()
+    if item.activity == 'market_prepare':
+        return local_time(item.original_at).date().isoformat() == today
     if item.activity in ('unplanned', '') or item.context.get('planned_on') != today:
         return False
     return local_time(item.scheduled_at) >= now - timedelta(seconds=90)
@@ -72,6 +75,9 @@ def execute_item(item: LifeItem, scheduler) -> None:
         revise(item,'居民已删除',status='cancelled');return
     if item.actor_id in config.paused_agents:
         revise(item,'居民暂停',status='paused');return
+    if item.activity == 'market_prepare':
+        execute_daily_market(config, agent, item, scheduler)
+        return
     task=AgentTask.objects.filter(pk=item.task_id,enabled=True).first()
     if not task or item.activity=='unplanned':
         try:
@@ -206,6 +212,7 @@ def _plan_cycle(config, scheduler, now):
     if LifeItem.objects.filter(owner_id=config.pk, status__in=['pending', 'deferred'], scheduled_at__lt=storage_time(now - timedelta(seconds=90))).exists():
         recover(config, now)
     ensure_cycle(config, now)
+    ensure_daily_market(config, now)
     from .life_config import effective_settings
     active_ids = effective_settings(config, now).get('agent_ids', [])
     for capability in tasks_for(config.pk):
@@ -219,7 +226,7 @@ def _plan_cycle(config, scheduler, now):
             validate_agents(config.pk, active_ids)
             for resident in Agent.objects.filter(pk__in=active_ids):
                 account_for(config.pk, resident)
-    candidates = LifeItem.objects.filter(owner_id=config.pk, status__in=['pending', 'deferred']).order_by('scheduled_at')
+    candidates = LifeItem.objects.filter(owner_id=config.pk, status__in=['pending', 'deferred']).exclude(activity='market_prepare').order_by('scheduled_at')
     today = local_time(now).date().isoformat()
     actor = None
     for entry in candidates:
@@ -236,7 +243,6 @@ def _plan_cycle(config, scheduler, now):
     agent = Agent.objects.select_related('model').filter(pk=actor).first()
     if not agent:
         return
-    prepare_market(config, agent, scheduler)
     entries = [i for i in candidates if i.actor_id == actor and (i.activity == 'unplanned' or local_time(i.scheduled_at).date().isoformat() == today)]
     # 大周期分批规划，但不把剩余计划全部装进单次上下文。
     try:

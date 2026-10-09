@@ -22,7 +22,10 @@ import LifeFailedReplanBar from './LifeFailedReplanBar';
 import LifeProfilePanel from './LifeProfilePanel';
 import LifeScheduleWeekView from './LifeScheduleWeekView';
 import LifeScheduleListView from './LifeScheduleListView';
+import LifeScheduleHelp from './LifeScheduleHelp';
 import {statusLabels} from './lifeLabels';
+
+const scheduleHelp = <LifeScheduleHelp />;
 
 const dateKey = (value: string) =>
     new Intl.DateTimeFormat('sv-SE', {timeZone: 'Asia/Shanghai'}).format(new Date(value));
@@ -76,6 +79,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
     return (
         <WorldDialog
             title="居民生活日程"
+            titleAction={scheduleHelp}
             description="上海时间 · 计划根据实际经历持续调整"
             onClose={onClose}
             size="extra-wide"
