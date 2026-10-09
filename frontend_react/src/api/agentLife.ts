@@ -7,7 +7,7 @@ export const getLifeProfile = (actor: string, signal?: AbortSignal) => request.g
 export const saveLifeProfile = (actor: string, value: Pick<LifeProfile, 'preferences' | 'direction'>) => request.post<never, LifeProfile>(`${base}/profiles/${actor}/`, value);
 export const getLifeGoals = (actorId?: string, signal?: AbortSignal, page = 1) => request.get<never, LifeGoal[]>(`${base}/goals/`, {params: {actorId, page}, signal});
 export const saveLifeGoal = (value: Partial<LifeGoal>) => request.post<never, {id: string}>(`${base}/goals/`, value);
-export const getLifeSchedule = (params: {start: string; end: string; actorId?: string; status?: string; page?: number}, signal?: AbortSignal) => request.get<never, LifeSchedule>(`${base}/schedule/`, {params, signal});
+export const getLifeSchedule = (params: {start: string; end: string; actorId?: string; status?: string; page?: number; view?: 'week' | 'list'}, signal?: AbortSignal) => request.get<never, LifeSchedule>(`${base}/schedule/`, {params, signal});
 export const getLifeItem = (id: string, signal?: AbortSignal) => request.get<never, LifeItem>(`${base}/schedule/${id}/`, {signal});
 export const changeLifeItem = (id: string, action: 'cancel' | 'replan' | 'retry', reason: string) => request.post<never, LifeItem>(`${base}/schedule/${id}/`, {action, reason});
 export const replanFailedLifeItems = (actorId: string, reason: string, start: string, end: string) =>

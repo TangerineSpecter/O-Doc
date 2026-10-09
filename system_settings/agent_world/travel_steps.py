@@ -1,13 +1,13 @@
 """旅行节点：模型只提议，持久化后的决策由服务器执行。"""
 import random
-from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
+from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 from .travel_ai import ask, local_materials, text, sourced_items
 from .travel_config import bound_skill
 from .travel_models import TravelNode, TravelJourney
 from .travel_settlement import depart, purchase
-from .inventory_attributes import souvenir_attributes
+from .travel_shopping import available_funds, shopping_limits, generate_goods
 
 EVENTS = [
     {'type': 'negative', 'description': '原计划的入口临时关闭，你扑了个空。', 'choices': ['改去下一站', '在附近散步', '稍作休息']},
@@ -79,6 +79,7 @@ def advance(journey):
             next_phase = 'choose' if len(state['previews']) == len(state['candidates']) else 'preview'
     elif phase == 'choose':
         from .travel_memory import recent_travel_context
+        funds = available_funds(journey)
         def validate(v):
             reason = text(v, 'reason', 1000)
             if v.get('destination_id') == 'skip':
@@ -87,9 +88,12 @@ def advance(journey):
             budget = Decimal(str(v.get('shopping_budget')))
             if not selected or not budget.is_finite() or budget < 0 or Decimal(selected['price'])+budget > agent.money:
                 raise ValueError('所选路线或购物预算超过余额')
+            shopping_available = max(Decimal(0), Decimal(funds['available'])-Decimal(selected['price']))
+            if budget > shopping_available:
+                raise ValueError(f'扣除路线费用后本次可分配购物额度为{shopping_available}，请缩减购物预算；总预算与购物上限须分别判断')
             return {'destination_id': selected['id'], 'reason': reason, 'shopping_budget': str(budget.quantize(Decimal('.01')))}
-        selection = decide(journey, node, '自主决定旅行或本次不去。返回 {"destination_id":"候选ID或skip","reason":"原因","shopping_budget":0}。购物预算是上限，不提前扣除。',
-            {'candidates': state['candidates'], 'previews': state['previews'], 'balance': str(agent.money), 'past_travels': recent_travel_context(agent)}, validate)
+        selection = decide(journey, node, '自主决定旅行或本次不去。返回 {"destination_id":"候选ID或skip","reason":"原因","shopping_budget":"非负金额字符串"}。购物预算由你自主选择，不是固定为0；结合生活安排总预算、路线费用、真实余额和其他安排预留分配。若选择0请在reason说明不购买的原因。购物预算是另行记录的上限，旅行总预算减去路线费不自动变成购物额度，不提前扣除。',
+            {'candidates': state['candidates'], 'previews': state['previews'], 'balance': str(agent.money), 'past_travels': recent_travel_context(agent), 'funds': funds}, validate)
         state['selection'] = selection
         if selection['destination_id'] == 'skip':
             journey.status, next_phase = 'skipped', 'done'
@@ -116,15 +120,9 @@ def advance(journey):
                       {'destination': selected, 'sources': sources}, validate)
         state['plan'], state['sources'] = plan, sources
         state['events'] = random.sample(EVENTS, random.randint(1, 2))
-        goods = []
-        base = Decimal(selected['price'])
-        for i, item in enumerate(plan['souvenirs']):
-            lower = max(1, int((base*Decimal('.01')/10).to_integral_value(rounding=ROUND_CEILING)))
-            upper = max(lower, int((base*Decimal('.1')/10).to_integral_value(rounding=ROUND_FLOOR)))
-            units = random.randint(lower, upper)
-            price = str(units*10)
-            goods.append({**item, 'id': str(i+1), 'price': price, **souvenir_attributes(price)})
-        state['goods'] = goods
+        if 'goods' not in state:
+            limits = shopping_limits(journey, route_cost=Decimal(selected['price']))
+            state['goods'] = generate_goods(plan['souvenirs'], Decimal(selected['price']), Decimal(limits['spendable']))
         next_phase = 'depart'
     elif phase == 'depart':
         from .life_travel_budget import review_travel_budget
@@ -160,6 +158,7 @@ def advance(journey):
         state['food'] = decide(journey, node, '选择一项当地美食或普通餐／不尝试。已经包含在旅行总价内。返回 {"choice":"名称","reaction":"体验或不尝试的理由"}，尊重角色饮食限制。', {'foods': foods}, validate)
         next_phase = 'buy'
     elif phase == 'buy':
+        limits = shopping_limits(journey)
         def validate(v):
             basket = v.get('basket')
             if not isinstance(basket, list):
@@ -171,11 +170,11 @@ def advance(journey):
                     raise ValueError('商品或数量越界')
                 seen.add(item['id'])
                 amount += Decimal(goods[item['id']]['price'])*item['quantity']
-            if amount > min(agent.money, Decimal(state['selection']['shopping_budget'])):
-                raise ValueError('超过购物预算或余额')
+            if amount > Decimal(limits['spendable']):
+                raise ValueError(f"购物篮合计{amount}，超过当前可消费{limits['spendable']}；单独购物上限{limits['shopping_budget']}，不能把生活总预算当作购物额度。请减少数量或返回空购物篮")
             return {'basket': basket, 'reason': text(v, 'reason')}
-        basket = decide(journey, node, '自主购买纪念品或不买。返回 {"basket":[{"id":"商品ID","quantity":1}],"reason":"理由"}，不买返回空数组。每种最多3件。',
-            {'goods': state['goods'], 'budget': state['selection']['shopping_budget'], 'balance': str(agent.money)}, validate)
+        basket = decide(journey, node, '自主购买纪念品或不买。返回 {"basket":[{"id":"商品ID","quantity":1}],"reason":"理由"}，不买返回空数组。每种最多3件，必须按单价乘数量计算合计，不得超过spendable。购物上限为0时只能不买，但不能据此声称路线已花光生活总预算；理由须符合真实额度。',
+            {'goods': state['goods'], 'budget': state['selection']['shopping_budget'], **limits}, validate)
         from .life_travel_budget import review_travel_budget
         goods_by_id={g['id']:g for g in state['goods']}
         amount=sum((Decimal(goods_by_id[c['id']]['price'])*c['quantity'] for c in basket['basket']),Decimal(0))

@@ -4,6 +4,8 @@ import type {LifeItem} from '../../types/api/agentLife';
 import LifeScheduleCard from './LifeScheduleCard';
 
 interface LifeScheduleWeekViewProps {
+    loading?: boolean;
+    error?: boolean;
     days: string[];
     items: LifeItem[];
     names: Map<string, string>;
@@ -15,6 +17,8 @@ interface LifeScheduleWeekViewProps {
 const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 export default function LifeScheduleWeekView({
+    loading = false,
+    error = false,
     days,
     items,
     names,
@@ -102,7 +106,7 @@ export default function LifeScheduleWeekView({
                                 ) : (
                                     <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200/80 bg-white/40 p-2 text-center">
                                         <Calendar className="h-3.5 w-3.5 text-slate-300" />
-                                        <span className="mt-1 text-[10px] text-slate-400">暂无安排</span>
+                                        <span className="mt-1 text-[10px] text-slate-400">{loading ? '正在加载…' : error ? '日程加载失败' : '暂无安排'}</span>
                                     </div>
                                 )}
                             </div>

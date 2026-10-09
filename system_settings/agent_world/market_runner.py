@@ -61,15 +61,19 @@ def run_market_opportunity(task: AgentTask, scheduler=None, *, key=None, manual=
             from .life_budget import BUDGET_TOOL,budget_tool
             from .life_scope import CURRENT
             if CURRENT.get():tools.append(BUDGET_TOOL)
+            blocked_purchase = None
             def execute(name, arguments):
-                nonlocal phase
+                nonlocal phase, blocked_purchase
                 phase = f'市场工具 {name}'
                 progress(record, phase)
                 model_calls[0] += 1
                 if model_calls[0] > 24 or (timezone.now()-started).total_seconds() >= 300:
                     raise RuntimeError('市场任务达到执行上限')
                 if name=='adjust_life_budget':
-                    try:return budget_tool(arguments)
+                    try:
+                        result = budget_tool(arguments)
+                        from .market_spending import spending_context
+                        return {**result, 'spending': spending_context(owner, agent.pk)}
                     except ValueError as exc:return {'error':str(exc)}
                 if name == 'enter_market':
                     import hashlib
@@ -81,16 +85,26 @@ def run_market_opportunity(task: AgentTask, scheduler=None, *, key=None, manual=
                     update_work_activity(record,agent,status='running',current_action={'enter_market':'进入市场','leave_market':'离开市场'}.get(name,'正在市场交易'))
                     active = MarketSession.objects.filter(record=record, status='active').exists()
                     if name == 'leave_market' or (MarketSession.objects.filter(record=record).exists() and not active):
-                        raise MarketFinished('Agent 已离开市场或会话达到上限')
+                        raise MarketFinished(result.get('reason') or '市场会话已结束')
                     return result
                 except ValueError as exc:
+                    from .market_spending import MarketPurchaseBlocked
+                    if isinstance(exc, MarketPurchaseBlocked):
+                        fingerprint = (exc.result['code'], exc.result['spending'])
+                        if blocked_purchase == fingerprint:
+                            reason = '采购条件未变化仍重复尝试，已停止本次市场活动：' + str(exc)
+                            for session in MarketSession.objects.filter(record=record, status='active'):
+                                close_session(session, reason)
+                            raise MarketFinished(reason)
+                        blocked_purchase = fingerprint
+                        return exc.result
                     progress(record, phase + '失败', failure_detail(phase, exc), 'failed')
                     return {'error':str(exc)}
             context = actor_context(owner,agent)
             from .life_scope import enrich
             context=enrich(context)
             prompt = build_agent_system_prompt(f'当前 Agent：{agent.name}\n{agent.prompt}',conversation=False)
-            prompt += '\n你获得一次逛市场机会。先结合真实余额、农场需求与挂牌决定进入或不去；不去直接说明。进入固定消耗5体力，交易不另扣体力。按工具返回的真实行情自主买卖，不必花光钱。你可以上架、改价、撤单。操作使用唯一request_id，重试复用。完成后调用leave_market，不可声称未成交的操作成功。最多5分钟20次市场调用。'
+            prompt += '\n你获得一次逛市场机会。先结合真实余额、农场需求与挂牌决定进入或不去；不去直接说明。进入固定消耗5体力，交易不另扣体力。按工具返回的真实行情自主买卖，不必花光钱。购买前检查spending.spendable及slots_remaining；预算为0或不足时先调用adjust_life_budget，预算调整成功后再买。每次交易按返回的实时额度决定下一笔，不使用旧余额。采购被拦截时应调整预算、减少数量或离场，不能在条件未变化时重复尝试；额度用尽不能继续买新商品格，饲料不占格。你可以上架、改价、撤单。操作使用唯一request_id，重试复用。完成后调用leave_market，不可声称未成交的操作成功。最多5分钟20次市场调用。'
             phase = '模型市场决策'
             progress(record, phase)
             summary = AIService.chat_completion_messages_with_tools(

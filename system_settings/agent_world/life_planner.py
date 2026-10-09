@@ -188,7 +188,7 @@ def prepare_market(config, agent, scheduler):
     try:
         check_goals(config.pk,agent)
         context = build_context(config.pk, agent)
-        decision = ask(agent, '先根据目标、现有库存与今天的行动机会决定是否逛市场及预算。返回 {"go":true,"budget":"0.00","reason":"原因"}。不要提前把采购视作完成。',context)
+        decision = ask(agent, '先根据目标、现有库存与今天的行动机会决定是否逛市场及预算。返回 {"go":true,"budget":"0.00","reason":"原因"}。go=true且计划购买时必须为实际采购分配正数预算，不要以0预算开始采购；仅浏览不购买可填0。不要提前把采购视作完成。',context)
         if type(decision.get('go')) is not bool:
             raise ValueError('是否进入市场须为布尔值')
         adjust_budget(config.pk,agent.pk,[{'id':item.pk,'budget':str(money(decision.get('budget','0')))}], str(decision.get('reason','市场准备')))

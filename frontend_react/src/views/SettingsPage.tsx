@@ -35,6 +35,26 @@ import { AboutSettings } from '../components/Settings/AboutSettings';
 type SettingsTab = 'ai' | 'agent' | 'mcp' | 'skill' | 'sync' | 'schedule' | 'location' | 'general' | 'about' | 'logs';
 const SETTINGS_TABS: SettingsTab[] = ['ai', 'agent', 'mcp', 'skill', 'sync', 'schedule', 'location', 'general', 'about', 'logs'];
 
+interface TabItem {
+    id: SettingsTab;
+    label: string;
+    icon: React.ReactNode;
+    adminOnly?: boolean;
+}
+
+const TAB_ITEMS: TabItem[] = [
+    { id: 'ai', label: 'AI 模型接入', icon: <Cpu className="w-4 h-4 shrink-0" /> },
+    { id: 'agent', label: 'Agent 管理', icon: <Bot className="w-4 h-4 shrink-0" /> },
+    { id: 'mcp', label: 'MCP 设置', icon: <Code2 className="w-4 h-4 shrink-0" /> },
+    { id: 'skill', label: '技能设置', icon: <WandSparkles className="w-4 h-4 shrink-0" /> },
+    { id: 'sync', label: '同步与备份', icon: <RefreshCw className="w-4 h-4 shrink-0" /> },
+    { id: 'schedule', label: '定时设置', icon: <CalendarClock className="w-4 h-4 shrink-0" /> },
+    { id: 'location', label: '地理位置', icon: <MapPin className="w-4 h-4 shrink-0" /> },
+    { id: 'general', label: '常规设置', icon: <Settings className="w-4 h-4 shrink-0" /> },
+    { id: 'logs', label: '系统日志', icon: <Info className="w-4 h-4 shrink-0" />, adminOnly: true },
+    { id: 'about', label: '关于', icon: <Info className="w-4 h-4 shrink-0" /> },
+];
+
 export default function SettingsPage() {
     const { userInfo } = useAuth();
     const isAdministrator = Boolean(userInfo?.isSuperuser);
@@ -78,19 +98,21 @@ export default function SettingsPage() {
         }
     }, [searchParams]);
 
-    // 辅助组件：侧边栏按钮
-    const TabButton = ({ id, label, icon }: { id: SettingsTab, label: string, icon: React.ReactNode }) => (
-        <button
-            onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all w-full text-left ${activeTab === id
-                ? 'bg-orange-50 text-orange-600 shadow-sm ring-1 ring-orange-200'
-                : 'text-slate-600 hover:bg-slate-50'
-                }`}
-        >
-            {icon}
-            {label}
-        </button>
-    );
+    const mobileTabsRef = React.useRef<HTMLDivElement>(null);
+    const availableTabs = TAB_ITEMS.filter(tab => !tab.adminOnly || isAdministrator);
+
+    // 移动端切换或初始化时，自动平滑居中选中的 Tab 胶囊
+    React.useEffect(() => {
+        if (!mobileTabsRef.current) return;
+        const activeBtn = mobileTabsRef.current.querySelector<HTMLElement>(`[data-tab="${activeTab}"]`);
+        if (activeBtn) {
+            activeBtn.scrollIntoView({
+                behavior: 'smooth',
+                inline: 'center',
+                block: 'nearest',
+            });
+        }
+    }, [activeTab]);
 
     React.useEffect(() => {
         if (activeTab === 'sync') {
@@ -234,7 +256,7 @@ export default function SettingsPage() {
     };
 
     return (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
 
             {/* --- Modals --- */}
             <ConfirmationModal
@@ -280,45 +302,78 @@ export default function SettingsPage() {
             />
 
             {/* --- Header --- */}
-            <div className="flex items-center justify-between mb-8 sticky top-0 bg-slate-50/90 backdrop-blur z-20 py-4 -mt-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <div className="flex items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-8">
+                <div className="min-w-0">
+                    <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
                         系统设置 <span className="text-orange-500">.</span>
                     </h1>
-                    <p className="text-slate-500 text-sm mt-1">管理 AI 模型接入、数据同步及系统偏好。</p>
+                    <p className="text-slate-500 text-xs sm:text-sm mt-0.5 sm:mt-1 truncate sm:whitespace-normal">
+                        管理 AI 模型接入、数据同步及系统偏好。
+                    </p>
                 </div>
                 <button
                     onClick={handleSaveChanges}
                     disabled={isSaving || headerSaving || (activeTab === 'about' || activeTab === 'logs')}
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-medium transition-colors shadow-sm disabled:opacity-70"
+                    className="flex items-center gap-2 px-3.5 sm:px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs sm:text-sm font-medium transition-colors shadow-sm disabled:opacity-70 whitespace-nowrap shrink-0 active:scale-95"
                 >
                     {isSaving || headerSaving ? (
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
-                        <Save className="w-4 h-4" />
+                        <Save className="w-4 h-4 shrink-0" />
                     )}
-                    {(activeTab === 'about' || activeTab === 'logs') ? '无需保存' : '保存更改'}
+                    <span>{(activeTab === 'about' || activeTab === 'logs') ? '无需保存' : '保存更改'}</span>
                 </button>
             </div>
 
+            {/* 移动端专属：极简轻量下划线滑动导航栏 */}
+            <div className="md:hidden sticky top-16 z-20 -mx-4 px-4 sm:mx-0 sm:px-0 bg-slate-50/95 backdrop-blur-md border-b border-slate-200/80 mb-5">
+                <div
+                    ref={mobileTabsRef}
+                    className="flex items-center gap-5 overflow-x-auto scrollbar-hide no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden touch-pan-x"
+                >
+                    {availableTabs.map((tab) => {
+                        const isActive = activeTab === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                data-tab={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex items-center gap-1.5 py-3 text-xs sm:text-sm font-medium transition-all shrink-0 whitespace-nowrap border-b-2 -mb-px active:scale-95 ${
+                                    isActive
+                                        ? 'border-orange-500 text-orange-600 font-semibold'
+                                        : 'border-transparent text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                {tab.icon}
+                                <span>{tab.label}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
             {/* --- Main Grid --- */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                {/* Sidebar */}
-                <div className="md:col-span-1 space-y-1">
-                    <TabButton id="ai" label="AI 模型接入" icon={<Cpu className="w-4 h-4" />} />
-                    <TabButton id="agent" label="Agent 管理" icon={<Bot className="w-4 h-4" />} />
-                    <TabButton id="mcp" label="MCP 设置" icon={<Code2 className="w-4 h-4" />} />
-                    <TabButton id="skill" label="技能设置" icon={<WandSparkles className="w-4 h-4" />} />
-                    <TabButton id="sync" label="同步与备份" icon={<RefreshCw className="w-4 h-4" />} />
-                    <TabButton id="schedule" label="定时设置" icon={<CalendarClock className="w-4 h-4" />} />
-                    <TabButton id="location" label="地理位置" icon={<MapPin className="w-4 h-4" />} />
-                    <TabButton id="general" label="常规设置" icon={<Settings className="w-4 h-4" />} />
-                    {isAdministrator && <TabButton id="logs" label="系统日志" icon={<Info className="w-4 h-4" />} />}
-                    <TabButton id="about" label="关于" icon={<Info className="w-4 h-4" />} />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-8">
+                {/* 桌面端侧边栏 */}
+                <div className="hidden md:block md:col-span-1 space-y-1">
+                    {availableTabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all w-full text-left whitespace-nowrap shrink-0 ${
+                                activeTab === tab.id
+                                    ? 'bg-orange-50 text-orange-600 shadow-sm ring-1 ring-orange-200'
+                                    : 'text-slate-600 hover:bg-slate-50'
+                            }`}
+                        >
+                            {tab.icon}
+                            <span>{tab.label}</span>
+                        </button>
+                    ))}
                 </div>
 
                 {/* Content */}
-                <div className="md:col-span-3">
+                <div className="md:col-span-3 min-w-0">
                     {activeTab === 'logs' && (isAdministrator ? <SystemLogs /> : <p className="text-sm text-slate-500">仅管理员可以查看系统日志。</p>)}
                     {activeTab === 'ai' && (
                         <AISettings

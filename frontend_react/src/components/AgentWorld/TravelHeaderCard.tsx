@@ -119,7 +119,7 @@ export default function TravelHeaderCard({journey}: TravelHeaderCardProps) {
                         <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
                                 <Coins className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                                <span>旅行总金</span>
+                                <span>旅行费用</span>
                             </div>
                             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-none ${
                                 journey.departedAt

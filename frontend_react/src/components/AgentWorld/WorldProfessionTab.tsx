@@ -13,12 +13,14 @@ import {
     TrendingUp,
     Utensils,
     Sprout,
+    Plus,
 } from 'lucide-react';
 import type { WorldCategory, WorldProfession } from '../../types/api/agentWorld';
 
 interface WorldProfessionTabProps {
     professions: WorldProfession[];
     categories: WorldCategory[];
+    onAdd: () => void;
     onEdit: (profession: WorldProfession) => void;
     onToggle: (item: WorldProfession) => void;
     busyIds: string[];
@@ -121,6 +123,7 @@ function getProfessionVisual(name: string) {
 export function WorldProfessionTab({
     professions,
     categories,
+    onAdd,
     onEdit,
     onToggle,
     busyIds,
@@ -135,13 +138,40 @@ export function WorldProfessionTab({
                     <Briefcase className="w-5 h-5" />
                 </div>
                 <p className="text-sm font-bold text-slate-700">暂无职业配置</p>
-                <p className="text-xs text-slate-400 mt-1">点击右上角“新增职业”为 Agent 设定职业并赋予分类加成</p>
+                <p className="text-xs text-slate-400 mt-1">为 Agent 设定职业并赋予分类加成</p>
+                <button
+                    type="button"
+                    onClick={onAdd}
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-xs shadow-orange-500/20 transition-all hover:bg-orange-600 active:scale-95"
+                >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>新增职业</span>
+                </button>
             </div>
         );
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-3 min-w-0 w-full">
+            {/* 列表顶部工具条：统计数量与新增操作 */}
+            <div className="flex items-center justify-between gap-3 px-0.5">
+                <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <span className="font-semibold text-slate-700">全部职业</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-mono font-medium text-slate-600">
+                        {professions.length}
+                    </span>
+                </div>
+                <button
+                    type="button"
+                    onClick={onAdd}
+                    className="flex items-center gap-1 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-medium text-white shadow-xs shadow-orange-500/20 transition-all hover:bg-orange-600 active:scale-95 whitespace-nowrap shrink-0"
+                >
+                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                    <span>新增职业</span>
+                </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-0 w-full">
             {professions.map(p => {
                 const visual = getProfessionVisual(p.name);
                 const IconComponent = visual.Icon;
@@ -213,6 +243,7 @@ export function WorldProfessionTab({
                     </div>
                 );
             })}
+            </div>
         </div>
     );
 }

@@ -232,7 +232,7 @@ export function MarketSessions({items}: {items: MarketSession[]}) {
                                             }`}
                                         >
                                             {isActive && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                                            {isActive ? '正在逛市场…' : '已心满意足离开'}
+                                            {isActive ? '正在逛市场…' : '已结束市场活动'}
                                         </span>
                                     </div>
                                     <p className="mt-0.5 text-[11px] text-slate-400">
@@ -283,6 +283,11 @@ export function MarketSessions({items}: {items: MarketSession[]}) {
                                                     <AlertCircle className="h-3 w-3 shrink-0" />
                                                     {call.result?.error}
                                                 </p>
+                                            ) : call.name === 'adjust_life_budget' ? (
+                                                <div className="mt-1 rounded-lg bg-orange-50 px-2 py-1 text-[11px] text-slate-600">
+                                                    <p>预算 {call.result?.budgetBefore} → {call.result?.budgetAfter} 币</p>
+                                                    <p className="mt-1">{call.result?.reason}</p>
+                                                </div>
                                             ) : call.result?.name ? (
                                                 <div className="mt-1 flex items-center justify-between rounded-lg bg-slate-50/80 px-2 py-1 text-[11px] text-slate-600">
                                                     <span>

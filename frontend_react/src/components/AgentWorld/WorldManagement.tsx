@@ -1,6 +1,6 @@
 import {useWorldCatalogToggle} from '../../hooks/useWorldCatalogToggle';
 import { useEffect, useRef, useState } from 'react';
-import { Globe, Loader2, Plus } from 'lucide-react';
+import { Globe, Loader2 } from 'lucide-react';
 import { saveWorldCategory, saveWorldProfession, saveWorldIncome } from '../../api/agentWorld';
 import type { WorldCategory, WorldProfession } from '../../types/api/agentWorld';
 import { useAgentWorldManagement } from '../../hooks/useAgentWorldManagement';
@@ -118,10 +118,10 @@ export function WorldManagement() {
     };
 
     return (
-        <div ref={containerRef} className="space-y-6">
+        <div ref={containerRef} className="w-full min-w-0 space-y-6">
             {/* 顶层头部卡片 - 对齐 AgentSettings 紧凑单行风格 */}
-            <div className="bg-white rounded-2xl border border-slate-200 px-5 py-3.5 shadow-sm">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="w-full min-w-0 bg-white rounded-2xl border border-slate-200 px-4 py-3 sm:px-5 sm:py-3.5 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0 w-full">
                     <div className="flex min-w-0 items-center gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
                             <Globe className="w-5 h-5" />
@@ -133,72 +133,59 @@ export function WorldManagement() {
                             </p>
                         </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2.5">
-                        {/* 胶囊分段控制器 */}
-                        <div className="flex flex-wrap rounded-lg bg-slate-100 p-0.5 shrink-0">
-                            <button type="button" onClick={() => setTab('social')} className={`rounded-md px-3 py-1 text-xs ${tab === 'social' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>社交关系</button>
-                            <button
-                                type="button"
-                                onClick={() => setTab('categories')}
-                                className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                                    tab === 'categories'
-                                        ? 'bg-white text-slate-900 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                            >
-                                分类管理
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setTab('professions')}
-                                className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                                    tab === 'professions'
-                                        ? 'bg-white text-slate-900 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                            >
-                                职业管理
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setTab('income')}
-                                className={`whitespace-nowrap px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                                    tab === 'income'
-                                        ? 'bg-white text-slate-900 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                            >
-                                收益管理
-                            </button>
-                            <button type="button" onClick={() => setTab('market')} className={`whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium transition-all ${tab === 'market' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>市场管理</button>
-                        </div>
-
-                        {/* 始终预留操作位，避免无新增按钮的页签切换时移动。 */}
-                        <div className="flex h-[30px] w-[62px] shrink-0 items-center justify-end">
-                            {tab === 'categories' && (
-                                <button
-                                    type="button"
-                                    onClick={openCreateCategory}
-                                    title="新增分类"
-                                    className="flex w-full items-center justify-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-medium text-white shadow-xs shadow-orange-500/20 transition-all hover:bg-orange-600 active:scale-95 active:bg-orange-700 whitespace-nowrap shrink-0"
-                                >
-                                    <Plus className="w-3.5 h-3.5 shrink-0" />
-                                    新增
-                                </button>
-                            )}
-
-                            {tab === 'professions' && (
-                                <button
-                                    type="button"
-                                    onClick={openCreateProfession}
-                                    title="新增职业"
-                                    className="flex w-full items-center justify-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-medium text-white shadow-xs shadow-orange-500/20 transition-all hover:bg-orange-600 active:scale-95 active:bg-orange-700 whitespace-nowrap shrink-0"
-                                >
-                                    <Plus className="w-3.5 h-3.5 shrink-0" />
-                                    新增
-                                </button>
-                            )}
-                        </div>
+                    {/* 胶囊分段控制器：纯粹导航控件，移动端自适应全宽横向平滑滚动，PC端靠右紧凑排列 */}
+                    <div className="flex min-w-0 w-full overflow-x-auto scrollbar-hide rounded-lg bg-slate-100 p-0.5 sm:w-auto sm:shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => setTab('social')}
+                            className={`whitespace-nowrap shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-all ${
+                                tab === 'social' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            社交关系
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTab('categories')}
+                            className={`whitespace-nowrap shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-all ${
+                                tab === 'categories'
+                                    ? 'bg-white text-slate-900 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            分类管理
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTab('professions')}
+                            className={`whitespace-nowrap shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-all ${
+                                tab === 'professions'
+                                    ? 'bg-white text-slate-900 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            职业管理
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTab('income')}
+                            className={`whitespace-nowrap shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-all ${
+                                tab === 'income'
+                                    ? 'bg-white text-slate-900 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            收益管理
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTab('market')}
+                            className={`whitespace-nowrap shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-all ${
+                                tab === 'market' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            市场管理
+                        </button>
                     </div>
                 </div>
             </div>
@@ -231,6 +218,7 @@ export function WorldManagement() {
                     {tab === 'categories' && (
                         <WorldCategoryTab
                             categories={state.categories}
+                            onAdd={openCreateCategory}
                             onEdit={openEditCategory}
                             onToggle={item => void catalogToggle.toggle('category', item.id, item.enabled)}
                             busyIds={catalogToggle.busyIds}
@@ -241,6 +229,7 @@ export function WorldManagement() {
                         <WorldProfessionTab
                             professions={state.professions}
                             categories={state.categories}
+                            onAdd={openCreateProfession}
                             onEdit={openEditProfession}
                             onToggle={item => void catalogToggle.toggle('profession', item.id, item.enabled)}
                             busyIds={catalogToggle.busyIds}

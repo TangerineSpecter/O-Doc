@@ -689,3 +689,57 @@ class LifeProposalParsingTests(SimpleTestCase):
             self.assertIn('【格式修正要求】', mock_complete.call_args_list[1].args[1])
 
 
+
+
+@override_settings(USE_TZ=True)
+class LifeWeekScheduleTests(TestCase):
+    def setUp(self):
+        user = User.objects.create_user('admin', password='week-test', is_superuser=True)
+        self.client = APIClient()
+        self.client.force_authenticate(user)
+        self.start = datetime(2026, 10, 5, tzinfo=SHANGHAI)
+        LifeItem.objects.bulk_create([
+            LifeItem(id=f'week-{i}', owner_id='admin', actor_id='a' if i % 2 else 'b',
+                     original_at=self.start, scheduled_at=self.start+timedelta(days=i//27, minutes=i%27),
+                     activity='rest', status='completed' if i % 3 else 'pending')
+            for i in range(135)
+        ])
+        for identity, owner, at in [('foreign', 'someone-else', self.start),
+                                    ('next-week', 'admin', self.start+timedelta(days=7))]:
+            LifeItem.objects.create(id=identity, owner_id=owner, actor_id='a',
+                                    original_at=at, scheduled_at=at)
+        self.params = {'start': '2026-10-05', 'end': '2026-10-12'}
+        self.url = '/api/settings/agent-world/life/schedule/'
+
+    def test_week_returns_every_day_even_above_page_limit(self):
+        response = self.client.get(self.url, {**self.params, 'view': 'week', 'page': 2})
+        self.assertEqual(response.status_code, 200)
+        data = response.data['data']
+        self.assertEqual(data['total'], 135)
+        self.assertEqual(len(data['items']), 135)
+        self.assertEqual(data['page'], 1)
+        ids = {row['id'] for row in data['items']}
+        self.assertIn('week-134', ids)
+        self.assertNotIn('foreign', ids)
+        self.assertNotIn('next-week', ids)
+        per_day = Counter(row['scheduled_at'][:10] for row in data['items'])
+        self.assertEqual(per_day['2026-10-09'], 27)
+        self.assertEqual(list(per_day.values()), [27]*5)
+
+    def test_week_filters_and_empty_week(self):
+        response = self.client.get(self.url, {**self.params, 'view': 'week', 'actor_id': 'a', 'status': 'completed'})
+        rows = response.data['data']['items']
+        self.assertTrue(rows)
+        self.assertTrue(all(r['actor_id'] == 'a' and r['status'] == 'completed' for r in rows))
+        empty = self.client.get(self.url, {'view': 'week', 'start': '2026-10-19', 'end': '2026-10-26'})
+        self.assertEqual(empty.data['data']['items'], [])
+        self.assertEqual(empty.data['data']['total'], 0)
+
+    def test_list_keeps_pagination_and_week_rejects_large_range(self):
+        first = self.client.get(self.url, self.params).data['data']
+        second = self.client.get(self.url, {**self.params, 'view': 'list', 'page': 2}).data['data']
+        self.assertEqual(len(first['items']), 100)
+        self.assertEqual(len(second['items']), 35)
+        self.assertEqual(second['page'], 2)
+        rejected = self.client.get(self.url, {**self.params, 'view': 'week', 'end': '2026-10-13'})
+        self.assertEqual(rejected.status_code, 400)

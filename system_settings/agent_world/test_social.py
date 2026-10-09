@@ -40,6 +40,44 @@ class SocialTests(TestCase):
         return SocialOpportunity.objects.create(id=stable_id('op', str(SocialOpportunity.objects.count())), owner_id=self.owner,
             actor_id=self.agent.pk, business_date=local_time().date(), kind=kind, snapshot=self.config.settings)
 
+    def test_generate_without_prompt_preserves_text_and_records_failure(self):
+        self.config.settings.update(image_enabled=True, daily_moments=2)
+        self.config.save()
+        decision = {'action': 'publish', 'reason': '想分享', 'content': '窗边的茶。', 'image_choice': 'generate'}
+        with patch('system_settings.agent_world.life_planner.ask', return_value=decision), patch('system_mcp.image_generation.image_generation_options') as options:
+            run(self.op('daily'), self.agent)
+        row = Moment.objects.get(content='窗边的茶。')
+        self.assertEqual(row.image_state['status'], 'failed')
+        self.assertEqual(row.image_state['error'], '配图提示词无效')
+        options.assert_not_called()
+
+    def test_scene_image_uses_chibi_style_without_character_references(self):
+        from .social_image_prompt import encode_subject
+        from .social_media import prepare_image
+        value = {'action': 'publish', 'image_choice': 'generate', 'image_prompt': '窗边的一杯茶', 'image_include_actor': False}
+        encode_subject(value)
+        self.assertNotIn('image_include_actor', value)
+        options = {'configured': True, 'model_id': 'image-model', 'supports_reference_images': False, 'agent_reference_images': {'avatar': 'avatar'}}
+        with patch('system_mcp.image_generation.image_generation_options', return_value=options), patch('system_mcp.image_generation.resolve_image_model'), patch('system_settings.image_generation_options.resolve_image_generation_request'):
+            prepare_image(self.moment, self.agent, {**DEFAULTS, 'image_enabled': True}, value['image_prompt'])
+        self.moment.refresh_from_db()
+        request = self.moment.image_state['request']
+        self.assertEqual(request['reference_image_ids'], [])
+        self.assertIn('Q版手绘风格', request['prompt'])
+        self.assertIn('不出现居民或人物形象', request['prompt'])
+
+    def test_character_choice_preserves_reference_roles(self):
+        from .social_image_prompt import encode_subject, image_prompt
+        value = {'action': 'publish', 'image_choice': 'generate', 'image_prompt': '在窗边喝茶', 'image_include_actor': True}
+        encode_subject(value)
+        prompt, refs = image_prompt(value['image_prompt'], {'avatar': 'face', 'full_body': 'clothes'})
+        self.assertEqual(refs, ['face', 'clothes'])
+        self.assertIn('参考图1用于头像身份', prompt)
+        self.assertIn('参考图2用于服装', prompt)
+        prompt, refs = image_prompt(value['image_prompt'], {})
+        self.assertEqual(refs, [])
+        self.assertIn('使用背影或剪影', prompt)
+
     def test_three_dimensions_and_idempotency(self):
         peer = f'agent-id:{self.other.pk}'
         for i in range(12): apply_event(self.owner, self.agent.pk, peer, f'disagree:{i}', {'category': 'disagreement', 'reason': '观点不同'})
@@ -293,4 +331,3 @@ class SocialTests(TestCase):
         self.assertEqual(len(matched), 1)
         self.assertEqual(matched[0]['target']['artifactKind'], 'moment')
         self.assertEqual(matched[0]['target']['artifactId'], self.moment.pk)
-

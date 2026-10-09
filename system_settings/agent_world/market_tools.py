@@ -64,7 +64,8 @@ def call_market_tool(name: str, arguments: dict, agent, *, task=None, record=Non
     if name == 'enter_market':
         cleanup()
         session = enter(owner, agent, request_key(agent.pk, arguments.get('request_id')), task=task, record=record, mode=mode)
-        return payload(session)
+        from .market_spending import spending_context
+        return {**payload(session), 'spending': spending_context(owner, agent.pk)}
     explicit = arguments.get('session_id')
     session = (MarketSession.objects.filter(pk=explicit, actor_id=agent.pk, owner_id=owner).first() if explicit else
                MarketSession.objects.filter(actor_id=agent.pk, owner_id=owner, status='active').first())
@@ -76,7 +77,11 @@ def call_market_tool(name: str, arguments: dict, agent, *, task=None, record=Non
     if previous:
         if previous.actor_id != agent.pk or previous.owner_id != owner or previous.operation != operation or (session and previous.session_id != session.pk):
             raise ValueError('交易请求键已用于不同参数或会话')
-        return previous.result
+        from .market_spending import spending_context
+        return {**previous.result, 'spending': spending_context(owner, agent.pk)}
+    if operation and session and not invalid_reason(session):
+        from .market_spending import check_purchase
+        check_purchase(owner, agent.pk, operation)
     if session:
         reason = invalid_reason(session)
         if reason:
@@ -96,6 +101,9 @@ def call_market_tool(name: str, arguments: dict, agent, *, task=None, record=Non
         elif name == 'get_my_market_listings': result = listings(owner, {**arguments,'seller_id':agent.pk,'status':arguments.get('status','all')})
         elif name == 'get_my_market_transactions': result = history(owner, {**arguments,'actor_id':agent.pk})
         else: result = actor_context(owner, agent)
+        if operation:
+            from .market_spending import spending_context
+            result['spending'] = spending_context(owner, agent.pk)
         result = json.loads(json.dumps(result, cls=DjangoJSONEncoder))
         if session:
             finish_call(session, {k:result[k] for k in ('name','quantity','total','status','reason') if k in result})

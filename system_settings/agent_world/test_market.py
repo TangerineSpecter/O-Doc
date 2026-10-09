@@ -1,5 +1,6 @@
 """Market tests run exclusively under book_analysis.test_settings and never call providers."""
 import copy
+import uuid
 from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -59,6 +60,185 @@ class MarketTests(TestCase):
 
     def add(self, actor, sku='crop.radish', count=3, value=18):
         return add_stock(actor.pk,'admin',actor.name,sku,count,'萝卜' if sku.startswith('crop.') else '金色鸡蛋','farm_crop',value)
+
+    def life_item(self, budget=0):
+        from .life_models import LifeItem
+        return LifeItem.objects.create(id=uuid.uuid4().hex, owner_id='admin', actor_id=self.a.pk,
+            original_at=self.now, scheduled_at=self.now, activity='market_prepare',
+            task_id=self.task.pk, status='running', budget=budget, context={'manual': True})
+
+    def test_zero_budget_precheck_then_adjust_and_buy_with_live_feedback(self):
+        from .life_scope import life_scope
+        from .life_budget import budget_tool
+        from .market_spending import MarketPurchaseBlocked
+        item = self.life_item()
+        args = {'request_id': 'budget-feed', 'batch_id': self.shop.pk, 'slot_id': 'feed', 'quantity': 2}
+        with life_scope(item, {}):
+            with self.assertRaises(MarketPurchaseBlocked) as caught:
+                call_market_tool('buy_market_shop', args, self.a)
+            self.assertEqual(caught.exception.result['spending']['spendable'], '0')
+            self.sa.refresh_from_db()
+            self.assertEqual(self.sa.call_count, 0)
+            self.assertFalse(MarketTransaction.objects.exists())
+            self.assertEqual(stock_quantity(self.a.pk, 'admin', 'feed'), 0)
+            budget_tool({'allocations': [{'id': item.pk, 'budget': '20'}], 'reason': '购买农场饲料'})
+            result = call_market_tool('buy_market_shop', args, self.a)
+            self.assertEqual(Decimal(result['spending']['spendable']), 10)
+            self.assertEqual(Decimal(result['spending']['spent']), 10)
+            # 上下文查询重新读取预算，不沿用 life_scope 的初始快照。
+            budget_tool({'allocations': [{'id': item.pk, 'budget': '30'}], 'reason': '补充饲料预算'})
+            context = call_market_tool('get_market_context', {}, self.a)
+            self.assertEqual(Decimal(context['spending']['spendable']), 20)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.money, 9990)
+
+    def test_precheck_preserves_other_commitments_and_allows_smaller_purchase(self):
+        from .life_scope import life_scope
+        from .market_spending import MarketPurchaseBlocked
+        item = self.life_item(100)
+        self.life_item(9950)
+        args = {'request_id': 'too-much', 'batch_id': self.shop.pk, 'slot_id': 'feed', 'quantity': 11}
+        with life_scope(item, {}):
+            with self.assertRaises(MarketPurchaseBlocked) as caught:
+                call_market_tool('buy_market_shop', args, self.a)
+            self.assertEqual(Decimal(caught.exception.result['spending']['spendable']), 50)
+            result = call_market_tool('buy_market_shop', {**args, 'quantity': 10}, self.a)
+            self.assertEqual(Decimal(result['spending']['spendable']), 0)
+        item.refresh_from_db()
+        self.assertEqual(item.spent, 50)
+
+    def test_slot_precheck_allows_existing_slot_and_feed(self):
+        from .market_spending import MarketPurchaseBlocked
+        for slot in ('2', '3'):
+            self.shop.slots.append({**self.shop.slots[0], 'id': slot})
+        self.shop.save()
+        base = {'batch_id': self.shop.pk, 'quantity': 1}
+        for slot in ('0', '2'):
+            call_market_tool('buy_market_shop', {**base, 'request_id': 'slot-'+slot, 'slot_id': slot}, self.a)
+        with self.assertRaises(MarketPurchaseBlocked) as caught:
+            call_market_tool('buy_market_shop', {**base, 'request_id': 'slot-3', 'slot_id': '3'}, self.a)
+        self.assertEqual(caught.exception.result['code'], 'market_slot_limit')
+        for slot in ('0', 'feed'):
+            result = call_market_tool('buy_market_shop', {**base, 'request_id': 'again-'+slot, 'slot_id': slot}, self.a)
+            self.assertEqual(result['spending']['slots_remaining'], 0)
+        self.sa.refresh_from_db()
+        self.assertEqual(self.sa.call_count, 4)
+
+    def test_runner_stops_repeated_unaffordable_batch_without_market_call_spam(self):
+        from .life_scope import life_scope
+        close_session(self.sa, 'done')
+        close_session(self.sb, 'done')
+        item = self.life_item()
+        def fake(messages, tools, execute, **kwargs):
+            execute('enter_market', {'request_id': 'enter'})
+            args = {'request_id': 'blocked-1', 'batch_id': self.shop.pk, 'slot_id': 'feed', 'quantity': 2}
+            self.assertEqual(execute('buy_market_shop', args)['code'], 'life_budget_exceeded')
+            execute('buy_market_shop', {**args, 'request_id': 'blocked-2'})
+            self.fail('重复拦截须终止同一批剩余调用')
+        with life_scope(item, {}), patch('system_settings.agent_world.market_runner.select_agent', return_value=self.a), patch(
+                'system_settings.agent_world.market_runner.AIService.chat_completion_messages_with_tools', side_effect=fake):
+            record = run_market_opportunity(self.task, key='budget-repeat', manual=True)
+        session = MarketSession.objects.get(record=record)
+        self.assertEqual(session.status, 'closed')
+        self.assertEqual(session.call_count, 0)
+        self.assertIn('采购条件未变化', session.reason)
+        self.assertFalse(MarketTransaction.objects.exists())
+
+    def test_runner_adjusts_budget_after_precheck_and_continues_purchase(self):
+        from .life_scope import life_scope
+        close_session(self.sa, 'done')
+        close_session(self.sb, 'done')
+        item = self.life_item()
+        def fake(messages, tools, execute, **kwargs):
+            execute('enter_market', {'request_id': 'enter'})
+            args = {'request_id': 'recover', 'batch_id': self.shop.pk, 'slot_id': 'feed', 'quantity': 2}
+            self.assertEqual(execute('buy_market_shop', args)['code'], 'life_budget_exceeded')
+            adjustment = execute('adjust_life_budget', {
+                'allocations': [{'id': item.pk, 'budget': '20'}], 'reason': '购置饲料'})
+            self.assertEqual(Decimal(adjustment['spending']['spendable']), 20)
+            self.assertEqual(execute('buy_market_shop', args)['quantity'], 2)
+            execute('leave_market', {'reason': '采购完成'})
+        with life_scope(item, {}), patch('system_settings.agent_world.market_runner.select_agent', return_value=self.a), patch(
+                'system_settings.agent_world.market_runner.AIService.chat_completion_messages_with_tools', side_effect=fake):
+            record = run_market_opportunity(self.task, key='budget-recover', manual=True)
+        session = MarketSession.objects.get(record=record)
+        self.assertEqual(session.call_count, 2)
+        self.assertEqual(session.reason, '采购完成')
+        item.refresh_from_db()
+        self.assertEqual(item.spent, 10)
+        self.assertEqual(stock_quantity(self.a.pk, 'admin', 'feed'), 2)
+
+    def test_sessions_derive_budget_revisions_without_changing_persisted_calls(self):
+        from .life_budget import adjust_budget
+        from .market_queries import sessions
+        from system_settings.models import AgentRunRecord
+        record = AgentRunRecord.objects.create(task=self.task, task_name=self.task.name, agent=self.a)
+        self.sa.record = record
+        self.sa.save()
+        item = self.life_item()
+        item.record_id = record.pk
+        item.save()
+        adjust_budget('admin', self.a.pk, [{'id': item.pk, 'budget': '300'}], '补种预算')
+        row = next(r for r in sessions('admin', {})['items'] if r['id'] == self.sa.pk)
+        self.assertEqual(row['calls'][0]['name'], 'adjust_life_budget')
+        self.assertEqual(row['calls'][0]['result']['budget_after'], '300')
+        self.sa.refresh_from_db()
+        self.assertEqual(self.sa.calls, [])
+        self.assertEqual(self.sa.call_count, 0)
+
+    def test_supply_budget_history_survives_final_activity_record(self):
+        from .life_budget import adjust_budget
+        from .life_schedule import stable_id
+        from .market_queries import sessions
+        from system_settings.models import AgentRunRecord
+        item = self.life_item()
+        item.activity = 'farm'
+        item.context = {**item.context, 'execution_key': 'retry-execution'}
+        item.save()
+        market_record = AgentRunRecord.objects.create(task=self.task, agent=self.a)
+        final_record = AgentRunRecord.objects.create(task=self.farm_task, agent=self.a)
+        WorldAction.objects.create(pk=stable_id('retry-execution', 'supplies'), task=self.task,
+            actor_id=self.a.pk, record=market_record, snapshot={'market': True})
+        WorldAction.objects.create(pk='retry-execution', task=self.farm_task, actor_id=self.a.pk, record=final_record)
+        self.sa.record = market_record
+        self.sa.save()
+        adjust_budget('admin', self.a.pk, [{'id': item.pk, 'budget': '300'}], '采购前补预算')
+        # 正在执行的安排可能在进入市场前就已完成最后一次预算更新。
+        from .life_models import LifeItem
+        LifeItem.objects.filter(pk=item.pk).update(status='running', updated_at=self.sa.created_at-timedelta(seconds=1))
+        active = next(r for r in sessions('admin', {})['items'] if r['id'] == self.sa.pk)
+        self.assertEqual(active['calls'][0]['result']['reason'], '采购前补预算')
+        self.sa.ended_at = timezone.now()
+        self.sa.save()
+        # 完成农场后 record_id 已指向农场；再准备重试时当前执行身份也可能变化。
+        item.record_id = final_record.pk
+        item.context = {**item.context, 'execution_key': 'next-retry'}
+        item.save()
+        adjust_budget('admin', self.a.pk, [{'id': item.pk, 'budget': '400'}], '离开市场后调整')
+        row = next(r for r in sessions('admin', {})['items'] if r['id'] == self.sa.pk)
+        self.assertEqual([call['result']['reason'] for call in row['calls']], ['采购前补预算'])
+        self.assertEqual(row['call_count'], 0)
+        self.sa.refresh_from_db()
+        self.assertEqual(self.sa.calls, [])
+
+    def test_supply_history_uses_persisted_debit_identity_after_retry(self):
+        from .life_scope import life_scope
+        from .life_budget import adjust_budget
+        from .market_queries import sessions
+        item = self.life_item()
+        with life_scope(item, {}):
+            adjust_budget('admin', self.a.pk, [{'id': item.pk, 'budget': '300'}], '购买饲料预算')
+            self.operation(self.a, self.sa, 'old-supply-purchase', 'buy_shop',
+                batch_id=self.shop.pk, slot_id='feed', quantity=2)
+        item.refresh_from_db()
+        item.record_id = ''
+        item.context = {**item.context, 'execution_key': 'later-execution'}
+        item.save()
+        row = next(r for r in sessions('admin', {})['items'] if r['id'] == self.sa.pk)
+        adjustments = [call for call in row['calls'] if call['name'] == 'adjust_life_budget']
+        self.assertEqual(len(adjustments), 1)
+        self.assertEqual(adjustments[0]['result']['reason'], '购买饲料预算')
+        self.assertEqual(sessions('other-owner', {})['items'], [])
 
     def test_shared_stock_and_idempotency(self):
         args={'batch_id':self.shop.pk,'slot_id':'0','quantity':1}

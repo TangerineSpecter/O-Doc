@@ -161,7 +161,15 @@ class LifeScheduleView(APIView):
             if request.query_params.get('status'):qs=qs.filter(status=request.query_params['status'])
             page=int(request.query_params.get('page','1'))
             if page<1:raise ValueError('页码无效')
-            return success_result({'total':qs.count(),'items':[item_data(i) for i in qs.order_by('scheduled_at','id')[(page-1)*100:page*100]],'page':page})
+            view=request.query_params.get('view','list')
+            if view not in ('week','list'):raise ValueError('日程视图无效')
+            ordered=qs.order_by('scheduled_at','id')
+            if view=='week':
+                if end-start>timedelta(days=7):raise ValueError('周日程查询范围不能超过7天')
+                # 日历必须以完整日期范围分组，不能把分页缺失误呈现为当天无安排。
+                items=[item_data(i) for i in ordered]
+                return success_result({'total':len(items),'items':items,'page':1})
+            return success_result({'total':qs.count(),'items':[item_data(i) for i in ordered[(page-1)*100:page*100]],'page':page})
         except ValueError as exc:return valid_result(str(exc),status=400)
 
     @guarded

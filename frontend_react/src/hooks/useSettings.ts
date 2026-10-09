@@ -370,6 +370,7 @@ export const useSettings = () => {
                 taskKind: taskData.taskKind || 'custom',
                 publishConfig: taskData.publishConfig,
                 travelConfig: taskData.travelConfig,
+                investmentConfig: taskData.investmentConfig,
                 postCollectionIds: taskData.postCollectionIds || [],
                 postCategoryIds: taskData.postCategoryIds || [],
                 trigger: taskData.trigger || '定时任务',

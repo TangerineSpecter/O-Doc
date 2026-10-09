@@ -141,7 +141,7 @@ function WorldDialogFrame({
                         <X className="h-4 w-4"/>
                     </button>
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide px-4 py-3 sm:px-5 sm:py-4 flex flex-col">{children}</div>
+                <div className="min-h-0 min-w-0 w-full flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide px-4 py-3 sm:px-5 sm:py-4 flex flex-col">{children}</div>
             </div>
         </div>,
         document.body
@@ -151,7 +151,7 @@ function WorldDialogFrame({
 function LoadedDialogContent({title, description, size, fixedHeight, children}: WorldDialogProps) {
     const update = useContext(WorldDialogContext);
     useEffect(() => {update?.update({title, description, size, fixedHeight});}, [update, title, description, size, fixedHeight]);
-    return <WorldDialogContext.Provider value={null}><div className="world-dialog-content-enter flex min-h-0 flex-1 flex-col">{children}</div></WorldDialogContext.Provider>;
+    return <WorldDialogContext.Provider value={null}><div className="world-dialog-content-enter flex min-h-0 min-w-0 w-full flex-1 flex-col">{children}</div></WorldDialogContext.Provider>;
 }
 
 export default function WorldDialog(props: WorldDialogProps) {

@@ -253,6 +253,27 @@ class InvestmentTests(TestCase):
         self.assertEqual(again.status_code,200,again.data)
         self.assertEqual(AgentTask.objects.filter(task_kind='investment',investment_config__owner_id='admin').count(),1)
 
+    def test_news_service_save_reopen_preserve_and_clear(self):
+        from system_settings.models import MCPServer
+        server = MCPServer.objects.create(name='新闻搜索', transport='streamableHttp', enabled=True,
+            tools=[{'name': 'tavily_search', 'enabled': True}])
+        url = f'/api/settings/agent-tasks/{self.task.pk}/'
+        response = self.client.put(url, {'name': self.task.name, 'agent': self.agent.pk, 'agents': [self.agent.pk],
+            'taskKind': 'investment', 'investmentConfig': {'searchServerId': server.pk}}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.investment_config, {'owner_id': 'admin', 'search_server_id': server.pk})
+        # 检查真正渲染给前端的驼峰字段，确保保存后重新打开能回显。
+        self.assertEqual(self.client.get(url).json()['data']['investmentConfig']['searchServerId'], server.pk)
+        response = self.client.patch(url, {'notifyEnabled': False}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(self.client.get(url).json()['data']['investmentConfig']['searchServerId'], server.pk)
+        response = self.client.patch(url, {'investmentConfig': {'searchServerId': ''}}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.investment_config['search_server_id'], '')
+        self.assertEqual(self.client.get(url).json()['data']['investmentConfig']['searchServerId'], '')
+
     def test_model_runner_trade_then_finish(self):
         from .investment_runner import run_investment_opportunity
         AgentExecutionLease.objects.filter(agent=self.agent).update(token='',until=None)

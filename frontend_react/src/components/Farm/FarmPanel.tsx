@@ -39,26 +39,24 @@ function FarmResidentAvatar({
             <img
                 src={avatar}
                 alt={name}
-                className="h-6 w-6 shrink-0 rounded-lg object-cover border border-orange-100/90 shadow-2xs"
+                className="h-9 w-9 shrink-0 rounded-lg object-cover border border-orange-100/90 shadow-2xs"
             />
         );
     }
     if (avatar && avatar.trim()) {
         return (
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-orange-100 bg-orange-50 text-xs shadow-2xs">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-orange-100 bg-orange-50 text-base shadow-2xs">
                 {avatar}
             </span>
         );
     }
     if (appearance) {
         return (
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-lime-200/90 bg-lime-50 shadow-2xs">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-lime-200/90 bg-lime-50 shadow-2xs">
                 <div
                     style={{
                         width: 32,
                         height: 32,
-                        transform: 'scale(0.65) translateY(1px)',
-                        transformOrigin: 'center center',
                         imageRendering: 'pixelated',
                         backgroundImage: `url(${farmAtlasUrl})`,
                         backgroundSize: '1024px auto',
@@ -69,8 +67,8 @@ function FarmResidentAvatar({
         );
     }
     return (
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-orange-100 bg-orange-50 text-orange-600 shadow-2xs">
-            <Bot className="h-3.5 w-3.5" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-orange-100 bg-orange-50 text-orange-600 shadow-2xs">
+            <Bot className="h-4 w-4" />
         </span>
     );
 }
@@ -150,16 +148,26 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [configure, inventory, farms.length, handlePrevAgent, handleNextAgent]);
 
-    // 选中的居民项平滑居中滚动至视野
+    // 选中的居民项平滑居中滚动至视野（仅在水平方向平滑滚动列表容器，避免移动端意外触发上下全局位移）
     useEffect(() => {
         if (agentId) {
             const el = residentItemRefs.current.get(agentId);
-            if (el) {
-                el.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'nearest',
-                    inline: 'nearest',
-                });
+            const container = residentListRef.current;
+            if (el && container) {
+                const containerBounds = container.getBoundingClientRect();
+                const elementBounds = el.getBoundingClientRect();
+                const elLeft = elementBounds.left - containerBounds.left - container.clientLeft + container.scrollLeft;
+                const elRight = elLeft + elementBounds.width;
+                const containerLeft = container.scrollLeft;
+                const containerRight = containerLeft + container.clientWidth;
+                if (elLeft < containerLeft) {
+                    container.scrollTo({left: Math.max(0, elLeft - 12), behavior: 'smooth'});
+                } else if (elRight > containerRight) {
+                    container.scrollTo({
+                        left: elRight - container.clientWidth + 12,
+                        behavior: 'smooth',
+                    });
+                }
             }
         }
     }, [agentId]);
@@ -171,9 +179,9 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
     };
 
     return (
-        <div className="space-y-3">
+        <div className="w-full min-w-0 space-y-3">
             {/* 顶部单行一体化控制栏 */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 p-2 text-xs">
+            <div className="w-full min-w-0 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 p-2 text-xs">
                 {/* 左侧：天气、余额、行动 */}
                 <div className="flex flex-wrap items-center gap-2.5">
                     {farm && (
@@ -209,7 +217,7 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                 </div>
 
                 {/* 右侧：操作按钮群 */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                     <Link
                         to="/settings?tab=agent"
                         className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-600 shadow-2xs hover:bg-slate-50"
@@ -279,24 +287,24 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                     </Link>
                 </section>
             ) : (
-                /* 主体左右等高分栏：左侧画布，右侧 Tab 观察与记录（消除弹窗纵向滚动） */
-                <div className="grid gap-3.5 lg:grid-cols-[minmax(0,1fr)_360px] h-[calc(88vh-145px)] min-h-[480px]">
+                /* 主体分栏：移动端自适应流动，PC 端左右等高分栏（消除弹窗纵向滚动） */
+                <div className="w-full min-w-0 grid gap-3.5 lg:grid-cols-[minmax(0,1fr)_360px] lg:h-[calc(88vh-145px)] lg:min-h-[480px]">
                     {/* 左侧：像素画布与居民切换展示 */}
-                    <div className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-3 shadow-2xs">
-                        <div className="flex-1 flex items-center justify-center min-h-0">
+                    <div className="w-full min-w-0 flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-3 shadow-2xs">
+                        <div className="w-full min-w-0 flex-1 flex items-center justify-center min-h-0">
                             <FarmCanvas farm={farm} onSelect={handleSelect} />
                         </div>
 
                         {/* 底部居民头像+名字快速切换栏 */}
-                        <div className="mt-2.5 flex flex-col gap-2 pt-2 border-t border-slate-100">
-                            <div className="flex items-center gap-1.5">
+                        <div className="w-full min-w-0 mt-2.5 flex flex-col gap-2 pt-2 border-t border-slate-100">
+                            <div className="w-full min-w-0 flex items-center gap-1.5">
                                 {farms.length > 1 && (
                                     <button
                                         type="button"
                                         onClick={handlePrevAgent}
                                         title="切换至上一个居民 (←)"
                                         aria-label="上一个居民"
-                                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200/90 bg-white text-slate-500 shadow-2xs transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 active:scale-95 cursor-pointer"
+                                        className="flex h-10 w-7 sm:w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200/90 bg-white text-slate-500 shadow-2xs transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 active:scale-95 cursor-pointer"
                                     >
                                         <ChevronLeft className="h-4 w-4" />
                                     </button>
@@ -304,7 +312,7 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
 
                                 <div
                                     ref={residentListRef}
-                                    className="flex flex-1 items-center gap-2 overflow-x-auto scrollbar-hide py-1 px-0.5"
+                                    className="flex flex-1 min-w-0 items-center gap-2 overflow-x-auto scrollbar-hide py-1 px-0.5"
                                 >
                                     {farms.map((f) => {
                                         const isActive = f.id === agentId;
@@ -317,7 +325,7 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                                                     else residentItemRefs.current.delete(f.id);
                                                 }}
                                                 onClick={() => handleSwitchAgent(f.id)}
-                                                className={`group flex shrink-0 items-center gap-2 rounded-xl border px-3 py-1.5 text-xs transition-all cursor-pointer ${
+                                                className={`group flex shrink-0 items-center gap-2 rounded-xl border p-1.5 pr-2.5 text-xs transition-all cursor-pointer ${
                                                     isActive
                                                         ? 'border-orange-400 bg-orange-50/90 text-orange-950 font-medium shadow-xs ring-2 ring-orange-300/40'
                                                         : 'border-slate-200/90 bg-white text-slate-600 shadow-2xs hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900'
@@ -328,10 +336,23 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                                                     avatar={f.avatar}
                                                     appearance={f.appearance}
                                                 />
-                                                <span className="truncate max-w-[100px]">{f.actorName}</span>
-                                                {f.professionName && (
-                                                    <ProfessionBadge professionName={f.professionName} size="xs" />
-                                                )}
+                                                <div className="flex flex-col min-w-0 text-left">
+                                                    <span
+                                                        className={`truncate max-w-[76px] sm:max-w-[92px] font-bold text-xs leading-tight ${
+                                                            isActive ? 'text-orange-950' : 'text-slate-800'
+                                                        }`}
+                                                        title={f.actorName}
+                                                    >
+                                                        {f.actorName}
+                                                    </span>
+                                                    <div className="mt-0.5 flex items-center">
+                                                        {f.professionName ? (
+                                                            <ProfessionBadge professionName={f.professionName} size="xs" />
+                                                        ) : (
+                                                            <span className="text-[10px] text-slate-400 leading-tight">普通居民</span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </button>
                                         );
                                     })}
@@ -343,7 +364,7 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                                         onClick={handleNextAgent}
                                         title="切换至下一个居民 (→)"
                                         aria-label="下一个居民"
-                                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200/90 bg-white text-slate-500 shadow-2xs transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 active:scale-95 cursor-pointer"
+                                        className="flex h-10 w-7 sm:w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200/90 bg-white text-slate-500 shadow-2xs transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 active:scale-95 cursor-pointer"
                                     >
                                         <ChevronRight className="h-4 w-4" />
                                     </button>
@@ -363,7 +384,7 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                     </div>
 
                     {/* 右侧：一体化观察与记录面板 */}
-                    <div className="flex flex-col rounded-2xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
+                    <div className="w-full min-w-0 flex flex-col rounded-2xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
                         {/* 顶部 Tab 切换控制器 */}
                         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 p-2">
                             <div className="flex rounded-lg bg-slate-200/60 p-0.5">

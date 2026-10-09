@@ -18,12 +18,13 @@ def prepare_image(moment, agent, cfg, prompt):
         from system_mcp.image_generation import image_generation_options
         options = image_generation_options(agent, model_id=cfg['image_model_id'], scene='moment')
         if not options.get('configured'): raise ValueError(options.get('message') or '未配置生图模型')
-        refs = list(dict.fromkeys(options.get('agent_reference_images', {}).values()))
+        from .social_image_prompt import image_prompt
+        prompt, refs = image_prompt(prompt, options.get('agent_reference_images', {}))
         if refs and not options.get('supports_reference_images'): raise ValueError('模型不支持角色参考图')
         from system_settings.image_generation_options import resolve_image_generation_request
         from system_mcp.image_generation import resolve_image_model
         resolve_image_generation_request(resolve_image_model(options['model_id']), {'aspect_ratio': cfg['image_aspect_ratio'], 'image_size': cfg['image_size']}, scene='moment')
-        request = {'request_id': f'moment:{moment.pk}:0', 'prompt': prompt + '\n只表现已发生的生活片段，情绪服从实际经历；按角色参考图保持身份，不捏造共同经历。',
+        request = {'request_id': f'moment:{moment.pk}:0', 'prompt': prompt,
                    'reference_image_ids': refs, 'model_id': options['model_id'], 'aspect_ratio': cfg['image_aspect_ratio'], 'image_size': cfg['image_size']}
         moment.image_state = {'status': 'pending', 'request': request, 'attempt': 0}
     except Exception as exc:

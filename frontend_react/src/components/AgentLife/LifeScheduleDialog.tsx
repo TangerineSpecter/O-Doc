@@ -48,7 +48,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
     const endDisplay = dayjs(end).subtract(1, 'day').format('YYYY-MM-DD');
     const isThisWeek = start === thisMonday;
 
-    const schedule = useAgentLifeSchedule(start, end, actorId, status, page);
+    const schedule = useAgentLifeSchedule(start, end, actorId, status, page, mode === 'week' ? 'week' : 'list');
 
     useEffect(() => {
         const c = new AbortController();
@@ -325,6 +325,8 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                             {mode === 'week' ? (
                                 <div className="flex min-h-0 flex-1 flex-col gap-2">
                                     <LifeScheduleWeekView
+                                        loading={schedule.loading}
+                                        error={Boolean(schedule.error)}
                                         days={days}
                                         items={schedule.data.items}
                                         names={names}
@@ -332,13 +334,6 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                         dateKey={dateKey}
                                         density={density}
                                     />
-                                    {schedule.data.total > 100 && (
-                                        <div className="flex shrink-0 items-center justify-center gap-3 text-xs text-slate-500">
-                                            <button type="button" disabled={page === 1} onClick={() => setPage(value => value - 1)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 disabled:opacity-40">上一页</button>
-                                            <span>第 {page} 页 · 共 {schedule.data.total} 项</span>
-                                            <button type="button" disabled={page * 100 >= schedule.data.total} onClick={() => setPage(value => value + 1)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 disabled:opacity-40">下一页</button>
-                                        </div>
-                                    )}
                                 </div>
                             ) : (
                                 <div className="flex flex-1 min-h-0 flex-col overflow-hidden">

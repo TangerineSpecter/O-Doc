@@ -156,11 +156,11 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                         </div>
 
                         <div className="flex items-baseline gap-2">
-                            <span className="text-xl font-bold tracking-tight text-slate-900">
+                            <span className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0">
                                 小橘<span className="text-orange-600">文档</span>
                             </span>
                             <button
-                                className={`group flex items-center gap-1.5 px-2 py-0.5 ml-1 rounded-[4px] shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer relative overflow-hidden ${hasNewVersion ? 'bg-orange-50 border border-orange-200 text-orange-700' : 'bg-lime-50 border border-lime-200 text-lime-800'}`}
+                                className={`group hidden sm:flex items-center gap-1.5 px-2 py-0.5 ml-1 rounded-[4px] shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer relative overflow-hidden ${hasNewVersion ? 'bg-orange-50 border border-orange-200 text-orange-700' : 'bg-lime-50 border border-lime-200 text-lime-800'}`}
                                 onClick={handleVersionClick}
                             >
                                 {hasNewVersion ? <ArrowUpCircle className="w-3 h-3 text-orange-500 animate-bounce" /> : <Leaf className="w-3 h-3 text-lime-600" />}
@@ -212,11 +212,18 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                                 )}
                             </div>
 
-                            {/* User Menu (Desktop) */}
-                            <div ref={userMenuRef} className="hidden sm:block relative group z-[100]">
-                                <div
+                            {/* User Menu */}
+                            <div ref={userMenuRef} className="relative group z-[100] shrink-0">
+                                <button
+                                    type="button"
                                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                                    className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1.5 rounded-full pr-3 transition-colors"
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Escape') setIsUserMenuOpen(false);
+                                    }}
+                                    aria-label="用户菜单"
+                                    aria-expanded={isUserMenuOpen}
+                                    aria-controls="navbar-user-menu"
+                                    className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-0.5 sm:p-1.5 rounded-full sm:pr-3 transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
                                 >
                                     <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-200 to-slate-300 flex items-center justify-center text-slate-600 border border-white shadow-sm overflow-hidden">
                                         <img src={userInfo?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Visitor"} alt="User" />
@@ -225,10 +232,10 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                                         {userInfo ? (userInfo.nickname || userInfo.username || '管理员') : '访客用户'}
                                     </span>
                                     <ChevronDown className={`w-3 h-3 text-slate-400 hidden sm:block transition-transform ${isUserMenuOpen ? 'rotate-180' : 'group-hover:rotate-180'}`} />
-                                </div>
+                                </button>
 
                                 {/* Dropdown Menu */}
-                                <div className={`absolute right-0 top-full z-[110] pt-2 w-56 animate-in fade-in slide-in-from-top-1 duration-200 ${
+                                <div id="navbar-user-menu" className={`absolute right-0 top-full z-[110] pt-2 w-56 max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-5rem)] overflow-y-auto scrollbar-hide animate-in fade-in slide-in-from-top-1 duration-200 ${
                                     isUserMenuOpen ? 'block' : 'hidden sm:group-hover:block'
                                 }`}>
                                     <div className="bg-white rounded-xl shadow-xl border border-slate-100 p-2" onClick={() => setIsUserMenuOpen(false)}>
@@ -266,24 +273,6 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
                                 </div>
                             </div>
 
-                            {/* Mobile User Avatar Button */}
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (userInfo) {
-                                        onOpenProfile();
-                                    } else if (onNavigate) {
-                                        onNavigate('login');
-                                    }
-                                }}
-                                className="sm:hidden p-0.5 rounded-full hover:ring-2 hover:ring-orange-400 transition-all"
-                                aria-label={userInfo ? "个人中心" : "登录"}
-                                title={userInfo ? "个人中心" : "登录"}
-                            >
-                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 border border-slate-200 overflow-hidden">
-                                    <img src={userInfo?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Visitor"} alt="User" className="w-full h-full object-cover" />
-                                </div>
-                            </button>
                         </div>
                     </div>
                 </div>

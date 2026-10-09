@@ -4,7 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, SimpleTestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 from anthology.models import Anthology
@@ -69,6 +69,68 @@ class TravelTests(TestCase):
         else:
             value = {'title': '成都的一天', 'content': '在公园散步，吃了麻婆豆腐。这次没有买纪念品。', 'reflection': '下次还想来', 'photo_scene': '在公园留影'}
         return validate(value)
+
+    def with_life_budget(self, row, budget=1275, spent=0):
+        from .life_models import LifeItem
+        return LifeItem.objects.create(id=row.pk, owner_id='admin', actor_id=self.agent.pk,
+            original_at=timezone.now(), scheduled_at=timezone.now(), activity='travel',
+            status='running', budget=budget, spent=spent, context={'manual': True})
+
+    def test_total_remaining_does_not_implicitly_become_shopping_budget(self):
+        from .travel_shopping import shopping_limits
+        row = self.journey('buy')
+        row.snapshot['selection']['shopping_budget'] = '0'
+        row.save()
+        self.with_life_budget(row, spent=525)
+        limits = shopping_limits(row)
+        self.assertEqual(Decimal(limits['available']), 750)
+        self.assertEqual(Decimal(limits['shopping_budget']), 0)
+        self.assertEqual(Decimal(limits['spendable']), 0)
+
+    def test_choose_records_separate_budget_and_rejects_overallocation(self):
+        row = self.journey('choose')
+        row.snapshot['candidates'][0]['price'] = '525'
+        row.snapshot['previews'] = []
+        row.save()
+        self.with_life_budget(row)
+        def choose(journey, instruction, context, validate, **kwargs):
+            self.assertIn('不是固定为0', instruction)
+            self.assertEqual(Decimal(context['funds']['available']), 1275)
+            with self.assertRaisesRegex(ValueError, '750'):
+                validate({'destination_id': '1', 'shopping_budget': '800', 'reason': '购买礼物'})
+            return validate({'destination_id': '1', 'shopping_budget': '100', 'reason': '预留纪念品钱'})
+        with patch('system_settings.agent_world.travel_steps.ask', side_effect=choose):
+            advance(row)
+        row.refresh_from_db()
+        self.assertEqual(row.snapshot['selection']['shopping_budget'], '100.00')
+        self.assertEqual(TravelNode.objects.get(pk=f'{row.pk}:choose').result['shopping_budget'], '100.00')
+
+    def test_shopping_uses_live_reservations_and_checks_basket_sum(self):
+        from .life_models import LifeItem
+        row = self.journey('buy', departed_at=timezone.now())
+        self.with_life_budget(row, budget=1000, spent=525)
+        LifeItem.objects.create(id='other-trip', owner_id='admin', actor_id=self.agent.pk,
+            original_at=timezone.now(), scheduled_at=timezone.now(), activity='travel', budget=9950)
+        def buy(journey, instruction, context, validate, **kwargs):
+            self.assertEqual(Decimal(context['spendable']), 50)
+            with self.assertRaisesRegex(ValueError, '当前可消费50'):
+                validate({'basket': [{'id': '1', 'quantity': 1}], 'reason': '想买'})
+            return validate({'basket': [], 'reason': '为其他安排保留资金，本次不买'})
+        with patch('system_settings.agent_world.travel_steps.ask', side_effect=buy):
+            advance(row)
+        self.assertEqual(row.snapshot['shopping']['basket'], [])
+        self.assertFalse(AgentInventoryItem.objects.exists())
+
+    def test_saved_goods_are_not_repriced_after_budget_changes(self):
+        row = self.journey('plan')
+        row.snapshot['previews'] = [{'destination_id': '1', 'sources': [self.source]}]
+        row.snapshot['selection']['shopping_budget'] = '0'
+        row.save()
+        before = copy.deepcopy(row.snapshot['goods'])
+        with patch('system_settings.agent_world.travel_steps.ask', side_effect=self.fake_ask):
+            advance(row)
+        row.refresh_from_db()
+        self.assertEqual(row.snapshot['goods'], before)
 
     def test_full_trip_text_published_without_image_and_notification(self):
         row = self.journey()
@@ -772,3 +834,19 @@ class TravelTests(TestCase):
         with patch('system_settings.agent_world.travel_runner.recover_photo') as recover:
             tick(None)
             recover.assert_not_called()
+
+
+class TravelShoppingPriceTests(SimpleTestCase):
+    def test_normal_range_contains_affordable_choices_without_clipping_expensive_option(self):
+        from .travel_shopping import generate_goods
+        for count in (3, 4, 5):
+            with self.subTest(count=count), patch('system_settings.agent_world.travel_shopping.random.randint', side_effect=lambda lo, hi: hi):
+                goods = generate_goods([{'name': f'当地纪念品{i}'} for i in range(count)], Decimal('525'), Decimal('30'))
+                self.assertEqual([g['price'] for g in goods], ['30']*(count-1)+['50'])
+                self.assertTrue(all(g['value'] == g['price'] for g in goods))
+
+    def test_zero_or_below_normal_minimum_does_not_force_discount(self):
+        from .travel_shopping import generate_goods
+        for budget in ('0', '5', '19'):
+            goods = generate_goods([{'name': '当地纪念品'}]*3, Decimal('1375'), Decimal(budget))
+            self.assertTrue(all(20 <= int(g['price']) <= 130 for g in goods))

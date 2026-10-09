@@ -35,7 +35,16 @@ def sessions(owner: str, arguments: dict) -> dict:
     page, size = page_values(arguments)
     rows = MarketSession.objects.filter(owner_id=owner)
     if arguments.get('actor_id'): rows = rows.filter(actor_id=arguments['actor_id'])
-    return {'total':rows.count(), 'page':page, 'items':list(rows.values('id','actor_id','actor_name','status','mode','call_count','calls','created_at','expires_at','ended_at','reason')[size*(page-1):size*page])}
+    items = list(rows.values('id','actor_id','actor_name','status','mode','call_count','calls','record_id','created_at','expires_at','ended_at','reason')[size*(page-1):size*page])
+    from .market_life_history import budget_calls
+    from .life_time import local_time
+    adjustments = budget_calls(owner, items)
+    from datetime import datetime
+    for row in items:
+        row.pop('record_id')
+        row['calls'] = sorted([*row['calls'], *adjustments.get(row['id'], [])],
+                              key=lambda call: local_time(datetime.fromisoformat(call['at'])))
+    return {'total':rows.count(), 'page':page, 'items':items}
 
 
 def actor_context(owner: str, agent) -> dict:
@@ -53,5 +62,6 @@ def actor_context(owner: str, agent) -> dict:
     # No audit chains or historical price lots in the model's demand summary.
     for row in inventory:
         row['source'] = {key:row['source'][key] for key in ('sku','quality') if key in row['source']}
-    return {'balance':str(agent.money), 'stamina':str(stamina(agent)), 'farm':farm_state,
+    from .market_spending import spending_context
+    return {'spending': spending_context(owner, agent.pk), 'balance':str(agent.money), 'stamina':str(stamina(agent)), 'farm':farm_state,
             'inventory':inventory, 'listings':listings(owner, {'seller_id':agent.pk,'status':'all'})}

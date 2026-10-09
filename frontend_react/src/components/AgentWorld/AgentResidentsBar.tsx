@@ -162,7 +162,7 @@ export function AgentResidentsSidebar({
                 查看所有 Agent
             </button>
 
-            <div className="mt-2 space-y-1">
+            <div className="mt-2 max-h-[310px] space-y-1 overflow-y-auto overscroll-contain pr-0.5 scrollbar-hide">
                 {agents.map((agent) => (
                     <button
                         key={agent.id}
