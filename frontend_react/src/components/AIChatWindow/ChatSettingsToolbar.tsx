@@ -1,9 +1,8 @@
 // frontend_react/src/components/AIChatWindow/ChatSettingsToolbar.tsx
 
 import { useEffect, useRef, useState } from 'react';
-import { Plug, ChevronDown, Check, BookOpen, WandSparkles, BrainCircuit, X } from 'lucide-react';
+import { Plug, ChevronDown, Check, BookOpen, BrainCircuit, X } from 'lucide-react';
 import { Select } from '../common/Select';
-import { type SkillConfig } from '../../api/setting';
 import { type AssistantMode } from './types';
 import { type SelectOption } from '../common/Select';
 import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
@@ -21,11 +20,6 @@ interface ChatSettingsToolbarProps {
     selectedCollId: string;
     setSelectedCollId: (id: string) => void;
     anthologyOptions: SelectOption<string>[];
-    chatSkills: SkillConfig[];
-    selectedSkillIds: string[];
-    toggleChatSkill: (id: string) => void;
-    skillPanelOpen: boolean;
-    setSkillPanelOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
     useThinking: boolean;
     setUseThinking: (use: boolean) => void;
 }
@@ -43,19 +37,12 @@ export const ChatSettingsToolbar = ({
     selectedCollId,
     setSelectedCollId,
     anthologyOptions,
-    chatSkills,
-    selectedSkillIds,
-    toggleChatSkill,
-    skillPanelOpen,
-    setSkillPanelOpen,
     useThinking,
     setUseThinking,
 }: ChatSettingsToolbarProps) => {
     const mcpPanelRef = useRef<HTMLDivElement>(null);
-    const skillPanelRef = useRef<HTMLDivElement>(null);
     const [mobileKbOpen, setMobileKbOpen] = useState(false);
     useEscapeDismissal(mcpPanelOpen, () => setMcpPanelOpen(false));
-    useEscapeDismissal(skillPanelOpen && chatSkills.length > 0, () => setSkillPanelOpen(false));
     useEscapeDismissal(mobileKbOpen, () => setMobileKbOpen(false));
 
     const selectedAnthology = anthologyOptions.find(opt => opt.value === selectedCollId);
@@ -76,22 +63,6 @@ export const ChatSettingsToolbar = ({
             document.removeEventListener('mousedown', closeOnOutside);
         };
     }, [mcpPanelOpen, setMcpPanelOpen]);
-
-    // 点击技能面板外部关闭（桌面端）
-    useEffect(() => {
-        if (!skillPanelOpen) return;
-        const closeOnOutside = (event: MouseEvent) => {
-            if (!skillPanelRef.current?.contains(event.target as Node)) {
-                if (window.innerWidth >= 640) {
-                    setSkillPanelOpen(false);
-                }
-            }
-        };
-        document.addEventListener('mousedown', closeOnOutside);
-        return () => {
-            document.removeEventListener('mousedown', closeOnOutside);
-        };
-    }, [skillPanelOpen, setSkillPanelOpen]);
 
     // 渲染 MCP 配置内容（模式 + 插件列表）
     const renderMcpContent = () => (
@@ -177,56 +148,6 @@ export const ChatSettingsToolbar = ({
         </>
     );
 
-    // 渲染技能装载内容
-    const renderSkillContent = () => (
-        <div className="p-2">
-            <div className="mb-2 flex items-center justify-between px-1">
-                <span className="text-xs font-semibold text-slate-500">AI 对话技能</span>
-                <span className="text-[11px] text-slate-400">轻触勾选装载</span>
-            </div>
-            {chatSkills.length === 0 ? (
-                <div className="py-4 text-center text-xs text-slate-400">暂无可用技能</div>
-            ) : (
-                <div className="max-h-60 sm:max-h-64 overflow-y-auto space-y-1.5">
-                    {chatSkills.map(skill => {
-                        const active = selectedSkillIds.includes(skill.id);
-                        return (
-                            <button
-                                key={skill.id}
-                                type="button"
-                                onClick={() => toggleChatSkill(skill.id)}
-                                className={`w-full rounded-xl border p-2.5 text-left transition-all ${
-                                    active
-                                        ? 'border-orange-200 bg-orange-50/70 text-orange-700'
-                                        : 'border-slate-100 bg-white text-slate-600 hover:border-orange-100 hover:bg-orange-50/30'
-                                }`}
-                            >
-                                <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                                            active ? 'border-orange-500 bg-orange-500 text-white' : 'border-slate-300 bg-white'
-                                        }`}>
-                                            {active && <Check className="h-3 w-3" />}
-                                        </span>
-                                        <span className="truncate text-xs sm:text-sm font-semibold">{skill.name}</span>
-                                    </div>
-                                    {skill.version && (
-                                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-mono text-slate-500">
-                                            v{skill.version}
-                                        </span>
-                                    )}
-                                </div>
-                                <p className="mt-1 line-clamp-2 text-[11px] leading-4 opacity-70 pl-6">
-                                    {skill.description || '未填写说明'}
-                                </p>
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
-    );
-
     return (
         <div className="flex items-center justify-between mb-2 sm:mb-3 px-1">
             <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto sm:overflow-visible no-scrollbar py-0.5 max-w-full">
@@ -259,34 +180,6 @@ export const ChatSettingsToolbar = ({
                                 MCP 模式与能力
                             </div>
                             {renderMcpContent()}
-                        </div>
-                    )}
-                </div>
-
-                {/* 技能装载 */}
-                <div ref={skillPanelRef} className="relative shrink-0">
-                    <button
-                        type="button"
-                        onClick={() => setSkillPanelOpen(prev => !prev)}
-                        disabled={chatSkills.length === 0}
-                        className={`flex h-7 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl border px-2 sm:px-3 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all ${
-                            selectedSkillIds.length > 0
-                                ? 'bg-orange-50 text-orange-700 border-orange-200 shadow-sm ring-1 ring-orange-100'
-                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed'
-                        }`}
-                    >
-                        <WandSparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                        {selectedSkillIds.length > 0 ? `技能：${selectedSkillIds.length} 个` : '装载技能'}
-                        <ChevronDown className={`h-3 w-3 sm:h-3.5 sm:w-3.5 transition-transform ${skillPanelOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {/* 桌面端技能下拉浮层 */}
-                    {skillPanelOpen && chatSkills.length > 0 && (
-                        <div className="hidden sm:block absolute bottom-full left-0 z-[130] mb-2 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
-                            <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">
-                                AI 对话技能
-                            </div>
-                            {renderSkillContent()}
                         </div>
                     )}
                 </div>
@@ -385,37 +278,6 @@ export const ChatSettingsToolbar = ({
                         </div>
                         <div className="flex-1 overflow-y-auto p-3 scrollbar-hide">
                             {renderMcpContent()}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* 移动端专属：技能装载底部抽屉 (Bottom Sheet) */}
-            {skillPanelOpen && chatSkills.length > 0 && (
-                <div data-modal-scroll-lock className="sm:hidden fixed inset-0 z-[150] flex flex-col justify-end">
-                    <div
-                        className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-in fade-in duration-200"
-                        onClick={() => setSkillPanelOpen(false)}
-                    />
-                    <div className="relative z-10 flex max-h-[82vh] flex-col rounded-t-3xl border-t border-slate-200/80 bg-white shadow-2xl animate-in slide-in-from-bottom duration-300">
-                        <div className="flex justify-center pt-3 pb-1 cursor-pointer" onClick={() => setSkillPanelOpen(false)}>
-                            <div className="h-1.5 w-10 rounded-full bg-slate-300/80" />
-                        </div>
-                        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
-                            <div className="flex items-center gap-2 font-bold text-sm text-slate-800">
-                                <WandSparkles className="h-4 w-4 text-orange-500" />
-                                <span>AI 对话技能装载</span>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setSkillPanelOpen(false)}
-                                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
-                            >
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-3 scrollbar-hide">
-                            {renderSkillContent()}
                         </div>
                     </div>
                 </div>

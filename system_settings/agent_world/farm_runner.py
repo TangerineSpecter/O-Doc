@@ -223,4 +223,6 @@ def tick_farms(scheduler, token, enabled):
     # 即使任务暂停，也继续已承诺的自然生长；不自动补料或重做经营。
     for farm_id in AgentFarm.objects.values_list('pk', flat=True):
         advance_farm(farm_id)
+    from .farm_automation import tick_automation
+    tick_automation(token)
     return

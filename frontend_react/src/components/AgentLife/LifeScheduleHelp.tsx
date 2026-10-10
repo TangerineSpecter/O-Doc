@@ -23,6 +23,18 @@ interface RuleCardProps {
 
 const ruleSections: RuleCardProps[] = [
     {
+        icon: Timer,
+        iconClass: 'bg-green-50 text-green-600 border border-green-100',
+        tag: '个人开工 · 半小时检查',
+        tagClass: 'bg-green-50 text-green-700 border border-green-200',
+        title: '农场种植队列怎么运行？',
+        points: [
+            {title: '错开开工', desc: '每日规划作物顺序、数量、施肥和采购上限，在每位居民自己的农场日程到点开工。后续程序每半小时先收获再播种，不消耗模型调用。'},
+            {title: '市场等待', desc: '已有种子先种，缺料项目跳过；市场仍在个人机会到点查看实时库存，采购后继续队列，替代作物由市场决策说明理由。'},
+            {title: '截止与跨日', desc: '活动时段结束停止播种。在田作物继续生长，可跨日收获；未播种项目截止失效，次日按真实剩余库存重新规划，空检查不记录动态。'},
+        ],
+    },
+    {
         icon: CalendarDays,
         iconClass: 'bg-sky-50 text-sky-600 border border-sky-100',
         tag: '自动轮询 · 分批规划',
@@ -56,7 +68,7 @@ const ruleSections: RuleCardProps[] = [
             },
             {
                 title: '执行前最终复核',
-                desc: '执行前再次复核活动与预算，条件不符时也可以自主选择休息。',
+                desc: '普通活动执行前再次复核；农场在每日规划中生成队列，到点直接开工，后续不再调用模型。',
             },
             {
                 title: '核心心智模型',
@@ -103,7 +115,7 @@ const ruleSections: RuleCardProps[] = [
             },
             {
                 title: '活动专项补给',
-                desc: '农场、旅行等活动仍可在执行前按需即时补给，使用该活动的专项预算。',
+                desc: '旅行等原有活动仍可按需即时补给；当天种植队列等待错开的市场机会，不额外唤起市场。',
             },
         ],
     },

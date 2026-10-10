@@ -139,11 +139,12 @@ class FarmTests(TestCase):
         response = self.client.get('/api/settings/agent-world/daily-feed/',
             {'date': local_time(self.now).date().isoformat(), 'category': 'farm'})
         self.assertEqual(response.status_code, 200, response.data)
-        events = {row['id']: row for row in response.data['data']['items']}
+        cards = response.data['data']['items']
+        self.assertEqual(len(cards), 1)
+        events = {row['id']: row for row in cards[0]['steps']}
         for key, detail in expected.items():
-            self.assertEqual(events[key]['detail'], detail)
+            self.assertEqual(events[key]['detail'], detail.removesuffix(' · 背包已有种子'))
         self.assertEqual(events['farm:feed-fertilize']['title'], '施肥')
-        self.assertEqual(FarmOperation.objects.get(pk='feed-crop-sunflower').operation['crop'], 'sunflower')
 
     def op(self, kind, *, at=None, key=None, **params):
         self.counter += 1

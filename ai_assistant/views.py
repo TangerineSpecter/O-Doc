@@ -23,9 +23,10 @@ from ai_assistant.prompts import (
     WHITEBOARD_INSIGHT_DIGEST_PROMPT,
 )
 from ai_assistant.whiteboard_insight import extract_json_object, normalize_insight_payload
-from system_settings.models import Agent, MCPServer, Skill
+from system_settings.models import Agent, MCPServer
 from system_settings.agent_prompts import build_agent_system_prompt
 from utils.ai_service import AIService
+from utils.tool_completion_options import ToolThinkingCompatibilityError
 from utils.mcp_client import call_mcp_tool, fetch_mcp_tools
 from utils.rag_client import RagClient
 
@@ -71,13 +72,11 @@ class ChatView(APIView):
             coll_id = data.get('coll_id') or data.get('collId')
             include_thinking = data.get('include_thinking', False) or data.get('thinkingMode', False)
             use_simple_model = data.get('use_simple_model', False) or data.get('useSimpleModel', False)
-            selected_skills = data.get('skills') or data.get('skillIds') or []
+            # 技能仅用于任务执行；旧客户端传入的 skills / skillIds 不再参与对话。
             selected_agent_id = data.get('agent_id') or data.get('agentId')
             selected_mcp_servers = data.get('mcp_server_ids') or data.get('mcpServerIds') or []
             if not isinstance(selected_mcp_servers, list):
                 selected_mcp_servers = []
-            agent_skill_ids = []
-            chat_skill_ids = []
             agent_mcp_server_ids = []
             chat_mcp_server_ids = selected_mcp_servers
             if use_simple_model:
@@ -88,7 +87,6 @@ class ChatView(APIView):
             system_prompt = ""
             sources_markdown = ""
 
-            skill_ids = []
             if selected_agent_id:
                 try:
                     agent = Agent.objects.get(id=selected_agent_id)
@@ -99,8 +97,6 @@ class ChatView(APIView):
                     system_prompt = build_agent_system_prompt(system_prompt)
                     from system_settings.agent_world.travel_memory import travel_memory_context
                     system_prompt += '\n\n' + travel_memory_context(agent)
-                    if isinstance(agent.skills, list):
-                        agent_skill_ids.extend(agent.skills)
                     if isinstance(agent.mcp_servers, list):
                         agent_mcp_server_ids.extend(agent.mcp_servers)
                 except Agent.DoesNotExist:
@@ -110,33 +106,6 @@ class ChatView(APIView):
                 system_prompt = CHAT_SYSTEM_PROMPT
 
             system_prompt += "\n\n" + _build_time_context()
-
-            if isinstance(selected_skills, list):
-                chat_skill_ids.extend(selected_skills)
-
-            skill_ids = list(dict.fromkeys([*agent_skill_ids, *chat_skill_ids]))
-            loaded_skills = []
-            if skill_ids:
-                agent_skills = list(Skill.objects.filter(id__in=agent_skill_ids, enabled=True))
-                chat_skills = list(Skill.objects.filter(id__in=chat_skill_ids, enabled=True, available_in_chat=True))
-                skills_by_id = {skill.id: skill for skill in [*agent_skills, *chat_skills]}
-                skill_prompts = []
-                for skill_id in skill_ids:
-                    skill = skills_by_id.get(skill_id)
-                    if not skill:
-                        continue
-                    if skill.prompt:
-                        skill_prompts.append(f"### {skill.name}\n{skill.prompt}")
-                        loaded_skills.append({
-                            'id': skill.id,
-                            'name': skill.name,
-                            'version': skill.version,
-                            'description': skill.description,
-                            'source': skill.source,
-                        })
-
-                if skill_prompts:
-                    system_prompt += "\n\n你已装载以下 O-Doc 系统技能。请按技能边界使用它们：\n" + "\n\n".join(skill_prompts)
 
             # 3. 处理 RAG (检索增强生成)
             if use_kb and message:
@@ -179,13 +148,13 @@ class ChatView(APIView):
                 )
                 tool_messages = [{'role': 'system', 'content': tool_system_prompt}] + formatted_history + [user_message]
                 return StreamingHttpResponse(
-                    self._stream_tool_response_generator(tool_messages, tool_context, include_thinking, use_simple_model, loaded_skills, agent=agent),
+                    self._stream_tool_response_generator(tool_messages, tool_context, include_thinking, use_simple_model, agent=agent),
                     content_type='text/event-stream'
                 )
 
             # 5. 调用 AI 服务并返回流式响应
             return StreamingHttpResponse(
-                self._stream_response_generator(full_messages, sources_markdown, include_thinking, use_simple_model, loaded_skills, agent=agent),
+                self._stream_response_generator(full_messages, sources_markdown, include_thinking, use_simple_model, agent=agent),
                 content_type='text/event-stream'
             )
 
@@ -354,18 +323,17 @@ class ChatView(APIView):
 
     @staticmethod
     @attributed('im')
-    def _stream_response_generator(messages, sources_markdown, include_thinking=False, use_simple_model=False, loaded_skills=None, agent=None):
+    def _stream_response_generator(messages, sources_markdown, include_thinking=False, use_simple_model=False, agent=None):
         """生成器：负责流式输出 AI 内容，并在最后追加来源信息"""
         ai_stream = None
         try:
-            if loaded_skills:
-                yield json.dumps({'type': 'skills_loaded', 'skills': loaded_skills}, ensure_ascii=False) + "\n"
 
             # 获取来自 AI Service 的流生成器
             ai_stream = AIService.stream_chat_completion(
                 messages,
                 include_thinking=include_thinking,
-                use_simple_model=use_simple_model
+                use_simple_model=use_simple_model if agent is None else False,
+                model_id=agent.model_id if agent else None,
             )
 
             for event in ai_stream:
@@ -397,7 +365,7 @@ class ChatView(APIView):
                 ai_stream.close()
 
     @classmethod
-    def _stream_tool_response_generator(cls, messages, tool_context, include_thinking=False, use_simple_model=False, loaded_skills=None, agent=None):
+    def _stream_tool_response_generator(cls, messages, tool_context, include_thinking=False, use_simple_model=False, agent=None):
         event_queue = queue.Queue()
         done_marker = object()
 
@@ -412,9 +380,6 @@ class ChatView(APIView):
         def run_tool_chat():
             with usage_scope(agent=agent, purpose='im', phase='chat_tools') if agent else nullcontext():
                 try:
-                    if loaded_skills:
-                        event_queue.put({'type': 'skills_loaded', 'skills': loaded_skills})
-
                     if include_thinking:
                         event_queue.put({
                             'type': 'thinking',
@@ -432,9 +397,13 @@ class ChatView(APIView):
                         messages,
                         tool_context['tools'],
                         execute_with_events,
-                        use_simple_model=use_simple_model,
+                        use_simple_model=use_simple_model if agent is None else False,
+                        model_id=agent.model_id if agent else None,
                     )
                     event_queue.put({'type': 'answer', 'content': content})
+                except ToolThinkingCompatibilityError as e:
+                    logger.exception('Tool chat thinking policy is incompatible')
+                    event_queue.put({'type': 'error', 'content': str(e)})
                 except ValueError as e:
                     if str(e) == 'No default model configured':
                         logger.warning('AI tool chat requested without a default model')
@@ -490,7 +459,7 @@ class WhiteboardInsightView(APIView):
                     {'role': 'user', 'content': question}
                 ]
                 return StreamingHttpResponse(
-                    ChatView._stream_response_generator(messages, '', False, False, None),
+                    ChatView._stream_response_generator(messages, '', False, False),
                     content_type='text/event-stream'
                 )
 

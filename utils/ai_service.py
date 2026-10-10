@@ -11,6 +11,7 @@ from openai import AuthenticationError, OpenAI
 from system_settings.models import SystemSetting, AIModel
 from .ai_observer import emit_ai_event
 from .thinking import thinking_body
+from .tool_completion_options import tool_thinking_options
 from .token_usage import create_completion, sdk_retries
 
 logger = logging.getLogger(__name__)
@@ -294,10 +295,8 @@ class AIService:
                     'messages': messages,
                     'tools': tools,
                     'stream': False,
-                    'extra_body': cls._thinking_options(
-                        config,
-                        include_thinking=False,
-                        disable_thinking=use_simple_model
+                    'extra_body': tool_thinking_options(
+                        config, has_tools=bool(tools), disable_thinking=use_simple_model,
                     ) or None,
                 }
                 if tool_choice:
@@ -486,12 +485,16 @@ class AIService:
 
     @classmethod
     @model_operation
-    def stream_chat_completion(cls, messages, include_thinking=False, use_simple_model=False):
-        """流式对话 (用于前端 Chat 界面)"""
+    def stream_chat_completion(cls, messages, include_thinking=False, use_simple_model=False, model_id=None):
+        """流式对话；指定模型优先，否则使用系统默认配置。"""
         stream = None
         client = None
         try:
-            config = cls.get_default_client_config(use_simple_model=use_simple_model)
+            config = (
+                cls.get_client_config_for_model(model_id)
+                if model_id
+                else cls.get_default_client_config(use_simple_model=use_simple_model)
+            )
             client = OpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=120.0, max_retries=sdk_retries(1))
 
             extra_body = cls._thinking_options(

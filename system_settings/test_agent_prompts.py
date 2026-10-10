@@ -16,7 +16,7 @@ class AgentPromptRoutingTests(SimpleTestCase):
         memory_context.start()
         self.addCleanup(memory_context.stop)
         self.agent = SimpleNamespace(
-            name='菲伦', prompt='你是菲伦，沉静、有主见的魔法使。',
+            pk='fern', name='菲伦', prompt='你是菲伦，沉静、有主见的魔法使。',
             skills=[], mcp_servers=[], model_id=None,
         )
 

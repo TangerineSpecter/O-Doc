@@ -101,20 +101,30 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict) -> None
     if not isinstance(plans, list) or any(not isinstance(p,dict) for p in plans) or {p.get('id') for p in plans} != set(expected) or len(plans) != len(expected):
         raise ValueError('规划必须为本次每个时间点指定且仅指定一次活动')
     updates = []
+    farm_days = {local_time(at).date() for at in LifeItem.objects.filter(
+        owner_id=owner, actor_id=agent.pk, activity='farm', status__in=OPEN,
+    ).exclude(pk__in=expected).values_list('scheduled_at', flat=True)}
     for plan in plans:
         item = expected[plan['id']]
         activity = plan.get('activity')
         if activity != 'rest' and activity not in available:
             raise ValueError('活动未开放或配置缺失')
+        if activity == 'farm':
+            day = local_time(item.scheduled_at).date()
+            if day in farm_days:
+                raise ValueError('每位居民每天最多安排一次农场队列开工')
+            farm_days.add(day)
         reason = plan.get('reason')
         if not isinstance(reason,str) or not reason.strip() or len(reason)>2000:
             raise ValueError('生活规划须说明原因')
         budget = money(plan.get('budget','0'))
+        if activity == 'farm' and budget != item.spent:
+            raise ValueError('种植队列不预留采购或其他经营费用，采购由市场实际预算承担')
         if budget < item.spent:
             raise ValueError('预算小于已经支出')
         if item.status == 'running':
             raise ValueError('不能覆盖正在执行的活动')
-        needs_market=plan.get('needs_market',False)
+        needs_market=False if activity == 'farm' else plan.get('needs_market',False)
         if type(needs_market) is not bool:raise ValueError('补给意向须为布尔值')
         validate_activity_budget(activity, budget, item.spent, needs_market=needs_market)
         updates.append((item, activity, reason, budget, needs_market))
@@ -127,6 +137,13 @@ def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict) -> None
     for row in other:
         if row.pk in changes and row.budget!=changes[row.pk]:revise(row,adjustment_reason,budget=changes[row.pk])
     for item, activity, reason, budget, needs_market in updates:
+        if activity == 'farm':
+            from .farm_queue_plan import install
+            specification = next(p for p in plans if p['id'] == item.pk).get('farm_plan')
+            install(item, available[activity], specification, reason)
+        elif item.context.get('farm_plan_id'):
+            from .farm_queue_schedule import cancel
+            cancel(item, reason)
         revise(item, reason, activity=activity, intent=reason, budget=budget,
                task_id=available[activity].pk if activity!='rest' else '', status='pending',
                context={**item.context,'planned_on':local_time().date().isoformat(),'goals':list(LifeGoal.objects.filter(owner_id=owner,actor_id=agent.pk,status='active').values('id','title','progress')[:20]),'needs_market':needs_market})
@@ -177,6 +194,7 @@ def plan_items(config, agent, items: list[LifeItem]) -> None:
     check_goals(config.pk,agent)
     context=build_context(config.pk,agent)
     context['slots']=[{'id':i.pk,'time':i.scheduled_at.isoformat(),'current_activity':i.activity,'spent':str(i.spent)} for i in items]
-    proposal=ask(agent,'为slots的每个时间点规划一个活动或rest。返回 {"plans":[{"id":"时间点ID","activity":"开放活动kind或rest","budget":"总预算","reason":"安排原因","needs_market":false}],"goal_updates":[]}。如需重分配其他安排，可另返回budget_allocations:[{id, budget}]和budget_reason，说明实际原因。阅读评论、发帖和休息没有世界货币支出，budget必须等于已支出（通常为0），needs_market必须为false。只有旅行、农场经营、投资及独立市场采购可预留实际费用；不消费时填0。预留旅行和扩建费用。未买到物资就按实际资源调整；需要先补给时设置needs_market:true，补给费用计入该机会总预算。允许放弃失效目标并说明原因，已完成须引用真实evidence_record_id。',context)
+    context['farm_plan_contract'] = {'entries': [{'sku': 'seed.radish', 'quantity': 10, 'fertilizer_mode': 'none', 'fertilizer': None}], 'procurement_limit': '0'}
+    proposal=ask(agent,'为slots的每个时间点规划一个活动或rest。farm活动必须在同一plans项目提供farm_plan:{entries:[{sku:种子SKU,quantity:当天目标数量,fertilizer_mode:none或optional或required,fertilizer:quality或yield或null}],procurement_limit:采购上限}。即使没有种子也可以提出目标及采购需求；按地块、在田作物、周期和活动截止估算，不保证全部种完。farm只激活种植队列，预算为0，needs_market为false；采购使用错开的每日市场预算，上限不重复预留。每天每位居民最多一个farm开工，已固化队列普通修订不会重建。返回 {"plans":[{"id":"时间点ID","activity":"开放活动kind或rest","budget":"总预算","reason":"安排原因","needs_market":false}],"goal_updates":[]}。如需重分配其他安排，可另返回budget_allocations:[{id, budget}]和budget_reason，说明实际原因。阅读评论、发帖和休息没有世界货币支出，budget必须等于已支出（通常为0），needs_market必须为false。仅有消费能力的普通活动可预留实际费用，种植队列不预留采购预算。旅行等其他业务原有按需补给入口保留，补给费用计入对应活动预算。允许放弃失效目标并说明原因，已完成须引用真实evidence_record_id。',context)
     apply_plan(config.pk,agent,items,proposal)
     check_goals(config.pk,agent)

@@ -115,6 +115,14 @@ def latest_event_day(request, owner, before, category='all', actor_id='', *, sco
         collect(CookingOperation.objects.filter(owner_id=owner), 'created_at')
     if category in ('all', 'farm'):
         collect(FarmOperation.objects.filter(farm__owner_id=owner), 'created_at', 'farm_id')
+        for farm in AgentFarm.objects.filter(owner_id=owner):
+            if actor_id and farm.pk != actor_id:
+                continue
+            for plan in farm.state.get('planting_plans', {}).values():
+                for event in plan.get('events', []):
+                    when = storage_time(datetime.fromtimestamp(event['at'], SHANGHAI))
+                    if when < before:
+                        candidates.append(when)
     if category in ('all', 'market', 'trade'):
         transactions = MarketTransaction.objects.filter(owner_id=owner)
         if actor_id:
@@ -421,9 +429,7 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     day_farms = FarmOperation.objects.filter(farm__owner_id=owner, created_at__gte=start, created_at__lt=end)
     opportunity_ids = day_farms.exclude(opportunity_id='').values_list('opportunity_id', flat=True)
     farm_actions = dict(WorldAction.objects.filter(pk__in=opportunity_ids).values_list('pk', 'status'))
-    farms = FarmOperation.objects.filter(farm__owner_id=owner).filter(
-        Q(opportunity_id__in=opportunity_ids) | Q(opportunity_id='', created_at__gte=start, created_at__lt=end)
-    ).select_related('farm')
+    farms = day_farms.select_related('farm')
     for row in farms:
         op, result = row.operation or {}, row.result or {}
         kind = op.get('kind', '')
@@ -450,10 +456,16 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
                              names.get(row.farm_id, row.farm.actor_name), result.get('label') or FARM_LABELS.get(kind, '农场操作'),
                              ' · '.join(parts), amount=result.get('amount') if result.get('amount') not in ('0', '0.00', 0) else None,
                              target={'kind': 'farm', 'id': row.farm_id}))
-        if row.reason:
+        if row.reason and result.get('execution_mode') != 'queue':
             events[-1]['reason'] = row.reason
+        if result.get('execution_mode') == 'queue':
+            events[-1]['title'] = '按队列自动执行 · ' + events[-1]['title']
+            events[-1]['detail'] += f" · 体力 -{result.get('energy_cost', 2)}"
+            origins = result.get('source_plans', [])
+            if origins:
+                events[-1]['detail'] += ' · 来源计划 ' + '、'.join(sorted({o['day'] for o in origins}))
+        events[-1]['_execution_group'] = 'farm:' + day.isoformat() + ':' + row.farm_id
         if row.opportunity_id:
-            events[-1]['_execution_group'] = 'farm:' + row.opportunity_id
             events[-1]['_execution_failed'] = farm_actions.get(row.opportunity_id) == 'failed'
             events[-1]['_execution_running'] = farm_actions.get(row.opportunity_id) == 'claimed'
 
@@ -470,6 +482,19 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     listing_ids = {row.operation.get('listing_id') for row in transactions
                    if isinstance(row.operation, dict) and row.operation.get('listing_id')}
     listings = {row.pk: row for row in MarketListing.objects.filter(owner_id=owner, pk__in=listing_ids)}
+    for farm in AgentFarm.objects.filter(owner_id=owner):
+        for plan in farm.state.get('planting_plans', {}).values():
+            for row in plan.get('events', []):
+                when = datetime.fromtimestamp(row['at'], SHANGHAI)
+                if not start <= storage_time(when) < end:
+                    continue
+                events.append(_event('farm', 'farm-queue', row['id'], when, farm.pk,
+                    names.get(farm.pk, farm.actor_name), 'AI规划' if row['code'] == 'planned' else '队列状态', row['detail'],
+                    target={'kind': 'farm', 'id': farm.pk}))
+                events[-1]['_execution_group'] = 'farm:' + day.isoformat() + ':' + farm.pk
+                if row['code'] == 'planned':
+                    events[-1]['reason'] = plan['versions'][0]['reason']
+
     for row in transactions:
         op, result = row.operation or {}, row.result or {}
         kind = op.get('kind', '')

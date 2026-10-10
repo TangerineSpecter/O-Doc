@@ -53,6 +53,11 @@ def build_context(owner: str, agent, item: LifeItem | None = None) -> dict:
             }
     from .travel_config import bound_skill
     context['activities'] = [{'kind':t.task_kind,'task_id':t.pk,'preference':t.prompt,'allows_spending':allows_spending(t.task_kind)} for t in tasks_for(owner) if t.enabled and t.task_kind != 'market' and (t.task_kind != 'travel' or bound_skill(agent,'odoc_travel_journal'))]
+    from .life_config import config_for, effective_settings
+    from .farm_queue_plan import overview as queue_overview
+    from .farm_models import AgentFarm
+    context['farm_queue'] = queue_overview(AgentFarm.objects.filter(pk=agent.pk, owner_id=owner).first())
+    context['farm_queue_rules'] = {'check_minutes': 30, 'start': '个人farm日程时间', 'cutoff': effective_settings(config_for(owner)).get('active_end', '24:00'), 'rule': '当天规划数量和种植顺序，市场错开采购，成熟跨日收获；后续执行不调用模型。'}
     context['custom_commitments'] = [{'name':t.name,'schedule':t.schedule,'time':t.schedule_time} for t in AgentTask.objects.filter(task_kind='custom',enabled=True) if agent.pk in (t.agent_ids or [t.agent_id])][:20]
     today = local_time().date()
     context['today'] = list(LifeItem.objects.filter(owner_id=owner, actor_id=agent.pk, scheduled_at__date=today).values('id','activity','status','intent','result')[:50])
@@ -62,6 +67,7 @@ def build_context(owner: str, agent, item: LifeItem | None = None) -> dict:
         context['reserved_for_others'] = str(reserved)
         context['spendable'] = str(max(Decimal(0), min(remaining_reservation(item), agent.money-reserved)))
     context['rules'] = '余额是共用生活资金。实际结果才算经历。阅读评论、发帖和休息不预留新预算、不附带采购。仅为有消费能力的活动预留实际费用；投资不能借款且T+1。缺货或超出估计可说明原因调整后续计划，实际余额不足不能扣款。'
+    context['rules'] += '农场每天最多安排一次错开开工；后续按半小时检查种植队列，不占日程，不调用模型，不即时补给。'
     import json
     from django.core.serializers.json import DjangoJSONEncoder
     return json.loads(json.dumps(context,cls=DjangoJSONEncoder,ensure_ascii=False))

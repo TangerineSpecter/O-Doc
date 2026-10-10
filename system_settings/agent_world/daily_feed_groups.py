@@ -49,7 +49,7 @@ def grouped_execution_events(events, start, end):
                 if row.get('rating') is not None:
                     step['detail'] = f"★ {row['rating']} / 10 · {step['detail']}"
         if category == 'farm' and not operations:
-            result['detail'] = '本次未进行经营操作' + (f' · {reason}' if reason else '')
+            result['detail'] = '种植计划与队列状态（尚无实际操作）' + (f' · {reason}' if reason else '')
         projected.append(result)
     # 跨日执行只在最近业务事实所属日期出现，筛选与分页在聚合以后进行。
     lower, upper = local_time(start).isoformat(), local_time(end).isoformat()

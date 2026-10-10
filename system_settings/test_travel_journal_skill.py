@@ -61,7 +61,8 @@ class TravelJournalSkillTests(SimpleTestCase):
         )
         task = SimpleNamespace(agent=agent, name='旅行心得', prompt='下雨，鞋湿了，没买纪念品。只写草稿。')
         skill = SimpleNamespace(name=self.meta['name'], prompt=self.prompt)
-        with patch('system_settings.agent_task_scheduler.Skill.objects.filter', return_value=[skill]) as query, \
+        with patch('system_settings.agent_world.travel_memory.travel_memory_context', return_value=''), \
+                patch('system_settings.agent_task_scheduler.Skill.objects.filter', return_value=[skill]) as query, \
                 patch.object(AgentTaskScheduler, '_has_agent_post_markdown_skill', return_value=True), \
                 patch.object(AgentTaskScheduler, '_relation_behavior_note', return_value=''):
             prompt = AgentTaskScheduler()._build_prompt(task)

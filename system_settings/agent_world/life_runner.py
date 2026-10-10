@@ -91,7 +91,8 @@ def execute_item(item: LifeItem, scheduler) -> None:
     from system_settings.models import AgentExecutionLease
     costs={'cooking':1,'post_interaction':10,'post_publish':20,'investment':5,'farm':2,'travel':task.travel_config.get('energy_cost',20) if task else 20}
     busy=item.actor_id in travelling_ids() or AgentExecutionLease.objects.filter(agent_id=item.actor_id,until__gt=timezone.now()).exists()
-    if busy or stamina(agent)<costs.get(item.activity,2):
+    queue_farm = item.activity == 'farm' and bool(item.context.get('farm_plan_id'))
+    if not queue_farm and (busy or stamina(agent)<costs.get(item.activity,2)):
         if item.attempts>=3:
             revise(item,'持续忙碌或体力不足，本机会结束',status='rest',result={'reason':'持续不可执行'});return
         item.attempts+=1
@@ -102,7 +103,8 @@ def execute_item(item: LifeItem, scheduler) -> None:
     # 即使资源变化也先给居民一次重新安排预算的机会。
     prior_status=item.status
     try:
-        plan_items(config,agent,[item]);item.refresh_from_db()
+        if not queue_farm:
+            plan_items(config,agent,[item]);item.refresh_from_db()
         task=AgentTask.objects.filter(pk=item.task_id,enabled=True).first()
         if item.activity=='rest':
             revise(item,'执行前选择休息',status='rest',result={'reason':item.intent});return
@@ -130,7 +132,10 @@ def execute_item(item: LifeItem, scheduler) -> None:
                 if item.activity=='cooking':
                     from .cooking_runner import run_cooking_opportunity as run
                 elif item.activity=='farm':
-                    from .farm_runner import run_farm_opportunity as run
+                    if item.context.get('farm_plan_id'):
+                        from .farm_queue_runner import run_queue_opportunity as run
+                    else:
+                        from .farm_runner import run_farm_opportunity as run
                 elif item.activity=='investment':
                     from .investment_runner import run_investment_opportunity as run
                 elif item.activity=='post_interaction':

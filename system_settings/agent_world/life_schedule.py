@@ -128,6 +128,9 @@ def revise(item: LifeItem, reason: str, **changes) -> None:
         setattr(item, key, value)
     item.save()
     LifeRevision.objects.create(item=item, before=before, after=item_state(item), reason=reason)
+    if item.context.get('farm_plan_id'):
+        from .farm_queue_schedule import changed
+        changed(item, reason)
 
 
 def execution_key(item: LifeItem) -> str:

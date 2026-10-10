@@ -32,6 +32,7 @@ MARKET_TOOLS = [
     schema('create_market_listing', '自主定价上架农作物、畜产品、美食或纪念品，数量立即转入托管。', {**WRITE,'item_id':S,'quantity':N,'unit_price':S}, ['request_id','item_id','quantity','unit_price']),
     schema('reprice_market_listing', '修改自己挂牌的单价，保留首次上架时间。', {**WRITE,'listing_id':S,'version':N,'unit_price':S}, ['request_id','listing_id','version','unit_price']),
     schema('withdraw_market_listing', '撤回自己的挂牌，将剩余物品返还背包。', {**WRITE,'listing_id':S,'version':N}, ['request_id','listing_id','version']),
+    schema('update_farm_queue', '调整当天尚未播种队列，需说明替代或取消理由。已播种项目必须保留原ID及策略，quantity不得小于已播种数。仅改变意图，不代买或增加采购上限。', {**WRITE, 'plan_id':S, 'revision':N, 'reason':S, 'entries':{'type':'array','items':{'type':'object','properties':{'id':S,'sku':S,'quantity':N,'fertilizer_mode':{'type':'string','enum':['none','optional','required']},'fertilizer':{'type':['string','null'],'enum':['quality','yield',None]}},'required':['sku','quantity'], 'additionalProperties':False}}}, ['request_id','plan_id','revision','reason','entries']),
     schema('leave_market', '离开市场，结束本次会话，已完成交易保留。', {**WRITE,'reason':S}),
 ]
 NAMES = {t['name'] for t in MARKET_TOOLS}
@@ -79,6 +80,12 @@ def call_market_tool(name: str, arguments: dict, agent, *, task=None, record=Non
             raise ValueError('交易请求键已用于不同参数或会话')
         from .market_spending import spending_context
         return {**previous.result, 'spending': spending_context(owner, agent.pk)}
+    if name == 'update_farm_queue':
+        from .farm_queue_market import replay_update
+        if not arguments.get('request_id'): raise ValueError('修改队列必须提供稳定request_id')
+        replay = replay_update(owner, agent.pk, key, arguments)
+        if replay is not None:
+            return replay
     if operation and session and not invalid_reason(session):
         from .market_spending import check_purchase
         check_purchase(owner, agent.pk, operation)
@@ -86,13 +93,22 @@ def call_market_tool(name: str, arguments: dict, agent, *, task=None, record=Non
         reason = invalid_reason(session)
         if reason:
             close_session(session, reason)
-            if operation or name == 'leave_market': raise ValueError(reason)
+            if operation or name in ('leave_market', 'update_farm_queue'): raise ValueError(reason)
             session = None
         else:
             session = consume_call(session, name, key, arguments)
     if operation and not session: raise ValueError('请先进入市场，交易必须在有效会话内执行')
     try:
-        if operation: result = trade(session, agent, key, operation)
+        if operation:
+            from .farm_queue_market import queue_trade
+            result = queue_trade(session, agent, key, operation)
+        elif name == 'update_farm_queue':
+            from .farm_queue_market import update_queue
+            if not arguments.get('request_id'): raise ValueError('修改队列必须提供稳定request_id')
+            from django.db import transaction
+            with transaction.atomic():
+                result = update_queue(owner, agent.pk, session, key, arguments)
+                finish_call(session, result)
         elif name == 'leave_market':
             if not session: raise ValueError('没有正在进行的市场会话')
             result = payload(close_session(session, arguments.get('reason') or 'Agent 主动离开市场'))
@@ -106,7 +122,7 @@ def call_market_tool(name: str, arguments: dict, agent, *, task=None, record=Non
             result['spending'] = spending_context(owner, agent.pk)
         result = json.loads(json.dumps(result, cls=DjangoJSONEncoder))
         if session:
-            finish_call(session, {k:result[k] for k in ('name','quantity','total','status','reason') if k in result})
+            finish_call(session, {k:result[k] for k in ('name','quantity','total','status','reason','queue_version','plan_id','revision') if k in result})
         return result
     except Exception as exc:
         if session:

@@ -158,6 +158,8 @@ def validate_source(data: list, meta: dict | None = None) -> None:
     from types import SimpleNamespace
     from utils.sync_manager import SyncError
     validate_snapshot(data, meta)
+    from .farm_queue_sync import validate_queue_source
+    validate_queue_source(data)
     operations = {str(r['pk']): SimpleNamespace(pk=str(r['pk']), operation=r['fields']['operation'], result=r['fields']['result'])
                   for r in data if r['model'] == 'system_settings.farmoperation'}
     for row in data:

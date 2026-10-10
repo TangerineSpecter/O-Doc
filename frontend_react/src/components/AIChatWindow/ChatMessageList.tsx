@@ -29,7 +29,6 @@ interface ChatMessageListProps {
     isLoading: boolean;
     activitySteps: ActivityStep[];
     activeAgent: AgentConfig | null;
-    activeAgentSkills: string[];
     activeAgentMcpServers: string[];
     chatBodyRef: RefObject<HTMLDivElement | null>;
     messagesEndRef: RefObject<HTMLDivElement | null>;
@@ -82,7 +81,6 @@ export const ChatMessageList = ({
     isLoading,
     activitySteps,
     activeAgent,
-    activeAgentSkills,
     activeAgentMcpServers,
     chatBodyRef,
     messagesEndRef,
@@ -222,9 +220,6 @@ export const ChatMessageList = ({
                                 <>
                                     <span className="px-2 py-0.5 sm:py-1 bg-white border border-slate-200 rounded-md">
                                         {activeAgent.modelDetail?.name || 'Agent 模型'}
-                                    </span>
-                                    <span className="px-2 py-0.5 sm:py-1 bg-white border border-slate-200 rounded-md">
-                                        {activeAgentSkills.length} 个技能
                                     </span>
                                     <span className="px-2 py-0.5 sm:py-1 bg-white border border-slate-200 rounded-md">
                                         {activeAgentMcpServers.length} 个工具

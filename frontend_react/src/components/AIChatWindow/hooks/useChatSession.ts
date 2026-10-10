@@ -3,7 +3,7 @@ import { diagnosticReader, diagnosticFetch, reportDiagnostic } from '@/utils/dia
 // frontend_react/src/components/AIChatWindow/hooks/useChatSession.ts
 
 import { useState, useEffect, useRef } from 'react';
-import { type Message, type ActivityStep, type LoadedSkill, type StreamChar } from '../types';
+import { type Message, type ActivityStep, type StreamChar } from '../types';
 import { type AgentConfig } from '../../../api/setting';
 import { type Anthology } from '../../../api/anthology';
 import { getImagesByAnthology, type Image } from '../../../api/image';
@@ -260,24 +260,6 @@ const normalizeEventText = (value: unknown): string => {
     return normalizeStreamContent(value).trim();
 };
 
-const normalizeLoadedSkills = (value: unknown): LoadedSkill[] => {
-    if (!Array.isArray(value)) return [];
-    return value.reduce<LoadedSkill[]>((result, item) => {
-        if (!item || typeof item !== 'object') return result;
-        const record = item as Record<string, unknown>;
-        const name = normalizeEventText(record.name);
-        if (!name) return result;
-        result.push({
-            id: normalizeEventText(record.id),
-            name,
-            version: normalizeEventText(record.version),
-            description: normalizeEventText(record.description),
-            source: normalizeEventText(record.source),
-        });
-        return result;
-    }, []);
-};
-
 export const getConversationSummary = (conversationKey: string, liveMessages?: Message[]) => {
     const stored = liveMessages ? { messages: liveMessages, updatedAt: new Date().toISOString() } : readStoredConversation(conversationKey);
     const lastMessage = [...stored.messages].reverse().find(message => message.content?.trim());
@@ -294,8 +276,7 @@ interface UseChatSessionProps {
     buildActivitySteps: (
         usePhotographyAssistant: boolean,
         activeMcpServerIds: string[],
-        effectiveUseKb: boolean,
-        effectiveSelectedSkillIds: string[]
+        effectiveUseKb: boolean
     ) => ActivityStep[];
 }
 
@@ -509,7 +490,6 @@ export const useChatSession = ({
             useKb: boolean;
             selectedCollId: string;
             useThinking: boolean;
-            selectedSkillIds: string[];
             imageAnthologies: Anthology[];
         },
         retryUserIndex?: number,
@@ -558,14 +538,12 @@ export const useChatSession = ({
                 : [];
 
             const effectiveUseKb = isDefaultAgent && settings.useKb;
-            const effectiveSelectedSkillIds = isDefaultAgent ? settings.selectedSkillIds : [];
             const effectiveUseThinking = isDefaultAgent && settings.useThinking;
 
             const nextActivitySteps = buildActivitySteps(
                 usePhotographyAssistant,
                 activeMcpServerIds,
-                effectiveUseKb,
-                effectiveSelectedSkillIds
+                effectiveUseKb
             );
             setActivitySteps(nextActivitySteps);
             updateConversationMessages(requestConversationKey, prev => [
@@ -632,7 +610,6 @@ export const useChatSession = ({
                     include_thinking: effectiveUseThinking,
                     agent_id: activeAgent?.id,
                     mcp_server_ids: activeMcpServerIds,
-                    skills: effectiveSelectedSkillIds,
                 })
             });
 
@@ -711,28 +688,6 @@ export const useChatSession = ({
 
                     if (event.type === 'thinking') {
                         appendThinking(content);
-                        return;
-                    }
-
-                    if (event.type === 'skills_loaded') {
-                        const skills = normalizeLoadedSkills(event.skills);
-                        if (skills.length === 0) return;
-                        updateConversationMessages(requestConversationKey, prev => {
-                            const filtered = prev.filter(msg => msg.statusId !== 'typing');
-                            return [
-                                ...filtered,
-                                {
-                                    role: 'assistant',
-                                    content: `已装载 ${skills.length} 个技能`,
-                                    statusId: `skills-loaded-${Date.now()}`,
-                                    status: 'done',
-                                    meta: {
-                                        kind: 'skills',
-                                        skills,
-                                    },
-                                }
-                            ];
-                        });
                         return;
                     }
 

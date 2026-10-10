@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { type Anthology, getAnthologyList } from '../../../api/anthology';
-import { getMCPServers, getSkills, type MCPServerConfig, type SkillConfig } from '../../../api/setting';
+import { getMCPServers, type MCPServerConfig } from '../../../api/setting';
 import { type AssistantMode } from '../types';
 import { type SelectOption } from '../../common/Select';
 
@@ -25,9 +25,6 @@ export const useChatSettings = ({ isOpen, messagesLength, activeConversationKey,
     const [chatMcpServers, setChatMcpServers] = useState<MCPServerConfig[]>([]);
     const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([PHOTOGRAPHY_MCP_ID]);
     const [mcpPanelOpen, setMcpPanelOpen] = useState(false);
-    const [chatSkills, setChatSkills] = useState<SkillConfig[]>([]);
-    const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
-    const [skillPanelOpen, setSkillPanelOpen] = useState(false);
 
     // 0. 当会话/智能体切换时，重置所有设置以防止状态污染
     useEffect(() => {
@@ -36,9 +33,7 @@ export const useChatSettings = ({ isOpen, messagesLength, activeConversationKey,
         setAssistantMode('disabled');
         setSelectedCollId('');
         setSelectedMcpIds([PHOTOGRAPHY_MCP_ID]);
-        setSelectedSkillIds([]);
         setMcpPanelOpen(false);
-        setSkillPanelOpen(false);
     }, [activeConversationKey]);
 
     // 1. 加载文集列表
@@ -61,17 +56,13 @@ export const useChatSettings = ({ isOpen, messagesLength, activeConversationKey,
         loadAnthologies();
     }, [isOpen]);
 
-    // 2. 加载技能与 MCP 配置
+    // 2. 加载 MCP 配置
     useEffect(() => {
         if (!isOpen) return;
 
-        Promise.all([getSkills(), getMCPServers()])
-            .then(([skillData, mcpData]) => {
-                const data = (skillData || []) as unknown as SkillConfig[];
+        getMCPServers()
+            .then(mcpData => {
                 const mcpServers = (mcpData || []) as unknown as MCPServerConfig[];
-                const usableSkills = (data || []).filter(skill => skill.enabled && skill.availableInChat);
-                setChatSkills(usableSkills);
-                setSelectedSkillIds(prev => prev.filter(id => usableSkills.some(skill => skill.id === id)));
                 const enabledMcpServers = mcpServers.filter(server => server.enabled && server.availableInChat);
                 setChatMcpServers(enabledMcpServers);
                 setSelectedMcpIds(prev => prev.filter(id => id === PHOTOGRAPHY_MCP_ID || enabledMcpServers.some(server => server.id === id)));
@@ -114,17 +105,6 @@ export const useChatSettings = ({ isOpen, messagesLength, activeConversationKey,
             ? '摄影分析助手'
             : chatMcpServers.find(server => server.id === mcpId)?.name || mcpId
     );
-
-    const getSkillName = (skillId: string) => (
-        chatSkills.find(skill => skill.id === skillId)?.name || skillId
-    );
-
-    const toggleChatSkill = (skillId: string) => {
-        setSelectedSkillIds(prev => prev.includes(skillId)
-            ? prev.filter(id => id !== skillId)
-            : [...prev, skillId]
-        );
-    };
 
     const toggleMcp = (mcpId: string) => {
         setSelectedMcpIds(prev => {
@@ -170,21 +150,14 @@ export const useChatSettings = ({ isOpen, messagesLength, activeConversationKey,
         setSelectedCollId,
         selectedMcpIds,
         setSelectedMcpIds,
-        selectedSkillIds,
-        setSelectedSkillIds,
         anthologies,
         imageAnthologies,
         chatMcpServers,
-        chatSkills,
         mcpPanelOpen,
         setMcpPanelOpen,
-        skillPanelOpen,
-        setSkillPanelOpen,
         anthologyOptions,
         mcpOptions,
         getMcpName,
-        getSkillName,
-        toggleChatSkill,
         toggleMcp,
         setModeWithSideEffects
     };

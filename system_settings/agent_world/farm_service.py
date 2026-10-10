@@ -277,6 +277,8 @@ def commit_operation(farm_id, opportunity_id, index, operation, reason, task, ag
     ensure_opening(agent)
     balance = WorldLedger.objects.filter(agent_id=agent.pk).aggregate(total=Sum('amount'))['total'] or Decimal(0)
     amount, result = perform(farm, operation, catalog.rules, now.timestamp(), key)
+    from .farm_automation import apply_progress
+    apply_progress(farm.state, operation, opportunity_id, result)
     amount = amount.quantize(Decimal('.01'))
     if balance + amount < 0:
         raise ValueError('余额不足')

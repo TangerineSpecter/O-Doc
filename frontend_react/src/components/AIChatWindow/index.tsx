@@ -85,8 +85,7 @@ export const AIChatWindow = ({
         buildActivitySteps: (
             usePhotographyAssistant,
             activeMcpServerIds,
-            effectiveUseKb,
-            effectiveSelectedSkillIds
+            effectiveUseKb
         ) => {
             const steps = [];
             if (usePhotographyAssistant) {
@@ -115,14 +114,6 @@ export const AIChatWindow = ({
                     status: steps.length === 0 ? ('active' as const) : ('queued' as const),
                 });
             }
-            if (effectiveSelectedSkillIds.length > 0) {
-                steps.push({
-                    id: 'skill',
-                    label: '装载 Skill',
-                    detail: effectiveSelectedSkillIds.map(getSkillName).join('、'),
-                    status: steps.length === 0 ? ('active' as const) : ('queued' as const),
-                });
-            }
             steps.push({
                 id: 'answer',
                 label: '生成回答',
@@ -143,19 +134,13 @@ export const AIChatWindow = ({
         selectedCollId,
         setSelectedCollId,
         selectedMcpIds,
-        selectedSkillIds,
         chatMcpServers,
-        chatSkills,
         mcpPanelOpen,
         setMcpPanelOpen,
-        skillPanelOpen,
-        setSkillPanelOpen,
         anthologyOptions,
         mcpOptions,
         imageAnthologies,
         getMcpName,
-        getSkillName,
-        toggleChatSkill,
         toggleMcp,
         setModeWithSideEffects,
     } = useChatSettings({
@@ -165,8 +150,7 @@ export const AIChatWindow = ({
         onAddAssistantMessage: addAssistantMessage,
     });
 
-    // 智能体技能与 MCP 列表
-    const activeAgentSkills = activeAgent?.skills?.map(getSkillName).filter(Boolean) || [];
+    // 智能体 MCP 列表
     const activeAgentMcpServers = activeAgent?.mcpServers?.map(getMcpName).filter(Boolean) || [];
 
     // 计算侧边栏会话列表
@@ -250,7 +234,6 @@ export const AIChatWindow = ({
             useKb,
             selectedCollId,
             useThinking,
-            selectedSkillIds,
             imageAnthologies,
         }, retryUserIndex, images);
     };
@@ -328,10 +311,10 @@ export const AIChatWindow = ({
                                 {activeAgent && (
                                     <div className="mt-0.5 sm:mt-1 flex min-w-0 items-center gap-1.5 text-[10px] sm:text-[11px] font-normal text-slate-400">
                                         {activeAgent.modelDetail?.name && <span className="truncate">模型：{activeAgent.modelDetail.name}</span>}
-                                        {(activeAgentSkills.length > 0 || activeAgentMcpServers.length > 0) && (
+                                        {activeAgentMcpServers.length > 0 && (
                                             <span className="truncate hidden sm:inline">
                                                 {activeAgent.modelDetail?.name ? ' · ' : ''}
-                                                {activeAgentSkills.length} 技能 / {activeAgentMcpServers.length} 工具
+                                                {activeAgentMcpServers.length} 工具
                                             </span>
                                         )}
                                     </div>
@@ -393,7 +376,6 @@ export const AIChatWindow = ({
                         isLoading={isLoading}
                         activitySteps={activitySteps}
                         activeAgent={activeAgent}
-                        activeAgentSkills={activeAgentSkills}
                         activeAgentMcpServers={activeAgentMcpServers}
                         chatBodyRef={chatBodyRef}
                         messagesEndRef={messagesEndRef}
@@ -419,11 +401,6 @@ export const AIChatWindow = ({
                                     selectedCollId={selectedCollId}
                                     setSelectedCollId={setSelectedCollId}
                                     anthologyOptions={anthologyOptions}
-                                    chatSkills={chatSkills}
-                                    selectedSkillIds={selectedSkillIds}
-                                    toggleChatSkill={toggleChatSkill}
-                                    skillPanelOpen={skillPanelOpen}
-                                    setSkillPanelOpen={setSkillPanelOpen}
                                     useThinking={useThinking}
                                     setUseThinking={setUseThinking}
                                 />
