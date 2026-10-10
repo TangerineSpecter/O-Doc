@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-320 -311 640 420" width="640" height="420" fill="none">
+  <defs>
+    <g id="rock">
+      <path d="M-50 8-39-27-13-42 30-34 50-9 43 11Z" fill="#b7c6bf"/>
+      <path d="M-39-27-13-42 30-34 13-10-15-8Z" fill="#d6dfd5"/>
+      <path d="M13-10 30-34 50-9 43 11 5 10Z" fill="#9dadac"/>
+      <ellipse cx="-18" cy="-28" rx="29" ry="6" fill="#9ab99a"/>
+      <ellipse cx="-32" cy="-24" rx="14" ry="5" fill="#b5cd9c"/>
+    </g>
+    <path id="grass" d="M0 0Q-9-17-13-20M0 0Q1-24 5-28M0 0Q12-13 20-13"/>
+  </defs>
+  <path d="M-320-311H320V109H-320Z" fill="#f0f5f1"/>
+  <ellipse cy="-185" rx="330" ry="240" fill="#e4eee8"/>
+  <ellipse cy="-155" rx="230" ry="210" fill="#d9e8e0"/>
+  <ellipse cy="-139" rx="151" ry="176" fill="#cfdfd9"/>
+  <path d="M-250-340-168-366-129-300-169-271-197-163-258-135-302-216Z" fill="#e9efea"/>
+  <path d="M183-340 282-322 308-219 254-143 207-160 193-253 144-285Z" fill="#e8eee6"/>
+  <path d="M-120-335-89-264-71-340Z M90-329 113-277 137-332Z" fill="#e7eee6"/>
+  <path d="M-320-87H320V109H-320Z" fill="#e8eee3"/>
+  <ellipse cy="-38" rx="360" ry="62" fill="#e1e9de"/>
+  <ellipse cy="31" rx="285" ry="69" fill="#d2dfca"/>
+  <ellipse cy="20" rx="282" ry="63" fill="#f3f3e9" stroke="#c2d3bd" stroke-width="2"/>
+  <use href="#rock" transform="translate(-260 -21) scale(.8)"/>
+  <use href="#rock" transform="translate(276 -45) scale(1.1)"/>
+  <use href="#rock" transform="translate(-195 76) scale(.48)"/>
+  <use href="#rock" transform="translate(199 83) scale(.55)"/>
+  <g fill="#d4ddd0">
+    <ellipse cx="-155" cy="34" rx="12.6" ry="4.2"/>
+    <ellipse cx="164" cy="18" rx="9" ry="3"/>
+    <ellipse cx="98" cy="56" rx="7.2" ry="2.4"/>
+    <ellipse cx="-96" cy="72" rx="7.2" ry="2.4"/>
+    <ellipse cx="137" cy="-40" rx="5.4" ry="1.8"/>
+  </g>
+  <g stroke="#98b68b" stroke-width="3" stroke-linecap="round">
+    <use href="#grass" x="-238" y="32"/>
+    <use href="#grass" x="240" y="38"/>
+    <use href="#grass" x="-290" y="-56"/>
+    <use href="#grass" x="305" y="-82"/>
+  </g>
+</svg>

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f8faf9" />
+    <title>软泥怪 · 动画预览</title>
+  </head>
+  <body>
+    <main class="slime-preview">
+      <header class="preview-header">
+        <div>
+          <p class="eyebrow"><span class="orange-dot"></span> 魔物形象 <span class="edition">/ 01</span></p>
+          <h1>软泥怪 <span class="name-en">SLIME</span></h1>
+          <p class="intro">苔石洞窟里，一小团会呼吸的蓝色软泥。</p>
+        </div>
+        <div class="badges"><span>普通魔物</span><span>Lv.1–5</span></div>
+      </header>
+      <div class="preview-layout">
+        <section class="scene-card" aria-label="软泥怪形象">
+          <div class="scene-wrap">
+            <div class="scene-label"><span class="habitat">苔石洞窟</span><span class="habitat-en">MOSS CAVE</span></div>
+            <div class="state-badge"><i></i><span id="scene-state" aria-live="polite">待机中</span></div>
+            <div id="slime-stage" role="img" aria-label="软泥怪动画舞台"></div>
+            <p id="load-message" role="status">软泥怪正在醒来…</p>
+          </div>
+          <footer class="scene-footer"><span><i class="water-dot"></i> 蓝色软泥 · 水滴形态</span><span>出没地：苔石洞窟</span></footer>
+        </section>
+        <aside class="controls-card" aria-label="动画控制">
+          <div class="controls-heading"><h2>动作预览</h2><span>点击试试看</span></div>
+          <div class="action-grid" role="group" aria-label="选择动作">
+            <button type="button" data-action="idle" aria-pressed="true"><span class="action-icon">◡</span><span><strong>待机</strong><small>呼吸与眨眼</small></span><kbd>1</kbd></button>
+            <button type="button" data-action="move" aria-pressed="false"><span class="action-icon">↝</span><span><strong>移动</strong><small>轻轻弹跳</small></span><kbd>2</kbd></button>
+            <button type="button" data-action="attack" aria-pressed="false"><span class="action-icon">↗</span><span><strong>攻击</strong><small>蓄力跃击</small></span><kbd>3</kbd></button>
+            <button type="button" data-action="hit" aria-pressed="false"><span class="action-icon">✧</span><span><strong>受击</strong><small>挤压与回弹</small></span><kbd>4</kbd></button>
+            <button type="button" data-action="defeat" aria-pressed="false"><span class="action-icon">﹏</span><span><strong>倒下</strong><small>化成一摊软泥</small></span><kbd>5</kbd></button>
+          </div>
+          <div class="control-divider"></div>
+          <div class="control-row"><span>朝向</span><div class="segmented" role="group" aria-label="朝向"><button type="button" data-facing="-1" aria-pressed="false">← 左</button><button type="button" data-facing="1" aria-pressed="true">右 →</button></div></div>
+          <div class="control-row"><span>舞台</span><div class="segmented" role="group" aria-label="舞台"><button type="button" data-backdrop="cave" aria-pressed="true">洞窟</button><button type="button" data-backdrop="plain" aria-pressed="false">素色</button></div></div>
+          <label class="size-option"><span>查看图鉴尺寸</span><input id="small-size" type="checkbox" /></label>
+          <button type="button" id="pause" class="pause-button" aria-pressed="false">Ⅱ 暂停动画</button>
+          <p class="key-hint">数字键切换动作 · 空格暂停<br>倒下后，点击「待机」重新唤醒</p>
+        </aside>
+      </div>
+      <p class="preview-note"><span class="note-line"></span> 第一只小魔物，先从它开始。</p>
+    </main>
+    <script type="module" src="/src/previews/slimePreview.ts"></script>
+  </body>
+</html>

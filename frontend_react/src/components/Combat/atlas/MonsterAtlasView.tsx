@@ -2,6 +2,8 @@ import {useMemo, useState} from 'react';
 import {Search, X, Skull, Shield, CheckCircle2, Eye, EyeOff, Info, Swords, Gem} from 'lucide-react';
 import type {CombatCatalog, CombatProfile} from '../../../types/api/combat';
 import {AtlasGridCard} from './AtlasGridCard';
+import {MonsterPortrait} from './MonsterPortrait';
+import {getMonsterHabitat} from './monsterHabitats';
 import {getMonsterVisual} from './atlasIcons';
 import {statLabels} from '../presentation';
 
@@ -87,14 +89,16 @@ export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) 
             .filter((n): n is string => Boolean(n));
 
         // 出没地牢
-        const dungeonNames = dungeonMonsters
-            .filter(dm => dm.monsterId === selected.id)
-            .map(dm => dungeons.find(d => d.id === dm.dungeonId)?.name)
+        const dungeonIds = dungeonMonsters.filter(dm => dm.monsterId === selected.id)
+            .map(dm => dm.dungeonId).filter((id): id is string => Boolean(id));
+        const dungeonNames = dungeonIds
+            .map(id => dungeons.find(d => d.id === id)?.name)
             .filter((n): n is string => Boolean(n));
         // 如果是 boss
-        const bossDungeon = dungeons.find(d => d.bossId === selected.id)?.name;
-        if (bossDungeon && !dungeonNames.includes(bossDungeon)) {
-            dungeonNames.push(`${bossDungeon} (首领)`);
+        const bossDungeon = dungeons.find(d => d.bossId === selected.id);
+        if (bossDungeon) {
+            dungeonIds.push(bossDungeon.id);
+            if (bossDungeon.name && !dungeonNames.includes(bossDungeon.name)) dungeonNames.push(`${bossDungeon.name} (首领)`);
         }
 
         return {
@@ -105,11 +109,11 @@ export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) 
             dropEquips: dropEquips.length ? dropEquips.join('、') : selected.rank === 'boss' ? 'Boss 专属护符' : '按区域装备池',
             actions: actions.length ? actions : ['普通攻击'],
             dungeonNames,
+            habitat: getMonsterHabitat(dungeonIds),
         };
     }, [selected, discoveries, catalog.monsterPreviews, drops, materials, equipmentPools, equipmentTemplates, monsterActions, skills, dungeonMonsters, dungeons]);
 
     const visual = selected ? getMonsterVisual(selected.id, selected.name, selected.rank) : null;
-    const VisualIcon = visual?.icon || Skull;
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3">
@@ -194,7 +198,6 @@ export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) 
                             {visibleMonsters.map(monster => {
                                 const isSelected = selected?.id === monster.id;
                                 const mVisual = getMonsterVisual(monster.id, monster.name, monster.rank);
-                                const MIcon = mVisual.icon;
                                 const isBoss = monster.rank === 'boss';
                                 const isElite = monster.rank === 'elite';
                                 const isDefeated = discoveries?.defeated.includes(monster.id);
@@ -208,9 +211,8 @@ export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) 
                                         title={`${monster.name} · Lv.${monster.levelMin}–${monster.levelMax} · ${isDefeated ? '已击败' : isEncountered ? '已遭遇' : '尚未遭遇'}`}
                                         selected={isSelected}
                                         onClick={() => setSelectedId(monster.id)}
-                                        icon={<MIcon className={`h-8 w-8 ${mVisual.color}`} />}
+                                        icon={<MonsterPortrait monsterId={monster.id} name={monster.name} rank={monster.rank} decorative className="h-full w-full" fallbackClassName="h-8 w-8" />}
                                         bgGradient={mVisual.bgGradient}
-                                        dimmed={!isEncountered && !isDefeated && Boolean(discoveries)}
                                         topLeftBadge={
                                             <span className="rounded-full bg-slate-900/60 px-1 py-0.2 text-[8px] font-semibold text-white backdrop-blur-xs">
                                                 Lv.{monster.levelMin}
@@ -246,9 +248,9 @@ export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) 
                     >
                         <div className="space-y-4">
                             {/* 顶部橱窗 */}
-                            <div className={`relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border p-4 text-center bg-gradient-to-b ${visual?.bgGradient} ${visual?.border}`}>
+                            <div className={`relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border text-center ${selectedDetails.habitat ? 'bg-[#e8eee3] border-[#d5e0d7]' : `p-4 bg-gradient-to-b ${visual?.bgGradient} ${visual?.border}`}`}>
                                 {/* 状态栏与品质 */}
-                                <div className="mb-2 flex w-full items-center justify-between gap-1">
+                                <div className={`flex items-center justify-between gap-1 ${selectedDetails.habitat ? 'absolute inset-x-3 top-3 z-10' : 'mb-2 w-full'}`}>
                                     <div className="flex items-center gap-1">
                                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                                             selected.rank === 'boss'
@@ -291,17 +293,19 @@ export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) 
                                     </span>
                                 </div>
 
-                                {/* 大图标 */}
-                                <div className="my-2 flex h-24 w-24 items-center justify-center rounded-2xl border border-white/80 bg-white/90 shadow-sm">
-                                    <VisualIcon className={`h-12 w-12 ${visual?.color}`} />
+                                {/* 出没地场景与怪物形象 */}
+                                <div className={selectedDetails.habitat ? 'w-full' : 'my-2 flex h-24 w-24 items-center justify-center rounded-2xl border border-white/80 bg-white/90 shadow-sm'}>
+                                    <MonsterPortrait key={selected.id} monsterId={selected.id} name={selected.name} rank={selected.rank} animated habitat={selectedDetails.habitat} className={selectedDetails.habitat ? 'aspect-[32/21] w-full' : 'h-full w-full'} fallbackClassName={selectedDetails.habitat ? 'h-16 w-16' : undefined} />
                                 </div>
 
-                                <h3 className="text-base font-bold text-slate-800">{selected.name}</h3>
-                                {selectedDetails.dungeonNames.length > 0 && (
-                                    <p className="mt-1 text-xs text-slate-500">
-                                        出没地：{selectedDetails.dungeonNames.join('、')}
-                                    </p>
-                                )}
+                                <div className={selectedDetails.habitat ? 'w-full px-3 pb-4 pt-1' : ''}>
+                                    <h3 className="text-base font-bold text-slate-800">{selected.name}</h3>
+                                    {selectedDetails.dungeonNames.length > 0 && (
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            出没地：{selectedDetails.dungeonNames.join('、')}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
 
                             {/* 基础属性网格 */}
