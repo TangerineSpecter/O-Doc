@@ -13,7 +13,7 @@ def usage_context() -> dict | None:
 
 
 @contextmanager
-def usage_scope(*, agent=None, task=None, record=None, purpose: str | None = None, phase: str | None = None):
+def usage_scope(*, agent=None, task=None, record=None, purpose: str | None = None, phase: str | None = None, owner_id: str | None = None):
     details = dict(_scope.get() or {})
     for prefix, obj in (('agent', agent), ('task', task), ('record', record)):
         if obj is not None:
@@ -23,6 +23,8 @@ def usage_scope(*, agent=None, task=None, record=None, purpose: str | None = Non
     if task is not None:
         from system_settings.agent_world.life_config import task_owner
         details['owner_key'] = str(task_owner(task) or '')
+    if owner_id is not None:
+        details['owner_key'] = str(owner_id)
     if purpose is not None:
         details['purpose'] = purpose
     if phase is not None:

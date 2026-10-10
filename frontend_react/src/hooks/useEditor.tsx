@@ -3,6 +3,7 @@ import {useEscapeDismissal} from './useEscapeDismissal';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import type {CommandItem} from '../components/Editor/SlashMenu';
 import {AttachmentItem, Category, ParentArticleItem} from '../components/Editor/EditorMetaBar';
+import {getSprout, saveSproutArticle} from '../api/sprout';
 import {createArticle, getArticleDetail, getArticlesByAnthology, updateArticle} from '../api/article';
 import {createCategory, getCategoryList} from '../api/category';
 import {useToast} from '../components/common/ToastProvider';
@@ -43,6 +44,7 @@ export const useEditor = () => {
 
     // 获取文章ID（编辑模式）
     const articleId = params.docId;
+    const sproutId = new URLSearchParams(location.search).get('sproutId');
 
     // 获取collId
     const getCollId = () => {
@@ -67,6 +69,7 @@ export const useEditor = () => {
     const [contentFormat, setContentFormat] = useState<'markdown' | 'html' | null>(null);
     const [articleAuthor, setArticleAuthor] = useState('');
     const [templateChosen, setTemplateChosen] = useState(false);
+    const [sproutLoading, setSproutLoading] = useState(Boolean(sproutId));
 
     // Toast
     const toast = useToast();
@@ -343,7 +346,24 @@ export const useEditor = () => {
     };
 
     // --- Actions ---
+    useEffect(() => {
+        if (!sproutId || articleId) return;
+        let disposed = false;
+        setSproutLoading(true);
+        getSprout(sproutId).then(row => {
+            if (disposed) return;
+            if (row.status !== 'ready' || row.result.kind !== 'article') throw new Error('发芽结果不是可编辑的文章');
+            if (row.articleId) {navigate(`/editor/${row.articleId}`, {replace: true}); return;}
+            setTitle(row.result.title || '未命名文档');
+            setContent(row.result.body || '');
+            setTemplateChosen(true);
+        }).catch((e: Error) => {if (!disposed) toast.error(e.message);})
+          .finally(() => {if (!disposed) setSproutLoading(false);});
+        return () => {disposed = true;};
+    }, [sproutId, articleId, navigate, toast]);
+
     const handleSave = async () => {
+        if (sproutLoading) return;
         setIsSaving(true);
         try {
             // 总是传递实际的分类ID，包括未分类（'uncategorized'）
@@ -384,7 +404,7 @@ export const useEditor = () => {
                     assets: attachments.map(att => att.id) // 传递附件ID数组
                 };
 
-                const result = await createArticle(articleData);
+                const result = sproutId ? await saveSproutArticle(sproutId, articleData) : await createArticle(articleData);
                 toast.success("文章创建成功！");
                 // 跳转到文章详情页
                 navigate(`/article/${collId}/${result.articleId}`);
@@ -1138,7 +1158,7 @@ export const useEditor = () => {
         isPolishConfirmOpen,
         onPolishConfirm: handlePolishConfirm, // 弹窗确认后执行
         onPolishCancel: () => setIsPolishConfirmOpen(false), // 弹窗取消
-        showTemplatePicker: !articleId && !templateChosen,
+        showTemplatePicker: !articleId && !sproutId && !templateChosen,
         onSelectArticleTemplate: applyArticleTemplate,
     };
 };

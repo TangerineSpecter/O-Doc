@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import {getCookingRecipes, getCookingHistory} from '../api/cooking';
 import type {CookingRecipes, CookingHistory} from '../types/api/cooking';
 
-export function useCooking(agentId: string) {
+export function useCooking(agentId: string, active = true) {
     const [data, setData] = useState<CookingRecipes | null>(null);
     const [history, setHistory] = useState<CookingHistory | null>(null);
     const [page, setPage] = useState(1);
@@ -11,6 +11,7 @@ export function useCooking(agentId: string) {
     const [version, setVersion] = useState(0);
     const requestKey = `${agentId}:${page}:${version}`;
     useEffect(() => {
+        if (!active) return;
         let controller = new AbortController();
         let pending = false;
         const load = async () => {
@@ -31,6 +32,6 @@ export function useCooking(agentId: string) {
         const visible = () => {if (document.hidden) controller.abort(); else void load();};
         document.addEventListener('visibilitychange', visible);
         return () => {controller.abort(); window.clearInterval(timer); document.removeEventListener('visibilitychange', visible);};
-    }, [agentId, page, requestKey]);
+    }, [agentId, page, requestKey, active]);
     return {data: resolvedKey === requestKey ? data : null, history: resolvedKey === requestKey ? history : null, page, setPage, loading: resolvedKey !== requestKey, error: resolvedKey === requestKey ? error : '', reload: () => setVersion(v => v + 1)};
 }

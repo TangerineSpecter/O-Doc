@@ -1,6 +1,6 @@
 import type {TokenFilters} from '../types/api/tokenUsage';
 export const tokenNumber = (value: number | null | undefined) => value == null ? '未知' : value.toLocaleString('zh-CN');
-export const purposeNames: Record<string, string> = {preview: '发帖预览', task: '任务执行', planning: '日程规划', im: 'Agent 对话', memory: '记忆整理', social: '社交决策', profile: '角色资料', learning: '学习教学'};
+export const purposeNames: Record<string, string> = {preview: '发帖预览', task: '任务执行', planning: '日程规划', im: 'Agent 对话', memory: '记忆整理', social: '社交决策', profile: '角色资料', learning: '学习教学', sprout: '闪念发芽'};
 export const requestStatus: Record<string, string> = {running: '执行中', success: '已完成', failed: '失败', interrupted: '已中断'};
 export function shanghaiDay() {
     return new Intl.DateTimeFormat('sv-SE', {timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());

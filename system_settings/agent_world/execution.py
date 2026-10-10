@@ -35,9 +35,9 @@ def stamina(agent, now=None) -> Decimal:
 
 
 @contextmanager
-def execution_lease(model, lookup: dict):
-    token = uuid.uuid4().hex
-    if model.__name__=='AgentExecutionLease':
+def execution_lease(model, lookup: dict, *, token_prefix=''):
+    token = token_prefix + uuid.uuid4().hex
+    if not token_prefix and model.__name__=='AgentExecutionLease':
         from .life_scope import CURRENT
         if CURRENT.get():token='life:'+token  # 本机命名空间，恢复不撤销自定义任务的租约。
     from .farm_gate import farm_gate

@@ -64,6 +64,7 @@ import {PostInteractionScopeFields} from './agent/PostInteractionScopeFields';
 import {WorldRunnerSwitch} from './agent/WorldRunnerSwitch';
 import {SystemTaskProgress} from './agent/SystemTaskProgress';
 import {InvestmentTaskFields} from './agent/InvestmentTaskFields';
+import {MemoCaptureSettings} from './agent/MemoCaptureSettings';
 import {BuiltinPostTaskCard} from './agent/BuiltinPostTaskCard';
 import {defaultPostInteractionTask, defaultPostPublishTask, defaultTravelTask, defaultFarmTask, defaultMarketTask, defaultInvestmentTask, defaultCookingTask, defaultExplorationTask} from './agent/builtinTasks';
 import {TravelTaskFields} from './agent/TravelTaskFields';
@@ -111,7 +112,7 @@ type AgentView = 'list' | 'tasks' | 'records';
 
 type AgentTaskForm = {
     model: string;
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'exploration';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'exploration' | 'memo_capture';
     investmentConfig?: import('../../types/api/investment').InvestmentConfig;
     publishConfig?: AgentPublishConfig;
     travelConfig?: TravelConfig;
@@ -371,7 +372,7 @@ export const AgentSettings = ({
     const builtinPublishTask = tasks.find(task => task.taskKind === 'post_publish') || defaultPostPublishTask;
     const isManualTask = taskForm.trigger === '手动执行';
     const builtinPostTask = tasks.find(task => task.taskKind === 'post_interaction') || defaultPostInteractionTask;
-    const customTasks = tasks.filter(task => !['post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'exploration'].includes(task.taskKind || 'custom'));
+    const customTasks = tasks.filter(task => !['memo_capture', 'post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'exploration'].includes(task.taskKind || 'custom'));
 
     const openCreateModal = () => {
         clearAvatarPreview();
@@ -839,6 +840,7 @@ export const AgentSettings = ({
                                 onConfigure={() => openEditTaskModal(builtinPostTask)}
                                 onToggle={() => toggleTaskEnabled(builtinPostTask.id)}
                                 onRun={() => runTaskNow(builtinPostTask.id)}/>
+                            <MemoCaptureSettings models={modelOptions} task={tasks.find(task => task.taskKind === 'memo_capture')} agents={agents} progress={progressByTask[tasks.find(task => task.taskKind === 'memo_capture')?.id || '']} running={runningTaskId === tasks.find(task => task.taskKind === 'memo_capture')?.id} onSave={onSaveTask} onRun={runTaskNow}/>
                             <BuiltinPostTaskCard task={builtinPublishTask} agentNames={getTaskAgentNames(builtinPublishTask)}
                                 running={!!builtinPublishTask.id && runningTaskId === builtinPublishTask.id}
                                 progress={worldProgressByTask[builtinPublishTask.id]}

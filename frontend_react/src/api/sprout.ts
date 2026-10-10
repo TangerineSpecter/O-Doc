@@ -1,0 +1,11 @@
+import request from '../utils/request';
+import type {SproutInput, SproutOptions, SproutRecord} from '../types/api/sprout';
+import type {CreateArticleParams, Article} from '../types/api/article';
+export const getSproutOptions = () => request.get<never, SproutOptions>('/memo/sprouts/options');
+export const createSprout = (data: SproutInput) => request.post<never, SproutRecord>('/memo/sprouts', data);
+export const getSprouts = () => request.get<never, SproutRecord[]>('/memo/sprouts');
+export const getSprout = (id: string) => request.get<never, SproutRecord>(`/memo/sprouts/${id}`);
+export const cancelSprout = (id: string) => request.post<never, SproutRecord>(`/memo/sprouts/${id}/cancel`);
+export const deleteSprout = (id: string) => request.delete(`/memo/sprouts/${id}`);
+export const regenerateSprout = (id: string, data: Partial<SproutInput>) => request.post<never, SproutRecord>(`/memo/sprouts/${id}/regenerate`, data);
+export const saveSproutArticle = (id: string, data: Partial<CreateArticleParams>) => request.post<never, Article>(`/memo/sprouts/${id}/save`, data);

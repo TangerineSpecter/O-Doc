@@ -8,7 +8,7 @@ from .models import AgentTokenUsage
 from system_settings.agent_world.life_time import local_time, storage_time
 
 SHANGHAI = ZoneInfo('Asia/Shanghai')
-PURPOSES = {'task', 'planning', 'im', 'memory', 'social', 'profile', 'learning', 'preview'}
+PURPOSES = {'task', 'planning', 'im', 'memory', 'social', 'profile', 'learning', 'preview', 'sprout'}
 
 
 def visible_usage(request: Request | None = None) -> QuerySet:

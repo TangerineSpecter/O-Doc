@@ -126,6 +126,7 @@ export type SaveAgentLongTermMemoryParams = Pick<AgentLongTermMemoryConfig, 'mem
 export type AgentTaskScheduleType = 'daily' | 'weekly' | 'monthly' | 'interval';
 export type AgentTaskRandomPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly';
 export interface AgentTaskRandomProgress {
+    captureCounts?: {recorded: number; skipped: number} | null;
     periodStart: string;
     periodEnd: string;
     mode: AgentTaskExecutionMode;
@@ -142,9 +143,10 @@ export type AgentRunStatus = 'success' | 'failed' | 'running';
 export type AgentRunStepStatus = AgentRunStatus | 'info';
 
 export interface AgentTaskConfig {
+    memoConfig?: {ownerId: string};
     model?: string | null;
     investmentConfig?: import('./investment').InvestmentConfig;
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'exploration';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'exploration' | 'memo_capture';
     publishConfig?: import('./agentPublish').AgentPublishConfig;
     explorationConfig?: {ownerId: string};
     travelConfig?: import('./travel').TravelConfig;

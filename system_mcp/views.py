@@ -918,6 +918,10 @@ class ODocSystemMCPView(APIView):
         raise ValueError(f'未知 Tool：{name}')
 
     def _create_memo(self, arguments):
+        if getattr(self, 'memo_capture_context', None) and self.agent_context:
+            from memos.capture import commit_capture
+            memo = commit_capture(self.memo_capture_context['key'], self.memo_capture_context['owner_id'], self.agent_context, arguments)
+            return {'memo': _memo_to_dict(memo) if memo else None}
         content = str(arguments.get('content') or '').strip()
         if not content:
             raise ValueError('content 不能为空')

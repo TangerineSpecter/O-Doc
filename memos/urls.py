@@ -13,7 +13,13 @@ from .views import (
     MemoVectorSyncView,
 )
 
+from .sprout_views import SproutView, SproutActionView, SproutOptionsView
+
 urlpatterns = [
+    path('sprouts/options', SproutOptionsView.as_view()),
+    path('sprouts', SproutView.as_view()),
+    path('sprouts/<str:sprout_id>', SproutView.as_view()),
+    path('sprouts/<str:sprout_id>/<str:action>', SproutActionView.as_view()),
     path('trash', MemoTrashListView.as_view(), name='memo-trash'),
     path('trash/<str:memo_id>/restore', MemoTrashRestoreView.as_view(), name='memo-trash-restore'),
     path('trash/<str:memo_id>', MemoTrashPurgeView.as_view(), name='memo-trash-purge'),

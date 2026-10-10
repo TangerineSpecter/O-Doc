@@ -12,6 +12,7 @@ import WorldManagementDialog from '../components/AgentWorld/WorldManagementDialo
 import {AgentResidentsMobileBar, AgentResidentsSidebar} from '../components/AgentWorld/AgentResidentsBar';
 import {useAgentRelation} from '../hooks/useAgentRelation';
 import {useAgentWorld} from '../hooks/useAgentWorld';
+import type {WorldCatalogSection} from '../components/AgentWorld/WorldCatalogDialog';
 import type {DailyFeedEvent} from '../types/api/dailyFeed';
 import type {AgentActivity as AgentActivityData, AgentActivityType} from '../types/api/setting';
 
@@ -19,10 +20,8 @@ const TokenUsageDialog = lazy(() => import('../components/TokenUsage/TokenUsageD
 const preloadLifeSchedule = () => import('../components/AgentLife/LifeScheduleDialog');
 const preloadMarket = () => import('../components/Market/MarketDialog');
 const preloadFarm = () => import('../components/Farm/FarmDialog');
-const preloadCooking = () => import('../components/Cooking/CookingDialog');
-const CookingDialog = lazy(preloadCooking);
 const CombatDialog = lazy(() => import('../components/Combat/CombatDialog'));
-const preloadCatalog = () => import('../components/AgentWorld/ItemCatalogDialog');
+const preloadCatalog = () => import('../components/AgentWorld/WorldCatalogDialog');
 const preloadInvestment = () => import('../components/Investment/InvestmentDialog');
 const preloadTravel = () => import('../components/AgentWorld/TravelJourneyDialog');
 
@@ -31,7 +30,7 @@ const MarketDialog = lazy(preloadMarket);
 const FarmDialog = lazy(preloadFarm);
 const MomentsDialog = lazy(() => import('../components/AgentWorld/MomentsDialog'));
 const MomentDetailDialog = lazy(() => import('../components/AgentWorld/MomentDetailDialog'));
-const ItemCatalogDialog = lazy(preloadCatalog);
+const WorldCatalogDialog = lazy(preloadCatalog);
 const InvestmentDialog = lazy(preloadInvestment);
 const TravelJourneyDialog = lazy(preloadTravel);
 
@@ -60,8 +59,7 @@ export default function AgentWorldPage() {
     const [combatActor,setCombatActor] = useState('');
     const [combatExploration,setCombatExploration] = useState('');
     const closeCombat = useCallback(() => {setCombatOpen(false);setCombatActor('');setCombatExploration('');}, []);
-    const [cookingOpen, setCookingOpen] = useState(false);
-    const closeCooking = useCallback(() => setCookingOpen(false), []);
+    const [catalogSection, setCatalogSection] = useState<WorldCatalogSection>('items');
     const [catalogOpen, setCatalogOpen] = useState(false);
     const closeCatalog = useCallback(() => setCatalogOpen(false), []);
     const [worldManagementOpen, setWorldManagementOpen] = useState(false);
@@ -115,7 +113,7 @@ export default function AgentWorldPage() {
             setSelectedActivity({id: event.id, type: 'work' as AgentActivityType, status: event.status as AgentActivityData['status'], agent: {id: event.actorId, name: event.actorName, avatar: ''}, title: event.title, summary: event.detail, occurredAt: event.occurredAt, runRecordId: target.runRecordId || target.id});
         } else if (target.kind === 'travel') setTravelArchiveId(target.id);
         else if (target.kind === 'exploration') {setCombatActor(event.actorId);setCombatExploration(target.id);setCombatOpen(true);}
-        else if (target.kind === 'cooking') setCookingOpen(true);
+        else if (target.kind === 'cooking') {setCatalogSection('recipes'); setCatalogOpen(true);}
         else if (target.kind === 'farm') setFarmOpen(true);
         else if (target.kind === 'market') setMarketOpen(true);
         else if (target.kind === 'investment') setInvestmentOpen(true);
@@ -168,11 +166,11 @@ export default function AgentWorldPage() {
                     <button type="button" onClick={() => setMomentsOpen(true)} className="inline-flex items-center shrink-0 gap-1.5 whitespace-nowrap rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 shadow-2xs transition-all duration-150 hover:border-rose-300 hover:bg-rose-100 hover:shadow-xs active:scale-95"><MessageCircle className="h-3.5 w-3.5 shrink-0"/>朋友圈</button>
                     <button
                         type="button"
-                        onClick={() => setCatalogOpen(true)}
+                        onClick={() => {setCatalogSection('items'); setCatalogOpen(true);}}
                         onMouseEnter={preloadCatalog}
                         className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 hover:shadow-xs active:scale-95"
                     >
-                        <BookOpenText className="h-3.5 w-3.5 shrink-0"/>物品图鉴
+                        <BookOpenText className="h-3.5 w-3.5 shrink-0"/>世界图鉴
                     </button>
                     <button
                         type="button"
@@ -206,7 +204,6 @@ export default function AgentWorldPage() {
                     >
                         <Sprout className="h-3.5 w-3.5 shrink-0"/>像素农场
                     </button>
-                    <button type="button" onClick={() => setCookingOpen(true)} onMouseEnter={preloadCooking} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">食谱图鉴</button>
                     <button
                         type="button"
                         onClick={() => setWorldManagementOpen(true)}
@@ -298,8 +295,7 @@ export default function AgentWorldPage() {
             {momentsOpen && <WorldDialogSuspense title="朋友圈" size="wide" onClose={() => setMomentsOpen(false)} fallback={<WorldOrbitLoader title="正在读取朋友圈" subtitle="整理生活分享与讨论"/>}><MomentsDialog onClose={() => setMomentsOpen(false)}/></WorldDialogSuspense>}
             {momentDetailId && <WorldDialogSuspense title="朋友圈动态" size="compact" onClose={() => setMomentDetailId(null)} fallback={<WorldOrbitLoader title="正在读取动态" subtitle="加载朋友圈内容与讨论"/>}><MomentDetailDialog momentId={momentDetailId} onClose={() => setMomentDetailId(null)}/></WorldDialogSuspense>}
             {combatOpen && <WorldDialogSuspense title="冒险与战斗" onClose={closeCombat} size="wide" fallback={<WorldOrbitLoader title="正在打开冒险档案"/>}><CombatDialog residents={world.summary?.agents || []} initialAgentId={combatActor || world.agentId} explorationId={combatExploration} onClose={closeCombat}/></WorldDialogSuspense>}
-            {cookingOpen && <WorldDialogSuspense title="食谱图鉴" onClose={closeCooking} size="wide" fallback={<WorldOrbitLoader title="正在翻开食谱" subtitle="读取配方与厨艺进度"/>}><CookingDialog residents={world.summary?.agents || []} initialAgentId={world.agentId} onClose={closeCooking}/></WorldDialogSuspense>}
-            {catalogOpen && <WorldDialogSuspense title="物品图鉴" onClose={closeCatalog} size="wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在翻开物品图鉴" subtitle="整理物品分类 · 计算稀有度与用途估值"/>}><ItemCatalogDialog onClose={closeCatalog}/></WorldDialogSuspense>}
+            {catalogOpen && <WorldDialogSuspense title="世界图鉴" onClose={closeCatalog} size="wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在翻开世界图鉴" subtitle="查阅物品、食谱与冒险资料"/>}><WorldCatalogDialog residents={world.summary?.agents || []} initialAgentId={world.agentId} initialSection={catalogSection} onClose={closeCatalog}/></WorldDialogSuspense>}
             {worldManagementOpen && <WorldManagementDialog onClose={() => setWorldManagementOpen(false)} />}
             <AgentRunDrawer
                 key={selectedActivity?.runRecordId || selectedActivity?.id || 'closed'}

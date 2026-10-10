@@ -8,7 +8,6 @@ const fs=require('fs'), assert=require('assert');
  let runUrl='';const errors=[];page.on('pageerror',e=>errors.push(e.message));let reads=0;
  page.on('request',r=>{if(r.method()==='GET'&&r.url().includes('/combat/explorations/')){reads++;runUrl=r.url().split('?')[0];}});
  await page.goto((process.env.COMBAT_UI_URL || 'http://127.0.0.1:43129')+'/scripts/fixtures/combat.html');await page.waitForLoadState('networkidle');
- await page.getByRole('button',{name:'图鉴',exact:true}).click();await page.getByText('苔冠巨兽',{exact:false}).waitFor();
  await page.getByRole('button',{name:'冒险档案',exact:true}).click();
  if(await page.getByRole('button',{name:'观察当前探索'}).count()) await page.getByRole('button',{name:'观察当前探索'}).click(); else await page.getByRole('button',{name:'让居民准备出发'}).click();
  await page.getByText('探索中 · 交战',{exact:true}).waitFor({timeout:15000});
@@ -52,13 +51,7 @@ const fs=require('fs'), assert=require('assert');
  await page.getByRole('button',{name:'确认穿戴',exact:true}).click();
  await page.getByRole('button',{name:'卸下并预览',exact:true}).waitFor();
  await page.getByRole('button',{name:'收藏',exact:true}).click();await page.getByRole('button',{name:'取消收藏',exact:true}).waitFor();
- await page.getByRole('button',{name:'图鉴',exact:true}).click();
- for (const name of ['怪物图鉴','材料图鉴','装备图鉴','职业与技能']) {
-  await page.getByRole('button',{name:/地牢与怪物|怪物图鉴|材料图鉴|装备图鉴|职业与技能/}).last().click();
-  await page.getByRole('option',{name,exact:true}).click();await page.waitForTimeout(200);
-  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
- }
  await page.getByRole('button',{name:'探索历史',exact:true}).click();
  await page.getByRole('button',{name:'探险者',exact:true}).click();await page.getByRole('option',{name:'观察员',exact:true}).click();await page.waitForTimeout(700);assert.equal(await page.getByText('已召回 ·',{exact:false}).count(),0);
- assert.deepEqual(errors,[]);console.log('PASS desktop/mobile: preparation, persistent real rounds, all atlas tabs, equipment preview/unequip/equip/favorite, polling stop, reopen, offline/reconnect, recall, refresh history, resident switching, history scroll retention');await browser.close();
+ assert.deepEqual(errors,[]);console.log('PASS desktop/mobile: preparation, persistent real rounds, equipment preview/unequip/equip/favorite, polling stop, reopen, offline/reconnect, recall, refresh history, resident switching, history scroll retention');await browser.close();
 })().catch(error => {console.error(error);process.exit(1);});

@@ -67,3 +67,5 @@ class Memo(models.Model):
 
     def __str__(self):
         return self.content[:30]
+
+from .sprout_models import Sprout, SproutJob, MemoCapture, MemoCaptureAuthorization  # noqa: E402,F401

@@ -45,6 +45,9 @@ def period_bounds(period: str, now: datetime) -> tuple[datetime, datetime]:
 def task_config(task) -> dict:
     agents = list(task.agent_ids or [task.agent_id])
     count = task.random_count
+    if task.task_kind == 'memo_capture':
+        return {'period': 'weekly', 'count': count, 'mode': 'serial', 'agents': agents,
+                'targets': {agent: 0 for agent in agents}, 'capture_random': True}
     if task.execution_mode == 'parallel':
         targets = {agent: count for agent in agents}
     elif task.random_allocations:
@@ -86,7 +89,9 @@ def make_plan(task, now: datetime) -> dict:
         available_start = max(start, now)
     rng = random.Random(plan_id)
     groups = []
-    if config['mode'] == 'parallel':
+    if config.get('capture_random'):
+        groups = [[rng.choice(config['agents'])] for _ in range(config['count'])] if config['agents'] else []
+    elif config['mode'] == 'parallel':
         groups = [config['agents'][:] for _ in range(config['count'])]
     else:
         remaining = dict(config['targets'])
@@ -168,13 +173,24 @@ def progress(task) -> dict | None:
     if pending:
         next_at = state['retry_at'] or state['slots'][pending[0]]['at']
     executing = bool(runtime and runtime.lease_until and runtime.lease_until > timezone.now())
-    return {'period_start': state['start'], 'period_end': state['end'], 'mode': config['mode'],
+    capture_counts = {'recorded': 0, 'skipped': 0}
+    if config.get('capture_random'):
+        seen = set()
+        for record in AgentRunRecord.objects.filter(task=task, random_context__plan_id=state['id']):
+            slot = record.random_context.get('slot')
+            for result in record.agent_runs:
+                outcome = result.get('captureOutcome')
+                if result.get('status') == 'success' and outcome in capture_counts and slot not in seen:
+                    capture_counts[outcome] += 1
+                    seen.add(slot)
+    return {'capture_counts': capture_counts if config.get('capture_random') else None,
+            'period_start': state['start'], 'period_end': state['end'], 'mode': config['mode'],
             'target_count': config['count'], 'next_execution_at': next_at,
             'status': 'running' if executing else ('complete' if not pending else ('retrying' if state['retry_at'] else 'scheduled')),
             'config_pending': config != task_config(task) or task.schedule_mode != 'random',
             'agents': [{'agent_id': agent, 'agent_name': names.get(agent, '已删除 Agent'),
                         'unavailable': agent in state['unavailable'],
-                        'target': config['targets'][agent], 'success_count': counts[agent]} for agent in ids]}
+                        'target': sum(agent in slot['agents'] for slot in state['slots']) if config.get('capture_random') else config['targets'][agent], 'success_count': counts[agent]} for agent in ids]}
 
 
 def has_active_random_period(task, now: datetime) -> bool:

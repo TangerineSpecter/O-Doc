@@ -18,15 +18,15 @@ export interface CookingDialogProps {
     onClose: () => void;
 }
 
-export default function CookingDialog({
+export function CookingCatalogContent({
     residents,
     initialAgentId = '',
-    onClose,
-}: CookingDialogProps) {
+    active = true,
+}: Omit<CookingDialogProps, 'onClose'> & {active?: boolean}) {
     const [agentId, setAgentId] = useState(
         residents.some(row => row.id === initialAgentId) ? initialAgentId : residents[0]?.id || ''
     );
-    const state = useCooking(agentId);
+    const state = useCooking(agentId, active);
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState<'all' | RecipeState>('all');
     const [selectedId, setSelectedId] = useState('');
@@ -87,12 +87,7 @@ export default function CookingDialog({
         });
 
     return (
-        <WorldDialog
-            title="食谱图鉴"
-            description="把田园收获变成美食，在制作中磨练厨艺。"
-            size="wide"
-            onClose={onClose}
-        >
+        <>
             <div className="flex h-full min-h-0 flex-col gap-3 outline-none">
                 {/* 顶部工具栏：居民厨艺卡片 + 搜索 */}
                 <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50/80 p-2.5 border border-slate-100">
@@ -332,6 +327,10 @@ export default function CookingDialog({
                     }}
                 />
             )}
-        </WorldDialog>
+        </>
     );
+}
+
+export default function CookingDialog({onClose, ...props}: CookingDialogProps) {
+    return <WorldDialog title="食谱图鉴" description="把田园收获变成美食，在制作中磨练厨艺。" size="wide" onClose={onClose}><CookingCatalogContent {...props}/></WorldDialog>;
 }

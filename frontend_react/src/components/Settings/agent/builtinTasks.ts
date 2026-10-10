@@ -37,3 +37,5 @@ export const defaultMarketTask: AgentTaskConfig = {
 export const defaultInvestmentTask: AgentTaskConfig = {...defaultPostInteractionTask, taskKind: 'investment', name: 'A 股投资', investmentConfig: {}};
 
 export const defaultExplorationTask: AgentTaskConfig = {...defaultPostInteractionTask, taskKind: 'exploration', name: '迷宫探索'};
+
+export const defaultMemoCaptureTask: AgentTaskConfig = {...defaultPostInteractionTask, taskKind: 'memo_capture', name: '随手记', scheduleMode: 'random', randomPeriod: 'weekly', randomCount: 3, schedule: '每周总计 3 次机会', enabled: false};

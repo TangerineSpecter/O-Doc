@@ -392,6 +392,13 @@ class AgentRandomAllocationsField(serializers.Field):
 
 
 class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.task_kind == 'memo_capture':
+            from memos.models import MemoCaptureAuthorization
+            data['enabled'] = MemoCaptureAuthorization.objects.filter(pk=instance.pk, enabled=True).exists()
+        return data
+
     world_progress = serializers.SerializerMethodField()
     random_allocations = AgentRandomAllocationsField(required=False)
     random_count = serializers.IntegerField(min_value=1, max_value=10000, required=False)
@@ -410,7 +417,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         fields = [
             'id',
             'name',
-            'cooking_config', 'exploration_config', 'task_kind', 'publish_config', 'travel_config', 'farm_config', 'market_config', 'investment_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
+            'memo_config', 'cooking_config', 'exploration_config', 'task_kind', 'publish_config', 'travel_config', 'farm_config', 'market_config', 'investment_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
             'agent',
             'agent_name',
             'agents',
@@ -463,6 +470,21 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
     @farm_guarded
     @transaction.atomic
     def create(self, validated_data):
+        if validated_data.get('task_kind') == 'memo_capture':
+            import hashlib
+            owner = validated_data['memo_config']['owner_id']
+            key = 'builtin-memo:' + hashlib.sha256(owner.encode()).hexdigest()[:24]
+            existing = AgentTask.objects.select_for_update().filter(pk=key).first()
+            if existing:
+                return self.update(existing, validated_data)
+            from memos.models import MemoCaptureAuthorization
+            enabled = validated_data.pop('enabled', False)
+            validated_data['id'] = key
+            validated_data['enabled'] = False
+            task = super().create(validated_data)
+            MemoCaptureAuthorization.objects.update_or_create(pk=task.pk, defaults={'enabled': enabled})
+            self.initialize_task(task)
+            return task
         if validated_data.get('task_kind') in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'exploration'):
             from .agent_world.builtin_tasks import POST_INTERACTION_ID, POST_PUBLISH_ID, TRAVEL_ID, FARM_ID, MARKET_ID, INVESTMENT_ID, COOKING_ID, EXPLORATION_ID
             kind = validated_data['task_kind']
@@ -505,6 +527,11 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
     @farm_guarded
     @transaction.atomic
     def update(self, instance, validated_data):
+        if instance.task_kind == 'memo_capture':
+            from memos.models import MemoCaptureAuthorization
+            if 'enabled' in validated_data:
+                MemoCaptureAuthorization.objects.update_or_create(pk=instance.pk, defaults={'enabled': validated_data.pop('enabled')})
+            validated_data['enabled'] = False
         task = super().update(instance, validated_data)
         self.initialize_task(task)
         return task
@@ -591,6 +618,19 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
                 raise serializers.ValidationError({'trigger': '系统任务仅支持自动调度或手动执行'})
             if attrs.get('schedule_mode', getattr(self.instance, 'schedule_mode', 'fixed')) == 'fixed':
                 attrs['schedule_type'] = 'interval'
+        if kind == 'memo_capture':
+            from utils.drf_utils import get_current_user_identifier
+            request = self.context.get('request')
+            previous = getattr(self.instance, 'memo_config', {})
+            owner = get_current_user_identifier(request) if request else previous.get('owner_id')
+            if not owner or (previous.get('owner_id') and previous['owner_id'] != owner):
+                raise serializers.ValidationError('随手记所属账号不匹配')
+            attrs.update(name='随手记', memo_config={'owner_id': owner}, execution_mode='serial',
+                         schedule_mode='random', random_period='weekly', random_allocations={},
+                         trigger='定时任务', followup_enabled=False, followup_agent=None)
+            if self.instance is None:
+                attrs.setdefault('enabled', False)
+                attrs.setdefault('random_count', 3)
         if kind == 'investment':
             from utils.drf_utils import get_current_user_identifier
             request = self.context.get('request')

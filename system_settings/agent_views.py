@@ -215,7 +215,7 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         from utils.drf_utils import get_current_user_identifier
         owner=get_current_user_identifier(self.request)
         rows = super().get_queryset()
-        for kind, field in [('cooking', 'cooking_config'), ('market', 'market_config'),
+        for kind, field in [('memo_capture', 'memo_config'), ('cooking', 'cooking_config'), ('market', 'market_config'),
                             ('investment', 'investment_config'), ('exploration', 'exploration_config')]:
             rows = rows.filter(~Q(task_kind=kind) | Q(**{field + '__owner_id': owner}))
         for kind,field in [('farm','farm_config'),('travel','travel_config'),('post_publish','publish_config'),('post_interaction','world_state')]:

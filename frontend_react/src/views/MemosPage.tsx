@@ -27,6 +27,7 @@ import MemoEditModal from '../components/Memos/MemoEditModal';
 import MemoCard from '../components/Memos/MemoCard';
 import MemosSidebar from '../components/Memos/MemosSidebar';
 import RandomWalkModal from '../components/Memos/RandomWalkModal';
+import MemoCollision from '../components/Memos/MemoCollision';
 import PageLoading from '../components/common/PageLoading';
 
 interface MemoCreator {
@@ -728,6 +729,7 @@ export default function MemosPage() {
                         </div>
 
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center w-full lg:w-auto">
+                            <MemoCollision pool={visibleMemos}/>
                             <div className="relative min-w-0 flex-1 sm:w-56 lg:w-64 xl:w-72 sm:flex-none">
                                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-slate-400"/>
                                 <input

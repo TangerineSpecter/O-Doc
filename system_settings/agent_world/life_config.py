@@ -11,6 +11,8 @@ DEFAULTS = {'agent_ids': [], 'mode': 'fixed', 'period': 'daily', 'count': 12,
 
 
 def task_owner(task: AgentTask) -> str | None:
+    if task.task_kind == 'memo_capture':
+        return task.memo_config.get('owner_id')
     if task.task_kind == 'post_interaction':
         return (task.world_state or {}).get('owner_id')
     field = 'publish_config' if task.task_kind == 'post_publish' else task.task_kind + '_config'

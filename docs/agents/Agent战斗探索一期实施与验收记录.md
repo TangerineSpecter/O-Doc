@@ -16,6 +16,8 @@
 
 后端位于 `system_settings/agent_world/combat/`；纯规则不访问 ORM、时钟或模型。前端按组件、Hook、API、类型和展示逻辑拆分。世界居民属性面板提供冒险入口；每日动态提供探索聚合卡；设置的内置活动提供迷宫探索能力。活动能力启用和本机自动探索开关分别控制，后者不会同步到其他设备。
 
+世界顶部查阅入口统一为「世界图鉴」，沿用原物品图鉴的 BookOpenText SVG。一级分类为物品/食谱/冒险，物品与食谱复用原卡片、详情、筛选及编辑操作；冒险分类为地牢与怪物、怪物图鉴、材料图鉴、装备图鉴、职业与技能，采用带数量的胶囊 Tab，不含「全部」，窄屏横向滑动。切换保留筛选、选中项和滚动位置；食谱隐藏时停止轮询。冒险面板保留档案/探索历史与操作，图鉴从该面板移到统一入口；烹饪事件跳转到世界图鉴的食谱分类。没有改变业务数据或同步协议。
+
 准备和返回后的转职使用居民当前模型，分别记录 exploration_prepare/combat_promotion 用途。准备计划先持久化再进行真实采购；失败保留已成交库存及账本。战斗轮次不调用模型。达到多个转职门槛时依次选择直接分支，不跳级、不补算历史职业成长。
 
 ## 执行与经济边界
@@ -91,6 +93,8 @@ Boss 核心场景使用战士路径、推荐 Boss 区间中值等级、均衡风
 另运行统一生活测试 58 项，54 项通过，4 项既有失败。使用 Git HEAD 的未修改 life_budget_policy 模块再次运行这 4 项，得到相同的 3 错误/1 断言失败：test_budget_protects_travel_and_rollback、test_planning_can_adjust_future_commitments_with_reason、test_travel_budget_can_be_reassigned_before_payment、test_shared_context_has_past_and_future。其旧夹具为不允许消费的默认活动配置预算；本次只增加 exploration 的可消费分类，没有放宽原规则。
 
 浏览器验收可启动 `scripts/combat_design/acceptance_server.py --port 11809`，另在 frontend_react 使用 ODOC_API_PROXY 指向该端口启动 Vite；`scripts/fixtures/combat.html` 是独立测试入口。执行 `scripts/combat_design/test_ui.cjs`，通过 PLAYWRIGHT_MODULE/NODE_PATH 指定已有 Playwright，CHROME_PATH 指定 Chrome。脚本使用隔离服务器生成的测试凭据，仅监听本地接口。长历史滚动测试使用一致版本的响应夹具，其余准备、后台回合、关闭/重开、召回和历史读取使用真实后端业务路径。真实模型/WebDAV 未被浏览器测试调用。
+
+统一图鉴验收使用同一隔离服务，运行 `scripts/combat_design/test_catalog_ui.cjs`，访问实际 `/agent-world` 页面。已验证桌面 1440×1000、窄屏 390×844、单一图鉴入口及 SVG、仅一个外层弹窗、真实物品与食谱数据、五个冒险分类无「全部」、一级/二级切换保留筛选和滚动、嵌套图标编辑、键盘焦点、接口失败/重试与关闭。类型检查、图鉴新模块的定向 lint 和生产构建通过；图鉴移出后的冒险准备/观察/召回/换装/历史浏览器回归也通过。
 
 ## 发布前尚需验证
 

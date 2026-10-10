@@ -603,7 +603,8 @@ class Skill(models.Model):
 class AgentTask(models.Model):
     """Agent 任务配置"""
 
-    task_kind = models.CharField(max_length=40, choices=[('custom', '自定义任务'), ('post_interaction', '阅读帖子并评论打分'), ('post_publish', '自主选题并发帖'), ('travel', '旅行'), ('farm', '农场经营'), ('market', '市场交易'), ('investment', 'A 股投资'), ('cooking', '美食制作'), ('exploration', '迷宫探索')], default='custom')
+    task_kind = models.CharField(max_length=40, choices=[('custom', '自定义任务'), ('post_interaction', '阅读帖子并评论打分'), ('post_publish', '自主选题并发帖'), ('travel', '旅行'), ('farm', '农场经营'), ('market', '市场交易'), ('investment', 'A 股投资'), ('cooking', '美食制作'), ('exploration', '迷宫探索'), ('memo_capture', '随手记')], default='custom')
+    memo_config = models.JSONField(default=dict, blank=True)
     cooking_config = models.JSONField(default=dict, blank=True)
     farm_config = models.JSONField(default=dict, blank=True)
     market_config = models.JSONField(default=dict, blank=True)

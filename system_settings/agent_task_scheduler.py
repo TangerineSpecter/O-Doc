@@ -131,14 +131,19 @@ class AgentTaskScheduler:
             tick(self)
             try:
                 tasks = list(AgentTask.objects.select_related('agent').filter(
-                    enabled=True,
                     trigger='定时任务',
-                    task_kind='custom',
+                    task_kind__in=['custom', 'memo_capture'],
                 ))
             except (OperationalError, ProgrammingError):
                 return
 
             for task in tasks:
+                if task.task_kind == 'memo_capture':
+                    from memos.models import MemoCaptureAuthorization
+                    if not MemoCaptureAuthorization.objects.filter(pk=task.pk, enabled=True).exists():
+                        continue
+                elif not task.enabled:
+                    continue
                 now = _local_now()
                 from .agent_random_schedule import has_active_random_period, run_random_task
                 if task.schedule_mode == 'random' or has_active_random_period(task, now):
@@ -269,6 +274,9 @@ class AgentTaskScheduler:
         from .agent_world.life_scope import CURRENT
         life=CURRENT.get()
         life_key=life['item_id'] if life else uuid.uuid4().hex
+        if task.task_kind == 'memo_capture':
+            from .agent_world.memo_capture import run_capture
+            return run_capture(task, trigger, agents_override, random_context)
         if task.task_kind == 'exploration':
             from .agent_world.combat.schedule import run_opportunity
             return self._run_world_task(run_opportunity,task,life_key,trigger)

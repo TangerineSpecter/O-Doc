@@ -44,7 +44,7 @@ const categoryDefs: {value: 'all' | ItemCategory; label: string}[] = [
     {value: 'other', label: '其他'},
 ];
 
-export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
+export function ItemCatalogContent({active = true}: {active?: boolean}) {
     const {items, loading, error, reload} = useItemCatalog();
     const [category, setCategory] = useState<'all' | ItemCategory>('all');
     const [search, setSearch] = useState('');
@@ -79,11 +79,13 @@ export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
     };
 
     useEffect(() => {
+        if (!active) return;
         content.current?.focus();
         const dialog = content.current?.closest('[role="dialog"]');
         const trap = (event: KeyboardEvent) => {
             if (event.key !== 'Tab') return;
-            const controls = Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)') || []);
+            const controls = Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)') || [])
+                .filter(control => !control.closest('[inert]') && control.getClientRects().length > 0);
             const first = controls[0], last = controls[controls.length - 1];
             if (event.shiftKey && (document.activeElement === first || document.activeElement === content.current)) {
                 event.preventDefault();
@@ -97,7 +99,7 @@ export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
         return () => {
             dialog?.removeEventListener('keydown', trap as EventListener);
         };
-    }, []);
+    }, [active]);
 
     // 计算每个分类对应的物品数量
     const categoryCounts = useMemo(() => {
@@ -121,7 +123,7 @@ export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
     const selectedCategoryLabel = selected ? categoryDefs.find(tab => tab.value === selected.category)?.label : '';
 
     return (
-        <WorldDialog title="物品图鉴" description="认识世界中的物品，看看它们的用途与价值。" onClose={onClose} size="wide">
+        <>
             {/* 撑满外层固定高度弹窗，左右两侧舒展展示且不会产生多余外层滚动条 */}
             <div ref={content} tabIndex={-1} className="flex h-full min-h-[520px] flex-col space-y-3 outline-none">
                 {/* 顶部工具栏：分类 Tab + 搜索与功能入口 */}
@@ -574,8 +576,12 @@ export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
                 />
             )}
             {libraryOpen && <ItemIconLibraryDialog onClose={() => setLibraryOpen(false)} />}
-        </WorldDialog>
+        </>
     );
+}
+
+export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
+    return <WorldDialog title="物品图鉴" description="认识世界中的物品，看看它们的用途与价值。" onClose={onClose} size="wide"><ItemCatalogContent/></WorldDialog>;
 }
 
 

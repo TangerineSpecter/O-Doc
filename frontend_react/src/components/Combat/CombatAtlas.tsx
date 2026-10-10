@@ -1,12 +1,29 @@
-import {useState} from 'react';
-import {Select} from '../common/Select';
+import {useLayoutEffect, useRef, useState} from 'react';
 import type {CombatCatalog, CombatProfile} from '../../types/api/combat';
 import {slotLabels, statLabels, effectText} from './presentation';
+const categories = [
+    {value:'dungeons', label:'地牢与怪物', dot:'bg-emerald-500'},
+    {value:'monsters', label:'怪物图鉴', dot:'bg-sky-500'},
+    {value:'materials', label:'材料图鉴', dot:'bg-amber-500'},
+    {value:'equipmentTemplates', label:'装备图鉴', dot:'bg-slate-400'},
+    {value:'professions', label:'职业与技能', dot:'bg-violet-400'},
+] as const;
 export default function CombatAtlas({catalog, discoveries}: {catalog: CombatCatalog; discoveries?: CombatProfile['discoveries']}) {
     const [kind, setKind] = useState('dungeons');
+    const scroll = useRef<HTMLDivElement>(null);
+    const positions = useRef<Record<string, number>>({});
+    useLayoutEffect(() => {if (scroll.current) scroll.current.scrollTop = positions.current[kind] || 0;}, [kind]);
     const tables = catalog.tables;
-    return <div className="flex h-full min-h-0 flex-col gap-3"><div className="w-44 shrink-0"><Select menuPortal value={kind} options={[{value:'dungeons',label:'地牢与怪物'},{value:'monsters',label:'怪物图鉴'},{value:'materials',label:'材料图鉴'},{value:'equipmentTemplates',label:'装备图鉴'},{value:'professions',label:'职业与技能'}]} onChange={setKind}/></div>
-        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto"><div className="grid gap-3 md:grid-cols-2">{(tables[kind] || []).map(row => <article key={row.id} className="rounded-2xl border border-slate-200 bg-white p-5">
+    return <div className="flex h-full min-h-0 flex-col gap-3">
+        <div className="scrollbar-hide shrink-0 overflow-x-auto" aria-label="冒险图鉴分类">
+            <div className="flex w-max min-w-full gap-1 rounded-full border border-slate-200/60 bg-slate-100 p-1">
+                {categories.map(tab => <button key={tab.value} type="button" aria-pressed={kind === tab.value} onClick={() => {positions.current[kind] = scroll.current?.scrollTop || 0; setKind(tab.value);}} className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/30 ${kind === tab.value ? 'bg-white text-orange-600 shadow-2xs' : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900'}`}>
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${tab.dot}`}/><span>{tab.label}</span>
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none ${kind === tab.value ? 'bg-orange-100 text-orange-700' : 'bg-slate-200/80 text-slate-500'}`}>{tables[tab.value]?.length || 0}</span>
+                </button>)}
+            </div>
+        </div>
+        <div ref={scroll} onScroll={() => {if (scroll.current) positions.current[kind] = scroll.current.scrollTop;}} className="scrollbar-hide min-h-0 flex-1 overflow-y-auto"><div className="grid gap-3 md:grid-cols-2">{(tables[kind] || []).map(row => <article key={row.id} className="rounded-2xl border border-slate-200 bg-white p-5">
             <h3 className="font-semibold text-slate-800">{row.name}</h3>
             {kind === 'monsters' && <p className="mt-1 text-xs text-orange-700">{discoveries?.defeated.includes(row.id) ? '已击败' : discoveries?.encountered.includes(row.id) ? '已遭遇' : '尚未遭遇'}</p>}
             {kind === 'equipmentTemplates' && discoveries?.equipment.includes(row.id) && <p className="mt-1 text-xs text-orange-700">已获得</p>}

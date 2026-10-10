@@ -165,6 +165,8 @@ class SyncManager:
 
     def validate_remote_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
+        if remote_meta and remote_meta.get('memo_sprout_schema_version', 0) > 1:
+            raise SyncError('闪念发芽快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('combat_schema_version',0)>1:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
@@ -742,6 +744,8 @@ class SyncManager:
 
         from learning.sync import validate as validate_learning
         validate_learning(data_list, remote_meta)
+        from memos.sprout_sync import validate as validate_sprouts
+        validate_sprouts(data_list, remote_meta)
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
         validate_crops(data_list, remote_meta)
         from system_settings.agent_world.cooking_quality_sync import validate_source as validate_dishes
@@ -879,6 +883,8 @@ class SyncManager:
 
             from system_settings.agent_world.cooking_sync import reconcile_cooking
             reconcile_cooking(source_hashes=cooking_source_hashes)
+            from memos.sprout_sync import reset_execution as reset_sprouts
+            reset_sprouts()
             from learning.sync import reset_execution
             reset_execution()
             from system_settings.agent_world.market_sync import reconcile_market
@@ -1175,11 +1181,13 @@ class SyncManager:
         from system_settings.agent_world.combat.sync import metadata as combat_metadata
         from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
         from learning.sync import metadata as learning_metadata
+        from memos.sprout_sync import metadata as sprout_metadata
         from system_settings.agent_world.memory.sync import metadata as memory_metadata
         from system_settings.agent_world.farm_quality_sync import metadata as crop_metadata
         return {
             **combat_metadata(data_list),
             **learning_metadata(data_list),
+            **sprout_metadata(data_list),
             **crop_metadata(data_list),
             **cooking_metadata(data_list),
             **memory_metadata(data_list),
