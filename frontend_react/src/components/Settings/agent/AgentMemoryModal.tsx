@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+import {AgentMemorySources, AgentMemorySummaryCard} from './AgentMemoryDetails';
+import type {AgentMemorySummary} from '@/types/api/setting';
 import {
     Database,
     X,
@@ -19,6 +21,9 @@ import type { AgentMemoryForm } from './useAgentMemories';
 
 export interface AgentMemoryModalProps {
     agent: AgentConfig;
+    memorySummary: AgentMemorySummary | null;
+    memorySourceFilter: string;
+    setMemorySourceFilter: (value: string) => void;
     onClose: () => void;
     memories: AgentLongTermMemoryConfig[];
     memoryLoading: boolean;
@@ -51,6 +56,7 @@ const statusOptions: SettingsSelectOption<AgentMemoryStatus>[] = [
 
 export function AgentMemoryModal({
     agent,
+    memorySummary, memorySourceFilter, setMemorySourceFilter,
     onClose,
     memories,
     memoryLoading,
@@ -73,9 +79,9 @@ export function AgentMemoryModal({
     );
 
     const visibleMemories = useMemo(() => {
-        if (memoryStatusFilter === 'all') return memories;
-        return memories.filter(memory => memory.status === memoryStatusFilter);
-    }, [memories, memoryStatusFilter]);
+        return memories.filter(memory => (memoryStatusFilter === 'all' || memory.status === memoryStatusFilter)
+            && (memorySourceFilter === 'all' || (memory.metadata?.source || 'other') === memorySourceFilter));
+    }, [memories, memoryStatusFilter, memorySourceFilter]);
 
     return (
         <div data-modal-scroll-lock
@@ -84,7 +90,7 @@ export function AgentMemoryModal({
             aria-modal="true"
             aria-labelledby="agent-memory-modal-title"
         >
-            <div className="flex h-[600px] max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex h-[760px] max-h-[92dvh] lg:h-[640px] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
                 {/* 顶部 Header */}
                 <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-3.5 bg-white">
                     <div className="flex items-center gap-3 min-w-0">
@@ -96,7 +102,7 @@ export function AgentMemoryModal({
                                 <h3 id="agent-memory-modal-title" className="truncate text-base font-bold text-slate-900">
                                     「{agent.name}」长期记忆
                                 </h3>
-                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                                <span className="hidden shrink-0 items-center gap-1 rounded-full bg-slate-100 sm:inline-flex px-2 py-0.5 text-[11px] font-medium text-slate-500">
                                     共 {memories.length} 条 · {activeCount} 条有效
                                 </span>
                             </div>
@@ -115,10 +121,14 @@ export function AgentMemoryModal({
                     </button>
                 </div>
 
+                <AgentMemorySummaryCard summary={memorySummary}/>
                 {/* 内容主体：左右双栏，外层严禁出现滚动条 */}
-                <div className="grid flex-1 min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,2fr)] overflow-hidden divide-y divide-slate-100 lg:grid-cols-[1.12fr_0.88fr] lg:grid-rows-[minmax(0,1fr)] lg:divide-y-0 lg:divide-x">
+                <div className="grid flex-1 min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden divide-y divide-slate-100 lg:grid-cols-[1.12fr_0.88fr] lg:grid-rows-[minmax(0,1fr)] lg:divide-y-0 lg:divide-x">
                     {/* 左侧：记忆列表区域 */}
-                    <div className="flex min-h-0 flex-col bg-white p-5">
+                    <div className="flex min-h-0 flex-col bg-white p-3 sm:p-5">
+                        <div className="mb-2 shrink-0"><SettingsSelect value={memorySourceFilter} onChange={setMemorySourceFilter}
+                            options={[{value: 'all', label: '全部来源'}, {value: 'world', label: '世界活动'}, {value: 'travel', label: '历史旅行'}, {value: 'manual', label: '人工录入'}, {value: 'other', label: '飞书与其他'}]}
+                            menuPortal={true} buttonClassName="h-8 text-xs" /></div>
                         {/* 过滤条与新增按钮（置顶固定） */}
                         <div className="mb-3.5 flex shrink-0 items-center justify-between gap-3">
                             <div className="flex rounded-lg bg-slate-100 p-0.5">
@@ -222,8 +232,10 @@ export function AgentMemoryModal({
                                                     <div className="mt-2.5 flex items-center gap-3 text-[11px] text-slate-400">
                                                         <span>置信度 <strong className="font-mono font-medium text-slate-600">{Number(memory.confidence || 0).toFixed(2)}</strong></span>
                                                         <span>·</span>
+                                                        {memory.isPinned && <span>已固定</span>}
                                                         <span>来源 <strong className="font-mono font-medium text-slate-600">{memory.sourceCount || 0}</strong></span>
                                                     </div>
+                                                    <AgentMemorySources memory={memory}/>
                                                 </div>
 
                                                 {memory.status !== 'archived' && (
@@ -250,7 +262,7 @@ export function AgentMemoryModal({
                     </div>
 
                     {/* 表单独立滚动，短视口和窄屏下仍保留底部保存操作。 */}
-                    <div className="flex min-h-0 flex-col justify-between overflow-hidden bg-slate-50/70 p-5">
+                    <div className="flex min-h-0 flex-col justify-between overflow-hidden bg-slate-50/70 p-3 sm:p-5">
                         <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto scrollbar-hide">
                             {/* 表单 Header */}
                             <div className="flex items-center justify-between">
@@ -276,6 +288,13 @@ export function AgentMemoryModal({
                                 )}
                             </div>
 
+                            <div className="space-y-2">
+                                <SettingsSelect value={memoryForm.scope} onChange={scope => setMemoryForm(prev => ({...prev, scope}))}
+                                    options={[{value:'agent', label:'角色共享'}, {value:'user', label:'对话用户专属'}, {value:'chat', label:'会话专属'}]} menuPortal={true} buttonClassName="h-9 text-xs"/>
+                                {memoryForm.scope === 'user' && <input aria-label="专属用户 ID" value={memoryForm.senderId} onChange={event => setMemoryForm(prev => ({...prev, senderId:event.target.value}))} placeholder="飞书发送者 ID" className="w-full rounded-lg border border-slate-200 p-2 text-xs"/>}
+                                {memoryForm.scope === 'chat' && <input aria-label="专属会话 ID" value={memoryForm.chatId} onChange={event => setMemoryForm(prev => ({...prev, chatId:event.target.value}))} placeholder="飞书会话 ID" className="w-full rounded-lg border border-slate-200 p-2 text-xs"/>}
+                                <label className="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" checked={memoryForm.isPinned} onChange={event => setMemoryForm(prev => ({...prev, isPinned:event.target.checked}))}/>固定记忆，免于自动整理</label>
+                            </div>
                             {/* 行1：类型 + 状态 并排 */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">

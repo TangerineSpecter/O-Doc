@@ -201,6 +201,8 @@ export const saveAgent = (data: SaveAgentConfigParams) => {
 
 export const deleteAgent = (id: string) => request.delete(`/settings/agents/${id}/`);
 
+export const getAgentMemorySummary = (agentId: string) => request.get<unknown, import('../types/api/setting').AgentMemorySummary>(`/settings/agents/${agentId}/memory-status/`);
+
 export const getAgentMemories = (agentId: string) => request.get<any, AgentLongTermMemoryConfig[]>(`/settings/agents/${agentId}/memories/`);
 
 export const saveAgentMemory = (agentId: string, data: SaveAgentLongTermMemoryParams) => {

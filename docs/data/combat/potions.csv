@@ -1,0 +1,9 @@
+id,name,kind,restore_value,required_level,purchase_price,shared_cooldown_rounds,enabled
+potion.heal.1,治疗药剂1,heal,60,1,6.00,2,1
+potion.heal.2,治疗药剂2,heal,250,10,14.00,2,1
+potion.heal.3,治疗药剂3,heal,1000,30,30.00,2,1
+potion.heal.4,治疗药剂4,heal,2500,70,60.00,2,1
+potion.mana.1,回蓝药剂1,mana,40,1,6.00,2,1
+potion.mana.2,回蓝药剂2,mana,150,10,14.00,2,1
+potion.mana.3,回蓝药剂3,mana,600,30,30.00,2,1
+potion.mana.4,回蓝药剂4,mana,1500,70,60.00,2,1

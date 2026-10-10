@@ -4,7 +4,7 @@
 def social_life_context(life: dict) -> dict:
     # 预算、报价及任务安排用于规划；社交不需要据此逐项汇报执行情况。
     planning_keys = {'activities', 'custom_commitments', 'upcoming', 'upcoming_total',
-                     'travel_costs', 'farm_prices', 'rules'}
+                     'travel_costs', 'farm_prices', 'farm_queue_rules', 'rules'}
     context = {key: value for key, value in life.items() if key not in planning_keys}
     # 历史表达仅作为重复检查线索，不把内部决策理由和完整旧文当成写作范本。
     context['recent_social'] = [
@@ -13,4 +13,7 @@ def social_life_context(life: dict) -> dict:
          'content_excerpt': str(row['result'].get('content') or '')[:240]}
         for row in life.get('recent_social', [])
     ]
+    if 'recent_experiences' in context:
+        context['recent_experiences'] = context['recent_experiences'][:8]
+    context['recent_social'] = context['recent_social'][:5]
     return context

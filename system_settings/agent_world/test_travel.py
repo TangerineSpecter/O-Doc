@@ -788,7 +788,7 @@ class TravelTests(TestCase):
         for record in [SimpleNamespace(sender_id='current-user', chat_id='chat'), SimpleNamespace(sender_id='', chat_id='chat')]:
             self.assertEqual([m.pk for m in get_long_term_memories_for_record(self.agent, record)], [global_memory.pk])
 
-    def test_task_context_loads_and_prompt_contains_travel_memory(self):
+    def test_task_context_loads_and_prompt_recalls_relevant_travel_memory(self):
         from system_settings.agent_task_scheduler import AgentTaskScheduler
         from .travel_memory import remember_travel
         row = self.journey('done', status='completed', departed_at=timezone.now(), returned_at=timezone.now())
@@ -798,6 +798,7 @@ class TravelTests(TestCase):
             context = scheduler._append_agent_context_steps(None, self.task, agent=self.agent)
         self.assertEqual(context['tools'], [])
         self.assertEqual(context['agent'], self.agent)
+        self.task.prompt = '旅行回忆'
         prompt = scheduler._build_prompt(self.task, agent=self.agent)
         self.assertIn(memory.title, prompt)
         self.assertIn(memory.content, prompt)

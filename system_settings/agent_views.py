@@ -1,3 +1,4 @@
+from .agent_world.farm_gate import guarded
 import logging
 import threading
 
@@ -130,6 +131,7 @@ class AgentViewSet(viewsets.ModelViewSet):
         return success_result()
 
     @action(detail=True, methods=['get', 'post'], url_path='memories')
+    @guarded
     def memories(self, request, pk=None):
         agent = self.get_object()
         if request.method.lower() == 'get':
@@ -139,14 +141,26 @@ class AgentViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save(
             agent=agent,
-            scope=request.data.get('scope') or 'user',
-            chat_id=request.data.get('chat_id') or request.data.get('chatId') or '',
-            sender_id=request.data.get('sender_id') or request.data.get('senderId') or '',
+            scope=serializer.validated_data.get('scope', 'agent'),
+            chat_id=serializer.validated_data.get('chat_id', ''),
+            sender_id=serializer.validated_data.get('sender_id', ''),
             metadata={'source': 'manual'},
         )
         return success_result(serializer.data)
 
+    @action(detail=True, methods=['get'], url_path='memory-status')
+    def memory_status(self, request, pk=None):
+        agent = self.get_object()
+        from .agent_world.memory.models import AgentMemoryState
+        from .agent_world.memory.policy import statistics
+        state = AgentMemoryState.objects.filter(agent=agent).first()
+        return success_result({**statistics(agent), 'state': {
+            'enabled_at': state.enabled_at, 'processed_day': state.processed_day,
+            'status': state.status, 'detail': state.detail, 'updated_at': state.updated_at,
+        } if state else None})
+
     @action(detail=True, methods=['put', 'delete'], url_path=r'memories/(?P<memory_id>[^/.]+)')
+    @guarded
     def memory_detail(self, request, pk=None, memory_id=None):
         agent = self.get_object()
         memory = AgentLongTermMemory.objects.filter(agent=agent, id=memory_id).first()
@@ -155,12 +169,17 @@ class AgentViewSet(viewsets.ModelViewSet):
             response.status_code = 404
             return response
         if request.method.lower() == 'delete':
+            from .agent_world.memory.policy import protect
+            protect(memory)
             memory.status = AgentLongTermMemory.STATUS_ARCHIVED
-            memory.save(update_fields=['status', 'updated_at'])
+            memory.save(update_fields=['status', 'metadata', 'updated_at'])
             return success_result()
         serializer = AgentLongTermMemorySerializer(memory, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        from .agent_world.memory.policy import protect
+        if any(key in request.data for key in ('title', 'content', 'memory_type', 'status', 'scope', 'chat_id', 'sender_id', 'confidence')):
+            protect(memory)
+        serializer.save(metadata=memory.metadata)
         return success_result(serializer.data)
 
     @action(detail=True, methods=['post'], url_path='feishu/events', authentication_classes=[], permission_classes=[AllowAny])

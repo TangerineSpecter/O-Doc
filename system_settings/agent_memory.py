@@ -91,16 +91,13 @@ def start_new_conversation(agent, record):
 
 
 def build_memory_context(agent, record, user_text):
-    long_memories = get_long_term_memories_for_record(agent, record)
+    from .agent_world.memory.recall import memory_context
+    long_context = memory_context(agent, user_text, record)
     recalled_short_memories = recall_short_term_memories(agent, record, user_text)
     messages = []
 
-    if long_memories:
-        content = '\n'.join(
-            f"- [{memory.get_memory_type_display()}] {memory.title or '未命名'}：{memory.content}"
-            for memory in long_memories
-            if memory.content
-        )
+    if long_context:
+        content = long_context
         if content:
             messages.append({
                 'role': 'system',

@@ -78,7 +78,6 @@ def advance(journey):
             state.setdefault('previews', []).append({'destination_id': city['id'], **intro, 'sources': sources})
             next_phase = 'choose' if len(state['previews']) == len(state['candidates']) else 'preview'
     elif phase == 'choose':
-        from .travel_memory import recent_travel_context
         funds = available_funds(journey)
         def validate(v):
             reason = text(v, 'reason', 1000)
@@ -93,7 +92,7 @@ def advance(journey):
                 raise ValueError(f'扣除路线费用后本次可分配购物额度为{shopping_available}，请缩减购物预算；总预算与购物上限须分别判断')
             return {'destination_id': selected['id'], 'reason': reason, 'shopping_budget': str(budget.quantize(Decimal('.01')))}
         selection = decide(journey, node, '自主决定旅行或本次不去。返回 {"destination_id":"候选ID或skip","reason":"原因","shopping_budget":"非负金额字符串"}。购物预算由你自主选择，不是固定为0；结合生活安排总预算、路线费用、真实余额和其他安排预留分配。若选择0请在reason说明不购买的原因。购物预算是另行记录的上限，旅行总预算减去路线费不自动变成购物额度，不提前扣除。',
-            {'candidates': state['candidates'], 'previews': state['previews'], 'balance': str(agent.money), 'past_travels': recent_travel_context(agent), 'funds': funds}, validate)
+            {'candidates': state['candidates'], 'previews': state['previews'], 'balance': str(agent.money), 'past_travels': [], 'funds': funds}, validate)
         state['selection'] = selection
         if selection['destination_id'] == 'skip':
             journey.status, next_phase = 'skipped', 'done'
@@ -203,6 +202,8 @@ def advance(journey):
         journey.status, next_phase = 'completed', 'done'
     else:
         raise ValueError('未知旅行节点')
+    if journey.status == 'completed':
+        state.setdefault('memory_completed_at', timezone.now().isoformat())
     with transaction.atomic():
         journey.snapshot, journey.phase = state, next_phase
         journey.save()

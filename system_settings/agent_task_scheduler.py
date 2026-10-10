@@ -960,8 +960,8 @@ class AgentTaskScheduler:
             parts.append(CHAT_SYSTEM_PROMPT)
 
         if agent:
-            from .agent_world.travel_memory import travel_memory_context
-            parts.append(travel_memory_context(agent))
+            from .agent_world.memory.recall import memory_context
+            parts.append(memory_context(agent, (prompt_override or task.prompt or task.name)[:2000]))
 
         skill_prompts = self._get_skill_prompts(agent)
         if skill_prompts:

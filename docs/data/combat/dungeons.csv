@@ -1,0 +1,7 @@
+id,name,recommended_level_min,recommended_level_max,boss_id,boss_level_min,boss_level_max,boss_start_kills,boss_probability_step,boss_probability_cap,enabled
+dungeon.moss_cave,苔石洞窟,1,12,monster.moss_king,10,12,12,0.01,0.25,1
+dungeon.abandoned_mine,废弃矿坑,10,25,monster.mine_giant,22,25,12,0.01,0.25,1
+dungeon.mist_forest,迷雾林地,20,35,monster.mist_treant,32,35,12,0.01,0.25,1
+dungeon.sunken_ruins,沉没遗迹,30,50,monster.tide_priest,47,50,12,0.01,0.25,1
+dungeon.ember_fortress,灰烬堡垒,45,70,monster.ash_lord,65,70,12,0.01,0.25,1
+dungeon.star_rift,星蚀裂隙,70,99,monster.star_overlord,95,99,12,0.01,0.25,1

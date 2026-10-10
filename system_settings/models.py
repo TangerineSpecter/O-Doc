@@ -438,6 +438,7 @@ class AgentLongTermMemory(models.Model):
     title = models.CharField(max_length=120, blank=True, default='', verbose_name='标题', db_comment='记忆标题')
     content = models.TextField(verbose_name='内容', db_comment='记忆内容')
     confidence = models.FloatField(default=0.8, verbose_name='置信度', db_comment='记忆置信度')
+    is_pinned = models.BooleanField(default=False, verbose_name='固定记忆')
     source_count = models.PositiveIntegerField(default=1, verbose_name='来源次数', db_comment='来源次数')
     status = models.CharField(max_length=20, choices=STATUS_TYPES, default=STATUS_ACTIVE, verbose_name='状态', db_comment='状态')
     last_recalled_at = models.DateTimeField(blank=True, null=True, verbose_name='最后召回时间', db_comment='最后召回时间')
@@ -983,3 +984,5 @@ from .agent_world.social_models import (SocialConfig, Moment, MomentComment, Mom
 from .agent_world.cooking_models import CookingCatalog, CookingSkill, CookingOperation, CookingIntegrity  # noqa: E402,F401
 
 from .token_usage.models import AgentTokenUsage  # noqa: E402,F401
+
+from .agent_world.memory.models import AgentMemoryState, AgentMemoryLease  # noqa: E402,F401

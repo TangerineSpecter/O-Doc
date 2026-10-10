@@ -188,6 +188,7 @@ class AgentLongTermMemorySerializer(serializers.ModelSerializer):
             'content',
             'confidence',
             'source_count',
+            'is_pinned',
             'status',
             'last_recalled_at',
             'metadata',
@@ -195,6 +196,21 @@ class AgentLongTermMemorySerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'agent', 'source_count', 'last_recalled_at', 'metadata', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        scope = attrs.get('scope', self.instance.scope if self.instance else 'agent')
+        if scope not in ('agent', 'user', 'chat'):
+            raise serializers.ValidationError({'scope': '记忆范围无效'})
+        if self.instance is None or any(k in attrs for k in ('scope', 'sender_id', 'chat_id')):
+            sender = attrs.get('sender_id', self.instance.sender_id if self.instance else '')
+            chat = attrs.get('chat_id', self.instance.chat_id if self.instance else '')
+            if scope == 'agent':
+                attrs['sender_id'], attrs['chat_id'] = '', ''
+            elif scope == 'user' and not sender and not (self.instance and scope == self.instance.scope and sender == self.instance.sender_id):
+                raise serializers.ValidationError({'sender_id': '用户专属记忆需要发送者 ID'})
+            elif scope == 'chat' and not chat:
+                raise serializers.ValidationError({'chat_id': '会话专属记忆需要会话 ID'})
+        return attrs
 
     def validate_memory_type(self, value):
         valid_types = {choice[0] for choice in AgentLongTermMemory.MEMORY_TYPES}

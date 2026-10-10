@@ -31,6 +31,8 @@ def decide(task, agent, options):
     context = enrich({'skill': overview(task.cooking_config['owner_id'], agent.pk),
                       'stamina': str(stamina(agent)), 'recipes': options})
     prompt = build_agent_system_prompt(f'当前 Agent：{agent.name}\n{agent.prompt}', conversation=False)
+    from .memory.recall import memory_context
+    prompt += '\n' + memory_context(agent, '美食 制作 厨艺 ' + task.prompt)
     prompt += '\n你用自己的食材制作美食。根据偏好、原料机会成本、预期收益和成长选择可制作菜，合计最多六份，也可休息。每道菜选择 low_stars_first（日常制作）或 high_stars_first（精品制作），同星先进先出；高星材料不保证加工盈利，挂牌溢价不计保证收入。quality_previews 按当前等级估算，实际每份采用制作时等级。仅输出 JSON {"choices":[{"recipe_id":"食谱ID","quantity":1,"ingredient_strategy":"low_stars_first"}],"reason":"简短理由"}。不修改规则。'
     messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(context, ensure_ascii=False) + '\n制作偏好：' + task.prompt}]
     for attempt in range(2):

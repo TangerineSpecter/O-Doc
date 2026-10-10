@@ -8,8 +8,10 @@ CURRENT = ContextVar('life_execution', default=None)
 @contextmanager
 def life_scope(item, context):
     token = CURRENT.set({'item_id': item.pk, 'actor_id': item.actor_id, 'owner_id': item.owner_id, 'context': context})
+    from .memory.recall import recall_scope
     try:
-        yield
+        with recall_scope():
+            yield
     finally:
         CURRENT.reset(token)
 

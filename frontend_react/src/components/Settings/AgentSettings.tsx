@@ -269,6 +269,7 @@ export const AgentSettings = ({
         editMemory,
         handleMemorySubmit,
         archiveMemory,
+        memorySummary, memorySourceFilter, setMemorySourceFilter,
     } = useAgentMemories();
     const selectedRecord = selectedRecordId ? runRecords.find(record => record.id === selectedRecordId) || null : null;
     useEscapeDismissal(Boolean(selectedRecord), () => setSelectedRecordId(null));
@@ -1644,6 +1645,9 @@ export const AgentSettings = ({
             {memoryModalAgent && (
                 <AgentMemoryModal
                     agent={memoryModalAgent}
+                    memorySummary={memorySummary}
+                    memorySourceFilter={memorySourceFilter}
+                    setMemorySourceFilter={setMemorySourceFilter}
                     onClose={closeMemoryModal}
                     memories={memories}
                     memoryLoading={memoryLoading}

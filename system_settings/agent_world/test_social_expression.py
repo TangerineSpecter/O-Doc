@@ -18,7 +18,8 @@ class SocialLifeContextTests(SimpleTestCase):
                                     'status': 'success', 'summary': '读了一条帖子'}],
             'upcoming': [{'intent': '明天去旅行'}],
             'activities': [{'kind': 'farm', 'preference': '每次详细总结'}],
-            'farm_prices': {'land': [100]}, 'rules': '预算规则',
+            'farm_prices': {'land': [100]}, 'farm_queue_rules': {'rule': '按半小时检查种植队列'},
+            'rules': '预算规则',
             'recent_social': [{'id': 'old', 'created_at': '2026-10-04T09:00:00Z',
                                'result': {'action': 'publish', 'content': '旧正文' * 100,
                                           'reason': '逐项汇报生活', 'image_prompt': '旧配图'}}],
@@ -28,7 +29,7 @@ class SocialLifeContextTests(SimpleTestCase):
         self.assertEqual(life, before)
         for key in ('role', 'inventory', 'today', 'recent_experiences'):
             self.assertEqual(result[key], life[key])
-        for key in ('upcoming', 'activities', 'farm_prices', 'rules'):
+        for key in ('upcoming', 'activities', 'farm_prices', 'farm_queue_rules', 'rules'):
             self.assertNotIn(key, result)
         history = result['recent_social'][0]
         self.assertEqual(history, {'id': 'old', 'created_at': '2026-10-04T09:00:00Z',
@@ -45,6 +46,9 @@ class SocialLifeContextTests(SimpleTestCase):
 
 class AutoCommentLengthTests(SimpleTestCase):
     def setUp(self):
+        memory = patch('system_settings.agent_world.memory.recall.memory_context', return_value='')
+        memory.start()
+        self.addCleanup(memory.stop)
         self.agent = SimpleNamespace(pk='actor', name='角色', model_id='model',
                                      prompt='活泼直率。ENFP倾向：好奇，容易兴奋。')
         self.post = SimpleNamespace(content='南瓜燕麦粥', title='早餐')

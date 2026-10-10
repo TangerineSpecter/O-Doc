@@ -1,6 +1,6 @@
 import {useRef, useState} from 'react';
 
-import {archiveAgentMemory, getAgentMemories, saveAgentMemory} from '@/api/setting';
+import {archiveAgentMemory, getAgentMemories, getAgentMemorySummary, saveAgentMemory} from '@/api/setting';
 import type {
     AgentConfig,
     AgentLongTermMemoryConfig,
@@ -11,6 +11,10 @@ import {useToast} from '../../common/ToastProvider';
 
 export type AgentMemoryForm = {
     id?: string;
+    scope: string;
+    chatId: string;
+    senderId: string;
+    isPinned: boolean;
     memoryType: AgentMemoryType;
     title: string;
     content: string;
@@ -19,6 +23,7 @@ export type AgentMemoryForm = {
 };
 
 const emptyMemoryForm = (): AgentMemoryForm => ({
+    scope: 'agent', chatId: '', senderId: '', isPinned: false,
     memoryType: 'preference',
     title: '',
     content: '',
@@ -31,6 +36,8 @@ export const useAgentMemories = () => {
     const requestIdRef = useRef(0);
     const [memoryModalAgent, setMemoryModalAgent] = useState<AgentConfig | null>(null);
     const [memories, setMemories] = useState<AgentLongTermMemoryConfig[]>([]);
+    const [memorySummary, setMemorySummary] = useState<import('@/types/api/setting').AgentMemorySummary | null>(null);
+    const [memorySourceFilter, setMemorySourceFilter] = useState('all');
     const [memoryLoading, setMemoryLoading] = useState(false);
     const [memorySaving, setMemorySaving] = useState(false);
     const [memoryError, setMemoryError] = useState('');
@@ -44,8 +51,8 @@ export const useAgentMemories = () => {
         setMemoryLoading(true);
         setMemoryError('');
         try {
-            const data = await getAgentMemories(agent.id);
-            if (requestId === requestIdRef.current) setMemories(data || []);
+            const [data, summary] = await Promise.all([getAgentMemories(agent.id), getAgentMemorySummary(agent.id)]);
+            if (requestId === requestIdRef.current) { setMemories(data || []); setMemorySummary(summary); }
         } catch (error) {
             if (requestId !== requestIdRef.current) return;
             console.error('加载 Agent 记忆失败:', error);
@@ -59,6 +66,8 @@ export const useAgentMemories = () => {
     const openMemoryModal = async (agent: AgentConfig) => {
         setMemoryModalAgent(agent);
         setMemoryStatusFilter('active');
+        setMemorySourceFilter('all');
+        setMemories([]); setMemorySummary(null);
         resetMemoryForm();
         await loadAgentMemories(agent);
     };
@@ -72,6 +81,7 @@ export const useAgentMemories = () => {
     const editMemory = (memory: AgentLongTermMemoryConfig) => {
         setMemoryForm({
             id: memory.id,
+            scope: memory.scope, chatId: memory.chatId, senderId: memory.senderId, isPinned: memory.isPinned,
             memoryType: memory.memoryType || 'other',
             title: memory.title || '',
             content: memory.content || '',
@@ -95,6 +105,7 @@ export const useAgentMemories = () => {
                 : 0.8;
             await saveAgentMemory(memoryModalAgent.id, {
                 id: memoryForm.id,
+                scope: memoryForm.scope, chatId: memoryForm.chatId, senderId: memoryForm.senderId, isPinned: memoryForm.isPinned,
                 memoryType: memoryForm.memoryType,
                 title: memoryForm.title.trim(),
                 content: memoryForm.content.trim(),
@@ -129,6 +140,7 @@ export const useAgentMemories = () => {
     };
 
     return {
+        memorySummary, memorySourceFilter, setMemorySourceFilter,
         memoryModalAgent,
         memories,
         memoryLoading,

@@ -83,6 +83,8 @@ def decide(task, agent, farm, options):
     from .life_scope import enrich
     context=enrich(context)
     prompt = build_agent_system_prompt(f'当前 Agent：{agent.name}\n{agent.prompt}', conversation=False)
+    from .memory.recall import memory_context
+    prompt += '\n' + memory_context(agent, '农场 种植 收获 ' + task.prompt)
     prompt += '\n你在经营自己的农场。按兴趣选择最多六个不同候选，按顺序执行，允许休息。优先考虑照料、收获及资金；不必花光余额。需要调整生活预留时可增加 budget_allocations=[{"id":"安排ID","budget":"总预算"}] 和 budget_reason。仅输出 JSON {"choices":["候选ID"],"reason":"简短理由"}，休息时 choices=[]。'
     prompt += '\n按当前阶段选择操作，最多remaining_operations项，不得选择目标冲突的播种或施肥方案。施肥是可选投入，应比较实际报价、库存成本和预期净收益；可以为精品或未来挂牌投入，但不保证溢价成交。'
     prompt += '\n每个候选的cost是本次实际费用，扩地按当前地块阶段收费，不能沿用首次价格。所选候选cost之和不得超过spending.spendable；余额不等于本次可用预算。预算调整必须覆盖整份计划且保留后续预留；不足时优先选择免费种植、照料或收获，不可假定尚未发生的收入。'

@@ -282,6 +282,8 @@ class LifeTests(TestCase):
         item=self.item(scheduled_at=timezone.now(),activity='unplanned')
         record=AgentRunRecord.objects.create(task=self.task,agent=self.agents[0],task_name='投资',status='success',summary='保持现金')
         def proposal(agent,instruction,context):
+            if '只为slots中的活动提供总预算' in instruction:
+                return {'budgets': [{'id':slot['id'],'budget':'1000'} for slot in context['slots']]}
             return {'plans':[{'id':slot['id'],'activity':'investment','budget':'1000','reason':'保留现金'} for slot in context['slots']]}
         with patch('system_settings.agent_world.life_planner.ask',side_effect=proposal), patch('system_settings.agent_world.investment_runner.run_investment_opportunity',return_value=record) as run:
             tick_life(None)
@@ -291,6 +293,37 @@ class LifeTests(TestCase):
             self.assertEqual(run.call_args.kwargs['key'],item.pk)
             tick_life(None)
             self.assertEqual(run.call_count,1)
+
+    def test_staged_planning_preserves_choice_reason_and_checks_real_balance(self):
+        from .life_planner import plan_items
+        item = self.item()
+        choices = {'plans': [{'id': item.pk, 'activity': 'investment', 'reason': '想研究投资'}]}
+        with patch('system_settings.agent_world.life_planner.ask', side_effect=[
+                choices, {'budgets': [{'id': item.pk, 'budget': '11000'}]}]):
+            with self.assertRaisesMessage(ValueError, '超过真实余额'):
+                plan_items(self.config, self.agents[0], [item])
+        item.refresh_from_db()
+        self.assertEqual(item.activity, 'unplanned')
+        self.assertFalse(item.revisions.exists())
+        with patch('system_settings.agent_world.life_planner.ask', side_effect=[
+                choices, {'budgets': [{'id': item.pk, 'budget': '1000'}]}]):
+            plan_items(self.config, self.agents[0], [item])
+        item.refresh_from_db()
+        self.assertEqual(item.activity, 'investment')
+        self.assertEqual(item.intent, '想研究投资')
+        self.assertEqual(item.budget, Decimal('1000'))
+
+    def test_staged_rest_plan_does_not_ask_about_money(self):
+        from .life_planner import plan_items
+        item = self.item()
+        with patch('system_settings.agent_world.life_planner.ask', return_value={
+                'plans': [{'id': item.pk, 'activity': 'rest', 'reason': '今天想休息',
+                           'budget': '9000'}]}) as ask:
+            plan_items(self.config, self.agents[0], [item])
+        item.refresh_from_db()
+        self.assertEqual(ask.call_count, 1)
+        self.assertEqual(item.budget, Decimal('0'))
+        self.assertEqual(item.intent, '今天想休息')
 
     def test_planning_failure_keeps_model_reason_on_schedule(self):
         from .life_runner import tick_life
@@ -595,6 +628,12 @@ class LifeMarketTests(TestCase):
 
 
 class LifeProposalParsingTests(SimpleTestCase):
+    def setUp(self):
+        from unittest.mock import patch
+        memory = patch('system_settings.agent_world.memory.recall.memory_context', return_value='')
+        memory.start()
+        self.addCleanup(memory.stop)
+
     def test_parse_clean_json(self):
         from .life_planner import parse_life_proposal
         res = parse_life_proposal('{"plans": [{"id": "1", "activity": "rest"}]}')

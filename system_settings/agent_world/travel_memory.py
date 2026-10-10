@@ -4,6 +4,10 @@ from system_settings.models import AgentLongTermMemory
 
 
 def remember_travel(journey):
+    from .memory.models import AgentMemoryState
+    if AgentMemoryState.objects.filter(agent_id=journey.agent_id).exists():
+        # New travel facts are consolidated with the rest of the resident's day.
+        return None
     if not journey.agent_id or not journey.departed_at or not journey.returned_at:
         return None
     state = journey.snapshot

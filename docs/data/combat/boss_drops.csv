@@ -1,0 +1,7 @@
+id,monster_id,equipment_id,exclusive_probability
+dungeon.moss_cave.trophy,monster.moss_king,equip.boss.moss_cave,0.5
+dungeon.abandoned_mine.trophy,monster.mine_giant,equip.boss.abandoned_mine,0.5
+dungeon.mist_forest.trophy,monster.mist_treant,equip.boss.mist_forest,0.5
+dungeon.sunken_ruins.trophy,monster.tide_priest,equip.boss.sunken_ruins,0.5
+dungeon.ember_fortress.trophy,monster.ash_lord,equip.boss.ember_fortress,0.5
+dungeon.star_rift.trophy,monster.star_overlord,equip.boss.star_rift,0.5

@@ -734,6 +734,8 @@ class SyncManager:
     def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None):
         """把快照写回数据库。full_overwrite 用于本地压缩包导入，按备份全量覆盖。"""
         data_list = travel_sync.expand(data_list, remote_meta)
+        from system_settings.agent_world.memory.sync import validate_source as validate_memories
+        validate_memories(data_list, remote_meta)
         from article.image_search_service import delete_image_vectors
         from article.models import ImageVisualIndex
 
@@ -897,6 +899,8 @@ class SyncManager:
             reconcile_life()
             from system_settings.agent_world.social_sync import reconcile_social
             reconcile_social()
+            from system_settings.models import AgentMemoryLease
+            AgentMemoryLease.objects.all().update(token='', until=None)
             if not any(item.get('model', '').startswith('system_settings.social') for item in data_list):
                 from system_settings.agent_world.social_migration import seed_legacy_relations
                 seed_legacy_relations()
@@ -1165,11 +1169,13 @@ class SyncManager:
         from system_settings.agent_world.social_models import SocialIntegrity
         from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
         from learning.sync import metadata as learning_metadata
+        from system_settings.agent_world.memory.sync import metadata as memory_metadata
         from system_settings.agent_world.farm_quality_sync import metadata as crop_metadata
         return {
             **learning_metadata(data_list),
             **crop_metadata(data_list),
             **cooking_metadata(data_list),
+            **memory_metadata(data_list),
             'social_schema_version': 1,
             'social_owners': list(SocialIntegrity.objects.order_by('pk').values_list('pk', flat=True)),
             'snapshot_id': uuid.uuid4().hex,
@@ -1550,6 +1556,9 @@ class SyncManager:
             if base:
                 base_data, base_revisions = travel_sync.compact(base.get('data') or [], base.get('revisions') or {})
                 base = {**base, 'data': base_data, 'revisions': base_revisions}
+        from system_settings.agent_world.memory.sync import validate_source as validate_memories, metadata as memory_metadata, merge_aggregates
+        validate_memories(local_data, memory_metadata(local_data))
+        validate_memories(remote.get('data') or [], remote.get('meta'))
         base_data = self._item_map((base or {}).get('data') or [])
         base_revisions = (base or {}).get('revisions') or {}
         local_map = self._item_map(local_data)
@@ -1605,6 +1614,8 @@ class SyncManager:
                     summary['created'] += 1
                 elif local_changed or remote_changed:
                     summary['updated'] += 1
+        merge_aggregates(result, result_revisions, local_data, remote.get('data') or [], local_revisions, remote_revisions)
+        validate_memories(result, memory_metadata(result))
         refresh_merged_integrity(result, result_revisions)
         # Keep cooking asset checkpoints intact: reject partial domain merges rather
         # than manufacturing a new checkpoint for an inconsistent XP/material chain.
@@ -2174,8 +2185,10 @@ class SyncManager:
             with transaction.atomic():
                 with suspend_tracking():
                     from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
+                    from system_settings.agent_world.memory.sync import metadata as memory_metadata
                     self.apply_snapshot_data(merged_data, remote_meta={
                         **cooking_metadata(merged_data),
+                        **memory_metadata(merged_data),
                         **(travel_sync.metadata(merged_revisions) if travel_sync.enabled() or
                            (remote.get('meta') or {}).get(travel_sync.META_KEY) else {}),
                     }, full_overwrite=True)

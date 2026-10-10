@@ -106,6 +106,7 @@ export interface AgentLongTermMemoryConfig {
     content: string;
     confidence: number;
     sourceCount: number;
+    isPinned: boolean;
     status: AgentMemoryStatus;
     lastRecalledAt?: string | null;
     metadata?: Record<string, unknown>;
@@ -115,6 +116,7 @@ export interface AgentLongTermMemoryConfig {
 
 export type SaveAgentLongTermMemoryParams = Pick<AgentLongTermMemoryConfig, 'memoryType' | 'title' | 'content' | 'status'> & {
     id?: string;
+    isPinned?: boolean;
     scope?: string;
     chatId?: string;
     senderId?: string;
@@ -503,4 +505,19 @@ export interface SaveGeoLocationParams {
     city: string;
     latitude: string;
     longitude: string;
+}
+
+export interface AgentMemoryCapacity { count: number; characters: number; limit: number; characterLimit: number }
+export interface AgentMemorySummary {
+    active: AgentMemoryCapacity;
+    archived: AgentMemoryCapacity;
+    protectedCount: number;
+    state: { enabledAt: string; processedDay: string | null; status: string; detail: string; updatedAt: string } | null;
+}
+export interface AgentMemorySource {
+    id: string; kind: string; at: string; day: string; facts: Record<string, unknown>;
+}
+export interface AgentWorldMemoryMeta {
+    version: number; topic: string; importance: number; milestone: boolean;
+    humanOverride?: boolean; sources: AgentMemorySource[]; lastSupportedAt: string;
 }
