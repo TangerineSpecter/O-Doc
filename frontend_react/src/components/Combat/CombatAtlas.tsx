@@ -1,37 +1,78 @@
-import {useLayoutEffect, useRef, useState} from 'react';
+import {useState} from 'react';
 import type {CombatCatalog, CombatProfile} from '../../types/api/combat';
-import {slotLabels, statLabels, effectText} from './presentation';
-const categories = [
-    {value:'dungeons', label:'地牢与怪物', dot:'bg-emerald-500'},
-    {value:'monsters', label:'怪物图鉴', dot:'bg-sky-500'},
-    {value:'materials', label:'材料图鉴', dot:'bg-amber-500'},
-    {value:'equipmentTemplates', label:'装备图鉴', dot:'bg-slate-400'},
-    {value:'professions', label:'职业与技能', dot:'bg-violet-400'},
-] as const;
-export default function CombatAtlas({catalog, discoveries}: {catalog: CombatCatalog; discoveries?: CombatProfile['discoveries']}) {
-    const [kind, setKind] = useState('dungeons');
-    const scroll = useRef<HTMLDivElement>(null);
-    const positions = useRef<Record<string, number>>({});
-    useLayoutEffect(() => {if (scroll.current) scroll.current.scrollTop = positions.current[kind] || 0;}, [kind]);
+import {DungeonAtlasView} from './atlas/DungeonAtlasView';
+import {MonsterAtlasView} from './atlas/MonsterAtlasView';
+import {MaterialAtlasView} from './atlas/MaterialAtlasView';
+import {EquipmentAtlasView} from './atlas/EquipmentAtlasView';
+import {ProfessionAtlasView} from './atlas/ProfessionAtlasView';
+
+export type CombatAtlasTab = 'dungeons' | 'monsters' | 'materials' | 'equipmentTemplates' | 'professions';
+
+const categories: {value: CombatAtlasTab; label: string; dot: string}[] = [
+    {value: 'dungeons', label: '地牢与怪物', dot: 'bg-emerald-500'},
+    {value: 'monsters', label: '怪物图鉴', dot: 'bg-sky-500'},
+    {value: 'materials', label: '材料图鉴', dot: 'bg-amber-500'},
+    {value: 'equipmentTemplates', label: '装备图鉴', dot: 'bg-slate-400'},
+    {value: 'professions', label: '职业与技能', dot: 'bg-violet-400'},
+];
+
+export default function CombatAtlas({
+    catalog,
+    discoveries,
+}: {
+    catalog: CombatCatalog;
+    discoveries?: CombatProfile['discoveries'];
+}) {
+    const [kind, setKind] = useState<CombatAtlasTab>('dungeons');
     const tables = catalog.tables;
-    return <div className="flex h-full min-h-0 flex-col gap-3">
-        <div className="scrollbar-hide shrink-0 overflow-x-auto" aria-label="冒险图鉴分类">
-            <div className="flex w-max min-w-full gap-1 rounded-full border border-slate-200/60 bg-slate-100 p-1">
-                {categories.map(tab => <button key={tab.value} type="button" aria-pressed={kind === tab.value} onClick={() => {positions.current[kind] = scroll.current?.scrollTop || 0; setKind(tab.value);}} className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/30 ${kind === tab.value ? 'bg-white text-orange-600 shadow-2xs' : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900'}`}>
-                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${tab.dot}`}/><span>{tab.label}</span>
-                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none ${kind === tab.value ? 'bg-orange-100 text-orange-700' : 'bg-slate-200/80 text-slate-500'}`}>{tables[tab.value]?.length || 0}</span>
-                </button>)}
+
+    return (
+        <div className="flex h-full min-h-0 flex-col gap-3">
+            {/* 二级分类胶囊栏 */}
+            <div className="scrollbar-hide shrink-0 overflow-x-auto" aria-label="冒险图鉴分类">
+                <div className="flex w-max min-w-full gap-1 rounded-full border border-slate-200/60 bg-slate-100 p-1">
+                    {categories.map(tab => {
+                        const count = tables[tab.value]?.length || 0;
+                        const isActive = kind === tab.value;
+                        return (
+                            <button
+                                key={tab.value}
+                                type="button"
+                                aria-pressed={isActive}
+                                onClick={() => setKind(tab.value)}
+                                className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/30 ${
+                                    isActive
+                                        ? 'bg-white text-orange-600 shadow-2xs'
+                                        : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900'
+                                }`}
+                            >
+                                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${tab.dot}`} />
+                                <span>{tab.label}</span>
+                                <span
+                                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none ${
+                                        isActive
+                                            ? 'bg-orange-100 text-orange-700'
+                                            : 'bg-slate-200/80 text-slate-500'
+                                    }`}
+                                >
+                                    {count}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* 图鉴主展示区：左侧网格，右侧详情 */}
+            <div className="min-h-0 flex-1">
+                {kind === 'dungeons' && <DungeonAtlasView catalog={catalog} />}
+                {kind === 'monsters' && <MonsterAtlasView catalog={catalog} discoveries={discoveries} />}
+                {kind === 'materials' && <MaterialAtlasView catalog={catalog} />}
+                {kind === 'equipmentTemplates' && (
+                    <EquipmentAtlasView catalog={catalog} discoveries={discoveries} />
+                )}
+                {kind === 'professions' && <ProfessionAtlasView catalog={catalog} />}
             </div>
         </div>
-        <div ref={scroll} onScroll={() => {if (scroll.current) positions.current[kind] = scroll.current.scrollTop;}} className="scrollbar-hide min-h-0 flex-1 overflow-y-auto"><div className="grid gap-3 md:grid-cols-2">{(tables[kind] || []).map(row => <article key={row.id} className="rounded-2xl border border-slate-200 bg-white p-5">
-            <h3 className="font-semibold text-slate-800">{row.name}</h3>
-            {kind === 'monsters' && <p className="mt-1 text-xs text-orange-700">{discoveries?.defeated.includes(row.id) ? '已击败' : discoveries?.encountered.includes(row.id) ? '已遭遇' : '尚未遭遇'}</p>}
-            {kind === 'equipmentTemplates' && discoveries?.equipment.includes(row.id) && <p className="mt-1 text-xs text-orange-700">已获得</p>}
-            {kind === 'materials' && <p className="mt-2 text-xs text-slate-500">材料 Lv.{row.level} · 商店回收 ¥{row.salePrice}/个</p>}
-            {kind === 'monsters' && <><p className="mt-2 text-xs text-slate-500">Lv.{row.levelMin}–{row.levelMax} · {{normal:'普通',elite:'精英',boss:'Boss'}[row.rank || 'normal']}</p><p className="mt-2 text-xs text-slate-500">最低等级基础属性，实际遭遇随等级变化</p><dl className="mt-2 grid grid-cols-2 gap-2 text-xs">{Object.entries(catalog.monsterPreviews?.find(m => m.id === row.id)?.attributes || {}).filter(([key]) => statLabels[key]).map(([key,value]) => <div key={key}><dt className="text-slate-400">{statLabels[key]}</dt><dd>{['accuracy','evasion','critical','criticalDamage'].includes(key) ? `${(Number(value)*100).toFixed(1)}%` : value}</dd></div>)}</dl><p className="mt-3 text-xs text-slate-500">材料：{tables.drops.filter(d => d.monsterId === row.id && d.itemKind === 'material').map(d => tables.materials.find(m => m.id === d.itemId)?.name).join('、') || '无'}</p><p className="mt-1 text-xs text-slate-500">装备：{tables.drops.filter(d => d.monsterId === row.id && d.itemKind === 'equipment_pool').map(d => tables.equipmentPools.filter(p => p.poolId === d.itemId).map(p => tables.equipmentTemplates.find(e => e.id === p.equipmentId)?.name).join('、')).join('、') || (row.rank === 'boss' ? 'Boss 专属护符' : '按区域装备池')}</p><p className="mt-1 text-xs text-slate-500">技能：{tables.monsterActions.filter(a => a.monsterId === row.id && a.skillId).map(a => tables.skills.find(s => s.id === a.skillId)?.name).join('、') || '普通攻击'}</p><p className="mt-1 text-xs text-amber-700">掉落受居民累计额度限制，提前召回与重新出发不重置额度。</p></>}
-            {kind === 'dungeons' && <><p className="mt-1 text-xs text-orange-700">推荐 Lv.{row.recommendedLevelMin}–{row.recommendedLevelMax} · 装备 Lv.{row.equipmentLevelMin}–{row.equipmentLevelMax}</p><ul className="mt-3 space-y-2 text-xs text-slate-600">{(tables.dungeonMonsters || []).filter(m => m.dungeonId === row.id).map(m => <li key={m.id}>{tables.monsters.find(r => r.id === m.monsterId)?.name} · Lv.{m.levelMin}–{m.levelMax} · 权重 {m.encounterWeight}<p className="text-slate-400">{(tables.drops || []).filter(d => d.monsterId === m.monsterId && d.itemKind === 'material').map(d => tables.materials.find(r => r.id === d.itemId)?.name).join('、')}</p></li>)}</ul><p className="mt-3 text-xs font-medium text-amber-700">Boss：{tables.monsters.find(m => m.id === row.bossId)?.name} · Lv.{row.bossLevelMin}–{row.bossLevelMax}</p><p className="mt-1 text-xs text-slate-400">击败 {row.bossStartKills} 只普通或精英怪后，遭遇概率逐渐上升，上限 {Number(row.bossProbabilityCap)*100}%</p></>}
-            {kind === 'equipmentTemplates' && <><p className="mt-2 text-xs text-slate-500">{slotLabels[row.slot || '']} · Lv.{row.levelMin}–{row.levelMax}</p><p className="mt-2 text-xs">白装 1 / 蓝装 2 / 金装 3 个随机词条</p><p className="mt-2 text-xs text-slate-500">{[['physicalAttack','物攻'],['magicAttack','魔攻'],['hp','生命'],['mp','魔力'],['physicalDefense','物防'],['magicDefense','魔防'],['healing','治疗']].filter(([stat]) => Number(row[stat+'Base']) || Number(row[stat+'Growth'])).map(([stat,label]) => `${label} ${row[stat+'Base']} + ${row[stat+'Growth']} ×等级`).join('；')}</p><p className="mt-2 text-xs text-slate-500">职业：{tables.professions.find(p => p.id === row.rootJob || p.id === `job.${row.rootJob}`)?.name || '通用'}</p><p className="mt-2 text-xs text-slate-500">词条池：{tables.equipmentAffixes.filter(a => a.equipmentId === row.id).map(a => tables.affixes.find(f => f.id === a.affixId)?.stat).map(stat => statLabels[stat || ''] || ({physical_attack:'物攻',magic_attack:'魔攻',physical_defense:'物防',magic_defense:'魔防',hp_max:'生命',mp_max:'魔力',critical_damage:'暴击伤害'}[stat || '']) || '辅助属性').join('、')}</p><p className="mt-2 text-xs text-slate-400">回收基础价 10 + 0.5 ×等级，按品质与词条品质加成；实例价格在掉落时固定。</p></>}
-            {kind === 'professions' && <><p className="mt-2 text-xs text-slate-500">{row.parentId ? `${tables.professions.find(r => r.id === row.parentId)?.name} → ` : ''}{row.name} · 转职 Lv.{row.requiredLevel}</p><p className="mt-1 text-xs text-slate-500">每级固定 HP +{row.hpGrowth} / MP +{row.mpGrowth}</p><p className="mt-1 text-xs text-slate-500">{['strength','dexterity','intelligence','vitality','spirit','luck'].map(stat => `${statLabels[stat]} +${row[stat+'Growth']}`).join(' · ')}</p>{(tables.skills || []).filter(s => s.professionId === row.id).map(skill => <div key={skill.id} className="mt-3 rounded-xl bg-slate-50 p-3 text-xs"><strong>{skill.name}</strong> · Lv.{skill.learnLevel} · {skill.kind === 'passive' ? '被动' : '主动'}<p className="mt-1 text-slate-500">自动学习与提升，无需分配技能点</p>{tables.skillLevels.filter(r => r.skillId === skill.id).map(rank => <details key={rank.id} className="mt-2"><summary className="cursor-pointer text-orange-700">{rank.rank} 级 · 学习 Lv.{rank.requiredLevel}{skill.kind === 'active' ? ` · 冷却 ${rank.cooldownRounds} 回合` : ''}</summary><p className="mt-1 leading-relaxed text-slate-600">{tables.skillEffects.filter(f => f.skillLevelId === rank.id).map(effectText).join('；')}</p>{skill.kind === 'active' && <p className="mt-1 text-slate-500">基础 MP 消耗（被动可减免）：向上取整(({rank.costBase} + {rank.costPerLevel} ×角色等级) ×{rank.costRankFactor})</p>}</details>)}</div>)}</>}
-        </article>)}</div></div>
-    </div>;
+    );
 }
