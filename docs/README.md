@@ -27,6 +27,7 @@
 - [Agent 世界统一生活执行说明](./agents/Agent世界统一生活执行说明.md)
 - [Agent 世界每日活动时间线说明](./agents/Agent世界每日活动时间线说明.md)
 - [Agent 世界生活模拟规划方案](./agents/Agent世界生活模拟规划方案.md)
+- [Agent 决策模型迁移评估与演示记录](./agents/Agent决策模型迁移评估与演示记录.md)
 - [Agent 农牧场一期说明](./agents/Agent农牧场一期说明.md)
 - [Agent 世界市场与交易一期说明](./agents/Agent世界市场与交易一期说明.md)
 - [Agent 世界市场 MCP 说明](./agents/Agent世界市场MCP说明.md)
