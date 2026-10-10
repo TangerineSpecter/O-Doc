@@ -96,7 +96,8 @@ def ask(agent, instruction: str, context: dict) -> dict:
 def apply_plan(owner: str, agent, items: list[LifeItem], proposal: dict) -> None:
     agent.refresh_from_db()
     from .travel_config import bound_skill
-    available = {t.task_kind:t for t in tasks_for(owner) if t.enabled and t.task_kind != 'market' and (t.task_kind != 'travel' or bound_skill(agent,'odoc_travel_journal'))}
+    from .combat.schedule import automatic_enabled
+    available = {t.task_kind:t for t in tasks_for(owner) if t.enabled and t.task_kind != 'market' and (t.task_kind!='exploration' or automatic_enabled(owner)) and (t.task_kind != 'travel' or bound_skill(agent,'odoc_travel_journal'))}
     expected = {r.pk:r for r in LifeItem.objects.select_for_update().filter(pk__in=[i.pk for i in items], actor_id=agent.pk, owner_id=owner, status__in=OPEN)}
     if any(item.activity == 'market_prepare' for item in expected.values()):
         raise ValueError('每日市场机会独立排程，不能改作普通生活活动')

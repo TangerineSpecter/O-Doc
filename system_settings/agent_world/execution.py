@@ -36,14 +36,20 @@ def stamina(agent, now=None) -> Decimal:
 
 @contextmanager
 def execution_lease(model, lookup: dict):
-    row, _ = model.objects.get_or_create(**lookup)
     token = uuid.uuid4().hex
     if model.__name__=='AgentExecutionLease':
         from .life_scope import CURRENT
         if CURRENT.get():token='life:'+token  # 本机命名空间，恢复不撤销自定义任务的租约。
-    acquired = model.objects.filter(pk=row.pk).filter(Q(until__isnull=True) | Q(until__lte=timezone.now())).update(
-        token=token, until=timezone.now() + timedelta(minutes=10),
-    )
+    from .farm_gate import farm_gate
+    with farm_gate():
+        row, _ = model.objects.get_or_create(**lookup)
+        from .combat.models import Exploration
+        occupied = model.__name__ == 'AgentExecutionLease' and Exploration.objects.filter(
+            actor_id=row.agent_id, status__in=['preparing', 'active', 'paused', 'settling'],
+        ).exists()
+        acquired = 0 if occupied else model.objects.filter(pk=row.pk).filter(
+            Q(until__isnull=True) | Q(until__lte=timezone.now()),
+        ).update(token=token, until=timezone.now() + timedelta(minutes=10))
     stop = threading.Event()
 
     def heartbeat():

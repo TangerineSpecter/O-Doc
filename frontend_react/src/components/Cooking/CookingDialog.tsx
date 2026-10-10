@@ -1,5 +1,5 @@
 import {useMemo, useState} from 'react';
-import {Search, X, ChefHat, Sparkles, AlertCircle, RefreshCw, BookOpen} from 'lucide-react';
+import {Search, X, ChefHat, AlertCircle, RefreshCw, BookOpen} from 'lucide-react';
 import WorldDialog from '../AgentWorld/WorldDialog';
 import {Select} from '../common/Select';
 import LevelPlate from '../AgentWorld/LevelPlate';

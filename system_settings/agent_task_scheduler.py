@@ -269,6 +269,9 @@ class AgentTaskScheduler:
         from .agent_world.life_scope import CURRENT
         life=CURRENT.get()
         life_key=life['item_id'] if life else uuid.uuid4().hex
+        if task.task_kind == 'exploration':
+            from .agent_world.combat.schedule import run_opportunity
+            return self._run_world_task(run_opportunity,task,life_key,trigger)
         if task.task_kind == 'investment':
             from .agent_world.investment_runner import run_investment_opportunity
             return self._run_world_task(run_investment_opportunity, task, life_key, trigger)

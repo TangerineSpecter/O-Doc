@@ -6,6 +6,7 @@ from pathlib import Path
 for name in ('BOOK_ANALYSIS', 'WEBDAV_SCHEDULER', 'ARTICLE_RAG_SCHEDULER', 'AGENT_TASK_SCHEDULER', 'AGENT_MEMORY_SCHEDULER', 'RUNTIME_TRACKER', 'FEISHU_IM_WS'):
     os.environ[f'ODOC_ENABLE_{name}'] = 'false'
     os.environ[f'ODOC_FORCE_{name}'] = 'false'
+os.environ['ODOC_DISABLE_COMBAT_WORKER']='1'
 os.environ.pop('RUN_MAIN', None)
 _runtime = tempfile.TemporaryDirectory(prefix='odoc-book-tests-')
 os.environ['ODOC_CHROMA_PATH'] = str(Path(_runtime.name) / 'chroma')

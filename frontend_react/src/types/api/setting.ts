@@ -144,8 +144,9 @@ export type AgentRunStepStatus = AgentRunStatus | 'info';
 export interface AgentTaskConfig {
     model?: string | null;
     investmentConfig?: import('./investment').InvestmentConfig;
-    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking';
+    taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'exploration';
     publishConfig?: import('./agentPublish').AgentPublishConfig;
+    explorationConfig?: {ownerId: string};
     travelConfig?: import('./travel').TravelConfig;
     postCollectionIds?: string[];
     postCategoryIds?: string[];

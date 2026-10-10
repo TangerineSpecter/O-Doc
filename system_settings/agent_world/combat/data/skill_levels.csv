@@ -1,0 +1,191 @@
+id,skill_id,rank,required_level,cost_base,cost_per_level,cost_rank_factor,cooldown_rounds,description,enabled
+skill.player.001.r1,skill.player.001,1,10,4.0,0.4,1.0,2,1.35 倍物攻,1
+skill.player.001.r2,skill.player.001,2,20,4.0,0.4,1.15,2,1.35 倍物攻,1
+skill.player.001.r3,skill.player.001,3,30,4.0,0.4,1.3,2,1.35 倍物攻,1
+skill.player.002.r1,skill.player.002,1,15,4.0,0.3,1.0,4,减伤 20%,1
+skill.player.002.r2,skill.player.002,2,25,4.0,0.3,1.15,4,减伤 20%,1
+skill.player.002.r3,skill.player.002,3,35,4.0,0.3,1.3,4,减伤 20%,1
+skill.player.003.r1,skill.player.003,1,20,0,0,1.0,0,生命上限 +5% / 7.5% / 10%,1
+skill.player.003.r2,skill.player.003,2,30,0,0,1.15,0,生命上限 +5% / 7.5% / 10%,1
+skill.player.003.r3,skill.player.003,3,40,0,0,1.3,0,生命上限 +5% / 7.5% / 10%,1
+skill.player.004.r1,skill.player.004,1,10,5.0,0.5,1.0,2,1.35 倍魔攻,1
+skill.player.004.r2,skill.player.004,2,20,5.0,0.5,1.15,2,1.35 倍魔攻,1
+skill.player.004.r3,skill.player.004,3,30,5.0,0.5,1.3,2,1.35 倍魔攻,1
+skill.player.005.r1,skill.player.005,1,15,6.0,0.6,1.0,4,护盾量为 1.0 倍魔攻,1
+skill.player.005.r2,skill.player.005,2,25,6.0,0.6,1.15,4,护盾量为 1.0 倍魔攻,1
+skill.player.005.r3,skill.player.005,3,35,6.0,0.6,1.3,4,护盾量为 1.0 倍魔攻,1
+skill.player.006.r1,skill.player.006,1,20,0,0,1.0,0,法力上限 +5% / 7.5% / 10%,1
+skill.player.006.r2,skill.player.006,2,30,0,0,1.15,0,法力上限 +5% / 7.5% / 10%,1
+skill.player.006.r3,skill.player.006,3,40,0,0,1.3,0,法力上限 +5% / 7.5% / 10%,1
+skill.player.007.r1,skill.player.007,1,10,4.0,0.4,1.0,2,1.25 倍物攻，命中加成 8 个百分点,1
+skill.player.007.r2,skill.player.007,2,20,4.0,0.4,1.15,2,1.25 倍物攻，命中加成 8 个百分点,1
+skill.player.007.r3,skill.player.007,3,30,4.0,0.4,1.3,2,1.25 倍物攻，命中加成 8 个百分点,1
+skill.player.008.r1,skill.player.008,1,15,4.0,0.3,1.0,4,闪避加成 10 个百分点,1
+skill.player.008.r2,skill.player.008,2,25,4.0,0.3,1.15,4,闪避加成 10 个百分点,1
+skill.player.008.r3,skill.player.008,3,35,4.0,0.3,1.3,4,闪避加成 10 个百分点,1
+skill.player.009.r1,skill.player.009,1,20,0,0,1.0,0,敏捷 +5% / 7.5% / 10%,1
+skill.player.009.r2,skill.player.009,2,30,0,0,1.15,0,敏捷 +5% / 7.5% / 10%,1
+skill.player.009.r3,skill.player.009,3,40,0,0,1.3,0,敏捷 +5% / 7.5% / 10%,1
+skill.player.010.r1,skill.player.010,1,10,5.0,0.5,1.0,3,恢复 1.2 倍治疗强度,1
+skill.player.010.r2,skill.player.010,2,20,5.0,0.5,1.15,3,恢复 1.2 倍治疗强度,1
+skill.player.010.r3,skill.player.010,3,30,5.0,0.5,1.3,3,恢复 1.2 倍治疗强度,1
+skill.player.011.r1,skill.player.011,1,15,5.0,0.5,1.0,2,1.25 倍魔攻,1
+skill.player.011.r2,skill.player.011,2,25,5.0,0.5,1.15,2,1.25 倍魔攻,1
+skill.player.011.r3,skill.player.011,3,35,5.0,0.5,1.3,2,1.25 倍魔攻,1
+skill.player.012.r1,skill.player.012,1,20,0,0,1.0,0,精神 +5% / 7.5% / 10%,1
+skill.player.012.r2,skill.player.012,2,30,0,0,1.15,0,精神 +5% / 7.5% / 10%,1
+skill.player.012.r3,skill.player.012,3,40,0,0,1.3,0,精神 +5% / 7.5% / 10%,1
+skill.player.013.r1,skill.player.013,1,30,7.0,0.6,1.0,3,两段物攻，每段 0.85 倍,1
+skill.player.013.r2,skill.player.013,2,40,7.0,0.6,1.15,3,两段物攻，每段 0.85 倍,1
+skill.player.013.r3,skill.player.013,3,50,7.0,0.6,1.3,3,两段物攻，每段 0.85 倍,1
+skill.player.014.r1,skill.player.014,1,45,0,0,1.0,0,武器物攻贡献 +10% / 15% / 20%,1
+skill.player.014.r2,skill.player.014,2,55,0,0,1.15,0,武器物攻贡献 +10% / 15% / 20%,1
+skill.player.014.r3,skill.player.014,3,65,0,0,1.3,0,武器物攻贡献 +10% / 15% / 20%,1
+skill.player.015.r1,skill.player.015,1,30,6.0,0.5,1.0,3,1.1 倍物攻，降低敌人攻击 15%,1
+skill.player.015.r2,skill.player.015,2,40,6.0,0.5,1.15,3,1.1 倍物攻，降低敌人攻击 15%,1
+skill.player.015.r3,skill.player.015,3,50,6.0,0.5,1.3,3,1.1 倍物攻，降低敌人攻击 15%,1
+skill.player.016.r1,skill.player.016,1,45,0,0,1.0,0,物防 +5% / 7.5% / 10%,1
+skill.player.016.r2,skill.player.016,2,55,0,0,1.15,0,物防 +5% / 7.5% / 10%,1
+skill.player.016.r3,skill.player.016,3,65,0,0,1.3,0,物防 +5% / 7.5% / 10%,1
+skill.player.017.r1,skill.player.017,1,30,8.0,0.7,1.0,4,1.1 倍魔攻，之后每轮 0.20 倍魔攻灼烧,1
+skill.player.017.r2,skill.player.017,2,40,8.0,0.7,1.15,4,1.1 倍魔攻，之后每轮 0.20 倍魔攻灼烧,1
+skill.player.017.r3,skill.player.017,3,50,8.0,0.7,1.3,4,1.1 倍魔攻，之后每轮 0.20 倍魔攻灼烧,1
+skill.player.018.r1,skill.player.018,1,45,0,0,1.0,0,魔攻 +5% / 7.5% / 10%,1
+skill.player.018.r2,skill.player.018,2,55,0,0,1.15,0,魔攻 +5% / 7.5% / 10%,1
+skill.player.018.r3,skill.player.018,3,65,0,0,1.3,0,魔攻 +5% / 7.5% / 10%,1
+skill.player.019.r1,skill.player.019,1,30,6.0,0.5,1.0,4,敌人物攻与魔攻降低 20%,1
+skill.player.019.r2,skill.player.019,2,40,6.0,0.5,1.15,4,敌人物攻与魔攻降低 20%,1
+skill.player.019.r3,skill.player.019,3,50,6.0,0.5,1.3,4,敌人物攻与魔攻降低 20%,1
+skill.player.020.r1,skill.player.020,1,45,0,0,1.0,0,耗蓝降低 5% / 7.5% / 10%,1
+skill.player.020.r2,skill.player.020,2,55,0,0,1.15,0,耗蓝降低 5% / 7.5% / 10%,1
+skill.player.020.r3,skill.player.020,3,65,0,0,1.3,0,耗蓝降低 5% / 7.5% / 10%,1
+skill.player.021.r1,skill.player.021,1,30,8.0,0.7,1.0,3,1.8 倍物攻,1
+skill.player.021.r2,skill.player.021,2,40,8.0,0.7,1.15,3,1.8 倍物攻,1
+skill.player.021.r3,skill.player.021,3,50,8.0,0.7,1.3,3,1.8 倍物攻,1
+skill.player.022.r1,skill.player.022,1,45,0,0,1.0,0,命中 +2 / 3 / 4 个百分点,1
+skill.player.022.r2,skill.player.022,2,55,0,0,1.15,0,命中 +2 / 3 / 4 个百分点,1
+skill.player.022.r3,skill.player.022,3,65,0,0,1.3,0,命中 +2 / 3 / 4 个百分点,1
+skill.player.023.r1,skill.player.023,1,30,7.0,0.6,1.0,3,1.5 倍物攻，本技能暴击加成 15 个百分点,1
+skill.player.023.r2,skill.player.023,2,40,7.0,0.6,1.15,3,1.5 倍物攻，本技能暴击加成 15 个百分点,1
+skill.player.023.r3,skill.player.023,3,50,7.0,0.6,1.3,3,1.5 倍物攻，本技能暴击加成 15 个百分点,1
+skill.player.024.r1,skill.player.024,1,45,0,0,1.0,0,暴击伤害 +5 / 7.5 / 10 个百分点,1
+skill.player.024.r2,skill.player.024,2,55,0,0,1.15,0,暴击伤害 +5 / 7.5 / 10 个百分点,1
+skill.player.024.r3,skill.player.024,3,65,0,0,1.3,0,暴击伤害 +5 / 7.5 / 10 个百分点,1
+skill.player.025.r1,skill.player.025,1,30,7.0,0.6,1.0,5,之后每轮恢复 0.55 倍治疗强度,1
+skill.player.025.r2,skill.player.025,2,40,7.0,0.6,1.15,5,之后每轮恢复 0.55 倍治疗强度,1
+skill.player.025.r3,skill.player.025,3,50,7.0,0.6,1.3,5,之后每轮恢复 0.55 倍治疗强度,1
+skill.player.026.r1,skill.player.026,1,45,0,0,1.0,0,治疗强度 +5% / 7.5% / 10%,1
+skill.player.026.r2,skill.player.026,2,55,0,0,1.15,0,治疗强度 +5% / 7.5% / 10%,1
+skill.player.026.r3,skill.player.026,3,65,0,0,1.3,0,治疗强度 +5% / 7.5% / 10%,1
+skill.player.027.r1,skill.player.027,1,30,7.0,0.6,1.0,4,1.1 倍魔攻，敌人命中降低 8 个百分点,1
+skill.player.027.r2,skill.player.027,2,40,7.0,0.6,1.15,4,1.1 倍魔攻，敌人命中降低 8 个百分点,1
+skill.player.027.r3,skill.player.027,3,50,7.0,0.6,1.3,4,1.1 倍魔攻，敌人命中降低 8 个百分点,1
+skill.player.028.r1,skill.player.028,1,45,0,0,1.0,0,生命与魔防各 +3% / 4.5% / 6%,1
+skill.player.028.r2,skill.player.028,2,55,0,0,1.15,0,生命与魔防各 +3% / 4.5% / 6%,1
+skill.player.028.r3,skill.player.028,3,65,0,0,1.3,0,生命与魔防各 +3% / 4.5% / 6%,1
+skill.player.029.r1,skill.player.029,1,70,10.0,0.9,1.0,4,1.8 倍物攻，敌人物防降低 20%,1
+skill.player.029.r2,skill.player.029,2,80,10.0,0.9,1.15,4,1.8 倍物攻，敌人物防降低 20%,1
+skill.player.029.r3,skill.player.029,3,90,10.0,0.9,1.3,4,1.8 倍物攻，敌人物防降低 20%,1
+skill.player.030.r1,skill.player.030,1,80,0,0,1.0,0,物攻 +5% / 7.5% / 10%,1
+skill.player.030.r2,skill.player.030,2,90,0,0,1.15,0,物攻 +5% / 7.5% / 10%,1
+skill.player.030.r3,skill.player.030,3,99,0,0,1.3,0,物攻 +5% / 7.5% / 10%,1
+skill.player.031.r1,skill.player.031,1,70,11.0,1.0,1.0,3,同段 0.9 倍物攻加 0.9 倍魔攻，分别减伤,1
+skill.player.031.r2,skill.player.031,2,80,11.0,1.0,1.15,3,同段 0.9 倍物攻加 0.9 倍魔攻，分别减伤,1
+skill.player.031.r3,skill.player.031,3,90,11.0,1.0,1.3,3,同段 0.9 倍物攻加 0.9 倍魔攻，分别减伤,1
+skill.player.032.r1,skill.player.032,1,80,0,0,1.0,0,力量的 10% / 15% / 20% 额外贡献魔攻,1
+skill.player.032.r2,skill.player.032,2,90,0,0,1.15,0,力量的 10% / 15% / 20% 额外贡献魔攻,1
+skill.player.032.r3,skill.player.032,3,99,0,0,1.3,0,力量的 10% / 15% / 20% 额外贡献魔攻,1
+skill.player.033.r1,skill.player.033,1,70,10.0,0.9,1.0,5,护盾 1.2 倍治疗强度，立即恢复 0.5 倍治疗强度,1
+skill.player.033.r2,skill.player.033,2,80,10.0,0.9,1.15,5,护盾 1.2 倍治疗强度，立即恢复 0.5 倍治疗强度,1
+skill.player.033.r3,skill.player.033,3,90,10.0,0.9,1.3,5,护盾 1.2 倍治疗强度，立即恢复 0.5 倍治疗强度,1
+skill.player.034.r1,skill.player.034,1,80,0,0,1.0,0,物防与魔防各 +5% / 7.5% / 10%,1
+skill.player.034.r2,skill.player.034,2,90,0,0,1.15,0,物防与魔防各 +5% / 7.5% / 10%,1
+skill.player.034.r3,skill.player.034,3,99,0,0,1.3,0,物防与魔防各 +5% / 7.5% / 10%,1
+skill.player.035.r1,skill.player.035,1,70,10.0,0.9,1.0,3,1.6 倍物攻，再乘 1+0.5×缺血比例,1
+skill.player.035.r2,skill.player.035,2,80,10.0,0.9,1.15,3,1.6 倍物攻，再乘 1+0.5×缺血比例,1
+skill.player.035.r3,skill.player.035,3,90,10.0,0.9,1.3,3,1.6 倍物攻，再乘 1+0.5×缺血比例,1
+skill.player.036.r1,skill.player.036,1,80,0,0,1.0,0,生命低于 30% 时减伤 5% / 7.5% / 10%,1
+skill.player.036.r2,skill.player.036,2,90,0,0,1.15,0,生命低于 30% 时减伤 5% / 7.5% / 10%,1
+skill.player.036.r3,skill.player.036,3,99,0,0,1.3,0,生命低于 30% 时减伤 5% / 7.5% / 10%,1
+skill.player.037.r1,skill.player.037,1,70,12.0,1.0,1.0,5,1.8 倍魔攻，之后每轮 0.25 倍魔攻灼烧,1
+skill.player.037.r2,skill.player.037,2,80,12.0,1.0,1.15,5,1.8 倍魔攻，之后每轮 0.25 倍魔攻灼烧,1
+skill.player.037.r3,skill.player.037,3,90,12.0,1.0,1.3,5,1.8 倍魔攻，之后每轮 0.25 倍魔攻灼烧,1
+skill.player.038.r1,skill.player.038,1,80,0,0,1.0,0,灼烧伤害 +10% / 15% / 20%,1
+skill.player.038.r2,skill.player.038,2,90,0,0,1.15,0,灼烧伤害 +10% / 15% / 20%,1
+skill.player.038.r3,skill.player.038,3,99,0,0,1.3,0,灼烧伤害 +10% / 15% / 20%,1
+skill.player.039.r1,skill.player.039,1,70,11.0,0.9,1.0,4,1.5 倍魔攻，敌人攻击降低 20%,1
+skill.player.039.r2,skill.player.039,2,80,11.0,0.9,1.15,4,1.5 倍魔攻，敌人攻击降低 20%,1
+skill.player.039.r3,skill.player.039,3,90,11.0,0.9,1.3,4,1.5 倍魔攻，敌人攻击降低 20%,1
+skill.player.040.r1,skill.player.040,1,80,0,0,1.0,0,魔防 +8% / 12% / 16%,1
+skill.player.040.r2,skill.player.040,2,90,0,0,1.15,0,魔防 +8% / 12% / 16%,1
+skill.player.040.r3,skill.player.040,3,99,0,0,1.3,0,魔防 +8% / 12% / 16%,1
+skill.player.041.r1,skill.player.041,1,70,11.0,0.9,1.0,5,每轮 0.4 倍魔攻伤害，敌人双防降低 15%,1
+skill.player.041.r2,skill.player.041,2,80,11.0,0.9,1.15,5,每轮 0.4 倍魔攻伤害，敌人双防降低 15%,1
+skill.player.041.r3,skill.player.041,3,90,11.0,0.9,1.3,5,每轮 0.4 倍魔攻伤害，敌人双防降低 15%,1
+skill.player.042.r1,skill.player.042,1,80,0,0,1.0,0,指定攻击、防御减益延长 1 / 1 / 2 轮，不延长毒伤或灼烧,1
+skill.player.042.r2,skill.player.042,2,90,0,0,1.15,0,指定攻击、防御减益延长 1 / 1 / 2 轮，不延长毒伤或灼烧,1
+skill.player.042.r3,skill.player.042,3,99,0,0,1.3,0,指定攻击、防御减益延长 1 / 1 / 2 轮，不延长毒伤或灼烧,1
+skill.player.043.r1,skill.player.043,1,70,12.0,1.0,1.0,5,之后每轮 0.5 倍魔攻附加伤害,1
+skill.player.043.r2,skill.player.043,2,80,12.0,1.0,1.15,5,之后每轮 0.5 倍魔攻附加伤害,1
+skill.player.043.r3,skill.player.043,3,90,12.0,1.0,1.3,5,之后每轮 0.5 倍魔攻附加伤害,1
+skill.player.044.r1,skill.player.044,1,80,0,0,1.0,0,魔灵契约伤害 +10% / 15% / 20%,1
+skill.player.044.r2,skill.player.044,2,90,0,0,1.15,0,魔灵契约伤害 +10% / 15% / 20%,1
+skill.player.044.r3,skill.player.044,3,99,0,0,1.3,0,魔灵契约伤害 +10% / 15% / 20%,1
+skill.player.045.r1,skill.player.045,1,70,10.0,0.9,1.0,4,1.8 倍物攻，穿透比例 20%,1
+skill.player.045.r2,skill.player.045,2,80,10.0,0.9,1.15,4,1.8 倍物攻，穿透比例 20%,1
+skill.player.045.r3,skill.player.045,3,90,10.0,0.9,1.3,4,1.8 倍物攻，穿透比例 20%,1
+skill.player.046.r1,skill.player.046,1,80,0,0,1.0,0,暴击率 +2 / 3 / 4 个百分点,1
+skill.player.046.r2,skill.player.046,2,90,0,0,1.15,0,暴击率 +2 / 3 / 4 个百分点,1
+skill.player.046.r3,skill.player.046,3,99,0,0,1.3,0,暴击率 +2 / 3 / 4 个百分点,1
+skill.player.047.r1,skill.player.047,1,70,8.0,0.7,1.0,5,对当前目标造成伤害提高 20%,1
+skill.player.047.r2,skill.player.047,2,80,8.0,0.7,1.15,5,对当前目标造成伤害提高 20%,1
+skill.player.047.r3,skill.player.047,3,90,8.0,0.7,1.3,5,对当前目标造成伤害提高 20%,1
+skill.player.048.r1,skill.player.048,1,80,0,0,1.0,0,对精英与 Boss 的伤害 +5% / 7.5% / 10%，不加经验,1
+skill.player.048.r2,skill.player.048,2,90,0,0,1.15,0,对精英与 Boss 的伤害 +5% / 7.5% / 10%，不加经验,1
+skill.player.048.r3,skill.player.048,3,99,0,0,1.3,0,对精英与 Boss 的伤害 +5% / 7.5% / 10%，不加经验,1
+skill.player.049.r1,skill.player.049,1,70,10.0,0.9,1.0,4,三段物攻，每段 0.65 倍,1
+skill.player.049.r2,skill.player.049,2,80,10.0,0.9,1.15,4,三段物攻，每段 0.65 倍,1
+skill.player.049.r3,skill.player.049,3,90,10.0,0.9,1.3,4,三段物攻，每段 0.65 倍,1
+skill.player.050.r1,skill.player.050,1,80,0,0,1.0,0,闪避 +2 / 3 / 4 个百分点,1
+skill.player.050.r2,skill.player.050,2,90,0,0,1.15,0,闪避 +2 / 3 / 4 个百分点,1
+skill.player.050.r3,skill.player.050,3,99,0,0,1.3,0,闪避 +2 / 3 / 4 个百分点,1
+skill.player.051.r1,skill.player.051,1,70,10.0,0.9,1.0,4,1.3 倍物攻，每轮 0.25 倍物攻毒伤,1
+skill.player.051.r2,skill.player.051,2,80,10.0,0.9,1.15,4,1.3 倍物攻，每轮 0.25 倍物攻毒伤,1
+skill.player.051.r3,skill.player.051,3,90,10.0,0.9,1.3,4,1.3 倍物攻，每轮 0.25 倍物攻毒伤,1
+skill.player.052.r1,skill.player.052,1,80,0,0,1.0,0,中毒伤害 +10% / 15% / 20%,1
+skill.player.052.r2,skill.player.052,2,90,0,0,1.15,0,中毒伤害 +10% / 15% / 20%,1
+skill.player.052.r3,skill.player.052,3,99,0,0,1.3,0,中毒伤害 +10% / 15% / 20%,1
+skill.player.053.r1,skill.player.053,1,70,12.0,1.0,1.0,4,恢复 2.2 倍治疗强度,1
+skill.player.053.r2,skill.player.053,2,80,12.0,1.0,1.15,4,恢复 2.2 倍治疗强度,1
+skill.player.053.r3,skill.player.053,3,90,12.0,1.0,1.3,4,恢复 2.2 倍治疗强度,1
+skill.player.054.r1,skill.player.054,1,80,0,0,1.0,0,治疗强度 +8% / 12% / 16%,1
+skill.player.054.r2,skill.player.054,2,90,0,0,1.15,0,治疗强度 +8% / 12% / 16%,1
+skill.player.054.r3,skill.player.054,3,99,0,0,1.3,0,治疗强度 +8% / 12% / 16%,1
+skill.player.055.r1,skill.player.055,1,70,11.0,0.9,1.0,3,魔法原始伤害为 1.3 倍魔攻加 0.6 倍精神,1
+skill.player.055.r2,skill.player.055,2,80,11.0,0.9,1.15,3,魔法原始伤害为 1.3 倍魔攻加 0.6 倍精神,1
+skill.player.055.r3,skill.player.055,3,90,11.0,0.9,1.3,3,魔法原始伤害为 1.3 倍魔攻加 0.6 倍精神,1
+skill.player.056.r1,skill.player.056,1,80,0,0,1.0,0,精神的 10% / 15% / 20% 额外贡献魔攻,1
+skill.player.056.r2,skill.player.056,2,90,0,0,1.15,0,精神的 10% / 15% / 20% 额外贡献魔攻,1
+skill.player.056.r3,skill.player.056,3,99,0,0,1.3,0,精神的 10% / 15% / 20% 额外贡献魔攻,1
+skill.player.057.r1,skill.player.057,1,70,11.0,0.9,1.0,5,每轮恢复 0.6 倍治疗强度，期间减伤 15%,1
+skill.player.057.r2,skill.player.057,2,80,11.0,0.9,1.15,5,每轮恢复 0.6 倍治疗强度，期间减伤 15%,1
+skill.player.057.r3,skill.player.057,3,90,11.0,0.9,1.3,5,每轮恢复 0.6 倍治疗强度，期间减伤 15%,1
+skill.player.058.r1,skill.player.058,1,80,0,0,1.0,0,生命与治疗强度各 +5% / 7.5% / 10%,1
+skill.player.058.r2,skill.player.058,2,90,0,0,1.15,0,生命与治疗强度各 +5% / 7.5% / 10%,1
+skill.player.058.r3,skill.player.058,3,99,0,0,1.3,0,生命与治疗强度各 +5% / 7.5% / 10%,1
+skill.player.059.r1,skill.player.059,1,70,10.0,0.9,1.0,5,自身减伤 20%，敌人命中降低 10 个百分点,1
+skill.player.059.r2,skill.player.059,2,80,10.0,0.9,1.15,5,自身减伤 20%，敌人命中降低 10 个百分点,1
+skill.player.059.r3,skill.player.059,3,90,10.0,0.9,1.3,5,自身减伤 20%，敌人命中降低 10 个百分点,1
+skill.player.060.r1,skill.player.060,1,80,0,0,1.0,0,魔防与精神各 +5% / 7.5% / 10%,1
+skill.player.060.r2,skill.player.060,2,90,0,0,1.15,0,魔防与精神各 +5% / 7.5% / 10%,1
+skill.player.060.r3,skill.player.060,3,99,0,0,1.3,0,魔防与精神各 +5% / 7.5% / 10%,1
+skill.monster.strike.r1,skill.monster.strike,1,1,4,0.5,1,4,strike,1
+skill.monster.magic_strike.r1,skill.monster.magic_strike,1,1,4,0.5,1,4,magic_strike,1
+skill.monster.evasion.r1,skill.monster.evasion,1,1,4,0.5,1,4,evasion,1
+skill.monster.guard.r1,skill.monster.guard,1,1,4,0.5,1,4,guard,1
+skill.monster.armor_break.r1,skill.monster.armor_break,1,1,4,0.5,1,4,armor_break,1
+skill.monster.poison.r1,skill.monster.poison,1,1,4,0.5,1,4,poison,1
+skill.monster.heal.r1,skill.monster.heal,1,1,4,0.5,1,5,heal,1
+skill.monster.shield.r1,skill.monster.shield,1,1,4,0.5,1,5,shield,1
+skill.monster.burn.r1,skill.monster.burn,1,1,4,0.5,1,4,burn,1
+skill.monster.curse.r1,skill.monster.curse,1,1,4,0.5,1,4,curse,1

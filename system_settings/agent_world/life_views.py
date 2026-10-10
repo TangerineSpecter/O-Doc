@@ -207,7 +207,17 @@ class LifeScheduleView(APIView):
             if action not in ('cancel','replan','retry'):raise ValueError('无效的日程操作')
             if item.status=='running':
                 from system_settings.models import AgentExecutionLease
-                if action!='cancel' or AgentExecutionLease.objects.filter(agent_id=item.actor_id,until__gt=timezone.now()).exists():
+                if action!='cancel':
+                    raise ValueError('活动正在执行；仅在执行锁释放后可取消遗留工作流')
+                from .combat.models import Exploration
+                from .combat.explorations import finish as finish_exploration
+                exploration=Exploration.objects.filter(life_item_id=item.pk,status__in=['preparing','active','paused']).first()
+                if exploration:
+                    from .combat.permissions import local_runtime
+                    if not local_runtime(exploration):raise ValueError('其他设备只能展示探索历史，请在原后端处理')
+                    finish_exploration(exploration.pk,'recalled','日程人工取消：'+reason[:300])
+                    return success_result({'id':item.pk,'status':'completed'})
+                if AgentExecutionLease.objects.filter(agent_id=item.actor_id,until__gt=timezone.now()).exists():
                     raise ValueError('活动正在执行；仅在执行锁释放后可取消遗留工作流')
                 from .travel_models import TravelJourney,TravelRuntime
                 trip=TravelJourney.objects.select_for_update().filter(pk=item.pk).first()

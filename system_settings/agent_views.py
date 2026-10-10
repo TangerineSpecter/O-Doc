@@ -123,9 +123,14 @@ class AgentViewSet(viewsets.ModelViewSet):
         self._sync_feishu_im_connection(instance.id)
         return success_result(serializer.data)
 
+    @guarded
+    @transaction.atomic
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         agent_id = instance.id
+        from .agent_world.combat.models import Exploration
+        if Exploration.objects.filter(actor_id=agent_id,status__in=['preparing','active','paused','settling']).exists():
+            return valid_result('居民仍有未结束探索，请先召回并结算',status=409)
         self.perform_destroy(instance)
         self._sync_feishu_im_connection(agent_id)
         return success_result()
@@ -209,7 +214,10 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         from django.db.models import Q
         from utils.drf_utils import get_current_user_identifier
         owner=get_current_user_identifier(self.request)
-        rows=super().get_queryset().filter(~Q(task_kind='cooking') | Q(cooking_config__owner_id=owner)).filter(~Q(task_kind='market') | Q(market_config__owner_id=owner)).filter(~Q(task_kind='investment') | Q(investment_config__owner_id=owner))
+        rows = super().get_queryset()
+        for kind, field in [('cooking', 'cooking_config'), ('market', 'market_config'),
+                            ('investment', 'investment_config'), ('exploration', 'exploration_config')]:
+            rows = rows.filter(~Q(task_kind=kind) | Q(**{field + '__owner_id': owner}))
         for kind,field in [('farm','farm_config'),('travel','travel_config'),('post_publish','publish_config'),('post_interaction','world_state')]:
             rows=rows.filter(~Q(task_kind=kind) | Q(**{field+'__owner_id':owner}) | Q(**{field+'__owner_id__isnull':True}))
         return rows
@@ -291,7 +299,8 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         return success_result(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
-        if self.get_object().task_kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking'):
+        from .agent_world.builtin_tasks import SYSTEM_TASK_KINDS
+        if self.get_object().task_kind in SYSTEM_TASK_KINDS:
             return valid_result('内置系统任务不能删除，请关闭任务', status=400)
         self.perform_destroy(self.get_object())
         return success_result()

@@ -19,7 +19,7 @@ from .models import WorldLedger
 from .travel_models import TravelJourney
 
 
-CATEGORIES = {'publication', 'interaction', 'travel', 'farm', 'cooking', 'market', 'trade', 'investment', 'finance', 'record'}
+CATEGORIES = {'exploration', 'publication', 'interaction', 'travel', 'farm', 'cooking', 'market', 'trade', 'investment', 'finance', 'record'}
 MARKET_LABELS = {
     'buy_shop': '商店购买', 'sell': '商店回收', 'list': '居民上架',
     'buy_listing': '购买居民商品', 'reprice': '调整挂牌价格', 'withdraw': '撤回挂牌',
@@ -110,6 +110,9 @@ def latest_event_day(request, owner, before, category='all', actor_id='', *, sco
         collect(records.filter(status__in=('success', 'failed')), 'updated_at', 'agent_id')
         collect(LifeItem.objects.filter(owner_id=owner, status__in=('rest', 'failed', 'cancelled')), 'updated_at')
         collect(LifeRevision.objects.filter(item__owner_id=owner), 'created_at', 'item__actor_id')
+    if category in ('all','exploration'):
+        from .combat.models import Exploration
+        collect(Exploration.objects.filter(owner_id=owner), 'updated_at')
     if category in ('all', 'cooking'):
         from .cooking_models import CookingOperation
         collect(CookingOperation.objects.filter(owner_id=owner), 'created_at')
@@ -160,7 +163,9 @@ def _event(category, source, identity, when, actor_id, actor_name, title, detail
 
 
 def _actor_scope(owner):
-    ids = set(LifeProfile.objects.filter(owner_id=owner).values_list('id', flat=True))
+    from .combat.models import CombatProfile
+    ids = set(CombatProfile.objects.filter(owner_id=owner).values_list('id',flat=True))
+    ids.update(LifeProfile.objects.filter(owner_id=owner).values_list('id', flat=True))
     for model, field in ((AgentFarm, 'id'), (InvestmentAccount, 'id'),
                          (MarketSession, 'actor_id'), (TravelJourney, 'actor_id')):
         ids.update(model.objects.filter(owner_id=owner).values_list(field, flat=True))
@@ -416,6 +421,12 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         event['outputPreview'] = str(row.output or '')[:300]
         events.append(event)
 
+    from .combat.models import Exploration
+    for run in Exploration.objects.filter(owner_id=owner,updated_at__gte=start,updated_at__lt=end):
+        when=run.ended_at or run.updated_at
+        events.append(_event('exploration','exploration',run.pk,when,run.actor_id,run.actor_name,
+            f'迷宫探索 · {run.elapsed_seconds//60} 分钟',run.result.get('report') or f'击败 {run.result.get("kills",0)} 只怪物，经验 {run.result.get("experience",0)}',
+            status='success' if run.status in ('completed','recalled') else 'running' if run.status in ('preparing','active','paused') else 'failed',target={'kind':'exploration','id':run.pk}))
     from .cooking_models import CookingOperation
     for row in CookingOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end):
         detail = f"经验 +{row.result['experience_gained']} · {row.reason}"

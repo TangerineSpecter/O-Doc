@@ -17,6 +17,7 @@ LOCAL_ONLY_SYSTEM_SETTING_KEYS = frozenset({
     'system_sync_v2_device',
 })
 LOCAL_ONLY_MODEL_LABELS = frozenset({
+    'system_settings.combatruntime',
     'system_settings.agentmemorylease',
     'learning.runtime', 'learning.devicejob', 'learning.goaljob',
     'system_settings.investmentcache',

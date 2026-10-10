@@ -21,6 +21,7 @@ const preloadMarket = () => import('../components/Market/MarketDialog');
 const preloadFarm = () => import('../components/Farm/FarmDialog');
 const preloadCooking = () => import('../components/Cooking/CookingDialog');
 const CookingDialog = lazy(preloadCooking);
+const CombatDialog = lazy(() => import('../components/Combat/CombatDialog'));
 const preloadCatalog = () => import('../components/AgentWorld/ItemCatalogDialog');
 const preloadInvestment = () => import('../components/Investment/InvestmentDialog');
 const preloadTravel = () => import('../components/AgentWorld/TravelJourneyDialog');
@@ -55,6 +56,10 @@ export default function AgentWorldPage() {
     const [farmOpen, setFarmOpen] = useState(false);
     const closeFarm = useCallback(() => setFarmOpen(false), []);
     const [momentsOpen, setMomentsOpen] = useState(false);
+    const [combatOpen,setCombatOpen] = useState(false);
+    const [combatActor,setCombatActor] = useState('');
+    const [combatExploration,setCombatExploration] = useState('');
+    const closeCombat = useCallback(() => {setCombatOpen(false);setCombatActor('');setCombatExploration('');}, []);
     const [cookingOpen, setCookingOpen] = useState(false);
     const closeCooking = useCallback(() => setCookingOpen(false), []);
     const [catalogOpen, setCatalogOpen] = useState(false);
@@ -109,6 +114,7 @@ export default function AgentWorldPage() {
         } else if ((target.kind === 'activity' || target.kind === 'run') && (target.runRecordId || target.kind === 'run')) {
             setSelectedActivity({id: event.id, type: 'work' as AgentActivityType, status: event.status as AgentActivityData['status'], agent: {id: event.actorId, name: event.actorName, avatar: ''}, title: event.title, summary: event.detail, occurredAt: event.occurredAt, runRecordId: target.runRecordId || target.id});
         } else if (target.kind === 'travel') setTravelArchiveId(target.id);
+        else if (target.kind === 'exploration') {setCombatActor(event.actorId);setCombatExploration(target.id);setCombatOpen(true);}
         else if (target.kind === 'cooking') setCookingOpen(true);
         else if (target.kind === 'farm') setFarmOpen(true);
         else if (target.kind === 'market') setMarketOpen(true);
@@ -276,6 +282,7 @@ export default function AgentWorldPage() {
                         setPanel(null);
                         requestAnimationFrame(() => document.getElementById('agent-world-daily-feed')?.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'}));
                     }}
+                    onOpenCombat={actorId => {setCombatActor(actorId);setPanel(null);setCombatOpen(true);}}
                     onOpenInvestment={(actorId) => {
                         setInvestmentActorId(actorId || world.agentId);
                         setPanel(null);
@@ -290,6 +297,7 @@ export default function AgentWorldPage() {
             {farmOpen && <WorldDialogSuspense title="像素农场" onClose={closeFarm} size="wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在铺开像素农场" subtitle="构建地形图块 · 加载农作物生长状态"/>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></WorldDialogSuspense>}
             {momentsOpen && <WorldDialogSuspense title="朋友圈" size="wide" onClose={() => setMomentsOpen(false)} fallback={<WorldOrbitLoader title="正在读取朋友圈" subtitle="整理生活分享与讨论"/>}><MomentsDialog onClose={() => setMomentsOpen(false)}/></WorldDialogSuspense>}
             {momentDetailId && <WorldDialogSuspense title="朋友圈动态" size="compact" onClose={() => setMomentDetailId(null)} fallback={<WorldOrbitLoader title="正在读取动态" subtitle="加载朋友圈内容与讨论"/>}><MomentDetailDialog momentId={momentDetailId} onClose={() => setMomentDetailId(null)}/></WorldDialogSuspense>}
+            {combatOpen && <WorldDialogSuspense title="冒险与战斗" onClose={closeCombat} size="wide" fallback={<WorldOrbitLoader title="正在打开冒险档案"/>}><CombatDialog residents={world.summary?.agents || []} initialAgentId={combatActor || world.agentId} explorationId={combatExploration} onClose={closeCombat}/></WorldDialogSuspense>}
             {cookingOpen && <WorldDialogSuspense title="食谱图鉴" onClose={closeCooking} size="wide" fallback={<WorldOrbitLoader title="正在翻开食谱" subtitle="读取配方与厨艺进度"/>}><CookingDialog residents={world.summary?.agents || []} initialAgentId={world.agentId} onClose={closeCooking}/></WorldDialogSuspense>}
             {catalogOpen && <WorldDialogSuspense title="物品图鉴" onClose={closeCatalog} size="wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在翻开物品图鉴" subtitle="整理物品分类 · 计算稀有度与用途估值"/>}><ItemCatalogDialog onClose={closeCatalog}/></WorldDialogSuspense>}
             {worldManagementOpen && <WorldManagementDialog onClose={() => setWorldManagementOpen(false)} />}

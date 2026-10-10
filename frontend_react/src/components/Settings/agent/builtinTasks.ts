@@ -35,3 +35,5 @@ export const defaultMarketTask: AgentTaskConfig = {
 };
 
 export const defaultInvestmentTask: AgentTaskConfig = {...defaultPostInteractionTask, taskKind: 'investment', name: 'A 股投资', investmentConfig: {}};
+
+export const defaultExplorationTask: AgentTaskConfig = {...defaultPostInteractionTask, taskKind: 'exploration', name: '迷宫探索'};

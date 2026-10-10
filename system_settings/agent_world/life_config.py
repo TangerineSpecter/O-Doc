@@ -4,7 +4,7 @@ from system_settings.models import Agent, AgentTask
 from .life_time import storage_time
 from .life_models import LifeConfig, LifeProfile, LifeCycle
 
-KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking')
+KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'exploration')
 DEFAULTS = {'agent_ids': [], 'mode': 'fixed', 'period': 'daily', 'count': 12,
             'interval_minutes': 60, 'active_start': '00:00', 'active_end': '24:00',
             'min_gap_minutes': 15, 'min_remaining_minutes': 240}

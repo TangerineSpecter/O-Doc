@@ -16,6 +16,7 @@ const tabs = [
     {value: 'publication', label: '作品', icon: BookOpenText},
     {value: 'interaction', label: '互动', icon: MessageCircle},
     {value: 'travel', label: '旅行', icon: MapPin},
+    {value: 'exploration', label: '探索', icon: Activity},
     {value: 'cooking', label: '烹饪', icon: Sparkles},
     {value: 'farm', label: '农场', icon: Sprout},
     {value: 'market', label: '市场', icon: Store},
@@ -30,6 +31,7 @@ const categoryStyles: Record<DailyFeedCategory, {badge: string; active: string}>
     publication: {badge: 'bg-amber-50 text-amber-700', active: 'bg-amber-50 text-amber-700'},
     interaction: {badge: 'bg-violet-50 text-violet-700', active: 'bg-violet-50 text-violet-700'},
     travel: {badge: 'bg-sky-50 text-sky-700', active: 'bg-sky-50 text-sky-700'},
+    exploration: {badge: 'bg-orange-50 text-orange-700', active: 'bg-orange-50 text-orange-700'},
     cooking: {badge: 'bg-orange-50 text-orange-700', active: 'bg-orange-50 text-orange-700'},
     farm: {badge: 'bg-lime-50 text-lime-700', active: 'bg-lime-50 text-lime-700'},
     market: {badge: 'bg-emerald-50 text-emerald-700', active: 'bg-emerald-50 text-emerald-700'},
@@ -89,6 +91,7 @@ function renderHighlightedTitle(title: string) {
 function getEventActionLabel(target?: DailyFeedEvent['target']): string | null {
     if (!target) return null;
     const kindLabels: Record<string, string> = {
+        exploration: '观察探索',
         cooking: '查看食谱',
         farm: '打开农场',
         market: '打开市场',

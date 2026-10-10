@@ -65,13 +65,14 @@ def take_due(task, now=None) -> str | None:
 def select_agent(task, now=None, *, cost=INTERACTION_COST, qualifies=None):
     now = now or timezone.now()
     from .life_scope import CURRENT, allowed
+    from .combat.schedule import occupied_ids
     scope = CURRENT.get()
     if scope:
         candidate = Agent.objects.select_related('model').filter(pk=scope['actor_id']).first()
         if not candidate or not allowed(task,candidate.pk):
             raise ValueError('日程居民已暂停或归属不匹配')
         from .travel_candidates import travelling_ids
-        if candidate.pk in travelling_ids() or AgentExecutionLease.objects.filter(agent_id=candidate.pk, until__gt=now).exists() or stamina(candidate,now)<cost or (qualifies and not qualifies(candidate)):
+        if candidate.pk in occupied_ids() or candidate.pk in travelling_ids() or AgentExecutionLease.objects.filter(agent_id=candidate.pk, until__gt=now).exists() or stamina(candidate,now)<cost or (qualifies and not qualifies(candidate)):
             return None
         return candidate
     ids = task.agent_ids or ([task.agent_id] if task.agent_id else [])
@@ -79,6 +80,7 @@ def select_agent(task, now=None, *, cost=INTERACTION_COST, qualifies=None):
     busy = set(AgentExecutionLease.objects.filter(until__gt=now).values_list('agent_id', flat=True))
     from .travel_candidates import travelling_ids
     busy.update(travelling_ids())
+    busy.update(occupied_ids())
     eligible = {key for key, agent in agents.items() if key not in busy and stamina(agent, now) >= cost and (qualifies is None or qualifies(agent))}
     state = dict(task.world_state or {})
     round_state = dict(state.get('round', {}))

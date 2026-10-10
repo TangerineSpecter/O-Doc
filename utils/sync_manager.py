@@ -165,6 +165,7 @@ class SyncManager:
 
     def validate_remote_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
+        if remote_meta and remote_meta.get('combat_schema_version',0)>1:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
@@ -745,6 +746,8 @@ class SyncManager:
         validate_crops(data_list, remote_meta)
         from system_settings.agent_world.cooking_quality_sync import validate_source as validate_dishes
         cooking_source_hashes = validate_dishes(data_list, remote_meta)
+        from system_settings.agent_world.combat.sync import validate_source as validate_combat
+        validate_combat(data_list, remote_meta)
         expected_social = (remote_meta or {}).get('social_owners')
         if expected_social is not None:
             restored_social = {str(item.get('pk')) for item in data_list
@@ -880,6 +883,8 @@ class SyncManager:
             reset_execution()
             from system_settings.agent_world.market_sync import reconcile_market
             reconcile_market()
+            from system_settings.agent_world.combat.sync import revoke as revoke_combat
+            revoke_combat()
             from system_settings.agent_world.investment_sync import reconcile_investments
             reconcile_investments()
             from system_settings.agent_world.farm_sync import reconcile_farms
@@ -1167,11 +1172,13 @@ class SyncManager:
 
     def build_snapshot_meta(self, source='manual', runner_id='', data_list=None):
         from system_settings.agent_world.social_models import SocialIntegrity
+        from system_settings.agent_world.combat.sync import metadata as combat_metadata
         from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
         from learning.sync import metadata as learning_metadata
         from system_settings.agent_world.memory.sync import metadata as memory_metadata
         from system_settings.agent_world.farm_quality_sync import metadata as crop_metadata
         return {
+            **combat_metadata(data_list),
             **learning_metadata(data_list),
             **crop_metadata(data_list),
             **cooking_metadata(data_list),
@@ -1188,6 +1195,7 @@ class SyncManager:
 
     def validate_import_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
+        if remote_meta and remote_meta.get('combat_schema_version',0)>1:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
@@ -1223,6 +1231,8 @@ class SyncManager:
                 queryset = travel_sync.export_queryset(queryset)
             if queryset.exists():
                 all_data.extend(json.loads(serializers.serialize('json', queryset)))
+        from system_settings.agent_world.combat.sync import validate_source as validate_combat
+        validate_combat(all_data)
         return self._strip_device_local_user_fields(all_data)
 
     @staticmethod
@@ -1548,6 +1558,10 @@ class SyncManager:
         from system_settings.agent_world.cooking_quality_sync import validate_source as validate_cooking_source, metadata as cooking_metadata
         validate_cooking_source(local_data, cooking_metadata(local_data))
         validate_cooking_source(remote.get('data') or [], remote.get('meta'))
+        from system_settings.agent_world.combat.sync import validate_source as validate_combat, validate_catalog_conflicts
+        validate_combat(local_data)
+        validate_combat(remote.get('data') or [],remote.get('meta'))
+        validate_catalog_conflicts(local_data,remote.get('data') or [])
         # 老全量快照中的原始默认城市只代表共享种子，不代表用户编辑或删除。
         if travel_sync.enabled() or (remote.get('meta') or {}).get(travel_sync.META_KEY):
             local_data, local_revisions = travel_sync.compact(local_data, local_revisions)
@@ -1620,6 +1634,7 @@ class SyncManager:
         # Keep cooking asset checkpoints intact: reject partial domain merges rather
         # than manufacturing a new checkpoint for an inconsistent XP/material chain.
         validate_cooking_source(result, cooking_metadata(result))
+        validate_combat(result)
         return result, result_revisions, summary
 
     def _media_hash_cache_path(self):
@@ -2186,9 +2201,11 @@ class SyncManager:
                 with suspend_tracking():
                     from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
                     from system_settings.agent_world.memory.sync import metadata as memory_metadata
+                    from system_settings.agent_world.combat.sync import metadata as combat_metadata
                     self.apply_snapshot_data(merged_data, remote_meta={
                         **cooking_metadata(merged_data),
                         **memory_metadata(merged_data),
+                        **combat_metadata(merged_data),
                         **(travel_sync.metadata(merged_revisions) if travel_sync.enabled() or
                            (remote.get('meta') or {}).get(travel_sync.META_KEY) else {}),
                     }, full_overwrite=True)

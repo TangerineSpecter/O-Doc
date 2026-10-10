@@ -101,6 +101,9 @@ def enter(owner: str, agent: Agent, key: str, *, task=None, record=None, mode='m
         return old
     if owner_for(agent) != owner:
         raise ValueError('居民不属于此市场')
+    from .combat.schedule import PREPARING
+    from .combat.models import Exploration
+    if Exploration.objects.filter(actor_id=agent.pk,status__in=['preparing','active','paused','settling']).exclude(pk=PREPARING.get()).exists():raise ValueError('居民正在战斗探索')
     from .travel_candidates import travelling_ids
     if agent.pk in travelling_ids(): raise ValueError('居民正在旅行')
     if MarketSession.objects.filter(actor_id=agent.pk, status='active').exists():

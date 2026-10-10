@@ -42,7 +42,7 @@ def validate_source(data, info):
         raise SyncError('居民记忆快照缺少整理状态，拒绝恢复')
     states = {str(r['pk']): r['fields'] for r in data if r.get('model') == STATE}
     profiles = {str(r['pk']): r['fields']['owner_id'] for r in data if r.get('model') == 'system_settings.lifeprofile'}
-    source_models = {'farm': 'farmoperation', 'cooking': 'cookingoperation', 'market': 'markettransaction',
+    source_models = {'exploration':'exploration','farm': 'farmoperation', 'cooking': 'cookingoperation', 'market': 'markettransaction',
                      'investment': 'investmenttrade', 'travel': 'traveljourney', 'relation': 'socialevent',
                      'social': 'socialopportunity', 'publication': 'agentactivity'}
     facts = {(r['model'], str(r['pk'])): r['fields'] for r in data}
@@ -63,7 +63,7 @@ def validate_source(data, info):
         owner = farms.get(str(source.get('farm'))) if kind == 'farm' else source.get('owner_id', state['owner_id'])
         if source_actor != actor or owner != state['owner_id']:
             raise SyncError('居民记忆活动来源归属不一致')
-        field = 'occurred_at' if kind == 'publication' else 'updated_at' if kind in ('travel', 'social') else 'created_at'
+        field = 'ended_at' if kind == 'exploration' else 'occurred_at' if kind == 'publication' else 'updated_at' if kind in ('travel', 'social') else 'created_at'
         native_text = source.get('snapshot', {}).get('memory_completed_at', '') if kind == 'travel' else source.get(field, '')
         at, native = parse_datetime(ref.get('at', '')), parse_datetime(native_text)
         if not at or not native:

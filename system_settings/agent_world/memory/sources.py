@@ -22,7 +22,9 @@ def collect(owner: str, agent, day, enabled_at) -> dict:
     from anthology.models import Anthology
     from django.db.models import Q
     visible_colls = Anthology.objects.filter(is_valid=True).filter(Q(permission='public') | Q(user_id=owner)).values_list('coll_id', flat=True)
+    from ..combat.models import Exploration
     queries = [
+        ('exploration', Exploration.objects.filter(actor_id=agent.pk,owner_id=owner,ended_at__isnull=False),'ended_at'),
         ('farm', FarmOperation.objects.filter(farm_id=agent.pk, farm__owner_id=owner), 'created_at'),
         ('cooking', CookingOperation.objects.filter(actor_id=agent.pk, owner_id=owner), 'created_at'),
         ('market', MarketTransaction.objects.filter(actor_id=agent.pk, owner_id=owner), 'created_at'),
@@ -55,6 +57,8 @@ def collect(owner: str, agent, day, enabled_at) -> dict:
 
 
 def project(kind, row):
+    if kind == 'exploration':
+        return {'action':row.status,'target':row.pk,'summary':row.result.get('report','')[:CONTENT_LIMIT],'significant':True}
     if kind == 'relation':
         return {'action': row.category, 'target': row.counterpart_id, 'reason': row.reason[:CONTENT_LIMIT],
                 'before': {k: row.before.get(k) for k in ('affinity', 'band')},

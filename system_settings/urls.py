@@ -47,7 +47,15 @@ from .agent_world.cooking_views import CookingRecipesView, CookingRecipeView, Co
 
 from .token_usage.views import TokenUsageView
 
+from .agent_world.combat.views import CombatView
+
 urlpatterns = [
+    path('agent-world/combat/catalog/', CombatView.as_view()),
+    path('agent-world/combat/config/', CombatView.as_view(kind='config')),
+    path('agent-world/combat/agents/<str:identity>/', CombatView.as_view(kind='profile')),
+    path('agent-world/combat/agents/<str:identity>/history/', CombatView.as_view(kind='history')),
+    path('agent-world/combat/explorations/<str:identity>/', CombatView.as_view(kind='snapshot')),
+    path('agent-world/combat/explorations/<str:identity>/encounters/', CombatView.as_view(kind='encounters')),
     path('agent-world/token-usage/export/', TokenUsageView.as_view(kind='export')),
     path('agent-world/token-usage/summary/', TokenUsageView.as_view(kind='summary')),
     path('agent-world/token-usage/breakdown/', TokenUsageView.as_view(kind='breakdown')),

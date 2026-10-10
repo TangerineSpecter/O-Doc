@@ -36,12 +36,18 @@ def spending_context(owner: str, actor: str) -> dict:
 
 
 def check_purchase(owner: str, actor: str, operation: dict) -> None:
-    if operation['kind'] not in ('buy_shop', 'buy_listing'):
+    if operation['kind'] not in ('buy_shop', 'buy_listing', 'buy_potion'):
         return
     from .market_service import price, quantity
     count = quantity(operation.get('quantity'))
     context = spending_context(owner, actor)
-    if operation['kind'] == 'buy_shop':
+    if operation['kind']=='buy_potion':
+        from .combat.models import CombatProfile
+        from .combat.store import current
+        profile=CombatProfile.objects.filter(pk=actor,owner_id=owner).first()
+        catalog=current(profile.catalog_id if profile else None)
+        unit_price=price(catalog.row('potions',operation.get('potion_id'))['purchase_price'])
+    elif operation['kind'] == 'buy_shop':
         batch = current_batch(owner)
         if operation.get('batch_id') != batch.pk:
             return  # 报价及库存错误沿用成交服务的校验与记录。

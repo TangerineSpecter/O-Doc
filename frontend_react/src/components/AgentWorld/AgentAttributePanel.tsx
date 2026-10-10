@@ -30,6 +30,7 @@ interface AgentAttributePanelProps {
     selectedAgentId: string;
     onClose: () => void;
     onViewActivities?: (actorId: string) => void;
+    onOpenCombat?: (actorId: string) => void;
     onOpenInvestment?: (actorId?: string) => void;
 }
 
@@ -40,6 +41,7 @@ function AttributeRow({
     onOpenActivities,
     onOpenInventory,
     onOpenHoldings,
+    onOpenCombat,
 }: {
     node: AgentRelationNode;
     relations: ResidentRelation[];
@@ -47,6 +49,7 @@ function AttributeRow({
     onOpenActivities: () => void;
     onOpenInventory: () => void;
     onOpenHoldings: () => void;
+    onOpenCombat?: () => void;
 }) {
     const stamina = node.stamina == null ? null : Number(node.stamina);
     const energy = stamina != null && Number.isFinite(stamina) ? Math.max(0, Math.min(100, stamina)) : null;
@@ -56,6 +59,7 @@ function AttributeRow({
             className="flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-3.5 transition-colors hover:border-orange-200 hover:shadow-xs"
         >
             <div>
+                {onOpenCombat && <button onClick={onOpenCombat} className="mb-3 rounded-full bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">冒险 · 装备与战斗</button>}
                 {/* 头部居民信息与独立互动、活动入口 */}
                 <div className="flex items-center gap-2.5">
                     <AgentAvatar name={node.name} avatar={node.avatar} size="md" />
@@ -278,6 +282,7 @@ export default function AgentAttributePanel({
     error,
     selectedAgentId,
     onClose,
+    onOpenCombat,
     onOpenInvestment,
     onViewActivities,
 }: AgentAttributePanelProps) {
@@ -323,6 +328,7 @@ export default function AgentAttributePanel({
                               onOpenActivities={() => setActivityAgent(node)}
                               onOpenInventory={() => setInventoryAgent(node)}
                               onOpenHoldings={() => setHoldingsAgent(node)}
+                              onOpenCombat={onOpenCombat ? () => onOpenCombat(node.id) : undefined}
                           />
                       ))
                     : null}

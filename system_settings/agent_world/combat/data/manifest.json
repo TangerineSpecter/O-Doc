@@ -1,0 +1,104 @@
+{
+  "version": "combat-1.0.0",
+  "status": "released",
+  "engine_schema": 1,
+  "files": {
+    "professions.csv": {
+      "sha256": "0de0aaa9f5fa541a32fc9fb28b99b0ecaa5d421c31f983a2f76dee6470fb4dd1",
+      "rows": 29
+    },
+    "skills.csv": {
+      "sha256": "1c3bf3aa443fe1992bd611a3024db14bca9dfc7225baaad3783ffafdec7af2a3",
+      "rows": 70
+    },
+    "skill_levels.csv": {
+      "sha256": "333605fa73fab13eef214e8c026eee738fdadfe3890ede4f07c0c5421780747a",
+      "rows": 190
+    },
+    "skill_effects.csv": {
+      "sha256": "a9db941a54154b6fd533e9ee44a99935ab23be2215ab27a40067832417a57e3c",
+      "rows": 263
+    },
+    "dungeons.csv": {
+      "sha256": "ec042d9b13562b602c7b288529878e29897ce6a6c423331600d91e8e574b0f8f",
+      "rows": 6
+    },
+    "monsters.csv": {
+      "sha256": "aec13316738cd6b1a962eb25c303c3a1baa8eb96123956f20107c78c14d1c911",
+      "rows": 24
+    },
+    "dungeon_monsters.csv": {
+      "sha256": "2f999ae7ce1faa4a5c0356f1448c4a96cbdbc2b663253db58b7f6196e521555f",
+      "rows": 18
+    },
+    "monster_actions.csv": {
+      "sha256": "7c54d9037bb5af7fddb584e4f531ea59a563c53790635c97bc58f8f4705c161b",
+      "rows": 53
+    },
+    "materials.csv": {
+      "sha256": "75145cc5c20ea6309319dbd53403c0958c7b909589275278e28d6e2d5f13f3eb",
+      "rows": 24
+    },
+    "drops.csv": {
+      "sha256": "03f8b2c280bf33e594a4971ad4efa4a0c2d56c560269667e7f4cc3980e0cb1ae",
+      "rows": 48
+    },
+    "equipment_templates.csv": {
+      "sha256": "9cf34d445c79632d9ac74bc5043cc5b1505e111bfc699126a5d172b30514a450",
+      "rows": 17
+    },
+    "boss_drops.csv": {
+      "sha256": "8c67fddea196ba23f57e0d153ecf2384df315ca96511b5aa723a0050c61a3271",
+      "rows": 6
+    },
+    "affixes.csv": {
+      "sha256": "0e8d4d75f6d1c7b58a4098ad776239394d7e3e7aed18b311bcd71d30baca0dd3",
+      "rows": 17
+    },
+    "affix_slots.csv": {
+      "sha256": "1dccbc450744149c47d984fb20d34e56bdfe488541241e6cf921a8861a982ed6",
+      "rows": 68
+    },
+    "equipment_professions.csv": {
+      "sha256": "3e2efc564ff8882cf0b0c9228d8c8eb299514a73550cc59a87d037dcae8e65d1",
+      "rows": 359
+    },
+    "equipment_affixes.csv": {
+      "sha256": "2107987e1efb1e2d49e12b1557632f4ec7832f3d23ca2407b664ab480455f56f",
+      "rows": 203
+    },
+    "equipment_pools.csv": {
+      "sha256": "8f21952df9fe6da6f924466419aed9daf000be91733d864b81dae91c09106284",
+      "rows": 66
+    },
+    "potions.csv": {
+      "sha256": "dd4431e66a01c01e6f37360d582cdd50e73fac7093d707ef85bc7836ea72e978",
+      "rows": 8
+    },
+    "styles.csv": {
+      "sha256": "014218d4b261193d9ac5e729c08497ddf5e0197ad34a8092b8f5cf3ce23267ea",
+      "rows": 5
+    },
+    "level_experience.csv": {
+      "sha256": "9ae76cef16a9fd170835d3577e4ab030f00017eb237c7b9672ee76d603facccd",
+      "rows": 99
+    },
+    "monster_profiles.csv": {
+      "sha256": "babeb0b30b6dc42765c5962af7afe6a8fd63b88addbdd763caa9c64f01e84cf5",
+      "rows": 4
+    },
+    "monster_ranks.csv": {
+      "sha256": "81ceb4e8e5fa7640bbec6433f28a37712f8433e6e6da1082afb4e749fd10ec03",
+      "rows": 3
+    },
+    "qualities.csv": {
+      "sha256": "4ece67b17ba754fc2a54795b002030bd4e9ebc5b5e88b5aefeea52b0e2e9052e",
+      "rows": 3
+    },
+    "rules.csv": {
+      "sha256": "27da8d38838cb6d094f452165eb8c03d24c5522654e891d318bfc0a8f18a8d25",
+      "rows": 63
+    }
+  },
+  "published_at": "2026-10-10T00:00:00+08:00"
+}

@@ -52,7 +52,10 @@ def build_context(owner: str, agent, item: LifeItem | None = None) -> dict:
                 'cost': str(rules['land_prices'][group - 1]) if 1 <= group < 4 else None,
             }
     from .travel_config import bound_skill
-    context['activities'] = [{'kind':t.task_kind,'task_id':t.pk,'preference':t.prompt,'allows_spending':allows_spending(t.task_kind)} for t in tasks_for(owner) if t.enabled and t.task_kind != 'market' and (t.task_kind != 'travel' or bound_skill(agent,'odoc_travel_journal'))]
+    from .combat.schedule import automatic_enabled
+    from .combat.queries import profile_view
+    context['combat'] = {k:v for k,v in profile_view(owner,agent).items() if k in ('progression','attributes','promotion_options','active_exploration_id','potions')}
+    context['activities'] = [{'kind':t.task_kind,'task_id':t.pk,'preference':t.prompt,'allows_spending':allows_spending(t.task_kind)} for t in tasks_for(owner) if t.enabled and t.task_kind != 'market' and (t.task_kind!='exploration' or automatic_enabled(owner)) and (t.task_kind != 'travel' or bound_skill(agent,'odoc_travel_journal'))]
     from .life_config import config_for, effective_settings
     from .farm_queue_plan import overview as queue_overview
     from .farm_models import AgentFarm

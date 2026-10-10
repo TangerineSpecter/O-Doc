@@ -1,6 +1,7 @@
 import type {ElementType} from 'react';
 import {
     MessageSquare,
+    Swords,
     Send,
     Compass,
     TrendingUp,
@@ -30,6 +31,7 @@ const activityTheme: Record<
         color: string;
     }
 > = {
+    exploration: {icon: Swords, color: 'bg-orange-50 text-orange-600 border-orange-100'},
     cooking: {icon: BookOpen, color: 'bg-orange-50 text-orange-600 border-orange-100'},
     investment: {
         icon: TrendingUp,
@@ -73,7 +75,7 @@ export function BuiltinPostTaskCard({
     const Icon = theme.icon;
 
     const description =
-        task.taskKind === 'cooking' ? '用自己的食材制作美食，获得厨艺经验并解锁高级食谱；成品可在市场出售。' : task.taskKind === 'investment'
+        task.taskKind === 'exploration' ? '自主准备装备与药剂，持续探索地牢；冒险面板可观察战斗、掉落与成长，自动探索须单独开启。' : task.taskKind === 'cooking' ? '用自己的食材制作美食，获得厨艺经验并解锁高级食谱；成品可在市场出售。' : task.taskKind === 'investment'
             ? '查询市场新闻和行业，按需分析股票，自主买卖或观望。持仓与收益可在股票投资查看。'
             : task.taskKind === 'market'
               ? '自主进入市场，购买农资与动物、出售产物或上架商品。进入消耗体力并自由交易。'

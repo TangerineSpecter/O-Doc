@@ -18,7 +18,7 @@ def run_manual_life(task, actor, owner, scheduler):
     try:
         with life_scope(item,build_context(owner,agent,item)):
             record=scheduler._run_task(task,trigger='手动执行')
-        if task.task_kind!='travel':
+        if task.task_kind not in ('travel','exploration'):
             item.refresh_from_db()
             from .life_planner import check_goals
             check_goals(owner,agent)

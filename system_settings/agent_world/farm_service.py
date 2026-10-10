@@ -261,8 +261,9 @@ def commit_operation(farm_id, opportunity_id, index, operation, reason, task, ag
         raise ValueError('Agent 执行锁失效')
     if not WorldActionRuntime.objects.filter(pk='world', token=world_token, until__gt=now).exists():
         raise ValueError('世界执行锁失效')
+    from .combat.schedule import occupied_ids
     from .travel_candidates import travelling_ids
-    if agent.pk in travelling_ids():
+    if agent.pk in occupied_ids() or agent.pk in travelling_ids():
         raise ValueError('Agent 正在旅行')
     setting = SystemSetting.objects.filter(key='system_mcp_config').first()
     if setting and not (setting.value or {}).get('enabled', True):

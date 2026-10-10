@@ -66,6 +66,7 @@ def check_session(session, at):
 @guarded
 @transaction.atomic
 def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=None) -> dict:
+    if not isinstance(operation,dict) or not isinstance(operation.get('kind'),str):raise ValueError('交易操作格式无效')
     check_mcp()
     at = now or timezone.now()
     session = MarketSession.objects.select_for_update().get(pk=session.pk, actor_id=agent.pk)
@@ -79,7 +80,11 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
     owner, kind = session.owner_id, operation['kind']
     result = {'kind': kind}
     deltas = []
-    if kind == 'buy_shop':
+    if kind in ('buy_potion','sell_combat_material','sell_combat_equipment'):
+        from .combat.market import transact
+        result.update(transact(owner,agent,key,operation,change_money,at))
+        deltas = result['deltas']
+    elif kind == 'buy_shop':
         batch = current_batch(owner, at)
         if operation.get('batch_id') != batch.pk: raise ValueError('报价已过期，请刷新商店')
         batch = MarketBatch.objects.select_for_update().get(pk=batch.pk)
@@ -177,4 +182,6 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
     result['balance'] = str(agent.money)
     MarketTransaction.objects.create(pk=key, owner_id=owner, session=session, actor_id=agent.pk, actor_name=agent.name,
                                     operation=operation, result=result, created_at=at)
+    from .combat.market import record
+    record(agent,key,operation,result)
     return result

@@ -22,6 +22,12 @@ def finish_running(config, now):
     from .travel_models import TravelJourney
     for item in LifeItem.objects.filter(owner_id=config.pk,status='running'):
         key=execution_key(item)
+        if item.activity=='exploration':
+            from .combat.models import Exploration
+            run=Exploration.objects.filter(life_item_id=item.pk).first()
+            if run:
+                if run.ended_at:revise(item,'探索已结束',status='completed' if run.status in ('completed','recalled') else 'failed',record_id=run.record_id,result={'reason':run.result.get('report',''),'exploration_id':run.pk})
+                continue
         trip=TravelJourney.objects.filter(pk=key).first()
         if not trip and key!=item.pk:
             trip=TravelJourney.objects.filter(pk=item.pk).first()
@@ -90,7 +96,8 @@ def execute_item(item: LifeItem, scheduler) -> None:
     from .travel_candidates import travelling_ids
     from system_settings.models import AgentExecutionLease
     costs={'cooking':1,'post_interaction':10,'post_publish':20,'investment':5,'farm':2,'travel':task.travel_config.get('energy_cost',20) if task else 20}
-    busy=item.actor_id in travelling_ids() or AgentExecutionLease.objects.filter(agent_id=item.actor_id,until__gt=timezone.now()).exists()
+    from .combat.schedule import occupied_ids
+    busy=item.actor_id in occupied_ids() or item.actor_id in travelling_ids() or AgentExecutionLease.objects.filter(agent_id=item.actor_id,until__gt=timezone.now()).exists()
     queue_farm = item.activity == 'farm' and bool(item.context.get('farm_plan_id'))
     if not queue_farm and (busy or stamina(agent)<costs.get(item.activity,2)):
         if item.attempts>=3:
@@ -129,7 +136,9 @@ def execute_item(item: LifeItem, scheduler) -> None:
                         run_market_opportunity(market,scheduler,key=stable_id(execution_key(item),'supplies'))
                         item.refresh_from_db();agent.refresh_from_db()
                         CURRENT.get()['context']=build_context(item.owner_id,agent,item)
-                if item.activity=='cooking':
+                if item.activity=='exploration':
+                    from .combat.schedule import run_opportunity as run
+                elif item.activity=='cooking':
                     from .cooking_runner import run_cooking_opportunity as run
                 elif item.activity=='farm':
                     if item.context.get('farm_plan_id'):
@@ -150,7 +159,7 @@ def execute_item(item: LifeItem, scheduler) -> None:
         finally:
             defer_when_world_busy.reset(marker)
         item.refresh_from_db()
-        if item.activity=='travel':
+        if item.activity in ('travel','exploration'):
             return  # 后续节点只继续本次 workflow。
         action=WorldAction.objects.filter(pk=execution_key(item)).first()
         status='failed' if outcome and outcome.status=='failed' else 'rest' if action and action.status=='skipped' else 'completed'

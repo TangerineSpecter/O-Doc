@@ -1,7 +1,7 @@
 """按实际世界货币消费能力限制预算；模型服务费用不属于生活预算。"""
 from decimal import Decimal
 
-SPENDING_ACTIVITIES = frozenset({'travel', 'farm', 'market', 'market_prepare', 'investment'})
+SPENDING_ACTIVITIES = frozenset({'travel', 'farm', 'market', 'market_prepare', 'investment', 'exploration'})
 
 
 def allows_spending(activity: str) -> bool:

@@ -29,6 +29,9 @@ MARKET_TOOLS = [
     schema('buy_market_shop', '购买系统商品。slot_id为商品位ID、feed或fertilizer.quality/fertilizer.yield，必须提供本小时batch_id。', {**WRITE,'batch_id':S,'slot_id':S,'quantity':N}, ['request_id','batch_id','slot_id','quantity']),
     schema('buy_market_listing', '购买其他居民挂牌，使用查询时的version，报价变化时需重查。', {**WRITE,'listing_id':S,'version':N,'quantity':N}, ['request_id','listing_id','version','quantity']),
     schema('sell_to_market_shop', '将自己背包中的农作物、畜产品或美食按已有批次回收价出售。', {**WRITE,'item_id':S,'quantity':N}, ['request_id','item_id','quantity']),
+    schema('buy_combat_potion','购买常驻冒险药剂；使用get_market_context中combat_supplies的药剂ID，一次最多20瓶。',{**WRITE,'potion_id':S,'quantity':N},['request_id','potion_id','quantity']),
+    schema('sell_combat_material','出售自己的探索材料，使用材料ID及数量，按目录回收价结算。',{**WRITE,'material_id':S,'quantity':N},['request_id','material_id','quantity']),
+    schema('sell_combat_equipment','出售自己的闲置装备实例；已穿戴、收藏、绑定或探索占用装备不能出售。',{**WRITE,'equipment_id':S},['request_id','equipment_id']),
     schema('create_market_listing', '自主定价上架农作物、畜产品、美食或纪念品，数量立即转入托管。', {**WRITE,'item_id':S,'quantity':N,'unit_price':S}, ['request_id','item_id','quantity','unit_price']),
     schema('reprice_market_listing', '修改自己挂牌的单价，保留首次上架时间。', {**WRITE,'listing_id':S,'version':N,'unit_price':S}, ['request_id','listing_id','version','unit_price']),
     schema('withdraw_market_listing', '撤回自己的挂牌，将剩余物品返还背包。', {**WRITE,'listing_id':S,'version':N}, ['request_id','listing_id','version']),
@@ -37,7 +40,8 @@ MARKET_TOOLS = [
 ]
 NAMES = {t['name'] for t in MARKET_TOOLS}
 KINDS = {'buy_market_shop':'buy_shop','buy_market_listing':'buy_listing','sell_to_market_shop':'sell',
-         'create_market_listing':'list','reprice_market_listing':'reprice','withdraw_market_listing':'withdraw'}
+         'create_market_listing':'list','reprice_market_listing':'reprice','withdraw_market_listing':'withdraw',
+         'buy_combat_potion':'buy_potion','sell_combat_material':'sell_combat_material','sell_combat_equipment':'sell_combat_equipment'}
 
 
 def request_key(actor, value):

@@ -1,0 +1,5 @@
+id,hp_constant,hp_linear,hp_quadratic,mp_constant,mp_linear,attack_constant,attack_linear,attack_quadratic,defense_constant,defense_linear,hp_multiplier,attack_multiplier,physical_defense_multiplier,magic_defense_multiplier,accuracy,evasion,critical,critical_damage,damage_type
+plain,40,18,0.5,20,8,6,4,0.1,4,1.8,1,1,1,1,0.95,0.04,0.05,1.5,physical
+agile,40,18,0.5,20,8,6,4,0.1,4,1.8,0.8,1.1,1,1,0.95,0.15,0.05,1.5,physical
+armored,40,18,0.5,20,8,6,4,0.1,4,1.8,1.4,1,1.8,1,0.95,0.04,0.05,1.5,physical
+magic,40,18,0.5,20,8,6,4,0.1,4,1.8,1,1,0.7,1.3,0.95,0.04,0.05,1.5,magic

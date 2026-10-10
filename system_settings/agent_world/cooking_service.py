@@ -38,8 +38,9 @@ def commit_portion(actor_id: str, opportunity_id: str, index: int, recipe_id: st
     validate_actor(owner, actor_id)
     if not AgentExecutionLease.objects.filter(agent_id=actor_id, token=agent_token, until__gt=now).exists() or not WorldActionRuntime.objects.filter(pk='world', token=world_token, until__gt=now).exists():
         raise ValueError('制作执行锁失效')
+    from .combat.schedule import occupied_ids
     from .travel_candidates import travelling_ids
-    if actor_id in travelling_ids():
+    if actor_id in occupied_ids() or actor_id in travelling_ids():
         raise ValueError('居民正在旅行')
     setting = SystemSetting.objects.filter(key='system_mcp_config').first()
     if setting and not (setting.value or {}).get('enabled', True):

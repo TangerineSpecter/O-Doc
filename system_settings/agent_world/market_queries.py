@@ -86,5 +86,6 @@ def actor_context(owner: str, agent) -> dict:
     shop = shop_payload(owner)
     planting = planting_context(farm, catalog_for(owner).rules, shop['supplies'], yield_bonus(agent), shop['expires_at']) if farm else {'skill': skill_progress(0)}
     from .farm_queue_plan import overview
-    return {'farm_queue': overview(farm), 'planting': planting, 'spending': spending_context(owner, agent.pk), 'balance':str(agent.money), 'stamina':str(stamina(agent)), 'farm':farm_state,
+    from .combat.queries import market_context
+    return {'combat_supplies':market_context(owner,agent), 'farm_queue': overview(farm), 'planting': planting, 'spending': spending_context(owner, agent.pk), 'balance':str(agent.money), 'stamina':str(stamina(agent)), 'farm':farm_state,
             'inventory':inventory, 'listings':listings(owner, {'seller_id':agent.pk,'status':'all'})}

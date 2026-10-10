@@ -603,12 +603,13 @@ class Skill(models.Model):
 class AgentTask(models.Model):
     """Agent 任务配置"""
 
-    task_kind = models.CharField(max_length=40, choices=[('custom', '自定义任务'), ('post_interaction', '阅读帖子并评论打分'), ('post_publish', '自主选题并发帖'), ('travel', '旅行'), ('farm', '农场经营'), ('market', '市场交易'), ('investment', 'A 股投资'), ('cooking', '美食制作')], default='custom')
+    task_kind = models.CharField(max_length=40, choices=[('custom', '自定义任务'), ('post_interaction', '阅读帖子并评论打分'), ('post_publish', '自主选题并发帖'), ('travel', '旅行'), ('farm', '农场经营'), ('market', '市场交易'), ('investment', 'A 股投资'), ('cooking', '美食制作'), ('exploration', '迷宫探索')], default='custom')
     cooking_config = models.JSONField(default=dict, blank=True)
     farm_config = models.JSONField(default=dict, blank=True)
     market_config = models.JSONField(default=dict, blank=True)
     investment_config = models.JSONField(default=dict, blank=True)
     travel_config = models.JSONField(default=dict, blank=True)
+    exploration_config = models.JSONField(default=dict, blank=True)
     post_collection_ids = models.JSONField(default=list, blank=True)
     post_category_ids = models.JSONField(default=list, blank=True)
     world_state = models.JSONField(default=dict, blank=True)
@@ -986,3 +987,5 @@ from .agent_world.cooking_models import CookingCatalog, CookingSkill, CookingOpe
 from .token_usage.models import AgentTokenUsage  # noqa: E402,F401
 
 from .agent_world.memory.models import AgentMemoryState, AgentMemoryLease  # noqa: E402,F401
+
+from .agent_world.combat.models import (CombatCatalog, CombatConfig, CombatProfile, EquipmentInstance, Exploration, CombatEncounter, CombatFact, CombatIntegrity, CombatRuntime)  # noqa: E402,F401

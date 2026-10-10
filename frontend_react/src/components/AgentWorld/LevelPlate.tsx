@@ -1,4 +1,3 @@
-import React from 'react';
 
 export type LevelPlateVariant = 'lime' | 'orange' | 'amber' | 'emerald' | 'blue' | 'purple' | 'slate';
 export type LevelPlateSize = 'xs' | 'sm' | 'md';
