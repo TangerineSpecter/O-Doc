@@ -246,6 +246,8 @@ def relation_graph(owner_id=None, include_departed=False):
     agents = list(Agent.objects.select_related("profession").all())
     creativity = {item.agent_id: item for item in AgentCreativity.objects.all()}
     running_ids = set(AgentActivity.objects.filter(status='running').exclude(agent_id=None).values_list('agent_id', flat=True))
+    from .agent_world.combat.queries import resident_presence
+    exploring=resident_presence(owner_id)
     nodes = []
     inventory = AgentInventoryItem.objects.all()
     if owner_id is not None:
@@ -279,7 +281,8 @@ def relation_graph(owner_id=None, include_departed=False):
             'post_count': snapshot.post_count if snapshot else 0,
             'rated_post_count': snapshot.rated_post_count if snapshot else 0,
             'active_days': snapshot.active_days if snapshot else 0,
-            'status': 'running' if agent.id in running_ids else 'idle',
+            'status': exploring[agent.id]['status'] if agent.id in exploring else 'running' if agent.id in running_ids else 'idle',
+            'current_action': exploring.get(agent.id,{}).get('current_action',''),
         })
     from .agent_world.social_graph import graph_edges
     edges = graph_edges(owner_id, nodes, include_departed=include_departed)

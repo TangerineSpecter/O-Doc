@@ -145,11 +145,13 @@ def validate_catalog_conflicts(local,remote):
         if r['model']==CATALOG and str(r['pk']) in a and any(a[str(r['pk'])][key]!=r['fields'][key] for key in ('digest','tables')):raise SyncError('同一战斗目录版本在设备间发生冲突')
 
 
-def revoke():
-    """Preserve local run identities for explicit same-backend recovery; revoke every permit."""
+def revoke(*, disable_auto=True):
+    """Revoke permits, retaining local origins for recovery; restores also disable opt-in."""
     from system_settings.models import AgentExecutionLease
     AgentExecutionLease.objects.filter(token__startswith='combat:').update(token='',until=None)
-    CombatRuntime.objects.all().update(authorized=False,auto_enabled=False,promotion_pending=False,token='',until=None)
+    fields={'authorized':False,'promotion_pending':False,'token':'','until':None}
+    if disable_auto:fields['auto_enabled']=False
+    CombatRuntime.objects.all().update(**fields)
     from django.db.models import Q
     for runtime in CombatRuntime.objects.filter(Q(requests__has_key='promotion_allowed')|Q(pk='combat-worker')|Q(pk__startswith='auto:')):
         runtime.requests={k:v for k,v in runtime.requests.items() if k=='origin'}

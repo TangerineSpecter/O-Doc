@@ -256,6 +256,7 @@ export interface AgentActivityListResult {
 }
 
 export interface AgentRelationNode {
+    currentAction?: string;
     departed?: boolean;
     kind?: 'agent' | 'user';
     inventoryCount?: number;

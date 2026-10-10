@@ -148,6 +148,7 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border ${badgeClass}`}><BadgeIcon className="h-3 w-3"/>{badgeLabel}</span>
                     {event.status === 'failed' && <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] text-red-700">失败</span>}
                     {event.status === 'running' && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700">进行中</span>}
+                    {event.category === 'exploration' && event.status === 'paused' && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">等待自动恢复</span>}
                     {event.status === 'skipped' && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">跳过</span>}
                     {event.category === 'travel' && event.status === 'success' && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700">已返程</span>}
                     {event.category === 'travel' && event.status === 'waiting' && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">等待恢复</span>}

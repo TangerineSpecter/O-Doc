@@ -426,7 +426,7 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         when=run.ended_at or run.updated_at
         events.append(_event('exploration','exploration',run.pk,when,run.actor_id,run.actor_name,
             f'迷宫探索 · {run.elapsed_seconds//60} 分钟',run.result.get('report') or f'击败 {run.result.get("kills",0)} 只怪物，经验 {run.result.get("experience",0)}',
-            status='success' if run.status in ('completed','recalled') else 'running' if run.status in ('preparing','active','paused') else 'failed',target={'kind':'exploration','id':run.pk}))
+            status='success' if run.status in ('completed','recalled') else 'paused' if run.status=='paused' else 'running' if run.status in ('preparing','active','settling') else 'failed',target={'kind':'exploration','id':run.pk}))
     from .cooking_models import CookingOperation
     for row in CookingOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end):
         detail = f"经验 +{row.result['experience_gained']} · {row.reason}"

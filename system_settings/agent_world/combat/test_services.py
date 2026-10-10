@@ -59,6 +59,46 @@ class ExplorationTests(TestCase):
         from django.apps import apps
         return json.loads(serializers.serialize('json',[row for model in apps.get_app_config('system_settings').get_models() if model.__name__!='CombatRuntime' for row in model.objects.all()]))
 
+    def test_resident_status_projects_exploration_in_graph_and_summary(self):
+        from django.contrib.auth.models import User
+        from rest_framework.test import APIRequestFactory, force_authenticate
+        from system_settings.models import AgentActivity
+        from system_settings.agent_views import AgentActivityViewSet, AgentRelationView
+        user=User.objects.create_superuser('admin','fixture@example.invalid','fixture')
+        AgentActivity.objects.create(event_key='previous-market',agent=self.agent,
+            activity_type='work',status='success',title='市场交易完成')
+        run=explorations.request('admin',self.agent,'presence-trip',{},now=self.now)
+
+        def graph(owner_user=user):
+            request=APIRequestFactory().get('/api/settings/agent-relations/')
+            force_authenticate(request,owner_user)
+            data=AgentRelationView.as_view()(request).data['data']
+            return next(node for node in data['nodes'] if node['id']==self.agent.pk)
+
+        def summary():
+            request=APIRequestFactory().get('/api/settings/agent-activities/today-summary/')
+            force_authenticate(request,user)
+            return AgentActivityViewSet.as_view({'get':'today_summary'})(request).data['data']
+
+        for status,label,running in [('preparing','准备探索',True),('active','探索中',True),
+            ('paused','探索暂停，等待自动恢复',False),('settling','探索结算中',True),('completed','',False),('failed','',False)]:
+            with self.subTest(status=status):
+                Exploration.objects.filter(pk=run.pk).update(status=status)
+                node=graph();data=summary()
+                resident=next(item for item in data['agents'] if item['id']==self.agent.pk)
+                expected='running' if running else 'idle'
+                self.assertEqual(node['status'],expected)
+                self.assertEqual(node['current_action'],label)
+                self.assertEqual(resident['status'],expected)
+                self.assertEqual(resident['currentAction'],label)
+                self.assertEqual(data['activeAgentCount'],int(running))
+                self.assertEqual(data['todayActivityCount'],1)
+        Exploration.objects.filter(pk=run.pk).update(status='active')
+        other=User.objects.create_user('other-presence',password='fixture')
+        self.assertEqual(graph(other)['status'],'idle')
+        self.assertEqual(graph(other)['current_action'],'')
+        self.assertEqual(AgentActivity.objects.count(),1)
+
     def test_duplicate_start_round_recall_and_consumption(self):
         run=self.run_trip()
         self.assertEqual(explorations.request('admin',self.agent,'trip',{},now=self.now).pk,run.pk)
@@ -269,8 +309,106 @@ class ExplorationTests(TestCase):
         CombatConfig.objects.update_or_create(pk='admin',defaults={'daily_minutes':30})
         with self.assertRaisesMessage(ValueError,'当日时间额度'):explorations.resume(run.pk,now=self.now)
 
+    def test_auto_recovery_skips_downtime_and_keeps_original_deadline(self):
+        from .recovery import recover, deadline
+        from system_settings.models import AgentExecutionLease
+        run=self.run_trip()
+        CombatFact.objects.filter(exploration_id=run.pk,kind='depart').update(created_at=self.now)
+        run=explorations.tick(run.pk,now=self.now+timedelta(seconds=15))
+        before=(run.elapsed_seconds,run.result.copy(),run.state.copy())
+        revoke(disable_auto=False)
+        recover(self.now+timedelta(minutes=20))
+        run.refresh_from_db()
+        self.assertEqual(run.status,'active')
+        self.assertEqual((run.elapsed_seconds,run.result,run.state),before)
+        self.assertEqual(deadline(run),local_time(self.now)+timedelta(minutes=30))
+        from .queries import snapshot
+        with patch('system_settings.agent_world.combat.queries.local_time',side_effect=lambda value=None:local_time(value if value is not None else self.now+timedelta(minutes=20))):
+            self.assertEqual(snapshot(run)['remaining_seconds'],600)
+        lease=AgentExecutionLease.objects.get(agent=self.agent)
+        self.assertEqual(local_time(lease.until),deadline(run)+timedelta(seconds=60))
+        run=explorations.tick(run.pk,now=self.now+timedelta(minutes=20,seconds=15))
+        self.assertEqual(run.elapsed_seconds,30)
+        run=explorations.tick(run.pk,now=self.now+timedelta(minutes=30))
+        self.assertEqual(run.status,'completed')
+        self.assertEqual(run.elapsed_seconds,30)
+        self.assertFalse(explorations.busy(self.agent.pk))
+        validate_source(self.data())
+
+    def test_recovery_with_less_than_a_round_left_returns_at_deadline(self):
+        from .recovery import recover
+        run=self.run_trip()
+        CombatFact.objects.filter(exploration_id=run.pk,kind='depart').update(created_at=self.now)
+        revoke(disable_auto=False)
+        recover(self.now+timedelta(minutes=29,seconds=59))
+        run.refresh_from_db()
+        self.assertEqual(local_time(run.next_tick_at),local_time(self.now)+timedelta(minutes=30))
+        run=explorations.tick(run.pk,now=self.now+timedelta(minutes=30))
+        self.assertEqual((run.status,run.elapsed_seconds),('completed',0))
+        self.assertEqual(run.result['energy'],12)
+        self.assertFalse(CombatFact.objects.filter(exploration_id=run.pk,kind='round').exists())
+        validate_source(self.data())
+
+    def test_auto_recovery_after_deadline_returns_potions_once_and_releases_life(self):
+        from system_settings.agent_task_scheduler import AgentTaskScheduler
+        from system_settings.models import SystemSetting
+        from ..life_config import DEFAULTS
+        from ..life_models import LifeConfig, LifeItem
+        from ..life_manual import run_manual_life
+        from .schedule import ensure_task, occupied_ids
+        from .recovery import recover
+        from .preparation import prepare
+        ensure('admin',self.agent,self.now)
+        SystemSetting.objects.create(key='system_mcp_config',value={'enabled':True})
+        self.agent.money=1000;self.agent.save()
+        LifeConfig.objects.create(pk='admin',settings={**DEFAULTS,'agent_ids':[self.agent.pk]},migrated=True)
+        run_manual_life(ensure_task('admin'),self.agent.pk,'admin',AgentTaskScheduler())
+        item=LifeItem.objects.get(activity='exploration')
+        run=Exploration.objects.get(life_item_id=item.pk)
+        prepare(run.pk,planner=lambda *args:{**self.plan,'purchases':{'potion.heal.1':2},'potions':{'potion.heal.1':2}})
+        CombatFact.objects.filter(exploration_id=run.pk,kind='depart').update(created_at=self.now)
+        revoke(disable_auto=False)
+        recover(self.now+timedelta(minutes=31));recover(self.now+timedelta(minutes=32))
+        run.refresh_from_db();item.refresh_from_db()
+        self.assertEqual((run.status,item.status),('completed','completed'))
+        self.assertEqual(run.elapsed_seconds,0)
+        self.assertEqual(run.result['energy'],12)
+        self.assertEqual(run.result['experience'],0)
+        self.assertEqual(stock_quantity(self.agent.pk,'admin','combat.potion.heal.1'),2)
+        self.assertEqual(CombatFact.objects.filter(exploration_id=run.pk,kind='terminal').count(),1)
+        self.assertTrue(CombatRuntime.objects.get(pk=run.pk).promotion_pending)
+        self.assertNotIn(self.agent.pk,occupied_ids())
+        self.assertFalse(explorations.busy(self.agent.pk))
+        validate_source(self.data())
+
+    def test_auto_recovery_returns_if_busy_and_does_not_authorize_other_device(self):
+        from .recovery import recover
+        from system_settings.models import AgentExecutionLease
+        run=self.run_trip();revoke(disable_auto=False)
+        runtime=CombatRuntime.objects.get(pk=run.pk)
+        runtime.requests={'origin':'other'};runtime.save()
+        recover(self.now+timedelta(minutes=1))
+        run.refresh_from_db();self.assertEqual(run.status,'paused')
+        runtime.requests={'origin':run.snapshot['origin']};runtime.save()
+        AgentExecutionLease.objects.filter(agent=self.agent).update(token='other-task',until=self.now+timedelta(minutes=10))
+        recover(self.now+timedelta(minutes=1))
+        run.refresh_from_db();self.assertEqual(run.status,'recalled')
+        self.assertEqual(AgentExecutionLease.objects.get(agent=self.agent).token,'other-task')
+        validate_source(self.data())
+
+    def test_restart_preserves_automatic_opt_in_and_midnight_credits_are_integers(self):
+        runtime=CombatRuntime.objects.create(pk='auto:admin',auto_enabled=True)
+        revoke(disable_auto=False)
+        runtime.refresh_from_db();self.assertTrue(runtime.auto_enabled)
+        revoke()
+        runtime.refresh_from_db();self.assertFalse(runtime.auto_enabled)
+        point=local_time(self.now).replace(hour=23,minute=59,second=59,microsecond=123456)
+        parts=explorations.day_parts(point,15)
+        self.assertEqual(sum(parts.values()),15)
+        self.assertTrue(all(type(value)is int for value in parts.values()))
+
     def test_dead_worker_revokes_before_any_replay(self):
-        from .worker import recover_stopped_process
+        from .worker import recover_stopped_process, advance
         run=self.run_trip()
         CombatRuntime.objects.create(pk='combat-worker',requests={'process_id':2147483647},token='stale',until=self.now+timedelta(minutes=10))
         with patch('system_settings.agent_world.combat.worker.os.kill',side_effect=ProcessLookupError):recover_stopped_process()
@@ -278,6 +416,9 @@ class ExplorationTests(TestCase):
         self.assertEqual((run.status,run.elapsed_seconds),('paused',0))
         self.assertFalse(CombatRuntime.objects.filter(authorized=True).exists())
         self.assertIsNone(CombatRuntime.objects.get(pk='combat-worker').until)
+        advance()
+        run.refresh_from_db();self.assertEqual(run.status,'active')
+        self.assertEqual(run.elapsed_seconds,0)
         validate_source(self.data())
 
     def test_recovery_replenishes_mp_during_fallen_rest(self):

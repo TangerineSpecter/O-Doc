@@ -83,7 +83,7 @@ function AttributeRow({
                                         : 'bg-slate-300'
                                 }`}
                             />
-                            <span>{node.status === 'running' ? '正在活动' : '休息中'}</span>
+                            <span>{node.currentAction || (node.status === 'running' ? '正在活动' : '休息中')}</span>
                         </div>
                     </div>
 

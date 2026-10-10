@@ -464,6 +464,9 @@ class AgentActivityViewSet(viewsets.ReadOnlyModelViewSet):
         running_by_agent = {}
         for activity in ordered_activities.filter(status='running').exclude(agent_id=None):
             running_by_agent.setdefault(activity.agent_id, activity)
+        from .agent_world.combat.queries import resident_presence
+        from utils.drf_utils import get_current_user_identifier
+        exploring=resident_presence(get_current_user_identifier(request))
         agents = []
         for agent in agents_queryset:
             activity = latest_by_agent.get(agent.id)
@@ -472,15 +475,15 @@ class AgentActivityViewSet(viewsets.ReadOnlyModelViewSet):
                 'id': agent.id,
                 'name': agent.name,
                 'avatar': agent.avatar,
-                'status': 'running' if running_activity else 'idle',
-                'currentAction': running_activity.current_action if running_activity else '',
+                'status': exploring[agent.id]['status'] if agent.id in exploring else 'running' if running_activity else 'idle',
+                'currentAction': exploring[agent.id]['current_action'] if agent.id in exploring else running_activity.current_action if running_activity else '',
                 'latestTitle': activity.title if activity else '',
                 'todayCount': counts.get(agent.id, 0),
             })
         return success_result({
             'todayActivityCount': today_activities.count(),
             'todayWorkCount': today_activities.filter(activity_type='publication').count(),
-            'activeAgentCount': ordered_activities.filter(status='running').exclude(agent_id=None).values('agent_id').distinct().count(),
+            'activeAgentCount': sum(agent['status']=='running' for agent in agents),
             'latest': self.get_serializer(latest, many=True).data,
             'agents': agents,
         })

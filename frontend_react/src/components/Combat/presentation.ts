@@ -1,7 +1,7 @@
 import type {CombatAction, CombatEvent, CombatRow} from '../../types/api/combat';
 export const statLabels: Record<string, string> = {physical_attack:'物理攻击',magic_attack:'魔法攻击',physical_defense:'物理防御',magic_defense:'魔法防御',hp_max:'最大生命',mp_max:'最大魔力',critical_damage:'暴击伤害',strength: '力量', dexterity: '敏捷', intelligence: '智力', vitality: '体质', spirit: '精神', luck: '运气', hpMax: '最大生命', mpMax: '最大魔力', physicalAttack: '物理攻击', magicAttack: '魔法攻击', physicalDefense: '物理防御', magicDefense: '魔法防御', healing: '治疗能力', accuracy: '命中', evasion: '闪避', critical: '暴击', criticalDamage: '暴击伤害'};
 export const slotLabels: Record<string, string> = {weapon: '武器', head: '头饰', body: '护甲', hands: '手套', feet: '靴子', accessory: '护符'};
-export const statusLabels: Record<string, string> = {preparing: '准备出发', active: '探索中', battle: '交战', searching: '寻找怪物', paused: '等待接续', completed: '探索完成', recalled: '已召回', fallen: '倒地', failed: '准备失败', exhausted: '资源不足', interrupted: '系统中断', done: '已结束'};
+export const statusLabels: Record<string, string> = {preparing: '准备出发', active: '探索中', battle: '交战', searching: '寻找怪物', paused: '等待自动恢复', completed: '探索完成', recalled: '已召回', fallen: '倒地', failed: '准备失败', exhausted: '资源不足', interrupted: '系统中断', done: '已结束'};
 export const qualityLabels: Record<string, string> = {white: '白装', blue: '蓝装', gold: '金装'};
 export function appendCombatEvents(previous: CombatEvent[], incoming: CombatEvent[]) {
     const records = new Map(previous.map(row => [row.id, row]));

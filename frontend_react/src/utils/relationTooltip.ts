@@ -25,7 +25,7 @@ export function relationNodeTooltip(node: AgentRelationNode): string {
                 <strong class="relation-tooltip__name">${escapeRelationText(node.name)}</strong>
                 ${professionBadge}
             </div>
-            <span class="relation-tooltip__status"><i class="${running ? 'is-running' : ''}"></i>${running ? '正在活动' : '休息中'}</span>
+            <span class="relation-tooltip__status"><i class="${running ? 'is-running' : ''}"></i>${escapeRelationText(node.currentAction || (running ? '正在活动' : '休息中'))}</span>
         </div>
         <div class="relation-tooltip__score"><span>创作力</span><strong>${node.creativity}<small>/ 100</small></strong></div>
         <div class="relation-tooltip__metrics">发帖 <b>${node.postCount}</b><span>·</span>获评 <b>${node.ratedPostCount}</b><span>·</span>活跃 <b>${node.activeDays}</b> 天</div>

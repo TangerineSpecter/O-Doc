@@ -28,7 +28,7 @@ def recover_stopped_process():
             from .sync import revoke
             from django.db import transaction
             with transaction.atomic():
-                revoke()
+                revoke(disable_auto=False)
                 runtime.requests={};runtime.save(update_fields=['requests'])
         except PermissionError:return
 
@@ -64,6 +64,8 @@ def advance():
     with execution_lease(CombatRuntime,{'pk':'combat-worker'}) as token:
         if not token:return
         CombatRuntime.objects.filter(pk='combat-worker',token=token).update(requests={'process_id':os.getpid()})
+        from .recovery import recover
+        recover()
         for row in Exploration.objects.filter(status='active',next_tick_at__lte=storage_time(local_time())).values('id','revision'):
             tick(row['id'],row['revision'])
         for identity in Exploration.objects.filter(status='preparing',id__in=CombatRuntime.objects.filter(authorized=True).values('id')).values_list('id',flat=True):
@@ -110,7 +112,7 @@ def stop():
     if not _thread:return
     try:
         from .sync import revoke
-        with farm_gate():revoke()
+        with farm_gate():revoke(disable_auto=False)
     except Exception:logger.exception('关闭探索授权失败')
 
 

@@ -49,7 +49,8 @@ def day_parts(start,seconds):
     point=local_time(start);remaining=seconds;parts={}
     while remaining:
         boundary=(point+timedelta(days=1)).replace(hour=0,minute=0,second=0,microsecond=0)
-        count=min(remaining,(boundary-point).total_seconds())
+        # Exploration advances in whole seconds, including intervals crossing midnight.
+        count=min(remaining,math.ceil((boundary-point).total_seconds()))
         if count<=0:raise ValueError('探索时间边界无效')
         day=point.date().isoformat();parts[day]=parts.get(day,0)+count
         point+=timedelta(seconds=count);remaining-=count
@@ -234,7 +235,8 @@ def settle(run, profile, status, reason, now):
     run.save()
     CombatEncounter.objects.filter(exploration_id=run.pk,ended_at__isnull=True).update(ended_at=storage_time(now),result={'status':status,'defeated':False})
     AgentExecutionLease.objects.filter(agent_id=run.actor_id,token=lease_token(run.pk)).update(token='',until=None)
-    CombatRuntime.objects.filter(pk=run.pk,authorized=True).update(promotion_pending=True)
+    if local_runtime(run):
+        CombatRuntime.objects.filter(pk=run.pk).update(promotion_pending=True)
     CombatRuntime.objects.filter(pk=run.pk).update(authorized=False,token='',until=None)
     record=AgentRunRecord.objects.filter(pk=run.record_id).first()
     if not record:
@@ -268,8 +270,12 @@ def tick(run_id, expected_revision=None, now=None):
     if run.status!='active' or (expected_revision is not None and run.revision!=expected_revision):return run
     if now<local_time(run.next_tick_at):return run
     profile=CombatProfile.objects.select_for_update().get(pk=run.actor_id)
+    from .recovery import deadline
+    end=deadline(run)
+    if end and now>=end and (run.elapsed_seconds+15<run.duration_seconds or (now-local_time(run.next_tick_at)).total_seconds()>30):
+        return settle(run,profile,'completed','已到预计返回时间；暂停期间不计探索成果',now)
     if not CombatRuntime.objects.filter(pk=run.pk,authorized=True).exists() or (now-local_time(run.next_tick_at)).total_seconds()>30:
-        run.status,run.phase,run.reason='paused','interrupted','执行授权失效或推进延迟超过 30 秒，需人工接续'
+        run.status,run.phase,run.reason='paused','interrupted','执行授权失效或推进延迟超过 30 秒，等待自动检查接续'
         run.next_tick_at=None;run.revision+=1;run.save()
         append(profile,f'{run.pk}:pause:{run.revision}','pause',{'reason':run.reason},run)
         return run
@@ -337,7 +343,8 @@ def tick(run_id, expected_revision=None, now=None):
         spawn(run,catalog,now)
         events.append({'kind':'encounter','monster_id':run.state['monster_id'],'name':run.state['enemy']['name']})
     profile.hp,profile.mp=run.state['player']['hp'],run.state['player']['mp'];profile.save()
-    run.next_tick_at=local_time(run.next_tick_at)+timedelta(seconds=15)
+    next_tick=local_time(run.next_tick_at)+timedelta(seconds=15)
+    run.next_tick_at=min(next_tick,end) if end else next_tick
     run.revision+=1;run.save()
     append(profile,f'{run.pk}:round:{tick_number}','round',{'events':events,'growth':growth,'consumption':charges,'potions':{k:before[k]-run.state['potions'].get(k,0) for k in before}},run)
     return run
@@ -353,17 +360,22 @@ def resume(run_id, now=None):
     runtime=local_runtime(run)
     if not runtime:raise ValueError('其他设备只可展示探索历史，不能接续')
     profile=CombatProfile.objects.get(pk=run.actor_id)
+    from .recovery import deadline
+    end=deadline(run)
+    if end and now>=end:
+        return settle(run,profile,'completed','已到预计返回时间；暂停期间不计探索成果',now)
     config,_=CombatConfig.objects.get_or_create(pk=run.owner_id)
-    remaining=run.duration_seconds-run.elapsed_seconds
+    remaining=min(run.duration_seconds-run.elapsed_seconds,max(0,int((end-now).total_seconds()))) if end else run.duration_seconds-run.elapsed_seconds
     if any(profile.loot_progress.get('days',{}).get(day,0)+seconds>config.daily_minutes*60 for day,seconds in day_parts(now,remaining).items()):
         raise ValueError('剩余探索时长超出当日时间额度')
-    available_window(run.owner_id,run.actor_id,run.duration_seconds-run.elapsed_seconds,run.life_item_id,now)
+    available_window(run.owner_id,run.actor_id,remaining,run.life_item_id,now)
     if busy(run.actor_id,excluding=run.pk):raise ValueError('居民正在执行其他活动')
-    if stamina(Agent.objects.get(pk=run.actor_id),storage_time(now))<energy(run.duration_seconds)-run.result.get('energy',0):raise ValueError('剩余体力预留不足')
+    if stamina(Agent.objects.get(pk=run.actor_id),storage_time(now))<max(0,energy(run.elapsed_seconds+remaining)-run.result.get('energy',0)):raise ValueError('剩余体力预留不足')
     runtime.authorized=True;runtime.save()
     lease,_=AgentExecutionLease.objects.get_or_create(agent_id=run.actor_id)
-    lease.token=lease_token(run.pk);lease.until=storage_time(now+timedelta(seconds=run.duration_seconds-run.elapsed_seconds+60));lease.save()
+    lease.token=lease_token(run.pk);lease.until=storage_time((end or now+timedelta(seconds=remaining))+timedelta(seconds=60));lease.save()
     run.status,run.phase,run.reason='active','battle' if run.state.get('enemy') else 'searching',''
-    run.next_tick_at=now+timedelta(seconds=15);run.revision+=1;run.save()
+    run.next_tick_at=min(now+timedelta(seconds=15),end) if end else now+timedelta(seconds=15)
+    run.revision+=1;run.save()
     append(CombatProfile.objects.get(pk=run.actor_id),f'{run.pk}:resume:{run.revision}','resume',{},run)
     return run
