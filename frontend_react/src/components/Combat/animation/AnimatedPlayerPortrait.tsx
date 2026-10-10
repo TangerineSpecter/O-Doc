@@ -1,9 +1,8 @@
 import {useEffect, useRef, useState} from 'react';
 import type {ReactNode} from 'react';
-import type {PlayerJob} from '../art/playerVisuals';
 import {PlayerPortraitRenderer} from './PlayerPortraitRenderer';
 
-export default function AnimatedPlayerPortrait({jobId, fallback}: {jobId: PlayerJob; fallback: ReactNode}) {
+export default function AnimatedPlayerPortrait({jobId, fallback}: {jobId: string; fallback: ReactNode}) {
     const host = useRef<HTMLDivElement>(null);
     const [ready, setReady] = useState(false);
     useEffect(() => {

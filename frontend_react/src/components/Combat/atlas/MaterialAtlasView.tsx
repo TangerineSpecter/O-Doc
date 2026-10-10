@@ -3,6 +3,7 @@ import {Search, X, Gem, Coins, Skull, Castle} from 'lucide-react';
 import type {CombatCatalog} from '../../../types/api/combat';
 import {AtlasGridCard} from './AtlasGridCard';
 import {getMaterialVisual, getMonsterVisual} from './atlasIcons';
+import {MaterialPortrait} from './MaterialPortrait';
 
 export interface MaterialAtlasViewProps {
     catalog: CombatCatalog;
@@ -67,7 +68,6 @@ export function MaterialAtlasView({catalog}: MaterialAtlasViewProps) {
     }, [selected, drops, monsters, dungeonMonsters, dungeons]);
 
     const visual = selected ? getMaterialVisual(selected.id, selected.name) : null;
-    const VisualIcon = visual?.icon || Gem;
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3">
@@ -119,7 +119,6 @@ export function MaterialAtlasView({catalog}: MaterialAtlasViewProps) {
                             {visibleMaterials.map(mat => {
                                 const isSelected = selected?.id === mat.id;
                                 const itemVisual = getMaterialVisual(mat.id, mat.name);
-                                const ItemIcon = itemVisual.icon;
 
                                 return (
                                     <AtlasGridCard
@@ -129,7 +128,7 @@ export function MaterialAtlasView({catalog}: MaterialAtlasViewProps) {
                                         title={`${mat.name} · 等级 Lv.${mat.level} · 回收 ¥${mat.salePrice}/个`}
                                         selected={isSelected}
                                         onClick={() => setSelectedId(mat.id)}
-                                        icon={<ItemIcon className={`h-8 w-8 ${itemVisual.color}`} />}
+                                        icon={<MaterialPortrait materialId={mat.id} name={mat.name} decorative className="h-full w-full" />}
                                         bgGradient={itemVisual.bgGradient}
                                         topLeftBadge={
                                             <span className="rounded-full bg-slate-900/60 px-1 py-0.2 text-[8px] font-semibold text-white backdrop-blur-xs">
@@ -164,7 +163,7 @@ export function MaterialAtlasView({catalog}: MaterialAtlasViewProps) {
                                 </div>
 
                                 <div className="my-2 flex h-24 w-24 items-center justify-center rounded-2xl border border-white/80 bg-white/90 shadow-sm">
-                                    <VisualIcon className={`h-12 w-12 ${visual?.color}`} />
+                                    <MaterialPortrait materialId={selected.id} name={selected.name} className="h-full w-full" />
                                 </div>
 
                                 <h3 className="text-base font-bold text-slate-800">{selected.name}</h3>

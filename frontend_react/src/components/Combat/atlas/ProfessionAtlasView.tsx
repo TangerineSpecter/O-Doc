@@ -1,11 +1,13 @@
 import {useMemo, useState} from 'react';
-import {Search, X, Sparkles, BookOpen, Zap, Shield, ArrowRight} from 'lucide-react';
+import {Search, X, Sparkles, BookOpen, Zap, Shield, ArrowRight,Play} from 'lucide-react';
 import type {CombatCatalog} from '../../../types/api/combat';
 import {AtlasGridCard} from './AtlasGridCard';
 import {PlayerPortrait} from './PlayerPortrait';
-import {isPlayerJob} from '../art/playerVisuals';
+import {hasProfessionArt,auraNames,getProfessionAura} from '../art/professionAuras';
 import {getProfessionVisual} from './atlasIcons';
 import {effectText} from '../presentation';
+import {getAtlasSkill} from '../animation/skillPreview/atlasSkillProfiles';
+import {SkillPreviewDialog} from './SkillPreviewDialog';
 
 export interface ProfessionAtlasViewProps {
     catalog: CombatCatalog;
@@ -51,6 +53,7 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
     const [stageFilter, setStageFilter] = useState<string>('all');
     const [search, setSearch] = useState('');
     const [selectedId, setSelectedId] = useState<string>(professions[0]?.id || '');
+    const [previewSkillId,setPreviewSkillId]=useState<string|null>(null);
 
     // 统计各阶数数量
     const stageCounts = useMemo(() => {
@@ -128,6 +131,10 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
     const visual = selected
         ? getProfessionVisual(selected.id, selected.name, selected.parentId, selected.stage)
         : null;
+    const primarySkillId=currentSkills.find(skill=>skill.kind==='active')?.id
+        ??(selected?.id==='job.novice'?'preview.novice.strike':undefined);
+    const primarySkill=primarySkillId?getAtlasSkill(primarySkillId):undefined;
+    const previewSkill=previewSkillId?getAtlasSkill(previewSkillId):undefined;
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3">
@@ -264,11 +271,16 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                                     </span>
                                 </div>
 
-                                <div className={`my-2 flex items-center justify-center rounded-2xl border border-white/80 bg-white/90 shadow-sm ${isPlayerJob(selected.id) ? 'h-48 w-full' : 'h-24 w-24'}`}>
+                                <div className={`my-2 flex items-center justify-center rounded-2xl border border-white/80 bg-white/90 shadow-sm ${hasProfessionArt(selected.id) ? 'h-56 w-full' : 'h-24 w-24'}`}>
                                     <PlayerPortrait key={selected.id} jobId={selected.id} name={selected.name} stage={selected.stage} animated className="h-full w-full" />
                                 </div>
 
                                 <h3 className="text-base font-bold text-slate-800">{selected.name}</h3>
+                                {hasProfessionArt(selected.id)&&<p className="mt-1 text-[10px] text-slate-500">{auraNames[getProfessionAura(selected.id)]}</p>}
+                                {primarySkill&&<button type="button" onClick={()=>setPreviewSkillId(primarySkill.id)}
+                                    className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100">
+                                    <Play className="h-3 w-3"/>播放{primarySkill.name}
+                                </button>}
 
                                 {/* 进阶晋升路径 */}
                                 {promotionPath.length > 1 && (
@@ -362,6 +374,11 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                                                     </span>
                                                 </div>
 
+                                                {skill.kind==='active'&&getAtlasSkill(skill.id)&&<button type="button" onClick={()=>setPreviewSkillId(skill.id)}
+                                                    className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-orange-600 ring-1 ring-orange-100 hover:bg-orange-50">
+                                                    <Play className="h-3 w-3"/>预览{skill.name}
+                                                </button>}
+
                                                 {/* 技能阶数列表 */}
                                                 <div className="space-y-1 pt-1 border-t border-slate-200/50">
                                                     {skill.ranks.map(rank => (
@@ -400,6 +417,7 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                     </section>
                 )}
             </div>
+            {selected&&previewSkill&&<SkillPreviewDialog jobId={selected.id} jobName={selected.name||selected.id} skill={previewSkill} onClose={()=>setPreviewSkillId(null)}/>}
         </div>
     );
 }

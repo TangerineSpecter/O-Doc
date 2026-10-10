@@ -158,3 +158,28 @@
 - 临时数据库上的实际 Agent 世界 → 世界图鉴 → 冒险资料 → 怪物图鉴检查通过：列表不透明度为 1、滤镜为 none，首领详情背景为 `dungeon.moss_cave`。桌面及 390px 手机无横向溢出，手机详情可独立滚动。
 - 切换四个已制作角色后只有一个详情画布；切换矿洞鼠、搜索无结果和关闭图鉴后画布数为零，重新打开后可继续显示。控制台无警告或错误，类型检查、相关 ESLint 及 Node 22 生产构建通过。
 - 已确认参考图：[预览页](./assets/combat/moss-king-preview-approved.png)、[图鉴接入](./assets/combat/moss-king-atlas-approved.png)。
+
+
+## 玩家、武器、技能与材料图鉴（2026-10-11）
+
+当前共用角色为已确认的新手身份，29 套服装与独立职业氛围使用同一脸、发型、靴子和身体框架。
+已按用户授权将全职业氛围、6 件原武器素材和 24 件材料首版接入图鉴；不是逐职业重新生成人物。
+
+| 资源 | 登记与实现 | 接入状态 |
+| --- | --- | --- |
+| 29 职业外观与独立氛围 | `Combat/art/professionConcepts.ts`、`professionAuras.ts`、`animation/playerAppearance/` | 列表同源缓存图、详情同一 Actor 待机 |
+| 6 独立武器 | `equip.sword`、`equip.axe`、`equip.bow`、`equip.dagger`、`equip.staff`、`equip.holy_staff` | 装备列表/详情展示原源图，未重新设计 |
+| 32 目录主动技能 | `Combat/animation/skillPreview/`、`atlas/SkillPreviewDialog.tsx` | 各职业详情与主动技能行可播放，暂停/拖动/换演示武器 |
+| 新手基础攻击 | `preview.novice.strike` | 仅前端示意，未加入持久技能目录 |
+| 24 现有材料 | `Combat/art/materialVisuals.ts`、`materialArtDrawing.ts`、`atlas/MaterialPortrait.tsx` | 同源列表/详情像素图，价格与掉落不变 |
+
+### 复查记录
+
+- 统一手掌缩为 7 px 网格空手 42×35、持握 56×35；两手等高，衣服完整。图层为身体、服装、头部、武器、手掌，武器在人物前方，手掌盖握柄。参考：[修订预览](./assets/combat/player-layered-hands-weapon-v6.png)。
+- 29 个职业总览逐项查看统一比例与不同氛围；[总览上半](./assets/combat/atlas-professions-overview-v1.png)、[总览下半](./assets/combat/atlas-professions-overview-v1-lower.png)。
+- [6 武器图鉴](./assets/combat/atlas-weapons-v1.png)、[24 材料图鉴](./assets/combat/atlas-materials-v1.png)已逐项检查。
+- 33 个技能演示逐项打开、重播并查看关键帧；自我效果不让敌方受击。召唤效果命中时间已移到魔灵抵达之后，复查新帧通过。
+- 390×844 窄屏弹窗完整可操作，无横向溢出；[窄屏技能弹窗](./assets/combat/atlas-skill-mobile-v1.png)。换武器保留暂停进度，Escape 关闭恢复焦点，关闭后仅保留一个职业详情画布，搜索无结果画布数为零。
+- 5 个目录覆盖、技能时序、有限绘制几何测试通过；Node 22 TypeScript 与正式应用生产构建通过。相关 ESLint 无错误，保留原 AtlasView Hook 依赖和旧预览警告；构建保留原大包等提示。
+- 保存入口 `frontend_react/combat-atlas-preview.html` 使用实际图鉴组件与生产 CSV 的只读目录快照，另保留原分层及单路线预览；没有读写居民资料。详细模块与测试命令见[预览说明](../../frontend_react/src/previews/README.md)。
+- 尚未完成全方向逐帧动作、真实装备实例外观绑定和真实战斗事件驱动；本次没有新增持久字段、目录数值或 WebDAV 同步数据。

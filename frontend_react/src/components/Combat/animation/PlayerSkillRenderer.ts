@@ -8,7 +8,7 @@ const pixel = 3;
 const origin = {x: -450, y: -300};
 
 /** Each surface is genuinely low resolution; curves become moving pixel silhouettes. */
-class PixelEffectSurface extends Container {
+export class PixelEffectSurface extends Container {
     private readonly canvas = document.createElement('canvas');
     readonly context: CanvasRenderingContext2D;
     private readonly texture: Texture;

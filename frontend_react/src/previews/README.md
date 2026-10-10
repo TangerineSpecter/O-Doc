@@ -182,6 +182,79 @@ Node 22 TypeScript、正式应用生产构建通过；新增文件 ESLint 无警
 `crystal-staff-atlas.png`、`crystal-staff-atlas-detail.png` 位于 `docs/agents/assets/combat/`。
 
 
+## 全职业与武器首版外观（2026-10-11）
+
+入口 `profession-design-preview.html`。保留已确认的新手、法师、元素师、炎术师与水晶法杖，
+新增其余 25 个职业和长剑、战斧、长弓、匕首、圣杖五件武器的像素概念素材。
+按战士、游侠、牧师、法师四系设计，同一棕发琥珀眼角色通过服装轮廓、护甲、披肩与配色区分。
+全职业空手展示，武器独立对照，不以职业固定武器；可按职业系筛选、放大和切换背景。
+
+素材由内置 image_gen 生成，以已确认 `player-mage-route.png` 为参考。
+项目资源为 `src/assets/combat/player-{warrior,ranger,priest,mage,weapons}-concept-v1.png`；
+提示词集保存于 `docs/agents/assets/combat/all-professions-concept-v1-prompts.json`。
+`professionConcepts.ts` 负责稳定 ID、名称与素材区域，`professionDesignPreview.tsx` 负责展示与局部选择，
+样式在独立 CSS 中。预览使用同源 PNG 的 CSS 裁切，不创建每卡 WebGL 或改写图片。
+
+此处保存最初的完整人物概念对照；当前正式图鉴使用下述统一新手身份的分层装配，6 件独立武器已获准接入。概念图不代表完成逐帧动作或正式战斗。
+没有新增持久字段或 WebDAV 同步数据。本轮按用户要求不运行测试、类型检查、lint 或构建。
+
+## 新手统一底模与职业氛围分层（2026-10-11）
+
+入口 `player-layered-preview.html`，原全职业概念页保留作对照。
+`Combat/animation/playerAppearance/layeredPlayerArt.ts` 固定原新手的头部、靴子及 374×528 人物框架，
+`playerHandDrawing.ts` 使用原新手肤色色板统一绘制两只手掌。
+四套已确认服装直接取原图身体区域，其余 25 套只提取躯干并适配统一框架；
+不用各职业生成图中的头、肤色或鞋决定人物身份。原图被衣服隐藏的基础内搭区域
+由同色板的像素块补齐。其余概念服装目前为站立框架适配，袖口、接缝和动作部件仍待精修。
+
+`LayeredPlayerActor.ts` 管理人物、服装、手部遮挡及独立武器；
+衣服保留完整像素，禁止在手部位置挖矩形孔或加矩形补丁。
+`playerHandRegistration.ts` 登记各套衣服的袖口位置，共用手掌覆盖原手部轮廓，
+右手握点同时定位独立武器，切换衣服或隐藏衣服时重新对齐。
+`playerWeaponRegistration.ts` 分别登记武器局部握点、携带角度和镜像方向；
+法杖的阶梯握拳与杖柄重叠，长弓镜像后弓弦朝人物，绿色握柄挂接右手。
+持弓使用原袖口位置的短前臂，不为挪开弓弦把手臂拉成横向长条；长弓适配为人物身侧的倾斜携带姿态。
+手掌按 7 px 网格绘制，空手外框 42×35、持握外框 56×35，持握只适当加宽，两手保持相同高度。
+前后关系固定为基础身体 → 服装 → 头部 → 武器 → 手掌；武器不再被头发切掉，
+法杖通过携带角度留出五官位置，手掌仅在持握处盖住杖柄。
+`professionAuraDrawing.ts` / `professionAuraMotifs.ts` 绘制 29 个独立职业氛围，包括炎术师背焰、牧师圣光、圣骑士地面十字光环；
+`ProfessionAuraRenderer.ts` 将低分辨率后景/地面画布交给同一 PixiJS 场景。
+职业氛围不造成攻击、Buff 或技能解锁变化，角色已学技能独立。
+`LayeredPlayerScene.ts` 管理场景、可见性与暂停；`LayeredPlayerStage.tsx` 负责挂载和加载状态；
+`playerLayeredPreview.tsx` / CSS 提供分层开关、服装分类、武器和职业效果选择。
+
+默认新手服 + 水晶法杖 + 炎术师背焰，切换职业效果默认保留衣服。
+可只看底模、只看职业效果或开关各层；所有源 PNG 与切片登记都保留在项目。
+本轮直接复用原素材及原生像素绘制，没有重新生成不同人物。
+这是中性站姿分层预览，已供正式职业图鉴和技能演示复用；未完成全方向/逐帧服装动作或真实装备实例绑定。
+无新增持久字段或 WebDAV 数据，按用户要求不运行测试、类型检查、lint 或构建。
+
+
+## 全图鉴复查与保存入口（2026-10-11）
+
+`frontend_react/combat-atlas-preview.html` 已保存，可在 Node 22 Vite 服务中打开 `/combat-atlas-preview.html`。
+入口 `previews/combatAtlasPreview.tsx` 仅负责挂载，`CombatAtlasPreviewApp.tsx` 展示实际职业、装备与材料图鉴组件，以及形象/技能总览。
+`combatAtlasFixture.json` 是生产 CSV 目录的只读驼峰快照，不是居民数据；正式图鉴继续读取现有接口，生产组件不依赖预览 fixture。默认应用构建不包含独立预览 HTML。
+
+- 29 个职业共享原新手头部、靴子、身体框架与统一手掌，各有独立服装和职业氛围。静态列表由 `Combat/art/playerStillArt.ts` 生成缓存 PNG，详情用 `PlayerPortraitRenderer` 复用相同装配，列表不逐卡创建 WebGL。
+- 6 件已确认武器通过 `EquipmentPortrait` 展示，原源图未重画；换武器与职业外观解耦。
+- 32 个目录主动技能及新手基础攻击示意均可播放；`Combat/animation/skillPreview/` 分离登记、绘制、场景和控件，弹窗支持重播、暂停、进度与演示武器替换。仅为视觉演示，不写入已学技能或结算伤害。
+- 24 件目录材料使用 `materialVisuals.ts` / `materialArtDrawing.ts` 同源像素绘制，列表详情共用，掉落、价格与稳定 ID 未变。
+
+已完成 29 个形象总览、6 武器、24 材料与 33 个技能逐项打开和关键帧检查；修复召唤技能在魔灵到达前提前受击，已回看命中帧。390×844 窄屏弹窗控件完整，页面 scrollWidth 为 390，Escape 关闭恢复触发按钮焦点；关闭技能弹窗仅保留一个职业详情画布，搜索无结果清空详情画布。
+Node 22 的 5 个目录覆盖/时序/绘制测试、`npm run type-check` 与正式应用 `npm run build` 通过。构建保留既有大包、混合静态/动态导入与 Browserslist 提示；相关 ESLint 无错误，原 AtlasView Hook 依赖警告保留。
+本次使用实际图鉴组件加生产 CSV 快照验收，未进行登录后真实居民资料或战斗事件验收。
+
+测试命令（在 `frontend_react` 下）：
+
+```sh
+node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/components/Combat/art/combatArtCoverage.test.ts
+npm run type-check
+npm run build
+```
+
+截图保存在 `docs/agents/assets/combat/`：`player-layered-hands-weapon-v6.png`、`atlas-professions-overview-v1.png`、`atlas-professions-overview-v1-lower.png`、`atlas-weapons-v1.png`、`atlas-materials-v1.png`、`atlas-skill-mobile-v1.png`。这些是复查记录，后续仍可在保存的页面逐项调整。
+
 ## 人工验收
 
 以下 1–4 为软泥怪动作验收，其余为共用行为；其他物种的动作见对应小节。

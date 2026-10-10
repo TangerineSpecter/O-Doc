@@ -1,0 +1,43 @@
+.profession-preview {max-width:1500px;}
+.concept-filters {display:flex;flex-wrap:wrap;gap:5px;padding:5px;background:#edf2ef;border-radius:24px;width:fit-content;margin-bottom:24px;}
+.concept-filters button {border:0;background:transparent;border-radius:20px;color:#71827b;padding:9px 15px;font-size:12px;display:flex;align-items:center;gap:9px;}
+.concept-filters button span {font:11px monospace;background:#e2eae5;border-radius:12px;padding:2px 6px;}
+.concept-filters button[aria-pressed=true] {background:white;color:#cb782f;box-shadow:0 1px 6px #2d4b3710;}
+.concept-filters button[aria-pressed=true] span {background:#fff0df;}
+.concept-layout {display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:26px;align-items:start;}
+.concept-grid {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;}
+.concept-card {min-width:0;border:1px solid #e1e8e3;background:white;border-radius:20px;padding:12px 9px 14px;text-align:center;color:#33423d;transition:border-color .15s,background .15s;}
+.concept-card:hover {border-color:#b5cbbd;background:#fbfdfb;}
+.concept-card[aria-pressed=true] {border-color:#f6ad72;background:#fff9f2;box-shadow:0 0 0 2px #ffdfbd;}
+.concept-card strong {display:block;font-size:14px;margin-top:13px;}
+.concept-card small {display:block;font-size:10px;color:#98a49e;margin-top:5px;}
+.concept-card-top {display:flex;justify-content:space-between;align-items:center;gap:3px;padding:0 3px;font-size:9px;color:#9ba89f;}
+.concept-tier {white-space:nowrap;display:inline-block;font-size:9px;border-radius:8px;background:#eef2ef;color:#839387;padding:3px 6px;}
+.tier-2 {background:#f1e9f8;color:#9162aa;}.tier-3 {background:#fff0dc;color:#c38b3a;}
+.concept-card-art {display:flex;align-items:flex-end;justify-content:center;height:135px;padding-top:9px;}
+.concept-sprite {position:relative;overflow:hidden;height:100%;max-width:100%;flex-shrink:0;}
+.concept-sprite img {position:absolute;max-width:none;image-rendering:pixelated;pointer-events:none;}
+.concept-detail {position:sticky;top:24px;}
+.concept-stage {position:relative;height:345px;background:#e8efe7 url('../assets/combat/moss-cave.svg') center/cover no-repeat;overflow:hidden;}
+.concept-stage.plain {background:#f0f5f1;}
+.concept-stage .scene-label {top:20px;left:20px;}.concept-stage .state-badge {top:18px;right:14px;font-size:10px;}
+.concept-large-character {position:absolute;bottom:38px;left:50%;transform:translateX(-50%);height:235px;}
+.concept-ground-shadow {position:absolute;bottom:25px;left:50%;transform:translateX(-50%);width:160px;height:23px;background:#42685922;border-radius:50%;}
+.concept-detail-footer {padding:20px 22px;display:flex;align-items:center;justify-content:space-between;}
+.concept-detail-footer h2 {font-size:24px;}.concept-detail-footer p {font-size:11px;color:#8d9e95;margin:7px 0 0;}
+.concept-description {padding:14px 5px 10px;font-size:12px;color:#70847a;line-height:1.8;}
+.concept-description p {margin:0 0 6px;}.concept-description>span {font-size:10px;color:#9aaba1;}
+.concept-weapon-detail {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px;background:white;border:1px solid #e0e7e3;border-radius:20px;}
+.concept-weapon-detail .eyebrow {font-size:9px;margin-bottom:9px;letter-spacing:1px;}.concept-weapon-detail h2 {font-size:17px;}
+.concept-weapon-detail p:not(.eyebrow) {font-size:10px;line-height:1.8;color:#91a096;max-width:170px;}
+.concept-weapon-sprite {display:flex;justify-content:center;align-items:center;width:82px;height:110px;flex-shrink:0;}
+.concept-weapons {margin-top:36px;padding:27px;background:white;border:1px solid #e0e7e3;border-radius:24px;}
+.concept-section-heading {display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;gap:16px;}.concept-section-heading .eyebrow {font-size:10px;margin-bottom:9px;}.concept-section-heading h2 {font-size:20px;}.concept-section-heading>span {font-size:11px;color:#92a296;}
+.concept-weapon-grid {display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;}
+.concept-weapon-card-art {display:flex;justify-content:center;align-items:center;height:155px;padding:12px;}
+.concept-weapons-note {font-size:11px;color:#9ba89f;text-align:center;margin:22px 0 0;line-height:1.8;}
+.concept-page-footer {display:flex;justify-content:space-between;gap:15px;margin-top:28px;color:#9caaa2;font-size:11px;}.concept-page-footer a {color:#799388;text-decoration:none;}
+@media (min-width:1450px) {.concept-grid {grid-template-columns:repeat(6,minmax(0,1fr));}}
+@media (max-width:1150px) {.concept-layout {grid-template-columns:minmax(0,1fr) 300px;gap:20px;}.concept-grid {grid-template-columns:repeat(4,minmax(0,1fr));}.concept-card-art {height:115px;}}
+@media (max-width:840px) {.concept-layout {display:flex;flex-direction:column;}.concept-grid {grid-template-columns:repeat(4,minmax(0,1fr));width:100%;}.concept-detail {position:static;width:100%;}.concept-stage {height:365px;}.concept-large-character {height:260px;}.concept-weapon-grid {grid-template-columns:repeat(3,minmax(0,1fr));}.concept-page-footer {flex-direction:column;}.profession-preview .preview-header {align-items:flex-start;}.profession-preview h1 {flex-wrap:wrap;gap:8px;}}
+@media (max-width:480px) {.concept-grid {grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}.concept-card {padding:9px 5px 12px;border-radius:16px;}.concept-card-art {height:112px;}.concept-card strong {font-size:12px;}.concept-filters button {font-size:10px;padding:8px 10px;gap:5px;}.concept-section-heading {align-items:flex-start;flex-direction:column;}.concept-weapons {padding:18px;}.concept-weapon-grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}.concept-stage {height:330px;}.concept-large-character {height:235px;}.profession-preview .badges {padding-top:20px;}.profession-preview .intro {max-width:240px;}}
