@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f8faf9" />
+    <title>冒险者 · 像素形象预览</title>
+  </head>
+  <body>
+    <main class="slime-preview route-preview">
+      <header class="preview-header">
+        <div>
+          <p class="eyebrow"><span class="orange-dot"></span> 角色形象 <span class="edition">/ 01</span></p>
+          <h1>冒险者 <span class="name-en">ADVENTURER</span></h1>
+          <p class="intro">同一个人，四段成长。先在苔石洞窟见个面。</p>
+        </div>
+        <div class="badges"><span id="job-name">新手</span><span id="job-level">Lv.1</span></div>
+      </header>
+      <div class="route-selector" role="group" aria-label="职业形象">
+        <button type="button" data-job="job.novice" aria-pressed="true"><strong>新手</strong><small>01 · NOVICE</small></button>
+        <button type="button" data-job="job.mage" aria-pressed="false"><strong>法师</strong><small>02 · MAGE</small></button>
+        <button type="button" data-job="job.elementalist" aria-pressed="false"><strong>元素师</strong><small>03 · ELEMENTALIST</small></button>
+        <button type="button" data-job="job.pyromancer" aria-pressed="false"><strong>炎术师</strong><small>04 · PYROMANCER</small></button>
+      </div>
+      <div class="preview-layout">
+        <div>
+          <section class="scene-card" aria-label="角色与软泥怪同场预览">
+            <div class="scene-wrap">
+              <div class="scene-label"><span class="habitat">苔石洞窟</span><span class="habitat-en">MOSS CAVE</span></div>
+              <div class="state-badge"><i></i><span id="scene-state" aria-live="polite">待机中</span></div>
+              <div id="preview-fallback" aria-hidden="true"><div class="static-player"><img src="/src/assets/combat/player-mage-route.png" alt="" /></div><img class="static-slime" src="/src/assets/combat/slime.svg" alt="" /></div>
+              <div id="slime-stage" role="img" aria-label="角色与软泥怪的像素动画舞台"></div>
+              <p id="load-message" role="status">冒险者正在走进洞窟…</p>
+            </div>
+            <footer class="scene-footer"><span><i class="water-dot"></i><span id="appearance-name">新手 · 像素形象</span></span><span>装备：<span id="weapon-name">临时水晶法杖</span></span></footer>
+          </section>
+          <div class="route-legend"><span><strong>角色</strong> · 外观与武器独立</span><span><strong>软泥怪</strong> · 同场看风格与比例</span></div>
+        </div>
+        <aside class="controls-card" aria-label="角色预览控制">
+          <div class="controls-heading"><h2>动作预览</h2><span>点击试试看</span></div>
+          <div class="action-grid" role="group" aria-label="选择动作">
+            <button type="button" data-action="idle" aria-pressed="true"><span class="action-icon">◡</span><span><strong>待机</strong><small>轻轻呼吸</small></span><kbd>1</kbd></button>
+            <button type="button" data-action="move" aria-pressed="false"><span class="action-icon">↝</span><span><strong>移动</strong><small>踏步与摆臂</small></span><kbd>2</kbd></button>
+            <button type="button" data-action="cast" aria-pressed="false"><span class="action-icon">✦</span><span><strong>施法</strong><small>蓄力与释放</small></span><kbd>3</kbd></button>
+            <button type="button" data-action="hit" aria-pressed="false"><span class="action-icon">✧</span><span><strong>受击</strong><small>后撤与回稳</small></span><kbd>4</kbd></button>
+            <button type="button" data-action="defeat" aria-pressed="false"><span class="action-icon">﹏</span><span><strong>倒下</strong><small>倒下后保持</small></span><kbd>5</kbd></button>
+          </div>
+          <div class="control-divider"></div>
+          <div class="control-row weapon-choice"><span>武器</span><div class="segmented" role="group" aria-label="装备武器"><button type="button" data-weapon="none" aria-pressed="false">空手</button><button type="button" data-weapon="demo.crystal_staff" aria-pressed="true">水晶法杖</button></div></div>
+          <div class="skill-heading"><strong>技能演示</strong><span id="equipped-skill">魔力弹</span></div>
+          <div class="skill-options" role="group" aria-label="技能演示库">
+            <button type="button" data-skill="skill.player.004" aria-pressed="true">魔力弹</button>
+            <button type="button" data-skill="skill.player.005" aria-pressed="false">魔法屏障</button>
+            <button type="button" data-skill="skill.player.017" aria-pressed="false">灼烧术</button>
+            <button type="button" data-skill="skill.player.037" aria-pressed="false">炎爆</button>
+          </div>
+          <div class="control-divider"></div>
+          <div class="control-row"><span>朝向</span><div class="segmented" role="group" aria-label="朝向"><button type="button" data-facing="-1" aria-pressed="false">← 左</button><button type="button" data-facing="1" aria-pressed="true">右 →</button></div></div>
+          <div class="control-row"><span>舞台</span><div class="segmented" role="group" aria-label="舞台"><button type="button" data-backdrop="cave" aria-pressed="true">洞窟</button><button type="button" data-backdrop="plain" aria-pressed="false">素色</button></div></div>
+          <label class="size-option"><span>查看小尺寸</span><input id="small-size" type="checkbox" /></label>
+          <button type="button" id="pause" class="pause-button" aria-pressed="false">Ⅱ 暂停动画</button>
+          <p class="key-hint">数字键 1–5 切换动作 · 空格暂停<br>倒下后点击「待机」恢复</p>
+        </aside>
+      </div>
+      <p class="preview-note">形象与动作试演 · 技能演示不代表当前等级已解锁，换形象或武器不会重置所选技能</p>
+    </main>
+    <script type="module" src="/src/previews/playerRoutePreview.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,34 @@
+.route-selector { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 6px; gap: 5px; background: #edf2ef; border: 1px solid #e0e7e3; border-radius: 18px; margin-bottom: 20px; }
+.route-selector button { border: 1px solid transparent; background: transparent; color: #768980; padding: 12px 8px; border-radius: 13px; text-align: left; }
+.route-selector strong { display: block; font-size: 13px; }
+.route-selector small { display: block; margin-top: 4px; font: 10px monospace; color: #9aa9a2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.route-selector button[aria-pressed=true] { background: white; color: #506e60; border-color: #dce6de; box-shadow: 0 2px 8px #25473808; }
+.route-preview .scene-wrap { height: 470px; }
+.route-preview #slime-stage canvas { image-rendering: pixelated; }
+.route-preview .route-legend { display: flex; justify-content: space-between; gap: 12px; margin: 14px 4px 22px; font-size: 11px; color: #83978b; }
+.route-preview .route-legend strong { color: #536f61; }
+.route-preview .scene-footer > span:last-child { display: flex; align-items: center; gap: 4px; }
+.route-preview #weapon-name { display: inline; }
+.route-preview .skill-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 12px 0; }
+.route-preview .skill-options button { border: 1px solid #e5ece7; border-radius: 12px; padding: 10px 6px; background: #f9fcfa; color: #6b8275; font-size: 11px; }
+.route-preview .skill-options button[aria-pressed=true] { border-color: #edcba1; background: #fff5eb; color: #ad763b; }
+.route-preview .skill-heading { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #82968b; }
+.route-preview .skill-heading strong { color: #5b7666; }
+.route-preview .weapon-choice { margin-bottom: 18px; }
+.route-preview .weapon-choice .segmented { padding: 4px; }
+.route-preview .weapon-choice button { min-width: 65px; }
+.route-preview .preview-note { font-size: 10px; line-height: 1.9; letter-spacing: 0; text-align: center; }
+.route-preview #preview-fallback { position: absolute; inset: 0; background: url('../assets/combat/moss-cave.svg') center / cover no-repeat; }
+.route-preview .static-player { position: absolute; bottom: 21%; left: 21%; width: 23%; aspect-ratio: 374 / 528; overflow: hidden; }
+.route-preview .static-player img { position: absolute; width: 474.3%; max-width: none; top: -18%; left: -7.2%; image-rendering: pixelated; }
+.route-preview .static-slime { position: absolute; bottom: 21%; right: 20%; width: 26%; }
+@media (max-width: 840px) { .route-preview .scene-wrap { height: 410px; } }
+@media (max-width: 480px) {
+  .route-selector { margin-bottom: 14px; gap: 2px; padding: 4px; }
+  .route-selector button { padding: 10px 7px; }
+  .route-selector strong { font-size: 11px; }
+  .route-selector small { font-size: 9px; }
+  .route-preview .scene-wrap { height: 330px; }
+  .route-preview .route-legend { font-size: 9px; gap: 6px; }
+  .route-preview .scene-footer { flex-wrap: wrap; }
+}

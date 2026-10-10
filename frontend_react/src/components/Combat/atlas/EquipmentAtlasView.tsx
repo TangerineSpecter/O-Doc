@@ -2,6 +2,7 @@ import {useMemo, useState} from 'react';
 import {Search, X, Shield, Sparkles, CheckCircle2, Tag} from 'lucide-react';
 import type {CombatCatalog, CombatProfile} from '../../../types/api/combat';
 import {AtlasGridCard} from './AtlasGridCard';
+import {EquipmentPortrait} from './EquipmentPortrait';
 import {getEquipmentVisual} from './atlasIcons';
 import {slotLabels, statLabels} from '../presentation';
 
@@ -116,7 +117,6 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
     const visual = selected
         ? getEquipmentVisual(selected.slot || '', selected.name, selectedDetails?.isBossOnly)
         : null;
-    const VisualIcon = visual?.icon || Shield;
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3">
@@ -195,7 +195,6 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                 const isSelected = selected?.id === equip.id;
                                 const isBossOnly = equip.bossOnly === '1' || equip.id.includes('boss');
                                 const eqVisual = getEquipmentVisual(equip.slot || '', equip.name, isBossOnly);
-                                const EqIcon = eqVisual.icon;
                                 const isAcquired = discoveries?.equipment.includes(equip.id);
 
                                 return (
@@ -206,7 +205,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                         title={`${equip.name} · ${slotLabels[equip.slot || ''] || equip.slot} · Lv.${equip.levelMin}–${equip.levelMax}${isAcquired ? ' (已获得)' : ''}`}
                                         selected={isSelected}
                                         onClick={() => setSelectedId(equip.id)}
-                                        icon={<EqIcon className={`h-8 w-8 ${eqVisual.color}`} />}
+                                        icon={<EquipmentPortrait equipmentId={equip.id} name={equip.name} slot={equip.slot} bossOnly={isBossOnly} decorative className="h-full w-full" fallbackClassName="h-8 w-8" />}
                                         bgGradient={eqVisual.bgGradient}
                                         topLeftBadge={
                                             <span className="rounded-full bg-slate-900/60 px-1 py-0.2 text-[8px] font-semibold text-white backdrop-blur-xs">
@@ -260,7 +259,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                 </div>
 
                                 <div className="my-2 flex h-24 w-24 items-center justify-center rounded-2xl border border-white/80 bg-white/90 shadow-sm">
-                                    <VisualIcon className={`h-12 w-12 ${visual?.color}`} />
+                                    <EquipmentPortrait equipmentId={selected.id} name={selected.name} slot={selected.slot} bossOnly={selectedDetails.isBossOnly} className="h-full w-full" />
                                 </div>
 
                                 <h3 className="text-base font-bold text-slate-800">{selected.name}</h3>

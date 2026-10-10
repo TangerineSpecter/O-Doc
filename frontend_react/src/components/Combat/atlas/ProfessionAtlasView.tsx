@@ -2,6 +2,8 @@ import {useMemo, useState} from 'react';
 import {Search, X, Sparkles, BookOpen, Zap, Shield, ArrowRight} from 'lucide-react';
 import type {CombatCatalog} from '../../../types/api/combat';
 import {AtlasGridCard} from './AtlasGridCard';
+import {PlayerPortrait} from './PlayerPortrait';
+import {isPlayerJob} from '../art/playerVisuals';
 import {getProfessionVisual} from './atlasIcons';
 import {effectText} from '../presentation';
 
@@ -126,7 +128,6 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
     const visual = selected
         ? getProfessionVisual(selected.id, selected.name, selected.parentId, selected.stage)
         : null;
-    const VisualIcon = visual?.icon || Sparkles;
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3">
@@ -204,7 +205,6 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                             {visibleProfessions.map(prof => {
                                 const isSelected = selected?.id === prof.id;
                                 const pVisual = getProfessionVisual(prof.id, prof.name, prof.parentId, prof.stage);
-                                const PIcon = pVisual.icon;
                                 const stageLabel =
                                     prof.stage === '0' || prof.id === 'job.novice'
                                         ? '初始'
@@ -218,7 +218,7 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                                         title={`${prof.name} · ${stageLabel} · 转职 Lv.${prof.requiredLevel}`}
                                         selected={isSelected}
                                         onClick={() => setSelectedId(prof.id)}
-                                        icon={<PIcon className={`h-8 w-8 ${pVisual.color}`} />}
+                                        icon={<PlayerPortrait jobId={prof.id} name={prof.name} stage={prof.stage} decorative className="h-full w-full" fallbackClassName="h-8 w-8" />}
                                         bgGradient={pVisual.bgGradient}
                                         topLeftBadge={
                                             <span className="rounded-full bg-slate-900/60 px-1 py-0.2 text-[8px] font-semibold text-white backdrop-blur-xs">
@@ -264,8 +264,8 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                                     </span>
                                 </div>
 
-                                <div className="my-2 flex h-24 w-24 items-center justify-center rounded-2xl border border-white/80 bg-white/90 shadow-sm">
-                                    <VisualIcon className={`h-12 w-12 ${visual?.color}`} />
+                                <div className={`my-2 flex items-center justify-center rounded-2xl border border-white/80 bg-white/90 shadow-sm ${isPlayerJob(selected.id) ? 'h-48 w-full' : 'h-24 w-24'}`}>
+                                    <PlayerPortrait key={selected.id} jobId={selected.id} name={selected.name} stage={selected.stage} animated className="h-full w-full" />
                                 </div>
 
                                 <h3 className="text-base font-bold text-slate-800">{selected.name}</h3>

@@ -98,6 +98,90 @@
 - 与其他预览共用 `mountMonsterPreview.ts`、`slimePreview.css`、`skillPreview.css` 和洞窟背景。
 - 已确认截图 `docs/agents/assets/combat/moss-king-preview-approved.png`，确认状态与验收记录见资源索引。
 
+## 玩家角色：新手 → 法师 → 元素师 → 炎术师
+
+入口 `frontend_react/player-route-preview.html`，同一服务器下打开
+`http://127.0.0.1:43131/player-route-preview.html`。沿用已确认的预览页面设计，
+将四阶段像素小人放在苔石洞窟与同源 `SlimeActor` 一起比较画风和比例。
+四阶段外观与水晶法杖已确认用于图鉴；五种动作与技能演示继续保留在本页，未接入正式角色资料或战斗事件。
+
+- 原图 `docs/agents/assets/combat/mage-route-pixel-concept-v3.png`，提示词同目录。
+  前端使用相同 PNG 的仓库副本 `src/assets/combat/player-mage-route.png`，保留透明背景。
+- `playerRouteArt.ts`：原图的四套服装、头部、身体/手部、脚部及独立临时法杖的纹理区域。
+  切片通过 PixiJS `Texture` 完成，不另外重画已认可的形象；共享纹理源使用最近邻采样。
+- `PlayerRouteActor.ts`：脚底为 `(0, 0)` 的角色容器；头部、身体、左右手部与脚部分层控制。
+  职业外观与装备分别由 `setJob`、`setWeapon` 切换，武器挂接手部并被手掌像素遮挡。
+  衣身保留完整披肩和衣摆；仅按袖口/前臂/手掌的阶梯边界切片，用重叠肘部连接，
+  不再旋转包含整条衣服侧边的矩形条。握点与发射点分开：施法锚点读取法杖顶部水晶的实时坐标变换，镜像、换装后仍跟随水晶；空手回退到手部。
+  支持空手与一把临时水晶法杖，未制作更多装备，也未绑定正式装备实例。
+- `playerRouteMotion.ts`：待机轻微呼吸、交替踏步/摆臂、施法抬手/释放、受击后撤、倒下终态。
+  本版是切片部件的动作样例，尚未制作完整逐帧走路、表情与多种武器持握帧。
+- `playerRouteEffects.ts`：四个技能 ID 的时序、保留的魔力弹绘制与纯视觉命中/震动反馈。
+  魔力弹从实际杖顶水晶蓄能、发射；空手回退手部锚点，像素帧存放于 `playerSkillPixels.ts`。
+- `pixelEffectDrawing.ts`：低分辨率色带火焰、弧面、光圈、符文与火星的绘制工具。
+  `playerGuardVisual.ts`、`playerBurnVisual.ts`、`playerBurstVisual.ts` 分别定义独立视觉：
+  包裹全身的前后屏障、围绕目标持续升腾的灼烧、较长聚能与热核飞行后的径向爆团/放射火舌/冲击环/短暂烟尘。
+  炎爆有短暂环境压暗与轻微震动，不结算真实伤害，也不改变目录里的真实技能范围。
+- `PlayerSkillRenderer.ts`：三张 300×140 小画布、每个像素对应 3 个场景单位，
+  使用最近邻纹理分别插入地面、角色后方、角色前方；同一个 PixiJS Application 负责渲染。
+  技能保持与人物接近的颗粒，流动轮廓和分层明暗表达体积，高级技能允许更大的视觉规模。
+  资源由预览场景持有并在退出时释放；技能切换或动作结束隐藏全部特效，不遗留压暗或震动。
+  技能选择不依赖职业外观或武器，形象切换不清空所选技能。演示库不等于当前等级已解锁这些技能；
+  正式接入必须读取角色已学技能并按真实事件播放，不用预览结算伤害。
+- `PlayerRoutePreviewScene.ts`：一套 Application，复用洞窟/素色舞台、软泥怪与阴影，
+  负责本地播放、朝向、小尺寸、可见性暂停和生命周期；每个演员不单独创建 renderer。
+- `playerRoutePreview.ts`：共用动作控件、快捷键与加载状态，独立管理职业、装备、技能按钮。
+  手机从下方动作控件播放时返回舞台查看结果。隐藏/离开视口停止 ticker，关闭/HMR 清理事件、
+  观察器、实例和局部切片纹理；不销毁共享 PNG 或洞窟纹理源。
+
+本预览无 API 请求、无业务状态写入或新增持久字段，不增加 WebDAV 同步数据。
+可在独立构建中指定 `player-route-preview.html` 为 Rollup input，默认应用构建不包含预览。
+
+首版验证（2026-10-11）：Node 22 TypeScript、相关 ESLint、独立生产构建通过；浏览器控制台
+无警告或错误。四阶段切换始终只保留一个画布，装备选择持续保留；切换形象或空手后保留所选技能。
+已查看五种基础动作、四个技能效果、左/右朝向、洞窟/素色、小尺寸、数字快捷键、暂停与恢复；
+暂停画布连续截图一致。1100px 桌面布局与 390px 手机布局通过，手机页面无横向溢出。
+截图 `docs/agents/assets/combat/player-route-preview.png`、`player-route-mobile-preview.png`，
+四阶段和技能演示截图同目录，均为预览记录而非正式图鉴已接入的证明。
+
+修订验证（2026-10-11）：修复施法时袖口带动衣摆形成裂口，四套服装均已在抬手时查看。
+新版四技能在浏览器检查轮廓、弹道、持续火焰、爆团/余火与命中反馈，切换外观和空手后仍保留技能。
+Node 22 TypeScript、相关 ESLint 与独立生产构建通过；390px 手机左朝向、小尺寸、空手施法
+保持一个画布且无横向溢出。当前截图 `player-route-pixel-magic-v2.png`、`player-route-pixel-burn-v2.png`、
+`player-route-pixel-burst-v2.png`、`player-route-pixel-guard-v2.png`、`player-route-pixel-effects-mobile-v2.png`
+保存在 `docs/agents/assets/combat/`，均为待确认的修订预览。以前的技能截图是首版记录，不代表最新效果。
+
+技能第三版验证（2026-10-11）：按照用户的战斗参考重做屏障、灼烧和炎爆，保留魔力弹；
+将武器握点与杖顶发射点分开。浏览器已查看右/左朝向的水晶蓄能、空手回退、
+换职业保留技能、普通/小尺寸效果和动作结束后的清理，页面保持一张可见画布。
+390px 手机屏障演示无横向溢出；浏览器无警告或错误。
+Node 22 TypeScript、相关 ESLint、独立预览生产构建通过。
+当前记录为 `player-route-staff-emitter-v3.png`、`player-route-pixel-guard-v3.png`、
+`player-route-pixel-burn-v3.png`、`player-route-pixel-burst-v3.png`、
+`player-route-small-left-v3.png` 与 `player-route-mobile-guard-v3.png`，
+保存于 `docs/agents/assets/combat/`；v1/v2 仅保留为历史，v3 尚待用户视觉确认。
+
+炎爆第四版（2026-10-11）：去掉与灼烧相似的直立火柱和持续余火，改为压缩热核飞行、
+命中后不规则爆团快速向外膨胀、放射火舌与冲击环、碎火星和短暂烟尘。
+整体时长缩为 3 秒，视觉受击仅在爆炸命中时触发；不再沿用持续灼烧的重复受击反馈。
+浏览器已检查右朝向的爆炸/消散/回到待机与左朝向的小尺寸命中，无控制台警告或错误；
+Node 22 TypeScript、相关 ESLint 和独立生产构建通过。当前截图
+`docs/agents/assets/combat/player-route-radial-burst-v4.png`，尚待用户视觉确认。
+
+图鉴接入（2026-10-11）：四阶段职业列表使用同源 PNG 静态切片，右侧详情按需加载
+`PlayerPortraitRenderer` 复用 `PlayerRouteActor` 的空手待机；不按职业固定装备。
+`Combat/art/playerVisuals.ts` 是不依赖 PixiJS 的资源与稳定 ID 登记，`PixelArtSlice` 负责静态裁切，
+`EquipmentPortrait` 将 `equip.staff` 展示为同一张图中的独立水晶法杖，圣杖及其他装备保持原展示。
+仅新增前端内置视觉资源，无持久字段、数值规则或 WebDAV 同步数据变化。
+验收使用正式 `CombatAtlas` 组件与生产 CSV 目录生成的只读本地数据，临时检查入口已清理；
+真实应用停在登录页，未修改登录状态或居民数据。桌面 1280px、手机 390px 已检查：
+四职业列表/详情同源且形象完整；法师、元素师、炎术师连续切换各保留一个画布，
+切到战士或装备图鉴清空画布；法杖列表/详情使用独立水晶素材，页面无横向溢出、控制台无警告或错误。
+Node 22 TypeScript、正式应用生产构建通过；新增文件 ESLint 无警告，原两个 AtlasView
+保留已有 Hook 依赖告警。记录 `player-route-atlas.png`、`player-route-atlas-mobile.png`、
+`crystal-staff-atlas.png`、`crystal-staff-atlas-detail.png` 位于 `docs/agents/assets/combat/`。
+
+
 ## 人工验收
 
 以下 1–4 为软泥怪动作验收，其余为共用行为；其他物种的动作见对应小节。
