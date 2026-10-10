@@ -40,12 +40,12 @@ const categoryDefs: {value: 'all' | ItemCategory; label: string}[] = [
     {value: 'feed', label: '饲料'},
     {value: 'crop', label: '农作物'},
     {value: 'animal_product', label: '畜产品'},
-    {value: 'dish', label: '美食'},
     {value: 'other', label: '其他'},
 ];
 
 export function ItemCatalogContent({active = true}: {active?: boolean}) {
     const {items, loading, error, reload} = useItemCatalog();
+    const catalogItems = useMemo(() => items.filter(item => item.category !== 'dish'), [items]);
     const [category, setCategory] = useState<'all' | ItemCategory>('all');
     const [search, setSearch] = useState('');
     const [selectedId, setSelectedId] = useState('');
@@ -103,20 +103,20 @@ export function ItemCatalogContent({active = true}: {active?: boolean}) {
 
     // 计算每个分类对应的物品数量
     const categoryCounts = useMemo(() => {
-        const counts: Record<string, number> = {all: items.length};
-        for (const item of items) {
+        const counts: Record<string, number> = {all: catalogItems.length};
+        for (const item of catalogItems) {
             counts[item.category] = (counts[item.category] || 0) + 1;
         }
         return counts;
-    }, [items]);
+    }, [catalogItems]);
 
     const visible = useMemo(() => {
-        return items.filter(item => {
+        return catalogItems.filter(item => {
             const matchCategory = category === 'all' || item.category === category;
             const matchSearch = !search.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(search.trim().toLowerCase());
             return matchCategory && matchSearch;
         });
-    }, [items, category, search]);
+    }, [catalogItems, category, search]);
 
     const selected = visible.find(item => item.id === selectedId) || visible[0];
     const selectedCropKind = selected ? cropKindFor(selected) : null;
@@ -192,7 +192,7 @@ export function ItemCatalogContent({active = true}: {active?: boolean}) {
                 {/* 辅助说明条 */}
                 <div className="flex shrink-0 items-center gap-2 rounded-xl bg-slate-50 px-3.5 py-1.5 text-xs text-slate-500 border border-slate-100">
                     <Info className="h-3.5 w-3.5 shrink-0 text-orange-400" />
-                    <span>农牧物品与美食显示当前世界目录；纪念品及其他物品来自居民现有背包。数量为所有居民当前持有总数。</span>
+                    <span>农牧物品显示当前世界目录；纪念品及其他物品来自居民现有背包。数量为所有居民当前持有总数。</span>
                 </div>
 
                 {/* 主内容区域：固定高度区域，左侧列表独立滚动，右侧详情紧凑固定 */}
@@ -226,7 +226,7 @@ export function ItemCatalogContent({active = true}: {active?: boolean}) {
                     ) : (
                         <div className="grid h-full items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
                             {/* 左侧网格：正方形图标铺满(74x74px)，配微微圆角无缝隙，名字紧凑，空间利用率高且不臃肿 */}
-                            <div className="h-full overflow-y-auto pr-1">
+                            <div className="scrollbar-hide h-full overflow-y-auto pr-1">
                                 <div className="grid grid-cols-[repeat(auto-fill,86px)] content-start gap-2.5">
                                     {visible.map(item => {
                                         const isSelected = selected?.id === item.id;
@@ -281,7 +281,7 @@ export function ItemCatalogContent({active = true}: {active?: boolean}) {
                             {selected && (
                                 <section
                                     aria-label="物品详情"
-                                    className="flex h-full flex-col justify-between overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm"
+                                    className="flex h-full flex-col justify-between overflow-y-auto scrollbar-hide rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm"
                                 >
                                     {/* 上半部分：大图橱窗 + 档案标题 */}
                                     <div className="flex flex-col gap-2.5">
