@@ -1,5 +1,10 @@
 # 软泥怪 PixiJS 预览
 
+后续魔物的风格、预览页面、确认流程和技能特效边界统一遵循
+[Agent 魔物形象与战斗动画设计规范](../../../docs/agents/Agent魔物形象与战斗动画设计规范.md)。
+本预览页与用户确认的截图均已保存于项目；截图路径为
+`docs/agents/assets/combat/slime-preview-approved.png`。
+
 独立视觉样例，入口为 `frontend_react/slime-preview.html`。使用已有 PixiJS 8，
 不加载业务 API、不读写世界资料、不新增模型或持久字段，因此无新增 WebDAV 同步数据。
 预览页面不进入默认应用构建。软泥怪已接入正式怪物图鉴：列表使用

@@ -16,6 +16,7 @@
 - 编辑器状态与操作指令：`frontend_react/src/hooks/useEditor.tsx`
 - 通用下拉选择组件：`frontend_react/src/components/common/Select.tsx`
 - UI 视觉规范：`docs/UI设计规范文档.md`
+- 魔物形象、预览页与战斗动画：修改或新增前先查阅 `docs/agents/Agent魔物形象与战斗动画设计规范.md`；沿用已确认的软泥怪 PixiJS 风格，逐只独立预览并经用户确认后接入图鉴，同一出没地复用背景，技能特效与战斗结算分离。
 - 农场种子、作物及饲料素材：修改或新增前先查阅 `docs/agents/Agent农场物品与素材规范.md`；种子必须使用统一纸袋及对应作物标签，不得恢复为共用旧袋子图标。
 
 # 前端开发规范与红线
