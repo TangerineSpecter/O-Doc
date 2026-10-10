@@ -13,6 +13,7 @@ import {
     Compass,
     Cpu,
     Database,
+    Download,
     GraduationCap,
     Heart,
     Info,
@@ -32,6 +33,7 @@ import WorldDialog from '../AgentWorld/WorldDialog';
 import AgentAvatar from '../AgentWorld/AgentAvatar';
 import {Select} from '../common/Select';
 import {useTokenUsage} from '../../hooks/useTokenUsage';
+import {useTokenUsageExport} from '../../hooks/useTokenUsageExport';
 import {getAgents, getAgentTasks} from '../../api/setting';
 import type {TokenFilters, TokenGroup} from '../../types/api/tokenUsage';
 import {purposeNames, shanghaiDay, tokenDateRange, tokenNumber} from '../../utils/tokenUsage';
@@ -242,6 +244,7 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
         page,
         refresh
     );
+    const {exporting, exportError, download} = useTokenUsageExport(filters);
 
     const reset = () => {
         setPage(1);
@@ -363,19 +366,29 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                         />
                     </div>
                     <button
+                        type="button"
+                        disabled={exporting}
+                        onClick={() => void download()}
+                        className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-xs hover:border-orange-200 hover:text-orange-600 disabled:opacity-50 transition-colors"
+                    >
+                        <Download className="h-4 w-4" />
+                        {exporting ? '导出中…' : '导出用量报告'}
+                    </button>
+                    <button
                         aria-label="刷新用量统计"
                         onClick={() => setRefresh(v => v + 1)}
-                        className="ml-auto rounded-lg border border-slate-200 bg-white p-2 text-slate-500 shadow-xs hover:border-orange-200 hover:text-orange-600 transition-colors"
+                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 shadow-xs hover:border-orange-200 hover:text-orange-600 transition-colors"
                     >
                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                 </div>
 
-                {error && (
+                {(error || exportError) && (
                     <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50/70 px-3.5 py-2 text-xs text-red-600">
-                        <span>{error}</span>
+                        <span role="alert">{exportError || error}</span>
                         <button
-                            onClick={() => setRefresh(v => v + 1)}
+                            disabled={exporting}
+                            onClick={() => exportError ? void download() : setRefresh(v => v + 1)}
                             className="font-medium underline hover:text-red-700"
                         >
                             重试

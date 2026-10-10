@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from utils.response_utils import success_result, valid_result
 from .queries import breakdown, filtered_usage, summary
+from .report import export_report
 from system_settings.agent_world.life_time import local_time, storage_time
 
 REQUEST_FIELDS = ('id', 'agent_key', 'agent_name', 'task_key', 'task_name', 'record_key',
@@ -20,6 +21,8 @@ class TokenUsageView(APIView):
     def get(self, request):
         try:
             rows = filtered_usage(request)
+            if self.kind == 'export':
+                return export_report(rows, request)
             if self.kind == 'summary':
                 return success_result(summary(rows, request))
             if self.kind == 'breakdown':
