@@ -26,7 +26,8 @@ def seeded(run, channel):
 
 
 def lease_token(identity):
-    return 'combat:'+hashlib.sha256(identity.encode()).hexdigest()[:57]
+    # This token belongs to AgentExecutionLease (40 chars), not CombatRuntime (64).
+    return 'combat:'+hashlib.sha256(identity.encode()).hexdigest()[:33]
 
 
 def energy(duration):

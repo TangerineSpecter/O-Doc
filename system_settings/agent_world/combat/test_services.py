@@ -25,6 +25,36 @@ class ExplorationTests(TestCase):
         run=explorations.request('admin',self.agent,key,{},now=self.now)
         return explorations.depart(run.pk,self.plan,now=self.now)
 
+    def test_preparation_and_resume_respect_execution_token_length(self):
+        from system_settings.models import AgentExecutionLease
+        from .preparation import prepare
+        field=AgentExecutionLease._meta.get_field('token')
+        original_save=AgentExecutionLease.save
+
+        def checked_save(lease,*args,**kwargs):
+            # SQLite does not enforce varchar lengths; apply the schema validator on writes.
+            field.clean(lease.token,lease)
+            return original_save(lease,*args,**kwargs)
+
+        run=explorations.request('admin',self.agent,'f'*64,{},now=self.now)
+        with patch.object(AgentExecutionLease,'save',checked_save):
+            run=prepare(run.pk,planner=lambda *args:self.plan)
+            self.assertEqual(run.status,'active')
+            lease=AgentExecutionLease.objects.get(agent=self.agent)
+            self.assertLessEqual(len(lease.token),field.max_length)
+            self.assertFalse(explorations.busy(self.agent.pk,excluding=run.pk))
+            self.assertTrue(explorations.busy(self.agent.pk))
+            run=explorations.tick(run.pk,now=self.now+timedelta(seconds=46))
+            self.assertEqual(run.status,'paused')
+            run=explorations.resume(run.pk,now=self.now+timedelta(seconds=47))
+            self.assertEqual(run.status,'active')
+            lease.refresh_from_db()
+            self.assertLessEqual(len(lease.token),field.max_length)
+            explorations.finish(run.pk,now=self.now+timedelta(seconds=48))
+            lease.refresh_from_db()
+            self.assertEqual(lease.token,'')
+            self.assertIsNone(lease.until)
+
     def data(self):
         from django.apps import apps
         return json.loads(serializers.serialize('json',[row for model in apps.get_app_config('system_settings').get_models() if model.__name__!='CombatRuntime' for row in model.objects.all()]))
