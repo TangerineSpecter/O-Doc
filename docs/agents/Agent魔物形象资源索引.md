@@ -8,6 +8,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | `monster.slime` | 软泥怪 | `frontend_react/slime-preview.html` | 已确认；五个基础动作 | 已接入 | 仅有预览落地波纹、水滴样例；通用技能特效待设计 | 待接入 |
 | `monster.cave_bat` | 洞穴蝙蝠 | `frontend_react/cave-bat-preview.html` | 已确认；五个基础动作 | 已接入 | 已有“闪身”动作与残影示意；正式效果待接入 | 待接入 |
+| `monster.moss_beast` | 苔石兽 | `frontend_react/moss-beast-preview.html` | 已确认；五个基础动作 | 已接入 | 已有“护体”动作与多边形护盾示意；正式效果待接入 | 待接入 |
 
 ## 共用出没地资源
 
@@ -67,3 +68,41 @@
 - 在临时数据库的实际 Agent 世界 → 世界图鉴 → 冒险资料 → 怪物图鉴验收桌面与 390px 窄屏：蝙蝠卡片不透明度为 1、滤镜为 none，详情背景为 `dungeon.moss_cave`，无横向溢出。
 - 切换软泥怪时只有一个画布，切换矿洞鼠、搜索无结果和关闭图鉴后无残留画布；重新打开可继续播放。
 - 类型检查、相关 ESLint 与生产构建通过。本次接入范围为图鉴待机动画；正式战斗事件与技能效果仍待接入。
+
+## 苔石兽
+
+- 稳定目录标识：`monster.moss_beast`，精英魔物，Lv.8–12；出没地 `dungeon.moss_cave`。
+- 静态形象：`frontend_react/src/assets/combat/moss-beast.svg`；宽肩、分块岩甲、四足、短石角、苔藓与玉石晶体，琥珀色眼睛和少量金色点缀。与普通软泥怪、洞穴蝙蝠通过剪影和重量感区分，保留后续首领的升级空间。
+- 角色绘制：`frontend_react/src/components/Combat/animation/MossBeastActor.ts`；从同一 SVG 分层构造共享不可变 `GraphicsContext`，静态和动态不分别维护轮廓与色板。
+- 纯动作采样：`frontend_react/src/components/Combat/animation/mossBeastMotion.ts`；`idle / move / attack / hit / defeat`，分别为警戒呼吸、交替重步、蓄力冲撞、硬甲震颤、屈膝伏地。
+- 预览生命周期与局部特效：`frontend_react/src/components/Combat/animation/MossBeastPreviewScene.ts`；复用已确认的 `moss-cave.svg`，管理阴影、落地尘土、冲击环和护盾。
+- 页面入口与配置：`frontend_react/moss-beast-preview.html`、`frontend_react/src/previews/mossBeastPreview.ts`；共用 `mountMonsterPreview.ts`、`slimePreview.css`、`skillPreview.css`，角色专属样式为 `mossBeastPreview.css`。
+- 既有目录技能 `skill.monster.guard`（护体）：岩甲合拢、额部符石亮起、半透明护罩展开与消退；`mossBeastGuardEffect.ts` 独立绘制前景护罩和后景地面印记，仅为视觉示意，不模拟伤害减免或技能回合时长。
+- 首版参考图：[苔石兽预览页](./assets/combat/moss-beast-preview-draft.png)。
+
+### 2026-10-11 首版验证
+
+- 桌面与 390px 窄屏验证，无横向溢出；小尺寸、左右朝向、洞窟/素色切换可用。
+- 攻击、受击与护体示意结束后恢复待机；倒下保持终态，选择待机恢复。数字键可切换待机与移动。
+- 暂停后两次画布截图一致；重新加载后仅有一个画布，静态兜底隐藏，无浏览器警告或错误。
+- 蝙蝠预览共用技能样式抽取后，悬停与闪身示意回归通过。
+- TypeScript、相关 ESLint、SVG 唯一分层 ID 检查和三预览入口独立生产构建通过。
+- 首版形象与技能示意等待用户确认，图鉴和正式战斗尚未接入；无新增持久字段或 WebDAV 同步数据。
+
+### 2026-10-11 牙齿与护体调整
+
+- 根据用户反馈，獠牙缩短并衔接上唇，移除脱离嘴线的长三角形观感；静态与动态继续来自同一 SVG。
+- 护体保留用户偏好的岩石多边形轮廓，半透明表面位于角色前方，保持五官可读。补充向外展开、双层亮边、切面反光与流动光带；光带沿多边形边缘裁切，演示延长为 3.2 秒后恢复待机。
+- 调整后的护体参考图：[护罩预览](./assets/combat/moss-beast-guard-draft.png)。形象与技能仍待用户确认。
+- 大尺寸、小尺寸与 390px 窄屏检查通过，护罩覆盖角色且五官可读；切回待机清除护罩。TypeScript、相关 ESLint 与苔石兽预览的独立生产构建通过，控制台无警告或错误。
+
+### 2026-10-11 用户确认与图鉴接入
+
+用户确认调整后的形象及多边形岩石护盾，并明确要求更新图鉴。
+
+- 列表使用 `moss-beast.svg`，详情复用 `MossBeastActor` 与 `mossBeastMotion` 播放警戒呼吸、轻微头部运动和眨眼；苔石洞窟通过现有地牢 ID 关联。
+- 共用图鉴 renderer 按角色配置构图、比例和阴影，保持软泥怪及蝙蝠原有参数；苔石兽静态回退与动态详情使用相同视框、脚底锚点和展示缩放。
+- 临时数据库上的实际世界图鉴验收桌面与 390px 手机：卡片不透明度为 1、滤镜为 none，详情背景为 `dungeon.moss_cave`，无横向溢出，手机详情可独立滚动。
+- 切换三个已制作角色时只有一个画布；切换矿洞鼠、搜索无结果和关闭图鉴后无残留画布。软泥怪、蝙蝠显示回归通过。
+- 已确认参考图：[预览页](./assets/combat/moss-beast-preview-approved.png)、[图鉴接入](./assets/combat/moss-beast-atlas-approved.png)。
+- 类型检查、相关 ESLint 与生产构建通过。本次接入为图鉴待机动画，护体示意继续保留在独立预览；正式战斗事件待接入，无新增持久字段或 WebDAV 同步数据。

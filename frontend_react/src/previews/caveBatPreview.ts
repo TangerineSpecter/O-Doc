@@ -4,6 +4,7 @@ import type {CaveBatAction} from '../components/Combat/animation/caveBatMotion';
 import {mountMonsterPreview} from './mountMonsterPreview';
 import './slimePreview.css';
 import './caveBatPreview.css';
+import './skillPreview.css';
 
 const cleanup = mountMonsterPreview<CaveBatAction>({
     name: '洞穴蝙蝠', hostSelector: '#bat-stage', basicActions: caveBatActions,

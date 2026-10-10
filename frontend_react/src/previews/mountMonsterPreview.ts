@@ -16,7 +16,7 @@ interface PreviewOptions<A extends string> {
     createScene(host: HTMLElement, onAction: (action: A) => void): PreviewScene<A>;
 }
 
-/** The two creature previews share controls, shortcuts and teardown, not creature motion. */
+/** Creature previews share controls, shortcuts and teardown, not creature motion. */
 export function mountMonsterPreview<A extends string>(options: PreviewOptions<A>) {
     const host = document.querySelector<HTMLElement>(options.hostSelector)!;
     const stateLabel = document.querySelector<HTMLElement>('#scene-state')!;

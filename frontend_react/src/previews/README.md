@@ -19,8 +19,12 @@
 [魔物形象资源索引](../../../docs/agents/Agent魔物形象资源索引.md)。此形象已确认并接入图鉴：
 列表显示 `cave-bat.svg`，详情播放同一角色的悬停振翅待机动画。
 
-两个页面共用 `mountMonsterPreview.ts` 的按钮、分段控件、快捷键、加载状态与事件清理，
-复用 `slimePreview.css` 的布局。角色配置、绘制和动作保持独立。
+苔石兽首版入口为 `frontend_react/moss-beast-preview.html`，同一服务器下打开
+`http://127.0.0.1:43131/moss-beast-preview.html`。这是 Lv.8–12 精英魔物，形象已确认并接入图鉴，
+列表使用同源 SVG、详情播放警戒呼吸待机；五个基础动作之外包含既有“护体”技能的视觉示意。
+
+各页面共用 `mountMonsterPreview.ts` 的按钮、分段控件、快捷键、加载状态与事件清理，
+复用 `slimePreview.css` 的布局；有技能的预览共用 `skillPreview.css`。角色配置、绘制和动作保持独立。
 
 ## 动作与接入边界
 
@@ -35,7 +39,7 @@
   后续同区域的怪物形象直接复用，不按显示名称匹配。
 - `previews/slimePreview.ts`：软泥怪预览配置；`mountMonsterPreview.ts` 与 CSS：共用控件与排版。
 - `Combat/atlas/MonsterPortrait.tsx`：按稳定魔物 ID 选择形象，其他魔物保留既有图标。
-- `AnimatedMonsterPortrait.tsx` 与 `MonsterPortraitRenderer.ts`：两个角色仅详情按需加载 PixiJS，加载失败保留
+- `AnimatedMonsterPortrait.tsx` 与 `MonsterPortraitRenderer.ts`：三个角色仅详情按需加载 PixiJS，加载失败保留
   静态形象；离开视口、隐藏页面、减少动态效果时停止播放，切换魔物或关闭弹窗释放资源。
 
 接入时调用 `actor.update(sampleSlimePose(action, seconds, facing), seconds, facing)`。
@@ -62,7 +66,27 @@
   系统减少动态效果时默认暂停，关闭页面与 HMR 更新释放场景和事件订阅。
 - `CaveBatActor` 渐变资源也由所有实例共享，不能随残影或单个角色销毁。
 
+## 苔石兽
+
+稳定标识为 `monster.moss_beast`，精英魔物 Lv.8–12，出没地 `dungeon.moss_cave`。
+宽肩、四足、厚岩甲、短石角、苔藓背脊和少量玉石晶体形成重装剪影，琥珀眼与克制的金色点缀表达警戒感；
+为后续苔冠巨兽保留更大的体型和装饰空间。
+
+- `MossBeastActor.ts`：纯角色容器，地面锚点 `(0, 0)`，调用
+  `actor.update(sampleMossBeastPose(action, seconds, facing), seconds, facing)`；场景应用水平位移。
+- `assets/combat/moss-beast.svg`：静态形象与动态绘制的唯一轮廓、色板来源。Actor 将可信内置 SVG 的分层
+  转为共享不可变 `GraphicsContext`；单个角色销毁不销毁共享上下文，GPU 副本由 renderer 释放。
+- `mossBeastMotion.ts`：待机轻微呼吸与眨眼、移动交替踏步、攻击蓄力冲撞、受击硬甲震颤、倒下屈膝伏地。
+  攻击 1.8 秒、受击 0.9 秒恢复待机，倒下保持终态，重新选择待机可恢复。
+- `guard` 对应既有 `skill.monster.guard`（护体）：岩甲收拢、额部符石亮起，外部薄护盾由
+  `mossBeastGuardEffect.ts` 绘制地面印记与覆盖角色前方的半透明多边形护罩，保留岩石棱角，包含展开、亮边、切面反光和扫过的光带；
+  3.2 秒的演示时长不代表技能回合数，不模拟减伤结算。场景负责前后层级、站位与缩放。
+- 预览继续共用控制器、布局和洞窟背景；支持朝向、背景、小尺寸、暂停、数字 1–5、隐藏暂停与资源清理。
+- 已确认参考图为 `docs/agents/assets/combat/moss-beast-preview-approved.png`，确认状态与验证记录见资源索引。
+
 ## 人工验收
+
+以下 1–4 为软泥怪动作验收，其余为共用行为；其他物种的动作见对应小节。
 
 1. 默认待机能看到呼吸、轻微摇晃、定时眨眼；移动有离地弹跳和跟随阴影。
 2. 攻击先下蹲蓄力再跃起，落地有回弹与水滴；约 1.3 秒后回到待机。

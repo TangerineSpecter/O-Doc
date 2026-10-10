@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f8faf9" />
+    <title>苔石兽 · 动画预览</title>
+  </head>
+  <body>
+    <main class="slime-preview">
+      <header class="preview-header">
+        <div>
+          <p class="eyebrow"><span class="orange-dot"></span> 魔物形象 <span class="edition">/ 03</span></p>
+          <h1>苔石兽 <span class="name-en">MOSS BEAST</span></h1>
+          <p class="intro">苔石洞窟里，披着苔藓岩甲的重装精英，步步有分量。</p>
+        </div>
+        <div class="badges"><span class="elite-badge">✦ 精英魔物</span><span>Lv.8–12</span></div>
+      </header>
+      <div class="preview-layout">
+        <section class="scene-card" aria-label="苔石兽形象">
+          <div class="scene-wrap">
+            <div class="scene-label"><span class="habitat">苔石洞窟</span><span class="habitat-en">MOSS CAVE</span></div>
+            <div class="state-badge"><i></i><span id="scene-state" aria-live="polite">警戒中</span></div>
+            <div id="moss-beast-stage" role="img" aria-label="苔石兽动画舞台"><div id="preview-fallback"><img src="/src/assets/combat/moss-beast.svg" alt="" /></div></div>
+            <p id="load-message" role="status">苔石兽正在踏入洞窟…</p>
+          </div>
+          <footer class="scene-footer"><span><i class="stone-dot"></i> 苔藓岩甲 · 重装兽形</span><span>出没地：苔石洞窟</span></footer>
+        </section>
+        <aside class="controls-card" aria-label="动画控制">
+          <div class="controls-heading"><h2>动作预览</h2><span>点击试试看</span></div>
+          <div class="action-grid" role="group" aria-label="选择动作">
+            <button type="button" data-action="idle" aria-pressed="true"><span class="action-icon">◡</span><span><strong>待机</strong><small>沉稳呼吸</small></span><kbd>1</kbd></button>
+            <button type="button" data-action="move" aria-pressed="false"><span class="action-icon">↝</span><span><strong>移动</strong><small>交替踏步</small></span><kbd>2</kbd></button>
+            <button type="button" data-action="attack" aria-pressed="false"><span class="action-icon">↗</span><span><strong>攻击</strong><small>蓄力冲撞</small></span><kbd>3</kbd></button>
+            <button type="button" data-action="hit" aria-pressed="false"><span class="action-icon">✧</span><span><strong>受击</strong><small>硬甲震颤</small></span><kbd>4</kbd></button>
+            <button type="button" data-action="defeat" aria-pressed="false"><span class="action-icon">﹏</span><span><strong>倒下</strong><small>屈膝伏地</small></span><kbd>5</kbd></button>
+          </div>
+          <div class="skill-preview">
+            <div class="skill-preview-heading">技能预览 <span>独立动作示意</span></div>
+            <button type="button" data-action="guard" aria-pressed="false"><span class="action-icon">⬡</span><span><strong>护体</strong><small>岩甲合拢与护罩展开</small></span></button>
+            <p>目录技能：降低自身受到的伤害。这里只预览岩甲与护盾，不模拟伤害结算。</p>
+          </div>
+          <div class="control-divider"></div>
+          <div class="control-row"><span>朝向</span><div class="segmented" role="group" aria-label="朝向"><button type="button" data-facing="-1" aria-pressed="false">← 左</button><button type="button" data-facing="1" aria-pressed="true">右 →</button></div></div>
+          <div class="control-row"><span>舞台</span><div class="segmented" role="group" aria-label="舞台"><button type="button" data-backdrop="cave" aria-pressed="true">洞窟</button><button type="button" data-backdrop="plain" aria-pressed="false">素色</button></div></div>
+          <label class="size-option"><span>查看图鉴尺寸</span><input id="small-size" type="checkbox" /></label>
+          <button type="button" id="pause" class="pause-button" aria-pressed="false">Ⅱ 暂停动画</button>
+          <p class="key-hint">数字键切换动作 · 空格暂停<br>倒下后，点击「待机」重新唤醒</p>
+        </aside>
+      </div>
+      <p class="preview-note"><span class="note-line"></span> 第三只魔物 · 精英形象与动作已确认</p>
+    </main>
+    <script type="module" src="/src/previews/mossBeastPreview.ts"></script>
+  </body>
+</html>
