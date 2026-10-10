@@ -1,4 +1,5 @@
 """只选择服务端给出的合法候选，模型不能自由改写美食制作或余额。"""
+from utils.token_usage import usage_scope
 import hashlib
 import json
 import logging
@@ -125,7 +126,8 @@ def run_cooking_opportunity(task, scheduler=None, *, key=None, manual=False, loc
                 options = [row for row in recipes(owner, agent) if row['state'] == 'ready']
                 phase = '模型选择制作计划'
                 progress(record, phase)
-                decision = decide(task, agent, options) if options else {'choices': [], 'reason': '暂时没有可执行的制作操作'}
+                with usage_scope(agent=agent, task=task, record=record, purpose='task', phase=phase):
+                    decision = decide(task, agent, options) if options else {'choices': [], 'reason': '暂时没有可执行的制作操作'}
                 with farm_gate(), transaction.atomic():
                     selected = build_plan(owner, agent.pk, decision['choices'], options, stamina(agent))
                     if selected:

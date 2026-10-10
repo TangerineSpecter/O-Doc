@@ -1,3 +1,4 @@
+from django.db.models import Q
 from urllib.parse import urlsplit
 from decimal import Decimal
 from django.db import transaction
@@ -725,7 +726,33 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         return attrs
 
 
+class AgentRunUsageListSerializer(serializers.ListSerializer):
+    def to_representation(self, data):
+        from .token_usage.queries import record_summaries
+        records = list(data.all() if hasattr(data, 'all') else data)
+        self.context['token_usage_summaries'] = record_summaries([row.pk for row in records], self.context.get('request'))
+        return super().to_representation(records)
+
+
 class AgentRunRecordSerializer(serializers.ModelSerializer):
+    token_usage = serializers.SerializerMethodField()
+    chain_token_usage = serializers.SerializerMethodField()
+
+    def get_token_usage(self, record):
+        from .token_usage.queries import record_summaries
+        cached = self.context.get('token_usage_summaries')
+        if cached is not None:
+            return cached[record.pk]
+        return record_summaries([record.pk], self.context.get('request'))[record.pk]
+
+    def get_chain_token_usage(self, record):
+        if getattr(self.context.get('view'), 'action', 'retrieve') != 'retrieve':
+            return None
+        from .token_usage.queries import visible_usage, total
+        root = record.parent_record_id or record.pk
+        keys = list(AgentRunRecord.objects.filter(Q(pk=root) | Q(parent_record_id=root)).values_list('pk', flat=True))
+        return total(visible_usage(self.context.get('request')).filter(record_key__in=keys))
+
     travel_progress = serializers.SerializerMethodField()
 
     def get_travel_progress(self, record):
@@ -742,8 +769,10 @@ class AgentRunRecordSerializer(serializers.ModelSerializer):
             'attempts': runtime.attempts if runtime else 0, 'authorized': bool(runtime and runtime.authorized)}
 
     class Meta:
+        list_serializer_class = AgentRunUsageListSerializer
         model = AgentRunRecord
         fields = [
+            'token_usage', 'chain_token_usage',
             'id',
             'task',
             'task_name',

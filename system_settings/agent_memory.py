@@ -1,3 +1,4 @@
+from utils.token_usage import attributed
 import hashlib
 import json
 import logging
@@ -313,6 +314,7 @@ def purge_expired_short_term_memories(now=None):
     return len(expired)
 
 
+@attributed('memory')
 def _summarize_memory_for_promotion(memory):
     prompt = f"""请判断下面这段 Agent 短期对话记忆是否值得晋升为长期记忆。
 

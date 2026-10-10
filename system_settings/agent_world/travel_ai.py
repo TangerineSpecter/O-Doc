@@ -1,3 +1,4 @@
+from utils.token_usage import attributed
 import json
 import time
 from datetime import timedelta
@@ -10,6 +11,7 @@ from .publish_search import search
 from .travel_models import TravelMaterialCache
 
 
+@attributed('task')
 def ask(journey, instruction, context, validate, *, skill=''):
     state = journey.snapshot
     prompt = build_agent_system_prompt(state['role_prompt'], conversation=False)

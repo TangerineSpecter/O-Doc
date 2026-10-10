@@ -11,6 +11,7 @@ from openai import AuthenticationError, OpenAI
 from system_settings.models import SystemSetting, AIModel
 from .ai_observer import emit_ai_event
 from .thinking import thinking_body
+from .token_usage import create_completion, sdk_retries
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,7 @@ class AIService:
                 "api_key": provider.api_key,
                 "base_url": AIService._normalize_base_url(provider.base_url),
                 "model_name": ai_model.name,
+                "model_id": ai_model.pk,
                 "model_type": ai_model.type,
                 "thinking_mode": ai_model.thinking_mode,
                 "thinking_protocol": ai_model.thinking_protocol,
@@ -115,6 +117,7 @@ class AIService:
                 "api_key": provider.api_key,
                 "base_url": AIService._normalize_base_url(provider.base_url),
                 "model_name": ai_model.name,
+                "model_id": ai_model.pk,
                 "model_type": ai_model.type,
                 "thinking_mode": ai_model.thinking_mode,
                 "thinking_protocol": ai_model.thinking_protocol,
@@ -145,6 +148,7 @@ class AIService:
                 "api_key": provider.api_key,
                 "base_url": AIService._normalize_base_url(provider.base_url),
                 "model_name": ai_model.name,
+                "model_id": ai_model.pk,
                 "model_type": ai_model.type,
                 "thinking_mode": ai_model.thinking_mode,
                 "thinking_protocol": ai_model.thinking_protocol,
@@ -181,10 +185,10 @@ class AIService:
                 api_key=config['api_key'],
                 base_url=config['base_url'],
                 timeout=120.0,
-                max_retries=1,
+                max_retries=sdk_retries(1),
             )
 
-            response = client.chat.completions.create(
+            response = create_completion(client, config, retries=1,
                 model=config['model_name'],
                 messages=[{"role": "user", "content": prompt}],
                 stream=False,
@@ -220,10 +224,10 @@ class AIService:
                 api_key=config['api_key'],
                 base_url=config['base_url'],
                 timeout=120.0,
-                max_retries=1,
+                max_retries=sdk_retries(1),
             )
 
-            response = client.chat.completions.create(
+            response = create_completion(client, config, retries=1,
                 model=config['model_name'],
                 messages=messages,
                 stream=False,
@@ -280,7 +284,7 @@ class AIService:
                 api_key=config['api_key'],
                 base_url=config['base_url'],
                 timeout=120.0,
-                max_retries=0 if deadline is not None else 1,
+                max_retries=sdk_retries(0 if deadline is not None else 1),
             )
             messages = [dict(message) for message in messages]
 
@@ -303,7 +307,7 @@ class AIService:
                     if remaining <= 0:
                         raise TimeoutError('任务达到执行时限')
                     request_kwargs['timeout'] = min(120.0, remaining)
-                response = client.chat.completions.create(**request_kwargs) # type: ignore
+                response = create_completion(client, config, retries=0 if deadline is not None else 1, **request_kwargs) # type: ignore
 
                 message = response.choices[0].message
                 tool_calls = getattr(message, 'tool_calls', None) or []
@@ -386,7 +390,7 @@ class AIService:
 图片标题：{title or '未填写'}
 拍摄地点：{location or '未填写'}"""
 
-            response = client.chat.completions.create(
+            response = create_completion(client, config, retries=0,
                 model=config['model_name'],
                 messages=[{
                     "role": "user",
@@ -413,7 +417,7 @@ class AIService:
         config = cls.get_default_image_client_config()
         try:
             client = OpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=55.0, max_retries=0)
-            response = client.chat.completions.create(
+            response = create_completion(client, config, retries=0,
                 model=config['model_name'],
                 messages=[{'role': 'user', 'content': [
                     {'type': 'text', 'text': (
@@ -440,7 +444,7 @@ class AIService:
         config = cls.get_default_image_client_config()
         try:
             client = OpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=55.0, max_retries=0)
-            response = client.chat.completions.create(
+            response = create_completion(client, config, retries=0,
                 model=config['model_name'],
                 messages=[{'role': 'user', 'content': [
                     {'type': 'text', 'text': (
@@ -488,7 +492,7 @@ class AIService:
         client = None
         try:
             config = cls.get_default_client_config(use_simple_model=use_simple_model)
-            client = OpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=120.0, max_retries=1)
+            client = OpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=120.0, max_retries=sdk_retries(1))
 
             extra_body = cls._thinking_options(
                 config,
@@ -496,7 +500,7 @@ class AIService:
                 disable_thinking=use_simple_model
             )
 
-            stream = client.chat.completions.create(
+            stream = create_completion(client, config, retries=1,
                 model=config['model_name'],
                 messages=messages,
                 stream=True,

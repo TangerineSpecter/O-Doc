@@ -1,3 +1,4 @@
+import type {RunTokenMetrics, TokenMetrics} from './tokenUsage';
 import type {SocialFeeling} from './social';
 // --- 类型定义 ---
 export type ModelType = 'chat' | 'image' | 'image_generation' | 'embedding' | 'rerank';
@@ -184,6 +185,8 @@ export type SaveAgentTaskConfigParams = Omit<AgentTaskConfig, 'id' | 'agentName'
 };
 
 export interface AgentRunRecordConfig {
+    tokenUsage?: RunTokenMetrics;
+    chainTokenUsage?: TokenMetrics | null;
     travelProgress?: {journeyId: string; status: string; phase: string; updatedAt: string; nextAt: string | null; attempts: number; authorized: boolean} | null;
     id: string;
     task?: string | null;

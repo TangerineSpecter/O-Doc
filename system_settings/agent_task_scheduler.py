@@ -1,3 +1,4 @@
+from utils.token_usage import attributed
 import logging
 from system_logs.context import diagnostic_operation
 import os
@@ -442,6 +443,7 @@ class AgentTaskScheduler:
             self._finish_agent_run(record, agent.pk, 'failed', result['summary'], '', '')
             return result
 
+    @attributed('task')
     def _run_task_for_agent_body(self, record, task, agent, previous_content='', prompt_override=''):
         agent_started = timezone.now()
         create_work_activity(record, agent)

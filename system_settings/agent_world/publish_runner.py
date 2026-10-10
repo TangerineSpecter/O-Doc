@@ -1,3 +1,4 @@
+from utils.token_usage import usage_scope
 """自主发帖机会、事务发布与恢复。模型流程不持有数据库长事务。"""
 import copy
 import hashlib
@@ -112,7 +113,8 @@ def preview(task, agent):
                                        task.pk, agent.pk, phase, round((time.monotonic()-started)*1000))
             flow = Workflow(task, agent, progress=progress)
             try:
-                state = flow.run()
+                with usage_scope(agent=agent, purpose='preview', phase='publish_preview'):
+                    state = flow.run()
                 if duplicate_source(agent, state['draft']['main_source_url']):
                     raise SkipPublication('7天内已使用相同主要来源')
                 return {'status': 'ready', 'reason': '预览完成，尚未发布', 'snapshot': state}
@@ -196,7 +198,8 @@ def run_publish_opportunity(task, scheduler, *, key=None, manual=False, locked=F
                     label = PHASE_LABELS[phase]
                     update_work_activity(record, agent, status='running', current_action=label)
                     scheduler._append_agent_run_step(record, agent.pk, 'info', label, '')
-                Workflow(task, agent, action.snapshot, save, progress).run()
+                with usage_scope(agent=agent, task=task, record=record, purpose='task', phase='publish'):
+                    Workflow(task, agent, action.snapshot, save, progress).run()
                 action = commit_publication(key, token, locked, manual=manual)
     except SkipPublication as exc:
         action.refresh_from_db()

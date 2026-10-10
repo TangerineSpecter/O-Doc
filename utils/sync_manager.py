@@ -29,6 +29,7 @@ from system_settings.sync_state import (
 
 from system_settings.agent_world.farm_gate import guarded as farm_sync_guard
 from learning.locking import snapshot_guard as learning_sync_guard
+from system_settings.agent_world import travel_sync
 
 
 class SyncError(Exception):
@@ -163,6 +164,7 @@ class SyncManager:
         return remote_parts > current_parts
 
     def validate_remote_snapshot_version(self, remote_meta):
+        travel_sync.validate(remote_meta)
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
@@ -731,6 +733,7 @@ class SyncManager:
     @learning_sync_guard
     def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None):
         """把快照写回数据库。full_overwrite 用于本地压缩包导入，按备份全量覆盖。"""
+        data_list = travel_sync.expand(data_list, remote_meta)
         from article.image_search_service import delete_image_vectors
         from article.models import ImageVisualIndex
 
@@ -806,8 +809,25 @@ class SyncManager:
         with transaction.atomic(), suspend_tracking():
             self._ensure_not_aborted(should_abort)
             self._lock_restored_sequence_tables(restored_models)
-            for obj in serializers.deserialize('json', json.dumps(data_list)):
+            from system_settings.token_usage.sync import normalize_restored_usage
+            from system_settings.token_usage.capture import active_keys
+            active_usage_keys = active_keys()
+            normalize_restored_usage(data_list)
+            # 默认城市已在本机且值未变时，不做三万多次重复写入。
+            unchanged_cities = set(travel_sync.pristine_ids()) if (remote_meta or {}).get(travel_sync.META_KEY) else set()
+            _, city_defaults = travel_sync.catalog() if unchanged_cities else ('', {})
+            write_data = [item for item in data_list if not (
+                item.get('model') == travel_sync.LABEL and str(item.get('pk')) in unchanged_cities
+                and travel_sync.pristine(item, city_defaults)
+            )]
+            # 活跃模型请求可能在快照读取后创建或更新，恢复不能回退它们。
+            write_data = [item for item in write_data if not (
+                item.get('model') == 'system_settings.agenttokenusage'
+                and str(item.get('pk')) in active_usage_keys
+            )]
+            for obj in serializers.deserialize('json', json.dumps(write_data)):
                 obj.save()
+            travel_sync.mark_initialized(remote_meta)
 
             if prompt_cover_links:
                 from prompts.models import PromptTemplate
@@ -825,6 +845,8 @@ class SyncManager:
                     if model._meta.label_lower == 'system_settings.systemsetting':
                         remote_pks.update(LOCAL_ONLY_SYSTEM_SETTING_KEYS)
                     local_objects = model.objects.all()
+                    if model_label == 'system_settings.agenttokenusage':
+                        local_objects = local_objects.exclude(pk__in=active_usage_keys)
 
                     stale_pks = [
                         str(pk) for pk in local_objects.values_list(model._meta.pk.attname, flat=True)
@@ -879,6 +901,7 @@ class SyncManager:
                 from system_settings.agent_world.social_migration import seed_legacy_relations
                 seed_legacy_relations()
             self._reset_restored_sequences(restored_models)
+            travel_sync.record_missing()
 
             if image_vectors_to_remove:
                 ImageVisualIndex.objects.filter(image_id__in=image_vectors_to_remove).update(enabled=False, error='')
@@ -1158,6 +1181,7 @@ class SyncManager:
         }
 
     def validate_import_snapshot_version(self, remote_meta):
+        travel_sync.validate(remote_meta)
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
@@ -1178,7 +1202,7 @@ class SyncManager:
 
     @farm_sync_guard
     @learning_sync_guard
-    def build_snapshot_data(self):
+    def build_snapshot_data(self, *, compact_travel=False):
         from system_settings.agent_world.life_sync import checkpoint_all
         checkpoint_all()
         from system_settings.agent_world.cooking_sync import checkpoint_all as checkpoint_cooking
@@ -1186,8 +1210,11 @@ class SyncManager:
         from system_settings.agent_world.social_sync import checkpoint_all as checkpoint_social
         checkpoint_social()
         all_data = []
+        sparse_cities = compact_travel and travel_sync.enabled()
         for model in self._iter_target_models():
             queryset = self._queryset_for_export(model)
+            if sparse_cities and model._meta.label_lower == travel_sync.LABEL:
+                queryset = travel_sync.export_queryset(queryset)
             if queryset.exists():
                 all_data.extend(json.loads(serializers.serialize('json', queryset)))
         return self._strip_device_local_user_fields(all_data)
@@ -1384,10 +1411,12 @@ class SyncManager:
         validate_learning(data, meta)
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
         validate_crops(data, meta)
+        revisions = self._read_remote_json(self._snapshot_path(snapshot_id, 'revisions.json'), required=True)
+        travel_sync.validate_revisions(meta, revisions)
         return {
             'meta': meta,
             'data': self._strip_device_local_user_fields(data),
-            'revisions': self._read_remote_json(self._snapshot_path(snapshot_id, 'revisions.json'), required=True),
+            'revisions': revisions,
             'media': self._read_remote_json(self._snapshot_path(snapshot_id, 'media_manifest.json'), required=True),
         }
 
@@ -1405,6 +1434,10 @@ class SyncManager:
 
     def _build_revision_manifest(self, data_list):
         from system_settings.models import SyncEntityState
+        if travel_sync.enabled():
+            data_list, _ = travel_sync.compact(data_list)
+            travel_sync.prune_states()
+            travel_sync.record_missing()
         device_id = get_device_id()
         states = {
             self._revision_key(state.model_label, state.object_pk): state
@@ -1460,8 +1493,7 @@ class SyncManager:
                 }
         return revisions
 
-    @staticmethod
-    def _item_revision_at(item):
+    def _item_revision_at(self, item):
         fields = item.get('fields') or {}
         for field_name in ('updated_at', 'updated_time', 'modified_at', 'modified_time', 'created_at', 'created_time'):
             value = fields.get(field_name)
@@ -1469,9 +1501,7 @@ class SyncManager:
                 continue
             parsed = parse_datetime(str(value))
             if parsed is not None:
-                if timezone.is_naive(parsed):
-                    parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
-                return parsed
+                return self._normalize_revision_time(parsed)
         return timezone.now()
 
     @staticmethod
@@ -1501,6 +1531,8 @@ class SyncManager:
 
     def merge_v2_data(self, base, local_data, local_revisions, remote):
         """返回不丢失双方独有记录的合并结果及新修订清单。"""
+        travel_sync.validate(remote.get('meta'))
+        travel_sync.validate((base or {}).get('meta'))
         from system_settings.agent_world.life_snapshot import validate_source, refresh_merged_integrity
         validate_source(local_data)
         validate_source(remote.get('data') or [])
@@ -1510,6 +1542,14 @@ class SyncManager:
         from system_settings.agent_world.cooking_quality_sync import validate_source as validate_cooking_source, metadata as cooking_metadata
         validate_cooking_source(local_data, cooking_metadata(local_data))
         validate_cooking_source(remote.get('data') or [], remote.get('meta'))
+        # 老全量快照中的原始默认城市只代表共享种子，不代表用户编辑或删除。
+        if travel_sync.enabled() or (remote.get('meta') or {}).get(travel_sync.META_KEY):
+            local_data, local_revisions = travel_sync.compact(local_data, local_revisions)
+            remote_data, remote_revisions = travel_sync.compact(remote.get('data') or [], remote.get('revisions') or {})
+            remote = {**remote, 'data': remote_data, 'revisions': remote_revisions}
+            if base:
+                base_data, base_revisions = travel_sync.compact(base.get('data') or [], base.get('revisions') or {})
+                base = {**base, 'data': base_data, 'revisions': base_revisions}
         base_data = self._item_map((base or {}).get('data') or [])
         base_revisions = (base or {}).get('revisions') or {}
         local_map = self._item_map(local_data)
@@ -1545,6 +1585,12 @@ class SyncManager:
                 # A legacy/v1 manifest has no per-row state; absence is never treated as deletion.
                 item = local_map.get(key) or remote_map.get(key)
             if item is not None:
+                if item.get('model') == 'system_settings.agenttokenusage':
+                    from system_settings.token_usage.sync import merge_usage_fact
+                    merged_usage = merge_usage_fact(item, [base_data.get(key), local_map.get(key), remote_map.get(key)])
+                    if merged_usage != item:
+                        item = merged_usage
+                        result_revisions[key] = {**winner, 'hash': canonical_hash(item.get('fields') or {})}
                 # 阅读是累积事实，不能被另一设备的标题/评分更新清空。
                 # 仅合并标记，其余字段及删除墓碑仍按原记录规则处理。
                 if item.get('model') == 'article.article' and any(
@@ -1664,8 +1710,11 @@ class SyncManager:
         if self.client is None:
             raise SyncError('v2 远端快照需要已配置备份服务')
         snapshot_id = uuid.uuid4().hex
-        data_list = data_list if data_list is not None else self.build_snapshot_data()
+        data_list = data_list if data_list is not None else self.build_snapshot_data(compact_travel=True)
         revisions = revisions if revisions is not None else self._build_revision_manifest(data_list)
+        sparse_cities = travel_sync.enabled()
+        if sparse_cities:
+            data_list, revisions = travel_sync.compact(data_list, revisions)
         media = self._build_v2_media_manifest(previous_media)
         if callable(report):
             report(
@@ -1681,6 +1730,7 @@ class SyncManager:
             **self.build_snapshot_meta(source=source, runner_id=runner_id, data_list=data_list),
             'snapshot_id': snapshot_id,
             'format': self.SNAPSHOT_FORMAT,
+            **(travel_sync.metadata(revisions) if sparse_cities else {}),
             'base_snapshot_id': base_snapshot_id,
             'device_id': get_device_id(),
             'record_count': len(data_list),
@@ -1868,11 +1918,13 @@ class SyncManager:
                     model_label=model_label, object_pk=object_pk,
                     defaults={
                         'content_hash': revision.get('hash', ''),
-                        'revision_at': revision.get('revision_at') or timezone.now(),
+                        'revision_at': self._normalize_revision_time(revision.get('revision_at')) or timezone.now(),
                         'origin_device': revision.get('origin_device', ''),
                         'is_deleted': bool(revision.get('deleted')),
                     },
                 )
+
+        travel_sync.prune_states()
 
     @farm_sync_guard
     def create_local_safety_backup(self, reason):
@@ -1933,6 +1985,7 @@ class SyncManager:
         media = self._read_remote_json(self._snapshot_path(snapshot_id, 'media_manifest.json'), required=True)
         if not isinstance(revisions, dict) or not isinstance(media, dict):
             raise SyncError('远端修订或媒体清单格式不正确')
+        travel_sync.validate_revisions(meta, revisions)
         meta.setdefault('snapshot_id', snapshot_id)
         return {'meta': meta, 'revisions': revisions, 'media': media}
 
@@ -2021,6 +2074,8 @@ class SyncManager:
         return True
 
     def _local_matches_head(self, head):
+        if travel_sync.enabled() and not head['meta'].get(travel_sync.META_KEY):
+            return False
         if not self._revisions_match_stored_index(head['revisions']):
             return False
         local_media = self._compose_media_manifest(head.get('media'), allow_missing=True)
@@ -2071,7 +2126,7 @@ class SyncManager:
 
             enforce_article_version_retention()
             self.reconcile_missing_book_media(drop_missing_assets=False)
-            local_data = self.build_snapshot_data()
+            local_data = self.build_snapshot_data(compact_travel=True)
             local_revisions = self._build_revision_manifest(local_data)
             local_media = self._build_v2_media_manifest(head.get('media'))
             if (
@@ -2098,7 +2153,7 @@ class SyncManager:
         remote = self.get_v2_current() or self._get_legacy_snapshot()
         report('远端快照读取完成，正在合并本机与云端数据。', 40)
         self._ensure_not_aborted(should_abort)
-        local_data = self.build_snapshot_data()
+        local_data = self.build_snapshot_data(compact_travel=True)
         local_revisions = self._build_revision_manifest(local_data)
         base = None
         if base_snapshot_id:
@@ -2119,7 +2174,11 @@ class SyncManager:
             with transaction.atomic():
                 with suspend_tracking():
                     from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
-                    self.apply_snapshot_data(merged_data, remote_meta=cooking_metadata(merged_data), full_overwrite=True)
+                    self.apply_snapshot_data(merged_data, remote_meta={
+                        **cooking_metadata(merged_data),
+                        **(travel_sync.metadata(merged_revisions) if travel_sync.enabled() or
+                           (remote.get('meta') or {}).get(travel_sync.META_KEY) else {}),
+                    }, full_overwrite=True)
                 self._apply_v2_revisions(merged_revisions)
                 # A three-way merge can combine independently retained histories.
                 # Pruning after revision import records tombstones for every device.
@@ -2127,7 +2186,7 @@ class SyncManager:
             # 远端新图书的正文被刻意跳过下载；写入数据库后立即将其转为
             # 仅云端状态，确保本次同步完成后书架就能触发按需恢复。
             self.reconcile_missing_book_media()
-            merged_data = self.build_snapshot_data()
+            merged_data = self.build_snapshot_data(compact_travel=True)
             merged_revisions = self._build_revision_manifest(merged_data)
             previous_media = remote.get('media') if not remote.get('legacy') else None
         else:
@@ -2136,7 +2195,7 @@ class SyncManager:
             }
             previous_media = None
             self.reconcile_missing_book_media(drop_missing_assets=True)
-            merged_data = self.build_snapshot_data()
+            merged_data = self.build_snapshot_data(compact_travel=True)
             merged_revisions = self._build_revision_manifest(merged_data)
         report('正在发布新的 v2 合并快照。', 75)
         if not remote:
@@ -2202,7 +2261,7 @@ class SyncManager:
                 enforce_article_version_retention()
                 # Restore may normalize legacy fields, close sessions or prune versions.
                 # Publish that resulting state with matching hashes, not the original payload.
-                restored_data = self.build_snapshot_data()
+                restored_data = self.build_snapshot_data(compact_travel=True)
                 restored_revisions = self._build_revision_manifest(restored_data)
             restored = self.publish_v2_snapshot(
                 source='history-restore', runner_id=runner_id, base_snapshot_id=snapshot_id,

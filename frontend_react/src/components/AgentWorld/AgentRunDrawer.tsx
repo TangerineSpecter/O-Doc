@@ -1,3 +1,4 @@
+import RunTokenUsage from '../TokenUsage/RunTokenUsage';
 import {useEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {
@@ -224,7 +225,8 @@ export default function AgentRunDrawer({activity, onClose}: {activity: AgentActi
                 </header>
 
                 {/* 内容展示区 */}
-                <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50/50 p-4 sm:p-6">
+                <div className="flex-1 space-y-5 overflow-y-auto scrollbar-hide bg-slate-50/50 p-4 sm:p-6">
+                    {record && <RunTokenUsage id={record.id} usage={record.tokenUsage} chain={record.chainTokenUsage}/>}
                     {/* 加载中与错误展示 */}
                     {isLoading && (
                         <div className="flex min-h-64 items-center justify-center">

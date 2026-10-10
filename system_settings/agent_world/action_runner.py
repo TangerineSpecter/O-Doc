@@ -1,3 +1,4 @@
+from utils.token_usage import usage_scope
 """一个机会只选一位居民；模型提供评价，服务端提交业务事实。"""
 from .run_diagnostics import failure_detail, progress, finish_record
 from .life_scope import allowed as life_allowed
@@ -226,7 +227,8 @@ def run_opportunity(task, scheduler, *, key=None, manual=False, locked=False):
                         scheduler._append_agent_run_step(record, agent.pk, 'info', '阅读帖子', f'《{post.title}》')
                         phase = '模型阅读与评价'
                         progress(record, phase)
-                        feedback = evaluate(task, agent, post)
+                        with usage_scope(agent=agent, task=task, record=record, purpose='task', phase=phase):
+                            feedback = evaluate(task, agent, post)
                         if feedback['action'] == 'rest':
                             action.status, action.result = 'skipped', {'reason': feedback['reason']}
                         else:

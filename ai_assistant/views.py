@@ -1,3 +1,5 @@
+from contextlib import nullcontext
+from utils.token_usage import attributed, usage_scope
 # ai_assistant/views.py
 import logging
 import json
@@ -177,13 +179,13 @@ class ChatView(APIView):
                 )
                 tool_messages = [{'role': 'system', 'content': tool_system_prompt}] + formatted_history + [user_message]
                 return StreamingHttpResponse(
-                    self._stream_tool_response_generator(tool_messages, tool_context, include_thinking, use_simple_model, loaded_skills),
+                    self._stream_tool_response_generator(tool_messages, tool_context, include_thinking, use_simple_model, loaded_skills, agent=agent),
                     content_type='text/event-stream'
                 )
 
             # 5. 调用 AI 服务并返回流式响应
             return StreamingHttpResponse(
-                self._stream_response_generator(full_messages, sources_markdown, include_thinking, use_simple_model, loaded_skills),
+                self._stream_response_generator(full_messages, sources_markdown, include_thinking, use_simple_model, loaded_skills, agent=agent),
                 content_type='text/event-stream'
             )
 
@@ -351,8 +353,10 @@ class ChatView(APIView):
         return result
 
     @staticmethod
-    def _stream_response_generator(messages, sources_markdown, include_thinking=False, use_simple_model=False, loaded_skills=None):
+    @attributed('im')
+    def _stream_response_generator(messages, sources_markdown, include_thinking=False, use_simple_model=False, loaded_skills=None, agent=None):
         """生成器：负责流式输出 AI 内容，并在最后追加来源信息"""
+        ai_stream = None
         try:
             if loaded_skills:
                 yield json.dumps({'type': 'skills_loaded', 'skills': loaded_skills}, ensure_ascii=False) + "\n"
@@ -388,9 +392,12 @@ class ChatView(APIView):
         except Exception:
             logger.exception('Stream generation failed')
             yield json.dumps({'type': 'error', 'content': '系统异常，请稍后重试'}, ensure_ascii=False) + "\n"
+        finally:
+            if ai_stream is not None:
+                ai_stream.close()
 
     @classmethod
-    def _stream_tool_response_generator(cls, messages, tool_context, include_thinking=False, use_simple_model=False, loaded_skills=None):
+    def _stream_tool_response_generator(cls, messages, tool_context, include_thinking=False, use_simple_model=False, loaded_skills=None, agent=None):
         event_queue = queue.Queue()
         done_marker = object()
 
@@ -403,46 +410,46 @@ class ChatView(APIView):
             }
 
         def run_tool_chat():
-            try:
-                if loaded_skills:
-                    event_queue.put({'type': 'skills_loaded', 'skills': loaded_skills})
+            with usage_scope(agent=agent, purpose='im', phase='chat_tools') if agent else nullcontext():
+                try:
+                    if loaded_skills:
+                        event_queue.put({'type': 'skills_loaded', 'skills': loaded_skills})
 
-                if include_thinking:
-                    event_queue.put({
-                        'type': 'thinking',
-                        'content': '已装载 MCP Tools，正在判断是否需要调用工具。\n'
-                    })
+                    if include_thinking:
+                        event_queue.put({
+                            'type': 'thinking',
+                            'content': '已装载 MCP Tools，正在判断是否需要调用工具。\n'
+                        })
 
-                def execute_with_events(tool_name, arguments):
-                    payload = describe_tool(tool_name)
-                    event_queue.put({'type': 'mcp_tool_call', **payload, 'arguments': arguments})
-                    result = cls._execute_mcp_tool(tool_context, tool_name, arguments)
-                    event_queue.put({'type': 'mcp_tool_result', **payload, 'arguments': arguments})
-                    return result
+                    def execute_with_events(tool_name, arguments):
+                        payload = describe_tool(tool_name)
+                        event_queue.put({'type': 'mcp_tool_call', **payload, 'arguments': arguments})
+                        result = cls._execute_mcp_tool(tool_context, tool_name, arguments)
+                        event_queue.put({'type': 'mcp_tool_result', **payload, 'arguments': arguments})
+                        return result
 
-                content = AIService.chat_completion_messages_with_tools(
-                    messages,
-                    tool_context['tools'],
-                    execute_with_events,
-                    use_simple_model=use_simple_model,
-                )
-                event_queue.put({'type': 'answer', 'content': content})
-            except ValueError as e:
-                if str(e) == 'No default model configured':
-                    logger.warning('AI tool chat requested without a default model')
-                    event_queue.put({
-                        'type': 'error',
-                        'content': '请先在系统设置中配置默认对话模型',
-                    })
-                else:
+                    content = AIService.chat_completion_messages_with_tools(
+                        messages,
+                        tool_context['tools'],
+                        execute_with_events,
+                        use_simple_model=use_simple_model,
+                    )
+                    event_queue.put({'type': 'answer', 'content': content})
+                except ValueError as e:
+                    if str(e) == 'No default model configured':
+                        logger.warning('AI tool chat requested without a default model')
+                        event_queue.put({
+                            'type': 'error',
+                            'content': '请先在系统设置中配置默认对话模型',
+                        })
+                    else:
+                        logger.exception('Tool stream generation failed')
+                        event_queue.put({'type': 'error', 'content': '系统异常，请稍后重试'})
+                except Exception:
                     logger.exception('Tool stream generation failed')
                     event_queue.put({'type': 'error', 'content': '系统异常，请稍后重试'})
-            except Exception:
-                logger.exception('Tool stream generation failed')
-                event_queue.put({'type': 'error', 'content': '系统异常，请稍后重试'})
-            finally:
-                event_queue.put(done_marker)
-
+                finally:
+                    event_queue.put(done_marker)
         threading.Thread(target=run_tool_chat, daemon=True).start()
 
         while True:

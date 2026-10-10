@@ -1,3 +1,4 @@
+from utils.token_usage import attributed
 import base64
 import hashlib
 import json
@@ -189,6 +190,7 @@ def _process_feishu_record(record_id):
         close_old_connections()
 
 
+@attributed('im')
 def _build_agent_reply(agent, user_text, record):
     system_prompt = build_agent_system_prompt(
         agent.prompt or '你是一个可靠的文档协作 Agent。请简洁、准确地回复用户。'
@@ -501,6 +503,7 @@ def _records_to_messages(records):
     return messages
 
 
+@attributed('memory')
 def _compress_session_summary(agent, session, records):
     transcript = _format_records_for_summary(records)
     previous_summary = session.summary or '无'

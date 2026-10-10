@@ -15,6 +15,7 @@ from openai import APIConnectionError, APIError, APIStatusError, AsyncOpenAI, Au
 
 from .ai_observer import check_ai_control, emit_ai_event
 from .completion_options import temperature_options
+from system_settings.token_usage.normalize import normalize
 
 DEADLINE_SECONDS = 120
 
@@ -48,7 +49,7 @@ async def _receive(config: dict, parameters: dict, seconds: float, inbox: queue.
             async for chunk in stream:
                 usage = getattr(chunk, 'usage', None)
                 if usage:
-                    inbox.put(('event', ('model_usage', '模型返回用量统计', {'prompt_tokens': usage.prompt_tokens, 'completion_tokens': usage.completion_tokens})))
+                    inbox.put(('usage', normalize(usage)))
                 for choice in chunk.choices:
                     content = getattr(choice.delta, 'content', None)
                     if isinstance(content, str) and content:
@@ -98,6 +99,9 @@ def _drive(config: dict, parameters: dict, expires: float, metadata: dict) -> st
     seconds = expires - time.monotonic()
     if seconds <= 0:
         raise AIRequestTimeout('模型调用达到 120 秒硬时限')
+    from system_settings.token_usage.capture import Capture
+    capture = Capture(config, attempt=metadata.get('request_attempt', 1))
+    status = 'interrupted'
     inbox, cancelled = queue.Queue(), threading.Event()
     thread = threading.Thread(target=_network, args=(config, parameters, seconds, inbox, cancelled), daemon=True, name='bounded-ai-network')
     thread.start()
@@ -111,9 +115,15 @@ def _drive(config: dict, parameters: dict, expires: float, metadata: dict) -> st
                 kind, value = inbox.get(timeout=min(.25, remaining))
             except queue.Empty:
                 continue
+            if kind == 'usage':
+                capture.counts(value)
+                emit_ai_event('model_usage', '模型返回用量统计', **metadata, prompt_tokens=value['input_tokens'], completion_tokens=value['output_tokens'])
+                continue
             if kind == 'done':
+                status = 'success'
                 return value
             if kind == 'error':
+                status = 'failed'
                 if isinstance(value, (TimeoutError, asyncio.CancelledError)):
                     raise AIRequestTimeout('模型调用达到硬时限或连接已取消') from value
                 raise value
@@ -122,6 +132,11 @@ def _drive(config: dict, parameters: dict, expires: float, metadata: dict) -> st
     finally:
         cancelled.set()
         thread.join(timeout=2)
+        while not inbox.empty():
+            kind, value = inbox.get_nowait()
+            if kind == 'usage':
+                capture.counts(value)
+        capture.finish(status)
 
 
 def _json_unsupported(exc: Exception) -> bool:

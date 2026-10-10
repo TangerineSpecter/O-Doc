@@ -245,7 +245,6 @@ export function WorldManagement() {
                             setIncome={state.setIncome}
                             settlements={state.settlements}
                             pendingIncome={state.pendingIncome}
-                            ledger={state.ledger}
                             busy={busy}
                             onSave={handleSaveIncome}
                         />

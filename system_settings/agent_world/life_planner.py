@@ -1,4 +1,5 @@
 """居民提议活动及预算；服务端验证后才固化，不在规划中执行业务。"""
+from utils.token_usage import attributed
 import json
 from decimal import Decimal
 from django.db import transaction
@@ -66,6 +67,7 @@ def parse_life_proposal(raw: str) -> dict:
     raise ValueError('生活规划未返回合法的 JSON 对象')
 
 
+@attributed('planning')
 def ask(agent, instruction: str, context: dict) -> dict:
     config = AIService.get_client_config_for_model(agent.model_id)
     prompt = build_agent_system_prompt(f'当前居民：{agent.name}\n{agent.prompt}', conversation=False)

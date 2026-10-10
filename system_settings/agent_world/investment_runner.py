@@ -1,3 +1,4 @@
+from utils.token_usage import usage_scope
 """有界投资模型循环；不会重放中断的研究或交易。"""
 import json
 import logging
@@ -75,7 +76,8 @@ def run_investment_opportunity(task,scheduler=None,*,key=None,manual=False):
                 from .life_scope import enrich
                 context=enrich(context)
                 try:
-                    summary=AIService.chat_completion_messages_with_tools([{'role':'system','content':prompt},{'role':'user','content':json.dumps(context,ensure_ascii=False)}],TOOLS,tools.execute,model_id=task_model_id(task, agent),max_rounds=20,deadline=deadline) or '本次投资机会结束'
+                    with usage_scope(agent=agent, task=task, record=record, purpose='task', phase=phase):
+                        summary=AIService.chat_completion_messages_with_tools([{'role':'system','content':prompt},{'role':'user','content':json.dumps(context,ensure_ascii=False)}],TOOLS,tools.execute,model_id=task_model_id(task, agent),max_rounds=20,deadline=deadline) or '本次投资机会结束'
                 except Finished as exc:summary=str(exc)
     except Exception as exc:
         logger.exception('投资机会失败 key=%s',key)

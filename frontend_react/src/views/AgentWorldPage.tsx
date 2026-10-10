@@ -1,7 +1,7 @@
 import WorldDialogSuspense from '../components/AgentWorld/WorldDialogSuspense';
 import {lazy, useCallback, useEffect, useState} from 'react';
 import WorldOrbitLoader from '../components/AgentWorld/WorldOrbitLoader';
-import {Activity, ArrowLeft, Bot, BookOpenText, CalendarDays, MessageCircle, Settings, Sprout, Store, TrendingUp} from 'lucide-react';
+import {Activity, ArrowLeft, BarChart3, Bot, BookOpenText, CalendarDays, MessageCircle, Settings, Sprout, Store, TrendingUp} from 'lucide-react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
 import DailyFeedTimeline from '../components/AgentWorld/DailyFeedTimeline';
 import AgentAttributePanel from '../components/AgentWorld/AgentAttributePanel';
@@ -15,6 +15,7 @@ import {useAgentWorld} from '../hooks/useAgentWorld';
 import type {DailyFeedEvent} from '../types/api/dailyFeed';
 import type {AgentActivity as AgentActivityData, AgentActivityType} from '../types/api/setting';
 
+const TokenUsageDialog = lazy(() => import('../components/TokenUsage/TokenUsageDialog'));
 const preloadLifeSchedule = () => import('../components/AgentLife/LifeScheduleDialog');
 const preloadMarket = () => import('../components/Market/MarketDialog');
 const preloadFarm = () => import('../components/Farm/FarmDialog');
@@ -35,6 +36,8 @@ const TravelJourneyDialog = lazy(preloadTravel);
 
 export default function AgentWorldPage() {
     const navigate = useNavigate();
+    const [usageOpen, setUsageOpen] = useState(false);
+    const closeUsage = useCallback(() => setUsageOpen(false), []);
     const [lifeOpen, setLifeOpen] = useState(false);
     const [travelArchiveId, setTravelArchiveId] = useState('');
     const [momentDetailId, setMomentDetailId] = useState<string | null>(null);
@@ -155,6 +158,7 @@ export default function AgentWorldPage() {
                     <span className="text-[11px] text-slate-400 hidden sm:inline">实时见证智能体思考与成长轨迹</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => setUsageOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100"><BarChart3 className="h-3.5 w-3.5"/>用量统计</button>
                     <button type="button" onClick={() => setMomentsOpen(true)} className="inline-flex items-center shrink-0 gap-1.5 whitespace-nowrap rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 shadow-2xs transition-all duration-150 hover:border-rose-300 hover:bg-rose-100 hover:shadow-xs active:scale-95"><MessageCircle className="h-3.5 w-3.5 shrink-0"/>朋友圈</button>
                     <button
                         type="button"
@@ -279,6 +283,7 @@ export default function AgentWorldPage() {
                     }}
                 />
             ) : null}
+            {usageOpen && <WorldDialogSuspense title="用量统计" onClose={closeUsage} size="extra-wide" fallback={<WorldOrbitLoader title="正在打开用量统计"/>}><TokenUsageDialog onClose={closeUsage}/></WorldDialogSuspense>}
             {investmentOpen && <WorldDialogSuspense title="股票投资" onClose={closeInvestment} size="extra-wide" fallback={<WorldOrbitLoader title="正在打开投资账户" subtitle="读取模拟盘行情 · 同步持仓与盈亏"/>}><InvestmentDialog onClose={closeInvestment} initialActorId={investmentActorId}/></WorldDialogSuspense>}
             {travelArchiveId && <WorldDialogSuspense title="旅行详情" onClose={closeTravel} manageFocus={false} fallback={<WorldOrbitLoader title="正在调取旅行档案" subtitle="还原行程图层 · 加载旅途见闻与照片"/>}><TravelJourneyDialog key={travelArchiveId} journeyId={travelArchiveId} onClose={closeTravel} onChanged={() => setFeedRefreshToken(value => value + 1)}/></WorldDialogSuspense>}
             {marketOpen && <WorldDialogSuspense title="世界市场 · 集市大厅" onClose={closeMarket} size="wide" fallback={<WorldOrbitLoader title="正在连接世界市场" subtitle="检索集市货架 · 实时计算商品供需物价"/>}><MarketDialog onClose={closeMarket} residents={world.summary?.agents || []}/></WorldDialogSuspense>}

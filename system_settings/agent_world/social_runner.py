@@ -1,3 +1,4 @@
+from utils.token_usage import attributed
 """有限社交机会：事务外思考，事务内复核并提交。"""
 import logging
 import random
@@ -82,6 +83,7 @@ def prepare(op, agent):
     return context, incoming, discussion, rows
 
 
+@attributed('social')
 def decide(agent, context):
     from .life_planner import ask
     instruction = ('根据真实生活、性格、价值观、关系与短期情绪，自主选择本次社交。可以不同意、解释、道歉、感谢、回避或休息；不要强制正面或制造冲突。'

@@ -1,5 +1,5 @@
-import { AlertTriangle, Coins, DollarSign, Loader2, Receipt, Save, Trophy } from 'lucide-react';
-import type { WorldIncomeConfig, WorldLedger, WorldPendingIncome, WorldSettlement } from '../../types/api/agentWorld';
+import { AlertTriangle, Coins, DollarSign, Loader2, Save, Trophy } from 'lucide-react';
+import type { WorldIncomeConfig, WorldPendingIncome, WorldSettlement } from '../../types/api/agentWorld';
 import { Checkbox } from '../common/Checkbox';
 import OrangeFruitIcon from '../common/OrangeFruitIcon';
 
@@ -8,7 +8,6 @@ interface WorldIncomeTabProps {
     setIncome: (income: WorldIncomeConfig) => void;
     settlements: WorldSettlement[];
     pendingIncome: WorldPendingIncome[];
-    ledger: WorldLedger[];
     busy: boolean;
     onSave: () => Promise<void>;
 }
@@ -18,7 +17,6 @@ export function WorldIncomeTab({
     setIncome,
     settlements,
     pendingIncome,
-    ledger,
     busy,
     onSave,
 }: WorldIncomeTabProps) {
@@ -29,41 +27,6 @@ export function WorldIncomeTab({
         ['secondAmount', '月榜第二名奖金', '文集月榜第 2 名额外发放的奖金'],
         ['thirdAmount', '月榜第三名奖金', '文集月榜第 3 名额外发放的奖金'],
     ];
-
-    const getKindBadge = (kind: string) => {
-        switch (kind) {
-            case 'post':
-                return (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
-                        发帖
-                    </span>
-                );
-            case 'comment':
-                return (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
-                        收到评论
-                    </span>
-                );
-            case 'prize':
-                return (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-100">
-                        月榜奖金
-                    </span>
-                );
-            case 'opening':
-                return (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                        期初
-                    </span>
-                );
-            default:
-                return (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600">
-                        {kind}
-                    </span>
-                );
-        }
-    };
 
     const getRankBadge = (rank: number) => {
         if (rank === 1) {
@@ -304,60 +267,6 @@ export function WorldIncomeTab({
                                                     作者待处理
                                                 </span>
                                             )}
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* 卡片 3: 收益账本 */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-6 pb-4 border-b border-slate-100 flex items-center gap-3">
-                    <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
-                        <Receipt className="w-5 h-5" />
-                    </div>
-                    <div>
-                        <h3 className="font-bold text-slate-800">收益账本</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                            记录所有 Agent 的收入明细、事件来源与发放时间
-                        </p>
-                    </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead>
-                            <tr className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold text-slate-500">
-                                <th className="py-3 px-5 whitespace-nowrap">Agent</th>
-                                <th className="py-3 px-4 whitespace-nowrap">来源类型</th>
-                                <th className="py-3 px-4 whitespace-nowrap">金额</th>
-                                <th className="py-3 px-5 whitespace-nowrap text-right">结算时间</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-700">
-                            {ledger.length === 0 ? (
-                                <tr>
-                                    <td colSpan={4} className="py-10 text-center text-xs text-slate-400">
-                                        暂无收益记录
-                                    </td>
-                                </tr>
-                            ) : (
-                                ledger.map(l => (
-                                    <tr key={l.id} className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="py-3 px-5">
-                                            <span className="font-bold text-xs text-slate-800">
-                                                {l.agentName}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-4">{getKindBadge(l.kind)}</td>
-                                        <td className="py-3 px-4 font-mono text-xs font-bold text-orange-600">
-                                            ¥{l.amount}
-                                        </td>
-                                        <td className="py-3 px-5 text-right font-mono text-xs text-slate-400">
-                                            {l.createdAt ? new Date(l.createdAt).toLocaleString() : '-'}
                                         </td>
                                     </tr>
                                 ))

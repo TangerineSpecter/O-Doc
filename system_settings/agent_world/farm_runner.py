@@ -1,3 +1,4 @@
+from utils.token_usage import usage_scope
 """只选择服务端给出的合法候选，模型不能自由改写农场或余额。"""
 import hashlib
 import json
@@ -177,7 +178,8 @@ def run_farm_opportunity(task, scheduler=None, *, key=None, manual=False, locked
                         continue
                     phase = '模型选择经营计划：' + stage
                     progress(record, phase)
-                    decision = decide(task, agent, farm, options)
+                    with usage_scope(agent=agent, task=task, record=record, purpose='task', phase=phase):
+                        decision = decide(task, agent, farm, options)
                     if decision.get('budget_allocations'):
                         from .life_budget import budget_tool
                         budget_tool({'allocations': decision['budget_allocations'], 'reason': decision.get('budget_reason')})

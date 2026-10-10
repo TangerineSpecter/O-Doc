@@ -45,7 +45,12 @@ from .agent_world.social_views import SocialView
 
 from .agent_world.cooking_views import CookingRecipesView, CookingRecipeView, CookingSkillView, CookingHistoryView
 
+from .token_usage.views import TokenUsageView
+
 urlpatterns = [
+    path('agent-world/token-usage/summary/', TokenUsageView.as_view(kind='summary')),
+    path('agent-world/token-usage/breakdown/', TokenUsageView.as_view(kind='breakdown')),
+    path('agent-world/token-usage/requests/', TokenUsageView.as_view(kind='requests')),
     path('agent-world/cooking/recipes/', CookingRecipesView.as_view()),
     path('agent-world/cooking/recipes/<str:recipe_id>/', CookingRecipeView.as_view()),
     path('agent-world/cooking/agents/<str:agent_id>/', CookingSkillView.as_view()),
