@@ -1095,7 +1095,7 @@ function MarkdownArticle({
                     )}
 
                     {isAnnotationDrawerOpen && (
-                        <div className="article-print-hidden fixed inset-0 z-[9998]">
+                        <div data-modal-scroll-lock className="article-print-hidden fixed inset-0 z-[9998]">
                         <div className="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px]" onClick={() => setIsAnnotationDrawerOpen(false)}/>
                         <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-slate-200 bg-white shadow-2xl">
                             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -1168,7 +1168,7 @@ function MarkdownArticle({
                 )}
 
                 {portalRoot && mobileTocOpen && headers.length > 0 && createPortal(
-                    <div
+                    <div data-modal-scroll-lock
                         className="article-print-hidden fixed inset-0 z-[120] bg-slate-950/40 backdrop-blur-sm 2xl:hidden flex items-center justify-center p-4 animate-in fade-in duration-200"
                         onClick={onMobileTocClose}
                     >

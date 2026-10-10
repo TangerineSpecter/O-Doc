@@ -23,15 +23,25 @@ def grouped_execution_events(events, start, end):
         operations = [row for row in rows if row['source'] in ('farm', 'market', 'market-seller', 'activity')]
         closing = [row for row in rows if row['source'] == 'market-session']
         running = any(row.get('_execution_running') or row.get('status') == 'running' for row in rows)
-        reason = closing[-1]['detail'] if closing else ''
+        reason = (next((row.get('reason') for row in rows if row.get('reason')), '')
+                  if category == 'farm' else (closing[-1]['detail'] if closing else ''))
         values = [Decimal(row['amount']) for row in operations if row['amount'] is not None]
+        steps = [{k: row[k] for k in ('id', 'title', 'detail', 'occurredAt', 'amount')} for row in rows]
+        for step in steps:
+            if reason and step.get('detail'):
+                detail = step['detail']
+                if detail == reason:
+                    step['detail'] = ''
+                elif detail.endswith(f' · {reason}'):
+                    step['detail'] = detail[:-len(f' · {reason}')]
         result = {**latest, 'id': f'execution:{identity}:{actor}', 'source': 'execution',
                   'category': category, 'title': {'farm': '农场经营', 'trade': '商品售出', 'publication': '作品发布', 'interaction': '阅读互动'}.get(category, '市场活动'),
                   'detail': (f'已执行 {len(operations)} 项操作' if operations else '正在浏览市场' if running else '本次未进行交易') + (f' · {reason}' if reason else ''),
                   'amount': str(sum(values, Decimal(0))) if values else None,
+                  'reason': reason or latest.get('reason') or '',
                   'status': 'running' if running else 'failed' if any(row.get('_execution_failed') or row.get('status') == 'failed' for row in rows) else 'success',
                   'categories': sorted({category, *(row['category'] for row in rows)}),
-                  'steps': [{k: row[k] for k in ('id', 'title', 'detail', 'occurredAt', 'amount')} for row in rows]}
+                  'steps': steps}
         if identity.startswith('activity:'):
             result['rating'] = None
             result['target'] = {'kind': 'run', 'id': identity.removeprefix('activity:')}
@@ -39,7 +49,7 @@ def grouped_execution_events(events, start, end):
                 if row.get('rating') is not None:
                     step['detail'] = f"★ {row['rating']} / 10 · {step['detail']}"
         if category == 'farm' and not operations:
-            result['detail'] = '本次未进行经营操作'
+            result['detail'] = '本次未进行经营操作' + (f' · {reason}' if reason else '')
         projected.append(result)
     # 跨日执行只在最近业务事实所属日期出现，筛选与分页在聚合以后进行。
     lower, upper = local_time(start).isoformat(), local_time(end).isoformat()

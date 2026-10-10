@@ -64,6 +64,35 @@ def fake_factory(responder, requests, clients):
 
 
 class BoundedCompletionTests(SimpleTestCase):
+    def test_openai_reasoning_mode_preserves_temperature_compatibility(self):
+        for mode, effort in (('enabled', 'medium'), ('disabled', 'none')):
+            with self.subTest(mode=mode):
+                requests, clients = [], []
+                config = {**CONFIG, 'provider_type': 'OpenAi', 'model_name': 'gpt-5.2', 'thinking_mode': mode}
+                with patch('utils.bounded_completion.AsyncOpenAI', side_effect=fake_factory(lambda _: FakeStream('done'), requests, clients)):
+                    self.assertEqual(complete(config, 'test', json_output=False, extra_body={}), 'done')
+                self.assertEqual(requests[0]['extra_body']['reasoning_effort'], effort)
+                if mode == 'enabled':
+                    self.assertNotIn('temperature', requests[0])
+                else:
+                    self.assertEqual(requests[0]['temperature'], .2)
+
+    def test_saved_policy_is_applied_even_without_caller_options(self):
+        requests, clients = [], []
+        config = {**CONFIG, 'provider_type': 'NewAPI', 'thinking_protocol': 'thinking', 'thinking_mode': 'enabled'}
+        with patch('utils.bounded_completion.AsyncOpenAI', side_effect=fake_factory(lambda _: FakeStream('done'), requests, clients)):
+            self.assertEqual(complete(config, 'test', json_output=False, extra_body={'thinking': {'type': 'disabled'}}), 'done')
+        self.assertEqual(requests[0]['extra_body'], {'thinking': {'type': 'enabled'}})
+
+    def test_explicit_policy_rejection_does_not_fall_back(self):
+        requests, clients = [], []
+        config = {**CONFIG, 'provider_type': 'DeepSeek', 'model_name': 'deepseek-flash', 'thinking_mode': 'disabled'}
+        error = BadRequestError('thinking unsupported', response=httpx.Response(400, request=httpx.Request('POST', 'https://example.invalid')), body=None)
+        with patch('utils.bounded_completion.AsyncOpenAI', side_effect=fake_factory(lambda _: error, requests, clients)):
+            with self.assertRaises(AIBoundedRequestError):
+                complete(config, 'test', json_output=False, extra_body={})
+        self.assertEqual(len(requests), 1)
+
     def call(self, responder, *, json_output=True, seconds=120, control=None):
         self.requests, self.clients, self.events = [], [], []
         factory = fake_factory(responder, self.requests, self.clients)
@@ -344,9 +373,9 @@ class ExtractionRepairTests(SimpleTestCase):
 
     def test_simple_model_only_sends_verified_existing_thinking_flag(self):
         for provider in ('Qwen', 'SiliconFlow'):
-            self.assertEqual(thinking_options({'provider_type': provider}), {'enable_thinking': False})
-        for provider in ('DeepSeek', 'Doubao', 'Xiaomi'):
-            self.assertEqual(thinking_options({'provider_type': provider}), {'thinking': {'type': 'disabled'}})
+            self.assertEqual(thinking_options({'provider_type': provider, 'model_name': 'qwen3.5-plus'}), {'enable_thinking': False})
+        for provider, name in (('DeepSeek', 'deepseek-flash'), ('Doubao', 'doubao-seed-1-6-250615'), ('Xiaomi', 'mimo-v2.5')):
+            self.assertEqual(thinking_options({'provider_type': provider, 'model_name': name}), {'thinking': {'type': 'disabled'}})
         self.assertEqual(thinking_options({'provider_type': 'MiniMax', 'model_name': 'MiniMax-M3'}), {'thinking': {'type': 'disabled'}})
         self.assertEqual(thinking_options({'provider_type': 'MiniMax', 'model_name': 'MiniMax-M2.7'}), {})
         self.assertEqual(thinking_options({'provider_type': 'custom', 'model_name': 'MiniMax-M3'}), {})

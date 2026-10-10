@@ -122,6 +122,20 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
         (event.title.includes('社交时间') && !event.currentAction?.includes('朋友圈动态'))
     );
 
+    const hasSteps = Boolean(event.steps?.length);
+    // 从事件中提取专属规划想法/理由（农场经营、市场活动等）
+    let planReason = event.reason || '';
+    let mainDetail = event.detail || '';
+    if (hasSteps && !planReason && mainDetail.includes(' · ')) {
+        const parts = mainDetail.split(' · ');
+        if (parts.length >= 2 && (parts[0].includes('已执行') || parts[0].includes('交易') || parts[0].includes('浏览'))) {
+            mainDetail = parts[0];
+            planReason = parts.slice(1).join(' · ');
+        }
+    } else if (hasSteps && planReason && mainDetail.endsWith(` · ${planReason}`)) {
+        mainDetail = mainDetail.slice(0, -` · ${planReason}`.length);
+    }
+
     return <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 transition-all hover:border-orange-200/80">
         <div className="flex items-start gap-3">
             <AgentAvatar name={agent?.name || event.actorName} avatar={agent?.avatar || ''} size="md"/>
@@ -142,21 +156,29 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
                     <h3 className="text-sm font-semibold text-slate-800">{renderHighlightedTitle(event.title)}</h3>
                     <PostRatingBadge rating={event.rating}/>
                 </div>
-                {event.detail && (
+                {mainDetail && (
                     <div className="mt-1.5">
                         {isMotive ? (
                             <div className="mt-2.5 rounded-r-lg border-l-2 border-orange-400 bg-orange-50/30 py-1.5 pl-3">
                                 <span className="mb-1 flex items-center gap-1 text-xs font-semibold text-slate-700">
                                     <span>💭</span> 内心动机：
                                 </span>
-                                <AgentActivitySummary text={event.detail} expanded={expanded} onExpandedChange={setExpanded} variant="interaction"/>
+                                <AgentActivitySummary text={mainDetail} expanded={expanded} onExpandedChange={setExpanded} variant="interaction"/>
                             </div>
                         ) : (
-                            <AgentActivitySummary text={event.detail} expanded={expanded} onExpandedChange={setExpanded} variant={event.category === 'interaction' ? 'interaction' : event.category === 'publication' ? 'publication' : 'work'}/>
+                            <AgentActivitySummary text={mainDetail} expanded={expanded} onExpandedChange={setExpanded} variant={event.category === 'interaction' ? 'interaction' : event.category === 'publication' ? 'publication' : 'work'}/>
                         )}
                     </div>
                 )}
-                {!!event.steps?.length && <ExecutionFeedSteps steps={event.steps}/>}
+                {planReason && (
+                    <div className="mt-2 rounded-r-lg border-l-2 border-orange-400 bg-orange-50/30 py-1.5 pl-3">
+                        <span className="mb-1 flex items-center gap-1 text-xs font-semibold text-slate-700">
+                            <span>💭</span> 规划想法：
+                        </span>
+                        <AgentActivitySummary text={planReason} expanded={expanded} onExpandedChange={setExpanded} variant="interaction"/>
+                    </div>
+                )}
+                {!!event.steps?.length && <ExecutionFeedSteps steps={event.steps} reason={planReason}/>}
                 {(amount !== null || actionLabel) && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
                     {actionLabel && <button type="button" onClick={() => onOpen(event)} className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-100 transition-colors">{actionLabel}</button>}
                     {amount !== null && <span className={`ml-auto inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${expense ? 'text-red-600' : 'text-emerald-600'}`}>

@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.utils import timezone
 from system_settings.agent_prompts import build_agent_system_prompt
 from utils.ai_service import AIService
+from system_settings.agent_task_models import task_model_id
 from utils.bounded_completion import complete
 from .publish_search import search
 from .travel_models import TravelMaterialCache
@@ -21,7 +22,7 @@ def ask(journey, instruction, context, validate, *, skill=''):
         context={**context,'life':build_context(item.owner_id,journey.agent,item)}
     text = prompt + '\n' + instruction + '\n上下文：' + json.dumps(context, ensure_ascii=False, default=str)
     from utils.completion_options import thinking_options
-    config = AIService.get_client_config_for_model(journey.agent.model_id)
+    config = AIService.get_client_config_for_model(task_model_id(journey.task, journey.agent))
     extra_body = thinking_options(config)
     for attempt in range(2):
         raw = complete(config, text,

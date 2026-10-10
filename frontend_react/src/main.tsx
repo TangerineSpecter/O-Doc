@@ -7,9 +7,12 @@ import './index.css';
 import App from './App.tsx';
 import { applyAppFont, getStoredAppFont } from './config/fonts.ts';
 import { setupPreventZoom } from './utils/preventZoom.ts';
+import { installModalScrollLock } from './utils/modalScrollLock.ts';
 
 applyAppFont(getStoredAppFont());
 setupPreventZoom();
+const disposeModalScrollLock = installModalScrollLock();
+if (import.meta.hot) import.meta.hot.dispose(disposeModalScrollLock);
 const disposeDiagnostics = installRuntimeDiagnostics();
 if (import.meta.hot) import.meta.hot.dispose(disposeDiagnostics);
 

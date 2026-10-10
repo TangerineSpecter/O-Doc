@@ -1,0 +1,35 @@
+.resident-activity-loading {
+    position: absolute;
+    inset: 0 0 auto;
+    pointer-events: none;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 180ms ease-out, visibility 0s;
+}
+
+.resident-activity-loading-finished {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 180ms ease-out, visibility 0s 180ms;
+}
+
+.resident-activity-content {
+    animation: resident-activity-reveal 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes resident-activity-reveal {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .resident-activity-loading,
+    .resident-activity-loading-finished {
+        transition: none;
+    }
+
+    .resident-activity-content,
+    .resident-activity-loading * {
+        animation: none !important;
+    }
+}

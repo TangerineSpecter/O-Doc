@@ -53,7 +53,7 @@ export default function ResourceImagePickerModal({isOpen, onClose, onSelect}: Pr
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose}/>
             <div className="relative flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-label="从资源库插入图片">
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">

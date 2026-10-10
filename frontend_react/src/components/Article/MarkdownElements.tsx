@@ -789,7 +789,7 @@ export const SimpleChart = ({ chart }: { chart: string }) => {
             </div>
 
             {isWordCloudFullscreen && parsed.type === 'wordcloud' && (
-                <div className="fixed inset-0 z-[200] bg-slate-950/80 p-4 backdrop-blur-sm">
+                <div data-modal-scroll-lock className="fixed inset-0 z-[200] bg-slate-950/80 p-4 backdrop-blur-sm">
                     <div className="relative h-full w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
                         <div className="absolute left-5 top-5 z-30">
                             <h3 className="text-base font-bold text-slate-900">{parsed.title}</h3>

@@ -2,10 +2,29 @@ import type {SocialFeeling} from './social';
 // --- 类型定义 ---
 export type ModelType = 'chat' | 'image' | 'image_generation' | 'embedding' | 'rerank';
 
+export type ThinkingMode = 'default' | 'enabled' | 'disabled';
+export type ThinkingProtocol = 'auto' | 'thinking' | 'enable_thinking' | 'adaptive' | 'reasoning_effort' | 'unsupported';
+export interface ThinkingCapability {
+    supported: boolean;
+    protocol: ThinkingProtocol;
+    manualProtocol: boolean;
+    reason: string;
+    enabledEffort: string;
+}
+export interface ModelInput {
+    name: string;
+    type: ModelType;
+    thinkingMode: ThinkingMode;
+    thinkingProtocol: ThinkingProtocol;
+}
+
 export interface AIModel {
     id: string;
     name: string;
     displayName?: string;
+    thinkingMode?: ThinkingMode;
+    thinkingProtocol?: ThinkingProtocol;
+    thinkingCapability?: ThinkingCapability;
     type: ModelType;
 }
 
@@ -120,6 +139,7 @@ export type AgentRunStatus = 'success' | 'failed' | 'running';
 export type AgentRunStepStatus = AgentRunStatus | 'info';
 
 export interface AgentTaskConfig {
+    model?: string | null;
     investmentConfig?: import('./investment').InvestmentConfig;
     taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking';
     publishConfig?: import('./agentPublish').AgentPublishConfig;

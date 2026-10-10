@@ -11,6 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 from article.annotation_service import get_agent_identity
 from article.models import Article
+from system_settings.agent_task_models import task_model_name
 from system_settings.agent_activity import record_post_publication, update_work_activity
 from system_settings.models import Agent, AgentExecutionLease, AgentRunRecord, AgentTask, WorldAction, WorldActionRuntime
 from .action_schedule import select_agent
@@ -173,7 +174,7 @@ def run_publish_opportunity(task, scheduler, *, key=None, manual=False, locked=F
         record = AgentRunRecord.objects.create(task=task, task_name=task.name, agent=agent, agent_name=agent.name if agent else '',
             trigger='手动执行' if manual else '系统行动', status='running', summary='正在自主选题',
             agent_runs=[{'agent': agent.pk, 'agentName': agent.name, 'agentAvatar': agent.avatar,
-                         'modelName': agent.model.name if agent.model else '未知', 'status': 'running', 'steps': []}] if agent else [])
+                         'modelName': task_model_name(task, agent), 'status': 'running', 'steps': []}] if agent else [])
         action = WorldAction.objects.create(pk=key, task=task, agent=agent, actor_id=agent.pk if agent else '', record=record,
             snapshot={'template_version': 2, 'manual': manual, 'config': copy.deepcopy(task.publish_config), 'phase': 'select', 'materials': [], 'search_count': 0})
         if not agent:

@@ -181,6 +181,7 @@ def _request_observation(image_data_url):
         client = OpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=55.0, max_retries=0)
         response = client.chat.completions.create(
             model=config['model_name'],
+            extra_body=AIService._thinking_options(config) or None,
             messages=[{'role': 'user', 'content': [
                 {'type': 'text', 'text': OBSERVE_PROMPT},
                 {'type': 'image_url', 'image_url': {'url': image_data_url}},

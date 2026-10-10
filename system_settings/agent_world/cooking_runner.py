@@ -9,6 +9,7 @@ from system_settings.models import AgentRunRecord, WorldAction, WorldActionRunti
 from system_settings.agent_activity import update_work_activity
 from system_settings.agent_prompts import build_agent_system_prompt
 from utils.ai_service import AIService
+from system_settings.agent_task_models import task_model_id, task_model_name
 from .run_diagnostics import failure_detail, progress, finish_record
 from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
 from .action_schedule import select_agent
@@ -32,7 +33,7 @@ def decide(task, agent, options):
     prompt += '\n你用自己的食材制作美食。根据偏好、原料机会成本、预期收益和成长选择可制作菜，合计最多六份，也可休息。每道菜选择 low_stars_first（日常制作）或 high_stars_first（精品制作），同星先进先出；高星材料不保证加工盈利，挂牌溢价不计保证收入。quality_previews 按当前等级估算，实际每份采用制作时等级。仅输出 JSON {"choices":[{"recipe_id":"食谱ID","quantity":1,"ingredient_strategy":"low_stars_first"}],"reason":"简短理由"}。不修改规则。'
     messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(context, ensure_ascii=False) + '\n制作偏好：' + task.prompt}]
     for attempt in range(2):
-        output = AIService.chat_completion_messages(messages, model_id=agent.model_id) or ''
+        output = AIService.chat_completion_messages(messages, model_id=task_model_id(task, agent)) or ''
         try:
             value = json.loads(output.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
             decision = validate_decision(value, options)
@@ -102,7 +103,7 @@ def run_cooking_opportunity(task, scheduler=None, *, key=None, manual=False, loc
     record = AgentRunRecord.objects.create(task=task, task_name=task.name, agent=agent, agent_name=agent.name if agent else '',
         trigger='手动执行' if manual else '系统行动', status='running', summary='正在查看美食制作',
         agent_runs=[{'agent': agent.pk, 'agentName': agent.name, 'agentAvatar': agent.avatar,
-            'modelName': agent.model.name if agent.model else '', 'status': 'running', 'steps': []}] if agent else [])
+            'modelName': task_model_name(task, agent, default=''), 'status': 'running', 'steps': []}] if agent else [])
     action = WorldAction.objects.create(pk=key, task=task, agent=agent, actor_id=agent.pk if agent else '', record=record, snapshot={'cooking': True})
     phase = '准备美食制作执行'
     progress(record, phase)

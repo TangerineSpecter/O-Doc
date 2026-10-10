@@ -172,7 +172,7 @@ export default function SaveWebpageModal({isOpen, onClose, onConfirm}: SaveWebpa
         : useAiExtraction ? 'AI 识别与保存中...' : '解析并保存中...';
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={handleClose}/>
             <div className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-2 duration-200">
                 <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-6 py-4">

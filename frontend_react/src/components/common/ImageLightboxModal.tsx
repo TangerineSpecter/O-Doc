@@ -109,7 +109,7 @@ export default function ImageLightboxModal({open, resourceId, imageUrl, alt = 'æ
     if (!open) return null;
 
     return (
-        <div
+        <div data-modal-scroll-lock
             className="fixed inset-0 z-[130] flex flex-col items-center justify-between bg-slate-950/80 backdrop-blur-md p-3 sm:p-5 select-none animate-in fade-in duration-200"
             onClick={onClose}
         >

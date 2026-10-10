@@ -10,6 +10,7 @@ from openai import AuthenticationError, OpenAI
 
 from system_settings.models import SystemSetting, AIModel
 from .ai_observer import emit_ai_event
+from .thinking import thinking_body
 
 logger = logging.getLogger(__name__)
 
@@ -53,21 +54,10 @@ class AIService:
         return base_url
 
     @staticmethod
-    def _build_thinking_extra_body(provider_type, include_thinking, disable_thinking=False):
-        extra_body = {}
-        if include_thinking:
-            extra_body["reasoning_split"] = True
-            return extra_body
-
-        if not disable_thinking:
-            return extra_body
-
-        if provider_type in ('Qwen', 'SiliconFlow'):
-            extra_body["enable_thinking"] = False
-        elif provider_type in ('DeepSeek', 'Doubao', 'Xiaomi', 'MiniMax'):
-            extra_body["thinking"] = {"type": "disabled"}
-
-        return extra_body
+    def _thinking_options(config, include_thinking=False, disable_thinking=False):
+        return thinking_body(config,
+                             default_mode='disabled' if disable_thinking else 'default',
+                             include_thinking=include_thinking)
 
     @staticmethod
     @observe_config
@@ -96,6 +86,9 @@ class AIService:
                 "api_key": provider.api_key,
                 "base_url": AIService._normalize_base_url(provider.base_url),
                 "model_name": ai_model.name,
+                "model_type": ai_model.type,
+                "thinking_mode": ai_model.thinking_mode,
+                "thinking_protocol": ai_model.thinking_protocol,
                 "model_role": model_role,
                 "provider_type": provider.type,
                 "provider_id": provider.id,
@@ -122,6 +115,9 @@ class AIService:
                 "api_key": provider.api_key,
                 "base_url": AIService._normalize_base_url(provider.base_url),
                 "model_name": ai_model.name,
+                "model_type": ai_model.type,
+                "thinking_mode": ai_model.thinking_mode,
+                "thinking_protocol": ai_model.thinking_protocol,
                 "provider_type": provider.type,
                 "provider_id": provider.id,
                 "provider_name": provider.name,
@@ -149,6 +145,9 @@ class AIService:
                 "api_key": provider.api_key,
                 "base_url": AIService._normalize_base_url(provider.base_url),
                 "model_name": ai_model.name,
+                "model_type": ai_model.type,
+                "thinking_mode": ai_model.thinking_mode,
+                "thinking_protocol": ai_model.thinking_protocol,
                 "provider_type": provider.type,
                 "provider_id": provider.id,
                 "provider_name": provider.name,
@@ -189,8 +188,8 @@ class AIService:
                 model=config['model_name'],
                 messages=[{"role": "user", "content": prompt}],
                 stream=False,
-                extra_body=cls._build_thinking_extra_body(
-                    config.get('provider_type'),
+                extra_body=cls._thinking_options(
+                    config,
                     include_thinking=False,
                     disable_thinking=use_simple_model
                 ) or None,
@@ -228,8 +227,8 @@ class AIService:
                 model=config['model_name'],
                 messages=messages,
                 stream=False,
-                extra_body=cls._build_thinking_extra_body(
-                    config.get('provider_type'),
+                extra_body=cls._thinking_options(
+                    config,
                     include_thinking=False,
                     disable_thinking=False
                 ) or None,
@@ -291,8 +290,8 @@ class AIService:
                     'messages': messages,
                     'tools': tools,
                     'stream': False,
-                    'extra_body': cls._build_thinking_extra_body(
-                        config.get('provider_type'),
+                    'extra_body': cls._thinking_options(
+                        config,
                         include_thinking=False,
                         disable_thinking=use_simple_model
                     ) or None,
@@ -319,6 +318,9 @@ class AIService:
                         for tool_call in tool_calls
                     ],
                 }
+                reasoning_content = getattr(message, "reasoning_content", None)
+                if isinstance(reasoning_content, str):
+                    assistant_message["reasoning_content"] = reasoning_content
                 messages.append(assistant_message)
 
                 for tool_call in tool_calls:
@@ -394,6 +396,7 @@ class AIService:
                     ],
                 }],
                 stream=False,
+                extra_body=cls._thinking_options(config) or None,
             )
 
             return cls.strip_thinking(response.choices[0].message.content)
@@ -421,6 +424,7 @@ class AIService:
                     {'type': 'image_url', 'image_url': {'url': image_data_url}},
                 ]}],
                 stream=False,
+                extra_body=cls._thinking_options(config) or None,
             )
             description = cls.strip_thinking(response.choices[0].message.content or '').strip()
             if not description:
@@ -446,6 +450,7 @@ class AIService:
                     {'type': 'image_url', 'image_url': {'url': image_data_url}},
                 ]}],
                 stream=False,
+                extra_body=cls._thinking_options(config) or None,
             )
             description = cls.strip_thinking(response.choices[0].message.content or '').strip()
             if not description:
@@ -485,8 +490,8 @@ class AIService:
             config = cls.get_default_client_config(use_simple_model=use_simple_model)
             client = OpenAI(api_key=config['api_key'], base_url=config['base_url'], timeout=120.0, max_retries=1)
 
-            extra_body = cls._build_thinking_extra_body(
-                config.get('provider_type'),
+            extra_body = cls._thinking_options(
+                config,
                 include_thinking=include_thinking,
                 disable_thinking=use_simple_model
             )

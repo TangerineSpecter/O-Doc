@@ -287,7 +287,7 @@ export default function ProfilePanel({course, busy, evaluate, correct}: ProfileP
 
             {/* 补充/纠正弹窗 Modal */}
             {editing && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-2xs">
+                <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-2xs">
                     <form
                         onSubmit={handleSaveCorrection}
                         className="w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"

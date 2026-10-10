@@ -9,16 +9,19 @@ import {
     Battery,
     CalendarDays,
     Activity,
+    ChefHat,
     FileText,
     MessageSquare,
     Package,
     Sparkles,
+    Sprout,
     TrendingUp,
     Wallet,
 } from 'lucide-react';
 import {AgentInventoryDialog} from './AgentInventoryDialog';
 import {AgentHoldingsDialog} from './AgentHoldingsDialog';
 import ProfessionBadge from './ProfessionBadge';
+import LevelPlate from './LevelPlate';
 
 interface AgentAttributePanelProps {
     graph: AgentRelationGraph | null;
@@ -86,10 +89,37 @@ function AttributeRow({
                     </div>
                 </div>
 
-                {/* 核心双指标：创作力 & 体力 双列紧凑并排 */}
+                {/* 居民生活技能与核心指标：种植、创作力、厨艺、体力 双列紧凑并排 */}
                 <div className="mt-3 grid grid-cols-2 gap-2">
+                    {/* 种植技能 */}
+                    <div className="rounded-xl border border-lime-100 bg-lime-50/40 p-2">
+                        <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700">
+                                <Sprout className="h-3 w-3 text-lime-600" />
+                                种植
+                                <LevelPlate level={node.planting?.level || 1} variant="lime" size="xs" />
+                            </span>
+                            <span className="text-xs font-bold tabular-nums text-slate-700">
+                                {node.planting?.experience || 0}
+                                <span className="ml-0.5 text-[10px] font-normal text-slate-400">经验</span>
+                            </span>
+                        </div>
+                        <div
+                            className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-lime-100"
+                            role="progressbar"
+                            aria-label={`${node.name}的种植经验进度`}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round((node.planting?.progress || 0) * 100)}
+                        >
+                            <div
+                                className="h-full rounded-full bg-lime-500 transition-all duration-300"
+                                style={{width: `${Math.max(0, Math.min(100, (node.planting?.progress || 0) * 100))}%`}}
+                            />
+                        </div>
+                    </div>
+
                     {/* 创作力 */}
-                    <div className="rounded-xl border border-lime-100 bg-lime-50/40 p-2"><p className="flex justify-between text-[11px] text-slate-600"><span>种植 Lv.{node.planting?.level || 1}</span><span>{node.planting?.experience || 0} 经验</span></p><div className="mt-2 h-1 overflow-hidden rounded-full bg-lime-100"><div className="h-full bg-lime-500" style={{width: `${(node.planting?.progress || 0) * 100}%`}}/></div></div>
                     <div className="rounded-xl border border-orange-100/90 bg-orange-50/40 p-2">
                         <div className="flex items-center justify-between">
                             <span className="flex items-center gap-1 text-[11px] font-medium text-slate-600">
@@ -109,7 +139,34 @@ function AttributeRow({
                         </div>
                     </div>
 
-                    <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-2"><p className="flex justify-between text-[11px] text-slate-600"><span>厨艺 Lv.{node.cooking?.level || 1}/99</span><span>{node.cooking?.experience || 0} 经验</span></p><div className="mt-2 h-1 overflow-hidden rounded-full bg-orange-100"><div className="h-full bg-orange-400" style={{width: `${(node.cooking?.progress || 0) * 100}%`}}/></div></div>
+                    {/* 厨艺技能 */}
+                    <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-2">
+                        <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-700">
+                                <ChefHat className="h-3 w-3 text-orange-500" />
+                                厨艺
+                                <LevelPlate level={node.cooking?.level || 1} variant="orange" size="xs" />
+                            </span>
+                            <span className="text-xs font-bold tabular-nums text-slate-700">
+                                {node.cooking?.experience || 0}
+                                <span className="ml-0.5 text-[10px] font-normal text-slate-400">经验</span>
+                            </span>
+                        </div>
+                        <div
+                            className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-orange-100"
+                            role="progressbar"
+                            aria-label={`${node.name}的厨艺经验进度`}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round((node.cooking?.progress || 0) * 100)}
+                        >
+                            <div
+                                className="h-full rounded-full bg-orange-400 transition-all duration-300"
+                                style={{width: `${Math.max(0, Math.min(100, (node.cooking?.progress || 0) * 100))}%`}}
+                            />
+                        </div>
+                    </div>
+
                     {/* 体力 */}
                     <div
                         className="rounded-xl border border-lime-100/90 bg-lime-50/40 p-2"

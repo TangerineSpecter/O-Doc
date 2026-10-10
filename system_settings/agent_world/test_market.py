@@ -33,6 +33,27 @@ class WeightTests(SimpleTestCase):
 
 
 class MarketTests(TestCase):
+    def test_task_model_override_records_actual_model_without_agent_default(self):
+        close_session(self.sa, 'done')
+        close_session(self.sb, 'done')
+        override = AIModel.objects.create(provider=self.a.model.provider, name='market-task-model', type='chat')
+        original = self.a.model
+        self.task.model = override
+        self.task.save()
+        def choose(task, *, cost, qualifies):
+            self.assertTrue(qualifies(self.a))
+            return self.a
+        for default in (original, None):
+            with self.subTest(default=default):
+                self.a.model = default
+                self.a.save()
+                with patch('system_settings.agent_world.market_runner.select_agent', side_effect=choose), \
+                     patch('system_settings.agent_world.market_runner.AIService.chat_completion_messages_with_tools', return_value='本次不交易') as model:
+                    record = run_market_opportunity(self.task, key=f'override-{bool(default)}', manual=True)
+                self.assertEqual(record.status, 'success', record.summary)
+                self.assertEqual(model.call_args.kwargs['model_id'], override.pk)
+                self.assertEqual(record.agent_runs[0]['modelName'], override.name)
+
     def setUp(self):
         self.user = User.objects.create_superuser('admin','market@example.invalid','market-test')
         self.client = APIClient(); self.client.force_authenticate(self.user)

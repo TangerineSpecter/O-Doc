@@ -36,7 +36,7 @@ export default function MemoEditModal({
   useEscapeDismissal(true, () => {if (!editSaving) onRequestClose();});
   useEscapeDismissal(showDiscardConfirm, onCancelDiscardConfirm);
   return (
-    <div className="fixed inset-0 z-[115] flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div data-modal-scroll-lock className="fixed inset-0 z-[115] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div
         className="absolute inset-0 bg-slate-950/45 backdrop-blur-md"
         onClick={onRequestClose}
@@ -119,7 +119,7 @@ export default function MemoEditModal({
       </form>
 
       {showDiscardConfirm && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 animate-in fade-in duration-150">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[130] flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div
             className="absolute inset-0 bg-slate-950/25"
             onClick={onCancelDiscardConfirm}

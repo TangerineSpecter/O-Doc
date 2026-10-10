@@ -265,7 +265,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
         : null;
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-in fade-in duration-200">
             {/* 半透明遮罩背景 */}
             <div
                 className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"

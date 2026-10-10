@@ -150,7 +150,7 @@ export const MobileNavDrawer: FC<MobileNavDrawerProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[120] flex sm:hidden">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex sm:hidden">
             {/* 遮罩背景 */}
             <div
                 className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm animate-in fade-in duration-200"

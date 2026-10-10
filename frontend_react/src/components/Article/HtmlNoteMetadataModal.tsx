@@ -98,7 +98,7 @@ export default function HtmlNoteMetadataModal({ note, onClose, onSaved }: Props)
         'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20';
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/30 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/30 backdrop-blur-sm p-4 animate-in fade-in duration-150">
             <form
                 role="dialog"
                 aria-modal="true"

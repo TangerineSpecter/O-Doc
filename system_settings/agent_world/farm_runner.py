@@ -8,6 +8,7 @@ from system_settings.models import AgentTask, AgentRunRecord, WorldAction, World
 from system_settings.agent_activity import update_work_activity
 from system_settings.agent_prompts import build_agent_system_prompt
 from utils.ai_service import AIService
+from system_settings.agent_task_models import task_model_id, task_model_name
 from .run_diagnostics import failure_detail, progress, finish_record
 from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease, stamina
 from .action_schedule import select_agent, take_due
@@ -86,7 +87,7 @@ def decide(task, agent, farm, options):
     prompt += '\n每个候选的cost是本次实际费用，扩地按当前地块阶段收费，不能沿用首次价格。所选候选cost之和不得超过spending.spendable；余额不等于本次可用预算。预算调整必须覆盖整份计划且保留后续预留；不足时优先选择免费种植、照料或收获，不可假定尚未发生的收入。'
     messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(context, ensure_ascii=False)+'\n补充经营偏好：'+task.prompt}]
     for attempt in range(2):
-        output = AIService.chat_completion_messages(messages, model_id=agent.model_id) or ''
+        output = AIService.chat_completion_messages(messages, model_id=task_model_id(task, agent)) or ''
         try:
             value = json.loads(output.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
             choices = value['choices']
@@ -146,7 +147,7 @@ def run_farm_opportunity(task, scheduler=None, *, key=None, manual=False, locked
     record = AgentRunRecord.objects.create(task=task, task_name=task.name, agent=agent, agent_name=agent.name if agent else '',
         trigger='手动执行' if manual else '系统行动', status='running', summary='正在查看农场',
         agent_runs=[{'agent': agent.pk, 'agentName': agent.name, 'agentAvatar': agent.avatar,
-            'modelName': agent.model.name if agent.model else '', 'status': 'running', 'steps': []}] if agent else [])
+            'modelName': task_model_name(task, agent, default=''), 'status': 'running', 'steps': []}] if agent else [])
     action = WorldAction.objects.create(pk=key, task=task, agent=agent, actor_id=agent.pk if agent else '', record=record, snapshot={'farm': True})
     phase = '准备农场执行'
     progress(record, phase)

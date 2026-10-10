@@ -114,7 +114,7 @@ export default function AgentRunDrawer({activity, onClose}: {activity: AgentActi
     if (!activity) return null;
 
     const drawerContent = (
-        <div className="fixed inset-0 z-[130] flex flex-col items-center justify-end animate-in fade-in duration-200 md:justify-center md:p-6">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[130] flex flex-col items-center justify-end animate-in fade-in duration-200 md:justify-center md:p-6">
             {/* 磨砂遮罩背景 */}
             <div
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"

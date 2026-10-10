@@ -79,8 +79,6 @@ export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
     };
 
     useEffect(() => {
-        const overflow = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
         content.current?.focus();
         const dialog = content.current?.closest('[role="dialog"]');
         const trap = (event: KeyboardEvent) => {
@@ -98,7 +96,6 @@ export default function ItemCatalogDialog({onClose}: {onClose: () => void}) {
         dialog?.addEventListener('keydown', trap as EventListener);
         return () => {
             dialog?.removeEventListener('keydown', trap as EventListener);
-            document.body.style.overflow = overflow;
         };
     }, []);
 

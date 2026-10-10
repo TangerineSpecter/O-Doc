@@ -53,7 +53,7 @@ class TravelConfigSerializer(serializers.Serializer):
             raise serializers.ValidationError(str(exc)) from exc
         if self.context.get('enabled'):
             for agent in Agent.objects.filter(pk__in=self.context.get('agent_ids', [])):
-                if not agent.model_id:
+                if not self.context.get('model_id') and not agent.model_id:
                     raise serializers.ValidationError(f'{agent.name} 未配置写作模型')
                 if not bound_skill(agent, 'odoc_travel_journal'):
                     raise serializers.ValidationError(f'{agent.name} 未绑定启用的旅行游记 Skill')

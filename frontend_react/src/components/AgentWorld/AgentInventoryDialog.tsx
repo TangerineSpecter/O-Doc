@@ -13,7 +13,7 @@ export function AgentInventoryDialog({agentId, name, onClose}: {agentId: string;
         panel.current?.focus();
         return () => previous?.focus();
     }, []);
-    return createPortal(<div className="inventory-backpack-modal">
+    return createPortal(<div data-modal-scroll-lock className="inventory-backpack-modal">
         <button type="button" aria-label="关闭背包" className="inventory-backpack-backdrop" onClick={onClose}/>
         <div ref={panel} role="dialog" aria-modal="true" aria-label={`${name}的背包`} tabIndex={-1} className="inventory-backpack-dialog"
             onKeyDown={event => {

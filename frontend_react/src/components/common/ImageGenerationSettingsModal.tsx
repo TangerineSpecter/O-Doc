@@ -92,7 +92,7 @@ export default function ImageGenerationSettingsModal({
     };
 
     return (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="image-generation-settings-title">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[130] flex items-center justify-center p-4 animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="image-generation-settings-title">
             <button type="button" aria-label="关闭设置" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !isGenerating && onClose()}/>
             <section className="relative w-full max-w-lg overflow-visible rounded-2xl border border-orange-100 bg-white shadow-2xl shadow-slate-900/20 animate-in zoom-in-95 slide-in-from-bottom-2 duration-200">
                 <div className="rounded-t-2xl">

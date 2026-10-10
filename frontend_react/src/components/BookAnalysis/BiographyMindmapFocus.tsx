@@ -37,7 +37,7 @@ export default function BiographyMindmapFocus({selection, onClose}: Props) {
     }, [onClose]);
 
     return createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8" role="presentation">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8" role="presentation">
             <button type="button" tabIndex={-1} aria-hidden="true" onClick={onClose} className="absolute inset-0 cursor-default bg-slate-950/55 backdrop-blur-[2px]"/>
             <div ref={dialog} role="dialog" aria-modal="true" aria-label={selection.title} tabIndex={-1} className="relative z-10 w-full max-w-[520px] max-h-[min(80vh,640px)] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl outline-none">
                 <div className="h-1 bg-orange-400" aria-hidden="true"/>

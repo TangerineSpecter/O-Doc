@@ -1,3 +1,4 @@
+import type {ModelInput, ThinkingCapability, ThinkingProtocol} from '../types/api/setting';
 import { diagnosticFetch } from '@/utils/diagnostics';
 import request from '../utils/request';
 import {getAuthToken} from '../utils/authStorage';
@@ -164,9 +165,13 @@ export const saveProvider = (data: Partial<AIProvider>) => {
 export const deleteProvider = (id: string) => request.delete(`/settings/providers/${id}/`);
 
 // 4. 添加/保存模型
-export const saveModel = (data: { provider: string, name: string, type: ModelType }) => {
+export const saveModel = (data: ModelInput & {provider: string, id?: string}) => {
+    if (data.id) return request.patch<AIModel>(`/settings/models/${data.id}/`, data);
     return request.post<AIModel>('/settings/models/', data);
 };
+
+export const getModelThinkingCapability = (providerId: string, name: string, type: ModelType, protocol: ThinkingProtocol, signal?: AbortSignal) =>
+    request.get<unknown, ThinkingCapability>(`/settings/providers/${providerId}/thinking_capability/`, {params: {name, type, protocol}, signal});
 
 // 5. 删除模型
 export const deleteModel = (id: string) => request.delete(`/settings/models/${id}/`);

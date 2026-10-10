@@ -1,6 +1,7 @@
 import {Clock, Droplets, Heart, Sparkles, Sprout, Home, Warehouse, Eye, Info} from 'lucide-react';
 import type {FarmSelection, FarmState} from '../../types/api/farm';
 import {FarmBonus} from './FarmBonus';
+import LevelPlate from '../AgentWorld/LevelPlate';
 
 const animalNames = {chicken: '母鸡', cow: '奶牛', sheep: '绵羊'};
 
@@ -36,7 +37,25 @@ export function FarmDetails({
 
     return (
         <div className="space-y-3">
-            <div className="rounded-xl border border-lime-200 bg-lime-50 p-3 text-xs text-lime-900">种植 Lv.{farm.planting?.level || 1} · {farm.planting?.experience || 0} 经验<div className="mt-2 h-1 rounded-full bg-lime-100"><div className="h-full rounded-full bg-lime-500" style={{width: `${(farm.planting?.progress || 0) * 100}%`}}/></div></div>
+            <div className="rounded-xl border border-lime-200/90 bg-lime-50/80 p-3 text-xs text-lime-900 shadow-2xs">
+                <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-semibold text-slate-800">
+                        <Sprout className="h-4 w-4 text-lime-600" />
+                        种植
+                        <LevelPlate level={farm.planting?.level || 1} variant="lime" size="sm" />
+                    </span>
+                    <span className="font-bold tabular-nums text-slate-700">
+                        {farm.planting?.experience || 0}
+                        <span className="ml-1 text-[11px] font-normal text-slate-500">经验</span>
+                    </span>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-lime-100">
+                    <div
+                        className="h-full rounded-full bg-lime-500 transition-all duration-300"
+                        style={{width: `${Math.max(0, Math.min(100, (farm.planting?.progress || 0) * 100))}%`}}
+                    />
+                </div>
+            </div>
             {/* 职业产量加成 */}
             <FarmBonus farm={farm} />
 

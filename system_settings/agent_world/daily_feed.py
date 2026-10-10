@@ -1,5 +1,6 @@
 """投影居民已发生的业务事实，不复制账本或执行记录。"""
 from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from decimal import Decimal
 
@@ -56,13 +57,32 @@ def _journey_event_time(journey):
     return journey.updated_at
 
 
-def latest_event_day(request, owner, before, category='all'):
-    """通过各业务表最近的时间索引跳过没有活动的日期。"""
+@dataclass(frozen=True)
+class FeedScope:
+    actors: set[str]
+    names: dict[str, str]
+    visible_colls: tuple[str, ...]
+
+
+def feed_scope(request, owner: str) -> FeedScope:
+    """仅在一次请求内复用归属和可见性，下一次请求重新检查权限。"""
     actors = _actor_scope(owner)
-    visible_colls = get_visible_anthology_queryset(request).values_list('coll_id', flat=True)
+    return FeedScope(
+        actors=actors,
+        names=dict(Agent.objects.filter(pk__in=actors).values_list('id', 'name')),
+        visible_colls=tuple(get_visible_anthology_queryset(request).values_list('coll_id', flat=True)),
+    )
+
+
+def latest_event_day(request, owner, before, category='all', actor_id='', *, scope: FeedScope | None = None):
+    """通过各业务表最近的时间索引跳过没有活动的日期。"""
+    scope = scope or feed_scope(request, owner)
+    actors, visible_colls = scope.actors, scope.visible_colls
     candidates = []
 
-    def collect(queryset, field):
+    def collect(queryset, field, actor_field='actor_id'):
+        if actor_id and actor_field:
+            queryset = queryset.filter(**{actor_field: actor_id})
         value = queryset.filter(**{f'{field}__lt': before}).order_by(f'-{field}').values_list(field, flat=True).first()
         if value is not None:
             candidates.append(value)
@@ -75,25 +95,38 @@ def latest_event_day(request, owner, before, category='all'):
         activity_scope = (Q(activity_type='work', agent_id__in=actors) |
                           Q(activity_type='work', agent_id__isnull=True, run_record__agent_id__in=actors)) if category == 'record' else Q(pk__in=[])
         visible_scope = Q(activity_type__in=activity_types, artifact_coll_id__in=visible_colls)
-        collect(AgentActivity.objects.filter(activity_scope | visible_scope | Q(action__startswith='social_', metadata__owner_id=owner)), 'occurred_at')
+        activities = AgentActivity.objects.filter(activity_scope | visible_scope | Q(action__startswith='social_', metadata__owner_id=owner))
+        if actor_id:
+            # 与事件投影的身份回退一致，同时保留原有文集和账号可见性约束。
+            activities = activities.filter(
+                Q(agent_id=actor_id) |
+                Q(agent_id__isnull=True, activity_type='work', run_record__agent_id=actor_id) |
+                Q(agent_id__isnull=True, metadata__agentSnapshot__id=actor_id)
+            )
+        collect(activities, 'occurred_at', None)
     if category == 'record':
         records = AgentRunRecord.objects.filter(agent_id__in=actors)
-        collect(records, 'started_at')
-        collect(records.filter(status__in=('success', 'failed')), 'updated_at')
+        collect(records, 'started_at', 'agent_id')
+        collect(records.filter(status__in=('success', 'failed')), 'updated_at', 'agent_id')
         collect(LifeItem.objects.filter(owner_id=owner, status__in=('rest', 'failed', 'cancelled')), 'updated_at')
-        collect(LifeRevision.objects.filter(item__owner_id=owner), 'created_at')
+        collect(LifeRevision.objects.filter(item__owner_id=owner), 'created_at', 'item__actor_id')
     if category in ('all', 'cooking'):
         from .cooking_models import CookingOperation
         collect(CookingOperation.objects.filter(owner_id=owner), 'created_at')
     if category in ('all', 'farm'):
-        collect(FarmOperation.objects.filter(farm__owner_id=owner), 'created_at')
+        collect(FarmOperation.objects.filter(farm__owner_id=owner), 'created_at', 'farm_id')
     if category in ('all', 'market', 'trade'):
-        collect(MarketTransaction.objects.filter(owner_id=owner), 'created_at')
-    if category in ('all', 'market', 'trade'):
+        transactions = MarketTransaction.objects.filter(owner_id=owner)
+        if actor_id:
+            transactions = transactions.filter(Q(actor_id=actor_id) | Q(result__seller_id=actor_id))
+        collect(transactions, 'created_at', None)
         # 交易归并卡片可能移动到跨日会话结束日，日期索引须覆盖该日期。
         sessions = MarketSession.objects.filter(owner_id=owner)
-        collect(sessions, 'created_at')
-        collect(sessions, 'ended_at')
+        if actor_id:
+            # 卖家的售出卡也随买方跨日会话结束而移动，不能只索引自己的会话。
+            sessions = sessions.filter(Q(actor_id=actor_id) | Q(pk__in=transactions.values('session_id')))
+        collect(sessions, 'created_at', None)
+        collect(sessions, 'ended_at', None)
     if category in ('all', 'investment'):
         collect(InvestmentDecision.objects.filter(owner_id=owner), 'created_at')
     if category in ('all', 'travel'):
@@ -104,7 +137,7 @@ def latest_event_day(request, owner, before, category='all'):
         collect(completed.filter(returned_at__isnull=True), 'updated_at')
     if category in ('all', 'finance'):
         ledger = WorldLedger.objects.filter(agent_id__in=actors).exclude(kind='opening').exclude(amount=0)
-        collect(ledger, 'created_at')
+        collect(ledger, 'created_at', 'agent_id')
     return local_time(max(candidates)).date() if candidates else None
 
 
@@ -174,13 +207,13 @@ def _investment_detail(decision, trades):
     return ' · '.join(parts) or '正在研究持仓和市场'
 
 
-def day_events(request, owner, day, actor_id=''):
+def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = None):
     """每条事件引用稳定业务主键；筛选发生于聚合后，避免账目视角重复计数。"""
     start, end = _window(day)
-    actors = _actor_scope(owner)
-    names = dict(Agent.objects.filter(pk__in=actors).values_list('id', 'name'))
+    scope = scope or feed_scope(request, owner)
+    actors, names = scope.actors, scope.names
     events = []
-    visible_colls = get_visible_anthology_queryset(request).values_list('coll_id', flat=True)
+    visible_colls = scope.visible_colls
     activities = AgentActivity.objects.filter(
         Q(activity_type='work', agent_id__in=actors) |
         Q(activity_type='work', agent_id__isnull=True, run_record__agent_id__in=actors) |
@@ -395,6 +428,8 @@ def day_events(request, owner, day, actor_id=''):
         op, result = row.operation or {}, row.result or {}
         kind = op.get('kind', '')
         parts = []
+        if kind == 'expand':
+            parts.append('购买 4 块耕地')
         if op.get('crop'):
             parts.append(FARM_RULES['crops'].get(str(op['crop']), {}).get('name') or str(op['crop']))
         if op.get('building'):
@@ -408,12 +443,15 @@ def day_events(request, owner, day, actor_id=''):
                 parts.append(f"{item.get('name') or item.get('sku') or '产物'}{stars} × {item.get('quantity', 1)}")
         if result.get('experience_gained') is not None:
             parts.append(f"种植经验 +{result['experience_gained']}")
-        if row.reason:
+        # 仅对孤立未聚合操作保留原样 detail 拼入 reason；聚合组由顶层卡片统一承载规划原因
+        if row.reason and not row.opportunity_id:
             parts.append(row.reason)
         events.append(_event('farm', 'farm', row.pk, row.created_at, row.farm_id,
                              names.get(row.farm_id, row.farm.actor_name), result.get('label') or FARM_LABELS.get(kind, '农场操作'),
                              ' · '.join(parts), amount=result.get('amount') if result.get('amount') not in ('0', '0.00', 0) else None,
                              target={'kind': 'farm', 'id': row.farm_id}))
+        if row.reason:
+            events[-1]['reason'] = row.reason
         if row.opportunity_id:
             events[-1]['_execution_group'] = 'farm:' + row.opportunity_id
             events[-1]['_execution_failed'] = farm_actions.get(row.opportunity_id) == 'failed'

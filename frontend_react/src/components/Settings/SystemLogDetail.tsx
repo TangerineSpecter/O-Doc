@@ -55,7 +55,7 @@ export function SystemLogDetail({
     useEscapeDismissal(true, onClose);
 
     return (
-        <div
+        <div data-modal-scroll-lock
             className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200"
             onClick={onClose}
         >

@@ -136,7 +136,7 @@ export default function AgentContactPanel({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] flex justify-end bg-slate-900/20 backdrop-blur-[2px] animate-in fade-in duration-200">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[100] flex justify-end bg-slate-900/20 backdrop-blur-[2px] animate-in fade-in duration-200">
             <button type="button" className="hidden flex-1 cursor-default md:block" onClick={onClose} aria-label="关闭 Agent 联系人"/>
             <section className="flex h-full w-full md:max-w-[430px] flex-col border-l border-slate-200 bg-white shadow-2xl shadow-slate-900/20 animate-in slide-in-from-right-6 duration-300">
                 <header className="border-b border-slate-100 bg-slate-50/90 px-4 py-3.5 sm:px-5 sm:py-4 backdrop-blur">

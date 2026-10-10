@@ -526,7 +526,7 @@ export const MCPSettings = ({servers, onSave, onDelete, onScan, onRefreshTools}:
             )}
 
             {modalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+                <div data-modal-scroll-lock className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
                     <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-150">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                             <div>

@@ -50,7 +50,7 @@ export default function MindMapModal({isOpen, mindMap, onClose}: MindMapModalPro
     if (!isOpen) return null;
 
     return createPortal(
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm animate-in fade-in duration-200">
             <button className="absolute inset-0 cursor-default" onClick={onClose} aria-label="关闭思维导图"/>
             <div className="relative flex h-[min(760px,88vh)] w-[min(1100px,96vw)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">

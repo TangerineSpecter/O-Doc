@@ -291,7 +291,7 @@ export const ChatSettingsToolbar = ({
                     )}
                 </div>
 
-                {/* 思考模式 */}
+                {/* 思考内容展示，与模型请求策略独立 */}
                 <button
                     type="button"
                     onClick={() => setUseThinking(!useThinking)}
@@ -302,8 +302,8 @@ export const ChatSettingsToolbar = ({
                     }`}
                 >
                     <BrainCircuit className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                    <span className="hidden sm:inline">思考模式：</span>
-                    <span>{useThinking ? '思考中' : '深度思考'}</span>
+                    <span className="hidden sm:inline">思考展示：</span>
+                    <span>{useThinking ? '显示' : '隐藏'}</span>
                 </button>
 
                 {/* 知识库模式 */}
@@ -361,7 +361,7 @@ export const ChatSettingsToolbar = ({
 
             {/* 移动端专属：MCP 底部抽屉 (Bottom Sheet) */}
             {mcpPanelOpen && (
-                <div className="sm:hidden fixed inset-0 z-[150] flex flex-col justify-end">
+                <div data-modal-scroll-lock className="sm:hidden fixed inset-0 z-[150] flex flex-col justify-end">
                     <div
                         className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-in fade-in duration-200"
                         onClick={() => setMcpPanelOpen(false)}
@@ -392,7 +392,7 @@ export const ChatSettingsToolbar = ({
 
             {/* 移动端专属：技能装载底部抽屉 (Bottom Sheet) */}
             {skillPanelOpen && chatSkills.length > 0 && (
-                <div className="sm:hidden fixed inset-0 z-[150] flex flex-col justify-end">
+                <div data-modal-scroll-lock className="sm:hidden fixed inset-0 z-[150] flex flex-col justify-end">
                     <div
                         className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-in fade-in duration-200"
                         onClick={() => setSkillPanelOpen(false)}
@@ -423,7 +423,7 @@ export const ChatSettingsToolbar = ({
 
             {/* 移动端专属：知识库检索文集抽屉 (Bottom Sheet) */}
             {mobileKbOpen && (
-                <div className="sm:hidden fixed inset-0 z-[150] flex flex-col justify-end">
+                <div data-modal-scroll-lock className="sm:hidden fixed inset-0 z-[150] flex flex-col justify-end">
                     <div
                         className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-in fade-in duration-200"
                         onClick={() => setMobileKbOpen(false)}

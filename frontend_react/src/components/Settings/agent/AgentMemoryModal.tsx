@@ -78,7 +78,7 @@ export function AgentMemoryModal({
     }, [memories, memoryStatusFilter]);
 
     return (
-        <div
+        <div data-modal-scroll-lock
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-150"
             role="dialog"
             aria-modal="true"

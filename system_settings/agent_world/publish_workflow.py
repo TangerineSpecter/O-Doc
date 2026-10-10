@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 from django.utils import timezone
 from system_settings.agent_prompts import build_agent_system_prompt
 from utils.ai_service import AIService
+from system_settings.agent_task_models import task_model_id
 from utils.bounded_completion import complete
 from .publish_config import categories_for, own_posts
 from .publish_search import search
@@ -70,7 +71,7 @@ class Workflow:
             if remaining <= 0:
                 raise TimeoutError('发帖流程达到5分钟时限')
             from utils.completion_options import thinking_options
-            config = AIService.get_client_config_for_model(self.agent.model_id)
+            config = AIService.get_client_config_for_model(task_model_id(self.task, self.agent))
             raw = complete(config, messages,
                            json_output=True, extra_body=thinking_options(config), deadline_seconds=remaining)
             try:

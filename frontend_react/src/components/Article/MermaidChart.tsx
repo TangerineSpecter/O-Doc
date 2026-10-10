@@ -203,7 +203,7 @@ export const MermaidChart = ({ chart }: { chart: string }) => {
             </div>
 
             {isFullscreen && (
-                <div className="fixed inset-0 z-[200] bg-slate-950/80 backdrop-blur-sm p-4">
+                <div data-modal-scroll-lock className="fixed inset-0 z-[200] bg-slate-950/80 backdrop-blur-sm p-4">
                     <div className="relative flex h-full w-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
                         {chartBody(true)}
                         <div className="shrink-0 border-t border-slate-100 px-3 py-1.5">{controls(true)}</div>

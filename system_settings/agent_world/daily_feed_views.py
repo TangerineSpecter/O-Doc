@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 
 from utils.drf_utils import get_current_user_identifier
 from utils.response_utils import success_result, valid_result
-from .daily_feed import CATEGORIES, day_events, latest_event_day
+from .daily_feed import CATEGORIES, day_events, feed_scope, latest_event_day
 from .life_time import SHANGHAI, local_time, storage_time
 
 
@@ -38,11 +38,17 @@ class DailyFeedView(APIView):
                 moment = cursor_at.isoformat()
             except ValueError:
                 return valid_result('活动游标无效', status=400)
+        try:
+            size = int(request.query_params.get('page_size', '30'))
+            if not 1 <= size <= 30:
+                raise ValueError()
+        except (TypeError, ValueError):
+            return valid_result('活动分页条数无效', status=400)
         owner = get_current_user_identifier(request)
-        size = 30
+        scope = feed_scope(request, owner)
         today = local_time().date()
         if selected_day is not None:
-            all_events, events, counts, global_total, actor_counts = day_events(request, owner, selected_day, actor)
+            all_events, events, counts, global_total, actor_counts = day_events(request, owner, selected_day, actor, scope=scope)
             filtered = all_events if category == 'all' else [row for row in events if category in row.get('categories', [row['category']])]
             total = len(filtered)
             if cursor:
@@ -51,14 +57,14 @@ class DailyFeedView(APIView):
             has_more = len(filtered) > size
         else:
             # 今日数字只读取今日事实；历史页按最近有记录的日期逐日取，避免每次轮询扫描全部历史。
-            today_all, today_events, counts, global_total, actor_counts = day_events(request, owner, today, actor)
+            today_all, today_events, counts, global_total, actor_counts = day_events(request, owner, today, actor, scope=scope)
             filtered = []
             current_day = cursor_at.date() if cursor_at else today
             while current_day is not None and len(filtered) <= size:
                 if current_day == today:
                     all_events, events = today_all, today_events
                 else:
-                    all_events, events, _, _, _ = day_events(request, owner, current_day, actor)
+                    all_events, events, _, _, _ = day_events(request, owner, current_day, actor, scope=scope)
                 rows = all_events if category == 'all' else [row for row in events if category in row.get('categories', [row['category']])]
                 if cursor:
                     rows = [row for row in rows if (row['occurredAt'], row['id']) < (moment, identity)]
@@ -66,7 +72,7 @@ class DailyFeedView(APIView):
                 if len(filtered) > size:
                     break
                 before = storage_time(datetime.combine(current_day, time.min, SHANGHAI))
-                current_day = latest_event_day(request, owner, before, category)
+                current_day = latest_event_day(request, owner, before, category, actor, scope=scope)
             total = len(filtered[:size])
             shown = filtered[:size]
             has_more = len(filtered) > size

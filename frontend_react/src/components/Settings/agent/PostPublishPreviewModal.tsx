@@ -17,7 +17,7 @@ export function PostPublishPreviewModal({task, agents, onClose}: Props) {
     useEffect(() => {const c = new AbortController(); getLifeConfig(c.signal).then(config => {if (!c.signal.aborted) {const eligible = agents.filter(a => (config.activeAgentIds || config.settings.agentIds).includes(a.id) && !config.pausedAgents.includes(a.id)); setBound(eligible); setAgentId(eligible[0]?.id || '');}}).catch(e => {if (!c.signal.aborted) setConfigError(e.message || '参与居民加载失败');}); return () => c.abort();}, [agents]);
     const {result, loading, error, run, reset} = usePublicationPreview(task.id);
     useEscapeDismissal(true, onClose);
-    return createPortal(<div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-3 backdrop-blur-sm" onClick={e => {if (e.target === e.currentTarget) onClose();}}>
+    return createPortal(<div data-modal-scroll-lock className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-3 backdrop-blur-sm" onClick={e => {if (e.target === e.currentTarget) onClose();}}>
         <section role="dialog" aria-modal="true" aria-labelledby="publish-preview-title" className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
             <header className="flex items-center justify-between gap-3 border-b border-slate-100 p-5"><h3 id="publish-preview-title" className="text-lg font-bold text-slate-900">发帖试运行预览</h3><button type="button" aria-label="关闭预览" onClick={onClose} className="shrink-0 whitespace-nowrap rounded-lg p-2 text-slate-500 hover:bg-slate-50"><X className="h-5 w-5"/></button></header>
             <div className="space-y-4 overflow-y-auto scrollbar-hide p-5">

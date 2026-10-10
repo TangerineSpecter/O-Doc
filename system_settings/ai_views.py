@@ -13,8 +13,21 @@ class AIProviderViewSet(viewsets.ModelViewSet):
     """
     AI提供商及模型配置接口
     """
-    queryset = AIProvider.objects.all().order_by('-created_at')
+    queryset = AIProvider.objects.all().prefetch_related('models__provider').order_by('-created_at')
     serializer_class = AIProviderSerializer
+
+    @action(detail=True, methods=['get'])
+    def thinking_capability(self, request, pk=None):
+        from utils.thinking_capabilities import capability
+        provider = self.get_object()
+        name = request.query_params.get('name', '')
+        if len(name) > 100:
+            return valid_result(msg='模型名称过长', status=400)
+        return success_result(capability({
+            'provider_type': provider.type, 'base_url': provider.base_url,
+            'model_name': name, 'model_type': request.query_params.get('type', 'chat'),
+            'thinking_protocol': request.query_params.get('protocol', 'auto'),
+        }, probe_ollama=True))
 
     # 【关键点】必须重写 list 方法，否则 DRF 默认只返回一个数组，前端就会报错
     def list(self, request, *args, **kwargs):
@@ -56,7 +69,7 @@ class AIProviderViewSet(viewsets.ModelViewSet):
 
 
 class AIModelViewSet(viewsets.ModelViewSet):
-    queryset = AIModel.objects.all()
+    queryset = AIModel.objects.select_related('provider').all()
     serializer_class = AIModelSerializer
 
     @staticmethod
@@ -79,10 +92,17 @@ class AIModelViewSet(viewsets.ModelViewSet):
                 'query': 'O-Doc connectivity test',
                 'documents': ['Connectivity test document.'],
             }
+        from utils.thinking import thinking_body
+        from utils.completion_options import temperature_options
+        config = {'provider_type': model.provider.type, 'model_name': model.name,
+                                 'thinking_mode': model.thinking_mode, 'thinking_protocol': model.thinking_protocol,
+                                 'base_url': model.provider.base_url, 'model_type': model.type}
+        options = thinking_body(config)
         return '/chat/completions', {
+            **options,
             'model': model.name,
             'messages': [{'role': 'user', 'content': 'Reply with OK.'}],
-            'temperature': 0,
+            **temperature_options(config, options, 0),
             'max_tokens': 8,
         }
 
@@ -231,8 +251,17 @@ class AIModelViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return valid_result(msg=str(next(iter(serializer.errors.values()))[0]), data=serializer.errors, status=400)
         self.perform_create(serializer)
+        return success_result(serializer.data)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
+        if not serializer.is_valid():
+            return valid_result(msg=str(next(iter(serializer.errors.values()))[0]), data=serializer.errors, status=400)
+        self.perform_update(serializer)
         return success_result(serializer.data)
 
     def destroy(self, request, *args, **kwargs):

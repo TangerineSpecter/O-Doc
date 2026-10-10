@@ -260,7 +260,7 @@ export default function PlanEditor({course, busy, save}: PlanEditorProps) {
 
             {/* 调整阶段计划弹窗 Modal */}
             {editing && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-2xs">
+                <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-2xs">
                     <form
                         onSubmit={handleSave}
                         className="max-h-[85vh] w-full max-w-xl space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-xl scrollbar-hide"

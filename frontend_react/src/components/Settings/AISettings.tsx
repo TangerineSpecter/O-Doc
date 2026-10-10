@@ -86,7 +86,7 @@ interface AISettingsProps {
     setSystemConfig: (config: SystemAIConfig) => void;
     getModelsByType: (type: ModelType) => (AIModel & { providerName: string, uniqueId: string })[];
     onOpenProviderModal: (provider?: AIProvider) => void;
-    onOpenModelModal: (providerId: string) => void;
+    onOpenModelModal: (providerId: string, model?: AIModel) => void;
     onDelete: (target: { type: 'provider' | 'model', providerId: string, modelId?: string }) => void;
 }
 
@@ -390,6 +390,7 @@ export const AISettings = ({
                                                                 className="text-sm font-medium text-slate-700 truncate">{model.name}</span>
                                                             <div className="flex items-center gap-1.5 mt-0.5">
                                                                 <ModelTypeBadge type={model.type}/>
+                                                                {['chat', 'image'].includes(model.type) && (model.thinkingCapability?.supported || model.thinkingMode && model.thinkingMode !== 'default') && <span className="text-[10px] text-slate-500">思考：{model.thinkingCapability && !model.thinkingCapability.supported ? '需确认能力' : model.thinkingMode === 'enabled' ? '开启' : model.thinkingMode === 'disabled' ? '关闭' : '默认'}</span>}
                                                                 {result && (
                                                                     <span
                                                                         className={`inline-flex items-center gap-1 text-[10px] font-medium ${result.ok ? 'text-emerald-600' : 'text-rose-600'}`}
@@ -404,6 +405,7 @@ export const AISettings = ({
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-1 shrink-0">
+                                                        <button type="button" onClick={() => onOpenModelModal(provider.id, model)} title="编辑模型" className="p-1.5 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-md"><Edit2 className="w-3.5 h-3.5"/></button>
                                                         <button
                                                             type="button"
                                                             onClick={() => handleTestModelConnection(model)}

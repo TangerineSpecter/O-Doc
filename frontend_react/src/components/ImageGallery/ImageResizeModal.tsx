@@ -181,7 +181,7 @@ export default function ImageResizeModal({ file, maxLongEdge, queueIndex, queueT
   const endDrag = () => { dragStart.current = null; };
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div data-modal-scroll-lock className="fixed inset-0 z-[130] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !isProcessing && onCancel()} />
       <div className="relative flex w-full max-w-7xl max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-2 duration-200">
         <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/50 px-6 py-4">

@@ -124,11 +124,9 @@ export default function ImageViewer({
       requestAnimationFrame(() => {
         setIsVisible(true);
       });
-      document.body.style.overflow = 'hidden';
       resetNavButtonsTimer();
     } else {
       setIsVisible(false);
-      document.body.style.overflow = 'unset';
       if (hideNavTimerRef.current !== null) {
         window.clearTimeout(hideNavTimerRef.current);
         hideNavTimerRef.current = null;
@@ -164,10 +162,6 @@ export default function ImageViewer({
     imageRetryAttemptsRef.current = {};
     setImageRetryTokens({});
   }, [groupImageUrls, isOpen]);
-
-  useEffect(() => () => {
-    document.body.style.overflow = 'unset';
-  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -398,7 +392,7 @@ export default function ImageViewer({
   };
 
   return (
-    <div
+    <div data-modal-scroll-lock
       data-disable-swipe-back="true"
       className={`
         fixed inset-0 z-50 flex flex-col bg-slate-900/40 p-0 backdrop-blur-sm text-slate-900

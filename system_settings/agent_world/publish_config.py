@@ -86,7 +86,8 @@ def eligibility(task, agent, *, config=None, preview=False) -> str:
     setting = SystemSetting.objects.filter(key='system_mcp_config').first()
     if setting and not (setting.value or {}).get('enabled', True):
         return '系统 MCP 已关闭'
-    if not agent.model_id:
+    from system_settings.agent_task_models import task_model_id
+    if not task_model_id(task, agent):
         return 'Agent 未配置模型'
     try:
         search_server(config)

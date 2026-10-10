@@ -8,6 +8,7 @@ from system_settings.models import AgentTask, AgentRunRecord, WorldAction, World
 from system_settings.agent_prompts import build_agent_system_prompt
 from system_settings.agent_activity import update_work_activity
 from utils.ai_service import AIService
+from system_settings.agent_task_models import task_model_id, task_model_name
 from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease
 from .action_schedule import select_agent
 from .investment_data import local_day, reference_day, QUERY_DEADLINE
@@ -36,10 +37,10 @@ def run_investment_opportunity(task,scheduler=None,*,key=None,manual=False):
         task.refresh_from_db()
         if not manual and (not task.enabled or not WorldActionRuntime.objects.filter(pk='world',enabled=True).exists()):return None
         day=local_day()
-        agent=select_agent(task,cost=5,qualifies=lambda a:bool(a.model_id)) if day.weekday()<5 else None
+        agent=select_agent(task,cost=5,qualifies=lambda a:bool(task_model_id(task, a))) if day.weekday()<5 else None
         record=AgentRunRecord.objects.create(task=task,task_name=task.name,agent=agent,agent_name=agent.name if agent else '',
             trigger='手动执行' if manual else '系统行动',status='running',summary='正在查看投资账户',
-            agent_runs=[{'agent':agent.pk,'agentName':agent.name,'agentAvatar':agent.avatar,'modelName':agent.model.name,'status':'running','steps':[]}] if agent else [])
+            agent_runs=[{'agent':agent.pk,'agentName':agent.name,'agentAvatar':agent.avatar,'modelName':task_model_name(task, agent),'status':'running','steps':[]}] if agent else [])
         action=WorldAction.objects.create(pk=key,task=task,agent=agent,actor_id=agent.pk if agent else '',record=record,snapshot={'investment':True})
     phase='准备执行'
     decision=None; status='success'; summary='周末不执行投资' if day.weekday()>=5 else '没有空闲且体力足够的居民'
@@ -74,7 +75,7 @@ def run_investment_opportunity(task,scheduler=None,*,key=None,manual=False):
                 from .life_scope import enrich
                 context=enrich(context)
                 try:
-                    summary=AIService.chat_completion_messages_with_tools([{'role':'system','content':prompt},{'role':'user','content':json.dumps(context,ensure_ascii=False)}],TOOLS,tools.execute,model_id=agent.model_id,max_rounds=20,deadline=deadline) or '本次投资机会结束'
+                    summary=AIService.chat_completion_messages_with_tools([{'role':'system','content':prompt},{'role':'user','content':json.dumps(context,ensure_ascii=False)}],TOOLS,tools.execute,model_id=task_model_id(task, agent),max_rounds=20,deadline=deadline) or '本次投资机会结束'
                 except Finished as exc:summary=str(exc)
     except Exception as exc:
         logger.exception('投资机会失败 key=%s',key)

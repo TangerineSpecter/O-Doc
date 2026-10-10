@@ -314,7 +314,7 @@ export default function TravelPhotoCard({
 
             {/* 点击图片放大查看模态框 (Lightbox Modal) */}
             {zoomOpen && currentImage && (
-                <div
+                <div data-modal-scroll-lock
                     className="fixed inset-0 z-[150] flex flex-col items-center justify-center bg-slate-950/85 p-4 backdrop-blur-md animate-in fade-in duration-200"
                     onClick={() => setZoomOpen(false)}
                 >

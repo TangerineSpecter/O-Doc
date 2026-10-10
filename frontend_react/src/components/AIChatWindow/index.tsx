@@ -256,7 +256,7 @@ export const AIChatWindow = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] sm:p-4 animate-in fade-in duration-200">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] sm:p-4 animate-in fade-in duration-200">
             {/* 确认弹窗 */}
             <ConfirmationModal
                 isOpen={isClearModalOpen}

@@ -8,12 +8,38 @@ from .agent_world.scope_validation import PostScopeValidation
 from .agent_world.farm_gate import guarded as farm_guarded
 
 class AIModelSerializer(serializers.ModelSerializer):
+    thinking_capability = serializers.SerializerMethodField()
+
+    def get_thinking_capability(self, obj):
+        from utils.thinking_capabilities import capability
+        return capability({'provider_type': obj.provider.type, 'model_name': obj.name,
+                           'model_type': obj.type, 'thinking_protocol': obj.thinking_protocol})
+
     class Meta:
         model = AIModel
-        fields = ['id', 'name', 'type', 'provider']
+        fields = ['id', 'name', 'type', 'provider', 'thinking_mode', 'thinking_protocol', 'thinking_capability']
         read_only_fields = ['id']
         # provider 字段在嵌套时可选，但在单独创建时必填
         extra_kwargs = {'provider': {'required': False}}
+
+    def validate(self, attrs):
+        from utils.thinking import thinking_body
+        instance = self.instance
+        mode = attrs.get('thinking_mode', getattr(instance, 'thinking_mode', 'default'))
+        protocol = attrs.get('thinking_protocol', getattr(instance, 'thinking_protocol', 'auto'))
+        model_type = attrs.get('type', getattr(instance, 'type', 'chat'))
+        provider = attrs.get('provider', getattr(instance, 'provider', None))
+        if mode != 'default':
+            if model_type not in ('chat', 'image'):
+                raise serializers.ValidationError({'thinking_mode': '此模型类型不支持思考控制'})
+            try:
+                thinking_body({'thinking_mode': mode, 'thinking_protocol': protocol,
+                               'provider_type': provider.type if provider else '',
+                               'base_url': provider.base_url if provider else '', 'model_type': model_type,
+                               'model_name': attrs.get('name', getattr(instance, 'name', ''))})
+            except ValueError as exc:
+                raise serializers.ValidationError({'thinking_protocol': str(exc)}) from exc
+        return attrs
 
 class AIProviderSerializer(serializers.ModelSerializer):
     # 嵌套显示 models，read_only=True 表示更新 Provider 时不直接覆盖整个 models 列表，而是通过单独接口管理
@@ -372,6 +398,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             'agent_name',
             'agents',
             'agent_names',
+            'model',
             'execution_mode',
             'trigger',
             'schedule',
@@ -521,6 +548,11 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
     def validate_interval_minutes(self, value):
         if value < 1:
             raise serializers.ValidationError("间隔分钟必须大于 0")
+        return value
+
+    def validate_model(self, value):
+        if value is not None and value.type != 'chat':
+            raise serializers.ValidationError('任务执行模型必须是对话模型')
         return value
 
     def validate(self, attrs):
@@ -673,6 +705,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             else:
                 config = TravelConfigSerializer(data=attrs.get('travel_config', saved), context={
                     'previous': saved, 'owner_id': get_current_user_identifier(request) if request else None,
+                    'model_id': getattr(attrs.get('model', getattr(self.instance, 'model', None)), 'pk', None),
                     'enabled': attrs.get('enabled', getattr(self.instance, 'enabled', False)),
                     'agent_ids': [] if request else attrs.get('agent_ids', getattr(self.instance, 'agent_ids', []))})
                 config.is_valid(raise_exception=True)

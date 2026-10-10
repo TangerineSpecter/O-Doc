@@ -158,7 +158,7 @@ export default function ArticleVersionHistoryModal({
 
     return (
         <>
-            <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/45 p-2 backdrop-blur-sm sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget && !isRestoring) handleClose(); }}>
+            <div data-modal-scroll-lock className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/45 p-2 backdrop-blur-sm sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget && !isRestoring) handleClose(); }}>
                 <section className="flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl" role="dialog" aria-modal="true" aria-label="文章历史版本">
                     <header className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-6">
                         <div className="flex min-w-0 items-center gap-3">

@@ -1,3 +1,4 @@
+import type {AIModel} from '../types/api/setting';
 import { SystemLogs } from '../components/Settings/SystemLogs';
 import { useAuth } from '../contexts/AuthContext';
 import React, { useState } from 'react';
@@ -88,7 +89,7 @@ export default function SettingsPage() {
 
     // 页面内部的模态框状态 (UI State)
     const [providerModal, setProviderModal] = useState<{ open: boolean, data?: AIProvider | null }>({ open: false });
-    const [modelModal, setModelModal] = useState<{ open: boolean, providerId?: string }>({ open: false });
+    const [modelModal, setModelModal] = useState<{ open: boolean, providerId?: string, model?: AIModel }>({ open: false });
     const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, target?: any }>({ open: false });
 
     React.useEffect(() => {
@@ -290,16 +291,17 @@ export default function SettingsPage() {
                 initialData={providerModal.data}
             />
 
-            <ModelModal
+            {modelModal.open && <ModelModal
                 isOpen={modelModal.open}
                 onClose={() => setModelModal({ open: false })}
-                onSave={(data) => {
-                    if (modelModal.providerId) {
-                        handleSaveModel(modelModal.providerId, data);
-                    }
-                    setModelModal({ open: false });
-                }}
-            />
+                providerId={modelModal.providerId || ''}
+                providerType={providers.find(provider => provider.id === modelModal.providerId)?.type || ''}
+                initialData={modelModal.model}
+                onSave={async data => modelModal.providerId
+                    ? handleSaveModel(modelModal.providerId, {...data, id: modelModal.model?.id})
+                    : false}
+
+            />}
 
             {/* --- Header --- */}
             <div className="flex items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-8">
@@ -382,7 +384,7 @@ export default function SettingsPage() {
                             setSystemConfig={setSystemConfig}
                             getModelsByType={getModelsByType}
                             onOpenProviderModal={(data) => setProviderModal({ open: true, data })}
-                            onOpenModelModal={(providerId) => setModelModal({ open: true, providerId })}
+                            onOpenModelModal={(providerId, model) => setModelModal({ open: true, providerId, model })}
                             onDelete={(target) => setDeleteConfirm({ open: true, target })}
                         />
                     )}

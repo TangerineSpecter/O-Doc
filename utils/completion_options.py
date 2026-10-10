@@ -1,16 +1,13 @@
-"""Verified provider controls for bounded, non-tool book completions only."""
-import re
+"""Shared model policy for bounded completions, retaining legacy default behavior."""
+from .thinking import thinking_body
 
 
 def thinking_options(config: dict) -> dict:
-    provider, model = config.get('provider_type'), config.get('model_name', '')
-    if provider in ('Qwen', 'SiliconFlow'):
-        return {'enable_thinking': False}
-    if provider in ('DeepSeek', 'Doubao', 'Xiaomi'):
-        return {'thinking': {'type': 'disabled'}}
-    if provider == 'MiniMax' and re.match(r'^minimax-m3(?:$|[-:])', model, re.IGNORECASE):
-        # DeepSeek Chat Completions / MiniMax M3 OpenAI SDK official docs.
-        # M2.x accepts this parameter but ignores it, so deliberately omit it.
-        return {'thinking': {'type': 'disabled'}}
-    return {}
+    return thinking_body(config, default_mode='disabled')
 
+
+def temperature_options(config: dict, body: dict, temperature: float) -> dict:
+    """OpenAI 开启 reasoning_effort 时省略不兼容的采样参数。"""
+    if config.get('provider_type') == 'OpenAi' and body.get('reasoning_effort') not in (None, 'none'):
+        return {}
+    return {'temperature': temperature}

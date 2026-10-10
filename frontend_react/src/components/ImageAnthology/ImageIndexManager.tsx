@@ -81,7 +81,7 @@ export default function ImageIndexManager({open, onClose, collId, images, summar
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/45 p-3 backdrop-blur-sm" onClick={onClose}>
+    <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/45 p-3 backdrop-blur-sm" onClick={onClose}>
       <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
         <header className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
           <div><h2 className="text-lg font-bold text-slate-900">图片索引管理</h2><p className="mt-1 text-xs text-slate-500">手动选择需要识图的照片；每张拍摄组照片独立处理。</p></div>

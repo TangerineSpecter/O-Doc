@@ -14,6 +14,7 @@ export interface DailyFeedEvent {
     detail: string;
     status: string;
     amount: string | null;
+    reason?: string;
     currentAction?: string;
     subAction?: string;
     isMotive?: boolean;

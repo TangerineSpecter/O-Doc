@@ -196,7 +196,7 @@ export default function PromptTemplateModal({open, template, taxonomies, onClose
     };
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-6">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-6">
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose}/>
             <section className="relative flex h-[92vh] max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl sm:rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200">
                 <header className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5 sm:py-4 shrink-0">

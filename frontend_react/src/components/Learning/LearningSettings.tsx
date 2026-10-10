@@ -20,7 +20,7 @@ export default function LearningSettings({collId, config, enabled, busy, saveErr
     useEscapeDismissal(true, () => {if (!busy) close();});
     useEffect(() => {let active = true; learningApi.models().then(v => {if (active) setModels(v);}).catch(() => {if (active) setError('模型列表加载失败，请关闭后重试');}); return () => {active = false;};}, []);
     const field = <K extends keyof LearningConfig>(key: K, value: LearningConfig[K]) => setForm(prev => ({...prev, [key]: value}));
-    return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 p-4" onClick={() => {if (!busy) close();}}>
+    return <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 p-4" onClick={() => {if (!busy) close();}}>
         <form aria-label="学习设置" className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={e => e.stopPropagation()} onSubmit={e => {e.preventDefault(); if (!canSave) return; if (preview?.result.goal && preview.result.scenarios) save({...form, goal: preview.result.goal, scenarios: preview.result.scenarios}, auto, preview.id); else if (config) save(form, auto);}}>
             <header className="flex items-center justify-between border-b border-slate-100 px-6 py-4"><h2 className="text-lg font-bold">学习目标与老师</h2><button type="button" disabled={busy} onClick={close} aria-label="关闭设置"><X size={20}/></button></header>
             <div className="space-y-5 overflow-y-auto p-6 scrollbar-hide">

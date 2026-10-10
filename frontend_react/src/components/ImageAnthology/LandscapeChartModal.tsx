@@ -43,20 +43,10 @@ export default function LandscapeChartModal({
     };
   }, []);
 
-  // 锁定背景滚动
-  useEffect(() => {
-    if (!isOpen || !isMobileViewport) return;
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [isMobileViewport, isOpen]);
-
   if (!isOpen || !isMobileViewport) return null;
 
   return createPortal(
-    <div
+    <div data-modal-scroll-lock
       className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm lg:hidden overflow-hidden touch-none"
       role="dialog"
       aria-modal="true"

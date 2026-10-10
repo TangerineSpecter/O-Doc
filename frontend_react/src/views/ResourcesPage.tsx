@@ -412,7 +412,7 @@ export default function ResourcesPage() {
 
             {/* Delete Modal */}
             {isDeleteModalOpen && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+                <div data-modal-scroll-lock className="fixed inset-0 z-[110] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
                          onClick={() => setIsDeleteModalOpen(false)}></div>
                     <div
@@ -481,7 +481,7 @@ export default function ResourcesPage() {
 
             {/* 移动端资源详情与操作弹窗 */}
             {previewFile && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+                <div data-modal-scroll-lock className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
                     <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setPreviewFile(null)} />
                     <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200" onMouseDown={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/60">

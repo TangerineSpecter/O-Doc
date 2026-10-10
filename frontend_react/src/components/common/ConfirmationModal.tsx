@@ -55,7 +55,7 @@ export default function ConfirmationModal({
     const config = TYPE_CONFIG[type];
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-in fade-in duration-200">
             {/* Backdrop */}
             <div 
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" 

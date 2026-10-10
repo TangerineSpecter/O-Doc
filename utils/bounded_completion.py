@@ -14,6 +14,7 @@ import uuid
 from openai import APIConnectionError, APIError, APIStatusError, AsyncOpenAI, AuthenticationError
 
 from .ai_observer import check_ai_control, emit_ai_event
+from .completion_options import temperature_options
 
 DEADLINE_SECONDS = 120
 
@@ -142,6 +143,12 @@ def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int | 
     network_retries, request_attempt = 0, 0
     use_json = json_output
     current_extra_body = dict(extra_body)
+    if config.get('thinking_mode', 'default') != 'default':
+        from .thinking import thinking_body
+        current_extra_body.pop('thinking', None)
+        current_extra_body.pop('enable_thinking', None)
+        current_extra_body.pop('reasoning_effort', None)
+        current_extra_body.update(thinking_body(config))
     while True:
         check_ai_control()
         remaining = deadline - time.monotonic()
@@ -150,8 +157,9 @@ def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int | 
         request_attempt += 1
         metadata = {key: config.get(key, '') for key in ('provider_name', 'model_name', 'model_role')}
         thinking_disabled = current_extra_body.get('enable_thinking') is False or current_extra_body.get('thinking', {}).get('type') == 'disabled'
-        metadata.update(request_id=uuid.uuid4().hex, request_attempt=request_attempt, streaming=1, timeout_seconds=math.ceil(remaining), deadline_seconds=DEADLINE_SECONDS, sdk_retries=0, max_tokens=max_tokens, json_mode='json_object' if use_json else 'prompt' if json_output else 'text', thinking_mode='disabled' if thinking_disabled else 'provider_default')
-        parameters = {'model': config['model_name'], 'messages': [{'role': 'user', 'content': prompt}], 'stream': True, 'temperature': .2}
+        metadata.update(request_id=uuid.uuid4().hex, request_attempt=request_attempt, streaming=1, timeout_seconds=math.ceil(remaining), deadline_seconds=DEADLINE_SECONDS, sdk_retries=0, max_tokens=max_tokens, json_mode='json_object' if use_json else 'prompt' if json_output else 'text', thinking_mode='disabled' if thinking_disabled or current_extra_body.get('reasoning_effort') == 'none' else 'enabled' if config.get('thinking_mode') == 'enabled' else 'provider_default')
+        parameters = {'model': config['model_name'], 'messages': [{'role': 'user', 'content': prompt}], 'stream': True,
+                      **temperature_options(config, current_extra_body, .2)}
         if max_tokens is not None:
             parameters['max_tokens'] = max_tokens
         if config.get('provider_type') in ('OpenAi', 'DeepSeek', 'MiniMax'):
@@ -174,7 +182,7 @@ def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int | 
                 use_json = False
                 emit_ai_event('model_compatibility', '接口明确不支持 JSON 模式，回退提示词约束', 'warning', **metadata)
                 continue
-            if ('thinking' in current_extra_body or 'enable_thinking' in current_extra_body) and _thinking_unsupported(exc):
+            if config.get('thinking_mode', 'default') == 'default' and ('thinking' in current_extra_body or 'enable_thinking' in current_extra_body) and _thinking_unsupported(exc):
                 current_extra_body.pop('thinking', None)
                 current_extra_body.pop('enable_thinking', None)
                 emit_ai_event('model_compatibility', '接口明确不支持思考控制参数，回退默认调用', 'warning', **metadata)

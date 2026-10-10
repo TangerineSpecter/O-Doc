@@ -85,7 +85,7 @@ export const ProviderModal = ({isOpen, onClose, onSave, initialData}: ProviderMo
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose}></div>
             <div
                 className="bg-white rounded-lg shadow-xl shadow-slate-900/15 ring-1 ring-slate-900/5 w-full max-w-md p-6 relative z-10 animate-in zoom-in-95 duration-200">

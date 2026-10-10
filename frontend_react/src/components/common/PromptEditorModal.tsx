@@ -34,7 +34,7 @@ export function PromptEditorModal({name, value, onChange, subject = 'Agent', rea
             <Expand className="h-3.5 w-3.5"/>{readOnly ? '展开查看' : '展开编辑'}
         </button>
         {open && createPortal(
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div data-modal-scroll-lock className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-in fade-in duration-150">
                 <button type="button" aria-label="关闭提示词编辑窗口" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={close}/>
                 <section role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative flex max-h-[84vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-2xl shadow-slate-900/20 animate-in zoom-in-95 duration-150">
                     <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">

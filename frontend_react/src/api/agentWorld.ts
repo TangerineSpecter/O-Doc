@@ -2,7 +2,7 @@ import request from '../utils/request';
 import type { WorldCategory, WorldProfession, WorldIncomeConfig, WorldRanking, WorldLedger, WorldSettlement, MigrationPreview, WorldPendingIncome } from '../types/api/agentWorld';
 import type {DailyFeedCategory, DailyFeedResult} from '../types/api/dailyFeed';
 const base = '/settings/agent-world';
-export const getDailyFeed = (params: {category: DailyFeedCategory; actor_id?: string; cursor?: string}, signal?: AbortSignal) =>
+export const getDailyFeed = (params: {category: DailyFeedCategory; actor_id?: string; cursor?: string; page_size?: number}, signal?: AbortSignal) =>
     request.get<never, DailyFeedResult>(`${base}/daily-feed/`, {params, signal});
 export const getWorldFinanceLedger = (
     agentId?: string,

@@ -17,6 +17,7 @@ from django.utils import timezone
 
 from ai_assistant.prompts import CHAT_SYSTEM_PROMPT
 from article.models import Article
+from system_settings.agent_task_models import task_model_id, task_model_name
 from utils.ai_service import AIAuthenticationError, AIService
 from utils.mcp_client import (
     call_mcp_tool,
@@ -297,7 +298,7 @@ class AgentTaskScheduler:
                 'agent': agent.id,
                 'agentName': agent.name,
                 'agentAvatar': agent.avatar,
-                'modelName': ((agent.model.name or '').strip() or '未知') if agent.model else '未知',
+                'modelName': task_model_name(task, agent),
                 'status': 'running',
                 'summary': '等待执行',
                 'duration': '',
@@ -480,14 +481,14 @@ class AgentTaskScheduler:
                         '调用 MCP Tool',
                         f"{tool_name} 参数：{json.dumps(arguments, ensure_ascii=False)[:500]}",
                     ),
-                    model_id=agent.model_id,
+                    model_id=task_model_id(task, agent),
                 )
             else:
                 content = AIService.chat_completion_messages(
                     [{"role": "user", "content": self._build_prompt(
                         task, agent=agent, previous_content=previous_content, prompt_override=prompt_override,
                     )}],
-                    model_id=agent.model_id,
+                    model_id=task_model_id(task, agent),
                 )
             self._append_agent_run_step(record, agent.id, 'success', 'AI 内容生成完成', f"生成内容长度：{len(content or '')} 字符")
             summary = self._build_completion_summary(content)

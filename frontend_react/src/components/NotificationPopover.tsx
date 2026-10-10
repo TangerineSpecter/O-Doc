@@ -500,7 +500,7 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
 
     // 详情模态框（统一小橘文档视觉规范）
     const detailModal = selectedNotification ? createPortal(
-        <div
+        <div data-modal-scroll-lock
             className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs animate-in fade-in duration-150"
             onClick={() => setSelectedNotification(null)}
         >
@@ -583,7 +583,7 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
 
     // 历史消息模态框（统一小橘文档视觉规范）
     const historyModal = historyOpen ? createPortal(
-        <div
+        <div data-modal-scroll-lock
             className="fixed inset-0 z-[190] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs animate-in fade-in duration-150"
             onMouseDown={() => setHistoryOpen(false)}
         >
@@ -674,7 +674,7 @@ export default function NotificationPopover({ isAuthenticated, onClose, onNaviga
 
     // 移动端底部抽屉
     const mobileDrawer = typeof document !== 'undefined' ? createPortal(
-        <div className="md:hidden fixed inset-0 z-[120] flex flex-col justify-end animate-in fade-in duration-200">
+        <div data-modal-scroll-lock className="md:hidden fixed inset-0 z-[120] flex flex-col justify-end animate-in fade-in duration-200">
             <div
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
                 onClick={onClose}

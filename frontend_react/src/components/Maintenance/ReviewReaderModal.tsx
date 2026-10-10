@@ -120,15 +120,6 @@ export default function ReviewReaderModal({
     const handled = item.status !== 'pending';
 
     useEffect(() => {
-        const previousOverflow = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-
-        return () => {
-            document.body.style.overflow = previousOverflow;
-        };
-    }, [onClose]);
-
-    useEffect(() => {
         let active = true;
         if (item.sourceType === 'comment') return () => { active = false; };
 
@@ -159,7 +150,7 @@ export default function ReviewReaderModal({
     const isShortMemo = memoContent.trim().length <= 36 && !memoContent.includes('\n');
 
     return (
-        <div
+        <div data-modal-scroll-lock
             className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-md sm:p-5"
             role="dialog"
             aria-modal="true"

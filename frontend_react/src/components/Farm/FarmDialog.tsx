@@ -5,8 +5,6 @@ import FarmPanel from './FarmPanel';
 export default function FarmDialog({initialAgentId, onClose}: {initialAgentId: string; onClose: () => void}) {
     const panel = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        const overflow = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
         panel.current?.focus();
         const dialog = panel.current?.closest('[role="dialog"]');
         const trap = (event: KeyboardEvent) => {
@@ -17,7 +15,7 @@ export default function FarmDialog({initialAgentId, onClose}: {initialAgentId: s
             else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panel.current)) {event.preventDefault(); first?.focus();}
         };
         dialog?.addEventListener('keydown', trap as EventListener);
-        return () => {dialog?.removeEventListener('keydown', trap as EventListener); document.body.style.overflow = overflow;};
+        return () => {dialog?.removeEventListener('keydown', trap as EventListener);};
     }, []);
     return <WorldDialog title="像素农场" description="播种、照料，等待一场雨。看看居民今天怎样经营。" onClose={onClose} size="wide">
         <div ref={panel} tabIndex={-1} className="w-full min-w-0 flex-1 flex flex-col min-h-0"><FarmPanel initialAgentId={initialAgentId}/></div>

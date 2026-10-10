@@ -99,6 +99,28 @@ class InvestmentAccountListTests(SimpleTestCase):
 
 
 class InvestmentTests(TestCase):
+    def test_task_model_override_records_actual_model_without_agent_default(self):
+        from .investment_runner import run_investment_opportunity
+        AgentExecutionLease.objects.filter(agent=self.agent).update(token='', until=None)
+        override = AIModel.objects.create(provider=self.agent.model.provider, name='investment-task-model', type='chat')
+        original = self.agent.model
+        self.task.model = override
+        self.task.save()
+        def choose(task, *, cost, qualifies):
+            self.assertTrue(qualifies(self.agent))
+            return self.agent
+        for default in (original, None):
+            with self.subTest(default=default):
+                self.agent.model = default
+                self.agent.save()
+                with patch('system_settings.agent_world.investment_runner.select_agent', side_effect=choose), \
+                     patch('system_settings.agent_world.investment_runner.reference_day', return_value=date(2026, 9, 25)), \
+                     patch('system_settings.agent_world.investment_runner.AIService.chat_completion_messages_with_tools', return_value='本次观望') as model:
+                    record = run_investment_opportunity(self.task, key=f'override-{bool(default)}', manual=True)
+                self.assertEqual(record.status, 'success', record.summary)
+                self.assertEqual(model.call_args.kwargs['model_id'], override.pk)
+                self.assertEqual(record.agent_runs[0]['modelName'], override.name)
+
     def setUp(self):
         self.clock=patch('django.utils.timezone.now',return_value=NOW);self.clock.start();self.addCleanup(self.clock.stop)
         self.user=User.objects.create_superuser('admin','stock@example.invalid','test')

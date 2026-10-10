@@ -313,7 +313,7 @@ export default function SearchModal({isOpen, onClose, onNavigate, onChatStart}: 
     const hasResults = displayedResults.length > 0;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[10vh] animate-in fade-in duration-200">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[10vh] animate-in fade-in duration-200">
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose}/>
             <div
                 className="relative flex max-h-[78vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/5 animate-in zoom-in-95 slide-in-from-bottom-2 duration-200"

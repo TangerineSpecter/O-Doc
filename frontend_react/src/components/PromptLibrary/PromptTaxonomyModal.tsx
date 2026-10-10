@@ -167,7 +167,7 @@ export default function PromptTaxonomyModal({open, taxonomies, onClose, onChange
   const TabIcon = currentTab.icon;
 
   return (
-    <div className="fixed inset-0 z-[125] flex items-center justify-center p-2.5 sm:p-4">
+    <div data-modal-scroll-lock className="fixed inset-0 z-[125] flex items-center justify-center p-2.5 sm:p-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
       
       <section className="relative w-full max-w-xl sm:max-w-2xl rounded-2xl bg-white shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100 flex flex-col max-h-[90vh]">

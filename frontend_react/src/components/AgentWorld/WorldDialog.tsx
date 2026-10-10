@@ -111,7 +111,7 @@ function WorldDialogFrame({
 
     // 嵌套弹窗不能受父卡片的动画 transform 和 overflow 裁切影响。
     return createPortal(
-        <div className="fixed inset-0 z-[120] flex items-end justify-center p-3 sm:items-center sm:p-5">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-end justify-center p-3 sm:items-center sm:p-5">
             <button
                 type="button"
                 aria-label="关闭"

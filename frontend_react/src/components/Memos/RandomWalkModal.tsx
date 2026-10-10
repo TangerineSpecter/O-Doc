@@ -27,7 +27,7 @@ export default function RandomWalkModal({
 }: RandomWalkModalProps) {
     useEscapeDismissal(phase !== 'leaving', onClose);
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 pb-24 animate-in fade-in duration-200">
+        <div data-modal-scroll-lock className="fixed inset-0 z-[110] flex items-center justify-center p-4 pb-24 animate-in fade-in duration-200">
             <style>{`
                 @keyframes memo-random-ripple {
                     0% {

@@ -103,6 +103,14 @@ class AIModel(models.Model):
         db_comment='模型ID'
     )
 
+    thinking_mode = models.CharField(max_length=16, default='default',
+        choices=[('default', '默认'), ('enabled', '开启'), ('disabled', '关闭')])
+    thinking_protocol = models.CharField(max_length=24, default='auto',
+        choices=[('auto', '自动'), ('thinking', 'thinking.type'),
+                 ('enable_thinking', 'enable_thinking'), ('adaptive', 'thinking.adaptive'),
+                 ('reasoning_effort', 'reasoning_effort'),
+                 ('unsupported', '不支持')])
+
     # 级联删除：删除 Provider 时自动删除关联的 Models
     provider = models.ForeignKey(
         AIProvider,
@@ -641,6 +649,7 @@ class AgentTask(models.Model):
         verbose_name='执行 Agent',
         db_comment='执行 Agent ID'
     )
+    model = models.ForeignKey(AIModel, on_delete=models.SET_NULL, null=True, blank=True, related_name='agent_tasks', verbose_name='任务指定模型')
     agent_ids = models.JSONField(default=list, blank=True, verbose_name='执行 Agent 列表', db_comment='多 Agent 执行 ID 列表')
     execution_mode = models.CharField(max_length=20, choices=EXECUTION_MODES, default='parallel', verbose_name='执行模式', db_comment='多 Agent 执行模式')
     trigger = models.CharField(max_length=40, default='定时任务', verbose_name='触发方式', db_comment='触发方式')

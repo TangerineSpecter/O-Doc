@@ -9,6 +9,7 @@ from system_settings.models import AgentTask, AgentRunRecord, WorldAction, World
 from system_settings.agent_activity import update_work_activity
 from system_settings.agent_prompts import build_agent_system_prompt
 from utils.ai_service import AIService
+from system_settings.agent_task_models import task_model_id, task_model_name
 from .run_diagnostics import failure_detail, progress, finish_record
 from .action_schedule import select_agent
 from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease
@@ -40,11 +41,11 @@ def run_market_opportunity(task: AgentTask, scheduler=None, *, key=None, manual=
             return None
         task.refresh_from_db()
         if not manual and not task.enabled: return None
-        agent = select_agent(task, cost=5, qualifies=lambda a:bool(a.model_id))
+        agent = select_agent(task, cost=5, qualifies=lambda a:bool(task_model_id(task, a)))
         record = AgentRunRecord.objects.create(task=task,task_name=task.name,agent=agent,agent_name=agent.name if agent else '',
             trigger='手动执行' if manual else '系统行动',status='running',summary='正在考虑是否逛市场',
             agent_runs=[{'agent':agent.pk,'agentName':agent.name,'agentAvatar':agent.avatar,
-                         'modelName':agent.model.name,'status':'running','steps':[]}] if agent else [])
+                         'modelName':task_model_name(task, agent),'status':'running','steps':[]}] if agent else [])
         action = WorldAction.objects.create(pk=key,task=task,agent=agent,actor_id=agent.pk if agent else '',record=record,snapshot={'market':True})
     mode = 'manual' if manual else 'automatic'
     model_calls = [0]
@@ -109,7 +110,7 @@ def run_market_opportunity(task: AgentTask, scheduler=None, *, key=None, manual=
             progress(record, phase)
             summary = AIService.chat_completion_messages_with_tools(
                 [{'role':'system','content':prompt},{'role':'user','content':json.dumps(context,cls=DjangoJSONEncoder,ensure_ascii=False)+'\n经营偏好：'+task.prompt}],
-                tools,execute,model_id=agent.model_id,max_rounds=24,deadline=time.monotonic()+300) or '本次市场机会结束'
+                tools,execute,model_id=task_model_id(task, agent),max_rounds=24,deadline=time.monotonic()+300) or '本次市场机会结束'
             action.status, action.result = ('success' if MarketSession.objects.filter(record=record).exists() else 'skipped'), {'reason':str(summary)[:500]}
     except MarketFinished as exc:
         action.status, action.result = 'success', {'reason':str(exc)}

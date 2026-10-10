@@ -646,7 +646,7 @@ export default function KnowledgeGraphPanel({
             {/* 移动端专属：底部滑出详情抽屉 (Bottom Sheet) */}
             <div className="lg:hidden">
                 {selectedGraphNode && !graphDetailCollapsed && (
-                    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+                    <div data-modal-scroll-lock className="fixed inset-0 z-50 flex flex-col justify-end">
                         {/* 背景半透明遮罩 */}
                         <div
                             className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200"

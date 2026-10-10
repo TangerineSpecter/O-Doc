@@ -23,7 +23,7 @@ export default function ReadingNodePanel({bookId, revisionId, nodeId, graph, can
         return () => controller.abort();
     }, [bookId, revisionId, nodeId, page, refreshKey, throughChapter]);
     const node = data?.node;
-    return <aside aria-label="阅读对象详情" className="fixed inset-0 z-40 flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-white sm:sticky sm:inset-auto sm:top-20 sm:z-auto sm:h-[calc(100dvh-7rem)] sm:max-h-[780px] sm:w-[310px] sm:shrink-0 sm:rounded-xl sm:border sm:border-slate-200 xl:w-[340px]">
+    return <aside data-modal-scroll-lock aria-label="阅读对象详情" className="fixed inset-0 z-40 flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-white sm:sticky sm:inset-auto sm:top-20 sm:z-auto sm:h-[calc(100dvh-7rem)] sm:max-h-[780px] sm:w-[310px] sm:shrink-0 sm:rounded-xl sm:border sm:border-slate-200 xl:w-[340px]">
         <header className="relative shrink-0 border-b border-slate-100 px-4 py-4">
             <div className="absolute right-3 top-3 flex items-center gap-1">
                 {canGoBack && <button type="button" onClick={onBack} aria-label="返回上一个卡片" className="inline-flex h-7 items-center gap-1 rounded-lg px-1.5 text-xs text-orange-700 hover:bg-orange-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500"><ArrowLeft className="h-3.5 w-3.5"/>返回</button>}

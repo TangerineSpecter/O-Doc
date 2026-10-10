@@ -1,3 +1,4 @@
+import type {AIModel, ModelInput} from '../types/api/setting';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useToast} from '../components/common/ToastProvider';
 import {agentTaskSaveError} from '../utils/agentTaskValidation';
@@ -262,21 +263,21 @@ export const useSettings = () => {
     };
 
     // 3. 添加模型
-    const handleSaveModel = async (providerId: string, modelData: { name: string, type: ModelType }) => {
+    const handleSaveModel = async (providerId: string, modelData: ModelInput & {id?: string}) => {
         try {
             const res = await saveModel({provider: providerId, ...modelData});
-            const newModel = res as unknown as any;
+            const newModel = res as unknown as AIModel;
             setProviders(prev => prev.map(p => {
                 if (p.id === providerId) {
                     const currentModels = p.models || [];
-                    return {...p, models: [...currentModels, newModel]};
+                    return {...p, models: modelData.id ? currentModels.map(model => model.id === modelData.id ? newModel : model) : [...currentModels, newModel]};
                 }
                 return p;
             }));
-            toast.success('模型已添加');
+            toast.success(modelData.id ? '模型已更新' : '模型已添加');
             return true;
         } catch (error) {
-            toast.error('添加模型失败');
+            toast.error(error instanceof Error ? error.message : '保存模型失败');
             return false;
         }
     };
@@ -363,6 +364,7 @@ export const useSettings = () => {
                 : (taskData.agent ? [taskData.agent] : []);
             const payload = {
                 id: taskData.id,
+                model: taskData.model || null,
                 name: taskData.name || '',
                 agent: agentIds[0] || taskData.agent || '',
                 agents: agentIds,

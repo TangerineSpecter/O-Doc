@@ -1,3 +1,5 @@
+import {ModelThinkingBadge} from './ModelThinkingBadge';
+import {TaskModelSelect} from './agent/TaskModelSelect';
 import AgentSettingsToolbar from './AgentSettingsToolbar';
 import {getLifeConfig} from '@/api/agentLife';
 import LifeManualRunDialog from '../AgentLife/LifeManualRunDialog';
@@ -108,6 +110,7 @@ type AgentForm = {
 type AgentView = 'list' | 'tasks' | 'records';
 
 type AgentTaskForm = {
+    model: string;
     taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking';
     investmentConfig?: import('../../types/api/investment').InvestmentConfig;
     publishConfig?: AgentPublishConfig;
@@ -224,6 +227,7 @@ export const AgentSettings = ({
     });
     const getDefaultAgentId = () => agents[0]?.id || '';
     const [taskForm, setTaskForm] = useState<AgentTaskForm>({
+        model: '',
         name: '',
         agents: getDefaultAgentId() ? [getDefaultAgentId()] : [],
         executionMode: 'parallel',
@@ -278,8 +282,11 @@ export const AgentSettings = ({
     const modelOptions = useMemo<SettingsSelectOption<string>[]>(() => {
         return getModelsByType('chat').map(model => ({
             value: model.id,
-            label: `${model.providerName} / ${model.name}`,
-            description: model.name,
+            textLabel: `${model.providerName} / ${model.name}`,
+            label: <span className="flex min-w-0 items-center gap-2">
+                <span className="min-w-0 flex-1 truncate" title={`${model.providerName} / ${model.name}`}>{model.providerName} / {model.name}</span>
+                <ModelThinkingBadge model={model}/>
+            </span>,
         }));
     }, [getModelsByType]);
 
@@ -385,6 +392,7 @@ export const AgentSettings = ({
     const openCreateTaskModal = () => {
         const defaultAgentId = taskAgentOptions[0]?.value || getDefaultAgentId();
         setTaskForm({
+            model: '',
             name: '',
             agents: defaultAgentId ? [defaultAgentId] : [],
             executionMode: 'parallel',
@@ -416,6 +424,7 @@ export const AgentSettings = ({
         const taskAgentIds = task.agents?.length ? task.agents : (task.agent ? [task.agent] : []);
         setTaskForm({
             id: task.id,
+            model: task.model || '',
             taskKind: task.taskKind || 'custom',
             investmentConfig: task.investmentConfig || {},
             publishConfig: task.publishConfig || emptyPublishConfig(),
@@ -569,6 +578,7 @@ export const AgentSettings = ({
 
         const success = await onSaveTask({
             id: taskForm.id,
+            model: taskForm.model || null,
             taskKind: taskForm.taskKind || 'custom',
             investmentConfig: isInvestmentTask ? taskForm.investmentConfig || {} : undefined,
             publishConfig: isPublishTask ? taskForm.publishConfig : undefined,
@@ -1151,7 +1161,7 @@ export const AgentSettings = ({
             )}
 
             {selectedRecord && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+                <div data-modal-scroll-lock className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
                     <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
                         <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
                             <div className="min-w-0">
@@ -1301,7 +1311,7 @@ export const AgentSettings = ({
 
             {previewTask && <PostPublishPreviewModal key={previewTask.id} task={previewTask} agents={agents} onClose={() => setPreviewTask(null)}/>}
             {taskModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+                <div data-modal-scroll-lock className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
                     <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
                         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                             <div>
@@ -1316,7 +1326,7 @@ export const AgentSettings = ({
                             </button>
                         </div>
 
-                        <div className="max-h-[72vh] space-y-5 overflow-y-auto p-6">
+                        <div className="max-h-[72vh] space-y-5 overflow-y-auto scrollbar-hide p-6">
                             <p className="text-xs text-orange-600">{isSystemTask ? `内置系统任务 · ${taskForm.name}` : '自定义任务'}</p>
                             {isSystemTask && <>
                                 <>{isInvestmentTask ? <InvestmentTaskFields value={taskForm.investmentConfig || {}} servers={mcpServers} onChange={investmentConfig => setTaskForm({...taskForm, investmentConfig})}/> : isMarketTask ? <p className="rounded-2xl bg-emerald-50 p-4 text-sm leading-relaxed text-slate-600">自主决定进入市场或跳过。进入消耗5体力，会话内购买种子、饲料、动物，出售产物、上架、改价和撤单；最多5分钟20次工具调用，完成后离开市场。</p> : isCookingTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">使用居民自己的食材制作美食，一次最多六份；每份消耗食谱规定的体力并获得厨艺经验，成品由市场出售。食谱规则和图片在食谱图鉴维护。</p> : isFarmTask ? <p className="rounded-2xl bg-lime-50 p-4 text-sm leading-relaxed text-slate-600">居民自主种植、养殖、照料与升级；种子、饲料、动物购买及产物出售由市场交易任务负责，共用现有余额。每项成功操作消耗2点体力；旅行时暂停经营。启用后赠送四块耕地。农场规则与角色外观可在农场页面配置。</p> : isTravelTask ? <TravelTaskFields value={taskForm.travelConfig || emptyTravelConfig()} servers={mcpServers} imageModels={getModelsByType('image_generation')} onChange={travelConfig => setTaskForm({...taskForm, travelConfig})}/> : isPublishTask ? <PostPublishFields value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
@@ -1387,6 +1397,7 @@ export const AgentSettings = ({
                                 </div>
                             </div>}
 
+                            <TaskModelSelect value={taskForm.model} options={modelOptions} onChange={model => setTaskForm({...taskForm, model})}/>
                             {!isSystemTask && taskForm.trigger === '定时任务' && <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">调度方式</label>
                                 <SettingsSelect value={taskForm.scheduleMode} options={[{value: 'fixed', label: '固定时间 / 间隔'}, {value: 'random', label: '周期随机'}]} onChange={scheduleMode => setTaskForm({...taskForm, scheduleMode})}/>
@@ -1652,7 +1663,7 @@ export const AgentSettings = ({
             )}
 
             {modalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+                <div data-modal-scroll-lock className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
                     <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-150">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                             <div>
