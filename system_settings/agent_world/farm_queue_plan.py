@@ -11,6 +11,7 @@ from .inventory_stock import stock_quantity
 from .life_config import config_for, effective_settings
 from .life_schedule import window
 from .life_time import local_time
+from .farm_plan_inventory import seed_sku
 
 
 def identity(*parts: str) -> str:
@@ -24,9 +25,7 @@ def entries_for(value: list, rules: dict, plan_id: str) -> list[dict]:
     for index, entry in enumerate(value):
         if not isinstance(entry, dict):
             raise ValueError('种植项目须为对象')
-        sku, count = entry.get('sku'), entry.get('quantity')
-        if not isinstance(sku, str) or not sku.startswith('seed.') or sku[5:] not in rules['crops']:
-            raise ValueError('种植项目必须引用现有种子SKU')
+        sku, count = seed_sku(entry.get('sku'), rules['crops']), entry.get('quantity')
         if type(count) is not int or not 1 <= count <= 1000:
             raise ValueError('种植目标须为1至1000的整数')
         mode = entry.get('fertilizer_mode', 'none')

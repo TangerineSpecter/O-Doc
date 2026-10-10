@@ -227,13 +227,14 @@ class FarmQueueTests(TestCase):
         plan=current(self.farm(),NOW)
         args={'session_id':session.pk,'request_id':'replace','plan_id':plan['id'],'revision':1,
               'reason':'土豆缺货，改种当前有货的萝卜','entries':[{'sku':'seed.radish','quantity':3}]}
+        self.buy(shop,session,at,count=3,slot='1')
         with patch('django.utils.timezone.now',return_value=at):
             result=call_market_tool('update_farm_queue',args,self.agent)
             replay=call_market_tool('update_farm_queue',args,self.agent)
             self.assertEqual(result,replay)
             with self.assertRaisesRegex(ValueError,'版本'):
                 call_market_tool('update_farm_queue',{**args,'request_id':'stale'},self.agent)
-        self.buy(shop,session,at,count=3,slot='1');self.close_market(session)
+        self.close_market(session)
         self.tend(at+timedelta(minutes=30))
         self.assertEqual(FarmOperation.objects.get().operation['crop'],'radish')
         self.assertEqual(current(self.farm(),NOW)['revision'],2)
@@ -247,6 +248,59 @@ class FarmQueueTests(TestCase):
         with self.assertRaisesRegex(ValueError,'库存不足'):self.buy(shop,session,NOW,count=1,request='soldout')
         self.assertEqual(current(self.farm(),NOW)['purchases'],[])
         self.close_market(session);self.activate();self.assertEqual(FarmOperation.objects.count(),0)
+
+    def test_empty_queue_waits_then_uses_actual_purchase_without_replaying(self):
+        from .market_tools import call_market_tool
+        self.plan([], limit='40');self.activate()
+        plan = current(self.farm(), NOW)
+        self.assertEqual(plan['status'], 'active')
+        self.assertEqual(plan['wait_states']['plan'], 'seeds')
+        self.assertEqual(FarmOperation.objects.count(), 0)
+        at = NOW.replace(hour=9)
+        shop, session = self.market(at)
+        args = {'session_id': session.pk, 'request_id': 'add-purchased',
+                'plan_id': plan['id'], 'revision': 1, 'reason': '买到萝卜后再安排种植',
+                'entries': [{'sku': 'crop.radish', 'quantity': 3}]}
+        with patch('django.utils.timezone.now', return_value=at):
+            with self.assertRaisesRegex(ValueError, '先实际采购'):
+                call_market_tool('update_farm_queue', args, self.agent)
+        with self.assertRaisesRegex(ValueError, '上限'):
+            self.buy(shop, session, at, count=5, slot='1', request='too-many')
+        self.assertEqual(stock_quantity(self.agent.pk, 'owner', 'seed.radish'), 0)
+        self.buy(shop, session, at, count=3, slot='1')
+        self.buy(shop, session, at, count=3, slot='1')
+        with patch('django.utils.timezone.now', return_value=at):
+            result = call_market_tool('update_farm_queue', args, self.agent)
+            self.assertEqual(result, call_market_tool('update_farm_queue', args, self.agent))
+        self.close_market(session);self.tend(at + timedelta(minutes=30))
+        self.tend(at + timedelta(minutes=30))
+        operation = FarmOperation.objects.get(operation__kind='plant')
+        self.assertEqual(operation.operation['crop'], 'radish')
+        self.assertEqual(len(operation.operation['targets']), 3)
+        plan = current(self.farm(), at)
+        self.assertEqual(len(plan['purchases']), 1)
+        self.assertEqual(plan['entries'][0]['sku'], 'seed.radish')
+        self.assertEqual(plan['status'], 'completed')
+        validate_plan(self.farm());reconcile_farms();reconcile_farms()
+
+    def test_known_crop_identifiers_only_are_compatible(self):
+        from .farm_queue_plan import entries_for
+        from .farm_catalog import DEFAULT_RULES
+        for sku in ('radish', 'crop.radish', 'seed.radish'):
+            self.assertEqual(entries_for([{'sku': sku, 'quantity': 1}], DEFAULT_RULES, 'plan')[0]['sku'], 'seed.radish')
+        for sku in ('carrot', 'seed.carrot', 'animal.radish', None):
+            with self.subTest(sku=sku), self.assertRaises(ValueError):
+                entries_for([{'sku': sku, 'quantity': 1}], DEFAULT_RULES, 'plan')
+
+    def test_finished_queue_cannot_bypass_daily_seed_procurement_limit(self):
+        self.stock('seed.radish', 1)
+        self.plan([{'sku': 'radish', 'quantity': 1}], limit='10');self.activate()
+        self.assertEqual(current(self.farm(), NOW)['status'], 'completed')
+        at = NOW.replace(hour=9)
+        shop, session = self.market(at)
+        with self.assertRaisesRegex(ValueError, '上限'):
+            self.buy(shop, session, at, count=2, slot='1')
+        self.assertEqual(stock_quantity(self.agent.pk, 'owner', 'seed.radish'), 0)
 
     def test_market_cannot_change_planted_crop_or_another_resident(self):
         from .market_tools import call_market_tool

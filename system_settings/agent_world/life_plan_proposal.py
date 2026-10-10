@@ -100,7 +100,9 @@ def propose(agent, context: dict, ask: Callable) -> dict:
         farming['slots'] = [{**row, 'time': slots[row['id']]['time']} for row in farms]
         response = ask(agent,
             '已选择农场开工，现在单独准备种植队列，不得换活动。'
-            '按地块、在田作物、周期及截止估算，不保证全部种完；没有种子也可提出采购需求。'
+            '只从planting.crop_comparisons的seed_sku选择种子，数量不能超过seed_quantity；'
+            '按地块、在田作物、周期及截止估算，不保证全部种完。没有种子必须返回空entries，'
+            '保留采购上限作为补给意向，具体作物和数量等市场实际买到种子后再确定。'
             '返回 {"plans":[{"id":"时间点ID","farm_plan":{"entries":'
             '[{"sku":"种子SKU","quantity":当天目标数量,"fertilizer_mode":'
             '"none或optional或required","fertilizer":"quality或yield或null"}],'
@@ -108,6 +110,8 @@ def propose(agent, context: dict, ask: Callable) -> dict:
             '采购由独立每日市场预算承担，不在开工日程重复预留。'
             '已固化的队列普通修订不会重建。', farming)
         specifications = indexed_rows(response.get('plans'), {row['id'] for row in farms}, '种植计划')
+        from .farm_plan_inventory import inventory_plan
         for row in farms:
-            row['farm_plan'] = specifications[row['id']].get('farm_plan')
+            row['farm_plan'] = inventory_plan(specifications[row['id']].get('farm_plan'),
+                                             context.get('planting', {}).get('crop_comparisons', []))
     return proposal

@@ -40,6 +40,15 @@ def update_queue(owner: str, actor: str, session, key: str, arguments: dict) -> 
         updated = next((e for e in entries if e['id'] == eid), None)
         if not updated or updated['quantity'] < count or any(updated[k] != originals[eid][k] for k in ('sku', 'fertilizer_mode', 'fertilizer')):
             raise ValueError('不能删除或改写已播种事实；替代作物须使用新的项目ID')
+    from .inventory_stock import stock_quantity
+    available = {}
+    for entry in entries:
+        left = entry['quantity'] - plan['progress'].get(entry['id'], 0)
+        sku = entry['sku']
+        available.setdefault(sku, stock_quantity(actor, owner, sku))
+        if left > available[sku]:
+            raise ValueError('未播种目标超过现有种子，请先实际采购再调整队列')
+        available[sku] -= left
     plan['entries'] = entries
     plan['progress'] = {e['id']: plan['progress'].get(e['id'], 0) for e in entries}
     plan['revision'] += 1
@@ -85,7 +94,9 @@ def queue_trade(session, agent, key: str, operation: dict) -> dict:
                 needed.add(entry['sku'])
                 if entry['fertilizer']:
                     needed.add('fertilizer.' + entry['fertilizer'])
-    linked = plan and sku in needed and not MarketTransaction.objects.filter(pk=key).exists()
+    # 空队列仍有采购意向；先成交再定作物时，种子采购也须计入当天上限。
+    eligible = plan and plan['status'] in ('pending', 'active', 'completed') and timezone.now().timestamp() < plan['cutoff']
+    linked = eligible and (sku in needed or sku.startswith('seed.')) and not MarketTransaction.objects.filter(pk=key).exists()
     if linked and sum((Decimal(p['amount']) for p in plan['purchases']), Decimal(0)) + cost > Decimal(plan['procurement_limit']):
         raise ValueError('购买超过当天种植计划采购上限，请减少数量或调整未播种意图')
     result = trade(session, agent, key, operation)

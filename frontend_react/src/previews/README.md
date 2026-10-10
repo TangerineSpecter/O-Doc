@@ -1,4 +1,4 @@
-# 软泥怪 PixiJS 预览
+# 魔物 PixiJS 预览
 
 后续魔物的风格、预览页面、确认流程和技能特效边界统一遵循
 [Agent 魔物形象与战斗动画设计规范](../../../docs/agents/Agent魔物形象与战斗动画设计规范.md)。
@@ -14,6 +14,14 @@
 在 `frontend_react` 下用 Node 22 启动 `npm run dev`，打开 `/slime-preview.html`。
 本次独立预览服务器为 `http://127.0.0.1:43131/slime-preview.html`。
 
+洞穴蝙蝠首版入口为 `frontend_react/cave-bat-preview.html`，同一服务器下打开
+`http://127.0.0.1:43131/cave-bat-preview.html`。源码与首版截图已保存，确认状态见
+[魔物形象资源索引](../../../docs/agents/Agent魔物形象资源索引.md)。此形象已确认并接入图鉴：
+列表显示 `cave-bat.svg`，详情播放同一角色的悬停振翅待机动画。
+
+两个页面共用 `mountMonsterPreview.ts` 的按钮、分段控件、快捷键、加载状态与事件清理，
+复用 `slimePreview.css` 的布局。角色配置、绘制和动作保持独立。
+
 ## 动作与接入边界
 
 - `Combat/animation/SlimeActor.ts`：纯 PixiJS 角色容器，脚底锚点为 `(0, 0)`，
@@ -25,9 +33,9 @@
 - `assets/combat/moss-cave.svg`：预览与图鉴共用的苔石洞窟背景。图鉴通过
   `Combat/atlas/monsterHabitats.ts` 按 `dungeon.moss_cave` 关联，包括区域首领；
   后续同区域的怪物形象直接复用，不按显示名称匹配。
-- `previews/slimePreview.ts` 与 CSS：预览控件与排版。
+- `previews/slimePreview.ts`：软泥怪预览配置；`mountMonsterPreview.ts` 与 CSS：共用控件与排版。
 - `Combat/atlas/MonsterPortrait.tsx`：按稳定魔物 ID 选择形象，其他魔物保留既有图标。
-- `SlimePortrait.tsx` 与 `SlimePortraitRenderer.ts`：仅详情按需加载 PixiJS，加载失败保留
+- `AnimatedMonsterPortrait.tsx` 与 `MonsterPortraitRenderer.ts`：两个角色仅详情按需加载 PixiJS，加载失败保留
   静态形象；离开视口、隐藏页面、减少动态效果时停止播放，切换魔物或关闭弹窗释放资源。
 
 接入时调用 `actor.update(sampleSlimePose(action, seconds, facing), seconds, facing)`。
@@ -36,6 +44,23 @@
 角色动画只做展示，伤害、命中、血量及奖励必须由既有战斗事实驱动，不能从动画推断。
 销毁角色时调用 `actor.destroy()` 释放图形；所有软泥怪共享一份不可变渐变纹理，
 不随单个角色销毁，GPU 副本由所属 renderer 的销毁流程释放。
+
+## 洞穴蝙蝠
+
+`CaveBatActor.ts` 的稳定标识为 `monster.cave_bat`，锚点 `(0, 0)` 对应舞台地面；
+角色自身处理悬停高度与振翅，水平位移由场景应用。
+调用 `actor.update(sampleCaveBatPose(action, seconds, facing), seconds, facing)`。
+朝向通过姿态和面部方向表达，左上高光不随朝向翻转。
+图鉴用静态 SVG 与 PixiJS 使用相同几何和色板，SVG 也用作加载兜底。
+
+- 待机循环振翅、悬停与眨眼；移动循环掠飞。
+- 攻击抬升后俯冲，1.45 秒恢复待机；受击失衡后回稳，0.8 秒恢复待机。
+- 倒下收翅落地并保持，点击待机恢复。
+- `dodge` 为既有“闪身”技能的独立动作示意，1.1 秒恢复待机。残影与轨迹仅在预览场景绘制，
+  角色绘制不依赖这些特效；不模拟闪避判定、伤害或其他战斗结果。
+- 支持左右朝向、洞窟/素色、小尺寸、暂停及数字 1–5；窗口隐藏、舞台离开视口时停止 ticker，
+  系统减少动态效果时默认暂停，关闭页面与 HMR 更新释放场景和事件订阅。
+- `CaveBatActor` 渐变资源也由所有实例共享，不能随残影或单个角色销毁。
 
 ## 人工验收
 
@@ -49,4 +74,4 @@
 8. 页面隐藏时停止 ticker；关闭页面释放 WebGL、观察器和事件订阅。
 9. 世界图鉴 → 冒险资料 → 怪物图鉴：未遭遇的软泥怪缩略图无透明度/灰度滤镜；
    详情显示洞窟场景及待机动画，洞穴蝙蝠和苔冠巨兽复用背景，矿洞鼠不使用该背景。
-10. 搜索无结果、切换非软泥怪或关闭弹窗后无残留动画画布；手机详情可独立滚动。
+10. 搜索无结果、切换未制作形象的魔物或关闭弹窗后无残留动画画布；切换软泥怪与蝙蝠后只有一个详情画布，手机详情可独立滚动。

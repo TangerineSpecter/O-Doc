@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f8faf9" />
+    <title>洞穴蝙蝠 · 动画预览</title>
+  </head>
+  <body>
+    <main class="slime-preview">
+      <header class="preview-header">
+        <div>
+          <p class="eyebrow"><span class="orange-dot"></span> 魔物形象 <span class="edition">/ 02</span></p>
+          <h1>洞穴蝙蝠 <span class="name-en">CAVE BAT</span></h1>
+          <p class="intro">苔石洞窟里，一只扑扇翅膀、爱躲猫猫的小蝙蝠。</p>
+        </div>
+        <div class="badges"><span>普通魔物</span><span>Lv.3–8</span></div>
+      </header>
+      <div class="preview-layout">
+        <section class="scene-card" aria-label="洞穴蝙蝠形象">
+          <div class="scene-wrap">
+            <div class="scene-label"><span class="habitat">苔石洞窟</span><span class="habitat-en">MOSS CAVE</span></div>
+            <div class="state-badge"><i></i><span id="scene-state" aria-live="polite">悬停中</span></div>
+            <div id="bat-stage" role="img" aria-label="洞穴蝙蝠动画舞台"><div id="preview-fallback"><img src="/src/assets/combat/cave-bat.svg" alt="" /></div></div>
+            <p id="load-message" role="status">小蝙蝠正在展开翅膀…</p>
+          </div>
+          <footer class="scene-footer"><span><i class="bat-dot"></i> 灰紫蝠翼 · 悬停形态</span><span>出没地：苔石洞窟</span></footer>
+        </section>
+        <aside class="controls-card" aria-label="动画控制">
+          <div class="controls-heading"><h2>动作预览</h2><span>点击试试看</span></div>
+          <div class="action-grid" role="group" aria-label="选择动作">
+            <button type="button" data-action="idle" aria-pressed="true"><span class="action-icon">◡</span><span><strong>待机</strong><small>振翅与眨眼</small></span><kbd>1</kbd></button>
+            <button type="button" data-action="move" aria-pressed="false"><span class="action-icon">↝</span><span><strong>移动</strong><small>轻盈掠飞</small></span><kbd>2</kbd></button>
+            <button type="button" data-action="attack" aria-pressed="false"><span class="action-icon">↗</span><span><strong>攻击</strong><small>俯冲扑击</small></span><kbd>3</kbd></button>
+            <button type="button" data-action="hit" aria-pressed="false"><span class="action-icon">✧</span><span><strong>受击</strong><small>失衡与回稳</small></span><kbd>4</kbd></button>
+            <button type="button" data-action="defeat" aria-pressed="false"><span class="action-icon">﹏</span><span><strong>倒下</strong><small>收翅落地</small></span><kbd>5</kbd></button>
+          </div>
+          <div class="skill-preview">
+            <div class="skill-preview-heading">技能预览 <span>独立动作示意</span></div>
+            <button type="button" data-action="dodge" aria-pressed="false"><span class="action-icon">↝</span><span><strong>闪身</strong><small>侧掠、残影与回位</small></span></button>
+            <p>目录技能：提升自身闪避。这里只预览动作，不模拟命中或伤害。</p>
+          </div>
+          <div class="control-divider"></div>
+          <div class="control-row"><span>朝向</span><div class="segmented" role="group" aria-label="朝向"><button type="button" data-facing="-1" aria-pressed="false">← 左</button><button type="button" data-facing="1" aria-pressed="true">右 →</button></div></div>
+          <div class="control-row"><span>舞台</span><div class="segmented" role="group" aria-label="舞台"><button type="button" data-backdrop="cave" aria-pressed="true">洞窟</button><button type="button" data-backdrop="plain" aria-pressed="false">素色</button></div></div>
+          <label class="size-option"><span>查看图鉴尺寸</span><input id="small-size" type="checkbox" /></label>
+          <button type="button" id="pause" class="pause-button" aria-pressed="false">Ⅱ 暂停动画</button>
+          <p class="key-hint">数字键切换动作 · 空格暂停<br>倒下后，点击「待机」重新唤醒</p>
+        </aside>
+      </div>
+      <p class="preview-note"><span class="note-line"></span> 第二只小魔物 · 形象与动作已确认</p>
+    </main>
+    <script type="module" src="/src/previews/caveBatPreview.ts"></script>
+  </body>
+</html>

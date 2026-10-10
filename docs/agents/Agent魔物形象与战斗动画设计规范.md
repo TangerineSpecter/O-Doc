@@ -9,8 +9,9 @@
 | 内容 | 当前状态 |
 | --- | --- |
 | 软泥怪 `monster.slime` | 形象、五个基础动作和预览页已确认 |
+| 洞穴蝙蝠 `monster.cave_bat` | 形象、五个基础动作和“闪身”动作示意已确认；已接入图鉴 |
 | 苔石洞窟 `dungeon.moss_cave` | 背景已确认，预览与图鉴共用同一素材 |
-| 怪物图鉴 | 列表使用静态形象；软泥怪详情使用待机动画；同洞窟怪物与首领复用背景 |
+| 怪物图鉴 | 列表使用静态形象；软泥怪、洞穴蝙蝠详情使用待机动画；同洞窟怪物与首领复用背景 |
 | 独立预览 | 已保存 HTML、TypeScript、CSS 和角色源码，可在本地重新启动 |
 | 正式战斗动画 | 尚未接入探索观察界面；可复用角色，但需新增事件播放与场景编排 |
 | 各技能战斗特效 | 尚未建立通用实现；当前预览中的落地波纹和水滴是动作样例 |
@@ -208,8 +209,8 @@ npm run dev
 | `frontend_react/src/components/Combat/animation/slimeMotion.ts` | 根据动作、本地时间、朝向采样姿态 |
 | `frontend_react/src/components/Combat/animation/SlimePreviewScene.ts` | 单角色预览的应用、舞台、阴影、动作样例效果与生命周期 |
 | `frontend_react/src/components/Combat/animation/slimeStage.ts` | 独立预览中的洞窟/素色背景装配 |
-| `frontend_react/src/components/Combat/animation/SlimePortrait.tsx` | 图鉴详情动画宿主，懒加载与静态回退 |
-| `frontend_react/src/components/Combat/animation/SlimePortraitRenderer.ts` | 透明角色画布、图鉴构图、可见性与减少动态效果管理 |
+| `frontend_react/src/components/Combat/animation/AnimatedMonsterPortrait.tsx` | 共用图鉴详情动画宿主，懒加载与静态回退 |
+| `frontend_react/src/components/Combat/animation/MonsterPortraitRenderer.ts` | 共用透明角色画布与生命周期，保留各角色构图、姿态与阴影 |
 | `frontend_react/src/components/Combat/atlas/MonsterPortrait.tsx` | 按魔物 ID 选择静态/动态形象，组合出没地背景 |
 | `frontend_react/src/components/Combat/atlas/monsterHabitats.ts` | 按地牢 ID 注册背景，不请求或修改业务资料 |
 | `frontend_react/src/assets/combat/slime.svg` | 软泥怪静态缩略图与回退形象 |

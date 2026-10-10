@@ -28,6 +28,9 @@ def planting_context(farm, rules, quotes: list[dict], bonus: dict, next_refresh_
             if current['next_inventory_cost'] is not None:
                 option['inventory_additional_net_revenue'] = round(option['expected_revenue'] - base['expected_revenue'] - float(current['next_inventory_cost']), 4)
             options[fert_kind] = option
-        comparisons.append({'sku': 'crop.' + kind, 'name': rule['name'], 'without_fertilizer': base, 'fertilizers': options})
+        comparisons.append({'sku': 'crop.' + kind, 'seed_sku': 'seed.' + kind,
+                            'seed_quantity': stock_quantity(farm.pk, farm.owner_id, 'seed.' + kind),
+                            'growth_seconds': rule['growth_seconds'],
+                            'name': rule['name'], 'without_fertilizer': base, 'fertilizers': options})
     return {'skill': skill, 'fertilizers': fertilizers, 'crop_comparisons': comparisons, 'next_refresh_at': next_refresh_at,
             'note': '收益包含轻事件，不包含尚未成交的挂牌溢价。现有肥料也有采购成本；允许等待下一次市场机会，但不保证价格下降。'}

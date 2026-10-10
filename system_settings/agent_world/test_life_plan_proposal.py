@@ -88,3 +88,33 @@ class StagedPlanningTests(SimpleTestCase):
             with self.subTest(choice=choice), self.assertRaises(ValueError):
                 propose(object(), self.context(), ask)
             self.assertEqual(ask.call_count, 1)
+
+    def test_farm_uses_only_owned_seeds_and_normalizes_crop_identifiers(self):
+        context = self.context()
+        context['planting']['crop_comparisons'] = [
+            {'seed_sku': 'seed.radish', 'seed_quantity': 3},
+            {'seed_sku': 'seed.potato', 'seed_quantity': 0},
+        ]
+        specification = {'entries': [
+            {'sku': 'crop.radish', 'quantity': 2},
+            {'sku': 'radish', 'quantity': 8},
+            {'sku': 'seed.potato', 'quantity': 5}], 'procurement_limit': '100'}
+        before = deepcopy(context)
+        ask = Mock(side_effect=[self.choices('farm'),
+                               {'plans': [{'id': 'one', 'farm_plan': specification}]}])
+        result = propose(object(), context, ask)['plans'][0]['farm_plan']
+        self.assertEqual(result['entries'], [{'sku': 'seed.radish', 'quantity': 2},
+                                              {'sku': 'seed.radish', 'quantity': 1}])
+        self.assertEqual(result['procurement_limit'], '100')
+        self.assertEqual(context, before)
+        self.assertEqual(specification['entries'][1]['quantity'], 8)
+
+    def test_no_seeds_retains_empty_queue_and_procurement_limit(self):
+        from .farm_plan_inventory import inventory_plan
+        rows = [{'seed_sku': 'seed.radish', 'seed_quantity': 0}]
+        plan = inventory_plan({'entries': [{'sku': 'radish', 'quantity': 4}],
+                               'procurement_limit': '80'}, rows)
+        self.assertEqual(plan, {'entries': [], 'procurement_limit': '80'})
+        for sku in ('unknown', 'crop.unknown', None, 'animal.radish'):
+            with self.subTest(sku=sku), self.assertRaises(ValueError):
+                inventory_plan({'entries': [{'sku': sku, 'quantity': 1}]}, rows)
