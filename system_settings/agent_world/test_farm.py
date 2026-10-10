@@ -119,6 +119,32 @@ class FarmTests(TestCase):
         quality_roll.start()
         self.addCleanup(quality_roll.stop)
 
+    def test_daily_feed_uses_chinese_crop_and_building_names(self):
+        from .life_time import local_time
+        farm = AgentFarm.objects.get(pk=self.agent.pk)
+        expected = {}
+        for crop, rule in DEFAULT_RULES['crops'].items():
+            key = 'feed-crop-' + crop
+            FarmOperation.objects.create(id=key, farm=farm, opportunity_id='',
+                operation={'kind': 'plant', 'crop': crop, 'targets': ['0', '1', '2', '3']},
+                result={'label': '播种并浇水'}, reason='背包已有种子', created_at=self.now)
+            expected['farm:' + key] = rule['name'] + ' · 4 个目标 · 背包已有种子'
+        for building, rule in DEFAULT_RULES['buildings'].items():
+            key = 'feed-building-' + building
+            FarmOperation.objects.create(id=key, farm=farm, opportunity_id='',
+                operation={'kind': 'build', 'building': building}, created_at=self.now)
+            expected['farm:' + key] = rule['name']
+        FarmOperation.objects.create(id='feed-fertilize', farm=farm, opportunity_id='',
+            operation={'kind': 'fertilize', 'targets': ['0']}, created_at=self.now)
+        response = self.client.get('/api/settings/agent-world/daily-feed/',
+            {'date': local_time(self.now).date().isoformat(), 'category': 'farm'})
+        self.assertEqual(response.status_code, 200, response.data)
+        events = {row['id']: row for row in response.data['data']['items']}
+        for key, detail in expected.items():
+            self.assertEqual(events[key]['detail'], detail)
+        self.assertEqual(events['farm:feed-fertilize']['title'], '施肥')
+        self.assertEqual(FarmOperation.objects.get(pk='feed-crop-sunflower').operation['crop'], 'sunflower')
+
     def op(self, kind, *, at=None, key=None, **params):
         self.counter += 1
         if kind in ('buy_supply', 'buy_animal', 'sell'):

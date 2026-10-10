@@ -8,6 +8,7 @@ from django.db.models import Q
 from article.access import get_visible_anthology_queryset
 from system_settings.models import Agent, AgentActivity, AgentRunRecord, AgentTask, WorldAction
 from .farm_models import AgentFarm, FarmOperation
+from .farm_catalog import DEFAULT_RULES as FARM_RULES
 from .investment_models import InvestmentAccount, InvestmentDecision, InvestmentTrade
 from .life_models import LifeItem, LifeProfile, LifeRevision
 from .life_config import task_owner
@@ -26,6 +27,7 @@ FARM_LABELS = {
     'plant': '播种', 'water': '浇水', 'harvest': '收获', 'feed': '喂养',
     'collect': '领取畜牧产物', 'expand': '扩建农场', 'build': '建造', 'upgrade': '升级',
     'buy_supply': '购买农资', 'buy_animal': '购买动物', 'sell': '出售农产品',
+    'fertilize': '施肥',
 }
 LEDGER_LABELS = {
     'post': '作品收入', 'comment': '评论收入', 'prize': '月榜奖金',
@@ -394,9 +396,9 @@ def day_events(request, owner, day, actor_id=''):
         kind = op.get('kind', '')
         parts = []
         if op.get('crop'):
-            parts.append(str(op['crop']))
+            parts.append(FARM_RULES['crops'].get(str(op['crop']), {}).get('name') or str(op['crop']))
         if op.get('building'):
-            parts.append(str(op['building']))
+            parts.append(FARM_RULES['buildings'].get(str(op['building']), {}).get('name') or str(op['building']))
         if op.get('targets'):
             parts.append(f"{len(op['targets'])} 个目标")
         produced = result.get('products') or result.get('production_bonus') or []
