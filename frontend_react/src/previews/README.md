@@ -39,7 +39,7 @@
   后续同区域的怪物形象直接复用，不按显示名称匹配。
 - `previews/slimePreview.ts`：软泥怪预览配置；`mountMonsterPreview.ts` 与 CSS：共用控件与排版。
 - `Combat/atlas/MonsterPortrait.tsx`：按稳定魔物 ID 选择形象，其他魔物保留既有图标。
-- `AnimatedMonsterPortrait.tsx` 与 `MonsterPortraitRenderer.ts`：三个角色仅详情按需加载 PixiJS，加载失败保留
+- `AnimatedMonsterPortrait.tsx` 与 `MonsterPortraitRenderer.ts`：四个角色仅详情按需加载 PixiJS，加载失败保留
   静态形象；离开视口、隐藏页面、减少动态效果时停止播放，切换魔物或关闭弹窗释放资源。
 
 接入时调用 `actor.update(sampleSlimePose(action, seconds, facing), seconds, facing)`。
@@ -83,6 +83,20 @@
   3.2 秒的演示时长不代表技能回合数，不模拟减伤结算。场景负责前后层级、站位与缩放。
 - 预览继续共用控制器、布局和洞窟背景；支持朝向、背景、小尺寸、暂停、数字 1–5、隐藏暂停与资源清理。
 - 已确认参考图为 `docs/agents/assets/combat/moss-beast-preview-approved.png`，确认状态与验证记录见资源索引。
+
+## 苔冠巨兽
+
+入口 `frontend_react/moss-king-preview.html`，打开同一服务器下的 `/moss-king-preview.html`。
+已确认远古苔冠石鹿方案：高大站姿、枝状石角、青玉冠石与苔藓披肩，已接入图鉴。
+列表使用同源 SVG，详情复用警戒呼吸、眨眼与冠石微光，按 `dungeon.moss_cave` 复用苔石洞窟背景。
+
+- `MossKingActor.ts` 从 `assets/combat/moss-king.svg` 分层构造角色，静态与动态共用几何和配色；
+  朝向使用容器镜像，并同步反向主渐变坐标、调整高光，维持世界左上主光源。
+- `mossKingMotion.ts` 提供五个基础动作及既有 `strike / guard` 示意，角色以脚底 `(0, 0)` 为锚点。
+- `MossKingPreviewScene.ts` 负责舞台、阴影、生命周期与播放；`mossKingEffects.ts` 负责一次重击接触反馈、
+  碎石与包裹头部与身体的晶石切面护罩（枝角末端外露）。展示时长与波纹不代表技能回合、伤害或范围。
+- 与其他预览共用 `mountMonsterPreview.ts`、`slimePreview.css`、`skillPreview.css` 和洞窟背景。
+- 已确认截图 `docs/agents/assets/combat/moss-king-preview-approved.png`，确认状态与验收记录见资源索引。
 
 ## 人工验收
 

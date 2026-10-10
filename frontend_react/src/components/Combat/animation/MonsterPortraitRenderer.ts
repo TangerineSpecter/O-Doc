@@ -5,8 +5,10 @@ import {CaveBatActor} from './CaveBatActor';
 import {sampleCaveBatPose} from './caveBatMotion';
 import {MossBeastActor} from './MossBeastActor';
 import {sampleMossBeastPose} from './mossBeastMotion';
+import {MossKingActor} from './MossKingActor';
+import {sampleMossKingPose} from './mossKingMotion';
 
-export type AnimatedMonsterId = 'monster.slime' | 'monster.cave_bat' | 'monster.moss_beast';
+export type AnimatedMonsterId = 'monster.slime' | 'monster.cave_bat' | 'monster.moss_beast' | 'monster.moss_king';
 
 const frames: Record<AnimatedMonsterId, {
     width: number; height: number; ground: number; plainScale: number; habitatScale: number;
@@ -15,12 +17,13 @@ const frames: Record<AnimatedMonsterId, {
     'monster.slime': {width: 256, height: 224, ground: .86, plainScale: .94, habitatScale: 1.15, shadowX: 107, shadowY: 19},
     'monster.cave_bat': {width: 380, height: 280, ground: 250 / 280, plainScale: 1, habitatScale: 1.05, shadowX: 88, shadowY: 12},
     'monster.moss_beast': {width: 370, height: 290, ground: 260 / 290, plainScale: 1, habitatScale: 1.06, shadowX: 144, shadowY: 18},
+    'monster.moss_king': {width: 490, height: 350, ground: 320 / 350, plainScale: 1, habitatScale: .96, shadowX: 157, shadowY: 18},
 };
 
 /** Transparent actor; habitat framing shares the preview's camera and scale. */
 export class MonsterPortraitRenderer {
     private readonly app = new Application();
-    private actor: SlimeActor | CaveBatActor | MossBeastActor | null = null;
+    private actor: SlimeActor | CaveBatActor | MossBeastActor | MossKingActor | null = null;
     private shadow: Graphics | null = null;
     private readonly resizeObserver = new ResizeObserver(() => this.resize());
     private readonly visibilityObserver = new IntersectionObserver(entries => {
@@ -46,7 +49,8 @@ export class MonsterPortraitRenderer {
         if (this.disposed) { this.app.destroy(true, {children: true}); return; }
         const frame = frames[this.monsterId];
         this.actor = this.monsterId === 'monster.cave_bat' ? new CaveBatActor()
-            : this.monsterId === 'monster.moss_beast' ? new MossBeastActor() : new SlimeActor();
+            : this.monsterId === 'monster.moss_beast' ? new MossBeastActor()
+                : this.monsterId === 'monster.moss_king' ? new MossKingActor() : new SlimeActor();
         this.shadow = new Graphics().ellipse(0, 8, frame.shadowX, frame.shadowY).fill({color: 0x356663, alpha: .16});
         this.app.stage.addChild(this.shadow, this.actor);
         this.app.canvas.setAttribute('aria-hidden', 'true');
@@ -87,6 +91,8 @@ export class MonsterPortraitRenderer {
             if (this.shadow) this.shadow.alpha = 1 - pose.lift / 180;
         } else if (this.actor instanceof MossBeastActor) {
             this.actor.update(sampleMossBeastPose('idle', this.time, 1), this.time, 1);
+        } else if (this.actor instanceof MossKingActor) {
+            this.actor.update(sampleMossKingPose('idle', this.time, -1), this.time, -1);
         } else this.actor?.update(sampleSlimePose('idle', this.time, 1), this.time, 1);
     }
 
