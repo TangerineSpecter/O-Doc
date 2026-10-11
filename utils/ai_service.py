@@ -273,6 +273,7 @@ class AIService:
             max_rounds=5,
             tool_choice=None,
             deadline=None,
+            message_transform=None,
     ):
         """执行支持 OpenAI-compatible tool calls 的多轮对话，可指定模型。"""
         try:
@@ -290,6 +291,8 @@ class AIService:
             messages = [dict(message) for message in messages]
 
             for _ in range(max_rounds):
+                if message_transform is not None:
+                    messages = message_transform(messages)
                 request_kwargs = {
                     'model': config['model_name'],
                     'messages': messages,

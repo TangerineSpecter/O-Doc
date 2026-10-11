@@ -15,7 +15,7 @@ export function drawMaterialArt(ctx:CanvasRenderingContext2D,p:MaterialArtProfil
         case 'wing':
             g.polygon([4,8,10,12,17,4,22,8,29,6,27,20,24,17,19,22,16,18,10,23,8,19,3,23],s);
             g.polygon([5,10,10,15,17,6,20,10,26,9,24,15,19,18,16,16,10,20,8,17,5,20],c);
-            g.line(5,10,18,8,l);g.line(18,8,19,18,l);g.line(18,8,10,20,l);g.rect(15,5,3,3,l);break;
+            g.line(18,8,19,18,l);g.line(18,8,10,20,l);g.rect(15,5,3,3,l);break;
         case 'moss':
         case 'ore':
         case 'magma':

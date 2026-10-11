@@ -2,6 +2,7 @@ import copy
 import hashlib
 import logging
 import uuid
+from decimal import Decimal
 from datetime import timedelta
 from django.db import transaction
 from django.db.models import Q
@@ -11,6 +12,7 @@ from .action_schedule import select_agent, take_due
 from .execution import WorldLeaseBusy, defer_when_world_busy, execution_lease
 from .travel_models import TravelJourney, TravelRuntime, TravelNode
 from .travel_candidates import candidates
+from .travel_shopping import available_funds
 from .travel_config import TravelConfigSerializer
 from .travel_steps import advance, record_attempt
 from .travel_notifications import notify
@@ -43,11 +45,13 @@ def run_travel_opportunity(task, scheduler=None, *, key=None, manual=False, lock
     if not agent:
         return None
     with transaction.atomic():
+        pending = TravelJourney(pk=key, actor_id=agent.pk, owner_id=task.travel_config['owner_id'])
+        budget = Decimal(available_funds(pending)['available'])
         journey, created = TravelJourney.objects.get_or_create(pk=key, defaults={'task': task, 'agent': agent,
             'actor_id': agent.pk, 'owner_id': task.travel_config['owner_id'], 'phase': 'preview',
             'snapshot': {'config': copy.deepcopy(task.travel_config), 'agent_name': agent.name,
                 'role_prompt': f'当前 Agent：{agent.name}\n{agent.prompt}', 'extra': task.prompt,
-                'candidates': candidates(agent, task.travel_config.get('recent_cities', 3))}})
+                'candidates': candidates(agent, task.travel_config.get('recent_cities', 3), budget=budget)}})
         TravelRuntime.objects.update_or_create(pk=journey.pk, defaults={'authorized': True})
         start_activity(journey, manual)
     process_journey(journey)

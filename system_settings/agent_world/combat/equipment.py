@@ -2,6 +2,8 @@
 import math
 from decimal import Decimal
 from .catalog import Catalog, numeric, cash
+from .equipment_names import equipment_name
+from .equipment_rolls import affix_range, quality_base
 
 
 def allowed(catalog: Catalog, template_id: str, job: str, level: int, actual_level: int) -> bool:
@@ -15,6 +17,8 @@ def generate(catalog: Catalog, template_id: str, level: int, quality: str, rng, 
     stats = {}
     for stat in ('physical_attack', 'magic_attack', 'hp', 'mp', 'physical_defense', 'magic_defense', 'healing'):
         value = math.floor(numeric(template, stat + '_base') + numeric(template, stat + '_growth') * level)
+        if not starter:
+            value = quality_base(value, quality)
         if value:
             stats[{'hp': 'hp_max', 'mp': 'mp_max'}.get(stat, stat)] = value
     if numeric(template, 'evasion'):
@@ -25,8 +29,7 @@ def generate(catalog: Catalog, template_id: str, level: int, quality: str, rng, 
         row = rng.choices(pool, weights=[numeric(r, 'weight') for r in pool])[0]
         pool = [p for p in pool if p['affix_id'] != row['affix_id']]
         definition = catalog.row('affixes', row['affix_id'])
-        low = numeric(definition, 'min_base') + math.ceil(numeric(definition, 'min_growth') * level)
-        high = numeric(definition, 'max_base') + math.ceil(numeric(definition, 'max_growth') * level)
+        low, high = affix_range(definition, level, quality)
         value = rng.randint(int(low), int(high)) if definition['unit'] == 'integer' else rng.randint(round(low * 10000), round(high * 10000)) / 10000
         affixes.append({'id': definition['id'], 'stat': definition['stat'], 'value': value, 'min': low, 'max': high})
         positions.append((value - low) / (high - low) if high > low else 0)
@@ -38,5 +41,5 @@ def generate(catalog: Catalog, template_id: str, level: int, quality: str, rng, 
         stats[primary] = stats.get(primary, 0) + 1
         affixes = [{'id': 'affix.' + primary, 'stat': primary, 'value': 1, 'min': 1, 'max': 1}]
     value = cash((Decimal(10) + Decimal('.5') * level) * Decimal(catalog.row('qualities', quality)['sale_multiplier']) * (1 + Decimal('.1') * Decimal(str(sum(positions) / len(positions)))))
-    return {'template_id': template_id, 'name': '训练木剑' if starter and level == 1 else template['name'], 'slot': template['slot'],
+    return {'template_id': template_id, 'name': equipment_name(template, affixes, starter=starter, level=level), 'slot': template['slot'],
             'level': level, 'quality': quality, 'stats': stats, 'affixes': affixes, 'value': str(0 if starter else value)}

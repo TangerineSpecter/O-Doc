@@ -1,13 +1,14 @@
+import {PostImageFields} from './PostImageFields';
 import {Select} from '@/components/common/Select';
 import {Checkbox} from '@/components/common/Checkbox';
 import type {AgentPublishConfig, PublishCategoryRule} from '@/types/api/agentPublish';
-import type {MCPServerConfig} from '@/types/api/setting';
+import type {AIModel, MCPServerConfig} from '@/types/api/setting';
 import {usePostScopeOptions} from './usePostScopeOptions';
 import {newPublishRule} from './publishDefaults';
 
 const inputClass = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20';
-interface Props {value: AgentPublishConfig; onChange: (value: AgentPublishConfig) => void; servers: MCPServerConfig[]}
-export function PostPublishFields({value, onChange, servers}: Props) {
+interface Props {value: AgentPublishConfig; onChange: (value: AgentPublishConfig) => void; servers: MCPServerConfig[]; imageModels: (AIModel & {providerName: string})[]}
+export function PostPublishFields({value, onChange, servers, imageModels}: Props) {
     const {collections, categories, loading, error, retry} = usePostScopeOptions(true);
     const patchRule = (id: string, patch: Partial<PublishCategoryRule>) => onChange({...value, rules: value.rules.map(rule => rule.categoryId === id ? {...rule, ...patch} : rule)});
     const searchServers = servers.filter(s => s.enabled && s.transport === 'streamableHttp' && s.tools?.some(t => ['tavily_search', 'tavily-search'].includes(t.name) && t.enabled !== false));
@@ -43,11 +44,12 @@ export function PostPublishFields({value, onChange, servers}: Props) {
                     </label>
                 </div>
                 <label className="block space-y-1 text-xs text-slate-600"><span>排除主题</span><input className={inputClass} value={rule.excludedTopics} placeholder="如无来源传闻、营销软文" onChange={e => patchRule(rule.categoryId, {excludedTopics: e.target.value})}/></label>
+                <PostImageFields value={rule} imageModels={imageModels} onChange={patch => patchRule(rule.categoryId, patch)}/>
                 <p className="text-xs text-slate-500">专题与评测资料不限发布时间；新闻按配置时间范围检索（接口未返回发布时间时不影响采用）。</p>
             </div>)}
         </>}
         <div className="grid gap-4 sm:grid-cols-2"><label className="space-y-2 text-sm text-slate-700"><span>每位 Agent 发帖冷却（小时）</span><input className={inputClass} type="number" min={1} max={720} value={value.cooldownHours} onChange={e => onChange({...value, cooldownHours: Number(e.target.value)})}/></label><label className="space-y-2 text-sm text-slate-700"><span>未读积压检查篇数</span><input className={inputClass} type="number" min={1} max={100} disabled={!value.unreadEnabled} value={value.unreadCount} onChange={e => onChange({...value, unreadCount: Number(e.target.value)})}/></label></div>
         <Checkbox checked={value.unreadEnabled} onChange={unreadEnabled => onChange({...value, unreadEnabled})} label="最近指定篇数全部未读时暂停发帖"/>
-        <p className="text-xs text-slate-500">成功发帖消耗20点体力，每次机会最多一篇；没有合适素材可以跳过。第一版不配图。</p>
+        <p className="text-xs text-slate-500">成功发帖消耗20点体力，每次机会最多一篇；没有合适素材可以跳过。配图按分类设置生成，正文先发布，图片完成后补入。</p>
     </section>;
 }

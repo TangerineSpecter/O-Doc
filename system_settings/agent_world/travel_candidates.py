@@ -1,13 +1,16 @@
 import random
+from decimal import Decimal
 from django.db.models import Q
 from .travel_models import TravelDestination, TravelJourney
 
 
-def candidates(agent, recent_count=3):
+def candidates(agent, recent_count=3, *, budget: Decimal | None = None):
     history = TravelJourney.objects.filter(actor_id=agent.pk, arrived_at__isnull=False).filter(Q(snapshot__destination_scope__isnull=True) | ~Q(snapshot__destination_scope__in=['region', 'unconfirmed']))
     recent = list(history
                   .order_by('-arrived_at').values_list('destination_id', flat=True)[:recent_count])
-    rows = list(TravelDestination.objects.filter(enabled=True).values('id', 'country_code', 'country', 'region', 'city', 'price'))
+    ceiling = agent.money if budget is None else min(agent.money, budget)
+    rows = list(TravelDestination.objects.filter(enabled=True, price__lte=ceiling)
+                .values('id', 'country_code', 'country', 'region', 'city', 'price'))
     visited = set(history.values_list('destination_id', flat=True))
     pools = {}
     for row in rows:
@@ -16,7 +19,7 @@ def candidates(agent, recent_count=3):
     selected = []
     affordable = [row for group in pools.values() for row in group if row['price'] <= agent.money]
     if not affordable:
-        affordable = [row for row in rows if row['price'] <= agent.money]
+        affordable = rows
     if affordable:
         selected.append(random.choice([row for row in affordable if row['id'] not in visited] or affordable))
     countries = list(pools)

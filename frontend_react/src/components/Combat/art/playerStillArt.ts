@@ -32,8 +32,9 @@ class CanvasRects implements PlayerRectPainter {
 }
 
 /** One cached Canvas bitmap per outfit; atlas cards never allocate WebGL renderers. */
-export function loadPlayerStill(jobId:string):Promise<string> {
-    const cached=portraits.get(jobId);if(cached)return cached;
+export function loadPlayerStill(jobId:string,includeAura=true):Promise<string> {
+    const cacheKey=`${jobId}:${includeAura}`;
+    const cached=portraits.get(cacheKey);if(cached)return cached;
     const promise=(async()=>{
         const outfit=outfitArts.find(art=>art.id===jobId);
         if(!outfit)throw new Error('未登记职业形象');
@@ -42,10 +43,11 @@ export function loadPlayerStill(jobId:string):Promise<string> {
         canvas.width=playerStillFrame.width;canvas.height=playerStillFrame.height;
         const c=canvas.getContext('2d');if(!c)throw new Error('无法绘制角色');c.imageSmoothingEnabled=false;
         const rear=document.createElement('canvas'),ground=document.createElement('canvas');
-        rear.width=ground.width=84;rear.height=95;ground.height=95;
+        const auraId=getProfessionAura(jobId),density=2;
+        rear.width=ground.width=84*density;rear.height=ground.height=95*density;
         const rc=rear.getContext('2d')!,gc=ground.getContext('2d')!;
-        for(const context of [rc,gc])context.setTransform(1/8,0,0,1/8,42,85.5);
-        drawProfessionAura(rc,gc,getProfessionAura(jobId),0);
+        for(const context of [rc,gc])context.setTransform(density/8,0,0,density/8,42*density,85.5*density);
+        if(includeAura)drawProfessionAura(rc,gc,auraId,0);
         c.drawImage(ground,0,0,672,760);
         c.save();c.translate(336,684);c.fillStyle='rgba(66,104,89,.15)';c.beginPath();c.ellipse(0,10,165,26,0,0,Math.PI*2);c.fill();c.restore();
         c.drawImage(rear,0,0,672,760);
@@ -59,5 +61,5 @@ export function loadPlayerStill(jobId:string):Promise<string> {
         drawPlayerHands(painter,false,getPlayerHandAnchors(jobId));
         const url=canvas.toDataURL('image/png');canvas.width=rear.width=ground.width=0;return url;
     })();
-    portraits.set(jobId,promise);void promise.catch(()=>portraits.delete(jobId));return promise;
+    portraits.set(cacheKey,promise);void promise.catch(()=>portraits.delete(cacheKey));return promise;
 }

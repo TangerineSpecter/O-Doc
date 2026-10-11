@@ -183,3 +183,13 @@
 - 5 个目录覆盖、技能时序、有限绘制几何测试通过；Node 22 TypeScript 与正式应用生产构建通过。相关 ESLint 无错误，保留原 AtlasView Hook 依赖和旧预览警告；构建保留原大包等提示。
 - 保存入口 `frontend_react/combat-atlas-preview.html` 使用实际图鉴组件与生产 CSV 的只读目录快照，另保留原分层及单路线预览；没有读写居民资料。详细模块与测试命令见[预览说明](../../frontend_react/src/previews/README.md)。
 - 尚未完成全方向逐帧动作、真实装备实例外观绑定和真实战斗事件驱动；本次没有新增持久字段、目录数值或 WebDAV 同步数据。
+
+### 2026-10-11 全职业氛围第二版
+
+- 冰术师的六枝雪花、冰蓝辉光和低位冷雾保留用户确认版；其余 28 个职业（含新手）重做主意象与运动，补充各自配色的渐变辉光和柔光。第二版整体待用户审阅。
+- 战士取消两把固定实体剑，采用短战意流痕；炎术师取消灼烧火柱，采用肩后浮焰与暖金流光；游侠取消菱形块，采用带羽轴、羽枝的飘动细羽。其他职业分别使用运动的符印、灵灯、月影、幻牌、祷环、光羽与林叶。
+- 共用入口 `playerAppearance/professionAuraDrawing.ts`；四系独立造型在 `warriorAuraDrawing.ts`、`arcaneAuraDrawing.ts`、`rangerAuraDrawing.ts`、`holyNatureAuraDrawing.ts`，光学工具在 `auraDrawingPrimitives.ts`。原人物、服装、武器与技能规则未更换。
+- 预览入口 `frontend_react/profession-aura-preview.html`，源码按组件、Hook 与 Canvas 生命周期拆分到 `src/previews/professionAura/`。支持全部 29 个职业的动态总览、四系筛选、暂停及单独预览。
+- 图鉴列表缓存同源静态图，动态详情与分层预览复用同源 PixiJS 绘制；实际图鉴已展示新版炎术师。列表缩略图继续采用静态图，不为每张卡片分配 WebGL 场景。
+- 展示记录：[战士系](./assets/combat/profession-auras-warrior-v2.png)、[法师系](./assets/combat/profession-auras-mage-v2.png)、[游侠系](./assets/combat/profession-auras-ranger-v2.png)、[牧师系](./assets/combat/profession-auras-priest-v2.png)、[完整总览](./assets/combat/profession-auras-overview-v2.png)、[图鉴同步](./assets/combat/profession-auras-atlas-v2.png)。逐职业造型与运动表见[设计说明](./Agent职业氛围设计说明.md)。
+- 按用户要求未运行测试、类型检查、lint 或构建；本轮仅审视真实预览与保存展示画面。无持久字段、目录数值或同步变更。

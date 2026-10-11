@@ -232,7 +232,7 @@ def validate_draft(value: dict, state: dict, *, enforce_title=False) -> dict:
     if state.get('template_version') == 2 or 'writing_context' in state:
         validate_format(content)
     if re.search(r'!\[|\{\{illustration', content):
-        raise ValueError('一期正文不生成配图')
+        raise ValueError('正文不能直接插入配图，配图由分类设置的后台流程生成')
     content = rebuild_references(content, urls)
     value = {k: value[k] for k in ('title', 'summary', 'content', 'reason', 'evidence_sufficient')}
     value.update(title=value['title'].strip(), content=content, source_urls=urls, main_source_url=main)

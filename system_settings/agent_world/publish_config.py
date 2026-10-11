@@ -23,6 +23,22 @@ class CategoryRuleSerializer(serializers.Serializer):
     news_days = serializers.IntegerField(min_value=1, max_value=365, default=3)
     region = serializers.CharField(max_length=200, allow_blank=True, default='全球')
     excluded_topics = serializers.CharField(max_length=2000, allow_blank=True, default='')
+    image_enabled = serializers.BooleanField(default=False)
+    image_model_id = serializers.CharField(max_length=40, allow_blank=True, default='')
+    image_subject = serializers.ChoiceField(choices=['auto', 'scene', 'agent'], default='auto')
+    image_prompt = serializers.CharField(max_length=2000, allow_blank=True, default='')
+
+    def validate(self, data):
+        if data['image_enabled'] and data['image_model_id']:
+            from system_mcp.image_generation import resolve_image_model, supports_references
+            from system_settings.grsai_images import GrsaiImageError
+            try:
+                model = resolve_image_model(data['image_model_id'])
+            except GrsaiImageError as exc:
+                raise serializers.ValidationError(str(exc)) from exc
+            if data['image_enabled'] and data['image_subject'] == 'agent' and not supports_references(model):
+                raise serializers.ValidationError('包含 Agent 时请选择支持角色参考图的生图模型')
+        return data
 
 
 class PublishConfigSerializer(serializers.Serializer):

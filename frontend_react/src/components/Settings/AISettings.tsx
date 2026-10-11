@@ -1,4 +1,5 @@
 import {useState} from 'react';
+import {DecisionSettings} from './DecisionSettings';
 import {CheckCircle2, Edit2, Eye, Globe, ImagePlus, Key, Layers, Loader2, Plus, Server, Trash2, Wifi, X, XCircle, Zap} from 'lucide-react';
 import {AIModel, AIModelConnectionResult, AIProvider, ModelType, SystemAIConfig, testAIModelConnection} from '@/api/setting';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
@@ -154,6 +155,7 @@ export const AISettings = ({
 
     return (
         <div className="space-y-8">
+            <DecisionSettings/>
             {/* 1. Global System Defaults */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                 <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">

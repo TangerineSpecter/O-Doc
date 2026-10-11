@@ -910,6 +910,8 @@ class SyncManager:
             reconcile_life()
             from system_settings.agent_world.social_sync import reconcile_social
             reconcile_social()
+            from system_settings.agent_world.publish_media import reset_photo_runtime
+            reset_photo_runtime()
             from system_settings.models import AgentMemoryLease
             AgentMemoryLease.objects.all().update(token='', until=None)
             if not any(item.get('model', '').startswith('system_settings.social') for item in data_list):

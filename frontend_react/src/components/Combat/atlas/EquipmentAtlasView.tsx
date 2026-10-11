@@ -272,7 +272,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                             <div className="space-y-1.5">
                                 <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                                     <Shield className="h-3.5 w-3.5 text-slate-400" />
-                                    基础属性与每级成长
+                                    白装基础属性与每级成长
                                 </h4>
                                 {!selectedDetails.baseStats.length ? (
                                     <div className="rounded-xl border border-slate-100 bg-slate-50 p-2.5 text-xs text-slate-500">
@@ -321,7 +321,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                     <span>随机词条数量规则</span>
                                 </div>
                                 <p className="text-[11px] text-slate-500 leading-relaxed">
-                                    白装拥有 1 条随机词条；蓝装 2 条；金装 3 条。词条数值在装备掉落时随机决定。
+                                    白装拥有 1 条随机词条；蓝装 2 条；金装 3 条。等级越高，词条数值范围越高；蓝装、金装还拥有更高的基础属性和词条数值。数值在掉落时随机生成并固定，百分比词条采用独立成长曲线。
                                 </p>
                                 <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-200/60 leading-relaxed">
                                     回收基础价：10 + 0.5 ×装备等级，根据品质与词条品质额外加成。

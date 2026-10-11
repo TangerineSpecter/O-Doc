@@ -143,6 +143,7 @@ export type AgentRunStatus = 'success' | 'failed' | 'running';
 export type AgentRunStepStatus = AgentRunStatus | 'info';
 
 export interface AgentTaskConfig {
+    marketConfig?: import('./decision').MarketDecisionConfig;
     memoConfig?: {ownerId: string};
     model?: string | null;
     investmentConfig?: import('./investment').InvestmentConfig;

@@ -1,3 +1,4 @@
+import {MarketTaskFields} from './agent/MarketTaskFields';
 import {ModelThinkingBadge} from './ModelThinkingBadge';
 import {TaskModelSelect} from './agent/TaskModelSelect';
 import AgentSettingsToolbar from './AgentSettingsToolbar';
@@ -111,6 +112,7 @@ type AgentForm = {
 type AgentView = 'list' | 'tasks' | 'records';
 
 type AgentTaskForm = {
+    marketConfig?: import('../../types/api/decision').MarketDecisionConfig;
     model: string;
     taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'exploration' | 'memo_capture';
     investmentConfig?: import('../../types/api/investment').InvestmentConfig;
@@ -431,6 +433,7 @@ export const AgentSettings = ({
             model: task.model || '',
             taskKind: task.taskKind || 'custom',
             investmentConfig: task.investmentConfig || {},
+            marketConfig: task.marketConfig || {decisionEnabled: false, decisionProvider: 'jev'},
             publishConfig: task.publishConfig || emptyPublishConfig(),
             travelConfig: task.travelConfig || emptyTravelConfig(),
             postCollectionIds: task.postCollectionIds || [],
@@ -585,6 +588,7 @@ export const AgentSettings = ({
             model: taskForm.model || null,
             taskKind: taskForm.taskKind || 'custom',
             investmentConfig: isInvestmentTask ? taskForm.investmentConfig || {} : undefined,
+            marketConfig: isMarketTask ? taskForm.marketConfig || {decisionEnabled: false, decisionProvider: 'jev'} : undefined,
             publishConfig: isPublishTask ? taskForm.publishConfig : undefined,
             travelConfig: isTravelTask ? taskForm.travelConfig : undefined,
             postCollectionIds: taskForm.postCollectionIds || [],
@@ -1335,7 +1339,7 @@ export const AgentSettings = ({
                         <div className="max-h-[72vh] space-y-5 overflow-y-auto scrollbar-hide p-6">
                             <p className="text-xs text-orange-600">{isSystemTask ? `内置系统任务 · ${taskForm.name}` : '自定义任务'}</p>
                             {isSystemTask && <>
-                                <>{isInvestmentTask ? <InvestmentTaskFields value={taskForm.investmentConfig || {}} servers={mcpServers} onChange={investmentConfig => setTaskForm({...taskForm, investmentConfig})}/> : isMarketTask ? <p className="rounded-2xl bg-emerald-50 p-4 text-sm leading-relaxed text-slate-600">自主决定进入市场或跳过。进入消耗5体力，会话内购买种子、饲料、动物，出售产物、上架、改价和撤单；最多5分钟20次工具调用，完成后离开市场。</p> : isExplorationTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">居民准备地点、装备与药剂，规则自动推进持续战斗。手动探索可直接使用；自动安排还需在冒险面板开启本机自动探索。准备和返回转职使用居民当前模型，战斗不调用模型。</p> : isCookingTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">使用居民自己的食材制作美食，一次最多六份；每份消耗食谱规定的体力并获得厨艺经验，成品由市场出售。食谱规则和图片在食谱图鉴维护。</p> : isFarmTask ? <p className="rounded-2xl bg-lime-50 p-4 text-sm leading-relaxed text-slate-600">居民自主种植、养殖、照料与升级；种子、饲料、动物购买及产物出售由市场交易任务负责，共用现有余额。每项成功操作消耗2点体力；旅行时暂停经营。启用后赠送四块耕地。农场规则与角色外观可在农场页面配置。</p> : isTravelTask ? <TravelTaskFields value={taskForm.travelConfig || emptyTravelConfig()} servers={mcpServers} imageModels={getModelsByType('image_generation')} onChange={travelConfig => setTaskForm({...taskForm, travelConfig})}/> : isPublishTask ? <PostPublishFields value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
+                                <>{isInvestmentTask ? <InvestmentTaskFields value={taskForm.investmentConfig || {}} servers={mcpServers} onChange={investmentConfig => setTaskForm({...taskForm, investmentConfig})}/> : isMarketTask ? <MarketTaskFields value={taskForm.marketConfig || {}} onChange={marketConfig => setTaskForm({...taskForm, marketConfig})}/> : isExplorationTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">居民准备地点、装备与药剂，规则自动推进持续战斗。手动探索可直接使用；自动安排还需在冒险面板开启本机自动探索。准备和返回转职使用居民当前模型，战斗不调用模型。</p> : isCookingTask ? <p className="rounded-2xl bg-orange-50 p-4 text-sm leading-relaxed text-slate-600">使用居民自己的食材制作美食，一次最多六份；每份消耗食谱规定的体力并获得厨艺经验，成品由市场出售。食谱规则和图片在食谱图鉴维护。</p> : isFarmTask ? <p className="rounded-2xl bg-lime-50 p-4 text-sm leading-relaxed text-slate-600">居民自主种植、养殖、照料与升级；种子、饲料、动物购买及产物出售由市场交易任务负责，共用现有余额。每项成功操作消耗2点体力；旅行时暂停经营。启用后赠送四块耕地。农场规则与角色外观可在农场页面配置。</p> : isTravelTask ? <TravelTaskFields value={taskForm.travelConfig || emptyTravelConfig()} servers={mcpServers} imageModels={getModelsByType('image_generation')} onChange={travelConfig => setTaskForm({...taskForm, travelConfig})}/> : isPublishTask ? <PostPublishFields imageModels={getModelsByType('image_generation')} value={taskForm.publishConfig || emptyPublishConfig()} servers={mcpServers} onChange={publishConfig => setTaskForm({...taskForm, publishConfig})}/> : <PostInteractionScopeFields collectionIds={taskForm.postCollectionIds || []} categoryIds={taskForm.postCategoryIds || []}
                                     onCollectionsChange={postCollectionIds => setTaskForm({...taskForm, postCollectionIds})} onCategoriesChange={postCategoryIds => setTaskForm({...taskForm, postCategoryIds})}/>}</>
                             </>}
 

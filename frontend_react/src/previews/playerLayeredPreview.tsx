@@ -8,6 +8,7 @@ import type {LayeredPlayerOptions,ProfessionAuraId} from '../components/Combat/a
 import {familyNames} from '../components/Combat/art/professionConcepts';
 import type {ConceptFamily} from '../components/Combat/art/professionConcepts';
 import {playerSheetUrl} from '../components/Combat/art/playerVisuals';
+import {getProfessionAura} from '../components/Combat/art/professionAuras';
 
 const layerOptions=[
     ['showGround','脚下光环','独立于鞋和防具'],
@@ -17,14 +18,20 @@ const layerOptions=[
     ['showWeapon','武器层','随选择替换，保留人物'],
 ] as const;
 const presets=[
-    {name:'炎术师',aura:'flame',outfit:'job.pyromancer',description:'背焰缓慢升腾'},
+    {name:'炎术师',aura:'flame',outfit:'job.pyromancer',description:'浮焰与暖金辉光'},
     {name:'牧师',aura:'holy',outfit:'job.priest',description:'背后圣光与星芒'},
     {name:'圣骑士',aura:'cross',outfit:'job.paladin',description:'脚下十字光环'},
 ] as const;
 const auraIcons:Partial<Record<ProfessionAuraId,string>>={none:'—',flame:'♨',holy:'✧',cross:'✚'};
 
 function PlayerLayeredPreview() {
-    const [options,setOptions]=useState<LayeredPlayerOptions>(()=>({...initialLayeredOptions,paused:matchMedia('(prefers-reduced-motion: reduce)').matches}));
+    const [options,setOptions]=useState<LayeredPlayerOptions>(()=>{
+        const requestedJob=new URLSearchParams(location.search).get('job');
+        const outfit=outfitArts.find(item=>item.id===requestedJob);
+        return {...initialLayeredOptions,
+            ...(outfit?{outfit:outfit.id,aura:getProfessionAura(outfit.id),weapon:'none' as const,backdrop:'plain' as const}:{}),
+            paused:matchMedia('(prefers-reduced-motion: reduce)').matches};
+    });
     const [family,setFamily]=useState<ConceptFamily|'all'>('all');
     const [keepClothes,setKeepClothes]=useState(true);
     const outfit=outfitArts.find(o=>o.id===options.outfit)!;
@@ -62,7 +69,7 @@ function PlayerLayeredPreview() {
         <section className="layered-weapon-section"><div className="layered-section-heading"><h2>独立武器</h2><span>只更换武器，不更换衣服或职业效果</span></div>
             <div className="layered-weapons"><button type="button" aria-pressed={options.weapon==='none'} onClick={()=>update('weapon','none')}><span className="layered-empty-hand">◡</span><strong>空手</strong></button>{independentWeapons.map(w=><button type="button" key={w.id} aria-pressed={options.weapon===w.id} onClick={()=>update('weapon',w.id)}><div className="layered-weapon-thumb"><div style={{aspectRatio:`${w.art.region.width}/${w.art.region.height}`}}><img src={w.art.url} alt="" style={{width:`${w.art.size.width/w.art.region.width*100}%`,height:`${w.art.size.height/w.art.region.height*100}%`,left:`${-w.art.region.x/w.art.region.width*100}%`,top:`${-w.art.region.y/w.art.region.height*100}%`}}/></div></div><strong>{w.name}</strong></button>)}</div>
         </section>
-        <footer className="layered-page-footer"><span>职业氛围效果 · 与战斗技能分开</span><a href="/profession-design-preview.html">查看上一版完整概念稿 ↗</a></footer>
+        <footer className="layered-page-footer"><span>职业氛围效果 · 与战斗技能分开</span><a href="/profession-aura-preview.html">查看全部职业动态氛围 ↗</a><a href="/profession-design-preview.html">查看上一版完整概念稿 ↗</a></footer>
     </main>;
 }
 createRoot(document.getElementById('root')!).render(<PlayerLayeredPreview/>);

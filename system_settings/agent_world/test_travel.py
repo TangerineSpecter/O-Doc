@@ -372,13 +372,51 @@ class TravelTests(TestCase):
 
     def test_candidates_affordable_distinct_and_recent_avoidance(self):
         for i in range(7):
-            TravelDestination.objects.create(pk=str(i+1), country_code='CN' if i < 3 else 'TH', country='国家', city='城市', price=500 if i == 6 else 20000)
+            TravelDestination.objects.create(pk=str(i+1), country_code='CN' if i < 3 else 'TH', country='国家', city='城市', price=500 if i == 6 else 1000)
+        TravelDestination.objects.create(pk='expensive', country_code='US', country='美国', city='城市', price=20000)
         self.journey(arrived_at=timezone.now())
         result = candidates(self.agent)
         self.assertEqual(len(result), 5)
         self.assertEqual(len({r['id'] for r in result}), 5)
         self.assertNotIn('1', {r['id'] for r in result})
-        self.assertIn('7', {r['id'] for r in result})
+        self.assertNotIn('expensive', {r['id'] for r in result})
+        self.assertTrue(all(Decimal(r['price']) <= self.agent.money for r in result))
+
+    def test_candidates_all_within_budget_including_fallback(self):
+        for i, price in enumerate([500, 1025, 1500, 1600, 2175, 2525]):
+            TravelDestination.objects.create(pk=str(i), country_code='CN', country='国家', city='城市', price=price)
+        for _ in range(10):
+            result = candidates(self.agent, budget=Decimal('1500'))
+            self.assertEqual({r['id'] for r in result}, {'0', '1', '2'})
+        self.assertEqual(candidates(self.agent, budget=Decimal('499')), [])
+        self.agent.money = Decimal('500')
+        self.assertEqual([r['id'] for r in candidates(self.agent, budget=Decimal('1500'))], ['0'])
+
+    def test_new_trip_candidates_respect_life_budget_and_other_reservations(self):
+        from .life_models import LifeItem
+        now = timezone.now()
+        LifeItem.objects.create(id='budgeted-trip', owner_id='admin', actor_id=self.agent.pk,
+            original_at=now, scheduled_at=now, activity='travel', budget=1500)
+        LifeItem.objects.create(id='other', owner_id='admin', actor_id=self.agent.pk,
+            original_at=now, scheduled_at=now, activity='travel', budget=9000)
+        for price in [500, 1025, 1500, 1600]:
+            TravelDestination.objects.create(pk=str(price), country_code='CN', country='国家', city='城市', price=price)
+        with patch('system_settings.agent_world.travel_runner.process_journey'):
+            row = run_travel_opportunity(self.task, key='budgeted-trip', manual=True)
+        self.assertEqual([r['id'] for r in row.snapshot['candidates']], ['500'])
+
+    def test_choose_rejects_stale_route_above_current_budget(self):
+        row = self.journey('choose')
+        row.snapshot['previews'] = []
+        row.save()
+        self.with_life_budget(row, budget=1500)
+        def choose(journey, instruction, context, validate, **kwargs):
+            with self.assertRaisesRegex(ValueError, '本次可用旅行预算'):
+                validate({'destination_id': '1', 'shopping_budget': '0', 'reason': '想去'})
+            return validate({'destination_id': 'skip', 'shopping_budget': '0', 'reason': '预算不足'})
+        with patch('system_settings.agent_world.travel_steps.ask', side_effect=choose):
+            advance(row)
+        self.assertEqual(row.status, 'skipped')
 
     def test_pause_resume_and_early_end(self):
         row = self.journey(); depart(row)
@@ -531,6 +569,211 @@ class TravelTests(TestCase):
                 ask(row, '整理行程', {}, validate)
             self.assertIn('当地素材的依据必须是来源中的原文片段', model.call_args.args[1])
 
+    def test_generated_traditional_text_is_simplified_without_changing_evidence(self):
+        import json
+        from .travel_ai import ask
+        row = self.journey()
+        source = {'url': 'https://example.invalid/庫德', 'title': '庫德旅遊', 'summary': '庫德族手工藝品與傳統茶'}
+        item = {'name': '庫德族手工藝品', 'description': '當地傳統紀念品',
+                'source_url': source['url'], 'evidence_quote': source['summary'], 'belongs_to_destination': True}
+        raw = {'souvenirs': [item], 'reaction': '遊覽後買了絲綢織品', 'choice': '遊覽',
+               'destination_id': '庫德-ID', 'title': '索蘭山區', 'content': '傳統茶與手工藝品'}
+        def validate(value):
+            value['souvenirs'] = sourced_items(value['souvenirs'], [source], minimum=1, maximum=1)
+            return value
+        with patch('system_settings.agent_world.travel_ai.complete', return_value=json.dumps(raw, ensure_ascii=False)) as model:
+            result = ask(row, '整理旅行内容', {'sources': [source]}, validate)
+        self.assertEqual(result['souvenirs'][0]['name'], '库德族手工艺品')
+        self.assertEqual(result['souvenirs'][0]['description'], '当地传统纪念品')
+        self.assertEqual(result['souvenirs'][0]['evidence_quote'], source['summary'])
+        self.assertEqual(result['souvenirs'][0]['source_url'], source['url'])
+        self.assertEqual(result['destination_id'], '庫德-ID')
+        self.assertEqual(result['choice'], '游览')
+        self.assertEqual(result['title'], '索兰山区')
+        self.assertEqual(result['content'], '传统茶与手工艺品')
+        self.assertIn('必须使用简体中文', model.call_args.args[1])
+
+    def test_simplified_journal_keeps_embedded_source_urls(self):
+        from .travel_language import simplified_text
+        self.assertEqual(simplified_text('[旅遊資料](https://example.invalid/庫德族)與傳統茶'),
+                         '[旅游资料](https://example.invalid/庫德族)与传统茶')
+
+    def test_new_food_choice_accepts_old_traditional_food_name(self):
+        row = self.journey('food')
+        row.snapshot['plan'] = {'foods': [{'name': '庫爾德傳統茶'}]}
+        row.save()
+        from .travel_ai import ask
+        with patch('system_settings.agent_world.travel_steps.ask', side_effect=ask), \
+                patch('system_settings.agent_world.travel_ai.complete', return_value='{"choice":"庫爾德傳統茶","reaction":"茶很熱"}'):
+            advance(row)
+        self.assertEqual(row.snapshot['food'], {'choice': '库尔德传统茶', 'reaction': '茶很热'})
+
+    def test_historical_text_repair_preview_apply_and_repeat(self):
+        import io
+        import json
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from django.core.management import call_command
+        from system_settings.models import AgentLongTermMemory
+        row = self.journey(status='completed', departed_at=timezone.now(), returned_at=timezone.now())
+        quote = '庫德族手工藝品與傳統茶'
+        content = '[傳統茶](https://example.invalid/庫德)'
+        article = Article.objects.create(author='admin', coll_id=self.collection.pk,
+            agent_post_author_id=self.agent.pk, title='旅遊日記', content=content)
+        row.article_id = article.pk
+        row.snapshot.update(draft={'title': '旅遊日記', 'content': content, 'reflection': '山區很美'},
+            published_content_hash=content_hash(content), sources=[{'title': quote, 'summary': quote}],
+            plan={'souvenirs': [{'name': '庫德族手工藝品', 'evidence_quote': quote}]},
+            photo={'request': {'prompt': quote, 'request_id': 'original'}})
+        row.save()
+        node = TravelNode.objects.create(pk=row.pk + ':plan', journey=row, kind='plan',
+            result={'souvenirs': [{'name': '庫德族手工藝品', 'evidence_quote': quote}]})
+        node_at = node.updated_at
+        item = AgentInventoryItem.objects.create(pk=row.pk + ':1', actor_id=self.agent.pk, owner_id='admin',
+            name='庫德族手工藝品', quantity=2, value=60,
+            source={'journey_id': row.pk, 'description': '當地紀念品', 'unit_price': '60'})
+        memory = AgentLongTermMemory.objects.create(agent=self.agent, title='旅行記憶', content='買了傳統茶',
+            metadata={'source': 'travel', 'journey_id': row.pk})
+        output = io.StringIO()
+        original = copy.deepcopy(row.snapshot)
+        ledger_before = list(WorldLedger.objects.order_by('pk').values())
+        call_command('repair_travel_simplified', journey_id=[row.pk], stdout=output)
+        row.refresh_from_db(); article.refresh_from_db()
+        self.assertEqual(row.snapshot, original)
+        self.assertEqual(article.content, content)
+        with TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            backup = root / 'original.json'
+            sentinel = root / 'untouched.txt'
+            sentinel.write_text('unchanged')
+            call_command('repair_travel_simplified', journey_id=[row.pk], apply=True, backup=str(backup), stdout=output)
+            saved = json.loads(backup.read_text())
+            self.assertEqual(next(r for r in saved['records'] if r['model'] == 'article.article')['before']['content'], content)
+            self.assertEqual(sentinel.read_text(), 'unchanged')
+            before_backup = backup.read_bytes()
+            call_command('repair_travel_simplified', journey_id=[row.pk], apply=True, backup=str(backup), stdout=output)
+            self.assertEqual(backup.read_bytes(), before_backup)
+        row.refresh_from_db(); article.refresh_from_db(); node.refresh_from_db()
+        item.refresh_from_db(); memory.refresh_from_db(); self.agent.refresh_from_db()
+        self.assertEqual(article.content, '[传统茶](https://example.invalid/庫德)')
+        self.assertEqual(row.snapshot['published_content_hash'], content_hash(article.content))
+        self.assertEqual(row.snapshot['sources'], original['sources'])
+        self.assertEqual(row.snapshot['photo'], original['photo'])
+        self.assertEqual(node.result['souvenirs'][0]['evidence_quote'], quote)
+        self.assertEqual(node.updated_at, node_at)
+        self.assertEqual(item.name, '库德族手工艺品')
+        self.assertEqual((item.quantity, item.value, item.source['unit_price']), (2, Decimal(60), '60'))
+        self.assertEqual(memory.content, '买了传统茶')
+        self.assertEqual(self.agent.money, 10000)
+        self.assertEqual(list(WorldLedger.objects.order_by('pk').values()), ledger_before)
+
+    def test_text_repair_preserves_manual_article_conflict(self):
+        import io
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from django.core.management import call_command
+        row = self.journey(status='completed')
+        article = Article.objects.create(author='admin', coll_id=self.collection.pk,
+            agent_post_author_id=self.agent.pk, title='旅遊', content='手動修改過的遊記')
+        row.article_id = article.pk
+        row.snapshot['published_content_hash'] = content_hash('原始遊記')
+        row.save()
+        with TemporaryDirectory() as folder:
+            call_command('repair_travel_simplified', journey_id=[row.pk], apply=True,
+                backup=str(Path(folder).resolve() / 'backup.json'), stdout=io.StringIO())
+        row.refresh_from_db(); article.refresh_from_db()
+        self.assertEqual(article.content, '手动修改过的游记')
+        self.assertEqual(row.snapshot['published_content_hash'], content_hash('原始遊記'))
+
+    def test_text_repair_requires_backup_and_never_overwrites_it(self):
+        import io
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+        row = self.journey(status='completed')
+        row.snapshot['draft'] = {'title': '旅遊'}
+        row.save()
+        with self.assertRaises(CommandError):
+            call_command('repair_travel_simplified', apply=True, stdout=io.StringIO())
+        with TemporaryDirectory() as folder:
+            backup = Path(folder).resolve() / 'backup.json'
+            backup.write_text('existing')
+            with self.assertRaises(CommandError):
+                call_command('repair_travel_simplified', journey_id=[row.pk], apply=True,
+                    backup=str(backup), stdout=io.StringIO())
+            self.assertEqual(backup.read_text(), 'existing')
+        row.refresh_from_db()
+        self.assertEqual(row.snapshot['draft']['title'], '旅遊')
+        row.status = 'active'; row.save()
+        with self.assertRaises(CommandError):
+            call_command('repair_travel_simplified', journey_id=[row.pk], stdout=io.StringIO())
+
+    def test_upgrade_automatically_repairs_history_with_backup(self):
+        import importlib
+        import json
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from types import SimpleNamespace
+        from django.db import connection
+        from django.db.migrations.executor import MigrationExecutor
+        from django.test import override_settings
+        migration = importlib.import_module('system_settings.migrations.0066_simplify_historical_travel_text')
+        historical = MigrationExecutor(connection).loader.project_state([
+            ('system_settings', '0066_simplify_historical_travel_text')]).apps
+        row = self.journey(status='completed')
+        row.snapshot.update(draft={'title': '旅遊', 'content': '傳統茶'},
+            sources=[{'title': '當地旅遊', 'summary': '手工藝品'}])
+        article = Article.objects.create(author='admin', coll_id=self.collection.pk,
+            agent_post_author_id=self.agent.pk, title='旅遊', content='傳統茶')
+        row.article_id = article.pk
+        row.snapshot['published_content_hash'] = content_hash(article.content)
+        row.save()
+        node = TravelNode.objects.create(pk=row.pk + ':plan', journey=row, kind='plan',
+            result={'souvenirs': [{'name': '手工藝品', 'evidence_quote': '手工藝品'}]})
+        node_at = node.updated_at
+        active = self.journey(status='active')
+        active.snapshot['draft'] = {'title': '旅遊'}; active.save()
+        ledger_before = list(WorldLedger.objects.order_by('pk').values())
+        with TemporaryDirectory() as folder, override_settings(SYSTEM_LOG_DIR=folder):
+            root = Path(folder).resolve()
+            sentinel = root / 'untouched.txt'; sentinel.write_text('unchanged')
+            migration.apply(historical, SimpleNamespace(connection=connection))
+            backups = list((root / 'travel-text-backups').glob('*.json'))
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(backups[0].stat().st_mode & 0o777, 0o600)
+            saved = json.loads(backups[0].read_text())
+            self.assertEqual(saved['migration'], '0066')
+            self.assertEqual(next(r for r in saved['records'] if r['model'] == 'article.article')['before']['content'], '傳統茶')
+            migration.apply(historical, SimpleNamespace(connection=connection))
+            self.assertEqual(len(list((root / 'travel-text-backups').glob('*.json'))), 1)
+            self.assertEqual(sentinel.read_text(), 'unchanged')
+        row.refresh_from_db(); article.refresh_from_db(); node.refresh_from_db(); active.refresh_from_db()
+        self.assertEqual(row.snapshot['draft']['content'], '传统茶')
+        self.assertEqual(row.snapshot['sources'], [{'title': '當地旅遊', 'summary': '手工藝品'}])
+        self.assertEqual(row.snapshot['published_content_hash'], content_hash(article.content))
+        self.assertEqual(node.updated_at, node_at)
+        self.assertEqual(node.result['souvenirs'][0], {'name': '手工艺品', 'evidence_quote': '手工藝品'})
+        self.assertEqual(active.snapshot['draft']['title'], '旅遊')
+        self.assertEqual(list(WorldLedger.objects.order_by('pk').values()), ledger_before)
+
+    def test_automatic_text_repair_backup_failure_writes_nothing(self):
+        import importlib
+        from tempfile import TemporaryDirectory
+        from types import SimpleNamespace
+        from django.apps import apps
+        from django.db import connection
+        from django.test import override_settings
+        migration = importlib.import_module('system_settings.migrations.0066_simplify_historical_travel_text')
+        row = self.journey(status='completed')
+        row.snapshot['draft'] = {'title': '旅遊'}; row.save()
+        with TemporaryDirectory() as folder, override_settings(SYSTEM_LOG_DIR=folder), \
+                patch.object(migration.os, 'open', side_effect=OSError('备份不可写')):
+            with self.assertRaisesRegex(OSError, '备份不可写'):
+                migration.apply(apps, SimpleNamespace(connection=connection))
+        row.refresh_from_db()
+        self.assertEqual(row.snapshot['draft']['title'], '旅遊')
+
     def test_manual_trip_continues_with_world_switch_off_without_new_opportunities(self):
         from .action_runner import tick
         manual = self.journey()
@@ -682,7 +925,7 @@ class TravelTests(TestCase):
 
     def test_history_without_scope_keeps_real_city_visits(self):
         row = self.journey(arrived_at=timezone.now())
-        TravelDestination.objects.create(pk='1', country='中国', country_code='CN', city='成都', price=20000)
+        TravelDestination.objects.create(pk='1', country='中国', country_code='CN', city='成都', price=5000)
         self.assertEqual(candidates(self.agent, recent_count=0)[0]['visited'], True)
         row.snapshot['destination_scope'] = 'region'; row.save()
         self.assertEqual(candidates(self.agent, recent_count=0)[0]['visited'], False)

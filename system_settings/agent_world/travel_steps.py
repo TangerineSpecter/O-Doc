@@ -8,6 +8,7 @@ from .travel_config import bound_skill
 from .travel_models import TravelNode, TravelJourney
 from .travel_settlement import depart, purchase
 from .travel_shopping import available_funds, shopping_limits, generate_goods
+from .travel_language import simplified_text
 
 EVENTS = [
     {'type': 'negative', 'description': '原计划的入口临时关闭，你扑了个空。', 'choices': ['改去下一站', '在附近散步', '稍作休息']},
@@ -65,7 +66,7 @@ def advance(journey):
         index = len(state.get('previews', []))
         if not state['candidates']:
             journey.status = 'skipped'
-            state['skip_reason'] = '没有已启用的目的地'
+            state['skip_reason'] = '当前可用旅行预算内没有符合条件的目的地'
             next_phase = 'done'
         else:
             city = state['candidates'][index]
@@ -87,6 +88,8 @@ def advance(journey):
             budget = Decimal(str(v.get('shopping_budget')))
             if not selected or not budget.is_finite() or budget < 0 or Decimal(selected['price'])+budget > agent.money:
                 raise ValueError('所选路线或购物预算超过余额')
+            if Decimal(selected['price']) > Decimal(funds['available']):
+                raise ValueError('所选路线超过本次可用旅行预算，请选择预算内路线或本次不去')
             shopping_available = max(Decimal(0), Decimal(funds['available'])-Decimal(selected['price']))
             if budget > shopping_available:
                 raise ValueError(f'扣除路线费用后本次可分配购物额度为{shopping_available}，请缩减购物预算；总预算与购物上限须分别判断')
@@ -151,7 +154,7 @@ def advance(journey):
     elif phase == 'food':
         foods = state['plan']['foods']
         def validate(v):
-            if v.get('choice') not in [f['name'] for f in foods]+['普通餐', '不尝试']:
+            if v.get('choice') not in [simplified_text(f['name']) for f in foods]+['普通餐', '不尝试']:
                 raise ValueError('美食选项无效')
             return {'choice': v['choice'], 'reaction': text(v, 'reaction')}
         state['food'] = decide(journey, node, '选择一项当地美食或普通餐／不尝试。已经包含在旅行总价内。返回 {"choice":"名称","reaction":"体验或不尝试的理由"}，尊重角色饮食限制。', {'foods': foods}, validate)

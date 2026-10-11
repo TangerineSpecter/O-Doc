@@ -46,10 +46,16 @@ from .agent_world.social_views import SocialView
 from .agent_world.cooking_views import CookingRecipesView, CookingRecipeView, CookingSkillView, CookingHistoryView
 
 from .token_usage.views import TokenUsageView
+from .decision.views import DecisionConfigView, DecisionTestView
 
 from .agent_world.combat.views import CombatView
 
+from .agent_world.publish_media_views import PostPhotoView
+
 urlpatterns = [
+    path('decision-models/', DecisionConfigView.as_view()),
+    path('decision-models/test/', DecisionTestView.as_view()),
+    path('agent-world/posts/<str:post_id>/photo/', PostPhotoView.as_view()),
     path('agent-world/combat/catalog/', CombatView.as_view()),
     path('agent-world/combat/config/', CombatView.as_view(kind='config')),
     path('agent-world/combat/agents/<str:identity>/', CombatView.as_view(kind='profile')),

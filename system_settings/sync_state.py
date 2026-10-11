@@ -12,6 +12,7 @@ DEVICE_SETTING_KEY = 'system_sync_v2_device'
 PERMANENT_DELETE_HASH_PREFIX = '!'
 # 这些系统设置只属于当前这台设备，不进入快照，也不记入修订清单。
 LOCAL_ONLY_SYSTEM_SETTING_KEYS = frozenset({
+    'system_decision_credentials',
     'system_webdav_config',
     'system_webdav_sync_runtime',
     'system_sync_v2_device',

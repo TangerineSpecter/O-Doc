@@ -1,6 +1,7 @@
 import {getEquipmentVisual} from './atlasIcons';
 import {PixelArtSlice} from './PixelArtSlice';
 import {weaponConcepts} from '../art/professionConcepts';
+import {getEquipmentIcon} from '../art/equipmentIcons';
 
 export function EquipmentPortrait({equipmentId, name, slot, bossOnly, decorative = false,
     className = '', fallbackClassName = 'h-12 w-12'}: {
@@ -10,11 +11,15 @@ export function EquipmentPortrait({equipmentId, name, slot, bossOnly, decorative
     const visual = getEquipmentVisual(slot || '', name, bossOnly);
     const Icon = visual.icon;
     const art = weaponConcepts.find(item => item.id === equipmentId)?.art;
+    const equipmentIcon = getEquipmentIcon(equipmentId);
     return <div className={`flex items-center justify-center ${className}`} data-equipment-art-id={equipmentId}
         role={decorative ? undefined : 'img'} aria-hidden={decorative || undefined}
         aria-label={decorative ? undefined : `${name || equipmentId}形象`}>
         {art
             ? <div className="flex h-[90%] w-full items-center justify-center"><PixelArtSlice region={art.region} source={art.url} size={art.size} /></div>
-            : <Icon className={`${fallbackClassName} ${visual.color}`} />}
+            : equipmentIcon
+                ? <img src={equipmentIcon} alt="" draggable={false} className="h-[90%] w-[90%] object-contain"
+                    style={{imageRendering: 'pixelated'}} />
+                : <Icon className={`${fallbackClassName} ${visual.color}`} />}
     </div>;
 }

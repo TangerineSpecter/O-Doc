@@ -118,6 +118,34 @@ class ExplorationTests(TestCase):
             if row['model']=='system_settings.agentrunrecord':row['fields']['output']='其他探索的回顾'
         with self.assertRaisesMessage(SyncError,'回顾记录'):validate_source(bad)
 
+    def test_named_drop_snapshot_matches_reward_fact_and_sync(self):
+        import copy
+        import random
+        from .catalog import bundled
+        from .equipment import generate
+        from .models import EquipmentInstance
+
+        catalog = bundled()[0]
+        item = generate(catalog, 'equip.staff', 1, 'gold', random.Random(14))
+        run = self.run_trip()
+
+        def defeated_enemy(_catalog, state, *_args, **_kwargs):
+            result = copy.deepcopy(state)
+            result['enemy']['hp'] = 0
+            return result, []
+
+        with patch.object(explorations.engine, 'step', side_effect=defeated_enemy), \
+                patch.object(explorations.rewards, 'drops', return_value=[{'kind': 'equipment', 'item': item}]):
+            run = explorations.tick(run.pk, now=self.now + timedelta(seconds=15))
+        reward = run.result['rewards'][0]
+        gear = EquipmentInstance.objects.get(pk=reward['equipment_id'])
+        self.assertIn('的法杖', gear.snapshot['name'])
+        self.assertEqual(gear.snapshot, reward['item'])
+        round_fact = CombatFact.objects.get(kind='round')
+        kill = next(event for event in round_fact.payload['events'] if event['kind'] == 'kill')
+        self.assertEqual(kill['rewards'][0]['item'], gear.snapshot)
+        validate_source(self.data())
+
     def test_escrow_return_exactly_once(self):
         ensure('admin',self.agent,self.now)
         # Seed inventory with an authentic mocked market receipt in another test; here validate escrow itself.

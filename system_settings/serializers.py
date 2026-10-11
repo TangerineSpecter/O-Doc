@@ -683,7 +683,12 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             owner = get_current_user_identifier(request) if request else previous
             if not owner or (previous and owner != previous):
                 raise serializers.ValidationError({'market_config': '市场任务需要有效的所属账号'})
-            attrs['market_config'] = {'owner_id': owner}
+            from .decision.config import market_config
+            try:
+                decision = market_config(attrs.get('market_config', {}), getattr(self.instance, 'market_config', {}))
+            except ValueError as exc:
+                raise serializers.ValidationError({'market_config': str(exc)}) from exc
+            attrs['market_config'] = {'owner_id': owner, **decision}
             if self.instance is None:
                 attrs.setdefault('interval_minutes', 60)
         if kind == 'travel' and self.instance is None:

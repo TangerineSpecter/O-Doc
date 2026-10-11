@@ -5,6 +5,10 @@ export interface PublishCategoryRule {
     newsDays: number;
     region: string;
     excludedTopics: string;
+    imageEnabled?: boolean;
+    imageModelId?: string;
+    imageSubject?: 'auto' | 'scene' | 'agent';
+    imagePrompt?: string;
 }
 export interface AgentPublishConfig {
     collectionId: string;

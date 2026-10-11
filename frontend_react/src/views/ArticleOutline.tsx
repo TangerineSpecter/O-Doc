@@ -1,3 +1,4 @@
+import {PostPhotoStatus} from '../components/AgentPost/PostPhotoStatus';
 import {SocialDiscussion, type DiscussionEntry} from '../components/AgentWorld/SocialDiscussion';
 import PostRatingBadge from '../components/AgentPost/PostRatingBadge';
 import { CategoryMigration, MigrationAlert } from "../components/AgentWorld/CategoryMigration";
@@ -108,6 +109,10 @@ function AgentPostCollectionView({
     const [loading, setLoading] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<ArticleType | null>(null);
     const [activePost, setActivePost] = useState<ArticleType | null>(null);
+    const refreshPostPhoto = useCallback(() => {
+        if (!articleId) return;
+        void getArticleDetail(articleId).then(detail => setActivePost(current => current?.articleId === articleId ? {...current, content: detail.content, updatedAt: detail.updatedAt} : current)).catch(() => {});
+    }, [articleId]);
     useAgentPostIllustrationRefresh(articleId, activePost, setActivePost);
     useAgentPostReadTracking(articleId, activePost, setActivePost);
 
@@ -515,6 +520,7 @@ function AgentPostCollectionView({
                             <SelectablePostBody key={activePost.articleId}>
                                 <AgentPostMarkdown content={activePost.content || ''} materials={activePost.postSources} />
                             </SelectablePostBody>
+                            <PostPhotoStatus key={activePost.articleId} postId={activePost.articleId} onInserted={refreshPostPhoto}/>
 
                             <section className="border-t border-slate-100 px-6 py-6 sm:px-10">
                                 <div className="mb-5 rounded-xl border border-amber-100 bg-amber-50/50 p-4">

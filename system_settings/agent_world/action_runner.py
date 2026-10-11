@@ -271,6 +271,8 @@ def tick(scheduler):
             repair_effects(action)
         except Exception:
             logger.exception('Failed to recover action effects: action=%s', action.pk)
+    from .publish_media import recover_photos
+    recover_photos()
     from .publish_runner import deliver_notification
     for publication in WorldAction.objects.filter(status='success', snapshot__notification_pending=True, task__isnull=False).select_related('task', 'record')[:20]:
         if publication.task_id:

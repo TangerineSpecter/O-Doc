@@ -1,4 +1,4 @@
-import type {ElementType} from 'react';
+import type {ElementType, ReactNode} from 'react';
 import {
     MessageSquare,
     Swords,
@@ -10,6 +10,7 @@ import {
     Settings2,
     Play,
     BookOpen,
+    NotebookPen,
 } from 'lucide-react';
 import type {AgentTaskConfig} from '@/types/api/setting';
 
@@ -22,6 +23,9 @@ interface Props {
     onToggle: () => void;
     onRun: () => void;
     onPreview?: () => void;
+    description?: string;
+    details?: ReactNode;
+    toggleDisabled?: boolean;
 }
 
 const activityTheme: Record<
@@ -32,6 +36,7 @@ const activityTheme: Record<
     }
 > = {
     exploration: {icon: Swords, color: 'bg-orange-50 text-orange-600 border-orange-100'},
+    memo_capture: {icon: NotebookPen, color: 'bg-orange-50 text-orange-600 border-orange-100'},
     cooking: {icon: BookOpen, color: 'bg-orange-50 text-orange-600 border-orange-100'},
     investment: {
         icon: TrendingUp,
@@ -66,6 +71,9 @@ export function BuiltinPostTaskCard({
     onToggle,
     onRun,
     onPreview,
+    description: customDescription,
+    details,
+    toggleDisabled = false,
 }: Props) {
     const configured = Boolean(task.id);
     const theme = (task.taskKind && activityTheme[task.taskKind]) || {
@@ -74,7 +82,7 @@ export function BuiltinPostTaskCard({
     };
     const Icon = theme.icon;
 
-    const description =
+    const description = customDescription ?? (
         task.taskKind === 'exploration' ? '自主准备装备与药剂，持续探索地牢；冒险面板可观察战斗、掉落与成长，自动探索须单独开启。' : task.taskKind === 'cooking' ? '用自己的食材制作美食，获得厨艺经验并解锁高级食谱；成品可在市场出售。' : task.taskKind === 'investment'
             ? '查询市场新闻和行业，按需分析股票，自主买卖或观望。持仓与收益可在股票投资查看。'
             : task.taskKind === 'market'
@@ -85,7 +93,7 @@ export function BuiltinPostTaskCard({
                   ? '自主选择目的地，体验景点、美食与旅途趣事，购买纪念品并留下图文日记。'
                   : task.taskKind === 'post_publish'
                     ? '根据角色和分类素材规则自主选题，搜索核实后发布；没有合适内容可跳过。'
-                    : '随机阅读范围内自己未评论过的其他居民帖子，根据角色性格评论并打分。';
+                    : '随机阅读范围内自己未评论过的其他居民帖子，根据角色性格评论并打分。');
 
     return (
         <div className="group relative flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-2xs transition-all duration-200 hover:border-orange-300 hover:shadow-xs">
@@ -104,7 +112,8 @@ export function BuiltinPostTaskCard({
                     <button
                         type="button"
                         onClick={configured ? onToggle : onConfigure}
-                        className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium leading-normal transition-colors ${
+                        disabled={toggleDisabled}
+                        className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium leading-normal transition-colors disabled:opacity-40 ${
                             task.enabled
                                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                 : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
@@ -131,6 +140,7 @@ export function BuiltinPostTaskCard({
                 >
                     {description}
                 </p>
+                {details}
             </div>
 
             {/* 底部操作工具栏 */}

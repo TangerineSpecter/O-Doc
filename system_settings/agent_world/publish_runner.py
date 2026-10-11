@@ -72,6 +72,8 @@ def commit_publication(action_id: str, token: str, world_token: str, *, manual=F
     action.snapshot = {**snapshot, 'phase': 'published', 'post_id': article.pk, 'notification_pending': True}
     action.result = {'reason': '帖子已发布', 'post_id': article.pk, 'coll_id': article.coll_id,
                      'category_id': selection['category_id'], 'title': article.title, 'template_version': snapshot.get('template_version', 1)}
+    from .publish_media import prepare_photo
+    prepare_photo(action, article)
     action.save()
     return action
 
