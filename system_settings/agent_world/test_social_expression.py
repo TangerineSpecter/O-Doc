@@ -91,6 +91,34 @@ class AutoCommentLengthTests(SimpleTestCase):
         self.assertEqual(result['action'], 'rest')
         self.assertEqual(calls, 1)
 
+    def test_first_comment_request_keeps_scoring_out_of_daily_comment_voice(self):
+        from .action_runner import evaluate
+        with patch('system_settings.agent_world.social_discussion.post_owner', return_value='owner'), \
+                patch('system_settings.agent_world.social_discussion.post_author', return_value='author'), \
+                patch('system_settings.agent_world.social_relations.context_for', return_value={}), \
+                patch('system_settings.agent_world.action_runner.stamina', return_value=100), \
+                patch('system_settings.agent_world.action_runner.AIService.chat_completion_messages',
+                      return_value=json.dumps(self.feedback('这预测的范围也太宽了。'), ensure_ascii=False)) as complete:
+            result = evaluate(self.task, self.agent, self.post)
+        prompt = complete.call_args.args[0][0]['content']
+        self.assertIn(self.agent.prompt, prompt)
+        for rule in ('像平时上网一样', '通常一两句', '不是文章评审', '判断过程不需要写进评论',
+                     '不模仿其中的句式、篇幅和结尾'):
+            self.assertIn(rule, prompt)
+        self.assertEqual(result['comment'], '这预测的范围也太宽了。')
+        self.assertEqual(result['rating'], 8)
+
+    def test_moment_comments_and_replies_receive_the_same_daily_comment_rules(self):
+        from .social_runner import decide
+        for action in ('read', 'reply'):
+            with self.subTest(action=action), patch('system_settings.agent_world.life_planner.ask',
+                    return_value={'action': action, 'reason': '接话', 'content': '这预测的范围也太宽了。'}) as ask:
+                decide(self.agent, {'allowed': [action], 'image_choices': ['none']})
+                prompt = ask.call_args.args[1]
+                self.assertIn('像平时上网一样', prompt)
+                self.assertIn('通常一两句', prompt)
+                self.assertIn('不是文章评审', prompt)
+
     def test_content_judgments_preserve_low_mixed_and_high_ratings(self):
         cases = [
             ('disapprove', 1, '这个结论没有依据，我不认同。'),
