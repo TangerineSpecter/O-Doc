@@ -102,11 +102,15 @@ class Workflow:
             recent = list(own_posts(self.agent).filter(is_valid=True).order_by('-created_at', '-pk').values('title', 'post_summary')[:20])
         if not rules:
             raise SkipPublication('所有配置分类均已失效')
+        manual_category_id = self.state.get('manual_category_id', '')
+        if manual_category_id and manual_category_id not in rules:
+            raise SkipPublication('手动指定的发帖分类已失效或不在任务范围内')
+        candidate_rules = {manual_category_id: rules[manual_category_id]} if manual_category_id else rules
         if 'selection' not in self.state:
             self.checkpoint('select')
             def validate_selection(v):
-                key = v.get('category_id')
-                if key not in rules or v.get('mode') not in rules[key]['modes']:
+                key = manual_category_id or v.get('category_id')
+                if key not in candidate_rules or v.get('mode') not in candidate_rules[key]['modes']:
                     raise ValueError('分类或内容方式越界')
                 for field in ('query', 'reason'):
                     if not isinstance(v.get(field), str) or not 0 < len(v[field].strip()) <= 1000:
@@ -123,10 +127,10 @@ class Workflow:
                 '2. query 必须是搜索引擎关键词组合（例如 "限定甜点 奶茶 新品 测评" 或 "提拉米苏 烘焙 技巧"），严禁写自然语言整句，严禁包含“近5天”、“排除某日之前”等时效约束词，搜索引擎会自动处理检索条件。不要重复近期作品。'
             )
             self.state['selection'] = self.ask(selection_instruction,
-                {'categories': [{'id': key, 'name': categories[key].name, 'description': categories[key].description, 'rule': rule_for_context(rule)} for key, rule in rules.items()],
+                {'categories': [{'id': key, 'name': categories[key].name, 'description': categories[key].description, 'rule': rule_for_context(rule)} for key, rule in candidate_rules.items()],
                  'recent_posts': recent, 'profession': self.state["profession"], 'extra': self.state['extra'], 'now': timezone.now().isoformat()}, validate_selection)
         chosen = self.state['selection']
-        if chosen['category_id'] not in rules or chosen['mode'] not in rules[chosen['category_id']]['modes']:
+        if chosen['category_id'] not in candidate_rules or chosen['mode'] not in candidate_rules[chosen['category_id']]['modes']:
             raise SkipPublication('分类或内容方式已失效')
         rule = rules[chosen['category_id']]
         if chosen['mode'] == 'news' and self.state['materials'] and any(

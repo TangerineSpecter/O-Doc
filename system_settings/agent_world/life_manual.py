@@ -9,12 +9,15 @@ from .life_context import build_context
 from .life_schedule import OPEN, stable_id, revise
 
 
-def run_manual_life(task, actor, owner, scheduler):
+def run_manual_life(task, actor, owner, scheduler, *, publish_category_id=''):
     agent=Agent.objects.get(pk=actor)
     now=timezone.now()
     reserved=sum((remaining_reservation(r) for r in LifeItem.objects.filter(owner_id=owner,actor_id=actor,status__in=OPEN)),Decimal(0))
     budget = max(Decimal(0), agent.money-reserved) if allows_spending(task.task_kind) else Decimal(0)
-    item=LifeItem.objects.create(pk=stable_id('manual',task.pk,actor,now.isoformat()),owner_id=owner,actor_id=actor,original_at=now,scheduled_at=now,activity=task.task_kind,task_id=task.pk,status='running',intent='用户手动执行',budget=budget,context={'manual':True})
+    context={'manual':True}
+    if task.task_kind=='post_publish' and publish_category_id:
+        context['publish_category_id']=publish_category_id
+    item=LifeItem.objects.create(pk=stable_id('manual',task.pk,actor,now.isoformat()),owner_id=owner,actor_id=actor,original_at=now,scheduled_at=now,activity=task.task_kind,task_id=task.pk,status='running',intent='用户手动执行',budget=budget,context=context)
     try:
         with life_scope(item,build_context(owner,agent,item)):
             record=scheduler._run_task(task,trigger='手动执行')

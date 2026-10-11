@@ -1,6 +1,7 @@
 """通用生图提交、查询与原结果下载恢复；不触发发帖。"""
 import uuid
 import logging
+import requests
 from contextlib import contextmanager
 from datetime import timedelta
 
@@ -10,7 +11,7 @@ from system_logs.capture import request_context
 
 from assets.models import Asset
 from prompts.article_illustration import get_saved_article_illustration, save_article_illustration
-from prompts.generation import _download_generated_images, _validate_image_content
+from prompts.generation import _validate_image_content
 from prompts.models import ImageGenerationTask
 from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError
 from system_settings.image_generation_options import resolve_image_generation_request
@@ -18,6 +19,7 @@ from system_settings.models import AIModel, Agent
 from system_settings.newapi_images import NewApiImageClient
 from system_settings.sync_state import canonical_hash
 from utils.resource_assets import get_resource_view_url
+from utils.web_parser import fetch_remote_image, WebParserError
 from .image_generation import MCP_USER_ID, resolve_image_model, supports_references, validate_generation_arguments
 from .image_references import load_reference_images
 
@@ -96,7 +98,14 @@ def _download(task: ImageGenerationTask, client, content: bytes | str | None = N
     saved = get_saved_article_illustration(task_id=marker, user_id=task.user_id)
     if saved is None:
         if task.provider_type == 'Grsai':
-            image = _download_generated_images((task.image_url,))[0]
+            # 保留远端 URL/实际连接校验；不把环境代理的回环地址当成图片源。
+            with requests.Session() as session:
+                session.trust_env = False
+                try:
+                    fetched = fetch_remote_image(task.image_url, session=session)
+                except WebParserError as exc:
+                    raise GrsaiImageError(f'图片下载失败：{exc}', retryable=True) from exc
+            image = _validate_image_content(fetched.content)
         else:
             image = _validate_image_content(content if isinstance(content, bytes) else client.fetch_image(task.image_url))
         saved = save_article_illustration(image=image, user_id=task.user_id, task_id=marker, original_name='生成图片')

@@ -522,10 +522,10 @@ function AgentPostCollectionView({
                                 </div>
                             </header>
 
+                            <PostPhotoStatus key={activePost.articleId} postId={activePost.articleId} onChanged={refreshPostPhoto}/>
                             <SelectablePostBody key={activePost.articleId}>
                                 <AgentPostMarkdown content={activePost.content || ''} materials={activePost.postSources} />
                             </SelectablePostBody>
-                            <PostPhotoStatus key={activePost.articleId} postId={activePost.articleId} onInserted={refreshPostPhoto}/>
 
                             <section className="border-t border-slate-100 px-6 py-6 sm:px-10">
                                 <div className="mb-5 rounded-xl border border-amber-100 bg-amber-50/50 p-4">

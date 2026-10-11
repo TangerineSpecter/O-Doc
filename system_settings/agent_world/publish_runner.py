@@ -136,8 +136,10 @@ def run_publish_opportunity(task, scheduler, *, key=None, manual=False, locked=F
     from .action_runner import record_busy_opportunity
     from .life_scope import CURRENT,life_scope
     from .life_models import LifeItem
-    if key and not CURRENT.get():
-        item=LifeItem.objects.filter(pk=key).first()
+    scope=CURRENT.get()
+    item=LifeItem.objects.filter(pk=scope['item_id'] if scope else key).first() if key or scope else None
+    publish_category_id=(item.context.get('publish_category_id') or '') if item and item.context.get('manual') else ''
+    if key and not scope:
         agent=Agent.objects.filter(pk=item.actor_id).first() if item else None
         if item and agent:
             from .life_context import build_context
@@ -180,7 +182,8 @@ def run_publish_opportunity(task, scheduler, *, key=None, manual=False, locked=F
             agent_runs=[{'agent': agent.pk, 'agentName': agent.name, 'agentAvatar': agent.avatar,
                          'modelName': task_model_name(task, agent), 'status': 'running', 'steps': []}] if agent else [])
         action = WorldAction.objects.create(pk=key, task=task, agent=agent, actor_id=agent.pk if agent else '', record=record,
-            snapshot={'template_version': 2, 'manual': manual, 'config': copy.deepcopy(task.publish_config), 'phase': 'select', 'materials': [], 'search_count': 0})
+            snapshot={'template_version': 2, 'manual': manual, 'config': copy.deepcopy(task.publish_config), 'phase': 'select', 'materials': [], 'search_count': 0,
+                      **({'manual_category_id': publish_category_id} if publish_category_id else {})})
         if not agent:
             action.status = 'skipped'
             action.result = {'reason': '；'.join(sorted(set(reasons.values()))) or '没有空闲且体力足够、已结束冷却的 Agent'}

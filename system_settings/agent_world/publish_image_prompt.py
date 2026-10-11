@@ -1,5 +1,6 @@
 """从已发布正文构建配图要求；不让帖子内容改写系统风格与身份约束。"""
 import json
+import re
 from .social_image_prompt import CHIBI_STYLE
 
 
@@ -21,5 +22,6 @@ def build_prompt(article, rule, references):
     prompt += '\n知识、新闻、食谱介绍不能画成 Agent 的真实参与或亲手成果；没有实际经历依据时，Agent 仅作为阅读者或观察者。不要仿造新闻现场照片，不添加文字、水印或拼图排版。'
     if rule.get('image_prompt', '').strip():
         prompt += '\n用户补充画面要求（保持上述角色与事实约束）：' + rule['image_prompt'].strip()
-    prompt += '\n帖子素材：' + json.dumps({'title': article.title, 'content': article.content[:3500]}, ensure_ascii=False)
+    content = re.sub(r'!\[帖子配图\]\([^)]+\)', '', article.content or '')
+    prompt += '\n帖子素材：' + json.dumps({'title': article.title, 'content': content[:3500]}, ensure_ascii=False)
     return prompt[:8000], refs

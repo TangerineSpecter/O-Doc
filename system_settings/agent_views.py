@@ -336,6 +336,13 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def run_now(self, request, pk=None):
         task = self.get_object()
+        publish_category_id = request.data.get('category_id')
+        if publish_category_id not in (None, ''):
+            if task.task_kind != 'post_publish' or not isinstance(publish_category_id, str) or len(publish_category_id) > 64:
+                return valid_result('手动发帖分类参数无效', status=400)
+            from .agent_world.publish_config import categories_for
+            if publish_category_id not in {category.pk for category in categories_for(task.publish_config)}:
+                return valid_result('所选分类不在当前任务允许范围内或已失效', status=400)
         if task.task_kind == 'market':
             from utils.drf_utils import get_current_user_identifier
             if task.market_config.get('owner_id') != get_current_user_identifier(request):
@@ -367,7 +374,8 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
                 from .agent_world.life_manual import run_manual_life
                 from django.db import close_old_connections
                 close_old_connections()
-                try:run_manual_life(task,actor,task_owner(task),_agent_task_scheduler)
+                try:run_manual_life(task,actor,task_owner(task),_agent_task_scheduler,
+                                    publish_category_id=publish_category_id or '')
                 finally:close_old_connections()
             else:
                 _agent_task_scheduler.run_manual_task(task.id)

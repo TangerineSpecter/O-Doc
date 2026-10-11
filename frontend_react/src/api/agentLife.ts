@@ -14,6 +14,7 @@ export const replanFailedLifeItems = (actorId: string, reason: string, start: st
     request.post<never, {count: number}>(`${base}/schedule/`, {action: 'replan_failed', actorId, reason, start, end});
 export const pauseLifeAgent = (actorId: string, paused: boolean) => request.post<never, {pausedAgents: string[]}>(`${base}/schedule/`, {actorId, action: paused ? 'pause' : 'resume'});
 export const getLifeAgents = (signal?: AbortSignal) => request.get<never, import('../types/api/setting').AgentConfig[]>('/settings/agents/', {signal});
-export const runLifeActivity = (taskId: string, actorId: string) => request.post(`/settings/agent-tasks/${taskId}/run_now/`, {actorId});
+export const runLifeActivity = (taskId: string, actorId: string, categoryId?: string) =>
+    request.post(`/settings/agent-tasks/${taskId}/run_now/`, {actorId, ...(categoryId ? {categoryId} : {})});
 
 export const getLifeGoalOptions = (signal?: AbortSignal, q = '', destinationId = '') => request.get<never, {destinations: {id: string; city: string; country: string}[]; items: {sku: string; name: string}[]}>(`${base}/goals/`, {params: {options: '1', q, destinationId}, signal});

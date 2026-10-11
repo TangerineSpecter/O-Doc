@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useRef, useState, type MutableRefObject} from 'react';
-import RevisionPanel from './RevisionPanel';
+import {Award, CheckCircle2, FileCheck, Play, RotateCcw} from 'lucide-react';
+import ExerciseQuestionCard from './ExerciseQuestionCard';
 import {learningApi} from '../../api/learning';
 import type {Attempt, Exercise} from '../../types/api/learning';
-import {buttonClass, cardClass, inputClass, kindName, statusName} from './presentation';
+import {buttonClass, cardClass, kindName, statusName} from './presentation';
 
 export default function ExercisePanel({collId, exercise, busy, refresh, act, ask, flushRef}: {collId: string; exercise: Exercise; busy: boolean; refresh: () => Promise<void>; act: (fn: () => Promise<unknown>) => Promise<void>; ask: (questionId: string) => void; flushRef: MutableRefObject<(() => Promise<void>) | null>}) {
     const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -70,23 +71,204 @@ export default function ExercisePanel({collId, exercise, busy, refresh, act, ask
     const totalSkipped = exercise.questions.filter(q => !(answers[q.id] || '').trim()).length;
     const grade = attempt?.grade;
     return <div className="space-y-4">
-        <section className={cardClass}><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-medium text-orange-600">{kindName[exercise.kind]} · {statusName[exercise.status]}</p><h1 className="mt-2 text-xl font-bold">{exercise.title}</h1></div>{active && <button disabled={busy} onClick={() => setEnding(true)} className="text-sm text-slate-400">结束这份练习</button>}</div>
-            <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{exercise.introduction}</p>
-            {ending && <div className="mt-4 rounded-xl bg-orange-50 p-4 text-sm"><p>保留已有记录，结束后释放未完成名额。</p><div className="mt-3 flex gap-3"><button className={buttonClass} disabled={busy} onClick={() => void act(() => learningApi.exerciseAction(collId, exercise.id, 'end'))}>确认结束</button><button onClick={() => setEnding(false)}>继续学习</button></div></div>}
-            {exercise.status === 'ready' && !attempt && <button disabled={busy} className={`${buttonClass} mt-4`} onClick={() => void act(() => learningApi.exerciseAction(collId, exercise.id, 'start'))}>开始作答</button>}
-            {exercise.status === 'completed' && <button disabled={busy} className={`${buttonClass} mt-4`} onClick={() => void act(() => exercise.format === 'scenario' ? learningApi.startSession(collId, exercise.id, crypto.randomUUID()) : learningApi.exerciseAction(collId, exercise.id, 'start'))}>重新练习（保留历史）</button>}
-            {grade && <div className="mt-4 flex flex-wrap gap-4 rounded-xl bg-orange-50 p-4"><strong className="text-orange-700">{exercise.format === 'scenario' ? '独立验证已批改' : `${grade.score ?? '—'} 分`}</strong><span className="text-sm text-slate-600">完成 {grade.answered}/{grade.total} 题 · 完成率 {grade.completion}%</span></div>}
+        <section className={cardClass}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-orange-200/80 bg-orange-50/80 px-2.5 py-0.5 text-xs font-semibold text-orange-700 shadow-2xs">
+                        <span>{kindName[exercise.kind]}</span>
+                        <span className="opacity-40">·</span>
+                        <span>{statusName[exercise.status]}</span>
+                    </div>
+                    <h1 className="mt-2 text-xl font-bold text-slate-900">{exercise.title}</h1>
+                </div>
+                {active && (
+                    <button
+                        disabled={busy}
+                        onClick={() => setEnding(true)}
+                        className="rounded-lg px-2.5 py-1 text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
+                    >
+                        结束这份练习
+                    </button>
+                )}
+            </div>
+
+            <p className="mt-3.5 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">
+                {exercise.introduction}
+            </p>
+
+            {ending && (
+                <div className="mt-4 rounded-xl bg-orange-50 p-4 text-sm space-y-3">
+                    <p className="text-slate-700">保留已有记录，结束后释放未完成名额。</p>
+                    <div className="flex gap-3">
+                        <button
+                            className={buttonClass}
+                            disabled={busy}
+                            onClick={() => void act(() => learningApi.exerciseAction(collId, exercise.id, 'end'))}
+                        >
+                            确认结束
+                        </button>
+                        <button
+                            onClick={() => setEnding(false)}
+                            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                        >
+                            继续学习
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* 开始作答入口（待作答状态） */}
+            {exercise.status === 'ready' && !attempt && (
+                <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
+                    <span className="text-xs text-slate-400">共 {exercise.questions.length} 道题目 · 作答自动保存</span>
+                    <button
+                        disabled={busy}
+                        className={`${buttonClass} inline-flex items-center gap-1.5`}
+                        onClick={() => void act(() => learningApi.exerciseAction(collId, exercise.id, 'start'))}
+                    >
+                        <Play size={13} className="fill-current" />
+                        <span>开始作答</span>
+                    </button>
+                </div>
+            )}
+
+            {/* 练习成绩与表现成果看板（整合得分展示与重新练习操作） */}
+            {grade && (
+                <div className="mt-5 rounded-2xl border border-orange-200/80 bg-gradient-to-br from-orange-50/60 via-amber-50/20 to-white p-4 shadow-2xs sm:p-5">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        {/* 得分与完成度概览 */}
+                        <div className="flex items-center gap-4">
+                            <div
+                                className={`flex h-16 min-w-[72px] flex-col items-center justify-center rounded-2xl border px-3 shadow-2xs ${
+                                    (grade.score ?? 0) >= 85
+                                        ? 'border-emerald-600 bg-emerald-500 text-white'
+                                        : (grade.score ?? 0) >= 60
+                                          ? 'border-orange-500 bg-orange-500 text-white'
+                                          : 'border-rose-500 bg-rose-500 text-white'
+                                }`}
+                            >
+                                <span className="text-2xl font-black leading-none tracking-tight">
+                                    {exercise.format === 'scenario' ? '已批改' : grade.score ?? '—'}
+                                </span>
+                                <span className="mt-1 text-[10px] font-medium opacity-90">
+                                    {exercise.format === 'scenario'
+                                        ? '情境任务'
+                                        : (grade.score ?? 0) >= 85
+                                          ? '掌握优秀'
+                                          : (grade.score ?? 0) >= 60
+                                            ? '表现良好'
+                                            : '需要巩固'}
+                                </span>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-sm font-bold text-slate-800">练习成果表现</h3>
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                                        <CheckCircle2 size={11} />
+                                        已完成
+                                    </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                                    <span className="flex items-center gap-1">
+                                        <FileCheck size={13} className="text-slate-400" />
+                                        <span>
+                                            完成题目：<strong className="font-semibold text-slate-700">{grade.answered}/{grade.total} 题</strong>
+                                        </span>
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <Award size={13} className="text-slate-400" />
+                                        <span>
+                                            完成率：<strong className="font-semibold text-slate-700">{grade.completion}%</strong>
+                                        </span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 重新练习操作按钮 */}
+                        {exercise.status === 'completed' && (
+                            <div className="flex items-center sm:self-center">
+                                <button
+                                    disabled={busy}
+                                    onClick={() =>
+                                        void act(() =>
+                                            exercise.format === 'scenario'
+                                                ? learningApi.startSession(collId, exercise.id, crypto.randomUUID())
+                                                : learningApi.exerciseAction(collId, exercise.id, 'start')
+                                        )
+                                    }
+                                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-orange-200 bg-white px-4 py-2 text-xs font-semibold text-orange-700 shadow-2xs transition-all hover:border-orange-300 hover:bg-orange-50 disabled:opacity-40 sm:w-auto"
+                                >
+                                    <RotateCcw size={13} />
+                                    <span>重新练习（保留历史）</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* 未出 grade 但已完成时的备选重新练习操作 */}
+            {exercise.status === 'completed' && !grade && (
+                <div className="mt-4 flex justify-end">
+                    <button
+                        disabled={busy}
+                        onClick={() =>
+                            void act(() =>
+                                exercise.format === 'scenario'
+                                    ? learningApi.startSession(collId, exercise.id, crypto.randomUUID())
+                                    : learningApi.exerciseAction(collId, exercise.id, 'start')
+                            )
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-orange-200 bg-white px-4 py-2 text-xs font-semibold text-orange-700 shadow-2xs hover:bg-orange-50 disabled:opacity-40"
+                    >
+                        <RotateCcw size={13} />
+                        <span>重新练习（保留历史）</span>
+                    </button>
+                </div>
+            )}
         </section>
         {error && <div className="rounded-xl bg-red-50 p-4 text-sm text-red-600">{error}<button className="ml-3 underline" onClick={() => {dirty.current = false; live.current = null; void refresh();}}>重新加载答案</button></div>}
         {exercise.questions.map((q, index) => {
             const result = grade?.items.find(i => i.questionId === q.id);
             const help = revealed[q.id];
-            return <section className={cardClass} key={q.id}><div className="flex flex-wrap gap-2 text-xs text-slate-400"><span>第 {index + 1} 题</span><span>{q.knowledgeName}</span>{q.review && <span className="text-orange-600">回顾检测</span>}{attempt?.assisted.includes(q.id) && <span className="text-blue-600">辅助作答</span>}</div><p className="my-4 whitespace-pre-wrap text-base leading-relaxed text-slate-800">{q.prompt}</p>
-                {q.type === 'choice' ? <div className="space-y-2">{q.options.map(option => <label key={option} className={`flex cursor-pointer gap-3 rounded-xl border p-3 text-sm ${answers[q.id] === option ? 'border-orange-300 bg-orange-50' : 'border-slate-200'}`}><input type="radio" name={q.id} disabled={!isDraft || busy} checked={answers[q.id] === option} onChange={() => change(q.id, option)} onBlur={() => {void save().catch(() => {});}}/>{option}</label>)}</div> : <textarea aria-label={`第${index + 1}题答案`} disabled={!isDraft || busy} className={`${inputClass} resize-none disabled:bg-slate-50`} rows={q.type === 'fill' ? 2 : 4} value={answers[q.id] || ''} placeholder="写下你的答案…" onChange={e => change(q.id, e.target.value)} onBlur={() => {void save().catch(() => {});}}/>}
-                {isDraft && <div className="mt-3 flex flex-wrap gap-4"><button disabled={busy} className="text-xs text-orange-600" onClick={() => {void act(async () => {await save(); ask(q.id);});}}>请老师提示</button><button disabled={busy} className="text-xs text-slate-400" onClick={() => {void act(async () => {await save(); const v = await learningApi.answer(collId, attempt.id, q.id); live.current = v.attempt; setRevealed(prev => ({...prev, [q.id]: v}));});}}>查看答案（标记辅助）</button></div>}
-                {(q.referenceAnswer || help) && <div className="mt-4 space-y-2 rounded-xl bg-slate-50 p-4 text-sm leading-relaxed"><p><span className="text-slate-400">参考答案：</span>{q.referenceAnswer || help?.referenceAnswer}</p><p className="whitespace-pre-wrap text-slate-600">{q.explanation || help?.explanation}</p></div>}
-                {result && <div className="mt-4 space-y-2 text-sm"><p className="font-semibold text-orange-700">{result.skipped ? '本题跳过' : exercise.format === 'scenario' ? '意思与任务反馈' : `${result.score} 分`}</p><p className="whitespace-pre-wrap text-slate-600">{result.feedback}</p><details><summary className="cursor-pointer text-xs text-slate-400">查看详细评分</summary>{result.dimensions.map((d, i) => <p key={i} className="text-slate-500">{['意思与任务', '语法与用词', '自然度与场景'][i]} {d.score}/{d.maxScore}：{d.reason}</p>)}</details>{result.naturalExpression && <p className="text-slate-600">更自然的表达：{result.naturalExpression}</p>}<button className="text-orange-600" disabled={busy} onClick={() => ask(q.id)}>追问这道题</button>{attempt?.status === 'completed' && !result.skipped && q.type !== 'choice' && <RevisionPanel collId={collId} attempt={attempt} questionId={q.id} busy={busy} act={act}/>}</div>}
-            </section>;
+            return (
+                <ExerciseQuestionCard
+                    key={q.id}
+                    collId={collId}
+                    question={q}
+                    index={index}
+                    answer={answers[q.id] || ''}
+                    isDraft={isDraft}
+                    busy={busy}
+                    attempt={attempt}
+                    gradeItem={result}
+                    help={help}
+                    format={exercise.format}
+                    onChangeAnswer={val => change(q.id, val)}
+                    onSaveAnswer={() => {
+                        void save().catch(() => {});
+                    }}
+                    onAskHint={() => {
+                        void act(async () => {
+                            await save();
+                            ask(q.id);
+                        });
+                    }}
+                    onRevealAnswer={() => {
+                        if (!attempt) return;
+                        void act(async () => {
+                            await save();
+                            const v = await learningApi.answer(collId, attempt.id, q.id);
+                            live.current = v.attempt;
+                            setRevealed(prev => ({...prev, [q.id]: v}));
+                        });
+                    }}
+                    onAskTeacher={() => ask(q.id)}
+                    act={act}
+                />
+            );
         })}
         {isDraft && <section className={`${cardClass} space-y-3`}><p className="text-xs text-slate-400">{saving ? '正在保存答案…' : '离开输入框时保存；提交前会再次保存。'}</p>{totalSkipped > 0 && <label className="flex gap-2 text-sm text-slate-500"><input type="checkbox" checked={skipConfirm} onChange={e => setSkipConfirm(e.target.checked)}/>确认跳过 {totalSkipped} 道未作答题（不记为能力错误）</label>}<button disabled={busy || (totalSkipped > 0 && !skipConfirm)} className={buttonClass} onClick={() => void act(async () => {await save(); await learningApi.submit(collId, attempt.id, 'submit', crypto.randomUUID(), skipConfirm);})}>提交并批改</button></section>}
         {attempt?.status === 'failed' && <button disabled={busy} className={buttonClass} onClick={() => void act(() => learningApi.submit(collId, attempt.id, 'retry', crypto.randomUUID()))}>重试批改</button>}

@@ -3,8 +3,8 @@ import WorldDialog from '../AgentWorld/WorldDialog';
 import {useCombat} from '../../hooks/useCombat';
 import {useCombatActions} from '../../hooks/useCombatActions';
 import CombatProfilePanel from './CombatProfilePanel';
-import {statusLabels} from './presentation';
-import {ChevronLeft, ChevronRight, Clock, History, Shield, Sparkles, User} from 'lucide-react';
+import CombatHistoryDialog from './CombatHistoryDialog';
+import {Sparkles} from 'lucide-react';
 
 export default function CombatDialog({
     residents,
@@ -12,7 +12,7 @@ export default function CombatDialog({
     onObserve,
     onClose,
 }: {
-    residents: {id: string; name: string}[];
+    residents: {id: string; name: string; avatar?: string}[];
     initialAgentId?: string;
     onObserve: (id: string, actorId: string) => void;
     onClose: () => void;
@@ -20,14 +20,15 @@ export default function CombatDialog({
     const [actor, setActor] = useState(
         residents.some(r => r.id === initialAgentId) ? initialAgentId : residents[0]?.id || ''
     );
+    const [historyOpen, setHistoryOpen] = useState(false);
     const contentRef = useRef<HTMLDivElement>(null);
     const state = useCombat(actor);
     const setPage = state.setPage;
     const actions = useCombatActions(actor, state.reload);
-    const [tab, setTab] = useState<'profile' | 'history'>('profile');
     const data = state.data;
     const actorIndex = residents.findIndex(resident => resident.id === actor);
     const activeResident = residents[actorIndex];
+
     const changeResident = (index: number) => {
         const resident = residents[index];
         if (!resident) return;
@@ -37,27 +38,33 @@ export default function CombatDialog({
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (
-                (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') ||
-                event.altKey || event.ctrlKey || event.metaKey || event.shiftKey
-            ) return;
-            if (!(event.target instanceof Element)) return;
-            const dialog = contentRef.current?.closest('[role="dialog"]');
-            if (!dialog?.contains(event.target)) return;
-            if (event.target.closest(
-                'input, textarea, select, [contenteditable="true"], [role="combobox"], [role="listbox"], [role="slider"]'
-            )) return;
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+            if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+            if (residents.length <= 1) return;
+
+            // 子弹窗开启时暂停切换
+            if (historyOpen) return;
+
+            // 忽略在输入框、文本域中的操作
+            const target = event.target instanceof Element ? event.target : document.activeElement;
+            if (target && (
+                target.matches('input, textarea, select, [contenteditable="true"], [role="combobox"], [role="listbox"]') ||
+                target.closest('input, textarea, select, [contenteditable="true"]')
+            )) {
+                return;
+            }
 
             event.preventDefault();
-            const nextIndex = actorIndex + (event.key === 'ArrowLeft' ? -1 : 1);
-            if (!residents[nextIndex]) return;
-            setActor(residents[nextIndex].id);
-            setPage(1);
+            const delta = event.key === 'ArrowLeft' ? -1 : 1;
+            const nextIndex = actorIndex + delta;
+            if (nextIndex >= 0 && nextIndex < residents.length) {
+                changeResident(nextIndex);
+            }
         };
 
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [actorIndex, residents, setPage]);
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [actorIndex, residents, historyOpen]);
 
     return (
         <WorldDialog
@@ -66,164 +73,37 @@ export default function CombatDialog({
             size="wide"
             onClose={onClose}
         >
-            <div ref={contentRef} className="flex h-full min-h-0 flex-col gap-3">
-                {/* 顶部控制栏 */}
-                <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50/80 p-2.5 border border-slate-100">
-                    <div className="flex items-center gap-3 flex-wrap">
-                        {/* 居民切换 */}
-                        <div role="group" aria-label="切换冒险档案居民" className="inline-flex items-center gap-1 rounded-xl border border-slate-200/70 bg-white p-1 shadow-2xs">
-                            <button
-                                type="button"
-                                aria-label="上一位居民"
-                                title="上一位居民"
-                                disabled={actorIndex <= 0}
-                                onClick={() => changeResident(actorIndex - 1)}
-                                className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-30"
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                            </button>
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
-                                <User className="h-4 w-4" />
-                            </span>
-                            <div className="min-w-24 px-1">
-                                <div className="max-w-36 truncate text-xs font-semibold text-slate-700">
-                                    {activeResident?.name || '居民'}
-                                </div>
-                                {residents.length > 1 && (
-                                    <div className="text-[10px] leading-3 text-slate-400">
-                                        {actorIndex + 1} / {residents.length} · ← / → 切换
-                                    </div>
-                                )}
-                            </div>
-                            <button
-                                type="button"
-                                aria-label="下一位居民"
-                                title="下一位居民"
-                                disabled={actorIndex < 0 || actorIndex >= residents.length - 1}
-                                onClick={() => changeResident(actorIndex + 1)}
-                                className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-30"
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                            </button>
-                        </div>
-
-                    </div>
-
-                    {/* 视图 Tab 切换 */}
-                    <div className="flex gap-1 rounded-full bg-slate-200/70 p-1">
-                        <button
-                            type="button"
-                            aria-pressed={tab === 'profile'}
-                            onClick={() => {setTab('profile'); state.setPage(1);}}
-                            className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                                tab === 'profile'
-                                    ? 'bg-white text-orange-600 shadow-2xs'
-                                    : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                            <Shield className="w-3.5 h-3.5" />
-                            <span>冒险档案</span>
-                        </button>
-                        <button
-                            type="button"
-                            aria-pressed={tab === 'history'}
-                            onClick={() => setTab('history')}
-                            className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                                tab === 'history'
-                                    ? 'bg-white text-orange-600 shadow-2xs'
-                                    : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                            <History className="w-3.5 h-3.5" />
-                            <span>探索历史</span>
-                        </button>
-                    </div>
-                </div>
-
+            <div ref={contentRef} className="flex h-full min-h-0 flex-col gap-2.5">
                 {/* 错误提示 */}
                 {(state.error || actions.error) && (
-                    <p role="alert" className="shrink-0 rounded-xl bg-red-50 p-3 text-xs text-red-700 border border-red-200">
+                    <p role="alert" className="shrink-0 rounded-xl bg-red-50 p-2.5 text-xs text-red-700 border border-red-200">
                         {state.error || actions.error}
                     </p>
                 )}
 
                 {/* 成功反馈 */}
                 {actions.message && (
-                    <p role="status" className="shrink-0 rounded-xl bg-emerald-50 p-2.5 text-xs text-emerald-700 border border-emerald-200">
+                    <p role="status" className="shrink-0 rounded-xl bg-emerald-50 p-2 text-xs text-emerald-700 border border-emerald-200">
                         {actions.message}
                     </p>
                 )}
 
-                {/* 主展示区 */}
+                {/* 主展示区：沉浸式冒险档案面板 */}
                 <div className="min-h-0 flex-1">
                     {data ? (
-                        tab === 'history' ? (
-                            <div className="scrollbar-hide h-full flex flex-col justify-between overflow-y-auto space-y-3">
-                                <div className="space-y-2.5">
-                                    {data.history?.list.map(run => (
-                                        <button
-                                            key={run.id}
-                                            type="button"
-                                            onClick={() => onObserve(run.id, actor)}
-                                            className="group block w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-2xs transition-all hover:border-orange-300 hover:shadow-xs"
-                                        >
-                                            <div className="flex items-center justify-between gap-2">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="inline-flex items-center rounded-md bg-orange-50 px-2 py-0.5 text-xs font-bold text-orange-700 border border-orange-200/60">
-                                                        {statusLabels[run.status] || run.status}
-                                                    </span>
-                                                    <strong className="text-sm font-semibold text-slate-800 group-hover:text-orange-600">
-                                                        时长 {Math.floor(run.elapsedSeconds / 60)} 分钟
-                                                    </strong>
-                                                </div>
-                                                <span className="text-[11px] text-slate-400">
-                                                    {new Date(run.createdAt).toLocaleString('zh-CN')}
-                                                </span>
-                                            </div>
-                                            <p className="mt-2 text-xs text-slate-500 line-clamp-2">
-                                                {run.result.report || '探索任务已完成，点击查看详细战报与收获'}
-                                            </p>
-                                        </button>
-                                    ))}
-
-                                    {(!data.history?.list || data.history.list.length === 0) && (
-                                        <div className="py-16 text-center text-xs text-slate-400">
-                                            <Clock className="mx-auto mb-2 h-8 w-8 text-slate-300" />
-                                            <span>暂无探索记录，派遣居民出发即可留下第一段历练足迹</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* 分页 */}
-                                {data.history && data.history.total > 20 && (
-                                    <div className="pt-2 flex items-center justify-center gap-3 text-xs text-slate-500">
-                                        <button
-                                            type="button"
-                                            disabled={state.page <= 1}
-                                            onClick={() => state.setPage(p => p - 1)}
-                                            className="rounded-lg bg-slate-100 px-3 py-1 hover:bg-slate-200 disabled:opacity-40"
-                                        >
-                                            上一页
-                                        </button>
-                                        <span>第 {state.page} 页</span>
-                                        <button
-                                            type="button"
-                                            disabled={state.page * 20 >= data.history.total}
-                                            onClick={() => state.setPage(p => p + 1)}
-                                            className="rounded-lg bg-slate-100 px-3 py-1 hover:bg-slate-200 disabled:opacity-40"
-                                        >
-                                            下一页
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        ) : data.profile ? (
+                        data.profile ? (
                             <CombatProfilePanel
                                 profile={data.profile}
                                 catalog={data.catalog}
                                 actions={actions}
                                 onObserve={id => onObserve(id, actor)}
-                                recentExplorationId={state.page === 1 ? data.history?.list[0]?.id : undefined}
+                                recentExplorationId={data.history?.list[0]?.id}
+                                activeResident={activeResident}
+                                residents={residents}
+                                actorIndex={actorIndex}
+                                onChangeResident={changeResident}
+                                onOpenHistory={() => setHistoryOpen(true)}
+                                historyCount={data.history?.total ?? data.history?.list?.length ?? 0}
                             />
                         ) : (
                             <p className="p-6 text-sm text-slate-500">请选择居民以查看冒险档案。</p>
@@ -237,6 +117,17 @@ export default function CombatDialog({
                 </div>
             </div>
 
+            {/* 探索历练史册弹窗卡片 */}
+            {historyOpen && (
+                <CombatHistoryDialog
+                    history={data?.history}
+                    page={state.page}
+                    onPageChange={state.setPage}
+                    residentName={activeResident?.name || '居民'}
+                    onObserve={id => onObserve(id, actor)}
+                    onClose={() => setHistoryOpen(false)}
+                />
+            )}
         </WorldDialog>
     );
 }

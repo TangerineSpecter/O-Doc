@@ -622,9 +622,18 @@ export const AgentSettings = ({
         onDeleteTask(taskId);
     };
 
-    const [manualLifeTask, setManualLifeTask] = useState<string | null>(null);
+    const [manualLifeTask, setManualLifeTask] = useState<{taskId: string; publishCategoryIds?: string[]} | null>(null);
     const runTaskNow = async (taskId: string) => {
-        if ([builtinPostTask, builtinPublishTask, builtinTravelTask, builtinInvestmentTask, builtinMarketTask, builtinFarmTask, builtinCookingTask, builtinExplorationTask].some(task => task.id === taskId)) {setManualLifeTask(taskId); return;}
+        const lifeTask = [builtinPostTask, builtinPublishTask, builtinTravelTask, builtinInvestmentTask, builtinMarketTask, builtinFarmTask, builtinCookingTask, builtinExplorationTask].find(task => task.id === taskId);
+        if (lifeTask) {
+            setManualLifeTask({
+                taskId,
+                ...(lifeTask.taskKind === 'post_publish'
+                    ? {publishCategoryIds: lifeTask.publishConfig?.rules.map(rule => rule.categoryId) || []}
+                    : {}),
+            });
+            return;
+        }
         setRunningTaskId(taskId);
         try {
             await onRunTaskNow(taskId);
@@ -1366,7 +1375,8 @@ export const AgentSettings = ({
                 document.body,
             )}
 
-            {manualLifeTask && <LifeManualRunDialog taskId={manualLifeTask} agents={agents} onClose={() => setManualLifeTask(null)}/>}
+            {manualLifeTask && <LifeManualRunDialog taskId={manualLifeTask.taskId} agents={agents}
+                publishCategoryIds={manualLifeTask.publishCategoryIds} onClose={() => setManualLifeTask(null)}/>}
             {memoryModalAgent && (
                 <AgentMemoryModal
                     agent={memoryModalAgent}
