@@ -109,6 +109,7 @@ function AgentPostCollectionView({
     const [loading, setLoading] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<ArticleType | null>(null);
     const [activePost, setActivePost] = useState<ArticleType | null>(null);
+    const readPostIds = useRef(new Set<string>());
     const refreshPostPhoto = useCallback(() => {
         if (!articleId) return;
         void getArticleDetail(articleId).then(detail => setActivePost(current => current?.articleId === articleId ? {...current, content: detail.content, updatedAt: detail.updatedAt} : current)).catch(() => {});
@@ -119,6 +120,7 @@ function AgentPostCollectionView({
     // 阅读状态变化时同步更新列表中的已读状态，确保返回列表时角标自然消除
     useEffect(() => {
         if (activePost?.articleId && activePost.agentPostHasBeenRead) {
+            readPostIds.current.add(activePost.articleId);
             setPosts(prev => prev.map(p =>
                 p.articleId === activePost.articleId && !p.agentPostHasBeenRead
                     ? {...p, agentPostHasBeenRead: true}
@@ -278,7 +280,10 @@ function AgentPostCollectionView({
                 getArticles({collId}),
                 getAgentPostLatestComments(collId, 10)
             ]);
-            setPosts([...data].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+            // 世界入口会并行加载详情和列表；较晚返回的列表快照不能覆盖已确认的阅读状态。
+            setPosts(data.map(post => readPostIds.current.has(post.articleId)
+                ? {...post, agentPostHasBeenRead: true} : post
+            ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
             setLatestComments(latestCommentResult.comments || []);
         } catch (error) {
             console.error('加载 Agent 帖子失败:', error);
@@ -858,9 +863,6 @@ function AgentPostCollectionView({
                                     <article
                                         key={post.articleId}
                                         onClick={() => {
-                                            if (!post.agentPostHasBeenRead) {
-                                                setPosts(prev => prev.map(p => p.articleId === post.articleId ? {...p, agentPostHasBeenRead: true} : p));
-                                            }
                                             onNavigate?.('article', {collId, articleId: post.articleId});
                                         }}
                                         className="group relative flex h-full cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_24px_60px_rgba(15,23,42,0.12)]"
