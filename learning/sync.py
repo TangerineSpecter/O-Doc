@@ -18,12 +18,12 @@ def metadata(data=None):
             if model._meta.model_name in ('runtime', 'devicejob', 'goaljob'):
                 continue
             data += json.loads(serializers.serialize('json', model.objects.all()))
-    return {'learning_schema_version': 3, 'learning_manifest': manifest(data),
+    return {'learning_schema_version': 4, 'learning_manifest': manifest(data),
             'learning_fact_hashes': {f"{r['model']}:{r['pk']}": canonical_hash(r['fields']) for r in data if r.get('model', '').startswith('learning.')}}
 
 
 def validate(data, meta=None):
-    if (meta or {}).get('learning_schema_version', 0) > 3:
+    if (meta or {}).get('learning_schema_version', 0) > 4:
         raise SyncError('学习快照版本高于本机，请升级后恢复')
     expected = (meta or {}).get('learning_manifest')
     if expected is not None and expected != manifest(data):
@@ -76,12 +76,19 @@ def validate(data, meta=None):
                 if not isinstance(stages, list) or len(stages) != 3 or fields.get('stage') not in (0, 1, 2) or any(not isinstance(v, dict) or not v.get('title') or not v.get('focus') for v in stages):
                     raise SyncError('学习计划格式无效')
             if label == 'learning.request':
-                target_label = {'generate': 'learning.exercise', 'grade': 'learning.attempt', 'review': 'learning.attempt', 'chat': 'learning.chatmessage'}.get(fields.get('kind'))
+                target_label = {'generate': 'learning.exercise', 'grade': 'learning.attempt', 'review': 'learning.attempt', 'chat': 'learning.chatmessage',
+                                'lesson_turn': 'learning.learningturn', 'revise': 'learning.answerrevision'}.get(fields.get('kind'))
                 target = rows.get(target_label, {}).get(str(fields.get('target_id'))) if target_label else None
                 if target_label and not target:
                     raise SyncError('学习请求缺少关联事实')
                 if target and target_label == 'learning.attempt':
                     target = rows.get('learning.exercise', {}).get(str(target.get('exercise')))
+                elif target and target_label == 'learning.learningturn':
+                    session = rows.get('learning.learningsession', {}).get(str(target.get('session')), {})
+                    target = rows.get('learning.exercise', {}).get(str(session.get('exercise')))
+                elif target and target_label == 'learning.answerrevision':
+                    attempt = rows.get('learning.attempt', {}).get(str(target.get('attempt')), {})
+                    target = rows.get('learning.exercise', {}).get(str(attempt.get('exercise')))
                 if target and str(target.get('course')) != course_id:
                     raise SyncError('学习请求引用了其他课程')
             if label == 'learning.exercise':
@@ -111,10 +118,17 @@ def validate(data, meta=None):
                 attempt = rows.get('learning.attempt', {}).get(str(fields['attempt']))
                 if not attempt or str(rows['learning.exercise'][str(attempt['exercise'])]['course']) != course_id:
                     raise SyncError('学习聊天引用了其他课程作答')
+    from .sync_lessons import validate_lessons
+    try:
+        validate_lessons(rows, (meta or {}).get('learning_schema_version', 0))
+    except SyncError:
+        raise
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise SyncError('学习场景快照格式无效，拒绝恢复') from exc
 
 
 def reset_execution():
-    from .models import Attempt, DeviceJob, Exercise, Request, Runtime, GoalJob, GoalProposal
+    from .models import Attempt, DeviceJob, Exercise, Request, Runtime, GoalJob, GoalProposal, LearningTurn, AnswerRevision
     DeviceJob.objects.all().delete()
     GoalJob.objects.all().delete()
     GoalProposal.objects.filter(status__in=['pending', 'running']).update(status='failed', error='同步恢复后未自动执行，请重新整理目标')
@@ -135,3 +149,7 @@ def reset_execution():
             ex = attempt.exercise
             ex.status = 'failed_grading'
             ex.save(update_fields=['status'])
+        elif req.kind == 'lesson_turn':
+            LearningTurn.objects.filter(pk=req.target_id).update(status='failed')
+        elif req.kind == 'revise':
+            AnswerRevision.objects.filter(pk=req.target_id).update(status='failed')

@@ -31,7 +31,9 @@ def snapshot(course):
     return {**CourseSerializer(course).data, 'model_id': configured_model(course)}
 
 
-def reserve_exercise(course, key, scheduled=False):
+def reserve_exercise(course, key, scheduled=False, knowledge_id=None, item_id=None):
+    if any(value is not None and (not isinstance(value, str) or not value or len(value) > 64) for value in (knowledge_id, item_id)):
+        raise ValidationError('专项内容ID格式错误')
     with course_lock(course.pk), transaction.atomic():
         course = Course.objects.select_for_update().get(pk=course.pk)
         rid = request_id(course.pk, 'generate', key)
@@ -41,6 +43,15 @@ def reserve_exercise(course, key, scheduled=False):
         if Exercise.objects.filter(course=course, status__in=ACTIVE).count() >= course.pending_limit:
             return None, False
         snap = snapshot(course)
+        from .models import KnowledgePoint, LearningItem
+        if knowledge_id and item_id:
+            raise ValidationError('一次专项练习只能指定知识点或收藏项')
+        target = KnowledgePoint.objects.filter(pk=knowledge_id, course=course).first() if knowledge_id else None
+        card = LearningItem.objects.filter(pk=item_id, course=course).first() if item_id else None
+        if (knowledge_id and not target) or (item_id and not card):
+            raise ValidationError('专项内容不属于当前课程')
+        if card:
+            target = card.knowledge
         plan = Plan.objects.filter(course=course).order_by('-created_at', '-id').first()
         initial = not Grade.objects.filter(attempt__exercise__course=course, attempt__exercise__kind='initial').exists()
         if not initial and (not plan or not plan.confirmed):
@@ -60,9 +71,37 @@ def reserve_exercise(course, key, scheduled=False):
         snap['assessment'] = assessment
         due = [p for p in states if p['status'] == '需复习']
         count = 5 if initial else 3 if kind == 'recap' else course.question_count
-        snap.update({'question_count': count, 'review_points': due[:int(count * .6)], 'knowledge': [{'id': p['id'], 'name': p['name']} for p in states],
+        from .skills import skill_states
+        skills = skill_states(course)
+        if target and initial:
+            raise Conflict('先完成初测，再进行专项练习')
+        due_ids = {p['id'] for p in skills if any(p[s]['status'] == '需复习' for s in ('recognition', 'expression'))}
+        selected_due = [p for p in states if p['id'] in due_ids] if course.learning_mode == 'scenario' else due
+        review_points = selected_due[:int(count * .6)]
+        if target:
+            # Targeting does not bypass the 60% due-review budget.
+            review_points = ([p for p in selected_due if p['id'] == target.pk] + [p for p in selected_due if p['id'] != target.pk])[:int(count * .6)]
+        cards = list(LearningItem.objects.filter(course=course, knowledge_id__in=[p['id'] for p in review_points]).order_by('created_at')[:3])
+        if card:
+            cards = [card, *[c for c in cards if c.pk != card.pk]][:3]
+        # One due point uses one question; avoid asking for several cards with the same point.
+        unique_cards = {}
+        for candidate in cards:
+            unique_cards.setdefault(candidate.knowledge_id, candidate)
+        cards = list(unique_cards.values())
+        card_states = {p['id']: p for p in skill_states(course, items=cards)}
+        def practice_skill(c):
+            state = card_states[c.id]
+            # A targeted point already requires expression; its card must share
+            # that question rather than consume a second due-review slot.
+            targeted = target is not None and c.knowledge_id == target.pk
+            return 'recognition' if not targeted and state['expression']['evidence'] and not state['recognition']['evidence'] else 'expression'
+        snap.update({'question_count': count, 'review_points': review_points, 'knowledge': [{'id': p['id'], 'name': p['name']} for p in states],
+                     'skill_assessment': skills, 'target_knowledge': {'id': target.pk, 'name': target.name} if target else None,
+                     'learning_items': [{'id': c.id, 'revision': c.revision, 'practice_skill': practice_skill(c), 'knowledge_id': c.knowledge_id, 'text': c.text, 'meaning': c.meaning, 'example': c.example, 'usage': c.usage} for c in cards],
+                     'reduce_new_content': len(selected_due) > len(review_points),
                      'plan': plan.stages[plan.stage] if plan else None, 'kind': kind, 'scheduled': scheduled})
-        exercise = Exercise.objects.create(course=course, kind=kind, snapshot=snap)
+        exercise = Exercise.objects.create(course=course, kind=kind, format='scenario' if course.learning_mode == 'scenario' and not initial else 'classic', snapshot=snap)
         req = Request.objects.create(id=rid, course=course, kind='generate', target_id=exercise.id, snapshot=snap)
         DeviceJob.objects.create(request=req)
         return req, True
@@ -71,6 +110,8 @@ def reserve_exercise(course, key, scheduled=False):
 def new_attempt(exercise):
     with course_lock(exercise.course_id), transaction.atomic():
         exercise.refresh_from_db()
+        if exercise.format == 'scenario':
+            raise Conflict('场景学习需先完成教学会话，再进入独立验证')
         draft = Attempt.objects.filter(exercise=exercise, status='draft').first()
         if draft:
             return draft
@@ -137,8 +178,13 @@ def end_exercise(exercise):
         exercise.refresh_from_db()
         exercise.status = 'ended'
         exercise.save(update_fields=['status'])
+        from .models import LearningSession, LearningTurn
+        sessions = LearningSession.objects.filter(exercise=exercise).exclude(phase='completed')
+        sessions.update(phase='ended', draft_text='')
+        turn_ids = set(LearningTurn.objects.filter(session__exercise=exercise).values_list('id', flat=True))
+        LearningTurn.objects.filter(pk__in=turn_ids, status__in=['pending', 'running']).update(status='cancelled')
         for req in Request.objects.filter(course_id=exercise.course_id, status__in=['pending', 'running']):
-            if req.target_id == exercise.id or Attempt.objects.filter(exercise=exercise, pk=req.target_id).exists():
+            if req.target_id == exercise.id or req.target_id in turn_ids or Attempt.objects.filter(exercise=exercise, pk=req.target_id).exists():
                 req.status, req.error = 'cancelled', '练习已结束'
                 req.save(update_fields=['status', 'error', 'updated_at'])
         for attempt in Attempt.objects.filter(exercise=exercise).exclude(status='completed'):

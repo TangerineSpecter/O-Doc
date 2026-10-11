@@ -8,7 +8,7 @@ import GoalSetup from './GoalSetup';
 import {useLearningGoal} from '../../hooks/useLearningGoal';
 import {buttonClass, inputClass} from './presentation';
 
-const defaults: LearningConfig = {goal: '', subject: 'english', scenarios: [], level: '不确定', minutes: 10, questionCount: 5, pendingLimit: 2, teacherName: '英语老师', modelId: '', style: '耐心讲解，结合实际应用', scheduleTime: '09:00', timezone: 'Asia/Shanghai'};
+const defaults: LearningConfig = {goal: '', subject: 'english', scenarios: [], level: '不确定', learningMode: 'scenario', minutes: 10, questionCount: 3, pendingLimit: 2, teacherName: '英语老师', modelId: '', style: '耐心讲解，结合实际应用', scheduleTime: '09:00', timezone: 'Asia/Shanghai'};
 export default function LearningSettings({collId, config, enabled, busy, saveError, close, save}: {collId: string; config: LearningConfig | null; enabled: boolean; busy: boolean; saveError: string; close: () => void; save: (config: LearningConfig, enabled: boolean, proposalId?: string) => void}) {
     const [form, setForm] = useState({...defaults, ...config});
     const goal = useLearningGoal(collId, form.subject);
@@ -26,12 +26,13 @@ export default function LearningSettings({collId, config, enabled, busy, saveErr
             <div className="space-y-5 overflow-y-auto p-6 scrollbar-hide">
                 {(error || saveError) && <p role="alert" className="text-sm text-red-600">{error || saveError}</p>}
                 <GoalSetup subjects={goal.subjects} changeSubject={id => {field('subject', id); goal.change([], '');}} subject={goal.subjects.find(s => s.id === form.subject)} currentGoal={config?.goal} selected={goal.selected} supplement={goal.supplement} proposal={preview} busy={busy || goal.busy} error={goal.error} change={goal.change} prepare={() => void goal.prepare(form.modelId, form.style)}/>
+                <div><p className="mb-2 text-sm font-medium">学习方式</p><Select menuPortal value={form.learningMode} onChange={v => field('learningMode', v as LearningConfig['learningMode'])} options={[{value: 'scenario', label: '场景学习 · 理解、组句、交流、独立验证'}, {value: 'classic', label: '专项练习 · 直接作答与巩固'}]}/><p className="mt-2 text-xs leading-relaxed text-slate-500">切换只影响之后生成的内容；历史题目和成绩保留原规则。首期练习文字理解与表达。</p></div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div><p className="mb-2 text-sm font-medium">起始自评水平（可选）</p><Select menuPortal value={form.level} onChange={v => field('level', v)} options={['不确定', '基础', '能简单交流', '中等', '较熟练'].map(v => ({value: v, label: v === '不确定' ? '不确定，让老师初测' : v}))}/><p className="mt-2 text-xs leading-relaxed text-slate-500">仅供初测参考；后续按实际表现调整难度，不限制学习水平。</p></div>
                     <label className="text-sm font-medium">老师名称<input required maxLength={50} className={`${inputClass} mt-2`} value={form.teacherName} onChange={e => field('teacherName', e.target.value)}/></label>
                     <div><p className="mb-2 text-sm font-medium">老师模型</p><Select menuPortal value={form.modelId} onChange={v => field('modelId', v)} placeholder="选择现有对话模型" options={models.map(m => ({value: m.id, label: m.displayName || m.name}))}/></div>
                     <label className="text-sm font-medium">每次时间（分钟）<input required type="number" min={3} max={60} className={`${inputClass} mt-2`} value={form.minutes} onChange={e => field('minutes', Number(e.target.value))}/></label>
-                    <label className="text-sm font-medium">每份题量<input required type="number" min={3} max={10} className={`${inputClass} mt-2`} value={form.questionCount} onChange={e => field('questionCount', Number(e.target.value))}/></label>
+                    <label className="text-sm font-medium">{form.learningMode === 'scenario' ? '独立验证题量（对话回合另计）' : '每份题量'}<input required type="number" min={3} max={10} className={`${inputClass} mt-2`} value={form.questionCount} onChange={e => field('questionCount', Number(e.target.value))}/></label>
                     <label className="text-sm font-medium">未完成上限<input required type="number" min={1} max={5} className={`${inputClass} mt-2`} value={form.pendingLimit} onChange={e => field('pendingLimit', Number(e.target.value))}/></label>
                 </div>
                 <label className="block text-sm font-medium">教学风格<textarea required maxLength={500} rows={2} className={`${inputClass} mt-2 resize-none`} value={form.style} onChange={e => field('style', e.target.value)}/></label>

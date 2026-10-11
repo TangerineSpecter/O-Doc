@@ -21,6 +21,14 @@ export interface DateRangePickerProps {
     disabled?: boolean;
     buttonClassName?: string;
     align?: 'left' | 'right';
+    theme?: 'blue' | 'orange';
+    trigger?: (props: {
+        open: boolean;
+        displayRangeText: string | null;
+        totalDays: number;
+        toggle: () => void;
+        ref: React.RefObject<HTMLButtonElement | null>;
+    }) => React.ReactNode;
 }
 
 const WEEK_DAYS = ['一', '二', '三', '四', '五', '六', '日'];
@@ -32,6 +40,8 @@ export function DateRangePicker({
     disabled = false,
     buttonClassName = '',
     align = 'left',
+    theme = 'blue',
+    trigger,
 }: DateRangePickerProps) {
     const [open, setOpen] = useState(false);
     const [selectingStart, setSelectingStart] = useState<string | null>(null);
@@ -46,6 +56,8 @@ export function DateRangePicker({
     const popoverRef = useRef<HTMLDivElement>(null);
     const popoverId = useId();
     const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
+
+    const isOrange = theme === 'orange';
 
     const handleOpenToggle = () => {
         if (open) {
@@ -242,60 +254,108 @@ export function DateRangePicker({
 
     const displayRangeText = formatDisplayRange(value);
 
+    // 主题样式定义
+    const triggerBorderClass = isOrange
+        ? 'border-orange-200/80 hover:border-orange-400 hover:bg-orange-50/20 focus:border-orange-500 focus:ring-orange-500/20'
+        : 'border-blue-200/80 hover:border-blue-400 hover:bg-blue-50/20 focus:border-blue-500 focus:ring-blue-500/20';
+
+    const triggerOpenClass = isOrange
+        ? 'border-orange-500 ring-2 ring-orange-500/20'
+        : 'border-blue-500 ring-2 ring-blue-500/20';
+
+    const iconColor = isOrange ? 'text-orange-500' : 'text-blue-600';
+    const chevronColor = isOrange ? 'text-orange-500' : 'text-blue-600';
+
+    const presetActiveClass = isOrange
+        ? 'border-orange-500 bg-orange-50/80 text-orange-600 font-semibold ring-1 ring-orange-500/20'
+        : 'border-blue-500 bg-blue-50/70 text-blue-600 font-semibold ring-1 ring-blue-500/20';
+
+    const summaryBoxClass = isOrange
+        ? 'border-orange-100/90 bg-orange-50/60'
+        : 'border-blue-100/80 bg-blue-50/50';
+
+    const summaryBadgeClass = isOrange
+        ? 'bg-orange-500 text-white'
+        : 'bg-blue-600 text-white';
+
+    const watermarkColor = isOrange ? 'text-orange-500/[0.04]' : 'text-blue-500/[0.04]';
+
+    const rangeMiddleClass = isOrange
+        ? 'bg-orange-50/90 text-orange-600 font-bold'
+        : 'bg-blue-50/90 text-blue-600 font-bold';
+
+    const dayHighlightClass = isOrange
+        ? 'bg-orange-500 text-white font-bold shadow-2xs'
+        : 'bg-blue-600 text-white font-bold shadow-xs';
+
+    const primaryButtonClass = isOrange
+        ? 'bg-orange-500 hover:bg-orange-600 active:bg-orange-700'
+        : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800';
+
     return (
         <div className="relative inline-block">
-            <button
-                ref={triggerRef}
-                type="button"
-                disabled={disabled}
-                aria-haspopup="dialog"
-                aria-expanded={open}
-                aria-controls={popoverId}
-                title={
-                    value?.startDate && value?.endDate
-                        ? `${value.startDate} 至 ${value.endDate}`
-                        : undefined
-                }
-                onClick={handleOpenToggle}
-                className={`group inline-flex w-[180px] items-center justify-between rounded-full border border-blue-200/80 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-2xs transition-all hover:border-blue-400 hover:bg-blue-50/20 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap shrink-0 ${
-                    open ? 'border-blue-500 ring-2 ring-blue-500/20' : ''
-                } ${buttonClassName}`}
-            >
-                <span className="flex items-center text-blue-600 shrink-0">
-                    <Calendar className="h-3.5 w-3.5" />
-                </span>
-
-                <span
-                    className={`min-w-0 flex-1 truncate text-center px-1 tracking-tight ${
-                        displayRangeText ? 'text-slate-800 font-bold' : 'text-slate-400 font-normal'
-                    }`}
+            {trigger ? (
+                trigger({
+                    open,
+                    displayRangeText,
+                    totalDays,
+                    toggle: handleOpenToggle,
+                    ref: triggerRef,
+                })
+            ) : (
+                <button
+                    ref={triggerRef}
+                    type="button"
+                    disabled={disabled}
+                    aria-haspopup="dialog"
+                    aria-expanded={open}
+                    aria-controls={popoverId}
+                    title={
+                        value?.startDate && value?.endDate
+                            ? `${value.startDate} 至 ${value.endDate}`
+                            : undefined
+                    }
+                    onClick={handleOpenToggle}
+                    className={`group inline-flex w-[180px] items-center justify-between rounded-full border bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-2xs transition-all focus:outline-none focus:ring-2 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap shrink-0 ${triggerBorderClass} ${
+                        open ? triggerOpenClass : ''
+                    } ${buttonClassName}`}
                 >
-                    {displayRangeText || placeholder}
-                </span>
+                    <span className={`flex items-center shrink-0 ${iconColor}`}>
+                        <Calendar className="h-3.5 w-3.5" />
+                    </span>
 
-                <span className="flex items-center gap-0.5 shrink-0 text-slate-400">
-                    {displayRangeText && (
-                        <span
-                            role="button"
-                            tabIndex={0}
-                            aria-label="清除日期范围"
-                            onClick={e => {
-                                e.stopPropagation();
-                                handleClear();
-                            }}
-                            className="rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                        >
-                            <X className="h-3 w-3" />
-                        </span>
-                    )}
-
-                    <ChevronDown
-                        className={`h-3.5 w-3.5 transition-transform duration-200 group-hover:text-slate-600 ${
-                            open ? 'rotate-180 text-blue-600' : ''
+                    <span
+                        className={`min-w-0 flex-1 truncate text-center px-1 tracking-tight ${
+                            displayRangeText ? 'text-slate-800 font-bold' : 'text-slate-400 font-normal'
                         }`}
-                    />
-                </span>
-            </button>
+                    >
+                        {displayRangeText || placeholder}
+                    </span>
+
+                    <span className="flex items-center gap-0.5 shrink-0 text-slate-400">
+                        {displayRangeText && (
+                            <span
+                                role="button"
+                                tabIndex={0}
+                                aria-label="清除日期范围"
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    handleClear();
+                                }}
+                                className="rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                            >
+                                <X className="h-3 w-3" />
+                            </span>
+                        )}
+
+                        <ChevronDown
+                            className={`h-3.5 w-3.5 transition-transform duration-200 group-hover:text-slate-600 ${
+                                open ? `rotate-180 ${chevronColor}` : ''
+                            }`}
+                        />
+                    </span>
+                </button>
+            )}
 
             {open &&
                 !disabled &&
@@ -336,7 +396,7 @@ export function DateRangePicker({
                                         onClick={() => handleSelectPreset(preset)}
                                         className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
                                             isActive
-                                                ? 'border border-blue-500 bg-blue-50/70 text-blue-600 font-semibold ring-1 ring-blue-500/20'
+                                                ? presetActiveClass
                                                 : 'border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                                         }`}
                                     >
@@ -346,7 +406,7 @@ export function DateRangePicker({
                             })}
                         </div>
 
-                        <div className="mt-3.5 flex items-center justify-between rounded-xl border border-blue-100/80 bg-blue-50/50 p-3">
+                        <div className={`mt-3.5 flex items-center justify-between rounded-xl border p-3 ${summaryBoxClass}`}>
                             <div className="flex items-center gap-2 min-w-0">
                                 <div>
                                     <span className="block text-[10px] font-medium text-slate-400">开始日期</span>
@@ -364,7 +424,7 @@ export function DateRangePicker({
                             </div>
 
                             {totalDays > 0 && effectiveRange?.startDate && (
-                                <span className="rounded-full bg-blue-600 px-2.5 py-0.5 text-xs font-semibold text-white shadow-2xs whitespace-nowrap shrink-0">
+                                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold shadow-2xs whitespace-nowrap shrink-0 ${summaryBadgeClass}`}>
                                     共 {totalDays} 天
                                 </span>
                             )}
@@ -380,7 +440,7 @@ export function DateRangePicker({
 
                         <div className="relative mt-2">
                             <div className="pointer-events-none absolute inset-0 flex select-none items-center justify-center overflow-hidden">
-                                <span className="font-sans text-[120px] font-black leading-none text-blue-500/[0.04]">
+                                <span className={`font-sans text-[120px] font-black leading-none ${watermarkColor}`}>
                                     {viewMonth.month() + 1}
                                 </span>
                             </div>
@@ -417,7 +477,7 @@ export function DateRangePicker({
                                             key={item.dateStr}
                                             className={`relative flex h-10 items-center justify-center ${
                                                 isRangeMiddle
-                                                    ? 'bg-blue-50/90 text-blue-600 font-bold'
+                                                    ? rangeMiddleClass
                                                     : ''
                                             } ${
                                                 item.isStart && !item.isSingleDay
@@ -439,14 +499,14 @@ export function DateRangePicker({
                                                 onClick={() => handleDateClick(item.dateStr)}
                                                 className={`flex h-9 w-full flex-col items-center justify-center transition-all ${
                                                     isHighlight
-                                                        ? 'bg-blue-600 text-white font-bold shadow-xs ' +
+                                                        ? `${dayHighlightClass} ` +
                                                           (item.isSingleDay
                                                               ? 'rounded-xl'
                                                               : item.isStart
                                                               ? 'rounded-l-xl'
                                                               : 'rounded-r-xl')
                                                         : isRangeMiddle
-                                                        ? 'text-blue-600 font-bold'
+                                                        ? (isOrange ? 'text-orange-600 font-bold' : 'text-blue-600 font-bold')
                                                         : item.isToday
                                                         ? 'rounded-xl bg-slate-100 text-slate-800 font-bold ring-1 ring-slate-200'
                                                         : item.isCurrentMonth
@@ -483,7 +543,7 @@ export function DateRangePicker({
                             <button
                                 type="button"
                                 onClick={handleClear}
-                                className="text-xs font-medium text-slate-400 transition-colors hover:text-red-600"
+                                className="text-xs font-medium text-slate-400 transition-colors hover:text-rose-600"
                             >
                                 清除选择
                             </button>
@@ -491,7 +551,7 @@ export function DateRangePicker({
                                 <button
                                     type="button"
                                     onClick={handleClose}
-                                    className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-2xs transition-all hover:bg-blue-700 active:scale-95"
+                                    className={`rounded-lg px-3.5 py-1.5 text-xs font-medium text-white shadow-2xs transition-all ${primaryButtonClass}`}
                                 >
                                     确定
                                 </button>

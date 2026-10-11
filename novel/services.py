@@ -3,7 +3,7 @@ from django.utils import timezone
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import ValidationError
-from .models import Chapter, Entity, Fact, Job, Message, Outline, Project, Revision, Rule, Run, Thread, Relation
+from .models import Chapter, Entity, Fact, Job, Message, Outline, Project, Revision, Review, Rule, Run, Thread, Relation
 from .chapters import StaleDraft, save_revision
 from .memory import fingerprint
 from .generation import KINDS
@@ -132,6 +132,15 @@ def entity_references(entity):
         if eid in (fact.data.get('entity_id'), fact.data.get('target_id'), fact.data.get('holder_id')):
             return True
     return False
+
+
+def delete_thread(thread):
+    if any(f.data.get('thread_id') == thread.pk for f in Fact.objects.filter(project=thread.project).iterator()):
+        raise ValidationError('线索已有正文证据，请标为放弃或开放结局')
+    reviews = Review.objects.filter(revision__chapter__project=thread.project)
+    if any(change.get('thread_id') == thread.pk for review in reviews.iterator() for change in review.changes):
+        raise ValidationError('线索已被历史审查引用，请标为放弃或开放结局')
+    thread.delete()
 
 
 def delete_entity(entity):

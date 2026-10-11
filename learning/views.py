@@ -84,7 +84,7 @@ class GenerateView(LearningView):
     def post(self, request, coll_id):
         owned(request, coll_id)
         course = get_object_or_404(Course, pk=coll_id)
-        req, created = reserve_exercise(course, key(request.data))
+        req, created = reserve_exercise(course, key(request.data), knowledge_id=request.data.get('knowledge_id'), item_id=request.data.get('item_id'))
         return result({'request': request_data(req), 'created': created, 'course': course_data(course)}, msg='已开始准备' if created else '已有练习待完成或请求已处理')
 
 

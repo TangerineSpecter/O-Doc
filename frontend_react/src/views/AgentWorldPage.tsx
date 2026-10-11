@@ -16,6 +16,7 @@ import type {WorldCatalogSection} from '../components/AgentWorld/WorldCatalogDia
 import type {DailyFeedEvent} from '../types/api/dailyFeed';
 import type {AgentActivity as AgentActivityData, AgentActivityType} from '../types/api/setting';
 
+const ResidentAnalyticsDialog = lazy(() => import('../components/AgentWorld/Analytics/ResidentAnalyticsDialog'));
 const TokenUsageDialog = lazy(() => import('../components/TokenUsage/TokenUsageDialog'));
 const preloadLifeSchedule = () => import('../components/AgentLife/LifeScheduleDialog');
 const preloadMarket = () => import('../components/Market/MarketDialog');
@@ -37,6 +38,8 @@ const TravelJourneyDialog = lazy(preloadTravel);
 
 export default function AgentWorldPage() {
     const navigate = useNavigate();
+    const [analyticsActor, setAnalyticsActor] = useState<string | null>(null);
+    const closeAnalytics = useCallback(() => setAnalyticsActor(null), []);
     const [usageOpen, setUsageOpen] = useState(false);
     const closeUsage = useCallback(() => setUsageOpen(false), []);
     const [lifeOpen, setLifeOpen] = useState(false);
@@ -122,6 +125,8 @@ export default function AgentWorldPage() {
     };
 
     const residents = (world.summary?.agents || []).map(agent => ({...agent, todayCount: dailySummary?.actorCounts[agent.id] ?? agent.todayCount}));
+
+    const analyticsButton = <button type="button" onClick={() => setAnalyticsActor(world.agentId)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-xs font-semibold text-orange-700 shadow-sm transition-colors hover:border-orange-300 hover:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"><BarChart3 className="h-4 w-4"/>居民数据分析</button>;
 
     const statsData = [
         {
@@ -227,7 +232,7 @@ export default function AgentWorldPage() {
             {lifeOpen && <WorldDialogSuspense title="居民生活日程" onClose={closeLife} size="extra-wide" fallback={<WorldOrbitLoader title="正在排布居民生活日程" subtitle="读取今日动态流 · 校验行动预留资金"/>}><LifeScheduleDialog onClose={closeLife}/></WorldDialogSuspense>}
 
             {/* 移动端专属居民状态横滑栏：置顶于动态流上方，随时可横滑感知与点击筛选 (< lg) */}
-            <div className="mt-3 lg:hidden">
+            <div className="mt-3 lg:hidden [&>section]:mb-0">
                 <AgentResidentsMobileBar
                     agents={residents}
                     selectedAgentId={world.agentId}
@@ -235,6 +240,7 @@ export default function AgentWorldPage() {
                     onOpenRelation={() => setPanel('graph')}
                     onOpenAttributes={() => setPanel('attributes')}
                 />
+                {analyticsButton}
             </div>
 
             <div className="mt-3.5 grid gap-5 lg:mt-5 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -243,7 +249,7 @@ export default function AgentWorldPage() {
                 </div>
 
                 {/* 桌面端常驻侧边栏 (>= lg) */}
-                <div className="hidden lg:block">
+                <div className="hidden h-fit lg:sticky lg:top-20 lg:block [&>aside]:static">
                     <AgentResidentsSidebar
                         agents={residents}
                         selectedAgentId={world.agentId}
@@ -251,8 +257,10 @@ export default function AgentWorldPage() {
                         onOpenRelation={() => setPanel('graph')}
                         onOpenAttributes={() => setPanel('attributes')}
                     />
+                    {analyticsButton}
                 </div>
             </div>
+            {analyticsActor !== null && <WorldDialogSuspense title="居民数据分析" onClose={closeAnalytics} size="wide" fallback={<WorldOrbitLoader title="正在打开居民数据分析"/>}><ResidentAnalyticsDialog initialActorId={analyticsActor} initialResidents={residents.map(row => ({id: row.id, name: row.name, avatar: row.avatar || '', departed: false}))} onClose={closeAnalytics}/></WorldDialogSuspense>}
             {panel === 'graph' ? (
                 <AgentRelationCard
                     graph={relation.graph}

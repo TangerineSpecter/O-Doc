@@ -396,12 +396,13 @@ export default function ClassicFloatingMenu() {
                                     <path d="M8 42 l4 -4 m-2 6 l4 -4" stroke="#f87171" strokeWidth="2" opacity="0.6"/>
                                     <path d="M48 42 l4 -4 m-2 6 l4 -4" stroke="#f87171" strokeWidth="2" opacity="0.6"/>
                                 </svg>
-                                <svg viewBox="0 0 24 24"
-                                     className="absolute top-2 left-1 w-5 h-5 text-yellow-300 drop-shadow-sm"
+                                <span className="absolute top-2 left-1 w-5 h-5 text-yellow-300 drop-shadow-sm"
                                      style={{animation: 'pop-star 0.6s ease-out forwards'}}>
-                                    <path fill="currentColor"
-                                          d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                                </svg>
+                                    <svg viewBox="0 0 24 24" className="block w-full h-full">
+                                        <path fill="currentColor"
+                                              d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                    </svg>
+                                </span>
                             </div>
                         ) : (
                             // 状态 3: Normal
@@ -448,18 +449,19 @@ export default function ClassicFloatingMenu() {
                     </div>
                 )}
 
-                {/* === 星星 === */}
+                {/* === 星星：原动画作用于 HTML 层，SVG 图案保持静态 === */}
                 {starAnimState !== 'idle' && (
-                    <svg viewBox="0 0 24 24"
-                         className="absolute w-6 h-6 text-yellow-400 drop-shadow-md z-40 pointer-events-none" style={{
+                    <span className="absolute w-6 h-6 text-yellow-400 drop-shadow-md z-40 pointer-events-none" style={{
                         animation:
                             starAnimState === 'throwing' ? 'star-throw 0.6s ease-out forwards' :
                                 starAnimState === 'falling' ? 'star-fall-hit 0.3s linear forwards' :
                                     starAnimState === 'bounce' ? 'star-bounce-drop 0.8s forwards' : 'none'
                     }}>
-                        <path fill="currentColor"
-                              d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                    </svg>
+                        <svg viewBox="0 0 24 24" className="block w-full h-full">
+                            <path fill="currentColor"
+                                  d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                        </svg>
+                    </span>
                 )}
 
             </button>

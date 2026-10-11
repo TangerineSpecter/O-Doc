@@ -61,6 +61,10 @@ export function useNovel(id: string) {
         await refresh();
         return data;
     });
+    const saveBeforeLeave = async () => {
+        const data = await save();
+        return !!data && currentText.current === (data.draft?.content || '');
+    };
     const generate = (kind: RunKind, input: Record<string, unknown> = {}) => safe(async () => {
         const chapterKinds = ['generate', 'rewrite', 'continue', 'polish', 'scene', 'story', 'review'];
         if (chapterKinds.includes(kind) && (!chapter || currentText.current !== (chapter.draft?.content || ''))) throw new Error('请先保存当前正文，再启动任务');
@@ -94,6 +98,6 @@ export function useNovel(id: string) {
         await novelApi.deleteChapter(id, chapter.id);
         selected.current = '';setChapter(null);setText('');await refresh();return true;
     });
-    return {novel, chapter, text, setText, run, setRun, error, busy, safe, refresh, select, save, generate, action, patch, resource, remove, runAction, createChapter, deleteChapter, updateChapter};
+    return {novel, chapter, text, setText, run, setRun, error, busy, safe, refresh, select, save, saveBeforeLeave, generate, action, patch, resource, remove, runAction, createChapter, deleteChapter, updateChapter};
 }
 export type NovelController = ReturnType<typeof useNovel>;

@@ -3,25 +3,28 @@ import './AgentWorldEdgeButton.css';
 
 function AnimatedGlobeIcon() {
     return (
-        <svg
-            aria-hidden="true"
-            className="agent-world-edge-button__globe"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.25"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            <g className="agent-world-edge-button__orbit">
-                <circle className="agent-world-edge-button__orbit-path" cx="12" cy="12" r="10.15" />
-                <circle className="agent-world-edge-button__satellite" cx="12" cy="1.85" r="1.25" />
-            </g>
-            <circle cx="12" cy="12" r="8.1" />
-            <ellipse cx="12" cy="12" rx="3.65" ry="8.1" />
-            <path d="M4.4 9c2.15 1.05 4.68 1.58 7.6 1.58S17.45 10.05 19.6 9" />
-            <path d="M4.4 15c2.15-1.05 4.68-1.58 7.6-1.58s5.45.53 7.6 1.58" />
-        </svg>
+        <span aria-hidden="true" className="agent-world-edge-button__globe">
+            {/* 轨道仍在地球后方；相同 SVG 图形由 HTML 层执行原来的旋转。 */}
+            <span className="agent-world-edge-button__orbit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <circle className="agent-world-edge-button__orbit-path" cx="12" cy="12" r="10.15" />
+                    <circle className="agent-world-edge-button__satellite" cx="12" cy="1.85" r="1.25" />
+                </svg>
+            </span>
+            <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            >
+                <circle cx="12" cy="12" r="8.1" />
+                <ellipse cx="12" cy="12" rx="3.65" ry="8.1" />
+                <path d="M4.4 9c2.15 1.05 4.68 1.58 7.6 1.58S17.45 10.05 19.6 9" />
+                <path d="M4.4 15c2.15-1.05 4.68-1.58 7.6-1.58s5.45.53 7.6 1.58" />
+            </svg>
+        </span>
     );
 }
 

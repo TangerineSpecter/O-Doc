@@ -15,7 +15,7 @@ export default function CombatObservation({id,onClose}:{id:string;onClose:()=>vo
     },[id]);
     const ended=state.snapshot&&!['preparing','active','paused'].includes(state.snapshot.status);
     const detail=state.snapshot?.reason||(!ended&&state.snapshot?.remainingSeconds!=null?`预计剩余 ${elapsed(state.snapshot.remainingSeconds)}`:'');
-    const description=[ended?'本次探索已结束，可查看全部记录。':'关闭窗口后探索继续。',detail,'动作与飘字仅作演示，数值与收益以已确认战报为准。'].filter(Boolean).join(' ');
+    const description=[ended?'本次探索已结束，可查看全部记录':'关闭窗口后探索继续',detail,'动作与数值以已确认战报为准'].filter(Boolean).join(' · ');
     const summary=useMemo(()=>state.snapshot?<CombatObservationSummary snapshot={state.snapshot} busy={busy} onCommand={command}/>:undefined,[state.snapshot,busy,command]);
     return <WorldDialog title="探索观察" titleAction={summary} description={description} size="extra-wide" onClose={onClose}>
         <div className="flex h-full min-h-0 flex-col gap-3">

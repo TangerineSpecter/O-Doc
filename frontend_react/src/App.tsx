@@ -25,6 +25,9 @@ import AgentWorldPage from './views/AgentWorldPage';
 import PromptLibraryPage from './views/PromptLibraryPage';
 import RecyclePage from './views/RecyclePage';
 import {getAuthToken} from './utils/authStorage';
+import {initializeNovelNavigation} from './utils/novelNavigation';
+
+initializeNovelNavigation();
 
 function LearningRoute() {
     const {collId, exerciseId} = useParams();

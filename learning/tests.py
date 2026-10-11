@@ -28,7 +28,7 @@ def setup_course():
     provider = AIProvider.objects.create(name='Test', base_url='https://example.test', api_key='unused')
     model = AIModel.objects.create(provider=provider, name='test', type='chat')
     anthology = Anthology.objects.create(title='英语学习', type='learning', permission='private', user_id='admin')
-    return Course.objects.create(anthology=anthology, goal='旅行与工作', scenarios=['work', 'travel'], model=model)
+    return Course.objects.create(anthology=anthology, goal='旅行与工作', scenarios=['work', 'travel'], model=model, learning_mode='classic', question_count=5)
 
 
 def questions(course, count=5, kind='choice'):
@@ -611,7 +611,7 @@ class GoalSetupTests(TestCase):
         self.assertNotIn(GoalJob, list(manager._iter_target_models()))
         data = manager.build_snapshot_data()
         meta = manager.build_snapshot_meta(data_list=data)
-        self.assertEqual(meta['learning_schema_version'], 3)
+        self.assertEqual(meta['learning_schema_version'], 4)
         missing = [row for row in data if row['model'] != 'learning.goalproposal']
         with self.assertRaises(SyncError): validate(missing, meta)
         broken = json.loads(json.dumps(data))
@@ -636,7 +636,7 @@ class GoalSetupTests(TestCase):
             check({**base_meta, 'learning_schema_version': 1})
             check({**base_meta, 'learning_schema_version': 2})
             check({**base_meta, 'learning_schema_version': 3})
-            with self.assertRaises(SyncError): check({**base_meta, 'learning_schema_version': 4})
+            with self.assertRaises(SyncError): check({**base_meta, 'learning_schema_version': 5})
         data = manager.build_snapshot_data()
         meta = manager.build_snapshot_meta(data_list=data)
         broken = json.loads(json.dumps(data))

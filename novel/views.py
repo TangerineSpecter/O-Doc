@@ -14,7 +14,7 @@ from .memory import state_at, invalidate_later
 from .chapters import adopt, publish, revision_for, save_revision
 from .presentation import snapshot, chapter_data, revision_data, run_data
 from .serializers import ChapterSerializer, EntitySerializer, OutlineSerializer, RuleSerializer, ThreadSerializer, RelationSerializer
-from .services import queue, use_candidate, apply_blueprint, delete_entity, mark_affected
+from .services import queue, use_candidate, apply_blueprint, delete_entity, delete_thread, mark_affected
 from .validation import text
 from . import worker
 
@@ -119,10 +119,7 @@ class ResourceView(NovelView):
             if model == Entity:
                 delete_entity(instance)
             elif model == Thread:
-                from .models import Fact
-                if any(f.data.get('thread_id') == record_id for f in Fact.objects.filter(project=project)):
-                    raise ValidationError('线索已有正文证据，请标为放弃或开放结局')
-                instance.delete()
+                delete_thread(instance)
             else:
                 instance.delete()
             mark_affected(project)

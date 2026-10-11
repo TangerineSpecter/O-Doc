@@ -1,5 +1,5 @@
 import request from '../utils/request';
-import type {Attempt, CourseData, Exercise, LearningConfig, LearningModel, LearningRequest, Stage, GoalProposal, LearningSubject} from '../types/api/learning';
+import type {Attempt, CourseData, Exercise, LearningConfig, LearningModel, LearningRequest, Stage, GoalProposal, LearningSubject, LearningSession, LearningItem, LearningItemInput} from '../types/api/learning';
 type AttemptWire = Omit<Attempt, 'answers'> & {answerItems: {questionId: string; answer: string}[]};
 type ExerciseWire = Omit<Exercise, 'attempt' | 'attempts'> & {attempt: AttemptWire | null; attempts: AttemptWire[]};
 const normalizeAttempt = (value: AttemptWire): Attempt => ({...value, answers: Object.fromEntries(value.answerItems.map(v => [v.questionId, v.answer]))});
@@ -12,7 +12,7 @@ export const learningApi = {
     configure: (id: string, config: LearningConfig, autoEnabled: boolean, goalProposalId?: string) => request.put<unknown, CourseData>(base(id), {...config, autoEnabled, goalProposalId}),
     goal: (id: string, proposalId?: string, signal?: AbortSignal) => request.get<unknown, GoalProposal | null>(`${base(id)}goals/`, {params: proposalId ? {proposal_id: proposalId} : {}, signal}),
     prepareGoal: (id: string, selected: string[], supplement: string, modelId: string, style: string, requestKey: string, subject: string) => request.post<unknown, GoalProposal>(`${base(id)}goals/`, {selected, supplement, modelId, style, requestKey, subject}),
-    generate: (id: string, requestKey: string) => request.post<unknown, {request: LearningRequest | null; created: boolean; course: CourseData}>(`${base(id)}generate/`, {requestKey}),
+    generate: (id: string, requestKey: string, target?: {knowledgeId?: string; itemId?: string}) => request.post<unknown, {request: LearningRequest | null; created: boolean; course: CourseData}>(`${base(id)}generate/`, {requestKey, ...target}),
     exercise: (id: string, ex: string, signal?: AbortSignal) => request.get<unknown, ExerciseWire>(`${base(id)}exercises/${ex}/`, {signal}).then(normalizeExercise),
     exerciseAction: (id: string, ex: string, action: 'start' | 'end') => request.post<unknown, ExerciseWire>(`${base(id)}exercises/${ex}/`, {action}).then(normalizeExercise),
     save: (id: string, attempt: string, revision: number, answers: Record<string, string>) => request.put<unknown, AttemptWire>(`${base(id)}attempts/${attempt}/`, {revision, answerItems: Object.entries(answers).map(([questionId, answer]) => ({questionId, answer}))}).then(normalizeAttempt),
@@ -22,4 +22,12 @@ export const learningApi = {
     chat: (id: string, content: string, requestKey: string, attemptId?: string, questionId?: string) => request.post<unknown, LearningRequest>(`${base(id)}chat/`, {content, requestKey, attemptId, questionId}),
     evaluate: (id: string, requestKey: string) => request.post<unknown, CourseData>(`${base(id)}profile/`, {requestKey}),
     correct: (id: string, content: string) => request.post<unknown, CourseData>(`${base(id)}profile/`, {action: 'correct', content}),
+    startSession: (id: string, exerciseId: string, requestKey: string) => request.post<unknown, LearningSession>(`${base(id)}exercises/${exerciseId}/sessions/`, {requestKey}),
+    session: (id: string, sessionId: string) => request.get<unknown, LearningSession>(`${base(id)}sessions/${sessionId}/`),
+    saveSession: (id: string, sessionId: string, revision: number, content: string) => request.put<unknown, LearningSession>(`${base(id)}sessions/${sessionId}/`, {revision, content}),
+    sessionAction: (id: string, sessionId: string, revision: number, action: 'advance' | 'turn' | 'help' | 'retry' | 'end', requestKey: string, turnId?: string) => request.post<unknown, LearningSession | LearningRequest>(`${base(id)}sessions/${sessionId}/`, {revision, action, requestKey, turnId}),
+    revise: (id: string, attemptId: string, questionId: string, content: string, requestKey: string, revisionId?: string) => request.post<unknown, LearningRequest>(`${base(id)}attempts/${attemptId}/revisions/`, {questionId, content, requestKey, revisionId}),
+    items: (id: string, signal?: AbortSignal) => request.get<unknown, LearningItem[]>(`${base(id)}items/`, {signal}),
+    saveItem: (id: string, input: LearningItemInput, itemId?: string) => itemId ? request.put<unknown, {id: string}>(`${base(id)}items/${itemId}/`, input) : request.post<unknown, {id: string}>(`${base(id)}items/`, input),
+    removeItem: (id: string, itemId: string) => request.delete(`${base(id)}items/${itemId}/`),
 };

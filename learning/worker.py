@@ -57,7 +57,7 @@ def claim_next():
 
 
 def expire_jobs():
-    from .models import Attempt, Exercise, Request, Runtime
+    from .models import Attempt, Exercise, Request, Runtime, LearningTurn, AnswerRevision
     for rt in Runtime.objects.filter(claimed_at__lt=timezone.now() - timedelta(minutes=5)).exclude(owner=''):
         with course_lock(rt.course_id), transaction.atomic():
             rt.refresh_from_db()
@@ -77,6 +77,10 @@ def expire_jobs():
                     ex = attempt.exercise
                     ex.status = 'failed_grading'
                     ex.save(update_fields=['status'])
+                elif req.kind == 'lesson_turn':
+                    LearningTurn.objects.filter(pk=req.target_id).update(status='failed')
+                elif req.kind == 'revise':
+                    AnswerRevision.objects.filter(pk=req.target_id).update(status='failed')
             rt.owner, rt.claimed_at = '', None
             rt.save(update_fields=['owner', 'claimed_at'])
 

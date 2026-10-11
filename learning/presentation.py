@@ -10,27 +10,44 @@ def request_data(req):
 
 
 def exercise_summary(ex):
-    return {'id': ex.id, 'title': ex.title, 'kind': ex.kind, 'status': ex.status, 'created_at': ex.created_at, 'question_count': len(ex.questions)}
+    return {'id': ex.id, 'title': ex.title, 'kind': ex.kind, 'format': ex.format, 'status': ex.status, 'created_at': ex.created_at, 'question_count': len(ex.questions)}
 
 
 def attempt_data(attempt):
+    from .models import AnswerRevision
     grade = Grade.objects.filter(attempt=attempt).order_by('-version', '-id').first()
     return {'id': attempt.id, 'answer_items': [{'question_id': key, 'answer': value} for key, value in attempt.answers.items()], 'assisted': attempt.assisted, 'revision': attempt.revision, 'status': attempt.status,
             'review_requested': attempt.review_requested, 'submitted_at': attempt.submitted_at, 'grade': grade.result if grade else None,
-            'grades': list(Grade.objects.filter(attempt=attempt).order_by('version').values('id', 'version', 'result', 'created_at'))}
+            'grades': list(Grade.objects.filter(attempt=attempt).order_by('version').values('id', 'version', 'result', 'created_at')),
+            'revisions': list(AnswerRevision.objects.filter(attempt=attempt).order_by('created_at', 'id').values('id', 'question_id', 'original_answer', 'content', 'feedback', 'status', 'created_at'))}
 
 
 def exercise_data(ex):
+    from django.db.models import Prefetch
+    from .models import LearningSession, LearningTurn, AnswerRevision
+    from .session_presentation import session_data
+    sessions = list(LearningSession.objects.filter(exercise=ex).select_related('attempt').prefetch_related(Prefetch('learningturn_set', queryset=LearningTurn.objects.order_by('created_at', 'id'), to_attr='loaded_turns')).order_by('-created_at', '-id'))
+    session = sessions[0] if sessions else None
     attempts = list(Attempt.objects.filter(exercise=ex).order_by('created_at', 'id'))
     current = attempts[-1] if attempts else None
+    if ex.format == 'scenario':
+        current = session.attempt if session else None
     reveal = current is not None and Grade.objects.filter(attempt=current).exists() and current.status != 'draft'
     public = ('id', 'type', 'prompt', 'options', 'knowledge_id', 'knowledge_name', 'review')
-    return {**exercise_summary(ex), 'introduction': ex.introduction, 'questions': ex.questions if reveal else [{k: q[k] for k in public} for q in ex.questions],
+    questions = ex.questions if reveal else [{k: q[k] for k in public} for q in ex.questions]
+    if ex.format == 'scenario' and (not session or session.phase not in ('verification', 'completed')):
+        questions = []
+    target_ids = [ex.id, *[a.id for a in attempts], *LearningTurn.objects.filter(session__exercise=ex).values_list('id', flat=True), *AnswerRevision.objects.filter(attempt__exercise=ex).values_list('id', flat=True)]
+    return {**exercise_summary(ex), 'introduction': ex.introduction, 'teaching': ex.teaching, 'session': session_data(session),
+            'session_history': [session_data(s) for s in sessions if s.phase in ('completed', 'ended')], 'questions': questions,
             'attempt': attempt_data(current) if current else None, 'attempts': [attempt_data(a) for a in attempts],
-            'requests': [request_data(r) for r in Request.objects.filter(course=ex.course).filter(target_id__in=[ex.id, *[a.id for a in attempts]]).order_by('-created_at')[:10]]}
+            'requests': [request_data(r) for r in Request.objects.filter(course=ex.course).filter(target_id__in=target_ids).order_by('-created_at')[:10]]}
 
 
 def course_data(course):
+    from .skills import skill_states, growth_data
+    from .items import items_data
+    skills = skill_states(course)
     plan = Plan.objects.filter(course=course).order_by('-created_at', '-id').first()
     baseline = plan.baseline if plan else []
     practice_ids = list(Exercise.objects.filter(course=course, kind='practice', attempt__grade__isnull=False).exclude(pk__in=baseline).values_list('id', flat=True).distinct())
@@ -41,7 +58,7 @@ def course_data(course):
             'completed_count': Exercise.objects.filter(course=course, attempt__grade__isnull=False).distinct().count(),
             'plan': {'id': plan.id, 'stages': plan.stages, 'stage': plan.stage, 'confirmed': plan.confirmed} if plan else None,
             'stage_completed': len(practice_ids), 'stage_evaluation_due': len(practice_ids) >= 5,
-            'knowledge': knowledge_state(course), 'assessment': learning_assessment(course), 'evaluations': evaluations,
+            'knowledge': knowledge_state(course), 'skills': skills, 'items': items_data(course), 'growth': growth_data(skills), 'assessment': learning_assessment(course), 'evaluations': evaluations,
             'corrections': list(Correction.objects.filter(course=course).order_by('-created_at').values('id', 'content', 'created_at')[:20]),
             'exercises': [exercise_summary(ex) for ex in Exercise.objects.filter(course=course).order_by('-created_at')[:100]],
             'requests': [request_data(r) for r in Request.objects.filter(course=course).order_by('-created_at')[:20]],

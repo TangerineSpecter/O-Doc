@@ -1,0 +1,32 @@
+import {useState} from 'react';
+import {Bookmark, Plus, X} from 'lucide-react';
+import {Select} from '../common/Select';
+import {useEscapeDismissal} from '../../hooks/useEscapeDismissal';
+import {learningApi} from '../../api/learning';
+import type {LearningItem, LearningItemInput} from '../../types/api/learning';
+import {buttonClass, cardClass, inputClass} from './presentation';
+
+const kinds = {word: '单词', chunk: '搭配', frame: '句子框架'};
+const empty: LearningItemInput = {kind: 'chunk', text: '', meaning: '', example: '', usage: ''};
+
+function ItemEditor({item, busy, close, save}: {item: LearningItem | null; busy: boolean; close: () => void; save: (value: LearningItemInput) => Promise<void>}) {
+    const [form, setForm] = useState<LearningItemInput>(item || empty);
+    const [error, setError] = useState('');
+    const [saving, setSaving] = useState(false);
+    useEscapeDismissal(true, () => {if (!busy && !saving) close();});
+    const field = (key: keyof LearningItemInput, value: string) => setForm(v => ({...v, [key]: value}));
+    return <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 p-4" onClick={() => {if (!saving) close();}}><form aria-label="词与表达设置" className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={e => e.stopPropagation()} onSubmit={e => {e.preventDefault(); setSaving(true); void save(form).then(close).catch(err => setError(err instanceof Error ? err.message : '保存失败')).finally(() => setSaving(false));}}>
+        <header className="flex items-center justify-between border-b border-slate-100 p-5"><h3 className="font-semibold">{item ? '编辑词与表达' : '添加一个用得到的表达'}</h3><button type="button" aria-label="关闭词与表达设置" disabled={saving} onClick={close}><X size={18}/></button></header>
+        <div className="space-y-4 overflow-y-auto p-5 scrollbar-hide">{error && <p role="alert" className="text-sm text-red-600">{error}</p>}<div><p className="mb-2 text-sm font-medium">类型</p><Select menuPortal value={form.kind} onChange={v => field('kind', v)} options={Object.entries(kinds).map(([value, label]) => ({value, label}))}/></div>{([{key: 'text', label: '英文词或表达', limit: 200}, {key: 'meaning', label: '当前语境中的意思', limit: 500}, {key: 'example', label: '一个英文例句', limit: 1000}, {key: 'usage', label: '使用场景、搭配或简短说明', limit: 1000}] as const).map(f => <label key={f.key} className="block text-sm font-medium">{f.label}<textarea required maxLength={f.limit} rows={f.key === 'text' ? 1 : 2} className={`${inputClass} mt-2 resize-none`} value={form[f.key]} onChange={e => field(f.key, e.target.value)}/></label>)}<p className="text-xs leading-relaxed text-slate-500">复习会换情境检测。修改卡片保留历史身份和作答，不把旧成绩当作新内容已掌握。</p></div>
+        <footer className="flex justify-end gap-3 border-t border-slate-100 p-5"><button type="button" disabled={saving} className="whitespace-nowrap shrink-0 text-sm text-slate-500" onClick={close}>取消</button><button disabled={busy || saving} className={buttonClass}>{saving ? '保存中…' : '保存表达'}</button></footer>
+    </form></div>;
+}
+
+export default function LearningItems({collId, items, busy, refresh, act, practice, open}: {collId: string; items: LearningItem[]; busy: boolean; refresh: () => Promise<void>; act: (fn: () => Promise<unknown>) => Promise<void>; practice: (target: {itemId: string}) => void; open: (id: string) => void}) {
+    const [editor, setEditor] = useState<{item: LearningItem | null} | null>(null);
+    const [removing, setRemoving] = useState<string | null>(null);
+    return <section className={`${cardClass} space-y-4`}><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="flex items-center gap-2 font-semibold"><Bookmark size={18} className="text-orange-500"/>我的词与表达</h2><button disabled={busy} className={`${buttonClass} inline-flex items-center gap-1`} onClick={() => setEditor({item: null})}><Plus size={15}/>添加表达</button></div><p className="text-xs leading-relaxed text-slate-500">在场景中理解，在新情境中主动使用。认识一个词和会独立表达分开记录。</p>{!items.length && <p className="py-5 text-center text-sm text-slate-400">收藏老师建议的表达，或添加自己想说的一句话。</p>}
+        {items.map(item => <article key={item.id} className="space-y-3 rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs text-orange-600">{kinds[item.kind]}</p><h3 className="mt-1 break-words text-base font-semibold">{item.text}</h3></div><div className="flex gap-3 text-xs"><button disabled={busy} className="whitespace-nowrap shrink-0 text-slate-500" onClick={() => setEditor({item})}>编辑</button><button disabled={busy} className="whitespace-nowrap shrink-0 text-slate-400" onClick={() => setRemoving(item.id)}>移除</button></div></div><p className="text-sm text-slate-600">{item.meaning}</p><p className="break-words rounded-lg bg-slate-50 p-3 text-sm">{item.example}</p><p className="text-xs leading-relaxed text-slate-500">{item.usage}</p><div className="flex flex-wrap gap-2 text-xs"><span className="rounded-full bg-slate-100 px-3 py-1">理解 · {item.recognition.status}</span><span className="rounded-full bg-orange-50 px-3 py-1 text-orange-700">独立表达 · {item.expression.status}</span></div><div className="flex flex-wrap items-center gap-3"><button disabled={busy} className="whitespace-nowrap shrink-0 text-xs font-semibold text-orange-600" onClick={() => practice({itemId: item.id})}>换个情境练一下</button>{item.sourceExerciseId && <button className="whitespace-nowrap shrink-0 text-xs text-slate-400" onClick={() => open(item.sourceExerciseId!)}>查看来源</button>}<span className="text-xs text-slate-400">下次表达复习：{item.expression.dueAt ? new Date(item.expression.dueAt).toLocaleDateString() : '待首次验证'}</span></div>{removing === item.id && <div className="flex flex-wrap items-center gap-3 rounded-lg bg-red-50 p-3 text-xs"><span>移除收藏，历史作答仍保留。</span><button disabled={busy} className="whitespace-nowrap shrink-0 text-red-600" onClick={() => void act(async () => {await learningApi.removeItem(collId, item.id); setRemoving(null);})}>确认移除</button><button className="whitespace-nowrap shrink-0 text-slate-500" onClick={() => setRemoving(null)}>取消</button></div>}</article>)}
+        {editor && <ItemEditor item={editor.item} busy={busy} close={() => setEditor(null)} save={async value => {await learningApi.saveItem(collId, value, editor.item?.id); await refresh();}}/>}
+    </section>;
+}

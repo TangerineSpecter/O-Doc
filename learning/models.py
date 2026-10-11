@@ -13,8 +13,9 @@ class Course(models.Model):
     subject = models.CharField(max_length=20, default='english')
     scenarios = models.JSONField(default=list)
     level = models.CharField(max_length=40, default='不确定')
+    learning_mode = models.CharField(max_length=20, default='scenario', choices=[('classic', '专项练习'), ('scenario', '场景学习')])
     minutes = models.PositiveIntegerField(default=10)
-    question_count = models.PositiveIntegerField(default=5)
+    question_count = models.PositiveIntegerField(default=3)
     pending_limit = models.PositiveIntegerField(default=2)
     teacher_name = models.CharField(max_length=50, default='英语老师')
     model = models.ForeignKey('system_settings.AIModel', null=True, on_delete=models.SET_NULL)
@@ -44,6 +45,8 @@ class Exercise(models.Model):
     id = models.CharField(primary_key=True, max_length=40, default=stable_id)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     kind = models.CharField(max_length=20, default='practice')
+    format = models.CharField(max_length=20, default='classic')
+    teaching = models.JSONField(default=dict)
     title = models.CharField(max_length=160, default='正在准备练习')
     introduction = models.TextField(default='', blank=True)
     snapshot = models.JSONField(default=dict)
@@ -144,3 +147,51 @@ class GoalJob(models.Model):
     proposal = models.OneToOneField(GoalProposal, primary_key=True, on_delete=models.CASCADE)
     owner = models.CharField(max_length=40, blank=True, default='')
     claimed_at = models.DateTimeField(null=True)
+
+
+class LearningSession(models.Model):
+    id = models.CharField(primary_key=True, max_length=40, default=stable_id)
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE)
+    attempt = models.OneToOneField(Attempt, null=True, on_delete=models.CASCADE)
+    phase = models.CharField(max_length=20, default='demo')
+    revision = models.PositiveIntegerField(default=0)
+    draft_text = models.TextField(default='', blank=True)
+    feedback = models.JSONField(default=dict)
+    advance_keys = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class LearningTurn(models.Model):
+    id = models.CharField(primary_key=True, max_length=40, default=stable_id)
+    session = models.ForeignKey(LearningSession, on_delete=models.CASCADE)
+    kind = models.CharField(max_length=20)
+    position = models.PositiveIntegerField(default=0)
+    content = models.TextField()
+    result = models.JSONField(default=dict)
+    status = models.CharField(max_length=20, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class AnswerRevision(models.Model):
+    id = models.CharField(primary_key=True, max_length=40, default=stable_id)
+    attempt = models.ForeignKey(Attempt, on_delete=models.CASCADE)
+    question_id = models.CharField(max_length=40)
+    original_answer = models.TextField()
+    content = models.TextField()
+    feedback = models.TextField(default='', blank=True)
+    status = models.CharField(max_length=20, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class LearningItem(models.Model):
+    id = models.CharField(primary_key=True, max_length=64, default=stable_id)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    knowledge = models.ForeignKey(KnowledgePoint, on_delete=models.CASCADE)
+    source_exercise = models.ForeignKey(Exercise, null=True, on_delete=models.SET_NULL)
+    kind = models.CharField(max_length=20, default='chunk')
+    text = models.CharField(max_length=200)
+    meaning = models.CharField(max_length=500)
+    example = models.CharField(max_length=1000)
+    usage = models.CharField(max_length=1000)
+    revision = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)

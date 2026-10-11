@@ -260,6 +260,41 @@ class NovelTests(TestCase):
         with self.assertRaises(ValidationError):delete_entity(candidate)
         outline.delete();delete_entity(candidate);self.assertFalse(Entity.objects.filter(pk=candidate.pk).exists())
 
+    def test_thread_delete_preserves_unadopted_review_snapshot(self):
+        thread = Thread.objects.create(project=self.project, title='旧信线索')
+        revision = self.save('江宁找到旧信。')
+        self.review(revision, changes=[{'kind': 'thread', 'thread_id': thread.pk, 'value': 'planted',
+            'description': '旧信出现', 'quote': '江宁找到旧信。'}])
+        endpoint = self.url(f'threads/{thread.pk}/')
+        before = self.snapshot()
+        for _ in range(2):
+            response = self.client.delete(endpoint)
+            self.assertEqual(response.status_code, 400)
+            self.assertIn('历史审查', response.data['msg'])
+            self.assertTrue(Thread.objects.filter(pk=thread.pk).exists())
+            self.assertEqual(self.snapshot(), before)
+            data = self.snapshot();validate(data, metadata(data))
+        # Unreferenced cards still delete normally, without changing history.
+        unused = Thread.objects.create(project=self.project, title='备用线索')
+        unused_url = self.url(f'threads/{unused.pk}/')
+        self.assertEqual(self.client.delete(unused_url).status_code, 200)
+        self.assertEqual(self.client.delete(unused_url).status_code, 404)
+        data = self.snapshot();validate(data, metadata(data))
+
+    def test_thread_delete_preserves_fact_and_rejects_cross_project_access(self):
+        thread = Thread.objects.create(project=self.project, title='正文线索')
+        revision = self.save('江宁找到旧信。')
+        Fact.objects.create(project=self.project, chapter=self.chapter, revision=revision,
+            data={'kind': 'thread', 'thread_id': thread.pk, 'value': 'planted', 'quote': '江宁找到旧信。'})
+        response = self.client.delete(self.url(f'threads/{thread.pk}/'))
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('正文证据', response.data['msg'])
+        anthology = Anthology.objects.create(type='novel', title='另一本书', user_id='admin')
+        other = Project.objects.create(anthology=anthology)
+        self.assertEqual(self.client.delete(f'/api/novel/{other.pk}/threads/{thread.pk}/').status_code, 404)
+        self.assertTrue(Thread.objects.filter(pk=thread.pk).exists())
+        data = self.snapshot();validate(data, metadata(data))
+
     def test_uncertain_death_and_reader_information_not_character_knowledge(self):
         revision = self.save('众人传言江宁已死。读者看到他仍在城外。')
         changes = review_result({'changes': [

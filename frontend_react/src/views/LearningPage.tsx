@@ -6,6 +6,9 @@ import {useLearning} from '../hooks/useLearning';
 import LearningHeroCard from '../components/Learning/LearningHeroCard';
 import LearningSettings from '../components/Learning/LearningSettings';
 import ExercisePanel from '../components/Learning/ExercisePanel';
+import ScenePanel from '../components/Learning/ScenePanel';
+import LearningItems from '../components/Learning/LearningItems';
+import LearningGrowth from '../components/Learning/LearningGrowth';
 import TeacherChat from '../components/Learning/TeacherChat';
 import {ExerciseList, KnowledgeList, PlanEditor, ProfilePanel} from '../components/Learning/StudyOverview';
 import {buttonClass, cardClass} from '../components/Learning/presentation';
@@ -20,9 +23,9 @@ export default function LearningPage() {
     const flush = useRef<(() => Promise<void>) | null>(null);
     const generateKey = useRef<string | null>(null);
     const open = (id: string) => {setQuestionId(undefined); navigate(`/learning/${collId}/exercises/${id}`);};
-    const generate = () => void run(async () => {
+    const generate = (target?: {knowledgeId?: string; itemId?: string}) => void run(async () => {
         generateKey.current ||= crypto.randomUUID();
-        const result = await learningApi.generate(collId, generateKey.current);
+        const result = await learningApi.generate(collId, generateKey.current, target);
         generateKey.current = null;
         if (result.request) open(result.request.targetId);
     });
@@ -35,12 +38,12 @@ export default function LearningPage() {
             {!course.modelAvailable && <p className="rounded-xl bg-orange-50 p-4 text-sm text-orange-700">老师模型不可用，请在学习设置中重新选择。历史记录已保留。</p>}
             <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
                 <div className="min-w-0 space-y-5">
-                    {exerciseId ? exercise && <ExercisePanel key={exercise.id} collId={collId} exercise={exercise} busy={busy} refresh={refresh} act={run} ask={setQuestionId} flushRef={flush}/> : <>
-                        <LearningHeroCard course={course} busy={busy} onGenerate={generate} onOpenExercise={open}/>
+                    {exerciseId ? exercise && (exercise.format === 'scenario' ? <ScenePanel key={exercise.id} collId={collId} exercise={exercise} busy={busy} refresh={refresh} act={run} ask={setQuestionId} flushRef={flush}/> : <ExercisePanel key={exercise.id} collId={collId} exercise={exercise} busy={busy} refresh={refresh} act={run} ask={setQuestionId} flushRef={flush}/>) : <>
+                        <LearningHeroCard course={course} busy={busy} onGenerate={() => generate()} onOpenExercise={open}/>
                         <nav aria-label="学习内容" className="flex gap-1 overflow-x-auto rounded-full bg-slate-100 p-1 scrollbar-hide">{['今日学习', '复习', '学习画像', '学习记录'].map(v => <button key={v} aria-current={tab === v ? 'page' : undefined} onClick={() => setTab(v)} className={`flex-1 whitespace-nowrap rounded-full px-3 py-2 text-sm ${tab === v ? 'bg-white font-medium text-orange-600 shadow-sm' : 'text-slate-500'}`}>{v}</button>)}</nav>
                         {tab === '今日学习' && <><ExerciseList course={course} history={false} open={open}/><PlanEditor course={course} busy={busy} save={async (stages, stage) => {await learningApi.plan(collId, course.plan!.id, stages, stage); await refresh();}}/></>}
-                        {tab === '复习' && <KnowledgeList knowledge={course.knowledge || []} dueOnly open={open}/>}
-                        {tab === '学习画像' && <><ProfilePanel course={course} busy={busy} evaluate={() => void run(() => learningApi.evaluate(collId, crypto.randomUUID()))} correct={async value => {await learningApi.correct(collId, value); await refresh();}}/><KnowledgeList knowledge={course.knowledge || []} dueOnly={false} open={open}/></>}
+                        {tab === '复习' && <><KnowledgeList knowledge={course.knowledge || []} dueOnly open={open} practice={id => generate({knowledgeId: id})} busy={busy}/><LearningItems collId={collId} items={course.items || []} busy={busy} refresh={refresh} act={run} practice={generate} open={open}/></>}
+                        {tab === '学习画像' && <><LearningGrowth course={course} open={open}/><ProfilePanel course={course} busy={busy} evaluate={() => void run(() => learningApi.evaluate(collId, crypto.randomUUID()))} correct={async value => {await learningApi.correct(collId, value); await refresh();}}/><KnowledgeList knowledge={course.knowledge || []} dueOnly={false} open={open} practice={id => generate({knowledgeId: id})} busy={busy}/></>}
                         {tab === '学习记录' && <ExerciseList course={course} history open={open}/>}
                     </>}
                 </div>

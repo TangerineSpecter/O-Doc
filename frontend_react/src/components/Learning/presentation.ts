@@ -43,5 +43,5 @@ export const recommendationName: Record<string, string> = {
 };
 
 export const cardClass = 'bg-white rounded-2xl border border-slate-200 p-6 shadow-sm';
-export const buttonClass = 'rounded-xl bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-40';
+export const buttonClass = 'whitespace-nowrap shrink-0 rounded-xl bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-40';
 export const inputClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100';

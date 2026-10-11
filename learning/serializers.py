@@ -8,6 +8,7 @@ from .catalog import subject_definition
 class CourseSerializer(serializers.ModelSerializer):
     model_id = serializers.PrimaryKeyRelatedField(source='model', queryset=AIModel.objects.filter(type='chat'))
     level = serializers.ChoiceField(choices=['不确定', '基础', '能简单交流', '中等', '较熟练'], required=False, default='不确定')
+    learning_mode = serializers.ChoiceField(choices=['classic', 'scenario'], required=False)
     minutes = serializers.IntegerField(min_value=3, max_value=60)
     question_count = serializers.IntegerField(min_value=3, max_value=10)
     pending_limit = serializers.IntegerField(min_value=1, max_value=5)
@@ -17,7 +18,7 @@ class CourseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Course
-        fields = ['goal', 'subject', 'scenarios', 'level', 'minutes', 'question_count', 'pending_limit', 'teacher_name', 'model_id', 'style', 'schedule_time', 'timezone']
+        fields = ['goal', 'subject', 'scenarios', 'level', 'learning_mode', 'minutes', 'question_count', 'pending_limit', 'teacher_name', 'model_id', 'style', 'schedule_time', 'timezone']
 
     def validate(self, attrs):
         subject = attrs.get('subject', self.instance.subject if self.instance else 'english')

@@ -172,7 +172,7 @@ class SyncManager:
         if remote_meta and remote_meta.get('combat_schema_version',0)>1:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
             raise SyncError('小说快照版本高于本机，请升级所有设备。')
-        if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
+        if remote_meta and remote_meta.get('learning_schema_version', 0) > 4:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
             raise SyncError('农作物快照版本过新，请升级所有设备')
@@ -785,6 +785,9 @@ class SyncManager:
             model_label = f"{model._meta.app_label}.{model._meta.model_name}"
             model_map[model_label] = model
 
+        from learning.sync_lessons import normalize_legacy as normalize_learning
+        data_list = normalize_learning(data_list)
+
         if not full_overwrite:
             self._fill_missing_snapshot_fields_from_local(data_list, model_map)
 
@@ -1220,7 +1223,7 @@ class SyncManager:
         if remote_meta and remote_meta.get('combat_schema_version',0)>1:raise SyncError('战斗快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
             raise SyncError('小说快照版本高于本机，请升级所有设备。')
-        if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
+        if remote_meta and remote_meta.get('learning_schema_version', 0) > 4:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
             raise SyncError('农作物快照版本过新，请升级所有设备')

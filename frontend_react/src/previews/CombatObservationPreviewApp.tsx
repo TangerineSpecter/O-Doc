@@ -44,7 +44,7 @@ export default function CombatObservationPreviewApp() {
         <section className="flex h-[640px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <header className="mb-4 shrink-0 border-b border-slate-100 pb-3">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2"><h2 className="text-sm font-bold">探索观察</h2><CombatObservationSummary snapshot={snapshot}/></div>
-                <p className="mt-1.5 text-[10px] leading-4 text-slate-400">{snapshot.reason?`${snapshot.reason} `:''}动作与飘字仅作演示，数值与收益以已确认战报为准。</p>
+                <p className="mt-1 text-[11px] leading-4 text-slate-400">{[snapshot.reason, '动作与飘字仅作演示，数值与收益以已确认战报为准'].filter(Boolean).join(' · ')}</p>
             </header>
             <CombatObservationView snapshot={snapshot} events={observationPreviewEvents(enemy,role.skills.length>0)}/>
         </section>
