@@ -2,8 +2,8 @@ import type {AIModel} from '../types/api/setting';
 import { SystemLogs } from '../components/Settings/SystemLogs';
 import { useAuth } from '../contexts/AuthContext';
 import React, { useState } from 'react';
-import {useSearchParams} from 'react-router-dom';
-import { Save, Bot, CalendarClock, Code2, Cpu, Info, MapPin, RefreshCw, Settings, WandSparkles } from 'lucide-react';
+import {Navigate, useSearchParams} from 'react-router-dom';
+import { Save, CalendarClock, Code2, Cpu, Info, MapPin, RefreshCw, Settings, WandSparkles } from 'lucide-react';
 import ConfirmationModal from '../components/common/ConfirmationModal';
 import { useSettings } from '../hooks/useSettings';
 import {
@@ -22,7 +22,6 @@ import type { ArticleRagScheduleConfig, MemosPushConfig } from '../types/api/set
 
 // 子组件
 import { AISettings } from '../components/Settings/AISettings';
-import { AgentSettings } from '../components/Settings/AgentSettings';
 import { MCPSettings } from '../components/Settings/MCPSettings';
 import { SkillSettings } from '../components/Settings/SkillSettings';
 import { SyncSettings } from '../components/Settings/SyncSettings';
@@ -33,8 +32,8 @@ import { ModelModal } from '../components/Settings/ModelModal';
 import { LocationSettings } from '../components/Settings/LocationSettings';
 import { AboutSettings } from '../components/Settings/AboutSettings';
 
-type SettingsTab = 'ai' | 'agent' | 'mcp' | 'skill' | 'sync' | 'schedule' | 'location' | 'general' | 'about' | 'logs';
-const SETTINGS_TABS: SettingsTab[] = ['ai', 'agent', 'mcp', 'skill', 'sync', 'schedule', 'location', 'general', 'about', 'logs'];
+type SettingsTab = 'ai' | 'mcp' | 'skill' | 'sync' | 'schedule' | 'location' | 'general' | 'about' | 'logs';
+const SETTINGS_TABS: SettingsTab[] = ['ai', 'mcp', 'skill', 'sync', 'schedule', 'location', 'general', 'about', 'logs'];
 
 interface TabItem {
     id: SettingsTab;
@@ -45,7 +44,6 @@ interface TabItem {
 
 const TAB_ITEMS: TabItem[] = [
     { id: 'ai', label: 'AI 模型接入', icon: <Cpu className="w-4 h-4 shrink-0" /> },
-    { id: 'agent', label: 'Agent 管理', icon: <Bot className="w-4 h-4 shrink-0" /> },
     { id: 'mcp', label: 'MCP 设置', icon: <Code2 className="w-4 h-4 shrink-0" /> },
     { id: 'skill', label: '技能设置', icon: <WandSparkles className="w-4 h-4 shrink-0" /> },
     { id: 'sync', label: '同步与备份', icon: <RefreshCw className="w-4 h-4 shrink-0" /> },
@@ -81,9 +79,9 @@ export default function SettingsPage() {
 
     // 使用自定义 Hook
     const {
-        providers, agents, agentTasks, agentRunRecords, agentRunRecordFeed, mcpServers, skills, systemConfig, webDavConfig, webDavStatus, isSaving,
+        providers, mcpServers, skills, systemConfig, webDavConfig, webDavStatus, isSaving,
         setSystemConfig, setWebDavConfig,
-        getModelsByType, handleSaveProvider, handleSaveModel, handleSaveAgent, handleSaveAgentTask, handleRunAgentTaskNow, handleSaveMCPServer, handleSaveSkill, handleDelete, handleDeleteAgent, handleDeleteAgentTask, handleDeleteMCPServer, handleDeleteSkill, handleScanMCPServers, handleRefreshMCPTools,
+        getModelsByType, handleSaveProvider, handleSaveModel, handleSaveMCPServer, handleSaveSkill, handleDelete, handleDeleteMCPServer, handleDeleteSkill, handleScanMCPServers, handleRefreshMCPTools,
         fetchWebDavConfig, fetchWebDavStatus
     } = useSettings();
 
@@ -151,11 +149,6 @@ export default function SettingsPage() {
             if (activeTab === 'ai') {
                 await saveSystemAIConfig(systemConfig);
                 toast.success('默认模型配置已保存');
-                return;
-            }
-
-            if (activeTab === 'agent') {
-                toast.info('Agent 会在创建或编辑时自动保存');
                 return;
             }
 
@@ -256,6 +249,8 @@ export default function SettingsPage() {
         }
     };
 
+    if (initialTab === 'agent') return <Navigate to="/agent-world?settings=agents" replace />;
+
     return (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
 
@@ -264,9 +259,7 @@ export default function SettingsPage() {
                 isOpen={deleteConfirm.open}
                 onClose={() => setDeleteConfirm({ open: false })}
                 onConfirm={() => {
-                    if (deleteConfirm.target?.type === 'agent') {
-                        handleDeleteAgent(deleteConfirm.target.agentId);
-                    } else if (deleteConfirm.target?.type === 'mcp') {
+                    if (deleteConfirm.target?.type === 'mcp') {
                         handleDeleteMCPServer(deleteConfirm.target.serverId);
                     } else if (deleteConfirm.target?.type === 'skill') {
                         handleDeleteSkill(deleteConfirm.target.skillId);
@@ -385,22 +378,6 @@ export default function SettingsPage() {
                             getModelsByType={getModelsByType}
                             onOpenProviderModal={(data) => setProviderModal({ open: true, data })}
                             onOpenModelModal={(providerId, model) => setModelModal({ open: true, providerId, model })}
-                            onDelete={(target) => setDeleteConfirm({ open: true, target })}
-                        />
-                    )}
-                    {activeTab === 'agent' && (
-                        <AgentSettings
-                            agents={agents}
-                            tasks={agentTasks}
-                            runRecords={agentRunRecords}
-                            runRecordFeed={agentRunRecordFeed}
-                            mcpServers={mcpServers}
-                            skills={skills}
-                            getModelsByType={getModelsByType}
-                            onSave={handleSaveAgent}
-                            onSaveTask={handleSaveAgentTask}
-                            onRunTaskNow={handleRunAgentTaskNow}
-                            onDeleteTask={handleDeleteAgentTask}
                             onDelete={(target) => setDeleteConfirm({ open: true, target })}
                         />
                     )}

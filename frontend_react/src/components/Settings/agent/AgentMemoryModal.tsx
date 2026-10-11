@@ -1,3 +1,4 @@
+import {createPortal} from 'react-dom';
 import { useMemo } from 'react';
 import {AgentMemorySources, AgentMemorySummaryCard} from './AgentMemoryDetails';
 import type {AgentMemorySummary} from '@/types/api/setting';
@@ -83,9 +84,9 @@ export function AgentMemoryModal({
             && (memorySourceFilter === 'all' || (memory.metadata?.source || 'other') === memorySourceFilter));
     }, [memories, memoryStatusFilter, memorySourceFilter]);
 
-    return (
+    return createPortal(
         <div data-modal-scroll-lock
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-150"
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-150"
             role="dialog"
             aria-modal="true"
             aria-labelledby="agent-memory-modal-title"
@@ -395,7 +396,7 @@ export function AgentMemoryModal({
                     </div>
                 </div>
             </div>
-        </div>
+        </div>, document.body
     );
 }
 

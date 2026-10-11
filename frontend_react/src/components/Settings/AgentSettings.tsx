@@ -1,5 +1,4 @@
-import {AgentRunRecordList} from './agent/AgentRunRecordList';
-import type {AgentRunRecordFeed} from '@/hooks/useAgentRunRecords';
+import {createPortal} from 'react-dom';
 import {MarketTaskFields} from './agent/MarketTaskFields';
 import {ModelThinkingBadge} from './ModelThinkingBadge';
 import {TaskModelSelect} from './agent/TaskModelSelect';
@@ -11,14 +10,11 @@ import { ProfessionBadge } from "../AgentWorld/ProfessionBadge";
 import { StaminaBar } from "../AgentWorld/StaminaBar";
 import {useEffect, useMemo, useState} from 'react';
 import {
-    Activity,
     BellRing,
     Bot,
     BrainCircuit,
     CalendarClock,
-    ChevronDown,
     CheckCircle2,
-    Clock3,
     Code2,
     Database,
     Edit2,
@@ -30,12 +26,10 @@ import {
     Users,
     WandSparkles,
     X,
-    XCircle,
 } from 'lucide-react';
 import type {
     AgentConfig,
     AgentMemoryType,
-    AgentRunRecordConfig,
     AgentTaskExecutionMode,
     AgentTaskFollowupAction,
     AgentTaskConfig,
@@ -81,8 +75,6 @@ import type {AgentPublishConfig} from '@/types/api/agentPublish';
 interface AgentSettingsProps {
     agents: AgentConfig[];
     tasks: AgentTaskConfig[];
-    runRecords: AgentRunRecordConfig[];
-    runRecordFeed: AgentRunRecordFeed;
     mcpServers: MCPServerConfig[];
     skills: SkillConfig[];
     getModelsByType: (type: ModelType) => (AIModel & { providerName: string, uniqueId: string })[];
@@ -112,7 +104,7 @@ type AgentForm = {
     feishuEncryptKey: string;
 };
 
-type AgentView = 'list' | 'tasks' | 'records';
+type AgentView = 'list' | 'tasks';
 
 type AgentTaskForm = {
     marketConfig?: import('../../types/api/decision').MarketDecisionConfig;
@@ -186,8 +178,6 @@ const AgentAvatar = ({agent, size = 'md'}: { agent: Pick<AgentConfig, 'avatar' |
 export const AgentSettings = ({
                                   agents,
                                   tasks,
-                                  runRecords,
-                                  runRecordFeed,
                                   mcpServers,
                                   skills,
                                   getModelsByType,
@@ -202,9 +192,6 @@ export const AgentSettings = ({
     const [modalOpen, setModalOpen] = useState(false);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
     const [previewTask, setPreviewTask] = useState<AgentTaskConfig | null>(null);
-    const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
-    const [expandedAgentRuns, setExpandedAgentRuns] = useState<Record<string, boolean>>({});
-    const [, setElapsedTick] = useState(0);
     const [saving, setSaving] = useState(false);
     const [fullBodyUploading, setFullBodyUploading] = useState(false);
     const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
@@ -278,8 +265,6 @@ export const AgentSettings = ({
         archiveMemory,
         memorySummary, memorySourceFilter, setMemorySourceFilter,
     } = useAgentMemories();
-    const selectedRecord = selectedRecordId ? runRecords.find(record => record.id === selectedRecordId) || null : null;
-    useEscapeDismissal(Boolean(selectedRecord), () => setSelectedRecordId(null));
     useEscapeDismissal(taskModalOpen, () => setTaskModalOpen(false));
     useEscapeDismissal(Boolean(memoryModalAgent), closeMemoryModal);
     useEscapeDismissal(modalOpen, () => {
@@ -675,8 +660,6 @@ export const AgentSettings = ({
     const getMcpName = (serverId: string) => mcpServers.find(server => server.id === serverId)?.name || serverId;
     const enabledSkills = skills.filter(skill => skill.enabled);
     const getSkillName = (skillId: string) => skills.find(skill => skill.id === skillId)?.name || skillId;
-    const selectedRecordAgentRuns = selectedRecord?.agentRuns?.length ? selectedRecord.agentRuns : [];
-    const getAgentById = (agentId: string) => agents.find(agent => agent.id === agentId);
     const getTaskAgentIds = (task: AgentTaskConfig) => task.agents?.length ? task.agents : (task.agent ? [task.agent] : []);
     const getTaskAgentNames = (task: AgentTaskConfig) => {
         if (task.agentNames?.length) return task.agentNames;
@@ -703,13 +686,6 @@ export const AgentSettings = ({
             </span>
         );
     };
-    const getAgentRunAvatar = (agentRun: {agent: string; agentName: string; agentAvatar?: string}) => {
-        const currentAgent = getAgentById(agentRun.agent);
-        return {
-            name: agentRun.agentName || currentAgent?.name || 'Agent',
-            avatar: agentRun.agentAvatar || currentAgent?.avatar || '',
-        };
-    };
     const toggleTaskAgent = (agentId: string) => {
         setTaskForm(prev => {
             const selected = new Set(prev.agents);
@@ -721,78 +697,6 @@ export const AgentSettings = ({
             return {...prev, agents: Array.from(selected), randomAllocations: {}};
         });
     };
-    const toggleAgentRunExpanded = (agentId: string) => {
-        setExpandedAgentRuns(prev => ({...prev, [agentId]: !prev[agentId]}));
-    };
-
-    useEffect(() => {
-        if (!runRecords.some(record => record.status === 'running')) return;
-        const timer = window.setInterval(() => setElapsedTick(Date.now()), 1000);
-        return () => window.clearInterval(timer);
-    }, [runRecords]);
-
-    const parseRecordTime = (value?: string) => {
-        if (!value) return null;
-        const parsed = new Date(value.replace(' ', 'T'));
-        return Number.isNaN(parsed.getTime()) ? null : parsed;
-    };
-
-    const formatElapsedDuration = (seconds: number) => {
-        const safeSeconds = Math.max(0, Math.floor(seconds));
-        if (safeSeconds < 60) return `${safeSeconds}s`;
-        const minutes = Math.floor(safeSeconds / 60);
-        const rest = safeSeconds % 60;
-        if (minutes < 60) return `${minutes}m ${rest}s`;
-        const hours = Math.floor(minutes / 60);
-        return `${hours}h ${minutes % 60}m`;
-    };
-
-    const getRecordDuration = (record: AgentRunRecordConfig) => {
-        if (record.status !== 'running') return record.duration || '-';
-        const startedAt = parseRecordTime(record.startedAt);
-        if (!startedAt) return record.duration || '0s';
-        return formatElapsedDuration((Date.now() - startedAt.getTime()) / 1000);
-    };
-
-    const getRecordTriggerLabel = (trigger: string) => {
-        if (trigger === 'manual') return '手动执行';
-        if (trigger === 'scheduler') return '定时任务';
-        if (trigger === 'manual-preflight') return '手动预检';
-        if (trigger === 'manual-pull') return '手动拉取';
-        return trigger || '未知';
-    };
-
-    const getRecordStatusMeta = (status: AgentRunRecordConfig['status']) => {
-        if (status === 'success') {
-            return {
-                label: '成功',
-                icon: <CheckCircle2 className="h-3.5 w-3.5"/>,
-                className: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-            };
-        }
-
-        if (status === 'failed') {
-            return {
-                label: '失败',
-                icon: <XCircle className="h-3.5 w-3.5"/>,
-                className: 'bg-red-50 text-red-700 border-red-100',
-            };
-        }
-
-        return {
-            label: '执行中',
-            icon: <Clock3 className="h-3.5 w-3.5"/>,
-            className: 'bg-blue-50 text-blue-700 border-blue-100',
-        };
-    };
-
-    const getRecordStepMeta = (status?: string) => {
-        if (status === 'success') return 'border-emerald-100 bg-emerald-50 text-emerald-700';
-        if (status === 'failed') return 'border-red-100 bg-red-50 text-red-700';
-        if (status === 'running') return 'border-blue-100 bg-blue-50 text-blue-700';
-        return 'border-slate-200 bg-slate-50 text-slate-600';
-    };
-
     return (
         <div className="space-y-6">
             <div className="bg-white rounded-2xl border border-slate-200 px-5 py-3.5 shadow-sm">
@@ -985,10 +889,6 @@ export const AgentSettings = ({
                     })}
                     </div>
                 </div>
-            ) : activeView === 'records' ? (
-                <AgentRunRecordList feed={runRecordFeed} onSelect={setSelectedRecordId}
-                    renderAgentSummary={renderAgentSummary} getRecordTriggerLabel={getRecordTriggerLabel}
-                    getRecordDuration={getRecordDuration} getRecordStatusMeta={getRecordStatusMeta}/>
             ) : agents.length === 0 ? (
                 <div className="text-center py-14 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
                     <Bot className="w-8 h-8 mx-auto mb-3 text-slate-300"/>
@@ -1134,158 +1034,9 @@ export const AgentSettings = ({
                 </div>
             )}
 
-            {selectedRecord && (
-                <div data-modal-scroll-lock className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
-                    <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
-                        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
-                            <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <h3 className="truncate text-lg font-bold text-slate-900">执行「{selectedRecord.taskName}」任务</h3>
-                                    <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium ${getRecordStatusMeta(selectedRecord.status).className}`}>
-                                        {getRecordStatusMeta(selectedRecord.status).icon}
-                                        {getRecordStatusMeta(selectedRecord.status).label}
-                                    </span>
-                                </div>
-                                <p className="mt-1 text-xs text-slate-500">
-                                    {selectedRecord.startedAt} · {getRecordTriggerLabel(selectedRecord.trigger)} · 耗时 {getRecordDuration(selectedRecord)}
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => setSelectedRecordId(null)}
-                                className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-                            >
-                                <X className="h-5 w-5"/>
-                            </button>
-                        </div>
-
-                        <div className="max-h-[70vh] space-y-5 overflow-y-auto p-6">
-                            <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm sm:grid-cols-3">
-                                <div>
-                                    <div className="text-xs font-medium text-slate-400">Agent</div>
-                                    <div className="mt-1">
-                                        {selectedRecordAgentRuns.length > 0
-                                            ? renderAgentSummary(selectedRecordAgentRuns.map(agentRun => agentRun.agentName).filter(Boolean), 'font-semibold')
-                                            : renderAgentSummary([selectedRecord.agentName].filter(Boolean), 'font-semibold')}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="text-xs font-medium text-slate-400">触发方式</div>
-                                    <div className="mt-1 truncate font-semibold text-slate-700">{getRecordTriggerLabel(selectedRecord.trigger)}</div>
-                                </div>
-                                <div>
-                                    <div className="text-xs font-medium text-slate-400">执行摘要</div>
-                                    <div className="mt-1 truncate font-semibold text-slate-700">{selectedRecord.summary || '-'}</div>
-                                </div>
-                            </div>
-
-                            {selectedRecord.output && (
-                                <div>
-                                    <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-800">
-                                        <Sparkles className="h-4 w-4 text-orange-500"/>
-                                        生成结果
-                                    </div>
-                                    <div className="max-h-80 overflow-y-auto rounded-xl border border-orange-100 bg-orange-50/30 px-4 py-3 text-sm leading-6 text-slate-700">
-                                        <div className="whitespace-pre-wrap break-words">{selectedRecord.output}</div>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div>
-                                <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-800">
-                                    <Activity className="h-4 w-4 text-orange-500"/>
-                                    执行流程
-                                </div>
-                                {selectedRecordAgentRuns.length > 0 ? (
-                                    <div className="space-y-3">
-                                        {selectedRecordAgentRuns.map(agentRun => {
-                                            const expanded = expandedAgentRuns[agentRun.agent] ?? true;
-                                            const statusMeta = getRecordStatusMeta(agentRun.status);
-                                            const agentAvatar = getAgentRunAvatar(agentRun);
-                                            return (
-                                                <div key={agentRun.agent} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                                                    <button
-                                                        onClick={() => toggleAgentRunExpanded(agentRun.agent)}
-                                                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-orange-50/40"
-                                                    >
-                                                        <div className="min-w-0 flex items-center gap-3">
-                                                            <AgentAvatar agent={agentAvatar} size="sm"/>
-                                                            <div className="min-w-0">
-                                                                <div className="truncate text-sm font-bold text-slate-800">{agentAvatar.name}</div>
-                                                                <div className="mt-0.5 truncate text-xs text-slate-500">{agentRun.summary || '暂无摘要'}</div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex shrink-0 items-center gap-2">
-                                                            <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium ${statusMeta.className}`}>
-                                                                {statusMeta.icon}
-                                                                {statusMeta.label}
-                                                            </span>
-                                                            <span className="hidden font-mono text-[11px] text-slate-400 sm:inline">{agentRun.duration || '-'}</span>
-                                                            <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`}/>
-                                                        </div>
-                                                    </button>
-                                                    {expanded && (
-                                                        <div className="space-y-3 border-t border-slate-100 bg-slate-50/50 px-4 py-4">
-                                                            {agentRun.steps && agentRun.steps.length > 0 ? agentRun.steps.map((step, index) => (
-                                                                <div key={`${agentRun.agent}-${step.time}-${index}`} className="relative pl-7">
-                                                                    {index < (agentRun.steps?.length || 0) - 1 && (
-                                                                        <span className="absolute left-[0.45rem] top-6 h-full w-px bg-slate-200"/>
-                                                                    )}
-                                                                    <span className={`absolute left-0 top-1 h-3.5 w-3.5 rounded-full border-2 ${getRecordStepMeta(step.status)}`}/>
-                                                                    <div className="rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
-                                                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                                                            <div className="font-semibold text-slate-800">{step.title}</div>
-                                                                            <div className="font-mono text-[11px] text-slate-400">{step.time}</div>
-                                                                        </div>
-                                                                        {step.detail && (
-                                                                            <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-500">{step.detail}</p>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            )) : (
-                                                                <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-xs text-slate-400">
-                                                                    这个 Agent 暂无阶段明细。
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                ) : selectedRecord.steps && selectedRecord.steps.length > 0 ? (
-                                    <div className="space-y-3">
-                                        {selectedRecord.steps.map((step, index) => (
-                                            <div key={`${step.time}-${index}`} className="relative pl-7">
-                                                {index < (selectedRecord.steps?.length || 0) - 1 && (
-                                                    <span className="absolute left-[0.45rem] top-6 h-full w-px bg-slate-200"/>
-                                                )}
-                                                <span className={`absolute left-0 top-1 h-3.5 w-3.5 rounded-full border-2 ${getRecordStepMeta(step.status)}`}/>
-                                                <div className="rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
-                                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                                        <div className="font-semibold text-slate-800">{step.title}</div>
-                                                        <div className="font-mono text-[11px] text-slate-400">{step.time}</div>
-                                                    </div>
-                                                    {step.detail && (
-                                                        <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-500">{step.detail}</p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-xs text-slate-400">
-                                        这条记录没有阶段明细，新的执行记录会自动保存流程。
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {previewTask && <PostPublishPreviewModal key={previewTask.id} task={previewTask} agents={agents} onClose={() => setPreviewTask(null)}/>}
-            {taskModalOpen && (
-                <div data-modal-scroll-lock className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            {taskModalOpen && createPortal(
+                <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
                     <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-150">
                         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                             <div>
@@ -1349,7 +1100,7 @@ export const AgentSettings = ({
                                 </div>}
                                 {!isSystemTask && <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-700">执行模式</label>
-                                    <SettingsSelect
+                                    <SettingsSelect menuPortal={true}
                                         value={taskForm.executionMode}
                                         options={executionModeOptions}
                                         onChange={executionMode => setTaskForm({...taskForm, executionMode, randomAllocations: {}})}
@@ -1361,7 +1112,7 @@ export const AgentSettings = ({
                             {!isSystemTask && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-700">触发方式</label>
-                                    <SettingsSelect
+                                    <SettingsSelect menuPortal={true}
                                         value={taskForm.trigger}
                                         options={isSystemTask ? taskTriggerOptions.filter(option => ['定时任务', '手动执行'].includes(option.value)) : taskTriggerOptions}
                                         onChange={trigger => setTaskForm({...taskForm, trigger})}
@@ -1374,7 +1125,7 @@ export const AgentSettings = ({
                             {!isExplorationTask && <TaskModelSelect value={taskForm.model} options={modelOptions} onChange={model => setTaskForm({...taskForm, model})}/>}
                             {!isSystemTask && taskForm.trigger === '定时任务' && <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">调度方式</label>
-                                <SettingsSelect value={taskForm.scheduleMode} options={[{value: 'fixed', label: '固定时间 / 间隔'}, {value: 'random', label: '周期随机'}]} onChange={scheduleMode => setTaskForm({...taskForm, scheduleMode})}/>
+                                <SettingsSelect menuPortal={true} value={taskForm.scheduleMode} options={[{value: 'fixed', label: '固定时间 / 间隔'}, {value: 'random', label: '周期随机'}]} onChange={scheduleMode => setTaskForm({...taskForm, scheduleMode})}/>
                             </div>}
                             {!isSystemTask && taskForm.trigger === '定时任务' && taskForm.scheduleMode === 'random' && <RandomTaskScheduleFields
                                 period={taskForm.randomPeriod} count={taskForm.randomCount} mode={taskForm.executionMode}
@@ -1388,7 +1139,7 @@ export const AgentSettings = ({
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                     <div className="space-y-2">
                                         <label className="text-sm font-semibold text-slate-700">执行周期</label>
-                                        <SettingsSelect
+                                        <SettingsSelect menuPortal={true}
                                             value={taskForm.scheduleType}
                                             options={scheduleTypeOptions}
                                             onChange={scheduleType => setTaskForm({...taskForm, scheduleType})}
@@ -1412,7 +1163,7 @@ export const AgentSettings = ({
                                     {taskForm.scheduleType === 'weekly' && (
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-slate-700">执行星期</label>
-                                            <SettingsSelect
+                                            <SettingsSelect menuPortal={true}
                                                 value={taskForm.scheduleWeekday}
                                                 options={weekdayOptions}
                                                 onChange={scheduleWeekday => setTaskForm({...taskForm, scheduleWeekday})}
@@ -1425,7 +1176,7 @@ export const AgentSettings = ({
                                     {taskForm.scheduleType === 'monthly' && (
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-slate-700">执行日期</label>
-                                            <SettingsSelect
+                                            <SettingsSelect menuPortal={true}
                                                 value={taskForm.scheduleMonthDay}
                                                 options={monthDayOptions}
                                                 onChange={scheduleMonthDay => setTaskForm({...taskForm, scheduleMonthDay})}
@@ -1480,7 +1231,7 @@ export const AgentSettings = ({
                                     <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[12rem_1fr]">
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-slate-700">通知平台</label>
-                                            <SettingsSelect
+                                            <SettingsSelect menuPortal={true}
                                                 value={taskForm.notifyPlatform}
                                                 options={notifyPlatformOptions}
                                                 onChange={notifyPlatform => setTaskForm({...taskForm, notifyPlatform})}
@@ -1527,7 +1278,7 @@ export const AgentSettings = ({
                                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                             <div className="space-y-2">
                                                 <label className="text-sm font-semibold text-slate-700">后续 Agent</label>
-                                                <SettingsSelect
+                                                <SettingsSelect menuPortal={true}
                                                     value={taskForm.followupAgent}
                                                     options={taskAgentOptions.filter(option => !taskForm.agents.includes(option.value))}
                                                     onChange={followupAgent => setTaskForm({...taskForm, followupAgent})}
@@ -1538,7 +1289,7 @@ export const AgentSettings = ({
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-sm font-semibold text-slate-700">后续动作</label>
-                                                <SettingsSelect
+                                                <SettingsSelect menuPortal={true}
                                                     value={taskForm.followupAction}
                                                     options={followupActionOptions}
                                                     onChange={followupAction => setTaskForm({...taskForm, followupAction})}
@@ -1611,7 +1362,8 @@ export const AgentSettings = ({
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body,
             )}
 
             {manualLifeTask && <LifeManualRunDialog taskId={manualLifeTask} agents={agents} onClose={() => setManualLifeTask(null)}/>}
@@ -1639,8 +1391,8 @@ export const AgentSettings = ({
                 />
             )}
 
-            {modalOpen && (
-                <div data-modal-scroll-lock className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            {modalOpen && createPortal(
+                <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
                     <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-150">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                             <div>
@@ -1693,7 +1445,7 @@ export const AgentSettings = ({
 
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-700">大模型</label>
-                                <SettingsSelect
+                                <SettingsSelect menuPortal={true}
                                     value={form.model}
                                     options={modelOptions}
                                     onChange={value => setForm({...form, model: value})}
@@ -1884,7 +1636,8 @@ export const AgentSettings = ({
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body,
             )}
         </div>
     );

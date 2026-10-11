@@ -219,7 +219,7 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                 {/* 右侧：操作按钮群 */}
                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                     <Link
-                        to="/settings?tab=agent"
+                        to="/agent-world?settings=agents"
                         className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-600 shadow-2xs hover:bg-slate-50"
                     >
                         <span>任务设置</span>
@@ -280,7 +280,7 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                         在 Agent 任务中配置并启用“农场经营”，绑定居民后获得四块初始耕地。
                     </p>
                     <Link
-                        to="/settings?tab=agent"
+                        to="/agent-world?settings=agents"
                         className="mt-4 inline-block rounded-lg bg-orange-500 px-3.5 py-1.5 text-xs text-white shadow-xs"
                     >
                         配置农场任务

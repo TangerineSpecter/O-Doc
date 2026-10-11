@@ -97,7 +97,7 @@ function HomeRoute() {
         } else if (viewName === 'maintenance') {
             navigate('/maintenance');
         } else if (viewName === 'agentWorld') {
-            navigate('/agent-world');
+            navigate((params as {settings?: string}).settings === 'agents' ? '/agent-world?settings=agents' : '/agent-world');
         }
     };
 
@@ -221,7 +221,7 @@ function AppWithRouter() {
         } else if (viewName === 'maintenance') {
             navigate('/maintenance');
         } else if (viewName === 'agentWorld') {
-            navigate('/agent-world');
+            navigate((params as {settings?: string}).settings === 'agents' ? '/agent-world?settings=agents' : '/agent-world');
         }
     };
 

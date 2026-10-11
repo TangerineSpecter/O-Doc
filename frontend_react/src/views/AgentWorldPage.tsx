@@ -16,6 +16,7 @@ import type {WorldCatalogSection} from '../components/AgentWorld/WorldCatalogDia
 import type {DailyFeedEvent} from '../types/api/dailyFeed';
 import type {AgentActivity as AgentActivityData, AgentActivityType} from '../types/api/setting';
 
+const AgentManagementDialog = lazy(() => import('../components/AgentWorld/AgentManagementDialog'));
 const ResidentAnalyticsDialog = lazy(() => import('../components/AgentWorld/Analytics/ResidentAnalyticsDialog'));
 const TokenUsageDialog = lazy(() => import('../components/TokenUsage/TokenUsageDialog'));
 const preloadLifeSchedule = () => import('../components/AgentLife/LifeScheduleDialog');
@@ -68,6 +69,19 @@ export default function AgentWorldPage() {
     const closeCatalog = useCallback(() => setCatalogOpen(false), []);
     const [worldManagementOpen, setWorldManagementOpen] = useState(false);
     const [query, setQuery] = useSearchParams();
+    const agentManagementOpen = query.get('settings') === 'agents';
+    const openAgentManagement = () => {
+        const next = new URLSearchParams(query);
+        next.set('settings', 'agents');
+        setQuery(next);
+    };
+    const closeAgentManagement = () => {
+        const next = new URLSearchParams(query);
+        next.delete('settings');
+        setQuery(next, {replace: true});
+        void world.reload(true);
+        setFeedRefreshToken(value => value + 1);
+    };
     const travelQuery = query.get('travel');
     useEffect(() => {
         setTravelArchiveId(travelQuery || '');
@@ -127,6 +141,8 @@ export default function AgentWorldPage() {
     const residents = (world.summary?.agents || []).map(agent => ({...agent, todayCount: dailySummary?.actorCounts[agent.id] ?? agent.todayCount}));
 
     const analyticsButton = <button type="button" onClick={() => setAnalyticsActor(world.agentId)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-xs font-semibold text-orange-700 shadow-sm transition-colors hover:border-orange-300 hover:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"><BarChart3 className="h-4 w-4"/>居民数据分析</button>;
+
+    const managementButton = <button type="button" onClick={openAgentManagement} className="mt-3 inline-flex w-full shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"><Settings className="h-4 w-4 shrink-0"/>Agent 管理</button>;
 
     const statsData = [
         {
@@ -241,6 +257,7 @@ export default function AgentWorldPage() {
                     onOpenAttributes={() => setPanel('attributes')}
                 />
                 {analyticsButton}
+                {managementButton}
             </div>
 
             <div className="mt-3.5 grid gap-5 lg:mt-5 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -258,6 +275,7 @@ export default function AgentWorldPage() {
                         onOpenAttributes={() => setPanel('attributes')}
                     />
                     {analyticsButton}
+                {managementButton}
                 </div>
             </div>
             {analyticsActor !== null && <WorldDialogSuspense title="居民数据分析" onClose={closeAnalytics} size="wide" fallback={<WorldOrbitLoader title="正在打开居民数据分析"/>}><ResidentAnalyticsDialog initialActorId={analyticsActor} initialResidents={residents.map(row => ({id: row.id, name: row.name, avatar: row.avatar || '', departed: false}))} onClose={closeAnalytics}/></WorldDialogSuspense>}
@@ -306,6 +324,7 @@ export default function AgentWorldPage() {
             {combatOpen && !combatExploration && <WorldDialogSuspense title="冒险与战斗" onClose={closeCombat} size="wide" fallback={<WorldOrbitLoader title="正在打开冒险档案"/>}><CombatDialog residents={world.summary?.agents || []} initialAgentId={combatActor || world.agentId} onObserve={(id,actorId) => {setCombatActor(actorId);setCombatExploration(id);}} onClose={closeCombat}/></WorldDialogSuspense>}
             {combatExploration && <WorldDialogSuspense key={combatExploration} title="探索观察" onClose={() => setCombatExploration('')} size="extra-wide" fallback={<WorldOrbitLoader title="正在读取探索记录"/>}><CombatObservation id={combatExploration} onClose={() => setCombatExploration('')}/></WorldDialogSuspense>}
             {catalogOpen && <WorldDialogSuspense title="世界图鉴" onClose={closeCatalog} size="wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在翻开世界图鉴" subtitle="查阅物品、食谱与冒险资料"/>}><WorldCatalogDialog residents={world.summary?.agents || []} initialAgentId={world.agentId} initialSection={catalogSection} onClose={closeCatalog}/></WorldDialogSuspense>}
+            {agentManagementOpen && <WorldDialogSuspense title="Agent 管理" onClose={closeAgentManagement} size="wide" fallback={<WorldOrbitLoader title="正在打开 Agent 管理"/>}><AgentManagementDialog onClose={closeAgentManagement}/></WorldDialogSuspense>}
             {worldManagementOpen && <WorldManagementDialog onClose={() => setWorldManagementOpen(false)} />}
             <AgentRunDrawer
                 key={selectedActivity?.runRecordId || selectedActivity?.id || 'closed'}

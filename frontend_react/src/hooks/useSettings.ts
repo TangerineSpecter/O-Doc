@@ -1,4 +1,3 @@
-import {useAgentRunRecords} from './useAgentRunRecords';
 import type {AIModel, ModelInput} from '../types/api/setting';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useToast} from '../components/common/ToastProvider';
@@ -43,13 +42,12 @@ export const useSettings = () => {
     const toast = useToast();
     const [isSaving, setIsSaving] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
 
     // --- State ---
     const [providers, setProviders] = useState<AIProvider[]>([]);
     const [agents, setAgents] = useState<AgentConfig[]>([]);
     const [agentTasks, setAgentTasks] = useState<AgentTaskConfig[]>([]);
-    const agentRunRecordFeed = useAgentRunRecords();
-    const {records: agentRunRecords, refresh: fetchAgentRunRecords} = agentRunRecordFeed;
     const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
     const [skills, setSkills] = useState<SkillConfig[]>([]);
     const [systemConfig, setSystemConfig] = useState<SystemAIConfig>({
@@ -114,6 +112,7 @@ export const useSettings = () => {
     // --- 初始化加载 ---
     const loadSettings = async () => {
         setIsLoading(true);
+        setLoadError('');
         try {
             // ✅ 同时解构出第二个返回值 (systemConfigRes)
             const [providersRes, systemConfigRes, agentsRes, agentTasksRes, mcpServersRes, skillsRes] = await Promise.all([
@@ -136,6 +135,7 @@ export const useSettings = () => {
 
         } catch (error) {
             console.error("加载设置失败", error);
+            setLoadError("加载设置失败，请重试");
             toast.error("加载设置失败");
         } finally {
             setIsLoading(false);
@@ -413,8 +413,6 @@ export const useSettings = () => {
         try {
             await runAgentTaskNow(id);
             toast.success('任务已开始执行');
-            await fetchAgentRunRecords();
-            window.setTimeout(fetchAgentRunRecords, 1200);
             return true;
         } catch (error: any) {
             const msg = error?.response?.data?.msg || error?.response?.data?.detail || error?.message || '未知错误';
@@ -562,8 +560,6 @@ export const useSettings = () => {
         providers,
         agents,
         agentTasks,
-        agentRunRecords,
-        agentRunRecordFeed,
         mcpServers,
         skills,
         systemConfig,
@@ -571,6 +567,7 @@ export const useSettings = () => {
         webDavStatus,
         isSaving,
         isLoading,
+        loadError,
         allModels,
 
         // 修改这里：setSystemConfig 现在直接调用带保存逻辑的函数

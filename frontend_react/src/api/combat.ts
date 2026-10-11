@@ -1,9 +1,10 @@
 import request from '../utils/request';
+import {createRequestKey} from '../utils/requestKey';
 import type {CombatCatalog, CombatProfile, CombatSnapshot, CombatHistory, CombatConfig} from '../types/api/combat';
 const base = '/settings/agent-world/combat/';
 const actor = (id: string) => `${base}agents/${encodeURIComponent(id)}/`;
 const exploration = (id: string) => `${base}explorations/${encodeURIComponent(id)}/`;
-export const combatKey = () => crypto.randomUUID().replace(/-/g, '');
+export const combatKey = createRequestKey;
 export const getCombatCatalog = (signal?: AbortSignal) => request.get<never, CombatCatalog>(`${base}catalog/`, {signal});
 export const getCombatProfile = (id: string, signal?: AbortSignal) => request.get<never, CombatProfile>(actor(id), {signal});
 export const getCombatHistory = (id: string, page: number, signal?: AbortSignal) => request.get<never, CombatHistory>(`${actor(id)}history/`, {params: {page}, signal});

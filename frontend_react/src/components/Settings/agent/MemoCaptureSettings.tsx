@@ -1,4 +1,5 @@
 import {useState} from 'react';
+import {createPortal} from 'react-dom';
 import {X} from 'lucide-react';
 import {Checkbox} from '@/components/common/Checkbox';
 import {BuiltinPostTaskCard} from './BuiltinPostTaskCard';
@@ -56,8 +57,8 @@ export function MemoCaptureSettings({task, agents, models, progress, running, on
                 {progress?.configPending && <p className="mt-1 text-[11px] text-orange-600">新配置下周生效</p>}
             </>}
         />
-        {open && (
-            <div data-modal-scroll-lock role="dialog" aria-modal="true" aria-label="随手记设置" className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/35 p-4" onClick={() => setOpen(false)}>
+        {open && createPortal(
+            <div data-modal-scroll-lock role="dialog" aria-modal="true" aria-label="随手记设置" className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/35 p-4" onClick={() => setOpen(false)}>
                 <section onClick={event => event.stopPropagation()} className="flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
                     <header className="flex items-center justify-between border-b border-slate-100 p-5">
                         <h3 className="font-bold text-slate-800">随手记设置</h3>
@@ -98,7 +99,8 @@ export function MemoCaptureSettings({task, agents, models, progress, running, on
                         <button type="button" disabled={busy} onClick={() => void save()} className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-600 disabled:opacity-40">{busy ? '保存中…' : '保存配置'}</button>
                     </footer>
                 </section>
-            </div>
+            </div>,
+            document.body,
         )}
     </>;
 }

@@ -141,7 +141,7 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                 onStartAgentChat={handleStartAgentChat}
                 onManageAgents={() => {
                     setIsAgentPanelOpen(false);
-                    onNavigate?.('settings', {tab: 'agent'});
+                    onNavigate?.('agentWorld', {settings: 'agents'});
                 }}
             />
 
