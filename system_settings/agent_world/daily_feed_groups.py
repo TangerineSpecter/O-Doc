@@ -1,5 +1,5 @@
 """按稳定执行身份聚合展示；原始操作和账本保持独立。"""
-from collections import defaultdict
+from collections import Counter, defaultdict
 from decimal import Decimal
 from .life_time import local_time
 
@@ -18,13 +18,14 @@ def grouped_execution_events(events, start, end):
         if identity.startswith('activity:') and len(rows) == 1:
             projected.append(latest)
             continue
-        category = ('farm' if identity.startswith('farm:') else 'trade' if identity.startswith('market-sale:')
+        category = ('farm' if identity.startswith('farm:') else 'cooking' if identity.startswith('cooking:')
+                    else 'trade' if identity.startswith('market-sale:')
                     else latest['category'] if identity.startswith('activity:') else 'market')
-        operations = [row for row in rows if row['source'] in ('farm', 'market', 'market-seller', 'activity')]
+        operations = [row for row in rows if row['source'] in ('farm', 'cooking', 'market', 'market-seller', 'activity')]
         closing = [row for row in rows if row['source'] == 'market-session']
         running = any(row.get('_execution_running') or row.get('status') == 'running' for row in rows)
         reason = (next((row.get('reason') for row in rows if row.get('reason')), '')
-                  if category == 'farm' else (closing[-1]['detail'] if closing else ''))
+                  if category in ('farm', 'cooking') else (closing[-1]['detail'] if closing else ''))
         values = [Decimal(row['amount']) for row in operations if row['amount'] is not None]
         steps = [{k: row[k] for k in ('id', 'title', 'detail', 'occurredAt', 'amount')} for row in rows]
         for step in steps:
@@ -34,9 +35,24 @@ def grouped_execution_events(events, start, end):
                     step['detail'] = ''
                 elif detail.endswith(f' · {reason}'):
                     step['detail'] = detail[:-len(f' · {reason}')]
+        if category == 'cooking':
+            product_counts = Counter()
+            for row in operations:
+                dish = row.get('_dish')
+                stars = row.get('_stars', 1)
+                if dish:
+                    product_counts[(dish, stars)] += 1
+            if product_counts:
+                products_text = '、'.join(f'{d} ★{s} ×{cnt}' for (d, s), cnt in product_counts.items())
+                cooking_detail = f'已制作 {len(operations)} 份美食 · {products_text}'
+            else:
+                cooking_detail = f'已制作 {len(operations)} 份美食' if operations else '未进行美食制作'
+            detail_text = cooking_detail + (f' · {reason}' if reason else '')
+        else:
+            detail_text = (f'已执行 {len(operations)} 项操作' if operations else '正在浏览市场' if running else '本次未进行交易') + (f' · {reason}' if reason else '')
         result = {**latest, 'id': f'execution:{identity}:{actor}', 'source': 'execution',
-                  'category': category, 'title': {'farm': '农场经营', 'trade': '商品售出', 'publication': '作品发布', 'interaction': '阅读互动'}.get(category, '市场活动'),
-                  'detail': (f'已执行 {len(operations)} 项操作' if operations else '正在浏览市场' if running else '本次未进行交易') + (f' · {reason}' if reason else ''),
+                  'category': category, 'title': {'farm': '农场经营', 'cooking': '美食制作', 'trade': '商品售出', 'publication': '作品发布', 'interaction': '阅读互动'}.get(category, '市场活动'),
+                  'detail': detail_text,
                   'amount': str(sum(values, Decimal(0))) if values else None,
                   'reason': reason or latest.get('reason') or '',
                   'status': 'running' if running else 'failed' if any(row.get('_execution_failed') or row.get('status') == 'failed' for row in rows) else 'success',
@@ -56,4 +72,7 @@ def grouped_execution_events(events, start, end):
     for row in projected:
         row.pop('_execution_running', None)
         row.pop('_execution_failed', None)
+        row.pop('_dish', None)
+        row.pop('_stars', None)
+        row.pop('_exp', None)
     return [row for row in projected if lower <= row['occurredAt'] < upper]

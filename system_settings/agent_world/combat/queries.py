@@ -68,10 +68,18 @@ def snapshot(run,cursor=0,limit=100):
     from .recovery import deadline
     end=deadline(run)
     remaining=max(0,int((end-local_time()).total_seconds())) if end and not run.ended_at else 0
+    # Read-only artwork IDs come from the frozen departure/encounter state.
+    # No visual clock or demo damage enters persisted combat data or WebDAV.
+    equipment=run.snapshot.get('equipment',[])
+    visual={'dungeon_id':run.snapshot.get('plan',{}).get('dungeon_id',''),
+        'job_id':run.snapshot.get('progression',{}).get('job','job.novice'),
+        'weapon_id':next((item.get('template_id','') for item in equipment if item.get('slot')=='weapon'),'none'),
+        'monster_id':run.state.get('monster_id','') if run.state.get('enemy') else '',
+        'encounter_id':f'{run.pk}:{run.state.get("encounter",0)}'}
     return {'id':run.pk,'actor_id':run.actor_id,'version':run.revision,'can_control':bool(local_runtime(run)),'catalog_version':run.catalog_id,'stage':run.phase,'status':run.status,'reason':run.reason,
         'remaining_seconds':remaining if end else None,
         'elapsed_seconds':run.elapsed_seconds,'duration_seconds':run.duration_seconds,'next_tick_at':local_time(run.next_tick_at).isoformat() if run.next_tick_at else None,
-        'player':run.state.get('player'),'enemy':run.state.get('enemy'),'potions':run.state.get('potions',{}),'result':run.result,
+        'player':run.state.get('player'),'enemy':run.state.get('enemy'),'visual':visual,'potions':run.state.get('potions',{}),'result':run.result,
         'events':events,'latest_cursor':confirmed,'next_cursor':events[-1]['sequence'] if events else min(cursor,confirmed),'has_more':bool(events and events[-1]['sequence']<confirmed)}
 
 

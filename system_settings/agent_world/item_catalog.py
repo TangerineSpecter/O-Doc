@@ -58,6 +58,9 @@ def item_catalog(owner: str) -> list[dict]:
     for row in serialized:
         source = row['source'] or {}
         sku = source.get('sku', '')
+        # 冒险材料由冒险图鉴展示；同时识别类型和稳定 SKU，避免落入「其他」。
+        if row['kind'] == 'combat_material' or sku.startswith('combat.material.'):
+            continue
         if sku in entries:
             entries[sku]['quantity'] += row['quantity']
             if sku.startswith(('crop.', 'dish.')):

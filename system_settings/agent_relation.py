@@ -265,8 +265,31 @@ def relation_graph(owner_id=None, include_departed=False):
     if owner_id:
         farms = farms.filter(owner_id=owner_id)
     planting_experience = {f.pk: f.state.get('planting_experience', 0) for f in farms}
+    combat_info_map = {}
+    try:
+        from .agent_world.combat.models import CombatProfile, CombatCatalog
+        from .agent_world.combat.catalog import bundled
+        from .agent_world.combat.store import current
+        cat = current() if CombatCatalog.objects.exists() else bundled()[0]
+        c_profiles = CombatProfile.objects.all()
+        if owner_id is not None:
+            c_profiles = c_profiles.filter(owner_id=owner_id)
+        for cp in c_profiles:
+            job_id = cp.progression.get('job', 'job.novice')
+            lvl = int(cp.progression.get('level', 1))
+            j_name = '新手'
+            try:
+                row = cat.row('professions', job_id)
+                if row and row.get('name'):
+                    j_name = row['name']
+            except Exception:
+                pass
+            combat_info_map[cp.pk] = {'name': j_name, 'level': lvl}
+    except Exception:
+        pass
     for agent in agents:
         snapshot = creativity.get(agent.id)
+        c_info = combat_info_map.get(agent.id)
         nodes.append({
             'id': agent.id,
             'name': agent.name,
@@ -277,6 +300,8 @@ def relation_graph(owner_id=None, include_departed=False):
             'cooking': skill_progress(cooking_experience.get(agent.id, 0)),
             'planting': planting_progress(planting_experience.get(agent.id, 0)),
             'profession_name': agent.profession.name if agent.profession else '',
+            'combat_profession_name': c_info['name'] if c_info else '新手',
+            'combat_level': c_info['level'] if c_info else 1,
             'creativity': snapshot.score if snapshot else 0,
             'post_count': snapshot.post_count if snapshot else 0,
             'rated_post_count': snapshot.rated_post_count if snapshot else 0,

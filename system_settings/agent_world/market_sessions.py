@@ -12,6 +12,7 @@ from .farm_models import AgentFarm
 from .market_models import MarketSession, MarketRuntime
 from .market_shop import market_iso
 from .execution import stamina
+from .market_recovery import PROCESS_INTERRUPTED, recover_interrupted_sessions
 
 COST, MAX_CALLS, DURATION = 5, 20, timedelta(minutes=5)
 
@@ -139,8 +140,9 @@ def cleanup(*, restart=False, now=None):
             try: os.kill(runtime.process_id, 0)
             except ProcessLookupError: dead = True
             except PermissionError: pass
-        reason = '进程中断，市场会话已关闭' if dead else invalid_reason(session, now)
+        reason = PROCESS_INTERRUPTED if dead else invalid_reason(session, now)
         if reason: close_session(session, reason, now)
+    recover_interrupted_sessions()
 
 
 @guarded

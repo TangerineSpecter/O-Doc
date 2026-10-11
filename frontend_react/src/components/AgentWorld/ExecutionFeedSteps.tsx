@@ -1,4 +1,4 @@
-import {Grid2X2, Hammer, ListOrdered, ShoppingBag, Sprout} from 'lucide-react';
+import {Grid2X2, Hammer, ListOrdered, ShoppingBag, Sparkles, Sprout} from 'lucide-react';
 import type {DailyFeedEvent} from '../../types/api/dailyFeed';
 
 interface ExecutionFeedStepsProps {
@@ -44,6 +44,17 @@ function getActionBadge(title: string) {
         return {
             className: 'bg-emerald-50 text-emerald-800 border-emerald-200/80',
             icon: ShoppingBag,
+        };
+    }
+    if (
+        title.includes('烹饪') ||
+        title.includes('制作') ||
+        title.includes('料理') ||
+        title.includes('做饭')
+    ) {
+        return {
+            className: 'bg-orange-50 text-orange-800 border-orange-200/80',
+            icon: Sparkles,
         };
     }
     return {

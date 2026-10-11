@@ -41,9 +41,9 @@ export default function HomePage({ onNavigate }: HomePageProps) {
 
     // Filter by type (Header dropdown)
     const [isTypeFilterOpen, setIsTypeFilterOpen] = useState(false);
-    const [selectedType, setSelectedType] = useState<'all' | 'article' | 'image' | 'agent' | 'book' | 'learning'>('all');
+    const [selectedType, setSelectedType] = useState<'all' | 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel'>('all');
 
-    const handleTypeSelect = (type: 'all' | 'article' | 'image' | 'agent' | 'book' | 'learning') => {
+    const handleTypeSelect = (type: 'all' | 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel') => {
         setSelectedType(type);
         fetchCollections(type === 'all' ? undefined : type);
         setIsTypeFilterOpen(false);
@@ -95,7 +95,8 @@ export default function HomePage({ onNavigate }: HomePageProps) {
         if (editingCollection) {
             await updateCollection(editingCollection.collId!, data);
         } else {
-            await addCollection(data);
+            const created = await addCollection(data);
+            if (data.type === 'novel') onNavigate('novel', {collId: created.collId});
         }
     };
 
@@ -168,7 +169,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                             setIsFilterOpen(false);
                                         }}
                                     >
-                                        {selectedType === 'all' ? '所有文集' : selectedType === 'article' ? '文章文集' : selectedType === 'image' ? '图片文集' : selectedType === 'book' ? '图书文集' : selectedType === 'learning' ? '学习文集' : 'Agent'} ({filteredDisplayCollections.length})
+                                        {selectedType === 'all' ? '所有文集' : selectedType === 'article' ? '文章文集' : selectedType === 'image' ? '图片文集' : selectedType === 'book' ? '图书文集' : selectedType === 'novel' ? '小说文集' : selectedType === 'learning' ? '学习文集' : 'Agent'} ({filteredDisplayCollections.length})
                                         <ChevronDown className={`w-4 h-4 transition-transform ${isTypeFilterOpen ? 'rotate-180' : ''}`} />
                                     </button>
 
@@ -190,6 +191,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                                                 {selectedType === 'image' && <Check className="w-4 h-4 text-orange-500" />}
                                             </button>
                                             <button onClick={() => handleTypeSelect('learning')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">学习文集{selectedType === 'learning' && <Check className="w-4 h-4 text-orange-500" />}</button>
+                                            <button onClick={() => handleTypeSelect('novel')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">小说文集{selectedType === 'novel' && <Check className="w-4 h-4 text-orange-500" />}</button>
                                             <button onClick={() => handleTypeSelect('book')} className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">图书文集{selectedType === 'book' && <Check className="w-4 h-4 text-orange-500" />}</button>
                                             <button onClick={() => handleTypeSelect('agent')}
                                                 className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 flex justify-between items-center text-slate-700">

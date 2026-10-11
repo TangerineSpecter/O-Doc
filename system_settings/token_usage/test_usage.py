@@ -203,6 +203,37 @@ class UsageTests(TestCase):
         self.assertEqual(ranked['execution_count'], 1)
         self.assertEqual(ranked['average_tokens'], 53)
 
+    def test_execution_list_uses_latest_request_time_and_rankings_keep_token_order(self):
+        from system_settings.agent_world.life_time import storage_time
+        zone = ZoneInfo('Asia/Shanghai')
+        for record, hour, amount, task in [('old-high', 16, 100000, 'high-task'),
+                                          ('new-low', 18, 25000, 'low-task'),
+                                          ('new-unknown', 18, None, 'unknown-task')]:
+            AgentTokenUsage.objects.create(id=record, record_key=record, task_key=task, task_name=task,
+                agent_key=self.agent.pk, agent_name='甲', device_id='fake', total_tokens=amount,
+                started_at=storage_time(datetime(2026, 10, 11, hour, tzinfo=zone)))
+        params = {'all': '1', 'agent_id': self.agent.pk}
+        executions = self.api('breakdown', {**params, 'group': 'record'}).data['data']['items']
+        self.assertEqual([row['key'] for row in executions], ['new-low', 'new-unknown', 'old-high'])
+        ranking = self.api('breakdown', {**params, 'group': 'task'}).data['data']['items']
+        self.assertEqual([row['key'] for row in ranking], ['high-task', 'low-task', 'unknown-task'])
+
+    def test_execution_time_sort_remains_stable_across_pages(self):
+        from django.utils import timezone
+        moment = timezone.now()
+        for index in range(31):
+            key = f'run-{index:02}'
+            AgentTokenUsage.objects.create(id=key, record_key=key, agent_key=self.agent.pk,
+                task_key=self.task.pk, task_name='日报', device_id='fake', started_at=moment,
+                total_tokens=31 - index)
+        params = {'all': '1', 'group': 'record', 'agent_id': self.agent.pk}
+        first = self.api('breakdown', params).data['data']
+        second = self.api('breakdown', {**params, 'page': 2}).data['data']
+        self.assertTrue(first['has_more'])
+        self.assertFalse(second['has_more'])
+        self.assertEqual([row['key'] for row in [*first['items'], *second['items']]],
+                         [f'run-{index:02}' for index in range(31)])
+
     def test_serializer_batch_and_chain(self):
         self.capture(value=usage())
         child = AgentRunRecord.objects.create(task=self.task, task_name='日报', parent_record=self.record, followup_depth=1)

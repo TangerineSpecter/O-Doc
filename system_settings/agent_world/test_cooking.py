@@ -383,6 +383,34 @@ class CookingTests(TestCase):
         self.assertTrue(CookingSkill.objects.filter(pk=actor_id).exists())
         self.assertEqual(self.client.get(f'/api/settings/agent-world/cooking/agents/{actor_id}/history/').status_code, 200)
 
+    def test_daily_feed_aggregates_cooking_portions_into_single_card(self):
+        from .life_time import local_time
+        self.supply('crop.potato', quantity=6)
+        self.prepare(key='bake-3', recipe='baked_potato', count=3)
+        for i in range(3):
+            commit_portion(self.agent.pk, 'bake-3', i, 'baked_potato', DEFAULT_RULES['baked_potato'], '做给朋友吃', self.task, 'a', 'w')
+        today = local_time().date().isoformat()
+        res_cooking = self.client.get('/api/settings/agent-world/daily-feed/', {'date': today, 'category': 'cooking'})
+        self.assertEqual(res_cooking.status_code, 200)
+        items = res_cooking.data['data']['items']
+        self.assertEqual(len(items), 1)
+        item = items[0]
+        self.assertEqual(item['category'], 'cooking')
+        self.assertEqual(item['title'], '美食制作')
+        self.assertIn('已制作 3 份美食', item['detail'])
+        self.assertIn('烤土豆 ★1 ×3', item['detail'])
+        self.assertEqual(item['reason'], '做给朋友吃')
+        self.assertEqual(len(item['steps']), 3)
+        self.assertEqual(item['steps'][0]['title'], '制作')
+        self.assertIn('烤土豆 ★1 ×1', item['steps'][0]['detail'])
+        self.assertEqual(item['target']['kind'], 'cooking')
+
+        res_all = self.client.get('/api/settings/agent-world/daily-feed/', {'date': today, 'category': 'all'})
+        self.assertEqual(res_all.status_code, 200)
+        all_items = [x for x in res_all.data['data']['items'] if x['category'] == 'cooking']
+        self.assertEqual(len(all_items), 1)
+        self.assertEqual(all_items[0]['id'], item['id'])
+
 
 class ConcurrentCookingTests(TransactionTestCase):
     setUp = CookingTests.setUp

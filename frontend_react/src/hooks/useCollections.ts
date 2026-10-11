@@ -24,7 +24,7 @@ export const useCollections = () => {
     const [sortType, setSortType] = useState('default');
 
     // 1. 获取数据
-    const fetchCollections = useCallback(async (type?: 'article' | 'image' | 'agent' | 'book' | 'learning') => {
+    const fetchCollections = useCallback(async (type?: 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel') => {
         setLoading(true);
         try {
             const data: Anthology[] = await getAnthologyList(type);
@@ -118,7 +118,7 @@ export const useCollections = () => {
                 return [...pinned, newItem, ...unpinned];
             });
             toast.success("文集创建成功！");
-            return true;
+            return response;
         } catch (error) {
             const err = error as Error;
             toast.error(err.message || '创建文集失败');

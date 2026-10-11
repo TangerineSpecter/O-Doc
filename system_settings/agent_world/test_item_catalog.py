@@ -24,8 +24,8 @@ class ItemCatalogTests(TestCase):
 
     def test_empty_world_has_complete_catalog_without_creating_farm(self):
         rows = self.entries()
-        self.assertEqual(len(rows), 2 * len(DEFAULT_RULES['crops']) + 7 + 20)
-        self.assertEqual({row['category'] for row in rows}, {'seed', 'feed', 'crop', 'animal_product', 'dish'})
+        self.assertEqual(len(rows), 2 * len(DEFAULT_RULES['crops']) + 7 + len(DEFAULT_RULES['fertilizers']) + 20)
+        self.assertEqual({row['category'] for row in rows}, {'seed', 'feed', 'fertilizer', 'crop', 'animal_product', 'dish'})
         self.assertFalse(FarmCatalog.objects.exists())
         self.assertFalse(AgentFarm.objects.exists())
         self.assertFalse(AgentInventoryItem.objects.exists())
@@ -36,7 +36,7 @@ class ItemCatalogTests(TestCase):
         self.add_item('private-seed', owner='private', quantity=99, source={'sku': 'seed.radish'})
         self.add_item('private-souvenir', owner='private')
         rows = self.entries()
-        self.assertEqual(len(rows), 2 * len(DEFAULT_RULES['crops']) + 7 + 20)
+        self.assertEqual(len(rows), 2 * len(DEFAULT_RULES['crops']) + 7 + len(DEFAULT_RULES['fertilizers']) + 20)
         self.assertEqual(next(row for row in rows if row['sku'] == 'seed.radish')['quantity'], 9)
 
     def test_souvenirs_merge_same_identity_but_keep_different_destinations(self):
@@ -52,6 +52,35 @@ class ItemCatalogTests(TestCase):
         FarmCatalog.objects.create(pk='admin', seed='test', rules=rules)
         rows = self.entries()
         self.assertEqual(next(row for row in rows if row['sku'] == 'product.cow.gold')['sale_price'], 369)
+
+    def test_adventure_materials_are_excluded_without_changing_inventory(self):
+        baseline_ids = {row['id'] for row in self.entries()}
+        for item_id, kind, source in [
+            ('slime', 'combat_material', {'sku': 'combat.material.moss_cave.1'}),
+            ('wing', 'combat_material', {'sku': 'combat.material.moss_cave.2'}),
+            ('material-without-sku', 'combat_material', {}),
+            ('material-by-sku', 'other', {'sku': 'combat.material.moss_cave.3'}),
+        ]:
+            self.add_item(item_id, kind=kind, source=source, quantity=3)
+        self.add_item('ordinary-other', kind='other', source={'sku': 'misc.postcard'})
+        souvenir = self.add_item('same-name-souvenir', source={'destination': {'city': '上海'}})
+        souvenir.name = '黏液'
+        souvenir.save(update_fields=['name'])
+        before = list(AgentInventoryItem.objects.order_by('id').values())
+
+        rows = self.entries()
+
+        self.assertEqual({row['id'] for row in rows}, baseline_ids | {
+            'inventory:ordinary-other', 'inventory:same-name-souvenir',
+        })
+        self.assertEqual(next(row for row in rows if row['category'] == 'other')['quantity'], 1)
+        self.assertEqual(next(row for row in rows if row['name'] == '黏液')['category'], 'souvenir')
+        self.assertEqual(list(AgentInventoryItem.objects.order_by('id').values()), before)
+
+        adventure = self.client.get('/api/settings/agent-world/combat/catalog/')
+        self.assertEqual(adventure.status_code, 200)
+        material_ids = {row['id'] for row in adventure.data['data']['tables']['materials']}
+        self.assertTrue({'material.moss_cave.1', 'material.moss_cave.2'} <= material_ids)
 
     def test_anonymous_cannot_read(self):
         self.client.force_authenticate(None)

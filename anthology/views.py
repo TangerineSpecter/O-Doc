@@ -19,7 +19,8 @@ def get_visible_anthology_queryset(request):
     游客只能访问公开文集；登录用户可访问公开文集和自己创建的私密文集。
     当前系统的 admin 业务用户通过 get_current_user_identifier 兼容为 user_id='admin'。
     """
-    queryset = Anthology.objects.filter(is_valid=True)
+    from novel.access import visible_anthologies
+    queryset = visible_anthologies(Anthology.objects.filter(is_valid=True), request)
     if request.user and request.user.is_authenticated:
         current_user_id = get_current_user_identifier(request)
         return queryset.filter(
@@ -31,7 +32,7 @@ def get_visible_anthology_queryset(request):
 
 def get_owned_anthology_queryset(request):
     queryset = Anthology.objects.filter(user_id=get_current_user_identifier(request), is_valid=True)
-    return queryset if request.user.is_authenticated else queryset.exclude(type='learning')
+    return queryset if request.user.is_authenticated else queryset.exclude(type__in=['learning', 'novel'])
 
 
 class AnthologyCreateView(APIView):
@@ -47,7 +48,7 @@ class AnthologyCreateView(APIView):
         anthology = serializer.save()
 
         # 使用统一的成功响应格式，使用预定义的成功错误码
-        json_data = AnthologySerializer(anthology).data
+        json_data = AnthologySerializer(anthology, context={'request': request}).data
         return success_result(json_data)
 
 
@@ -59,7 +60,11 @@ class AnthologyDetailView(APIView):
         anthology = get_object_or_404(get_visible_anthology_queryset(request), coll_id=coll_id)
 
         # 使用序列化器将文集对象转换为JSON格式
-        json_data = AnthologySerializer(anthology).data
+        json_data = AnthologySerializer(anthology, context={'request': request}).data
+        if anthology.type == 'novel':
+            from novel.models import Chapter
+            if not request.user.is_authenticated or anthology.user_id != get_current_user_identifier(request):
+                json_data['count'] = Chapter.objects.filter(project_id=coll_id, is_valid=True).exclude(published_id='').count()
 
         # HiddenField 不返回所属用户；前端管理入口使用服务端计算的权限。
         json_data['can_manage'] = bool(
@@ -85,7 +90,7 @@ class AnthologyListView(APIView):
                 anthologies = anthologies.filter(type=coll_type)
 
             # 查询用户可见的有效文集，按置顶、排序升序排序
-            anthologies = anthologies.order_by('-is_top', 'sort')
+            anthologies = anthologies.select_related('novel').order_by('-is_top', 'sort')
 
             # 准备返回数据
             result_list = []
@@ -93,7 +98,19 @@ class AnthologyListView(APIView):
             for anthology in anthologies:
                 item_summaries = []
                 item_count = anthology.count
-                if anthology.type == 'image':
+                if anthology.type == 'novel':
+                    from novel.models import Chapter, Revision
+                    from novel.presentation import anthology_description
+                    own = request.user.is_authenticated and anthology.user_id == get_current_user_identifier(request)
+                    chapters = Chapter.objects.filter(project_id=anthology.pk, is_valid=True)
+                    if not own:
+                        chapters = chapters.exclude(published_id='')
+                    item_count = chapters.count()
+                    if not anthology.hide_cover_content:
+                        for chapter in chapters[:3]:
+                            revision = Revision.objects.filter(pk=chapter.published_id).first() if not own else None
+                            item_summaries.append({'chapter_id': chapter.pk, 'title': (revision.title if revision else chapter.title), 'date': chapter.created_at.strftime('%m-%d')})
+                elif anthology.type == 'image':
                     image_qs = Image.objects.filter(coll_id=anthology.coll_id, is_valid=True)
                     item_count = image_qs.count()
                     if not anthology.hide_cover_content:
@@ -163,15 +180,21 @@ class AnthologyListView(APIView):
                     'icon_id': anthology.icon_id,
                     'isTop': anthology.is_top,
                     'hideCoverContent': anthology.hide_cover_content,
-                    'description': anthology.description,
+                    'description': anthology_description(anthology, owner=own) if anthology.type == 'novel' else anthology.description,
                     'articles': item_summaries,
                     'permission': anthology.permission,
+                    'can_manage': bool(request.user.is_authenticated and anthology.user_id == get_current_user_identifier(request)),
                     'type': anthology.type
                 }
 
                 if anthology.type == 'learning':
                     anthology_data['pending_count'] = Exercise.objects.filter(course_id=anthology.pk, status__in=ACTIVE).count()
                     anthology_data['rag_not_synced_count'] = 0
+                if anthology.type == 'novel':
+                    anthology_data['rag_not_synced_count'] = 0
+                    if own:
+                        anthology_data['adopted_count'] = chapters.exclude(adopted_id='').count()
+                        anthology_data['published_count'] = chapters.exclude(published_id='').count()
                 result_list.append(anthology_data)
 
             return success_result(data=result_list)
@@ -250,7 +273,7 @@ class AnthologyUpdateView(APIView):
             updated_anthology = serializer.save()
 
             # 返回更新后的数据
-            return success_result(data=AnthologySerializer(updated_anthology).data)
+            return success_result(data=AnthologySerializer(updated_anthology, context={'request': request}).data)
 
         except ValidationError as e:
             return valid_result(msg=str(e.detail), status=400)

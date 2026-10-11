@@ -15,7 +15,7 @@ class Anthology(models.Model):
     )
 
     title = models.CharField(
-        max_length=20,
+        max_length=100,
         verbose_name='文集名称',
         db_comment='文集名称'
     )
@@ -49,6 +49,7 @@ class Anthology(models.Model):
             ('agent', 'Agent 文集'),
             ('book', '图书文集'),
             ('learning', '学习文集'),
+            ('novel', '小说文集'),
         ],
         default='article',
         verbose_name='文集类型',

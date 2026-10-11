@@ -3,16 +3,20 @@ import {Search, X, Skull, Shield, CheckCircle2, Eye, EyeOff, Info, Swords, Gem} 
 import type {CombatCatalog, CombatProfile} from '../../../types/api/combat';
 import {AtlasGridCard} from './AtlasGridCard';
 import {MonsterPortrait} from './MonsterPortrait';
+import {RankBadge, RankTag} from './RankBadge';
 import {getMonsterHabitat} from './monsterHabitats';
 import {getMonsterVisual} from './atlasIcons';
+import {getMonsterPixelArt} from '../art/monsterPixelArt';
 import {statLabels} from '../presentation';
 
 export interface MonsterAtlasViewProps {
     catalog: CombatCatalog;
     discoveries?: CombatProfile['discoveries'];
+    includeDraftArt?: boolean;
+    initialMonsterId?: string;
 }
 
-export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) {
+export function MonsterAtlasView({catalog, discoveries, includeDraftArt = false, initialMonsterId}: MonsterAtlasViewProps) {
     const tables = catalog.tables;
     const monsters = tables.monsters || [];
     const drops = tables.drops || [];
@@ -26,7 +30,7 @@ export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) 
 
     const [rankFilter, setRankFilter] = useState<'all' | 'normal' | 'elite' | 'boss'>('all');
     const [search, setSearch] = useState('');
-    const [selectedId, setSelectedId] = useState<string>(monsters[0]?.id || '');
+    const [selectedId, setSelectedId] = useState<string>(initialMonsterId || monsters[0]?.id || '');
 
     // 统计各 rank 数量
     const rankCounts = useMemo(() => {
@@ -52,6 +56,7 @@ export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) 
     }, [monsters, rankFilter, search]);
 
     const selected = visibleMonsters.find(m => m.id === selectedId) || visibleMonsters[0] || null;
+    const selectedPixelArt = selected && getMonsterPixelArt(selected.id, includeDraftArt);
 
     // 选中的怪物数据
     const selectedDetails = useMemo(() => {
@@ -211,7 +216,7 @@ export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) 
                                         title={`${monster.name} · Lv.${monster.levelMin}–${monster.levelMax} · ${isDefeated ? '已击败' : isEncountered ? '已遭遇' : '尚未遭遇'}`}
                                         selected={isSelected}
                                         onClick={() => setSelectedId(monster.id)}
-                                        icon={<MonsterPortrait monsterId={monster.id} name={monster.name} rank={monster.rank} decorative className="h-full w-full" fallbackClassName="h-8 w-8" />}
+                                        icon={<MonsterPortrait monsterId={monster.id} name={monster.name} rank={monster.rank} includeDraftArt={includeDraftArt} decorative className="h-full w-full" fallbackClassName="h-8 w-8" />}
                                         bgGradient={mVisual.bgGradient}
                                         topLeftBadge={
                                             <span className="rounded-full bg-slate-900/60 px-1 py-0.2 text-[8px] font-semibold text-white backdrop-blur-xs">
@@ -223,14 +228,8 @@ export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) 
                                                 <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-600 text-white shadow-2xs" title="已击败">
                                                     ✓
                                                 </span>
-                                            ) : isBoss ? (
-                                                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-500 text-white shadow-2xs" title="Boss">
-                                                    👑
-                                                </span>
-                                            ) : isElite ? (
-                                                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-purple-600 text-white shadow-2xs" title="精英">
-                                                    ⭐
-                                                </span>
+                                            ) : isBoss || isElite ? (
+                                                <RankBadge rank={monster.rank} />
                                             ) : undefined
                                         }
                                     />
@@ -252,15 +251,7 @@ export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) 
                                 {/* 状态栏与品质 */}
                                 <div className={`flex items-center justify-between gap-1 ${selectedDetails.habitat ? 'absolute inset-x-3 top-3 z-10' : 'mb-2 w-full'}`}>
                                     <div className="flex items-center gap-1">
-                                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                            selected.rank === 'boss'
-                                                ? 'bg-amber-100 text-amber-800 border border-amber-300/80'
-                                                : selected.rank === 'elite'
-                                                ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                                                : 'bg-slate-100 text-slate-600 border border-slate-200'
-                                        }`}>
-                                            {selected.rank === 'boss' ? '首领 Boss' : selected.rank === 'elite' ? '精英魔物' : '普通魔物'}
-                                        </span>
+                                        <RankTag rank={selected.rank} />
                                         <span className="rounded-full bg-white/90 border border-slate-200/60 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs">
                                             Lv.{selected.levelMin}–{selected.levelMax}
                                         </span>
@@ -294,8 +285,8 @@ export function MonsterAtlasView({catalog, discoveries}: MonsterAtlasViewProps) 
                                 </div>
 
                                 {/* 出没地场景与怪物形象 */}
-                                <div className={selectedDetails.habitat ? 'w-full' : 'my-2 flex h-24 w-24 items-center justify-center rounded-2xl border border-white/80 bg-white/90 shadow-sm'}>
-                                    <MonsterPortrait key={selected.id} monsterId={selected.id} name={selected.name} rank={selected.rank} animated habitat={selectedDetails.habitat} className={selectedDetails.habitat ? 'aspect-[32/21] w-full' : 'h-full w-full'} fallbackClassName={selectedDetails.habitat ? 'h-16 w-16' : undefined} />
+                                <div className={selectedDetails.habitat ? 'w-full' : selectedPixelArt ? 'my-2 flex h-56 w-full items-center justify-center' : 'my-2 flex h-24 w-24 items-center justify-center rounded-2xl border border-white/80 bg-white/90 shadow-sm'}>
+                                    <MonsterPortrait key={selected.id} monsterId={selected.id} name={selected.name} rank={selected.rank} includeDraftArt={includeDraftArt} animated habitat={selectedDetails.habitat} className={selectedDetails.habitat ? 'aspect-[32/21] w-full' : 'h-full w-full'} fallbackClassName={selectedDetails.habitat ? 'h-16 w-16' : undefined} />
                                 </div>
 
                                 <div className={selectedDetails.habitat ? 'w-full px-3 pb-4 pt-1' : ''}>

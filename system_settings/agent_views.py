@@ -381,7 +381,29 @@ class AgentRunRecordViewSet(viewsets.ModelViewSet):
     serializer_class = AgentRunRecordSerializer
 
     def list(self, request, *args, **kwargs):
-        return success_result(self.get_serializer(self.filter_queryset(self.get_queryset()), many=True).data)
+        queryset = self.filter_queryset(self.get_queryset()).order_by('-started_at', '-id')
+        try:
+            limit = min(max(int(request.query_params.get('limit', 20)), 1), 50)
+        except (ValueError, TypeError):
+            return valid_result('limit 必须为整数', status=400)
+        cursor = request.query_params.get('cursor', '')
+        if cursor:
+            cursor_time, separator, cursor_id = cursor.rpartition('|')
+            try:
+                before = parse_datetime(cursor_time)
+            except ValueError:
+                before = None
+            if not separator or not before or not cursor_id:
+                return valid_result('无效的执行记录游标', status=400)
+            queryset = queryset.filter(Q(started_at__lt=before) | Q(started_at=before, id__lt=cursor_id))
+        items = list(queryset[:limit + 1])
+        has_more = len(items) > limit
+        items = items[:limit]
+        return success_result({
+            'items': self.get_serializer(items, many=True).data,
+            'next_cursor': f'{items[-1].started_at.isoformat()}|{items[-1].id}' if has_more else None,
+            'has_more': has_more,
+        })
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

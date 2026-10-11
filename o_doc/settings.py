@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     'knowledge_maintenance.apps.KnowledgeMaintenanceConfig',
     'book_analysis.apps.BookAnalysisConfig',
     'learning.apps.LearningConfig',
+    'novel.apps.NovelConfig',
 ]
 
 # DRF全局配置

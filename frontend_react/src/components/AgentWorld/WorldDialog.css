@@ -3,6 +3,28 @@
     box-shadow: none !important;
 }
 
+/* Desktop panels grow as a whole; width caps must not leave a tall, narrow body. */
+@media (min-width: 1024px) {
+    .world-dialog-sized {
+        --world-dialog-ratio: 1.5;
+    }
+
+    [role="dialog"].world-dialog-sized {
+        width: min(100%, calc(88vh * var(--world-dialog-ratio)));
+        height: auto;
+        max-height: 88vh;
+        aspect-ratio: var(--world-dialog-ratio);
+    }
+
+    .world-dialog-sized-extra-wide {
+        --world-dialog-ratio: 1.9;
+    }
+
+    .world-dialog-sized-full {
+        --world-dialog-ratio: 2;
+    }
+}
+
 /* 遮罩入场与退场动画 */
 .world-dialog-overlay-enter {
     animation: world-dialog-backdrop-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;

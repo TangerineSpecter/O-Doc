@@ -1,3 +1,5 @@
+import {AgentRunRecordList} from './agent/AgentRunRecordList';
+import type {AgentRunRecordFeed} from '@/hooks/useAgentRunRecords';
 import {MarketTaskFields} from './agent/MarketTaskFields';
 import {ModelThinkingBadge} from './ModelThinkingBadge';
 import {TaskModelSelect} from './agent/TaskModelSelect';
@@ -80,6 +82,7 @@ interface AgentSettingsProps {
     agents: AgentConfig[];
     tasks: AgentTaskConfig[];
     runRecords: AgentRunRecordConfig[];
+    runRecordFeed: AgentRunRecordFeed;
     mcpServers: MCPServerConfig[];
     skills: SkillConfig[];
     getModelsByType: (type: ModelType) => (AIModel & { providerName: string, uniqueId: string })[];
@@ -184,6 +187,7 @@ export const AgentSettings = ({
                                   agents,
                                   tasks,
                                   runRecords,
+                                  runRecordFeed,
                                   mcpServers,
                                   skills,
                                   getModelsByType,
@@ -982,49 +986,9 @@ export const AgentSettings = ({
                     </div>
                 </div>
             ) : activeView === 'records' ? (
-                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                    <div className="grid grid-cols-[1.05fr_0.75fr_0.7fr_0.75fr_0.55fr_0.45fr] gap-4 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-500">
-                        <span>任务 / 摘要</span>
-                        <span>Agent</span>
-                        <span>触发方式</span>
-                        <span>状态</span>
-                        <span className="text-right">耗时</span>
-                        <span></span>
-                    </div>
-                    <div className="divide-y divide-slate-100">
-                        {runRecords.map(record => {
-                            const statusMeta = getRecordStatusMeta(record.status);
-                            const recordAgentNames = record.agentRuns?.length
-                                ? record.agentRuns.map(agentRun => agentRun.agentName).filter(Boolean)
-                                : [record.agentName].filter(Boolean);
-                            return (
-                                <div key={record.id} className="grid grid-cols-1 gap-3 px-4 py-4 text-sm transition-colors hover:bg-orange-50/30 md:grid-cols-[1.05fr_0.75fr_0.7fr_0.75fr_0.55fr_0.45fr] md:items-center md:gap-4">
-                                    <div className="min-w-0">
-                                        <div className="flex items-center gap-2 text-xs text-slate-400">
-                                            <Activity className="h-3.5 w-3.5"/>
-                                            {record.startedAt}
-                                        </div>
-                                        <p className="mt-1 truncate font-semibold text-slate-800">执行「{record.taskName}」任务</p>
-                                        <p className="mt-0.5 truncate text-xs text-slate-500">{record.summary}</p>
-                                    </div>
-                                    {renderAgentSummary(recordAgentNames)}
-                                    <span className="truncate text-slate-500">{getRecordTriggerLabel(record.trigger)}</span>
-                                    <span className={`inline-flex w-fit items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium ${statusMeta.className}`}>
-                                        {statusMeta.icon}
-                                        {statusMeta.label}
-                                    </span>
-                                    <span className="text-left font-mono text-xs text-slate-500 md:text-right">{getRecordDuration(record)}</span>
-                                    <button
-                                        onClick={() => setSelectedRecordId(record.id)}
-                                        className="text-left text-xs font-medium text-orange-600 hover:text-orange-700 md:text-right"
-                                    >
-                                        详情
-                                    </button>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
+                <AgentRunRecordList feed={runRecordFeed} onSelect={setSelectedRecordId}
+                    renderAgentSummary={renderAgentSummary} getRecordTriggerLabel={getRecordTriggerLabel}
+                    getRecordDuration={getRecordDuration} getRecordStatusMeta={getRecordStatusMeta}/>
             ) : agents.length === 0 ? (
                 <div className="text-center py-14 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400">
                     <Bot className="w-8 h-8 mx-auto mb-3 text-slate-300"/>

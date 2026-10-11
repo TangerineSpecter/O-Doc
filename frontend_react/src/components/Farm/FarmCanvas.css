@@ -1,0 +1,28 @@
+.farm-canvas-space {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+}
+
+.farm-canvas-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+}
+
+@media (min-width: 1024px) {
+    .farm-canvas-space {
+        height: 100%;
+        min-height: 0;
+        container-type: size;
+    }
+
+    /* Fit the 768×512 map to both bounds without stretching either axis. */
+    .farm-canvas-frame {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: min(100cqw, 150cqh);
+        transform: translate(-50%, -50%);
+    }
+}

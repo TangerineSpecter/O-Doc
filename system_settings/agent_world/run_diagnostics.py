@@ -10,8 +10,8 @@ def failure_detail(stage, error):
     return f'{stage}失败（{type(error).__name__}）：{sanitize(str(error), 1000)}'
 
 
-def append_step(record, title, detail='', status='info'):
-    step = {'time': local_time().strftime('%Y-%m-%d %H:%M:%S'),
+def append_step(record, title, detail='', status='info', *, now=None):
+    step = {'time': local_time(now).strftime('%Y-%m-%d %H:%M:%S'),
             'status': status, 'title': title, 'detail': sanitize(str(detail), 2000)}
     record.steps = [*(record.steps or []), step]
     record.agent_runs = [{**run, 'steps': [*(run.get('steps') or []), step]}
@@ -28,15 +28,15 @@ def progress(record, title, detail='', status='info', *, allow_terminal=False):
         record.steps, record.agent_runs = current.steps, current.agent_runs
 
 
-def finish_record(record, status, summary, output, title='本次机会结束'):
+def finish_record(record, status, summary, output, title='本次机会结束', *, finished_at=None):
     """恢复或重试只补一次终态步骤，保留已记录的阶段与工具失败。"""
     with transaction.atomic():
         current = AgentRunRecord.objects.select_for_update().get(pk=record.pk)
         last = (current.steps or [{}])[-1]
         if current.status == 'running' or last.get('title') != title or last.get('status') != status:
-            append_step(current, title, summary, status)
+            append_step(current, title, summary, status, now=finished_at)
         current.status, current.summary, current.output = status, str(summary)[:255], output
-        elapsed = max(0, int((timezone.now() - current.started_at).total_seconds()))
+        elapsed = max(0, int(((finished_at or timezone.now()) - current.started_at).total_seconds()))
         if not current.duration:
             current.duration = f'{elapsed // 60}分{elapsed % 60}秒' if elapsed >= 60 else f'{elapsed}秒'
         current.agent_runs = [{**run, 'status': status, 'summary': current.summary,

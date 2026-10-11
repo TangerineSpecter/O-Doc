@@ -1,7 +1,7 @@
 {
   "name": "o-doc",
   "private": true,
-  "version": "1.1.9",
+  "version": "1.2.0",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -21,7 +21,9 @@
     "test:article-templates": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/articleTemplates.test.ts",
     "test:prompts": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/promptRenderer.test.ts",
     "test:prevent-zoom": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/preventZoom.test.ts",
-    "test:system-logs": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/diagnostics.test.ts src/utils/dateRangeUtils.test.ts"
+    "test:system-logs": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/diagnostics.test.ts src/utils/dateRangeUtils.test.ts",
+    "test:novel": "node --experimental-strip-types --import ./scripts/register-ts-loader.mjs --test src/utils/novelEditor.test.ts src/utils/novelPreparation.test.ts",
+    "test:agent-run-records": "node --test scripts/agent-run-records.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

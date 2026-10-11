@@ -89,7 +89,8 @@ def breakdown(rows: QuerySet, group: str, page: int) -> dict:
     annotations['last_at'] = Max('started_at')
     if name:
         annotations['name'] = Max(name)
-    groups = rows.values(key).annotate(**annotations).order_by('-total_tokens', key)
+    order = '-last_at' if group == 'record' else '-total_tokens'
+    groups = rows.values(key).annotate(**annotations).order_by(order, key)
     count = groups.count()
     items = []
     for item in groups[(page - 1) * 30:page * 30]:

@@ -7,7 +7,9 @@ from system_settings.decision.jev import choose
 from .market_decision_candidates import candidates, quantities
 from .market_model_context import model_context
 from .market_model_execution import MarketFinished
+from .market_decision_options import action_options, for_action
 from .run_diagnostics import progress
+from .market_shopping import SEED_GUIDANCE
 
 
 def decide(runtime, ai_service) -> str:
@@ -31,11 +33,14 @@ def decide(runtime, ai_service) -> str:
         return selection
 
     state = {'resident': {'name': runtime.agent.name, 'persona': runtime.agent.prompt,
-                         'preferences': runtime.task.prompt, 'memory': runtime.memory},
-             'market': model_context(runtime.owner, runtime.agent)}
-    entering = question(state, {'enter': '进入市场扣5体力，按实际需要买卖或调整经营计划', 'wait': '本次不逛市场'})
+                         'preferences': runtime.task.prompt, 'memory': runtime.memory,
+                         'shopping_guidance': SEED_GUIDANCE},
+             'market': model_context(runtime.owner, runtime.agent),
+             'available_actions': action_options(candidates(runtime.owner, runtime.agent))}
+    entering = question(state, {'enter': '进入市场扣5体力，按需购买、回收出售、上架或管理挂牌；不必购买', 'wait': '本次不逛市场'})
     if entering == 'wait':
         return '本次未进入市场，未成交'
+    state.pop('available_actions')
     result = runtime.execute('enter_market', {'request_id': 'jev-entry'})
     if 'error' in result:
         raise MarketFinished(result['error'])
@@ -50,14 +55,9 @@ def decide(runtime, ai_service) -> str:
         state['completed_operations'] = runtime.effects
         state['last_failure'] = failed
         exits = {'wait': '等待下次机会并结束本次市场', 'leave': '现在离开市场',
-                 'other': '需要自由定价、上架、改价、撤单、预算调整、种植队列调整或其他方案，请文本模型处理一步'}
+                 'other': '需要预算调整、种植队列调整或候选外操作，请文本模型处理一步'}
         if action is None:
-            actions = {**exits}
-            for kind, label in [('buy', '购买所需商品'), ('sell', '回收出售已有物品')]:
-                count = sum(row['tool'].startswith(kind + '_') for row in available)
-                if count:
-                    actions[kind] = {'label': label, 'feasible_items': count}
-            action = question(state, actions)
+            action = question(state, {**action_options(available), **exits})
         if action in ('wait', 'leave'):
             runtime.execute('leave_market', {'reason': runtime.summary()})
         if action == 'other':
@@ -66,12 +66,12 @@ def decide(runtime, ai_service) -> str:
                 raise MarketFinished(runtime.summary() + '；未提出新的可执行操作')
             action, page, failed = None, 0, None
             continue
-        available = [row for row in available if row['tool'].startswith(action + '_')]
+        available = for_action(available, action)
         page = min(page, max(0, (len(available) - 1) // 20))
         visible = available[page * 20:(page + 1) * 20]
         criteria = {row['id']: {k: v for k, v in row.items() if k not in ('tool', 'arguments')} for row in visible}
         criteria.update(exits)
-        criteria['change_action'] = '返回选择买卖动作'
+        criteria['change_action'] = '返回选择购买、回收出售、上架或管理挂牌'
         if page:
             criteria['previous_page'] = '查看上一页可行交易'
         if (page + 1) * 20 < len(available):
@@ -94,19 +94,29 @@ def decide(runtime, ai_service) -> str:
             action, page, failed = None, 0, None
             continue
         candidate = next(row for row in visible if row['id'] == selection)
-        quantity = question({'resident': state['resident'], 'market': state['market'], 'candidate': candidate}, quantities(candidate))
-        if quantity in ('wait', 'leave'):
-            runtime.execute('leave_market', {'reason': runtime.summary()})
-        if quantity == 'other':
-            runtime.text(ai_service, phase='市场复杂操作', helper=True, objective='为这个交易选择其他数量或方案：' + json.dumps(candidate, cls=DjangoJSONEncoder, ensure_ascii=False))
-            if not runtime.helper_completed:
-                raise MarketFinished(runtime.summary() + '；未提出新的可执行操作')
-            action, page, failed = None, 0, None
-            continue
+        quantity = None
+        if action != 'manage':
+            quantity = question({'resident': state['resident'], 'market': state['market'], 'candidate': candidate}, quantities(candidate))
+            if quantity in ('wait', 'leave'):
+                runtime.execute('leave_market', {'reason': runtime.summary()})
+            if quantity == 'other':
+                runtime.text(ai_service, phase='市场复杂操作', helper=True, objective='为这个交易选择其他数量或方案：' + json.dumps(candidate, cls=DjangoJSONEncoder, ensure_ascii=False))
+                if not runtime.helper_completed:
+                    raise MarketFinished(runtime.summary() + '；未提出新的可执行操作')
+                action, page, failed = None, 0, None
+                continue
         arguments = {**candidate['arguments'], 'request_id': 'jev:' + uuid.uuid4().hex}
-        if candidate['tool'] != 'sell_combat_equipment':
+        if quantity and candidate['tool'] != 'sell_combat_equipment':
             arguments['quantity'] = int(quantity)
-        result = runtime.execute(candidate['tool'], arguments)
+        if candidate['tool'] in ('create_market_listing', 'reprice_market_listing'):
+            runtime.text(ai_service, phase='市场复杂操作', helper=True,
+                         objective='为选定挂牌操作决定价格，只提交一次；上架不等于成交。',
+                         selected={'tool': candidate['tool'], 'arguments': arguments, 'detail': candidate['detail']})
+            if not runtime.helper_completed and not runtime.helper_failure:
+                raise MarketFinished(runtime.summary() + '；未提交挂牌操作')
+            result = runtime.helper_failure or {}
+        else:
+            result = runtime.execute(candidate['tool'], arguments)
         if 'error' in result:
             fingerprint = {'tool': candidate['tool'], 'arguments': candidate['arguments'], 'error': result['error'], 'spending': result.get('spending')}
             if fingerprint == failed:

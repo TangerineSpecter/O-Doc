@@ -230,9 +230,16 @@ export const deleteAgentTask = (id: string) => request.delete(`/settings/agent-t
 
 export const runAgentTaskNow = (id: string) => request.post(`/settings/agent-tasks/${id}/run_now/`);
 
-export const getAgentRunRecords = () => request.get<AgentRunRecordConfig[]>('/settings/agent-run-records/');
+export interface AgentRunRecordPage {
+    items: AgentRunRecordConfig[];
+    nextCursor: string | null;
+    hasMore: boolean;
+}
 
-export const getAgentRunRecord = (id: string) => request.get<unknown, AgentRunRecordConfig>(`/settings/agent-run-records/${id}/`);
+export const getAgentRunRecords = (params: {cursor?: string; limit?: number} = {}, signal?: AbortSignal) =>
+    request.get<unknown, AgentRunRecordPage>('/settings/agent-run-records/', {params, signal});
+
+export const getAgentRunRecord = (id: string, signal?: AbortSignal) => request.get<unknown, AgentRunRecordConfig>(`/settings/agent-run-records/${id}/`, {signal});
 
 export const getAgentActivities = (params: {
     cursor?: string;

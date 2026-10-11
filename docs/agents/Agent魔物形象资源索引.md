@@ -11,6 +11,12 @@
 | `monster.moss_beast` | 苔石兽 | `frontend_react/moss-beast-preview.html` | 已确认；五个基础动作 | 已接入 | 已有“护体”动作与多边形护盾示意；正式效果待接入 | 待接入 |
 | `monster.moss_king` | 苔冠巨兽 | `frontend_react/moss-king-preview.html` | 已确认石鹿首领；五个基础动作 | 已接入 | 已有“重击”飞石与“护体”晶石护罩示意；正式效果待接入 | 待接入 |
 
+## 剩余 20 只像素首版
+
+按本轮用户要求，废弃矿坑、迷雾林地、沉没遗迹、灰烬堡垒、星蚀裂隙剩余 20 只采用与人物、装备一致的透明 PNG 像素素材。完整资源、生成提示词与状态见[像素魔物首版素材](./Agent像素魔物首版素材.md)。
+
+总览入口为 `frontend_react/monster-pixel-preview.html`；通过 `combat-atlas-preview.html?tab=monsters` 查看同源缩略图和详情。2026-10-11 用户确认接入图鉴，20 只首版状态均为 `approved`，正式图鉴默认显示对应像素素材，预览复用默认展示路径；前四只已确认形象保留原版。五个基础动作、技能特效、新区域背景与正式战斗动画接入待后续制作。
+
 ## 共用出没地资源
 
 | 地牢 ID | 名称 | 背景资源 | 确认状态 |

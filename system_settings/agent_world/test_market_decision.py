@@ -137,7 +137,7 @@ class MarketDecisionTests(TestCase):
         self.assertEqual(stock_quantity(self.a.pk, 'admin', 'feed'), 3)
         self.assertIn('完成1笔交易', record.summary)
 
-    def test_compact_context_is_smaller_and_all_crop_details_are_accessible(self):
+    def test_shopping_context_omits_production_estimates_and_preserves_raw_data(self):
         from .life_context import build_context
         from .life_scope import life_scope
         from .market_queries import actor_context
@@ -151,8 +151,129 @@ class MarketDecisionTests(TestCase):
         self.assertLess(len(encode(compact)), len(encode(old)))
         self.assertNotIn('cooking', compact['life'])
         details = observe('admin', self.a, {'topic': 'planting'})
-        self.assertEqual(len(details['crop_comparisons']['items']), 16)
-        self.assertIn('star_probabilities', details['crop_comparisons']['items'][0]['without_fertilizer'])
+        self.assertEqual(len(details['seeds']['items']), 16)
+        self.assertEqual(details['seeds']['items'][0], {'sku': 'seed.radish', 'name': '萝卜种子', 'quantity': 0})
+        quote = details['fertilizers']['yield']['quote']
+        self.assertEqual(quote['yield_percentage'], 25)
+        self.assertIn('price', quote)
+        for value in (compact, details):
+            self.assertNotIn('star_probabilities', encode(value))
+            self.assertNotIn('without_fertilizer', encode(value))
+        raw = actor_context('admin', self.a)
+        self.assertEqual(len(raw['planting']['crop_comparisons']), 16)
+        self.assertIn('star_probabilities', raw['planting']['crop_comparisons'][0]['without_fertilizer'])
+        self.assertLess(len(encode(details)), len(encode(raw['planting'])) // 3)
+
+    def test_seed_inventory_can_be_paged_and_searched_without_losing_items(self):
+        with patch('system_settings.agent_world.market_model_context.PAGE_SIZE', 5):
+            pages = [observe('admin', self.a, {'topic': 'planting', 'page': i})['seeds'] for i in range(1, 5)]
+        self.assertEqual([len(p['items']) for p in pages], [5, 5, 5, 1])
+        self.assertTrue(all(p['total'] == 16 for p in pages))
+        self.assertEqual(len({row['sku'] for p in pages for row in p['items']}), 16)
+        self.assertFalse(pages[-1]['has_more'])
+        found = observe('admin', self.a, {'topic': 'planting', 'search': '萝卜'})['seeds']
+        self.assertEqual(found['total'], 1)
+        self.assertEqual(found['items'][0]['sku'], 'seed.radish')
+
+    def test_purchase_candidates_keep_effects_owned_stock_and_limits(self):
+        from .inventory_stock import add_stock
+        add_stock(self.a.pk, 'admin', self.a.name, 'seed.radish', 3, '萝卜种子', 'farm_seed', 10)
+        add_stock(self.a.pk, 'admin', self.a.name, 'fertilizer.yield', 2, '增产肥', 'farm_supply', 35)
+        rows = candidates('admin', self.a)
+        seed = next(row for row in rows if row['arguments'].get('slot_id') == '0')
+        fertilizer = next(row for row in rows if row['arguments'].get('slot_id') == 'fertilizer.yield')
+        self.assertEqual(seed['maximum'], 2)
+        self.assertEqual(seed['unit_price'], '10')
+        self.assertEqual(seed['detail']['owned'], 3)
+        self.assertEqual(fertilizer['detail']['owned'], 2)
+        self.assertEqual(fertilizer['detail']['yield_percentage'], 25)
+        self.assertEqual(fertilizer['detail']['effect'], '提高作物产量')
+        self.assertNotIn('star_probabilities', json.dumps(rows))
+        self.assertNotIn('planting', seed['detail'])
+
+    def test_text_shopping_does_not_require_a_queue_or_return_production_details(self):
+        from .farm_models import AgentFarm
+        from .market_queries import actor_context
+        self.prepare()
+        self.task.market_config['decision_enabled'] = False
+        self.task.save()
+        original = AgentFarm.objects.get(pk=self.a.pk).state
+        def text(messages, tools, execute, **kwargs):
+            payload = json.loads(messages[1]['content'])
+            self.assertIsNone(payload['market_state']['farm_queue'])
+            self.assertNotIn('update_farm_queue', [t['function']['name'] for t in tools])
+            execute('enter_market', {'request_id': 'shopping-entry'})
+            detail = execute('observe_market_detail', {'topic': 'planting'})
+            self.assertIn('seeds', detail)
+            self.assertNotIn('star_probabilities', json.dumps(detail))
+            execute('buy_market_shop', {'request_id': 'shopping-seed', 'batch_id': self.shop.pk, 'slot_id': '0', 'quantity': 1})
+            execute('leave_market', {'reason': '完成种子采购'})
+        record, model = self.run_with(lambda *args, **kwargs: self.fail('JEV is disabled'), text)
+        self.assertEqual(record.status, 'success', record.summary)
+        self.assertEqual(model.call_count, 1)
+        self.assertEqual(stock_quantity(self.a.pk, 'admin', 'seed.radish'), 1)
+        self.assertEqual(AgentFarm.objects.get(pk=self.a.pk).state, original)
+        self.assertIn('star_probabilities', actor_context('admin', self.a)['planting']['crop_comparisons'][0]['without_fertilizer'])
+
+    def test_existing_queue_keeps_identity_and_needs_without_estimates(self):
+        from .farm_queue_plan import install
+        from .market_model_execution import MarketExecution
+        from system_settings.models import AgentRunRecord
+        item = self.life_item()
+        pid = install(item, self.farm_task, {'entries': [{'sku': 'seed.radish', 'quantity': 3}],
+                                            'procurement_limit': '30'}, '想种萝卜')
+        context = model_context('admin', self.a)
+        self.assertEqual(context['farm_queue']['id'], pid)
+        self.assertEqual(context['farm_queue']['revision'], 1)
+        self.assertEqual(context['farm_queue']['entries'][0]['missing_seeds'], 3)
+        self.assertNotIn('estimate', context['farm_queue'])
+        record = AgentRunRecord.objects.create(task=self.task, agent=self.a)
+        runtime = MarketExecution(self.task, self.a, record, 'existing-queue', 'manual')
+        with patch('system_settings.agent_world.market_runner.AIService.chat_completion_messages_with_tools') as model:
+            from utils.ai_service import AIService
+            runtime.text(AIService)
+        self.assertIn('update_farm_queue', [t['function']['name'] for t in model.call_args.args[1]])
+
+    def test_real_jev_wire_uses_shopping_facts_through_purchase(self):
+        from unittest.mock import Mock
+        from system_settings.decision.config import save_key
+        self.prepare()
+        save_key('admin', 'isolated-secret')
+        seen = []
+        def respond(url, **kwargs):
+            body = kwargs['json']
+            seen.append(body)
+            criteria = body['questions']['next_action']['criteria']
+            if 'enter' in criteria:
+                selection = 'enter'
+            elif stock_quantity(self.a.pk, 'admin', 'seed.radish'):
+                selection = 'leave'
+            elif 'buy' in criteria:
+                selection = 'buy'
+            elif '1' in criteria:
+                selection = '1'
+            else:
+                selection = next(key for key, row in criteria.items() if isinstance(row, dict) and row['label'] == '购买 萝卜种子')
+                self.assertEqual(criteria[selection]['maximum'], 2)
+                self.assertEqual(criteria[selection]['detail']['effect'], '用于种植萝卜')
+            response = Mock(status_code=200)
+            response.json.return_value = {'model': 'jev-1.13.0', 'usage': {'input_tokens': 100, 'output_tokens': 8},
+                'answers': {'next_action': {'type': 'choice', 'choice': selection,
+                    'probabilities': {key: 1 if key == selection else 0 for key in criteria}, 'confidence': 1}}}
+            return response
+        with patch('system_settings.decision.jev.requests.post', side_effect=respond), \
+             patch('system_settings.agent_world.market_runner.select_agent', return_value=self.a), \
+             patch('system_settings.agent_world.market_runner.AIService.chat_completion_messages_with_tools') as text:
+            record = run_market_opportunity(self.task, manual=True)
+        self.assertEqual(record.status, 'success', record.summary)
+        self.assertEqual(len(seen), 5)
+        self.assertEqual(text.call_count, 0)
+        self.assertEqual(stock_quantity(self.a.pk, 'admin', 'seed.radish'), 1)
+        for body in seen:
+            wire = json.dumps(body)
+            self.assertNotIn('star_probabilities', wire)
+            self.assertNotIn('without_fertilizer', wire)
+            self.assertNotIn('crop_comparisons', wire)
 
     def test_candidates_respect_cash_capacity_inventory_and_purchase_caps(self):
         self.a.money = Decimal('0')
@@ -280,7 +401,7 @@ class MarketDecisionTests(TestCase):
 
 class TranscriptTests(SimpleTestCase):
     def test_superseded_reads_keep_tool_pairs_and_failed_reads(self):
-        messages = [{'role': 'user', 'content': json.dumps({'market_state': {'balance': 'old'}, 'completed_operations': []})}]
+        messages = [{'role': 'user', 'content': json.dumps({'market_state': {'balance': 'old'}, 'completed_operations': [], 'available_actions': {'buy': 'old'}})}]
         for identity, payload in [('one', {'inventory': ['x' * 1000]}), ('bad', {'error': 'failed'}), ('two', {'balance': 'new'})]:
             messages.extend([{'role': 'assistant', 'tool_calls': [{'id': identity, 'function': {'name': 'get_market_context', 'arguments': '{}'}}]},
                              {'role': 'tool', 'tool_call_id': identity, 'content': json.dumps(payload)}])
@@ -290,4 +411,5 @@ class TranscriptTests(SimpleTestCase):
         self.assertIn('failed', compact[4]['content'])
         self.assertIn('new', compact[6]['content'])
         self.assertNotIn('old', compact[0]['content'])
+        self.assertNotIn('available_actions', json.loads(compact[0]['content']))
         self.assertIn('x' * 1000, messages[2]['content'])

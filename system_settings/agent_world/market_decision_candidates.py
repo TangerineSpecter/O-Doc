@@ -7,6 +7,8 @@ from .market_queries import actor_context, listings
 from .market_shop import shop_payload
 from .inventory_stock import stock_quantity, inventory_items
 from .farm_gate import guarded
+from .market_shopping import purchase_detail
+from .market_service import tradable
 
 
 def recovery_values(lots: list[dict], maximum: int, needed: int = 0) -> dict[str, str]:
@@ -68,17 +70,19 @@ def candidates(owner: str, agent) -> list[dict]:
             capacity = house.get('capacity', 0)
             used = sum(1 for animal in farm.state['animals'] if animal['building'] == building) if farm else 0
             maximum = min(maximum, max(0, capacity - used), 1)
-        crop = next((v for v in context.get('planting', {}).get('crop_comparisons', []) if v['seed_sku'] == row['sku']), None)
         add('buy_market_shop', '购买 ' + row['name'], {'batch_id': shop['id'], 'slot_id': row['id']}, maximum,
-            unit_price=unit, sku=row['sku'], detail={'sku': row['sku'], 'planting': crop} if crop else {'sku': row['sku']})
+            unit_price=unit, sku=row['sku'], detail=purchase_detail(row, context))
     originals = {item.pk: item for item in inventory_items(agent.pk, owner)}
     for row in context['inventory']:
         sku = row['source'].get('sku', '')
+        item = originals[row['id']]
         if sku.startswith(('crop.', 'product.', 'dish.')):
-            item = originals[row['id']]
             lots = item.source.get('lots') or [{'quantity': item.quantity, 'price': str(item.value)}]
             add('sell_to_market_shop', '回收出售 ' + row['name'], {'item_id': row['id']}, row['quantity'],
                 detail=row, recovery=recovery_values(lots, row['quantity']))
+        if tradable(item):
+            add('create_market_listing', '上架 ' + row['name'], {'item_id': row['id']}, row['quantity'],
+                detail={**row, 'pricing': '自主定价；回收价值仅供参考，上架不等于成交'})
     supplies = context['combat_supplies']
     for row in supplies['potions']:
         unit = Decimal(row['purchase_price'])
@@ -97,7 +101,14 @@ def candidates(owner: str, agent) -> list[dict]:
         from system_settings.models import Agent
         sellers = set(Agent.objects.filter(pk__in=[r['seller_id'] for r in rows['items']]).values_list('pk', flat=True))
         for row in rows['items']:
-            if row['seller_id'] == agent.pk or row['seller_id'] not in sellers:
+            if row['seller_id'] == agent.pk:
+                detail = {key: row[key] for key in ('id', 'version', 'unit_price', 'remaining_quantity', 'created_at')}
+                detail['item'] = row['item']
+                for tool, label in [('reprice_market_listing', '改价 '), ('withdraw_market_listing', '撤回 ')]:
+                    add(tool, label + row['item']['name'], {'listing_id': row['id'], 'version': row['version']},
+                        row['remaining_quantity'], detail=detail)
+                continue
+            if row['seller_id'] not in sellers:
                 continue
             unit = Decimal(row['unit_price'])
             sku = row['item'].get('source', {}).get('sku', '')
@@ -111,7 +122,8 @@ def candidates(owner: str, agent) -> list[dict]:
 
 
 def quantities(candidate: dict) -> dict[str, object]:
-    values = sorted({1, candidate['maximum'], candidate['needed']} - {0})
+    reserve = min(candidate['maximum'], candidate['detail'].get('next_round_seed_reference', 0))
+    values = sorted({1, candidate['maximum'], candidate['needed'], reserve} - {0})
     return {str(value): {'quantity': value, 'total_cost': str(Decimal(candidate['unit_price']) * value)
                         if candidate['unit_price'] else None,
                         'total_revenue': candidate.get('recovery', {}).get(str(value))} for value in values} | {

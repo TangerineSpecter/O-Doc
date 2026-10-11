@@ -6,7 +6,7 @@ from utils.drf_utils import get_current_user_identifier
 
 
 def get_visible_anthology_queryset(request):
-    queryset = Anthology.objects.filter(is_valid=True).exclude(type='learning')
+    queryset = Anthology.objects.filter(is_valid=True).exclude(type__in=['learning', 'novel'])
     if request.user and request.user.is_authenticated:
         current_user_id = get_current_user_identifier(request)
         return queryset.filter(Q(permission='public') | Q(user_id=current_user_id))
@@ -25,7 +25,7 @@ def can_manage_anthology(request, coll_id, coll_type=None):
         coll_id=coll_id,
         user_id=get_current_user_identifier(request),
         is_valid=True,
-    )
+    ).exclude(type='novel')
     if coll_type:
         queryset = queryset.filter(type=coll_type)
     return queryset.exists()

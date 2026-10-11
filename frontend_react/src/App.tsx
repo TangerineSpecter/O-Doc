@@ -7,6 +7,7 @@ import HomePage from './views/HomePage';
 import ArticleOutline from './views/ArticleOutline';
 import ImageAnthologyPage from './views/ImageAnthologyPage';
 import BookAnthologyPage from './views/BookAnthologyPage';
+const NovelPage = lazy(() => import('./views/NovelPage'));
 const LearningPage = lazy(() => import('./views/LearningPage'));
 const BookAnalysisPage = lazy(() => import('./views/BookAnalysisPage'));
 import LoginPage from './views/LoginPage';
@@ -77,6 +78,8 @@ function HomeRoute() {
             }
         } else if (viewName === 'image') {
             navigate(buildImagePath(params as ImageNavigationParams));
+        } else if (viewName === 'novel') {
+            const {collId} = params as {collId: string}; navigate(`/novel/${collId}`);
         } else if (viewName === 'learning') {
             const {collId} = params as {collId: string}; navigate(`/learning/${collId}`);
         } else if (viewName === 'book') {
@@ -242,6 +245,8 @@ function AppWithRouter() {
                     <ImageAnthologyRoute/>
                 </Layout>
             }/>
+            <Route path="/novel/:collId" element={<Suspense fallback={<div className="p-8 text-slate-400">正在打开小说…</div>}><NovelPage/></Suspense>}/>
+            <Route path="/novel/:collId/read" element={<Suspense fallback={<div className="p-8 text-slate-400">正在打开小说…</div>}><NovelPage readerOnly/></Suspense>}/>
             <Route path="/learning/:collId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开学习…</div>}><LearningRoute/></Suspense></Layout></RequireAuth>}/>
             <Route path="/learning/:collId/exercises/:exerciseId" element={<RequireAuth><Layout onNavigate={handleNavigate}><Suspense fallback={<div className="p-8 text-slate-400">正在打开练习…</div>}><LearningRoute/></Suspense></Layout></RequireAuth>}/>
             <Route path="/books/:collId" element={<RequireAuth><Layout onNavigate={handleNavigate}><BookAnthologyRoute/></Layout></RequireAuth>}/>

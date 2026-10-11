@@ -15,7 +15,7 @@ export function ProfessionBadge({
     size = 'md',
     variant = 'purple',
     showEmpty = false,
-    emptyText = '无职业',
+    emptyText = '无业',
     className = '',
     showIcon = true,
 }: ProfessionBadgeProps) {

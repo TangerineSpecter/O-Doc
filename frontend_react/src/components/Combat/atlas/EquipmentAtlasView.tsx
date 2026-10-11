@@ -3,6 +3,7 @@ import {Search, X, Shield, Sparkles, CheckCircle2, Tag} from 'lucide-react';
 import type {CombatCatalog, CombatProfile} from '../../../types/api/combat';
 import {AtlasGridCard} from './AtlasGridCard';
 import {EquipmentPortrait} from './EquipmentPortrait';
+import {RankBadge, BossCrownIcon} from './RankBadge';
 import {getEquipmentVisual} from './atlasIcons';
 import {slotLabels, statLabels} from '../presentation';
 
@@ -218,9 +219,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                                     ✓
                                                 </span>
                                             ) : isBossOnly ? (
-                                                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-500 text-white shadow-2xs" title="Boss专属">
-                                                    👑
-                                                </span>
+                                                <RankBadge isBossOnly={true} title="Boss专属" />
                                             ) : undefined
                                         }
                                     />
@@ -248,6 +247,12 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                         <span className="rounded-full bg-white/90 border border-slate-200/60 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs">
                                             {selectedDetails.rootJobName}
                                         </span>
+                                        {selectedDetails.isBossOnly && (
+                                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/80 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-2xs">
+                                                <BossCrownIcon className="h-2.5 w-2.5 text-amber-600 shrink-0" />
+                                                Boss专属
+                                            </span>
+                                        )}
                                     </div>
 
                                     {selectedDetails.isAcquired && (

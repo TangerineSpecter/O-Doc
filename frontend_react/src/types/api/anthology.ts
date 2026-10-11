@@ -1,5 +1,6 @@
 // 定义文章摘要类型
 export interface ArticleSummary {
+    chapterId?: string;
     articleId?: string;
     imageId?: string;
     bookId?: string;
@@ -30,7 +31,7 @@ export interface CreateAnthologyParams {
     isTop?: boolean;
     hideCoverContent?: boolean;
     sort?: number;
-    type?: 'article' | 'image' | 'agent' | 'book' | 'learning';
+    type?: 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel';
 }
 
 // 定义文集返回数据类型
@@ -41,6 +42,8 @@ export interface Anthology {
     title: string;
     count: number;
     pendingCount?: number;
+    adoptedCount?: number;
+    publishedCount?: number;
     ragNotSyncedCount?: number;
     iconId: string;
     isTop: boolean;
@@ -50,5 +53,5 @@ export interface Anthology {
     articles: ArticleSummary[];
     permission: 'public' | 'private';
     sort?: number;
-    type?: 'article' | 'image' | 'agent' | 'book' | 'learning'; // Added type field
+    type?: 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel'; // Added type field
 }

@@ -1,10 +1,10 @@
+import {useAgentRunRecords} from './useAgentRunRecords';
 import type {AIModel, ModelInput} from '../types/api/setting';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useToast} from '../components/common/ToastProvider';
 import {agentTaskSaveError} from '../utils/agentTaskValidation';
 import {
     AgentConfig,
-    AgentRunRecordConfig,
     AgentTaskConfig,
     AIProvider,
     deleteAgent,
@@ -14,7 +14,6 @@ import {
     deleteModel,
     deleteProvider,
     getAgents,
-    getAgentRunRecords,
     getAgentTasks,
     getMCPServers,
     getSkills,
@@ -49,7 +48,8 @@ export const useSettings = () => {
     const [providers, setProviders] = useState<AIProvider[]>([]);
     const [agents, setAgents] = useState<AgentConfig[]>([]);
     const [agentTasks, setAgentTasks] = useState<AgentTaskConfig[]>([]);
-    const [agentRunRecords, setAgentRunRecords] = useState<AgentRunRecordConfig[]>([]);
+    const agentRunRecordFeed = useAgentRunRecords();
+    const {records: agentRunRecords, refresh: fetchAgentRunRecords} = agentRunRecordFeed;
     const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
     const [skills, setSkills] = useState<SkillConfig[]>([]);
     const [systemConfig, setSystemConfig] = useState<SystemAIConfig>({
@@ -116,12 +116,11 @@ export const useSettings = () => {
         setIsLoading(true);
         try {
             // ✅ 同时解构出第二个返回值 (systemConfigRes)
-            const [providersRes, systemConfigRes, agentsRes, agentTasksRes, agentRunRecordsRes, mcpServersRes, skillsRes] = await Promise.all([
+            const [providersRes, systemConfigRes, agentsRes, agentTasksRes, mcpServersRes, skillsRes] = await Promise.all([
                 getProviders(),
                 getSystemAIConfig(),
                 getAgents(),
                 getAgentTasks(),
-                getAgentRunRecords(),
                 getMCPServers(),
                 getSkills()
             ]);
@@ -129,7 +128,6 @@ export const useSettings = () => {
             setProviders(providersRes as unknown as AIProvider[]);
             setAgents(agentsRes as unknown as AgentConfig[]);
             setAgentTasks(agentTasksRes as unknown as AgentTaskConfig[]);
-            setAgentRunRecords(agentRunRecordsRes as unknown as AgentRunRecordConfig[]);
             setMcpServers(mcpServersRes as unknown as MCPServerConfig[]);
             setSkills(skillsRes as unknown as SkillConfig[]);
 
@@ -192,21 +190,6 @@ export const useSettings = () => {
             console.warn("WebDAV 状态加载失败或未实现:", error);
         }
     }, []);
-
-    const fetchAgentRunRecords = useCallback(async () => {
-        try {
-            const recordsRes = await getAgentRunRecords();
-            setAgentRunRecords(recordsRes as unknown as AgentRunRecordConfig[]);
-        } catch (error) {
-            console.warn('Agent 执行记录刷新失败:', error);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (!agentRunRecords.some(record => record.status === 'running')) return;
-        const timer = window.setInterval(fetchAgentRunRecords, 3000);
-        return () => window.clearInterval(timer);
-    }, [agentRunRecords, fetchAgentRunRecords]);
 
     useEffect(() => {
         loadSettings();
@@ -580,6 +563,7 @@ export const useSettings = () => {
         agents,
         agentTasks,
         agentRunRecords,
+        agentRunRecordFeed,
         mcpServers,
         skills,
         systemConfig,

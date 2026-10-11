@@ -29,6 +29,8 @@ from system_settings.sync_state import (
 
 from system_settings.agent_world.farm_gate import guarded as farm_sync_guard
 from learning.locking import snapshot_guard as learning_sync_guard
+from novel.locking import snapshot_guard as novel_sync_guard
+from novel.chapters import enforce_revision_retention as enforce_novel_revision_retention
 from system_settings.agent_world import travel_sync
 
 
@@ -52,7 +54,7 @@ class SyncManager:
     REMOTE_LOCK_TTL_SECONDS = 2 * 60 * 60
     TARGET_APPS = [
         'article', 'anthology', 'categories', 'tags',
-        'assets', 'prompts', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis', 'whiteboard', 'memos', 'message', 'learning'
+        'assets', 'prompts', 'stats', 'ai_assistant', 'system_settings', 'user', 'book_analysis', 'whiteboard', 'memos', 'message', 'learning', 'novel'
     ]
     def __init__(self, storage_client=None, remote_base_path=''):
         self.client = storage_client
@@ -168,6 +170,8 @@ class SyncManager:
         if remote_meta and remote_meta.get('memo_sprout_schema_version', 0) > 1:
             raise SyncError('闪念发芽快照版本过新，请升级所有设备')
         if remote_meta and remote_meta.get('combat_schema_version',0)>1:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
+            raise SyncError('小说快照版本高于本机，请升级所有设备。')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
@@ -733,6 +737,7 @@ class SyncManager:
                 Book.objects.filter(book_id=book.book_id).update(remote_available=True, remote_hash=book.asset.file_hash)
 
     @farm_sync_guard
+    @novel_sync_guard
     @learning_sync_guard
     def apply_snapshot_data(self, data_list, remote_meta=None, *, full_overwrite=False, should_abort=None):
         """把快照写回数据库。full_overwrite 用于本地压缩包导入，按备份全量覆盖。"""
@@ -744,6 +749,8 @@ class SyncManager:
 
         from learning.sync import validate as validate_learning
         validate_learning(data_list, remote_meta)
+        from novel.sync import validate as validate_novel
+        validate_novel(data_list, remote_meta)
         from memos.sprout_sync import validate as validate_sprouts
         validate_sprouts(data_list, remote_meta)
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
@@ -887,6 +894,8 @@ class SyncManager:
             reset_sprouts()
             from learning.sync import reset_execution
             reset_execution()
+            from novel.sync import reset_execution as reset_novel_execution
+            reset_novel_execution()
             from system_settings.agent_world.market_sync import reconcile_market
             reconcile_market()
             from system_settings.agent_world.combat.sync import revoke as revoke_combat
@@ -930,6 +939,7 @@ class SyncManager:
         if not is_tracking_suspended():
             from article.version_service import enforce_article_version_retention
             enforce_article_version_retention()
+            enforce_novel_revision_retention()
 
         return len(data_list)
 
@@ -1183,12 +1193,14 @@ class SyncManager:
         from system_settings.agent_world.combat.sync import metadata as combat_metadata
         from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
         from learning.sync import metadata as learning_metadata
+        from novel.sync import metadata as novel_metadata
         from memos.sprout_sync import metadata as sprout_metadata
         from system_settings.agent_world.memory.sync import metadata as memory_metadata
         from system_settings.agent_world.farm_quality_sync import metadata as crop_metadata
         return {
             **combat_metadata(data_list),
             **learning_metadata(data_list),
+            **novel_metadata(data_list),
             **sprout_metadata(data_list),
             **crop_metadata(data_list),
             **cooking_metadata(data_list),
@@ -1206,6 +1218,8 @@ class SyncManager:
     def validate_import_snapshot_version(self, remote_meta):
         travel_sync.validate(remote_meta)
         if remote_meta and remote_meta.get('combat_schema_version',0)>1:raise SyncError('战斗快照版本过新，请升级所有设备')
+        if remote_meta and remote_meta.get('novel_schema_version', 0) > 1:
+            raise SyncError('小说快照版本高于本机，请升级所有设备。')
         if remote_meta and remote_meta.get('learning_schema_version', 0) > 3:
             raise SyncError('学习快照版本高于本机，请升级后恢复。')
         if remote_meta and remote_meta.get('crop_schema_version', 0) > 1:
@@ -1225,6 +1239,7 @@ class SyncManager:
             )
 
     @farm_sync_guard
+    @novel_sync_guard
     @learning_sync_guard
     def build_snapshot_data(self, *, compact_travel=False):
         from system_settings.agent_world.life_sync import checkpoint_all
@@ -1435,6 +1450,8 @@ class SyncManager:
         data = self._read_remote_json(self._snapshot_path(snapshot_id, 'data_index.json'), required=True)
         from learning.sync import validate as validate_learning
         validate_learning(data, meta)
+        from novel.sync import validate as validate_novel
+        validate_novel(data, meta)
         from system_settings.agent_world.farm_quality_sync import validate_source as validate_crops
         validate_crops(data, meta)
         revisions = self._read_remote_json(self._snapshot_path(snapshot_id, 'revisions.json'), required=True)
@@ -2154,6 +2171,7 @@ class SyncManager:
             if pointer.get('snapshot_id') != base_snapshot_id:
                 safety_backup = self.create_local_safety_backup('before-sync')
                 enforce_article_version_retention()
+                enforce_novel_revision_retention()
                 self.reconcile_missing_book_media(drop_missing_assets=False)
                 snapshot, summary = self._merge_while_locked(
                     report, base_snapshot_id=base_snapshot_id, source=source, runner_id=runner_id, should_abort=should_abort,
@@ -2161,6 +2179,7 @@ class SyncManager:
                 return snapshot, summary, safety_backup
 
             enforce_article_version_retention()
+            enforce_novel_revision_retention()
             self.reconcile_missing_book_media(drop_missing_assets=False)
             local_data = self.build_snapshot_data(compact_travel=True)
             local_revisions = self._build_revision_manifest(local_data)
@@ -2212,10 +2231,12 @@ class SyncManager:
                     from system_settings.agent_world.cooking_quality_sync import metadata as cooking_metadata
                     from system_settings.agent_world.memory.sync import metadata as memory_metadata
                     from system_settings.agent_world.combat.sync import metadata as combat_metadata
+                    from novel.sync import metadata as novel_metadata
                     self.apply_snapshot_data(merged_data, remote_meta={
                         **cooking_metadata(merged_data),
                         **memory_metadata(merged_data),
                         **combat_metadata(merged_data),
+                        **novel_metadata(merged_data),
                         **(travel_sync.metadata(merged_revisions) if travel_sync.enabled() or
                            (remote.get('meta') or {}).get(travel_sync.META_KEY) else {}),
                     }, full_overwrite=True)
@@ -2223,6 +2244,7 @@ class SyncManager:
                 # A three-way merge can combine independently retained histories.
                 # Pruning after revision import records tombstones for every device.
                 enforce_article_version_retention()
+                enforce_novel_revision_retention()
             # 远端新图书的正文被刻意跳过下载；写入数据库后立即将其转为
             # 仅云端状态，确保本次同步完成后书架就能触发按需恢复。
             self.reconcile_missing_book_media()
@@ -2275,6 +2297,7 @@ class SyncManager:
         report('正在创建本机完整安全快照。', 5)
         safety_backup = self.create_local_safety_backup('before-sync')
         enforce_article_version_retention()
+        enforce_novel_revision_retention()
         report('本机安全快照已完成，正在连接远端并获取同步锁。', 18)
         self._ensure_not_aborted(should_abort)
         # 首次扫描不能直接作废普通媒体：远端快照可能仍有可恢复副本。
@@ -2299,6 +2322,7 @@ class SyncManager:
                     self.apply_snapshot_data(snapshot['data'], remote_meta=snapshot['meta'], full_overwrite=True)
                 self._apply_v2_revisions(snapshot['revisions'])
                 enforce_article_version_retention()
+                enforce_novel_revision_retention()
                 # Restore may normalize legacy fields, close sessions or prune versions.
                 # Publish that resulting state with matching hashes, not the original payload.
                 restored_data = self.build_snapshot_data(compact_travel=True)

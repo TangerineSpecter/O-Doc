@@ -24,6 +24,7 @@ export class LayeredPlayerActor extends Container {
     private outfitId='';
     private weaponId='';
     private emitter={x:0,y:0};
+    private weaponRestRotation=0;
 
     constructor(private readonly sheets:Map<string,Texture>) {
         super();
@@ -84,6 +85,7 @@ export class LayeredPlayerActor extends Container {
                 const scale=registration.height/height;
                 this.weapon.scale.set(registration.mirrored?-scale:scale,scale);
                 this.weapon.rotation=registration.rotation;
+                this.weaponRestRotation=registration.rotation;
                 // Registered in item texture coordinates; read the live transform
                 // after placement so a replaced weapon never emits from the wrist.
                 this.emitter=options.weapon==='equip.staff'?{x:width*.58,y:height*.13}
@@ -97,6 +99,8 @@ export class LayeredPlayerActor extends Container {
     }
 
     update(time:number,lean=0,lift=0) {this.upper.y=Math.round(Math.sin(time*2.1)*2)-lift;this.upper.rotation=lean;}
+    /** Rotate carried art around its registered grip; clothing and hands stay intact. */
+    setWeaponSwing(rotation:number) {this.weapon.rotation=this.weaponRestRotation+rotation;}
 
     getEmissionPoint(world:Container) {
         const point=this.weaponLayer.visible&&this.weapon.visible

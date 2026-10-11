@@ -15,12 +15,14 @@ import {
     Package,
     Sparkles,
     Sprout,
+    Swords,
     TrendingUp,
     Wallet,
 } from 'lucide-react';
 import {AgentInventoryDialog} from './AgentInventoryDialog';
 import {AgentHoldingsDialog} from './AgentHoldingsDialog';
 import ProfessionBadge from './ProfessionBadge';
+import CombatProfessionBadge from './CombatProfessionBadge';
 import LevelPlate from './LevelPlate';
 
 interface AgentAttributePanelProps {
@@ -59,8 +61,7 @@ function AttributeRow({
             className="flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-3.5 transition-colors hover:border-orange-200 hover:shadow-xs"
         >
             <div>
-                {onOpenCombat && <button onClick={onOpenCombat} className="mb-3 rounded-full bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">冒险 · 装备与战斗</button>}
-                {/* 头部居民信息与独立互动、活动入口 */}
+                {/* 头部居民信息：头像、名称、生活职业与战斗职业 */}
                 <div className="flex items-center gap-2.5">
                     <AgentAvatar name={node.name} avatar={node.avatar} size="md" />
                     <div className="min-w-0 flex-1">
@@ -72,7 +73,13 @@ function AttributeRow({
                                 professionName={node.professionName}
                                 size="sm"
                                 showEmpty={true}
-                                emptyText="无职业"
+                                emptyText="无业"
+                            />
+                            <CombatProfessionBadge
+                                combatProfessionName={node.combatProfessionName}
+                                combatLevel={node.combatLevel}
+                                size="sm"
+                                onClick={onOpenCombat}
                             />
                         </div>
                         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
@@ -85,11 +92,6 @@ function AttributeRow({
                             />
                             <span>{node.currentAction || (node.status === 'running' ? '正在活动' : '休息中')}</span>
                         </div>
-                    </div>
-
-                    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                        <button type="button" onClick={onOpenRelations} aria-label={`查看${node.name}的互动`} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-600 shadow-2xs transition-colors hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"><MessageSquare className="h-3 w-3 text-slate-400"/>互动<span className="border-l border-slate-200 pl-1.5 tabular-nums text-slate-400">{relations.length}</span></button>
-                        <button type="button" onClick={onOpenActivities} aria-label={`查看${node.name}的活动`} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-orange-200/80 bg-orange-50/60 px-2 text-[11px] font-medium text-orange-700 shadow-2xs transition-colors hover:border-orange-300 hover:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"><Activity className="h-3 w-3 text-orange-500"/>活动</button>
                     </div>
                 </div>
 
@@ -204,21 +206,77 @@ function AttributeRow({
                     </div>
                 </div>
 
-                {/* 30天创作统计（发帖、获评、活跃天） */}
-                <div className="mt-2.5 grid grid-cols-3 divide-x divide-slate-100 rounded-xl border border-slate-100 bg-slate-50/70 py-1.5 text-center">
-                    {[
-                        {label: '发帖', value: node.postCount, icon: FileText},
-                        {label: '获评', value: node.ratedPostCount, icon: MessageSquare},
-                        {label: '活跃天', value: node.activeDays, icon: CalendarDays},
-                    ].map(({label, value, icon: Icon}) => (
-                        <div key={label} className="flex flex-col items-center justify-center px-1">
-                            <span className="text-xs font-bold tabular-nums text-slate-700">{value}</span>
-                            <span className="flex items-center gap-0.5 text-[10px] text-slate-400">
-                                <Icon className="h-2.5 w-2.5" />
-                                {label}
-                            </span>
-                        </div>
-                    ))}
+                {/* 30天创作统计（发帖、获评、活跃天）重新设计 */}
+                <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+                    <div className="flex flex-col items-center justify-center rounded-xl border border-slate-100/90 bg-slate-50/60 py-1.5 px-1 text-center shadow-2xs transition-colors hover:bg-slate-100/60 hover:border-slate-200/60">
+                        <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+                            <FileText className="h-2.5 w-2.5 text-sky-500" />
+                            发帖
+                        </span>
+                        <span className="mt-0.5 text-xs font-bold tabular-nums text-slate-800">
+                            {node.postCount}
+                            <span className="ml-0.5 text-[10px] font-normal text-slate-400">篇</span>
+                        </span>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center rounded-xl border border-slate-100/90 bg-slate-50/60 py-1.5 px-1 text-center shadow-2xs transition-colors hover:bg-slate-100/60 hover:border-slate-200/60">
+                        <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+                            <MessageSquare className="h-2.5 w-2.5 text-amber-500" />
+                            获评
+                        </span>
+                        <span className="mt-0.5 text-xs font-bold tabular-nums text-slate-800">
+                            {node.ratedPostCount}
+                            <span className="ml-0.5 text-[10px] font-normal text-slate-400">次</span>
+                        </span>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center rounded-xl border border-slate-100/90 bg-slate-50/60 py-1.5 px-1 text-center shadow-2xs transition-colors hover:bg-slate-100/60 hover:border-slate-200/60">
+                        <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+                            <CalendarDays className="h-2.5 w-2.5 text-emerald-500" />
+                            活跃
+                        </span>
+                        <span className="mt-0.5 text-xs font-bold tabular-nums text-slate-800">
+                            {node.activeDays}
+                            <span className="ml-0.5 text-[10px] font-normal text-slate-400">天</span>
+                        </span>
+                    </div>
+                </div>
+
+                {/* 居民操作栏：互动 + 活动 + 冒险 */}
+                <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+                    <button
+                        type="button"
+                        onClick={onOpenRelations}
+                        aria-label={`查看${node.name}的互动`}
+                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-slate-200/90 bg-white px-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all hover:border-blue-300 hover:bg-blue-50/60 hover:text-blue-700 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"
+                    >
+                        <MessageSquare className="h-3.5 w-3.5 text-slate-400" />
+                        <span>互动</span>
+                        <span className="rounded-full bg-slate-100 px-1.5 py-0.2 text-[10px] font-bold tabular-nums text-slate-500">
+                            {relations.length}
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={onOpenActivities}
+                        aria-label={`查看${node.name}的活动`}
+                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-orange-200/80 bg-orange-50/60 px-2 text-xs font-semibold text-orange-700 shadow-2xs transition-all hover:border-orange-300 hover:bg-orange-100 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
+                    >
+                        <Activity className="h-3.5 w-3.5 text-orange-500" />
+                        <span>活动</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={onOpenCombat}
+                        disabled={!onOpenCombat}
+                        aria-label={`查看${node.name}的冒险`}
+                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-rose-200/80 bg-rose-50/60 px-2 text-xs font-semibold text-rose-700 shadow-2xs transition-all hover:border-rose-300 hover:bg-rose-100 active:scale-95 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                    >
+                        <Swords className="h-3.5 w-3.5 text-rose-500" />
+                        <span>冒险</span>
+                    </button>
                 </div>
 
                 {/* 资产与操作栏：金钱余额 + 持仓明细 + 背包 */}

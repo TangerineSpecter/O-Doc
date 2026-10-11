@@ -14,7 +14,7 @@ export interface AnthologyFormData {
     hideCoverContent?: boolean;
     hide_cover_content?: boolean;
     sort?: number;
-    type?: 'article' | 'image' | 'agent' | 'book' | 'learning';
+    type?: 'article' | 'image' | 'agent' | 'book' | 'learning' | 'novel';
 }
 
 interface CreateAnthologyModalProps {
@@ -41,6 +41,7 @@ export default function CreateAnthologyModal({
     });
 
     const isEditing = !!initialData;
+    const descriptionLimit = formData.type === 'novel' ? 30000 : 100;
 
     useEffect(() => {
         if (isOpen) {
@@ -69,7 +70,7 @@ export default function CreateAnthologyModal({
     useEscapeDismissal(isOpen, () => {if (!isSubmitting) onClose();});
 
     const handleSubmit = async () => {
-        if (!formData.title) return;
+        if (!formData.title && formData.type !== 'novel') return;
         if (!formData.description) return;
         setIsSubmitting(true);
         try {
@@ -82,7 +83,7 @@ export default function CreateAnthologyModal({
 
     // 处理标题输入，禁止空格
     const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value.replace(/\s+/g, ''); // 移除所有空格
+        const value = formData.type === 'novel' ? e.target.value : e.target.value.replace(/\s+/g, ''); // 移除所有空格
         setFormData({ ...formData, title: value });
     };
 
@@ -112,37 +113,37 @@ export default function CreateAnthologyModal({
 
                     {/* Title */}
                     <div className="space-y-1.5">
-                        <label className="text-sm font-semibold text-slate-700">文集名称 <span
-                            className="text-red-500">*</span></label>
+                        <label className="text-sm font-semibold text-slate-700">{formData.type === 'novel' ? '小说名称（可暂不填写）' : '文集名称'} <span
+                            className="text-red-500">{formData.type === 'novel' ? '' : '*'}</span></label>
                         <input
                             type="text"
                             disabled={isSubmitting}
-                            placeholder='请输入文集名称，最多 20 个字'
-                            maxLength={20}
+                            placeholder={formData.type === 'novel' ? '书名可暂不填写，讨论后再决定' : '请输入文集名称，最多 20 个字'}
+                            maxLength={formData.type === 'novel' ? 100 : 20}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
                             value={formData.title}
                             onChange={handleTitleChange}
                             autoFocus={!isEditing}
                         />
                         <span
-                            className={`text-xs ${formData.title.length > 20 ? 'text-red-500' : 'text-slate-500'}`}>{Math.min(formData.title.length, 20)}/20 字</span>
+                            className={`text-xs ${formData.title.length > (formData.type === 'novel' ? 100 : 20) ? 'text-red-500' : 'text-slate-500'}`}>{formData.title.length}/{formData.type === 'novel' ? 100 : 20} 字</span>
                     </div>
 
                     {/* Description */}
                     <div className="space-y-1.5">
-                        <label className="text-sm font-semibold text-slate-700">简介说明<span
+                        <label className="text-sm font-semibold text-slate-700">{formData.type === 'novel' ? '创作方向（仅作者可见）' : '简介说明'}<span
                             className="text-red-500">*</span></label>
                         <textarea
                             disabled={isSubmitting}
                             rows={3}
-                            placeholder='请在此处输入文集的简介说明，最多支持 100 个字。'
-                            maxLength={100}
+                            placeholder={formData.type === 'novel' ? '大致想写什么，先说说方向；进入工作台后可以继续讨论。' : '请在此处输入文集的简介说明，最多支持 100 个字。'}
+                            maxLength={descriptionLimit}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm resize-none"
                             value={formData.description}
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                         />
                         <span
-                            className={`text-xs ${formData.description.length > 100 ? 'text-red-500' : 'text-slate-500'}`}>{Math.min(formData.description.length, 100)}/100 字</span>
+                            className={`text-xs ${formData.description.length > descriptionLimit ? 'text-red-500' : 'text-slate-500'}`}>{formData.description.length}/{descriptionLimit} 字</span>
                     </div>
 
                     {/* Icon Selector */}
@@ -176,7 +177,7 @@ export default function CreateAnthologyModal({
                                     <Globe className="w-4 h-4" /></div>
                                 <div>
                                     <div className="text-sm font-medium text-slate-800">公开文集</div>
-                                    <div className="text-xs text-slate-500">所有访客可见</div>
+                                    <div className="text-xs text-slate-500">{formData.type === 'novel' ? '已发布章节对访客可见' : '所有访客可见'}</div>
                                 </div>
                             </div>
                             <div
@@ -188,10 +189,11 @@ export default function CreateAnthologyModal({
                                     <Lock className="w-4 h-4" /></div>
                                 <div>
                                     <div className="text-sm font-medium text-slate-800">私密文集</div>
-                                    <div className="text-xs text-slate-500">仅团队成员可见</div>
+                                    <div className="text-xs text-slate-500">{formData.type === 'novel' ? '仅作者可见' : '仅团队成员可见'}</div>
                                 </div>
                             </div>
                         </div>
+                        {formData.type === 'novel' && <p className="text-xs leading-5 text-slate-500">草稿和创作资料始终仅作者可见；发布章节后，公开小说才会进入公开列表。</p>}
                     </div>
 
                     {/* 文集类型选择 */}
@@ -199,13 +201,14 @@ export default function CreateAnthologyModal({
                         <label className="text-sm font-semibold text-slate-700">文集类型</label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {[
+                                { type: 'novel' as const, label: '小说文集', description: '设定、人物、逐章创作与审稿 · 默认私密', icon: FileText },
                                 { type: 'learning' as const, label: '学习文集', description: 'Agent 老师、练习与复习 · 私密', icon: GraduationCap },
                                 { type: 'article' as const, label: '文章文集', description: '存储文章内容', icon: FileText },
                                 { type: 'book' as const, label: '图书文集', description: '书架与在线阅读', icon: Library },
                                 { type: 'image' as const, label: '图片文集', description: '存储图片资源', icon: Image },
                                 { type: 'agent' as const, label: 'Agent', description: 'Agent 发帖展示', icon: Bot },
                             ]
-                                .filter((item) => !isEditing || formData.type === 'learning' || item.type !== 'learning')
+                                .filter((item) => !isEditing || (initialData?.type === 'novel' ? item.type === 'novel' : item.type !== 'novel') && (formData.type === 'learning' || item.type !== 'learning'))
                                 .map((item) => {
                                     const Icon = item.icon;
                                     const isSelected = formData.type === item.type;
@@ -219,7 +222,7 @@ export default function CreateAnthologyModal({
                                                 setFormData({
                                                     ...formData,
                                                     type: item.type,
-                                                    ...(item.type === 'learning' ? { permission: 'private' } : {})
+                                                    ...(item.type === 'learning' || (item.type === 'novel' && !isSelected) ? { permission: 'private' } : {})
                                                 });
                                             }}
                                             className={`cursor-pointer p-3 border rounded-lg flex items-center gap-3 transition-all ${
@@ -315,7 +318,7 @@ export default function CreateAnthologyModal({
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={!formData.title || !formData.description || isSubmitting}
+                        disabled={(!formData.title && formData.type !== 'novel') || !formData.description || isSubmitting}
                         className="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 active:bg-orange-700 rounded-lg transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                         {isSubmitting ? (

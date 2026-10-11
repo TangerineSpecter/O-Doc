@@ -21,6 +21,7 @@ const preloadLifeSchedule = () => import('../components/AgentLife/LifeScheduleDi
 const preloadMarket = () => import('../components/Market/MarketDialog');
 const preloadFarm = () => import('../components/Farm/FarmDialog');
 const CombatDialog = lazy(() => import('../components/Combat/CombatDialog'));
+const CombatObservation = lazy(() => import('../components/Combat/CombatObservation'));
 const preloadCatalog = () => import('../components/AgentWorld/WorldCatalogDialog');
 const preloadInvestment = () => import('../components/Investment/InvestmentDialog');
 const preloadTravel = () => import('../components/AgentWorld/TravelJourneyDialog');
@@ -112,7 +113,7 @@ export default function AgentWorldPage() {
         } else if ((target.kind === 'activity' || target.kind === 'run') && (target.runRecordId || target.kind === 'run')) {
             setSelectedActivity({id: event.id, type: 'work' as AgentActivityType, status: event.status as AgentActivityData['status'], agent: {id: event.actorId, name: event.actorName, avatar: ''}, title: event.title, summary: event.detail, occurredAt: event.occurredAt, runRecordId: target.runRecordId || target.id});
         } else if (target.kind === 'travel') setTravelArchiveId(target.id);
-        else if (target.kind === 'exploration') {setCombatActor(event.actorId);setCombatExploration(target.id);setCombatOpen(true);}
+        else if (target.kind === 'exploration') {setCombatActor(event.actorId);setCombatOpen(false);setCombatExploration(target.id);}
         else if (target.kind === 'cooking') {setCatalogSection('recipes'); setCatalogOpen(true);}
         else if (target.kind === 'farm') setFarmOpen(true);
         else if (target.kind === 'market') setMarketOpen(true);
@@ -294,7 +295,8 @@ export default function AgentWorldPage() {
             {farmOpen && <WorldDialogSuspense title="像素农场" onClose={closeFarm} size="wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在铺开像素农场" subtitle="构建地形图块 · 加载农作物生长状态"/>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></WorldDialogSuspense>}
             {momentsOpen && <WorldDialogSuspense title="朋友圈" size="wide" onClose={() => setMomentsOpen(false)} fallback={<WorldOrbitLoader title="正在读取朋友圈" subtitle="整理生活分享与讨论"/>}><MomentsDialog onClose={() => setMomentsOpen(false)}/></WorldDialogSuspense>}
             {momentDetailId && <WorldDialogSuspense title="朋友圈动态" size="compact" onClose={() => setMomentDetailId(null)} fallback={<WorldOrbitLoader title="正在读取动态" subtitle="加载朋友圈内容与讨论"/>}><MomentDetailDialog momentId={momentDetailId} onClose={() => setMomentDetailId(null)}/></WorldDialogSuspense>}
-            {combatOpen && <WorldDialogSuspense title="冒险与战斗" onClose={closeCombat} size="wide" fallback={<WorldOrbitLoader title="正在打开冒险档案"/>}><CombatDialog residents={world.summary?.agents || []} initialAgentId={combatActor || world.agentId} explorationId={combatExploration} onClose={closeCombat}/></WorldDialogSuspense>}
+            {combatOpen && !combatExploration && <WorldDialogSuspense title="冒险与战斗" onClose={closeCombat} size="wide" fallback={<WorldOrbitLoader title="正在打开冒险档案"/>}><CombatDialog residents={world.summary?.agents || []} initialAgentId={combatActor || world.agentId} onObserve={(id,actorId) => {setCombatActor(actorId);setCombatExploration(id);}} onClose={closeCombat}/></WorldDialogSuspense>}
+            {combatExploration && <WorldDialogSuspense key={combatExploration} title="探索观察" onClose={() => setCombatExploration('')} size="extra-wide" fallback={<WorldOrbitLoader title="正在读取探索记录"/>}><CombatObservation id={combatExploration} onClose={() => setCombatExploration('')}/></WorldDialogSuspense>}
             {catalogOpen && <WorldDialogSuspense title="世界图鉴" onClose={closeCatalog} size="wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在翻开世界图鉴" subtitle="查阅物品、食谱与冒险资料"/>}><WorldCatalogDialog residents={world.summary?.agents || []} initialAgentId={world.agentId} initialSection={catalogSection} onClose={closeCatalog}/></WorldDialogSuspense>}
             {worldManagementOpen && <WorldManagementDialog onClose={() => setWorldManagementOpen(false)} />}
             <AgentRunDrawer

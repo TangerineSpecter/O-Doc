@@ -15,11 +15,13 @@ export default function CombatProfilePanel({
     catalog,
     actions,
     onObserve,
+    recentExplorationId,
 }: {
     profile: CombatProfile;
     catalog: CombatCatalog;
     actions: ReturnType<typeof useCombatActions>;
     onObserve: (id: string) => void;
+    recentExplorationId?: string;
 }) {
     const [preview, setPreview] = useState<{item: CombatEquipment; remove?: boolean} | null>(null);
     const [tab, setTab] = useState<'equipment' | 'market' | 'skills'>('equipment');
@@ -27,6 +29,7 @@ export default function CombatProfilePanel({
 
     const job = catalog.tables.professions.find(row => row.id === profile.progression.job);
     const busy = actions.busy || Boolean(profile.activeExplorationId);
+    const viewableExplorationId = profile.activeExplorationId || recentExplorationId;
 
     const hpPercent = Math.min(100, Math.max(0, (profile.hp / (Number(profile.attributes.hpMax) || 1)) * 100));
     const mpPercent = Math.min(100, Math.max(0, (profile.mp / (Number(profile.attributes.mpMax) || 1)) * 100));
@@ -68,14 +71,14 @@ export default function CombatProfilePanel({
                             </div>
                         </div>
 
-                        {profile.activeExplorationId && (
+                        {viewableExplorationId && (
                             <button
                                 type="button"
-                                onClick={() => onObserve(profile.activeExplorationId!)}
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-orange-500/20 hover:bg-orange-600 active:scale-95 transition-all whitespace-nowrap shrink-0 animate-pulse"
+                                onClick={() => onObserve(viewableExplorationId)}
+                                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-orange-500/20 transition-all hover:bg-orange-600 active:scale-95"
                             >
                                 <Eye className="w-3.5 h-3.5" />
-                                观察探索
+                                {profile.activeExplorationId ? '观察探索' : '查看上次探索'}
                             </button>
                         )}
                     </div>

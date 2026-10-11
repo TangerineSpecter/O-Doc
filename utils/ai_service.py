@@ -274,6 +274,7 @@ class AIService:
             tool_choice=None,
             deadline=None,
             message_transform=None,
+            disable_thinking=False,
     ):
         """执行支持 OpenAI-compatible tool calls 的多轮对话，可指定模型。"""
         try:
@@ -299,7 +300,7 @@ class AIService:
                     'tools': tools,
                     'stream': False,
                     'extra_body': tool_thinking_options(
-                        config, has_tools=bool(tools), disable_thinking=use_simple_model,
+                        config, has_tools=bool(tools), disable_thinking=use_simple_model or disable_thinking,
                     ) or None,
                 }
                 if tool_choice:

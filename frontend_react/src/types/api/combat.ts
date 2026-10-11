@@ -8,11 +8,13 @@ export interface CombatProfile {
     skills: (CombatRow & {rank: number; effects: CombatRow[]; parameters: CombatRow})[];
     potions: (CombatRow & {owned: number})[]; materials: (CombatRow & {owned: number})[]; activeExplorationId: string | null; promotionOptions: CombatRow[]; restUntil: string | null;
 }
-export interface Combatant {name: string; level: number; hp: number; mp: number; stats: Record<string, number | string>; states: {code: string; name: string; remaining?: number}[]}
-export interface CombatAction {kind: string; actor?: string; target?: string; action?: string; name?: string; hit?: boolean; critical?: boolean; damage?: number; healing?: number; restored?: number; experience?: number; monster?: {name: string; level: number}; rewards?: CombatReward[]}
+export interface Combatant {name: string; level: number; hp: number; mp: number; stats: Record<string, number | string>; skills?: Record<string, number>; rank?: string; states: {code: string; name: string; remaining?: number}[]}
+/** Derived from existing exploration state, never persisted as animation data. */
+export interface CombatVisualSnapshot {dungeonId:string;jobId:string;weaponId:string;monsterId:string;encounterId:string}
+export interface CombatAction {kind: string; actor?: string; target?: string; action?: string; name?: string; hit?: boolean; critical?: boolean; damage?: number; healing?: number; restored?: number; experience?: number; monster?: {id?: string; name: string; level: number; rank?: string}; rewards?: CombatReward[]}
 export interface CombatReward {id: string; kind: string; item: EquipmentSnapshot | CombatRow; equipmentId?: string; quantity?: number; elapsedSeconds: number}
 export interface CombatEvent {id: string; sequence: number; kind: string; elapsedSeconds: number; payload: {events?: CombatAction[]; report?: string; reason?: string}; createdAt: string}
 export interface CombatResult {energy?: number; experience?: number; kills?: number; potionsUsed?: Record<string, number>; rewards?: CombatReward[]; report?: string}
-export interface CombatSnapshot {remainingSeconds?: number | null; canControl: boolean; id: string; actorId: string; version: number; stage: string; status: string; reason: string; elapsedSeconds: number; durationSeconds: number; nextTickAt: string | null; player: Combatant | null; enemy: Combatant | null; potions: Record<string, number>; result: CombatResult; events: CombatEvent[]; latestCursor: number; nextCursor: number; hasMore: boolean}
+export interface CombatSnapshot {visual?:CombatVisualSnapshot;remainingSeconds?: number | null; canControl: boolean; id: string; actorId: string; version: number; stage: string; status: string; reason: string; elapsedSeconds: number; durationSeconds: number; nextTickAt: string | null; player: Combatant | null; enemy: Combatant | null; potions: Record<string, number>; result: CombatResult; events: CombatEvent[]; latestCursor: number; nextCursor: number; hasMore: boolean}
 export interface CombatHistory {list: {id: string; status: string; elapsedSeconds: number; result: CombatResult; createdAt: string}[]; total: number; page: number}
 export interface CombatConfig {dailyMinutes: number; autoEnabled: boolean}

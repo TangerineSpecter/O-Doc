@@ -15,6 +15,8 @@ from .life_models import LifeItem, LifeProfile, LifeRevision
 from .life_config import task_owner
 from .life_time import SHANGHAI, local_time, storage_time
 from .market_models import MarketListing, MarketSession, MarketTransaction
+from .market_recovery import PROCESS_INTERRUPTED
+from .market_narrative import public_leave_reason
 from .models import WorldLedger
 from .travel_models import TravelJourney
 
@@ -428,15 +430,33 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
             f'迷宫探索 · {run.elapsed_seconds//60} 分钟',run.result.get('report') or f'击败 {run.result.get("kills",0)} 只怪物，经验 {run.result.get("experience",0)}',
             status='success' if run.status in ('completed','recalled') else 'paused' if run.status=='paused' else 'running' if run.status in ('preparing','active','settling') else 'failed',target={'kind':'exploration','id':run.pk}))
     from .cooking_models import CookingOperation
-    for row in CookingOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end):
-        detail = f"经验 +{row.result['experience_gained']} · {row.reason}"
-        if "unit_price" in row.result:
-            detail += f" · 回收价值 {row.result['unit_price']} 币 · 加工差额 {row.result['processing_gain']} 币"
-        if row.result['level_after'] > row.result['level_before']:
-            detail += f" · 厨艺升至 Lv.{row.result['level_after']}"
+    day_cookings = CookingOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end)
+    cooking_opp_ids = day_cookings.exclude(opportunity_id='').values_list('opportunity_id', flat=True)
+    cooking_actions = dict(WorldAction.objects.filter(pk__in=cooking_opp_ids).values_list('pk', 'status'))
+    for row in day_cookings:
+        dish_name = (row.snapshot or {}).get('name') or row.recipe_id
+        stars = (row.result or {}).get('stars', 1)
+        exp_gained = (row.result or {}).get('experience_gained', 0)
+        parts = [f"{dish_name} ★{stars} ×1", f"经验 +{exp_gained}"]
+        if "unit_price" in (row.result or {}):
+            parts.append(f"回收价值 {row.result['unit_price']} 币 · 加工差额 {row.result['processing_gain']} 币")
+        if (row.result or {}).get('level_after', 0) > (row.result or {}).get('level_before', 0):
+            parts.append(f"厨艺升至 Lv.{row.result['level_after']}")
+        if row.reason and not row.opportunity_id:
+            parts.append(row.reason)
         events.append(_event('cooking', 'cooking', row.pk, row.created_at, row.actor_id,
-                             names.get(row.actor_id, row.actor_name), row.snapshot['name'] + f" ★{row.result.get('stars', 1)} ×1", detail,
+                             names.get(row.actor_id, row.actor_name), '制作', ' · '.join(parts),
                              target={'kind': 'cooking', 'id': row.pk}))
+        events[-1]['_dish'] = dish_name
+        events[-1]['_stars'] = stars
+        events[-1]['_exp'] = exp_gained
+        if row.reason:
+            events[-1]['reason'] = row.reason
+        group = ('cooking:' + row.opportunity_id) if row.opportunity_id else ('cooking:' + day.isoformat() + ':' + row.actor_id)
+        events[-1]['_execution_group'] = group
+        if row.opportunity_id:
+            events[-1]['_execution_failed'] = cooking_actions.get(row.opportunity_id) == 'failed'
+            events[-1]['_execution_running'] = cooking_actions.get(row.opportunity_id) == 'claimed'
     day_farms = FarmOperation.objects.filter(farm__owner_id=owner, created_at__gte=start, created_at__lt=end)
     opportunity_ids = day_farms.exclude(opportunity_id='').values_list('opportunity_id', flat=True)
     farm_actions = dict(WorldAction.objects.filter(pk__in=opportunity_ids).values_list('pk', 'status'))
@@ -540,10 +560,13 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
                      _execution_failed=bool(row.record and row.record.status == 'failed'))
         events.append(event)
         if row.ended_at:
+            interrupted = row.reason == PROCESS_INTERRUPTED
             event = _event('market', 'market-session', row.pk, row.ended_at, row.actor_id,
-                           row.actor_name, '离开市场', row.reason,
+                           row.actor_name, '市场会话中断' if interrupted else '离开市场',
+                           public_leave_reason(row.reason, row.record.summary if row.record else ''),
                            target={'kind': 'market', 'id': row.pk})
             event['_execution_group'] = group
+            event['_execution_failed'] = interrupted
             events.append(event)
 
     decisions = list(InvestmentDecision.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end).select_related('record'))

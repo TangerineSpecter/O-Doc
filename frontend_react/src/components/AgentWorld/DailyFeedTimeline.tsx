@@ -131,7 +131,7 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
     let mainDetail = event.detail || '';
     if (hasSteps && !planReason && mainDetail.includes(' · ')) {
         const parts = mainDetail.split(' · ');
-        if (parts.length >= 2 && (parts[0].includes('已执行') || parts[0].includes('交易') || parts[0].includes('浏览'))) {
+        if (parts.length >= 2 && (parts[0].includes('已执行') || parts[0].includes('制作') || parts[0].includes('交易') || parts[0].includes('浏览'))) {
             mainDetail = parts[0];
             planReason = parts.slice(1).join(' · ');
         }
@@ -177,7 +177,7 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
                 {planReason && (
                     <div className="mt-2 rounded-r-lg border-l-2 border-orange-400 bg-orange-50/30 py-1.5 pl-3">
                         <span className="mb-1 flex items-center gap-1 text-xs font-semibold text-slate-700">
-                            <span>💭</span> 规划想法：
+                            <span>💭</span> {event.category === 'market' || event.category === 'trade' ? '结束说明：' : '规划想法：'}
                         </span>
                         <AgentActivitySummary text={planReason} expanded={expanded} onExpandedChange={setExpanded} variant="interaction"/>
                     </div>

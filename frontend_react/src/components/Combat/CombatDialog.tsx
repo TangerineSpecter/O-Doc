@@ -5,19 +5,18 @@ import {useCombat} from '../../hooks/useCombat';
 import {useCombatActions} from '../../hooks/useCombatActions';
 import {setCombatConfig} from '../../api/combat';
 import CombatProfilePanel from './CombatProfilePanel';
-import CombatObservation from './CombatObservation';
 import {statusLabels} from './presentation';
 import {Clock, History, Shield, Sparkles, User} from 'lucide-react';
 
 export default function CombatDialog({
     residents,
     initialAgentId = '',
-    explorationId = '',
+    onObserve,
     onClose,
 }: {
     residents: {id: string; name: string}[];
     initialAgentId?: string;
-    explorationId?: string;
+    onObserve: (id: string, actorId: string) => void;
     onClose: () => void;
 }) {
     const [actor, setActor] = useState(
@@ -26,7 +25,6 @@ export default function CombatDialog({
     const state = useCombat(actor);
     const actions = useCombatActions(actor, state.reload);
     const [tab, setTab] = useState<'profile' | 'history'>('profile');
-    const [observation, setObservation] = useState(explorationId);
     const [configError, setConfigError] = useState('');
     const data = state.data;
 
@@ -84,7 +82,7 @@ export default function CombatDialog({
                         <button
                             type="button"
                             aria-pressed={tab === 'profile'}
-                            onClick={() => setTab('profile')}
+                            onClick={() => {setTab('profile'); state.setPage(1);}}
                             className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
                                 tab === 'profile'
                                     ? 'bg-white text-orange-600 shadow-2xs'
@@ -134,7 +132,7 @@ export default function CombatDialog({
                                         <button
                                             key={run.id}
                                             type="button"
-                                            onClick={() => setObservation(run.id)}
+                                            onClick={() => onObserve(run.id, actor)}
                                             className="group block w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-2xs transition-all hover:border-orange-300 hover:shadow-xs"
                                         >
                                             <div className="flex items-center justify-between gap-2">
@@ -192,7 +190,8 @@ export default function CombatDialog({
                                 profile={data.profile}
                                 catalog={data.catalog}
                                 actions={actions}
-                                onObserve={setObservation}
+                                onObserve={id => onObserve(id, actor)}
+                                recentExplorationId={state.page === 1 ? data.history?.list[0]?.id : undefined}
                             />
                         ) : (
                             <p className="p-6 text-sm text-slate-500">请选择居民以查看冒险档案。</p>
@@ -206,17 +205,6 @@ export default function CombatDialog({
                 </div>
             </div>
 
-            {/* 探索观察弹窗 */}
-            {observation && (
-                <CombatObservation
-                    key={observation}
-                    id={observation}
-                    onClose={() => {
-                        setObservation('');
-                        state.reload();
-                    }}
-                />
-            )}
         </WorldDialog>
     );
 }

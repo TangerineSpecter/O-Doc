@@ -4,11 +4,9 @@ import {isFarmItemIcon} from '../Farm/assets';
 
 function BuiltinItemIcon({src, alt, fallback, className}: {src: string; alt: string; fallback: ReactNode; className: string}) {
     const [failed, setFailed] = useState(false);
-    // 内置像素图标避免被强行拉伸或裁剪，保留原汁原味像素居中展示
+    // 内置像素图标避免被强行拉伸或裁剪（使用 object-contain 保持等比居中），同时保留完整宽高铺满父格与 m-auto，避免绝对定位时偏向左上角
     const cleanClassName = className
         .replace(/\bobject-cover\b/g, '')
-        .replace(/\bh-full\b/g, 'max-h-full')
-        .replace(/\bw-full\b/g, 'max-w-full')
         .trim();
     return failed ? (
         <>{fallback}</>
@@ -16,7 +14,7 @@ function BuiltinItemIcon({src, alt, fallback, className}: {src: string; alt: str
         <img
             src={src}
             alt={alt}
-            className={`object-contain ${cleanClassName}`}
+            className={`object-contain m-auto ${cleanClassName}`}
             style={{imageRendering: 'pixelated'}}
             onError={() => setFailed(true)}
         />

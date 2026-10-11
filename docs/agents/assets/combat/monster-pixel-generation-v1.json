@@ -1,0 +1,109 @@
+{
+  "tool": "built-in imagegen",
+  "version": "v1",
+  "status": "approved",
+  "approvedOn": "2026-10-11",
+  "basePrompt": "Use case: stylized-concept. Asset type: ONE isolated full-body monster sprite for a small RPG bestiary. Style: charming classic 32-bit RPG pixel art matching chunky chibi adventure characters and inventory equipment: hard-edged square pixels, dark brown almost-black 1-2 logical pixel outline, limited palette, clear 3-tone pixel shading, upper-left highlights. Approximately 64x64 logical pixel grid enlarged with nearest-neighbor; no smooth gradients or antialiasing. Full body, readable compact silhouette, three-quarter front view looking slightly to the right. Square canvas, centered monster occupying about 78% of the canvas, every limb and detail inside generous transparent margin. Genuine transparent PNG. No background, floor, ground shadow, frame, text, labels, watermark, UI, multiple views or sprite sheet. ",
+  "assets": [
+    {
+      "monsterId": "monster.mine_rat",
+      "file": "frontend_react/src/assets/combat/monster-mine-rat-v1.png",
+      "subjectPrompt": "Subject: Mine rat, ordinary agile monster. A squat plump charcoal-gray rat with big pink ears, small amber eyes, pointed snout, tiny visible paws and one curled pink tail. A few small amber ore chips caught in its coarse fur. Friendly dangerous little cave scavenger, not a humanoid. Gray-brown, muted rose, amber palette."
+    },
+    {
+      "monsterId": "monster.ore_golem",
+      "file": "frontend_react/src/assets/combat/monster-ore-golem-v1.png",
+      "subjectPrompt": "Subject: Ore golem, ordinary armored monster. Short broad humanoid made of irregular slate-gray boulders, stubby stone feet, two huge rock fists, small head with glowing amber eyes, a single amber ore crystal embedded in its chest and a few crystal chips on its shoulders. Distinct squat angular rock silhouette. Slate gray, earthy brown, amber palette."
+    },
+    {
+      "monsterId": "monster.iron_guard",
+      "file": "frontend_react/src/assets/combat/monster-iron-guard-v1.png",
+      "subjectPrompt": "Subject: Iron mine sentinel, ELITE armored monster. A stocky imposing armored automaton with iron helmet, narrow amber visor, layered steel shoulder plates, bronze rivets, heavy boots and a massive mining pick held diagonally at its side. Dense reinforced armor and amber central furnace core distinguish it from the simple stone golem. Full legs and weapon visible. Steel gray, dark brown, bronze, amber palette."
+    },
+    {
+      "monsterId": "monster.mine_giant",
+      "file": "frontend_react/src/assets/combat/monster-mine-giant-v1.png",
+      "subjectPrompt": "Subject: Deep mine colossus, BOSS. Massive wide triangular silhouette: hulking stone torso, huge asymmetrical rock forearms, short load-bearing legs, small recessed glowing amber face, tall jagged amber crystal cluster rising from its back. A dark chest cavity containing a bright crystal core. Ancient weight and power, commanding elegant readable silhouette. Stone slate, charcoal, rich ochre and luminous amber. More imposing than a humanoid iron guard, not wearing a helmet or holding a pick."
+    },
+    {
+      "monsterId": "monster.toxic_mushroom",
+      "file": "frontend_react/src/assets/combat/monster-toxic-mushroom-v1.png",
+      "subjectPrompt": "Subject: Poisonous mushroom, ordinary magical forest monster. One squat living mushroom with a broad purple cap, cream spots, beige stem body, small dark mischievous eyes, tiny stump feet, two small green poison droplets alongside its cap. Cute but poisonous. Mushroom silhouette, not humanoid wizard. Muted violet, lavender, cream and acidic green palette."
+    },
+    {
+      "monsterId": "monster.mist_wolf",
+      "file": "frontend_react/src/assets/combat/monster-mist-wolf-v1.png",
+      "subjectPrompt": "Subject: Mist wolf, ordinary agile forest monster. An alert silver-gray wolf standing on four paws, pointed ears, fluffy neck ruff, curved sweeping tail, cool cyan eyes, a few pale bluish mist tufts attached to its fur outline. Full compact quadruped wolf silhouette, confident feral expression. Gray, slate blue, pale silver and cyan palette."
+    },
+    {
+      "monsterId": "monster.ancient_guard",
+      "file": "frontend_react/src/assets/combat/monster-ancient-guard-v1.png",
+      "subjectPrompt": "Subject: Ancient tree guardian, ELITE armored forest monster. Broad sturdy living bark humanoid with a deeply carved stern face in the trunk, thick branch arms like knotted shields, root feet, moss-covered shoulders and a few bright green leaves growing from its head. A warm green gem in its chest. Heavy protective upright stance, wide readable shoulders. Bark brown, dark brown, moss green, mint palette."
+    },
+    {
+      "monsterId": "monster.mist_treant",
+      "file": "frontend_react/src/assets/combat/monster-mist-treant-v1.png",
+      "subjectPrompt": "Subject: Mist treant king, BOSS magical forest monster. A grand ancient walking tree with a wide living trunk, fierce carved amber face, huge twisting branch arms and sprawling root feet, tall crown of antler-like branches supporting a rounded canopy of dark teal foliage. Small purple crystalline fruits among the leaves and a prominent ancient green rune on its trunk. Majestic and menacing, clearly much larger and more elaborate than the tree guardian, entire canopy visible. Forest teal, moss green, bark brown, amber and restrained violet palette."
+    },
+    {
+      "monsterId": "monster.ruin_skeleton",
+      "file": "frontend_react/src/assets/combat/monster-ruin-skeleton-v1.png",
+      "subjectPrompt": "Subject: Ruin skeleton, ordinary undead monster. A small full-body animated skeleton with an oversized cracked skull, hollow eyes glowing soft cyan, clear ribcage, bony arms and short bony legs. Tattered dull teal waist cloth, a small rusty sword held downward. Cute ominous chibi proportions, unmistakable skeleton silhouette, no heavy armor. Ivory bone, brown rust, dark teal, cyan palette."
+    },
+    {
+      "monsterId": "monster.water_spirit",
+      "file": "frontend_react/src/assets/combat/monster-water-spirit-v1.png",
+      "subjectPrompt": "Subject: Ghostly water spirit, ordinary magical monster. A floating translucent-looking sprite made from opaque pixel color clusters: droplet-shaped pale turquoise head with two dark eyes, flowing spiral water body tapering into one curled water tail, two small fin-like arms, three separated tiny droplet motes nearby. Beautiful serene water ghost, not a blue humanoid. Pale cyan, turquoise, deep blue, ivory palette; full crisp outline, no blur."
+    },
+    {
+      "monsterId": "monster.ruin_knight",
+      "file": "frontend_react/src/assets/combat/monster-ruin-knight-v1.png",
+      "subjectPrompt": "Subject: Ruin knight, ELITE armored undead monster. A stout ancient knight in corroded silver armor with heavy square shoulders, full closed helmet and a cyan glowing slit, tattered dark teal cape. Holds an ornate rusty broadsword downward and a compact round weathered shield with a seashell motif. Chibi but imposing, visible full boots and all weapon tips. Silver, aged bronze, dark teal, ivory, cyan palette."
+    },
+    {
+      "monsterId": "monster.tide_priest",
+      "file": "frontend_react/src/assets/combat/monster-tide-priest-v1.png",
+      "subjectPrompt": "Subject: Tidal high priest, BOSS magical monster of submerged ruins. A regal amphibious sea sorcerer with dark teal face, intense cyan eyes, a tall pearl-and-gold shell crown, wide layered sea-blue ceremonial robes, finlike shoulder ornaments, a long ornate trident in one hand and a curled miniature wave orb in the other. The hem ends in two distinct curled water tendrils, not human boots. Commanding wide elegant silhouette, entire crown and trident visible. Deep teal, navy blue, turquoise, ivory pearl and antique gold palette."
+    },
+    {
+      "monsterId": "monster.ash_demon",
+      "file": "frontend_react/src/assets/combat/monster-ash-demon-v1.png",
+      "subjectPrompt": "Subject: Ash imp, ordinary magical monster. A small squat charcoal-skinned demon with two curved dark horns, oversized head, glowing orange eyes, mischievous toothy grin, tiny clawed limbs, a short pointed tail and ember-orange flame tuft on its head. Simple compact chibi silhouette. Charcoal, dark plum, ash gray, orange and warm cream palette."
+    },
+    {
+      "monsterId": "monster.lava_beast",
+      "file": "frontend_react/src/assets/combat/monster-lava-beast-v1.png",
+      "subjectPrompt": "Subject: Lava beast, ordinary quadruped monster. A broad low four-legged volcanic lizard with a thick rounded body of black basalt plates, bright orange lava cracks, blunt horned head, fiery amber eyes, stocky clawed paws and short spiky tail. Red-orange ridges on its back. Not humanoid, strongly readable crocodile/turtle-like silhouette. Basalt charcoal, slate gray, deep red, orange, yellow palette."
+    },
+    {
+      "monsterId": "monster.furnace_guard",
+      "file": "frontend_react/src/assets/combat/monster-furnace-guard-v1.png",
+      "subjectPrompt": "Subject: Furnace sentinel, ELITE armored monster. A tall broad automaton of blackened steel, furnace-grille torso revealing orange coals, enclosed angular helmet with two short chimney vents, layered heavy shoulders and fists, sturdy plated boots. Holds a large square-headed glowing forging hammer to one side. Powerful industrial silhouette, more angular than a rock golem. Black steel, graphite, copper, dark red, orange, pale yellow palette."
+    },
+    {
+      "monsterId": "monster.ash_lord",
+      "file": "frontend_react/src/assets/combat/monster-ash-lord-v1.png",
+      "subjectPrompt": "Subject: Ash sovereign, BOSS magical monster. A grand demonic monarch floating with a wide jagged tattered crimson cloak, long curved crownlike black horns attached to a stern charcoal skull face with glowing gold eyes. Large armored shoulders, thin clawed hands, one hand holding a tall burning obsidian scepter. Lower body dissolves into a compact curling cluster of ember flames. Dramatic elegant regal silhouette distinct from the furnace automaton, full horns cloak and scepter visible. Black obsidian, deep maroon, crimson, copper gold, orange fire and cream highlights. Crisp pixel clusters, no smoke blur."
+    },
+    {
+      "monsterId": "monster.rift_walker",
+      "file": "frontend_react/src/assets/combat/monster-rift-walker-v1.png",
+      "subjectPrompt": "Subject: Rift walker, ordinary agile cosmic monster. A small hooded creature in ragged indigo cloak with a dark empty face, two narrow violet eyes, thin clawed arms and visible short boots. Two small curved daggers and tattered scarf tails suggesting quick movement. A few tiny turquoise angular rift chips on its cloak. Compact chibi silhouette, mysterious rather than royal. Indigo, dark navy, muted violet, cyan and pale silver palette."
+    },
+    {
+      "monsterId": "monster.star_golem",
+      "file": "frontend_react/src/assets/combat/monster-star-golem-v1.png",
+      "subjectPrompt": "Subject: Star-eclipse golem, ordinary armored cosmic monster. A short broad floating-stone construct with disconnected angular silver-blue rock shoulders, big cuboid fists and two chunky feet. A simple luminous violet star crystal at its chest, tiny cyan eyes in a small geometric head. Clear simple heavy silhouette with only a few floating stone fragments close to the body. Slate navy, blue-gray stone, silver, violet, cyan palette."
+    },
+    {
+      "monsterId": "monster.rift_lord",
+      "file": "frontend_react/src/assets/combat/monster-rift-lord-v1.png",
+      "subjectPrompt": "Subject: Rift lord, ELITE cosmic sorcerer monster. A tall slender masked entity with an angular purple crystal face, two upward swept horns, wide sharply layered dark violet shoulder armor and a long tapered indigo cloak ending in separated floating shards. One long silver crescent blade held at its side, one clawed hand conjuring a compact cyan rift diamond. Refined dangerous silhouette, elegant narrow body distinct from a rock golem. Deep indigo, lavender, dark violet, silver and cyan palette."
+    },
+    {
+      "monsterId": "monster.star_overlord",
+      "file": "frontend_react/src/assets/combat/monster-star-overlord-v1.png",
+      "subjectPrompt": "Subject: Star-eclipse overlord, BOSS final cosmic monster. A majestic armored astral dragon coiled into a compact towering full-body silhouette, large regal horned head, stern glowing cyan eyes, two broad folded wings with celestial violet crystal membranes, silver-blue armored chest with a bright star-shaped gem, strong clawed forelegs, curled tail framing its lower body. Five crownlike golden horn spikes attached to the head. Beautiful commanding final boss presence, clearly a dragon rather than humanoid sorcerer. Full wings horns claws and tail fit inside transparent margins. Midnight navy, violet, pale silver-blue, cyan and restrained antique gold. Strong readable anatomy and large pixel clusters, not photographic or smooth illustration."
+    }
+  ]
+}

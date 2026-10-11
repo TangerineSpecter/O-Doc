@@ -98,7 +98,10 @@ function WorldDialogFrame({
         return true;
     });
 
-    const sizeClass =
+    const proportionalSize = isFixedHeight && (size === 'wide' || size === 'extra-wide' || size === 'full');
+    const sizeClass = proportionalSize
+        ? `world-dialog-sized world-dialog-sized-${size}`
+        :
         size === 'full'
             ? 'max-w-[96vw] 2xl:max-w-[1680px]'
             : size === 'extra-wide'
@@ -129,8 +132,8 @@ function WorldDialogFrame({
                 }`}
             >
                 <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
-                    <div>
-                        <div className="flex items-center gap-1.5">
+                    <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                             <h2 className="text-sm font-bold text-slate-900">{title}</h2>
                             {titleAction}
                         </div>
@@ -141,7 +144,7 @@ function WorldDialogFrame({
                         type="button"
                         onClick={() => closeDialog()}
                         aria-label="关闭面板"
-                        className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 active:scale-95"
+                        className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 active:scale-95"
                     >
                         <X className="h-4 w-4"/>
                     </button>

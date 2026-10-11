@@ -1,8 +1,9 @@
 import {useMemo, useState} from 'react';
-import {Search, X, Castle, Skull, Compass, Shield, Gem} from 'lucide-react';
+import {Search, X, Castle, Compass, Shield, Gem} from 'lucide-react';
 import type {CombatCatalog, CombatRow} from '../../../types/api/combat';
 import {AtlasGridCard} from './AtlasGridCard';
 import {getDungeonVisual, getMonsterVisual} from './atlasIcons';
+import {BossCrownIcon, RankBadge} from './RankBadge';
 
 export interface DungeonAtlasViewProps {
     catalog: CombatCatalog;
@@ -201,7 +202,9 @@ export function DungeonAtlasView({catalog}: DungeonAtlasViewProps) {
                                 <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 space-y-2">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1.5">
-                                            <Skull className="h-4 w-4 text-amber-600" />
+                                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-2xs">
+                                                <BossCrownIcon className="h-3 w-3" />
+                                            </div>
                                             <span className="text-xs font-bold text-amber-900">
                                                 区域首领：{boss.name}
                                             </span>
@@ -236,6 +239,7 @@ export function DungeonAtlasView({catalog}: DungeonAtlasViewProps) {
                                     {currentMonsters.map(cm => {
                                         const mVisual = getMonsterVisual(cm.monsterId, cm.monster?.name, cm.monster?.rank);
                                         const MIcon = mVisual.icon;
+                                        const rank = cm.monster?.rank;
                                         return (
                                             <div
                                                 key={cm.id}
@@ -250,6 +254,9 @@ export function DungeonAtlasView({catalog}: DungeonAtlasViewProps) {
                                                             <span className="font-semibold text-slate-800 truncate">
                                                                 {cm.monster?.name || cm.monsterId}
                                                             </span>
+                                                            {rank && rank !== 'normal' && (
+                                                                <RankBadge rank={rank} size="sm" />
+                                                            )}
                                                             <span className="text-[10px] text-slate-400">
                                                                 Lv.{cm.levelMin}–{cm.levelMax}
                                                             </span>

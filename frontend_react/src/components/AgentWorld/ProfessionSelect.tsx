@@ -42,7 +42,7 @@ export function ProfessionSelect({
         const professionOptions: SelectOption<string>[] = [
             {
                 value: '',
-                label: '无职业',
+                label: '无业',
                 description: '不绑定职业与收益、产量加成',
             },
         ];

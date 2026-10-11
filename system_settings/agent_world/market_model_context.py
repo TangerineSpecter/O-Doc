@@ -5,19 +5,22 @@ from django.core.serializers.json import DjangoJSONEncoder
 from .market_queries import actor_context
 from .life_scope import CURRENT
 from .farm_gate import guarded
+from .market_shopping import planting_summary, seed_inventory, farm_summary, recipe_summary
 
 PAGE_SIZE = 20
 READ_TOOLS = {'get_market_context', 'get_market_shop', 'list_market_listings',
               'get_my_market_listings', 'get_my_market_transactions', 'observe_market_detail'}
 OMIT = {'icon_url', 'icon_asset_id', 'image_url', 'image_asset_id', 'avatar',
-        'operation_keys', 'purchase_keys', 'hashes', 'lots', 'history', 'owner_id'}
+        'operation_keys', 'purchase_keys', 'hashes', 'lots', 'history', 'owner_id',
+        'crop_comparisons', 'star_probabilities', 'final_star_probabilities',
+        'without_fertilizer', 'with_fertilizer', 'estimate'}
 DETAIL_TOOL = {'type': 'function', 'function': {
     'name': 'observe_market_detail',
-    'description': '按需读取完整经营细节，每页20条。planting含作物概率，cooking含完整食谱，inventory含来源，inventory_lots含指定物品逐批回收成本，listing_history含指定挂牌历次改价，combat含装备，life含后续安排，experiences含历史经历。逐批详情须item_id，挂牌历史须listing_id。',
+    'description': '按需读取采购相关细节，每页20条。planting含种子库存和肥料作用、报价，farm含农场畜牧，cooking含食谱名称与所需材料，recipe含指定食谱完整详情，inventory含来源，inventory_lots含逐批成本，listing_history含改价历史，combat含装备，life含后续安排，experiences含历史经历。逐批详情须item_id，挂牌历史须listing_id，食谱详情须recipe_id。',
     'parameters': {'type': 'object', 'properties': {
-        'topic': {'type': 'string', 'enum': ['inventory', 'inventory_lots', 'listing_history', 'planting', 'farm', 'combat', 'cooking', 'life', 'experiences']},
+        'topic': {'type': 'string', 'enum': ['inventory', 'inventory_lots', 'listing_history', 'planting', 'farm', 'combat', 'cooking', 'recipe', 'life', 'experiences']},
         'page': {'type': 'integer', 'minimum': 1}, 'search': {'type': 'string'},
-        'item_id': {'type': 'string'}, 'listing_id': {'type': 'string'}},
+        'item_id': {'type': 'string'}, 'listing_id': {'type': 'string'}, 'recipe_id': {'type': 'string'}},
         'required': ['topic'], 'additionalProperties': False}}}
 
 
@@ -54,26 +57,24 @@ def model_context(owner: str, agent) -> dict:
     agent.refresh_from_db()
     context = actor_context(owner, agent)
     planting = context.get('planting', {})
-    result = {k: context[k] for k in ('balance', 'stamina', 'spending', 'farm_queue')}
+    result = projection({k: context[k] for k in ('balance', 'stamina', 'spending', 'farm_queue')})
     result['resident'] = {'id': agent.pk, 'name': agent.name, 'profession_id': agent.profession_id}
     result['inventory'] = page(context['inventory'])
     result['listings'] = projection(context['listings'])
-    farm = context.get('farm')
-    result['farm'] = {'plots': len(farm['plots']), 'buildings': farm['buildings'],
-                      'animals': len(farm['animals'])} if farm else None
-    result['planting'] = projection({k: planting[k] for k in ('skill', 'fertilizers', 'next_refresh_at', 'note') if k in planting})
+    result['farm'] = farm_summary(context)
+    result['planting'] = planting_summary(planting)
     result['life'] = life_context()
     if 'current' in result['life'] and 'budget' in context['spending']:
         result['life']['current'] = {**result['life']['current'],
             'budget': context['spending']['budget'], 'spent': context['spending']['spent']}
-    result['detail_access'] = '库存、作物收益与概率、农场、战斗物资可用observe_market_detail分页查询；其他挂牌与成交可用原市场查询工具。'
+    result['detail_access'] = '种子库存、肥料作用、农场畜牧、战斗物资可用observe_market_detail分页查询；其他挂牌与成交可用原市场查询工具。'
     return result
 
 
 @guarded
 def observe(owner: str, agent, arguments: dict) -> dict:
     topic, number, search = arguments.get('topic'), arguments.get('page', 1), arguments.get('search', '')
-    if topic not in ('inventory', 'inventory_lots', 'listing_history', 'planting', 'farm', 'combat', 'cooking', 'life', 'experiences') or set(arguments) - {'topic', 'page', 'search', 'item_id', 'listing_id'}:
+    if topic not in ('inventory', 'inventory_lots', 'listing_history', 'planting', 'farm', 'combat', 'cooking', 'recipe', 'life', 'experiences') or set(arguments) - {'topic', 'page', 'search', 'item_id', 'listing_id', 'recipe_id'}:
         raise ValueError('市场详情查询无效')
     if not isinstance(search, str) or len(search) > 200:
         raise ValueError('搜索内容无效')
@@ -97,8 +98,8 @@ def observe(owner: str, agent, arguments: dict) -> dict:
         recoverable = {row['id']: row['recoverable_value'] for row in context['inventory']}
         return page([{**row, 'recoverable_value': recoverable[row['id']]} for row in rows], number, search)
     if topic == 'planting':
-        return {**projection({k: v for k, v in context['planting'].items() if k != 'crop_comparisons'}),
-                'crop_comparisons': page(context['planting'].get('crop_comparisons', []), number, search)}
+        return {**planting_summary(context['planting']),
+                'seeds': page(seed_inventory(context['planting']), number, search)}
     if topic == 'combat':
         from .inventory_stock import stock_quantity
         supplies = context['combat_supplies']
@@ -109,9 +110,16 @@ def observe(owner: str, agent, arguments: dict) -> dict:
         farm = context.get('farm')
         return {'farm': {key: page(value, number, search) if isinstance(value, list) else projection(value)
                          for key, value in farm.items()} if farm else None}
-    if topic == 'cooking':
+    if topic in ('cooking', 'recipe'):
         from .cooking_queries import overview, recipes
-        return {'skill': overview(owner, agent.pk), 'recipes': page(recipes(owner, agent), number, search)}
+        rows = recipes(owner, agent)
+        if topic == 'recipe':
+            recipe = next((row for row in rows if row['id'] == arguments.get('recipe_id')), None)
+            if not recipe:
+                raise ValueError('食谱不存在，请使用食谱列表中的ID')
+            return {'recipe': projection(recipe)}
+        return {'skill': overview(owner, agent.pk), 'recipes': page([recipe_summary(row) for row in rows], number, search),
+                'detail_access': '仅在确需食谱完整详情时，用topic=recipe和recipe_id查询。'}
     from .market_detail_queries import life_details, experiences
     if topic == 'experiences':
         return page(experiences(agent), number, search)
@@ -159,6 +167,7 @@ def compact_messages(messages: list[dict]) -> list[dict]:
                     continue
                 if 'market_state' in payload:
                     payload['market_state'] = {'superseded': '使用最近get_market_context结果'}
+                    payload.pop('available_actions', None)
                     message['content'] = json.dumps(payload, ensure_ascii=False, cls=DjangoJSONEncoder)
                 break
     return result

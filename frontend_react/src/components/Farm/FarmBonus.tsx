@@ -16,7 +16,7 @@ export function FarmBonus({farm}: {farm: FarmState}) {
         <div className="rounded-xl border border-lime-200/90 bg-gradient-to-r from-lime-50/80 to-emerald-50/50 p-2.5 text-xs leading-relaxed text-slate-700 shadow-2xs">
             <div className="flex items-center justify-between">
                 <span className="font-bold text-lime-900">
-                    {bonus?.professionName || '无职业'} · 产量 +{Number(bonus?.percentage ?? 0)}%
+                    {bonus?.professionName || '无业'} · 产量 +{Number(bonus?.percentage ?? 0)}%
                 </span>
                 <span className="text-[10px] text-lime-700 font-medium">自动累计入包</span>
             </div>

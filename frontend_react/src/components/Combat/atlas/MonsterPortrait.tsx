@@ -4,6 +4,7 @@ import caveBatImage from '../../../assets/combat/cave-bat.svg';
 import mossBeastImage from '../../../assets/combat/moss-beast.svg';
 import mossKingImage from '../../../assets/combat/moss-king.svg';
 import {getMonsterVisual} from './atlasIcons';
+import {getMonsterPixelArt} from '../art/monsterPixelArt';
 import type {MonsterHabitat} from './monsterHabitats';
 
 const AnimatedMonsterPortrait = lazy(() => import('../animation/AnimatedMonsterPortrait'));
@@ -17,12 +18,14 @@ interface MonsterPortraitProps {
     className?: string;
     fallbackClassName?: string;
     habitat?: MonsterHabitat;
+    includeDraftArt?: boolean;
 }
 
 export function MonsterPortrait({
     monsterId, name, rank, animated = false, decorative = false,
-    className = '', fallbackClassName = 'h-12 w-12', habitat,
+    className = '', fallbackClassName = 'h-12 w-12', habitat, includeDraftArt = false,
 }: MonsterPortraitProps) {
+    const pixelArt = getMonsterPixelArt(monsterId, includeDraftArt);
     const visual = getMonsterVisual(monsterId, name, rank);
     const Icon = visual.icon;
     // Match the 256×224 fallback art to the 640×420 scene's feet position and actor scale.
@@ -49,7 +52,9 @@ export function MonsterPortrait({
         aria-label={decorative ? undefined : `${name || monsterId}形象`}
     >
         {habitat && <img src={habitat.image} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover" />}
-        {monsterId === 'monster.slime' || isBat || isMossBeast || isMossKing
+        {pixelArt ? <img src={pixelArt} alt="" className={`${framing} object-contain p-[6%]`}
+            style={{imageRendering: 'pixelated'}} />
+            : monsterId === 'monster.slime' || isBat || isMossBeast || isMossKing
             ? animated ? <Suspense fallback={still}><AnimatedMonsterPortrait key={`${monsterId}:${Boolean(habitat)}`} monsterId={monsterId} inHabitat={Boolean(habitat)} fallback={still} /></Suspense> : still
             : <div className={`flex items-center justify-center ${framing}`}><Icon className={`${fallbackClassName} ${visual.color}`} /></div>}
     </div>;

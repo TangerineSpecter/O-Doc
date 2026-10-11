@@ -36,7 +36,8 @@ def _historical_nodes(rows, nodes):
         nodes.append({'id': key, 'name': identity.get('name') or '历史居民',
                       'avatar': identity.get('avatar') or '', 'kind': 'agent', 'departed': True,
                       'money': '0', 'creativity': 0, 'post_count': 0,
-                      'rated_post_count': 0, 'active_days': 0, 'status': 'idle'})
+                      'rated_post_count': 0, 'active_days': 0, 'status': 'idle',
+                      'combat_profession_name': '新手', 'combat_level': 1})
 
 
 def graph_edges(owner, nodes, include_departed=False):
@@ -51,7 +52,8 @@ def graph_edges(owner, nodes, include_departed=False):
         if peer.startswith('user:') and peer not in names:
             nodes.append({'id': peer, 'name': '我',
                           'avatar': row.counterpart_identity.get('avatar', ''), 'kind': 'user', 'money': '0',
-                          'creativity': 0, 'post_count': 0, 'rated_post_count': 0, 'active_days': 0, 'status': 'idle'})
+                          'creativity': 0, 'post_count': 0, 'rated_post_count': 0, 'active_days': 0, 'status': 'idle',
+                          'combat_profession_name': '新手', 'combat_level': 1})
             names[peer] = nodes[-1]['name']
         if peer not in names: continue
         key = tuple(sorted((row.actor_id, peer)))

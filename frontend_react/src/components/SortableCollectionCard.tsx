@@ -67,8 +67,9 @@ export const SortableCollectionCard = ({
     const isBookCollection = item.type === 'book';
     const isImageCollection = item.type === 'image';
     const isLearningCollection = item.type === 'learning';
-    const navigateTarget = isLearningCollection ? 'learning' : isAgentCollection ? 'article' : isImageCollection ? 'image' : isBookCollection ? 'book' : 'article';
-    const countTitle = isLearningCollection ? `${item.count} 份已完成练习` : isAgentCollection ? `${item.count} 条帖子` : isImageCollection ? `${item.count} 张图片` : isBookCollection ? `${item.count} 本图书` : `${item.count} 篇文档`;
+    const isNovelCollection = item.type === 'novel';
+    const navigateTarget = isNovelCollection ? 'novel' : isLearningCollection ? 'learning' : isAgentCollection ? 'article' : isImageCollection ? 'image' : isBookCollection ? 'book' : 'article';
+    const countTitle = isNovelCollection ? `${item.count} 章` : isLearningCollection ? `${item.count} 份已完成练习` : isAgentCollection ? `${item.count} 条帖子` : isImageCollection ? `${item.count} 张图片` : isBookCollection ? `${item.count} 本图书` : `${item.count} 篇文档`;
     const bookPreviews = isBookCollection ? (item.articles || []).slice(0, 12) : [];
     const imagePreviews = isImageCollection ? (item.articles || []).slice(0, 12) : [];
     const renderAgentAvatar = (avatar?: string, name?: string) => {
@@ -168,7 +169,7 @@ export const SortableCollectionCard = ({
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                        {item.type !== 'image' && !isLearningCollection && item.ragNotSyncedCount && item.ragNotSyncedCount > 0 ? (
+                        {item.type !== 'image' && !isLearningCollection && !isNovelCollection && item.ragNotSyncedCount && item.ragNotSyncedCount > 0 ? (
                             <div
                                 className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-orange-50 border border-orange-100 text-[10px] font-medium text-orange-600"
                                 title={`${item.ragNotSyncedCount} 篇文档未同步到知识库`}
@@ -202,6 +203,8 @@ export const SortableCollectionCard = ({
                         </div>
                         <span className="text-[10px]">(^_^) 嘻嘻，啥也看不到嗷～</span>
                     </button>
+                ) : isNovelCollection ? (
+                    <button onClick={() => onNavigate('novel', {collId: item.collId})} className="h-full w-full rounded-xl p-4 text-left hover:bg-orange-50"><p className="text-xs font-semibold text-orange-600">小说文集</p><p className="mt-2 text-sm text-slate-600">{item.canManage ? `${item.count} 章 · 采用 ${item.adoptedCount || 0} · 发布 ${item.publishedCount || 0}` : `${item.count} 章 · 开始阅读 →`}</p><p className="mt-2 text-xs text-slate-400 line-clamp-2">{item.articles.map(a => a.title).join(' · ')}</p></button>
                 ) : isLearningCollection ? (
                     <button onClick={() => onNavigate('learning', {collId: item.collId})} className="h-full w-full rounded-xl p-4 text-left hover:bg-orange-50"><p className="text-xs font-semibold text-orange-600">学习文集 · Agent 老师</p><p className="mt-2 text-sm text-slate-600">已完成 {item.count} 份 · 待完成 {item.pendingCount || 0} 份</p><p className="mt-1 text-xs text-slate-400">继续学习，或准备下一份练习 →</p></button>
                 ) : isAgentCollection ? (

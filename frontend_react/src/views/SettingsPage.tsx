@@ -81,7 +81,7 @@ export default function SettingsPage() {
 
     // 使用自定义 Hook
     const {
-        providers, agents, agentTasks, agentRunRecords, mcpServers, skills, systemConfig, webDavConfig, webDavStatus, isSaving,
+        providers, agents, agentTasks, agentRunRecords, agentRunRecordFeed, mcpServers, skills, systemConfig, webDavConfig, webDavStatus, isSaving,
         setSystemConfig, setWebDavConfig,
         getModelsByType, handleSaveProvider, handleSaveModel, handleSaveAgent, handleSaveAgentTask, handleRunAgentTaskNow, handleSaveMCPServer, handleSaveSkill, handleDelete, handleDeleteAgent, handleDeleteAgentTask, handleDeleteMCPServer, handleDeleteSkill, handleScanMCPServers, handleRefreshMCPTools,
         fetchWebDavConfig, fetchWebDavStatus
@@ -393,6 +393,7 @@ export default function SettingsPage() {
                             agents={agents}
                             tasks={agentTasks}
                             runRecords={agentRunRecords}
+                            runRecordFeed={agentRunRecordFeed}
                             mcpServers={mcpServers}
                             skills={skills}
                             getModelsByType={getModelsByType}

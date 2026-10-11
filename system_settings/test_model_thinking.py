@@ -217,3 +217,24 @@ class ModelThinkingTests(TestCase):
         second = factory.return_value.chat.completions.create.call_args_list[1].kwargs
         self.assertEqual(second['extra_body'], {'thinking': {'type': 'disabled'}})
         self.assertEqual(second['messages'][0]['reasoning_content'], 'internal reasoning')
+
+    @patch('utils.ai_service.OpenAI')
+    def test_market_thinking_default_does_not_change_model_or_explicit_policy(self, factory):
+        self.provider.type = 'DeepSeek'
+        self.provider.save()
+        self.model.name = 'deepseek-flash'
+        self.model.thinking_protocol = 'auto'
+        factory.return_value.chat.completions.create.return_value = SimpleNamespace(choices=[
+            SimpleNamespace(message=SimpleNamespace(content='done', tool_calls=[]))])
+        for mode, override, expected in [('default', True, 'disabled'), ('enabled', True, 'enabled'),
+                                         ('disabled', True, 'disabled'), ('default', False, None)]:
+            with self.subTest(mode=mode, market_override=override):
+                self.model.thinking_mode = mode
+                self.model.save()
+                AIService.chat_completion_messages_with_tools([], [{}], MagicMock(), model_id=self.model.pk,
+                                                              disable_thinking=override)
+                request = factory.return_value.chat.completions.create.call_args.kwargs
+                self.assertEqual(request['model'], 'deepseek-flash')
+                self.assertEqual(request['extra_body'], {'thinking': {'type': expected}} if expected else None)
+                self.model.refresh_from_db()
+                self.assertEqual(self.model.thinking_mode, mode)

@@ -1,0 +1,12 @@
+{
+  "tool": "built-in imagegen",
+  "dungeonId": "dungeon.moss_cave",
+  "version": "pixel-v2",
+  "status": "draft",
+  "asset": "frontend_react/src/assets/combat/battle-moss-cave-pixel-v2.png",
+  "logicalDisplayGrid": {
+    "width": 160,
+    "height": 94
+  },
+  "prompt": "Create ONE original game-ready background for a cute chibi pixel-art RPG: MOSS-STONE CAVERN, wide landscape 16:9, no characters or UI. This is the SIMPLIFIED COARSE PIXEL version, matching an approximately 48x64-pixel chibi hero enlarged on screen. Design as if the ENTIRE scene were drawn on a tiny 160x94 pixel canvas, then enlarged: BIG obvious square pixels, chunky stair-step contours, very large clean flat color clusters. Use ONLY 16-20 muted colors; 2 or 3 shades per surface. Absolutely NO dithering, granular texture, isolated pixel noise, tiny foliage, detailed stone cracks, realistic lighting, painterly rendering or fine pixel-art illustration. Large stylized gray-green rocks frame the extreme left and right; a broad simple layered cave arch in the upper half; a dark desaturated teal recess, just 2 distant cave silhouettes. Moss is chunky rounded stepped green patches, not individual leaves. A few simple 5-pixel grass tufts and two tiny blue mushroom clusters at extreme edges. Soft sage, cool teal-gray and pale warm limestone, friendly fantasy mood. Low contrast and minimal detail behind the two actor positions. SIDE VIEW battlefield: a continuous flat pale limestone floor spanning the image, feet line at 79% of image height, floor down to bottom. Hero at x24%, monster at x71%, their heads near y30%, keep those full-body spaces empty, and keep the middle open for skill effects. No boulders at the feet locations. Large scenic forms, readable clean silhouettes, carefully designed negative space. NO foreground foliage covering the combat lane, no arena circle, no glowing spotlight, no sky, no text, logo, border or watermark. Output only the opaque background."
+}

@@ -262,6 +262,8 @@ export interface AgentRelationNode {
     kind?: 'agent' | 'user';
     inventoryCount?: number;
     professionName?: string;
+    combatProfessionName?: string;
+    combatLevel?: number;
     id: string;
     name: string;
     avatar: string;
