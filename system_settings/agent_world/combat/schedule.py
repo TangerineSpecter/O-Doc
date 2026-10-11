@@ -4,7 +4,7 @@ from contextvars import ContextVar
 from django.db import transaction
 from ..farm_gate import guarded
 from system_settings.models import Agent, AgentTask, AgentRunRecord
-from .models import CombatRuntime, Exploration
+from .models import Exploration
 from .explorations import request
 from ..life_scope import CURRENT, allowed
 
@@ -13,10 +13,6 @@ PREPARING=ContextVar('combat_preparing',default='')
 
 def occupied_ids():
     return Exploration.objects.filter(status__in=['preparing','active','paused','settling']).values_list('actor_id',flat=True)
-
-
-def automatic_enabled(owner: str) -> bool:
-    return CombatRuntime.objects.filter(pk='auto:'+owner,auto_enabled=True).exists()
 
 
 def ensure_task(owner: str) -> AgentTask:
@@ -39,7 +35,6 @@ def run_opportunity(task,scheduler,key=None,manual=False):
     owner=task_owner(task)
     if not scope:raise ValueError('缺少统一生活安排')
     item=LifeItem.objects.get(pk=scope['item_id'])
-    if not item.context.get('manual') and not automatic_enabled(owner):raise ValueError('自动探索尚未开启')
     agent=Agent.objects.get(pk=scope['actor_id'])
     if not task.enabled or not allowed(task,agent.pk):raise ValueError('探索任务或居民已暂停')
     run=request(owner,agent,key,{},life_item=item)

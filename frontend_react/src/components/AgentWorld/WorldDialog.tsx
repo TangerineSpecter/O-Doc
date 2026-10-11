@@ -14,6 +14,8 @@ export interface WorldDialogProps {
     children: ReactNode;
     size?: 'compact' | 'default' | 'wide' | 'extra-wide' | 'full';
     fixedHeight?: boolean;
+    /** Keep the dialog behavior but show the child card without another visible modal shell. */
+    bare?: boolean;
     manageFocus?: boolean;
 }
 
@@ -25,6 +27,7 @@ function WorldDialogFrame({
     children,
     size = 'default',
     fixedHeight,
+    bare = false,
     manageFocus = true,
 }: WorldDialogProps) {
     const [isClosing, setIsClosing] = useState(false);
@@ -99,18 +102,19 @@ function WorldDialogFrame({
     });
 
     const proportionalSize = isFixedHeight && (size === 'wide' || size === 'extra-wide' || size === 'full');
-    const sizeClass = proportionalSize
-        ? `world-dialog-sized world-dialog-sized-${size}`
-        :
-        size === 'full'
-            ? 'max-w-[96vw] 2xl:max-w-[1680px]'
-            : size === 'extra-wide'
-              ? 'max-w-[95vw] 2xl:max-w-[1520px]'
-              : size === 'wide'
-                ? 'max-w-6xl'
-                : size === 'compact'
-                  ? 'max-w-2xl'
-                  : 'max-w-3xl';
+    const sizeClass = bare
+        ? 'max-w-5xl'
+        : proportionalSize
+            ? `world-dialog-sized world-dialog-sized-${size}`
+            : size === 'full'
+              ? 'max-w-[96vw] 2xl:max-w-[1680px]'
+              : size === 'extra-wide'
+                ? 'max-w-[95vw] 2xl:max-w-[1520px]'
+                : size === 'wide'
+                  ? 'max-w-6xl'
+                  : size === 'compact'
+                    ? 'max-w-2xl'
+                    : 'max-w-3xl';
 
     // 嵌套弹窗不能受父卡片的动画 transform 和 overflow 裁切影响。
     return createPortal(
@@ -127,29 +131,41 @@ function WorldDialogFrame({
                 role="dialog"
                 aria-modal="true"
                 aria-label={title}
-                className={`relative flex ${isFixedHeight ? 'h-[90vh] sm:h-[88vh]' : 'max-h-[90vh]'} w-full ${sizeClass} flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/20 ${
+                className={`relative flex ${isFixedHeight && !bare ? 'h-[90vh] sm:h-[88vh]' : 'max-h-[90vh]'} w-full ${sizeClass} flex-col ${bare ? '' : 'overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/20'} ${
                     isClosing ? 'world-dialog-panel-exit' : 'world-dialog-panel-enter'
                 }`}
             >
-                <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
-                    <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                            <h2 className="text-sm font-bold text-slate-900">{title}</h2>
-                            {titleAction}
-                        </div>
-                        {description ? <p className="mt-0.5 text-[11px] text-slate-400">{description}</p> : null}
-                    </div>
+                {bare ? (
                     <button
                         ref={closeButtonRef}
                         type="button"
                         onClick={() => closeDialog()}
                         aria-label="关闭面板"
-                        className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 active:scale-95"
+                        className="absolute right-2 top-2 z-10 rounded-full border border-slate-200 bg-white/95 p-1.5 text-slate-500 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-800 active:scale-95"
                     >
                         <X className="h-4 w-4"/>
                     </button>
-                </div>
-                <div className="min-h-0 min-w-0 w-full flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide px-4 py-3 sm:px-5 sm:py-4 flex flex-col">{children}</div>
+                ) : (
+                    <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                                <h2 className="text-sm font-bold text-slate-900">{title}</h2>
+                                {titleAction}
+                            </div>
+                            {description ? <p className="mt-0.5 text-[11px] text-slate-400">{description}</p> : null}
+                        </div>
+                        <button
+                            ref={closeButtonRef}
+                            type="button"
+                            onClick={() => closeDialog()}
+                            aria-label="关闭面板"
+                            className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 active:scale-95"
+                        >
+                            <X className="h-4 w-4"/>
+                        </button>
+                    </div>
+                )}
+                <div className={`min-h-0 min-w-0 w-full flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide flex flex-col ${bare ? '' : 'px-4 py-3 sm:px-5 sm:py-4'}`}>{children}</div>
             </div>
         </div>,
         document.body
@@ -165,5 +181,5 @@ function LoadedDialogContent({title, description, titleAction, size, fixedHeight
 export default function WorldDialog(props: WorldDialogProps) {
     const inherited = useContext(WorldDialogContext);
     // 只复用当前入口的卡片；并列声明的设置、编辑等子弹窗仍独立入场。
-    return inherited?.title === props.title ? <LoadedDialogContent {...props}/> : <WorldDialogFrame {...props}/>;
+    return !props.bare && inherited?.title === props.title ? <LoadedDialogContent {...props}/> : <WorldDialogFrame {...props}/>;
 }

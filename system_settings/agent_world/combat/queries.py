@@ -90,5 +90,4 @@ def history(owner,actor,page=1):
 
 def config(owner):
     row=CombatConfig.objects.filter(pk=owner).first()
-    local=CombatRuntime.objects.filter(pk='auto:'+owner).first()
-    return {'daily_minutes':row.daily_minutes if row else 120,'auto_enabled':bool(local and local.auto_enabled),'auto_scope':'device_local'}
+    return {'daily_minutes':row.daily_minutes if row else 120}

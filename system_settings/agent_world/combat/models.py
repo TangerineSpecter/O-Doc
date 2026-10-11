@@ -122,7 +122,7 @@ class CombatRuntime(models.Model):
     id = models.CharField(primary_key=True, max_length=64)
     owner_id = models.CharField(max_length=40, blank=True)
     authorized = models.BooleanField(default=False)
-    auto_enabled = models.BooleanField(default=False)
+    auto_enabled = models.BooleanField(default=False)  # Legacy local setting; scheduling now uses task and world-runner enablement.
     requests = models.JSONField(default=dict)
     promotion_pending = models.BooleanField(default=False)
     token = models.CharField(max_length=64, blank=True)

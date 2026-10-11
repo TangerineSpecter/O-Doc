@@ -84,7 +84,7 @@ export function BuiltinPostTaskCard({
     const Icon = theme.icon;
 
     const description = customDescription ?? (
-        task.taskKind === 'exploration' ? '自主准备装备与药剂，持续探索地牢；冒险面板可观察战斗、掉落与成长，自动探索须单独开启。' : task.taskKind === 'cooking' ? '用自己的食材制作美食，获得厨艺经验并解锁高级食谱；成品可在市场出售。' : task.taskKind === 'investment'
+        task.taskKind === 'exploration' ? '自主准备装备与药剂，持续探索地牢；冒险面板可观察战斗、掉落与成长。开启该能力后，居民可将迷宫探索纳入生活日程。' : task.taskKind === 'cooking' ? '用自己的食材制作美食，获得厨艺经验并解锁高级食谱；成品可在市场出售。' : task.taskKind === 'investment'
             ? '查询市场新闻和行业，按需分析股票，自主买卖或观望。持仓与收益可在股票投资查看。'
             : task.taskKind === 'market'
               ? '自主进入市场，购买农资与动物、出售产物或上架商品。进入消耗体力并自由交易。'

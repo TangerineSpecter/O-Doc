@@ -7,8 +7,9 @@ import CombatLoadoutSlots from './CombatLoadoutSlots';
 import CombatAttributesCard from './CombatAttributesCard';
 import CombatMarketPanel from './CombatMarketPanel';
 import CombatSkillsPanel from './CombatSkillsPanel';
+import WorldDialog from '../AgentWorld/WorldDialog';
 import type {useCombatActions} from '../../hooks/useCombatActions';
-import {Backpack, BookOpen, Eye, Flame, Heart, ShoppingBag, Sparkles, User} from 'lucide-react';
+import {Backpack, BookOpen, Compass, Eye, Flame, Heart, ShoppingBag, Sparkles, User} from 'lucide-react';
 
 export default function CombatProfilePanel({
     profile,
@@ -24,6 +25,7 @@ export default function CombatProfilePanel({
     recentExplorationId?: string;
 }) {
     const [preview, setPreview] = useState<{item: CombatEquipment; remove?: boolean} | null>(null);
+    const [preparationOpen, setPreparationOpen] = useState(false);
     const [tab, setTab] = useState<'equipment' | 'market' | 'skills'>('equipment');
     const [qualityFilter, setQualityFilter] = useState<'all' | 'gold' | 'blue' | 'white'>('all');
 
@@ -146,22 +148,43 @@ export default function CombatProfilePanel({
                 <CombatAttributesCard attributes={profile.attributes} />
             </div>
 
-            {/* 右栏：出征派遣 & 整备工作台 (约 7/12 宽度) */}
+            {/* 右栏：探索入口 & 整备工作台 (约 7/12 宽度) */}
             <div className="lg:col-span-7 flex flex-col min-h-0 overflow-y-auto scrollbar-hide lg:overflow-visible space-y-3">
-                {/* 1. 顶部：出征派遣控制台 */}
-                <div className="shrink-0">
-                    <ExplorationPreparation
-                        key={profile.actorId}
-                        catalog={catalog}
-                        profile={profile}
-                        busy={actions.busy}
-                        onStart={constraints => {
-                            void actions.act<CombatSnapshot>({operation: 'prepare', constraints}).then(run => {
-                                if (run) onObserve(run.id);
-                            });
-                        }}
-                    />
-                </div>
+                {/* 日常档案收起探索配置，需要出发时再展开完整准备卡 */}
+                <section className="shrink-0 rounded-2xl border border-orange-200/80 bg-gradient-to-br from-orange-50/40 via-white to-amber-50/30 p-4 shadow-2xs sm:p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
+                                <Compass className="h-5 w-5" />
+                            </span>
+                            <div className="min-w-0">
+                                <h3 className="text-sm font-bold text-slate-800">探索出发</h3>
+                                <p className="mt-0.5 text-xs text-slate-500">需要出发时再设置目的地、时长和战术风格</p>
+                            </div>
+                        </div>
+                        {profile.activeExplorationId ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-2 text-xs font-semibold text-orange-700">
+                                <Flame className="h-3.5 w-3.5" />
+                                探索进行中
+                            </span>
+                        ) : (
+                            <button
+                                type="button"
+                                disabled={actions.busy}
+                                onClick={() => setPreparationOpen(true)}
+                                className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-orange-500/20 transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <Compass className="h-4 w-4" />
+                                出发
+                            </button>
+                        )}
+                    </div>
+                    {profile.restUntil && !profile.activeExplorationId && (
+                        <p className="mt-3 rounded-xl border border-amber-200/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-800">
+                            居民正在休息，仍可查看配置；休息结束前无法出发。
+                        </p>
+                    )}
+                </section>
 
                 {/* 2. 下部：整备工作台 Tab 容器 */}
                 <div className="shrink-0 lg:flex-1 min-h-0 flex flex-col rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs">
@@ -299,6 +322,34 @@ export default function CombatProfilePanel({
                     </div>
                 </div>
             </div>
+
+            {/* 探索配置弹窗 */}
+            {preparationOpen && (
+                <WorldDialog
+                    key={profile.actorId}
+                    title="探索出发配置"
+                    size="wide"
+                    fixedHeight={false}
+                    bare
+                    onClose={() => setPreparationOpen(false)}
+                >
+                    <ExplorationPreparation
+                        key={profile.actorId}
+                        catalog={catalog}
+                        profile={profile}
+                        busy={actions.busy}
+                        error={actions.error}
+                        onStart={constraints => {
+                            void actions.act<CombatSnapshot>({operation: 'prepare', constraints}).then(run => {
+                                if (run) {
+                                    setPreparationOpen(false);
+                                    onObserve(run.id);
+                                }
+                            });
+                        }}
+                    />
+                </WorldDialog>
+            )}
 
             {/* 换装预览弹窗 */}
             {preview && (

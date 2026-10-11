@@ -7,11 +7,13 @@ export default function ExplorationPreparation({
     catalog,
     profile,
     busy,
+    error,
     onStart,
 }: {
     catalog: CombatCatalog;
     profile: CombatProfile;
     busy: boolean;
+    error?: string;
     onStart: (constraints: Record<string, string | number>) => void;
 }) {
     const recommended =
@@ -29,7 +31,7 @@ export default function ExplorationPreparation({
     const isExploring = Boolean(profile.activeExplorationId);
 
     return (
-        <section className="relative rounded-2xl border border-orange-200/80 bg-gradient-to-br from-orange-50/30 via-white to-amber-50/20 p-4 sm:p-5 shadow-xs">
+        <section className="relative rounded-2xl border border-orange-200/80 bg-white p-4 sm:p-5 shadow-xl shadow-slate-900/15">
             {/* 标题 */}
             <div className="flex items-center justify-between pb-3 border-b border-orange-100/70">
                 <div className="flex items-center gap-2">
@@ -117,6 +119,13 @@ export default function ExplorationPreparation({
                 <div className="mt-2.5 flex items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 border border-amber-200/60">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-600" />
                     <span>该居民体力耗尽倒地，需要休息至 {new Date(profile.restUntil).toLocaleTimeString('zh-CN')}</span>
+                </div>
+            )}
+
+            {error && (
+                <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-700">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p className="min-w-0 break-words">{error}</p>
                 </div>
             )}
 

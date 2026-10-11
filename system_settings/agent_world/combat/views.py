@@ -9,7 +9,7 @@ from utils.response_utils import success_result, valid_result
 from system_settings.models import Agent
 from ..farm_gate import farm_gate
 from ..cooking_queries import validate_actor
-from .models import CombatProfile, CombatFact, Exploration, CombatEncounter, CombatConfig, CombatRuntime, EquipmentInstance
+from .models import CombatProfile, CombatFact, Exploration, CombatEncounter, CombatConfig, EquipmentInstance
 from . import queries, profiles, explorations
 from .facts import append, replay
 from .permissions import local_runtime
@@ -82,28 +82,17 @@ class CombatView(APIView):
                 if self.kind=='config':
                     arguments={k:v for k,v in request.data.items() if k!='key'}
                     business,_=CombatConfig.objects.get_or_create(pk=owner)
-                    runtime,_=CombatRuntime.objects.get_or_create(pk='auto:'+owner,defaults={'owner_id':owner})
-                    receipt=business.requests.get(key) or runtime.requests.get(key)
+                    receipt=business.requests.get(key)
                     if receipt:
                         if receipt!=arguments:raise ValueError('请求键已用于不同配置')
                         return respond(queries.config(owner))
-                    if set(arguments)-{'daily_minutes','auto_enabled'}:raise ValueError('未知探索配置')
+                    if set(arguments)-{'daily_minutes'}:raise ValueError('未知探索配置')
                     if 'daily_minutes' in arguments:
                         value=arguments['daily_minutes']
                         if type(value)is not int or not 30<=value<=120:raise ValueError('每日探索额度须为 30 至 120 分钟')
                         CombatConfig.objects.update_or_create(pk=owner,defaults={'daily_minutes':value})
-                    if 'auto_enabled' in arguments:
-                        if type(arguments['auto_enabled'])is not bool:raise ValueError('自动探索开关须为布尔值')
-                        CombatRuntime.objects.update_or_create(pk='auto:'+owner,defaults={'owner_id':owner,'auto_enabled':arguments['auto_enabled']})
-                        if arguments['auto_enabled']:
-                            from .schedule import ensure_task
-                            ensure_task(owner)
-                    if 'auto_enabled' in arguments:
-                        runtime.refresh_from_db()
-                        runtime.requests={**runtime.requests,key:arguments};runtime.save()
-                    else:
-                        business.refresh_from_db()
-                        business.requests={**business.requests,key:arguments};business.save()
+                    business.refresh_from_db()
+                    business.requests={**business.requests,key:arguments};business.save()
                     return respond(queries.config(owner))
                 if self.kind in ('snapshot','command'):
                     run=get_object_or_404(Exploration,pk=identity,owner_id=owner)

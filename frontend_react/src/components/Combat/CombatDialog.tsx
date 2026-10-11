@@ -1,12 +1,10 @@
-import {useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import WorldDialog from '../AgentWorld/WorldDialog';
-import {Select} from '../common/Select';
 import {useCombat} from '../../hooks/useCombat';
 import {useCombatActions} from '../../hooks/useCombatActions';
-import {setCombatConfig} from '../../api/combat';
 import CombatProfilePanel from './CombatProfilePanel';
 import {statusLabels} from './presentation';
-import {Clock, History, Shield, Sparkles, User} from 'lucide-react';
+import {ChevronLeft, ChevronRight, Clock, History, Shield, Sparkles, User} from 'lucide-react';
 
 export default function CombatDialog({
     residents,
@@ -22,11 +20,44 @@ export default function CombatDialog({
     const [actor, setActor] = useState(
         residents.some(r => r.id === initialAgentId) ? initialAgentId : residents[0]?.id || ''
     );
+    const contentRef = useRef<HTMLDivElement>(null);
     const state = useCombat(actor);
+    const setPage = state.setPage;
     const actions = useCombatActions(actor, state.reload);
     const [tab, setTab] = useState<'profile' | 'history'>('profile');
-    const [configError, setConfigError] = useState('');
     const data = state.data;
+    const actorIndex = residents.findIndex(resident => resident.id === actor);
+    const activeResident = residents[actorIndex];
+    const changeResident = (index: number) => {
+        const resident = residents[index];
+        if (!resident) return;
+        setActor(resident.id);
+        state.setPage(1);
+    };
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (
+                (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') ||
+                event.altKey || event.ctrlKey || event.metaKey || event.shiftKey
+            ) return;
+            if (!(event.target instanceof Element)) return;
+            const dialog = contentRef.current?.closest('[role="dialog"]');
+            if (!dialog?.contains(event.target)) return;
+            if (event.target.closest(
+                'input, textarea, select, [contenteditable="true"], [role="combobox"], [role="listbox"], [role="slider"]'
+            )) return;
+
+            event.preventDefault();
+            const nextIndex = actorIndex + (event.key === 'ArrowLeft' ? -1 : 1);
+            if (!residents[nextIndex]) return;
+            setActor(residents[nextIndex].id);
+            setPage(1);
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [actorIndex, residents, setPage]);
 
     return (
         <WorldDialog
@@ -35,46 +66,47 @@ export default function CombatDialog({
             size="wide"
             onClose={onClose}
         >
-            <div className="flex h-full min-h-0 flex-col gap-3">
+            <div ref={contentRef} className="flex h-full min-h-0 flex-col gap-3">
                 {/* 顶部控制栏 */}
                 <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50/80 p-2.5 border border-slate-100">
                     <div className="flex items-center gap-3 flex-wrap">
                         {/* 居民切换 */}
-                        <div className="flex items-center gap-1.5">
-                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
+                        <div role="group" aria-label="切换冒险档案居民" className="inline-flex items-center gap-1 rounded-xl border border-slate-200/70 bg-white p-1 shadow-2xs">
+                            <button
+                                type="button"
+                                aria-label="上一位居民"
+                                title="上一位居民"
+                                disabled={actorIndex <= 0}
+                                onClick={() => changeResident(actorIndex - 1)}
+                                className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-30"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
                                 <User className="h-4 w-4" />
                             </span>
-                            <div className="w-44">
-                                <Select
-                                    menuPortal
-                                    value={actor}
-                                    options={residents.map(r => ({value: r.id, label: r.name}))}
-                                    onChange={id => {
-                                        setActor(id);
-                                        state.setPage(1);
-                                    }}
-                                />
+                            <div className="min-w-24 px-1">
+                                <div className="max-w-36 truncate text-xs font-semibold text-slate-700">
+                                    {activeResident?.name || '居民'}
+                                </div>
+                                {residents.length > 1 && (
+                                    <div className="text-[10px] leading-3 text-slate-400">
+                                        {actorIndex + 1} / {residents.length} · ← / → 切换
+                                    </div>
+                                )}
                             </div>
+                            <button
+                                type="button"
+                                aria-label="下一位居民"
+                                title="下一位居民"
+                                disabled={actorIndex < 0 || actorIndex >= residents.length - 1}
+                                onClick={() => changeResident(actorIndex + 1)}
+                                className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-30"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
                         </div>
 
-                        {/* 自动探索开关 */}
-                        {data && (
-                            <label className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs text-slate-600 border border-slate-200/70 shadow-2xs cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    className="accent-orange-500 h-3.5 w-3.5 rounded"
-                                    checked={data.config.autoEnabled}
-                                    onChange={event => {
-                                        void setCombatConfig({autoEnabled: event.target.checked})
-                                            .then(state.reload)
-                                            .catch(e =>
-                                                setConfigError(e instanceof Error ? e.message : '自动探索设置失败')
-                                            );
-                                    }}
-                                />
-                                <span>本机自动探索（每日上限 {data.config.dailyMinutes} 分钟）</span>
-                            </label>
-                        )}
                     </div>
 
                     {/* 视图 Tab 切换 */}
@@ -109,9 +141,9 @@ export default function CombatDialog({
                 </div>
 
                 {/* 错误提示 */}
-                {(state.error || actions.error || configError) && (
+                {(state.error || actions.error) && (
                     <p role="alert" className="shrink-0 rounded-xl bg-red-50 p-3 text-xs text-red-700 border border-red-200">
-                        {state.error || actions.error || configError}
+                        {state.error || actions.error}
                     </p>
                 )}
 

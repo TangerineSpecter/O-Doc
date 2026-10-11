@@ -17,4 +17,4 @@ export interface CombatEvent {id: string; sequence: number; kind: string; elapse
 export interface CombatResult {energy?: number; experience?: number; kills?: number; potionsUsed?: Record<string, number>; rewards?: CombatReward[]; report?: string}
 export interface CombatSnapshot {visual?:CombatVisualSnapshot;remainingSeconds?: number | null; canControl: boolean; id: string; actorId: string; version: number; stage: string; status: string; reason: string; elapsedSeconds: number; durationSeconds: number; nextTickAt: string | null; player: Combatant | null; enemy: Combatant | null; potions: Record<string, number>; result: CombatResult; events: CombatEvent[]; latestCursor: number; nextCursor: number; hasMore: boolean}
 export interface CombatHistory {list: {id: string; status: string; elapsedSeconds: number; result: CombatResult; createdAt: string}[]; total: number; page: number}
-export interface CombatConfig {dailyMinutes: number; autoEnabled: boolean}
+export interface CombatConfig {dailyMinutes: number}

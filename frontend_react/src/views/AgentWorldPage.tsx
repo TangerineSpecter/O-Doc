@@ -95,6 +95,11 @@ export default function AgentWorldPage() {
         }
     };
     const world = useAgentWorld();
+    const openCombat = (actorId: string = world.agentId) => {
+        setCombatActor(actorId);
+        setPanel(null);
+        setCombatOpen(true);
+    };
     const [dailySummary, setDailySummary] = useState<{date: string; total: number; actorCounts: Record<string, number>} | null>(null);
     const updateDailySummary = useCallback((value: {date: string; total: number; actorCounts: Record<string, number>}) => setDailySummary(value), []);
     const [selectedActivity, setSelectedActivity] = useState<AgentActivityData | null>(null);
@@ -306,7 +311,7 @@ export default function AgentWorldPage() {
                         setPanel(null);
                         requestAnimationFrame(() => document.getElementById('agent-world-daily-feed')?.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'}));
                     }}
-                    onOpenCombat={actorId => {setCombatActor(actorId);setPanel(null);setCombatOpen(true);}}
+                    onOpenCombat={openCombat}
                     onOpenInvestment={(actorId) => {
                         setInvestmentActorId(actorId || world.agentId);
                         setPanel(null);

@@ -138,11 +138,9 @@ def depart(run_id, plan, now=None):
     agent=Agent.objects.select_for_update().get(pk=run.actor_id)
     profile=CombatProfile.objects.select_for_update().get(pk=run.actor_id)
     if run.life_item_id:
-        from .schedule import automatic_enabled
         from ..life_models import LifeItem
         from ..life_scope import check_item_authorization
         item=LifeItem.objects.get(pk=run.life_item_id)
-        if not item.context.get('manual') and not automatic_enabled(run.owner_id):raise ValueError('本机自动探索已关闭')
         check_item_authorization(item)
     profile.catalog_id=run.catalog_id
     catalog=current(run.catalog_id)
