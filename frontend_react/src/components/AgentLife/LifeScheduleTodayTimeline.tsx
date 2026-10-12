@@ -5,14 +5,13 @@ import {
     ArrowRight,
     Calendar,
     Check,
+    CheckCircle2,
     ChevronLeft,
     ChevronRight,
     Clock,
     Clock3,
     Coffee,
     Compass,
-    LayoutGrid,
-    List,
     MessageSquare,
     Moon,
     PlayCircle,
@@ -25,7 +24,6 @@ import {
     Sunset,
     TrendingUp,
     Utensils,
-    Columns3,
 } from 'lucide-react';
 import type {LifeItem} from '../../types/api/agentLife';
 import type {AgentConfig} from '../../types/api/setting';
@@ -225,7 +223,6 @@ const statusMetaConfig: Record<
     },
 };
 
-// 上海时区时间转换
 const parseShanghaiMinutes = (dateStr: string) => {
     const d = new Date(dateStr);
     const parts = new Intl.DateTimeFormat('en-US', {
@@ -274,9 +271,6 @@ interface DayPeriodMeta {
     minMinutes: number;
     maxMinutes: number;
     icon: ElementType;
-    bgClass: string;
-    borderClass: string;
-    textClass: string;
 }
 
 const dayPeriods: DayPeriodMeta[] = [
@@ -287,9 +281,6 @@ const dayPeriods: DayPeriodMeta[] = [
         minMinutes: 0,
         maxMinutes: 9 * 60,
         icon: Sunrise,
-        bgClass: 'bg-indigo-50/60',
-        borderClass: 'border-indigo-100',
-        textClass: 'text-indigo-700',
     },
     {
         id: 'morning',
@@ -298,9 +289,6 @@ const dayPeriods: DayPeriodMeta[] = [
         minMinutes: 9 * 60,
         maxMinutes: 12 * 60,
         icon: Sun,
-        bgClass: 'bg-amber-50/60',
-        borderClass: 'border-amber-100',
-        textClass: 'text-amber-700',
     },
     {
         id: 'afternoon',
@@ -309,9 +297,6 @@ const dayPeriods: DayPeriodMeta[] = [
         minMinutes: 12 * 60,
         maxMinutes: 18 * 60,
         icon: Sunset,
-        bgClass: 'bg-orange-50/60',
-        borderClass: 'border-orange-100',
-        textClass: 'text-orange-700',
     },
     {
         id: 'night',
@@ -320,9 +305,6 @@ const dayPeriods: DayPeriodMeta[] = [
         minMinutes: 18 * 60,
         maxMinutes: 24 * 60,
         icon: Moon,
-        bgClass: 'bg-slate-100/70',
-        borderClass: 'border-slate-200/80',
-        textClass: 'text-slate-700',
     },
 ];
 
@@ -345,8 +327,6 @@ export default function LifeScheduleTodayTimeline({
     onPageChange,
     onSelectItem,
 }: LifeScheduleTodayTimelineProps) {
-    // 视图模式：grid (高密度网格卡片), list (超紧凑列表), periods (时段看板)
-    const [viewMode, setViewMode] = useState<'grid' | 'list' | 'periods'>('grid');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [currentTime, setCurrentTime] = useState(getShanghaiCurrent);
 
@@ -366,7 +346,7 @@ export default function LifeScheduleTodayTimeline({
         });
     }, [items]);
 
-    // 统计数据
+    // 统计指标（实时反映当天开销与达成率）
     const stats = useMemo(() => {
         const totalCount = sortedItems.length;
         const completedCount = sortedItems.filter((i) => i.status === 'completed').length;
@@ -375,12 +355,13 @@ export default function LifeScheduleTodayTimeline({
         const failedCount = sortedItems.filter((i) => i.status === 'failed').length;
         const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-        // 统计涉及的不同居民
-        const uniqueAgentIds = new Set(sortedItems.map((i) => i.actorId));
         // 统计总花费
-        const totalSpent = sortedItems.reduce((acc, i) => acc + (parseFloat(i.spent || '0') || 0), 0);
+        const totalSpent = sortedItems.reduce(
+            (acc, i) => acc + (parseFloat(i.spent || '0') || 0),
+            0
+        );
 
-        // 活动类型分布
+        // 当天全部活动类型构成分布
         const activityCounts: Record<string, number> = {};
         for (const item of sortedItems) {
             activityCounts[item.activity] = (activityCounts[item.activity] || 0) + 1;
@@ -393,13 +374,12 @@ export default function LifeScheduleTodayTimeline({
             pendingCount,
             failedCount,
             completionRate,
-            uniqueAgentsCount: uniqueAgentIds.size,
             totalSpent,
             activityCounts,
         };
     }, [sortedItems]);
 
-    // 过滤列表
+    // 状态筛选
     const displayItems = useMemo(() => {
         if (statusFilter === 'all') return sortedItems;
         return sortedItems.filter((i) => i.status === statusFilter);
@@ -408,20 +388,14 @@ export default function LifeScheduleTodayTimeline({
     // 当前时段
     const currentPeriod = getPeriodByMinutes(currentTime.minutes);
 
-    // 将已过去日程与未来待办日程划分（用于插入当前时间指示标尺）
-    const {pastItems, futureItems} = useMemo(() => {
-        const past: LifeItem[] = [];
-        const future: LifeItem[] = [];
-        for (const item of displayItems) {
-            const m = parseShanghaiMinutes(item.scheduledAt);
-            if (m <= currentTime.minutes) {
-                past.push(item);
-            } else {
-                future.push(item);
-            }
-        }
-        return {pastItems: past, futureItems: future};
-    }, [displayItems, currentTime.minutes]);
+    // 区分已完成与未完成安排（单行展示）
+    const completedItems = useMemo(() => {
+        return displayItems.filter((i) => i.status === 'completed');
+    }, [displayItems]);
+
+    const unfinishedItems = useMemo(() => {
+        return displayItems.filter((i) => i.status !== 'completed');
+    }, [displayItems]);
 
     if (loading && !sortedItems.length) {
         return (
@@ -462,10 +436,10 @@ export default function LifeScheduleTodayTimeline({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-            {/* 顶栏 1：控制与关键状态过滤 */}
+            {/* 顶栏 1：控制与状态筛选 */}
             <div className="shrink-0 border-b border-slate-100 bg-slate-50/50 px-4 py-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-2.5">
-                    {/* 左侧：今日完成度与时间指示 */}
+                    {/* 左侧：时间与达成率简报 */}
                     <div className="flex items-center gap-2.5">
                         <div className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200/80 bg-white px-2.5 py-1 text-xs shadow-2xs">
                             <span className="relative flex h-2 w-2">
@@ -482,8 +456,8 @@ export default function LifeScheduleTodayTimeline({
                             </span>
                         </div>
 
-                        {/* 完成度简报 */}
-                        <div className="hidden sm:flex items-center gap-2 rounded-lg border border-slate-200/60 bg-white px-2.5 py-1 text-xs text-slate-600 shadow-2xs">
+                        {/* 达成情况 */}
+                        <div className="flex items-center gap-2 rounded-lg border border-slate-200/60 bg-white px-2.5 py-1 text-xs text-slate-600 shadow-2xs">
                             <span>达成</span>
                             <strong className="font-mono text-emerald-600">
                                 {stats.completedCount}/{stats.totalCount}
@@ -500,128 +474,82 @@ export default function LifeScheduleTodayTimeline({
                         </div>
                     </div>
 
-                    {/* 右侧：状态过滤胶囊 + 视图切换 */}
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* 状态过滤 */}
-                        <div className="flex items-center rounded-lg bg-slate-200/60 p-0.5 text-xs">
+                    {/* 右侧：状态快捷过滤胶囊 */}
+                    <div className="flex items-center rounded-lg bg-slate-200/60 p-0.5 text-xs">
+                        <button
+                            type="button"
+                            onClick={() => setStatusFilter('all')}
+                            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
+                                statusFilter === 'all'
+                                    ? 'bg-white font-semibold text-slate-800 shadow-2xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <span>全部</span>
+                            <span className="font-mono text-[10px] text-slate-400">
+                                {stats.totalCount}
+                            </span>
+                        </button>
+                        {stats.runningCount > 0 && (
                             <button
                                 type="button"
-                                onClick={() => setStatusFilter('all')}
+                                onClick={() => setStatusFilter('running')}
                                 className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
-                                    statusFilter === 'all'
-                                        ? 'bg-white font-semibold text-slate-800 shadow-2xs'
-                                        : 'text-slate-600 hover:text-slate-900'
+                                    statusFilter === 'running'
+                                        ? 'bg-white font-semibold text-blue-700 shadow-2xs'
+                                        : 'text-blue-600 hover:text-blue-800'
                                 }`}
                             >
-                                <span>全部</span>
-                                <span className="font-mono text-[10px] text-slate-400">
-                                    {stats.totalCount}
-                                </span>
+                                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
+                                <span>进行中</span>
+                                <span className="font-mono text-[10px]">{stats.runningCount}</span>
                             </button>
-                            {stats.runningCount > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setStatusFilter('running')}
-                                    className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
-                                        statusFilter === 'running'
-                                            ? 'bg-white font-semibold text-blue-700 shadow-2xs'
-                                            : 'text-blue-600 hover:text-blue-800'
-                                    }`}
-                                >
-                                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
-                                    <span>进行中</span>
-                                    <span className="font-mono text-[10px]">{stats.runningCount}</span>
-                                </button>
-                            )}
-                            {stats.pendingCount > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setStatusFilter('pending')}
-                                    className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
-                                        statusFilter === 'pending'
-                                            ? 'bg-white font-semibold text-amber-700 shadow-2xs'
-                                            : 'text-amber-600 hover:text-amber-800'
-                                    }`}
-                                >
-                                    <span>待办</span>
-                                    <span className="font-mono text-[10px]">{stats.pendingCount}</span>
-                                </button>
-                            )}
+                        )}
+                        {stats.pendingCount > 0 && (
                             <button
                                 type="button"
-                                onClick={() => setStatusFilter('completed')}
+                                onClick={() => setStatusFilter('pending')}
                                 className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
-                                    statusFilter === 'completed'
-                                        ? 'bg-white font-semibold text-emerald-700 shadow-2xs'
-                                        : 'text-emerald-600 hover:text-emerald-800'
+                                    statusFilter === 'pending'
+                                        ? 'bg-white font-semibold text-amber-700 shadow-2xs'
+                                        : 'text-amber-600 hover:text-amber-800'
                                 }`}
                             >
-                                <span>已完成</span>
-                                <span className="font-mono text-[10px]">{stats.completedCount}</span>
+                                <span>待办</span>
+                                <span className="font-mono text-[10px]">{stats.pendingCount}</span>
                             </button>
-                            {stats.failedCount > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setStatusFilter('failed')}
-                                    className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
-                                        statusFilter === 'failed'
-                                            ? 'bg-white font-semibold text-rose-700 shadow-2xs'
-                                            : 'text-rose-600 hover:text-rose-800'
-                                    }`}
-                                >
-                                    <span>失败</span>
-                                    <span className="font-mono text-[10px]">{stats.failedCount}</span>
-                                </button>
-                            )}
-                        </div>
-
-                        {/* 视图模式：卡片网格 vs 紧凑列表 vs 时段看板 */}
-                        <div className="flex items-center rounded-lg border border-slate-200/80 bg-white p-0.5 shadow-2xs">
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => setStatusFilter('completed')}
+                            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
+                                statusFilter === 'completed'
+                                    ? 'bg-white font-semibold text-emerald-700 shadow-2xs'
+                                    : 'text-emerald-600 hover:text-emerald-800'
+                            }`}
+                        >
+                            <span>已完成</span>
+                            <span className="font-mono text-[10px]">{stats.completedCount}</span>
+                        </button>
+                        {stats.failedCount > 0 && (
                             <button
                                 type="button"
-                                onClick={() => setViewMode('grid')}
-                                title="网格卡片视图：双列展开，高利用率"
-                                className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all ${
-                                    viewMode === 'grid'
-                                        ? 'bg-orange-50 font-semibold text-orange-600'
-                                        : 'text-slate-500 hover:text-slate-800'
+                                onClick={() => setStatusFilter('failed')}
+                                className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
+                                    statusFilter === 'failed'
+                                        ? 'bg-white font-semibold text-rose-700 shadow-2xs'
+                                        : 'text-rose-600 hover:text-rose-800'
                                 }`}
                             >
-                                <LayoutGrid className="h-3 w-3 shrink-0" />
-                                <span>网格</span>
+                                <span>失败</span>
+                                <span className="font-mono text-[10px]">{stats.failedCount}</span>
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => setViewMode('list')}
-                                title="紧凑清单视图：一屏容纳更多行"
-                                className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all ${
-                                    viewMode === 'list'
-                                        ? 'bg-orange-50 font-semibold text-orange-600'
-                                        : 'text-slate-500 hover:text-slate-800'
-                                }`}
-                            >
-                                <List className="h-3 w-3 shrink-0" />
-                                <span>清单</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setViewMode('periods')}
-                                title="时段看板视图：按时段分列"
-                                className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all ${
-                                    viewMode === 'periods'
-                                        ? 'bg-orange-50 font-semibold text-orange-600'
-                                        : 'text-slate-500 hover:text-slate-800'
-                                }`}
-                            >
-                                <Columns3 className="h-3 w-3 shrink-0" />
-                                <span>时段</span>
-                            </button>
-                        </div>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* 顶栏 2：【24小时全景微缩时间刻度光轨】（仅占 36px，纵览全天并精确指示当前时间） */}
+            {/* 顶栏 2：【24小时全景微缩时间刻度光轨】 */}
             <div className="shrink-0 border-b border-slate-100 bg-white px-4 py-1.5">
                 <Day24HourRibbon
                     items={sortedItems}
@@ -631,182 +559,80 @@ export default function LifeScheduleTodayTimeline({
                 />
             </div>
 
-            {/* 主内容区域：占满宽度，紧凑无浪费 */}
-            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide p-3 sm:p-4">
-                {displayItems.length === 0 ? (
-                    <div className="flex min-h-[160px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center">
-                        <Clock className="h-6 w-6 text-slate-300" />
-                        <p className="mt-1.5 text-xs text-slate-500">
-                            未找到符合当前筛选条件的安排
-                        </p>
-                        <button
-                            type="button"
-                            onClick={() => setStatusFilter('all')}
-                            className="mt-2 text-xs font-semibold text-orange-600 hover:underline"
-                        >
-                            清除筛选
-                        </button>
+            {/* 主内容区域：单行已完成 -> 当前时间标尺 -> 单行未完成 -> 常驻实时大盘 */}
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide p-3 sm:p-4 space-y-3.5">
+                {/* 1. 已完成安排（单行横向排布） */}
+                <div>
+                    <div className="flex items-center justify-between pb-1.5">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                            <span>已完成安排</span>
+                            <span className="font-mono text-[11px] font-normal text-slate-400">
+                                ({completedItems.length})
+                            </span>
+                        </div>
                     </div>
-                ) : viewMode === 'grid' ? (
-                    /* ======================================================== */
-                    /* 模式 1：高利用率卡片网格（Grid）                          */
-                    /* ======================================================== */
-                    <div className="space-y-3">
-                        {/* 1. 已过去的日程 */}
-                        {pastItems.length > 0 && (
-                            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                {pastItems.map((item) => (
+
+                    {completedItems.length > 0 ? (
+                        <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide py-1">
+                            {completedItems.map((item) => (
+                                <div key={item.id} className="w-72 shrink-0">
                                     <CompactGridCard
-                                        key={item.id}
                                         item={item}
                                         agent={agentById.get(item.actorId)}
                                         onSelect={() => onSelectItem(item.id)}
                                     />
-                                ))}
-                            </div>
-                        )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 px-3 py-2.5 text-center text-xs text-slate-400">
+                            今日暂无已完成安排
+                        </div>
+                    )}
+                </div>
 
-                        {/* 2. 当前时间线分隔带（仅在全部筛选下展示） */}
-                        {statusFilter === 'all' && (
-                            <CurrentDividerBar
-                                timeString={currentTime.timeString}
-                                hoursRemaining={currentTime.hoursRemaining}
-                                hasFuture={futureItems.length > 0}
-                            />
-                        )}
+                {/* 2. 当前时刻分割带 */}
+                <CurrentDividerBar
+                    timeString={currentTime.timeString}
+                    hoursRemaining={currentTime.hoursRemaining}
+                    unfinishedCount={unfinishedItems.length}
+                />
 
-                        {/* 3. 未来的日程 */}
-                        {futureItems.length > 0 && (
-                            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                {futureItems.map((item) => (
+                {/* 3. 未完成安排（单行横向排布） */}
+                <div>
+                    <div className="flex items-center justify-between pb-1.5">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                            <Clock className="h-3.5 w-3.5 text-amber-500" />
+                            <span>待处理与进行中安排</span>
+                            <span className="font-mono text-[11px] font-normal text-slate-400">
+                                ({unfinishedItems.length})
+                            </span>
+                        </div>
+                    </div>
+
+                    {unfinishedItems.length > 0 ? (
+                        <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide py-1">
+                            {unfinishedItems.map((item) => (
+                                <div key={item.id} className="w-72 shrink-0">
                                     <CompactGridCard
-                                        key={item.id}
                                         item={item}
                                         agent={agentById.get(item.actorId)}
                                         isFuture
                                         onSelect={() => onSelectItem(item.id)}
                                     />
-                                ))}
-                            </div>
-                        )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="rounded-xl border border-dashed border-emerald-200/80 bg-emerald-50/20 px-3 py-2.5 text-center text-xs text-emerald-700">
+                            🎉 今日所有安排已全部完成，居民自由休憩中 ✨
+                        </div>
+                    )}
+                </div>
 
-                        {/* 当今天日程总数较少（<= 4 项）时，下方填充今日生活洞察与状态概览，消除空洞白斑 */}
-                        {sortedItems.length <= 4 && statusFilter === 'all' && (
-                            <TodayInsightsSection stats={stats} agents={agents} items={sortedItems} />
-                        )}
-                    </div>
-                ) : viewMode === 'list' ? (
-                    /* ======================================================== */
-                    /* 模式 2：超紧凑单行清单模式（List）                         */
-                    /* ======================================================== */
-                    <div className="space-y-1.5">
-                        {/* 已过日程行 */}
-                        {pastItems.map((item) => (
-                            <CompactListRow
-                                key={item.id}
-                                item={item}
-                                agent={agentById.get(item.actorId)}
-                                onSelect={() => onSelectItem(item.id)}
-                            />
-                        ))}
-
-                        {/* 当前时间分隔条 */}
-                        {statusFilter === 'all' && (
-                            <CurrentDividerBar
-                                timeString={currentTime.timeString}
-                                hoursRemaining={currentTime.hoursRemaining}
-                                hasFuture={futureItems.length > 0}
-                            />
-                        )}
-
-                        {/* 未来日程行 */}
-                        {futureItems.map((item) => (
-                            <CompactListRow
-                                key={item.id}
-                                item={item}
-                                agent={agentById.get(item.actorId)}
-                                isFuture
-                                onSelect={() => onSelectItem(item.id)}
-                            />
-                        ))}
-
-                        {sortedItems.length <= 4 && statusFilter === 'all' && (
-                            <div className="pt-3">
-                                <TodayInsightsSection stats={stats} agents={agents} items={sortedItems} />
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    /* ======================================================== */
-                    /* 模式 3：自适应时段看板（Periods）                         */
-                    /* ======================================================== */
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        {dayPeriods.map((period) => {
-                            const periodItems = displayItems.filter((i) => {
-                                const m = parseShanghaiMinutes(i.scheduledAt);
-                                return m >= period.minMinutes && m < period.maxMinutes;
-                            });
-
-                            const isCurrentPeriod = currentPeriod.id === period.id;
-                            const Icon = period.icon;
-
-                            return (
-                                <section
-                                    key={period.id}
-                                    className={`flex flex-col rounded-xl border p-2.5 transition-all ${
-                                        isCurrentPeriod
-                                            ? 'border-orange-300 bg-orange-50/20 shadow-2xs ring-1 ring-orange-400/20'
-                                            : 'border-slate-200/80 bg-white'
-                                    }`}
-                                >
-                                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                                        <div className="flex items-center gap-1.5">
-                                            <span
-                                                className={`flex h-5 w-5 items-center justify-center rounded border ${period.bgClass} ${period.borderClass} ${period.textClass}`}
-                                            >
-                                                <Icon className="h-3 w-3" />
-                                            </span>
-                                            <span className="text-xs font-bold text-slate-800">
-                                                {period.name}
-                                            </span>
-                                            <span className="font-mono text-[10px] text-slate-400">
-                                                {period.range}
-                                            </span>
-                                        </div>
-
-                                        {isCurrentPeriod ? (
-                                            <span className="rounded-full bg-orange-500 px-1.5 py-0.2 text-[9px] font-bold text-white">
-                                                当前
-                                            </span>
-                                        ) : (
-                                            <span className="font-mono text-[10px] text-slate-400">
-                                                {periodItems.length}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    <div className="mt-2 space-y-1.5">
-                                        {periodItems.length > 0 ? (
-                                            periodItems.map((item) => (
-                                                <CompactGridCard
-                                                    key={item.id}
-                                                    item={item}
-                                                    agent={agentById.get(item.actorId)}
-                                                    onSelect={() => onSelectItem(item.id)}
-                                                    dense
-                                                />
-                                            ))
-                                        ) : (
-                                            <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-slate-100 text-[11px] text-slate-300">
-                                                无安排
-                                            </div>
-                                        )}
-                                    </div>
-                                </section>
-                            );
-                        })}
-                    </div>
-                )}
+                {/* 4. 常驻实时概览面板（图一对应）：生活节律、活动构成、财务与达成率 */}
+                <TodayInsightsSection stats={stats} agents={agents} items={sortedItems} />
             </div>
 
             {/* 分页控制（超过100条时提供） */}
@@ -930,19 +756,17 @@ function Day24HourRibbon({
 }
 
 // =========================================================================
-// 组件：紧凑网格卡片 (Compact Grid Card)
+// 组件：紧凑规整卡片 (Compact Grid Card) —— 无冗长描述，双行极简防溢出
 // =========================================================================
 function CompactGridCard({
     item,
     agent,
     isFuture = false,
-    dense = false,
     onSelect,
 }: {
     item: LifeItem;
     agent?: AgentConfig;
     isFuture?: boolean;
-    dense?: boolean;
     onSelect: () => void;
 }) {
     const actorName = agent?.name || '居民';
@@ -959,22 +783,17 @@ function CompactGridCard({
     const timeStr = formatShanghaiTime(item.scheduledAt);
     const showBudget = showsLifeBudget(item);
     const hasSpent = parseFloat(item.spent || '0') > 0;
-    const isFailed = item.status === 'failed' && Boolean(item.result?.reason);
+    const isFailed = item.status === 'failed';
     const isRunning = item.status === 'running';
 
     const intentTitle = activityLabels[item.activity] || item.activity;
-    const descriptionText =
-        (isFailed ? item.result?.reason : item.intent) || '生活安排已就绪';
-
-    const isManual = descriptionText.includes('手动') || Boolean(item.intent?.includes('手动'));
+    const isManual = item.intent?.includes('手动') || item.result?.reason?.includes('手动');
 
     return (
         <button
             type="button"
             onClick={onSelect}
-            className={`group relative flex w-full flex-col rounded-xl border text-left transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-orange-500/20 ${
-                dense ? 'p-2' : 'p-2.5 sm:p-3'
-            } ${
+            className={`group relative flex w-full flex-col justify-between overflow-hidden rounded-xl border p-2.5 sm:p-3 text-left transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-orange-500/20 ${
                 isRunning
                     ? 'border-blue-300 bg-blue-50/20 shadow-xs ring-1 ring-blue-500/20'
                     : isFailed
@@ -991,17 +810,17 @@ function CompactGridCard({
             />
 
             {/* 顶行：时间 + 居民 + 活动徽标 + 状态 */}
-            <div className="flex items-center justify-between gap-1.5 pl-1.5">
-                <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center justify-between gap-1.5 pl-1.5 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
                     <span
-                        className={`font-mono text-xs font-bold tabular-nums ${
+                        className={`font-mono text-xs font-bold tabular-nums shrink-0 ${
                             isRunning ? 'text-blue-600' : 'text-slate-800'
                         }`}
                     >
                         {timeStr}
                     </span>
                     <AgentAvatar name={actorName} avatar={agent?.avatar} size="xs" />
-                    <span className="truncate text-xs font-semibold text-slate-700">
+                    <span className="truncate text-xs font-semibold text-slate-700 max-w-[70px] sm:max-w-[85px]">
                         {actorName}
                     </span>
                 </div>
@@ -1009,15 +828,15 @@ function CompactGridCard({
                 <div className="flex items-center gap-1 shrink-0">
                     {/* 活动胶囊 */}
                     <span
-                        className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.2 text-[10px] font-medium ${actMeta.badgeColor}`}
+                        className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap ${actMeta.badgeColor}`}
                     >
-                        <ActIcon className="h-2.5 w-2.5" />
+                        <ActIcon className="h-2.5 w-2.5 shrink-0" />
                         <span>{intentTitle}</span>
                     </span>
 
                     {/* 状态徽标 */}
                     <span
-                        className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.2 text-[9px] font-medium leading-none ${statusMeta.badgeColor}`}
+                        className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-medium leading-none whitespace-nowrap ${statusMeta.badgeColor}`}
                     >
                         {statusMeta.pulse && (
                             <span className="h-1 w-1 animate-pulse rounded-full bg-blue-500" />
@@ -1027,32 +846,30 @@ function CompactGridCard({
                 </div>
             </div>
 
-            {/* 中行：意图摘要与手动执行小标签 */}
-            <div className="mt-1.5 flex items-center justify-between gap-1 pl-1.5 text-xs">
-                <p
-                    className={`truncate text-[11px] leading-relaxed ${
-                        isFailed ? 'text-rose-600 font-medium' : 'text-slate-600'
-                    }`}
-                >
-                    {descriptionText}
-                </p>
+            {/* 底行：执行模式/失败提示 + 预算/支出 + 详情操作 */}
+            <div className="mt-2 flex items-center justify-between gap-1 border-t border-slate-100/80 pt-1.5 pl-1.5 text-[10px] min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 truncate">
+                    {/* 手动 / 自主 */}
+                    {isManual ? (
+                        <span className="shrink-0 text-[10px] font-medium text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200/60 whitespace-nowrap">
+                            手动执行
+                        </span>
+                    ) : (
+                        <span className="shrink-0 text-[10px] text-slate-400 bg-slate-50 px-1 py-0.2 rounded border border-slate-100 whitespace-nowrap">
+                            自主决策
+                        </span>
+                    )}
 
-                {isManual ? (
-                    <span className="shrink-0 text-[10px] font-medium text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200/60">
-                        手动
-                    </span>
-                ) : (
-                    <span className="shrink-0 text-[10px] text-slate-400">
-                        自主
-                    </span>
-                )}
-            </div>
+                    {/* 失败标记 */}
+                    {isFailed && (
+                        <span className="shrink-0 text-[10px] font-medium text-rose-600 bg-rose-50 px-1 py-0.2 rounded border border-rose-200/60 whitespace-nowrap">
+                            失败
+                        </span>
+                    )}
 
-            {/* 底行：预算与查看详情 */}
-            <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-1.5 pl-1.5 text-[10px] text-slate-400">
-                <div>
+                    {/* 预算与支出 */}
                     {showBudget && (
-                        <span className="font-mono text-[10px]">
+                        <span className="font-mono text-[10px] truncate shrink-0">
                             {hasSpent ? (
                                 <span className="text-orange-600 font-semibold">
                                     支 ¥{item.spent}
@@ -1066,116 +883,10 @@ function CompactGridCard({
                     )}
                 </div>
 
-                <div className="flex items-center gap-0.5 text-orange-600 font-medium transition-transform group-hover:translate-x-0.5">
+                <div className="flex items-center gap-0.5 text-orange-600 font-medium shrink-0 group-hover:translate-x-0.5 transition-transform">
                     <span>详情</span>
                     <ArrowRight className="h-2.5 w-2.5" />
                 </div>
-            </div>
-        </button>
-    );
-}
-
-// =========================================================================
-// 组件：超紧凑单行列表项 (Compact List Row)
-// =========================================================================
-function CompactListRow({
-    item,
-    agent,
-    isFuture = false,
-    onSelect,
-}: {
-    item: LifeItem;
-    agent?: AgentConfig;
-    isFuture?: boolean;
-    onSelect: () => void;
-}) {
-    const actorName = agent?.name || '居民';
-    const actMeta = getActivityMeta(item.activity);
-    const ActIcon = actMeta.icon;
-    const statusMeta = statusMetaConfig[item.status] || {
-        label: statusLabels[item.status] || item.status,
-        badgeColor: 'bg-slate-50 text-slate-600 border-slate-200',
-        nodeBorder: 'border-slate-300',
-        nodeBg: 'bg-slate-50',
-        nodeText: 'text-slate-500',
-        icon: Clock,
-    };
-    const timeStr = formatShanghaiTime(item.scheduledAt);
-    const isFailed = item.status === 'failed' && Boolean(item.result?.reason);
-    const isRunning = item.status === 'running';
-
-    const intentTitle = activityLabels[item.activity] || item.activity;
-    const descriptionText =
-        (isFailed ? item.result?.reason : item.intent) || '生活安排已就绪';
-
-    const isManual = descriptionText.includes('手动') || Boolean(item.intent?.includes('手动'));
-
-    return (
-        <button
-            type="button"
-            onClick={onSelect}
-            className={`group relative flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-all duration-150 focus:outline-none focus:ring-1 focus:ring-orange-500/20 ${
-                isRunning
-                    ? 'border-blue-300 bg-blue-50/20'
-                    : isFailed
-                      ? 'border-rose-200 bg-rose-50/20'
-                      : isFuture
-                        ? 'border-slate-200/60 bg-white/70 hover:border-orange-300'
-                        : 'border-slate-200/80 bg-white hover:border-orange-300 hover:shadow-2xs'
-            }`}
-        >
-            {/* 左侧条目信息 */}
-            <div className="flex min-w-0 items-center gap-2.5 flex-1">
-                {/* 时间 */}
-                <span className="font-mono text-xs font-bold tabular-nums text-slate-800 shrink-0">
-                    {timeStr}
-                </span>
-
-                {/* 状态徽标 */}
-                <span
-                    className={`inline-flex shrink-0 items-center gap-0.5 rounded-full border px-1.5 py-0.2 text-[9px] font-medium leading-none ${statusMeta.badgeColor}`}
-                >
-                    {statusMeta.pulse && (
-                        <span className="h-1 w-1 animate-pulse rounded-full bg-blue-500" />
-                    )}
-                    <span>{statusMeta.label}</span>
-                </span>
-
-                {/* 居民头像与名称 */}
-                <div className="flex items-center gap-1 shrink-0">
-                    <AgentAvatar name={actorName} avatar={agent?.avatar} size="xs" />
-                    <span className="text-xs font-semibold text-slate-700">{actorName}</span>
-                </div>
-
-                {/* 活动类型 */}
-                <span
-                    className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.2 text-[10px] font-medium ${actMeta.badgeColor}`}
-                >
-                    <ActIcon className="h-2.5 w-2.5" />
-                    <span>{intentTitle}</span>
-                </span>
-
-                {/* 意图描述 */}
-                <span
-                    className={`truncate text-xs ${
-                        isFailed ? 'text-rose-600 font-medium' : 'text-slate-500'
-                    }`}
-                >
-                    {descriptionText}
-                </span>
-            </div>
-
-            {/* 右侧：手动标识与详情按钮 */}
-            <div className="flex items-center gap-2 shrink-0">
-                {isManual && (
-                    <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200/60">
-                        手动执行
-                    </span>
-                )}
-                <span className="flex items-center gap-0.5 text-xs text-orange-600 font-medium group-hover:translate-x-0.5 transition-transform">
-                    <span>详情</span>
-                    <ArrowRight className="h-3 w-3" />
-                </span>
             </div>
         </button>
     );
@@ -1187,11 +898,11 @@ function CompactListRow({
 function CurrentDividerBar({
     timeString,
     hoursRemaining,
-    hasFuture,
+    unfinishedCount,
 }: {
     timeString: string;
     hoursRemaining: number;
-    hasFuture: boolean;
+    unfinishedCount: number;
 }) {
     return (
         <div className="relative my-2.5 flex items-center gap-2">
@@ -1206,8 +917,8 @@ function CurrentDividerBar({
                 <span className="font-mono font-bold text-orange-600">{timeString}</span>
                 <span className="text-orange-400">·</span>
                 <span className="text-[11px] text-orange-700">
-                    {hasFuture
-                        ? `距今日结束还剩 ${hoursRemaining} 小时`
+                    {unfinishedCount > 0
+                        ? `距今日结束还剩 ${hoursRemaining} 小时 · 剩余 ${unfinishedCount} 项待处理`
                         : '今日已完成所有安排，居民自由休憩中 ✨'}
                 </span>
             </div>
@@ -1218,7 +929,7 @@ function CurrentDividerBar({
 }
 
 // =========================================================================
-// 组件：今日生活概览与统计面板（消除少数据时的空白浪费）
+// 组件：今日生活概览与节律（图一对应：常驻实时大盘）
 // =========================================================================
 function TodayInsightsSection({
     stats,
@@ -1232,19 +943,19 @@ function TodayInsightsSection({
         pendingCount: number;
         failedCount: number;
         completionRate: number;
-        uniqueAgentsCount: number;
         totalSpent: number;
         activityCounts: Record<string, number>;
     };
     agents: AgentConfig[];
     items: LifeItem[];
 }) {
+    // 当天有安排的所有活跃居民
     const activeAgents = agents.filter((a) =>
         items.some((i) => i.actorId === a.id)
     );
 
     return (
-        <div className="mt-4 rounded-xl border border-slate-200/70 bg-gradient-to-b from-slate-50/60 to-white p-3.5 shadow-2xs">
+        <div className="mt-3 rounded-xl border border-slate-200/80 bg-gradient-to-b from-slate-50/60 to-white p-3.5 shadow-2xs">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                     <Sparkles className="h-3.5 w-3.5 text-orange-500" />
@@ -1256,44 +967,52 @@ function TodayInsightsSection({
             </div>
 
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {/* 卡片 1：参与居民 */}
+                {/* 卡片 1：今日活跃居民 */}
                 <div className="rounded-lg border border-slate-100 bg-white p-2.5">
                     <span className="text-[11px] text-slate-400">今日活跃居民</span>
-                    <div className="mt-2 flex items-center gap-2">
-                        {activeAgents.map((agent) => (
-                            <div key={agent.id} className="flex items-center gap-1.5">
-                                <AgentAvatar name={agent.name} avatar={agent.avatar} size="xs" />
-                                <span className="text-xs font-semibold text-slate-700">
-                                    {agent.name}
-                                </span>
-                            </div>
-                        ))}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {activeAgents.length > 0 ? (
+                            activeAgents.map((agent) => (
+                                <div key={agent.id} className="flex items-center gap-1.5">
+                                    <AgentAvatar name={agent.name} avatar={agent.avatar} size="xs" />
+                                    <span className="text-xs font-semibold text-slate-700">
+                                        {agent.name}
+                                    </span>
+                                </div>
+                            ))
+                        ) : (
+                            <span className="text-xs text-slate-400">暂无活跃居民</span>
+                        )}
                     </div>
                 </div>
 
-                {/* 卡片 2：生活活动分布 */}
+                {/* 卡片 2：当天全部活动构成 */}
                 <div className="rounded-lg border border-slate-100 bg-white p-2.5">
                     <span className="text-[11px] text-slate-400">活动构成</span>
                     <div className="mt-1.5 flex flex-wrap gap-1">
-                        {Object.entries(stats.activityCounts).map(([act, count]) => {
-                            const meta = getActivityMeta(act);
-                            const Icon = meta.icon;
-                            return (
-                                <span
-                                    key={act}
-                                    className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border ${meta.badgeColor}`}
-                                >
-                                    <Icon className="h-2.5 w-2.5" />
-                                    <span>
-                                        {meta.label} ({count})
+                        {Object.entries(stats.activityCounts).length > 0 ? (
+                            Object.entries(stats.activityCounts).map(([act, count]) => {
+                                const meta = getActivityMeta(act);
+                                const Icon = meta.icon;
+                                return (
+                                    <span
+                                        key={act}
+                                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border ${meta.badgeColor}`}
+                                    >
+                                        <Icon className="h-2.5 w-2.5" />
+                                        <span>
+                                            {meta.label} ({count})
+                                        </span>
                                     </span>
-                                </span>
-                            );
-                        })}
+                                );
+                            })
+                        ) : (
+                            <span className="text-xs text-slate-400">暂无活动构成</span>
+                        )}
                     </div>
                 </div>
 
-                {/* 卡片 3：消费与状态 */}
+                {/* 卡片 3：今日财务与进度（实时总支出消耗与安排达成率） */}
                 <div className="rounded-lg border border-slate-100 bg-white p-2.5">
                     <span className="text-[11px] text-slate-400">今日财务与进度</span>
                     <div className="mt-1.5 flex items-center justify-between text-xs">
