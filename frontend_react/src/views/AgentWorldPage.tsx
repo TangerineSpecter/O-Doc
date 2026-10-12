@@ -27,6 +27,7 @@ const CombatObservation = lazy(() => import('../components/Combat/CombatObservat
 const preloadCatalog = () => import('../components/AgentWorld/WorldCatalogDialog');
 const preloadInvestment = () => import('../components/Investment/InvestmentDialog');
 const preloadTravel = () => import('../components/AgentWorld/TravelJourneyDialog');
+const preloadWorks = () => import('../components/AgentWorld/WorldWorksDialog');
 
 const LifeScheduleDialog = lazy(preloadLifeSchedule);
 const MarketDialog = lazy(preloadMarket);
@@ -36,6 +37,7 @@ const MomentDetailDialog = lazy(() => import('../components/AgentWorld/MomentDet
 const WorldCatalogDialog = lazy(preloadCatalog);
 const InvestmentDialog = lazy(preloadInvestment);
 const TravelJourneyDialog = lazy(preloadTravel);
+const WorldWorksDialog = lazy(preloadWorks);
 
 export default function AgentWorldPage() {
     const navigate = useNavigate();
@@ -60,6 +62,8 @@ export default function AgentWorldPage() {
     const [farmOpen, setFarmOpen] = useState(false);
     const closeFarm = useCallback(() => setFarmOpen(false), []);
     const [momentsOpen, setMomentsOpen] = useState(false);
+    const [worksOpen, setWorksOpen] = useState(false);
+    const closeWorks = useCallback(() => setWorksOpen(false), []);
     const [combatOpen,setCombatOpen] = useState(false);
     const [combatActor,setCombatActor] = useState('');
     const [combatExploration,setCombatExploration] = useState('');
@@ -114,6 +118,7 @@ export default function AgentWorldPage() {
             preloadCatalog();
             preloadMarket();
             preloadFarm();
+            preloadWorks();
         }, 1200);
         return () => clearTimeout(timer);
     }, []);
@@ -165,6 +170,7 @@ export default function AgentWorldPage() {
             color: (world.summary?.todayWorkCount || 0) > 0 ? 'text-orange-600' : 'text-slate-800',
             iconColor: 'text-orange-500 bg-orange-50',
             dot: false,
+            onClick: () => setWorksOpen(true),
         },
         {
             label: '正在工作',
@@ -191,6 +197,14 @@ export default function AgentWorldPage() {
                 <div className="flex flex-wrap items-center gap-2">
                     <button type="button" onClick={() => setUsageOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100"><BarChart3 className="h-3.5 w-3.5"/>用量统计</button>
                     <button type="button" onClick={() => setMomentsOpen(true)} className="inline-flex items-center shrink-0 gap-1.5 whitespace-nowrap rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 shadow-2xs transition-all duration-150 hover:border-rose-300 hover:bg-rose-100 hover:shadow-xs active:scale-95"><MessageCircle className="h-3.5 w-3.5 shrink-0"/>朋友圈</button>
+                    <button
+                        type="button"
+                        onClick={() => setWorksOpen(true)}
+                        onMouseEnter={preloadWorks}
+                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 shadow-2xs transition-all duration-150 hover:border-amber-300 hover:bg-amber-100 hover:text-amber-900 hover:shadow-xs active:scale-95"
+                    >
+                        <BookOpenText className="h-3.5 w-3.5 shrink-0 text-amber-600"/>世界作品
+                    </button>
                     <button
                         type="button"
                         onClick={() => {setCatalogSection('items'); setCatalogOpen(true);}}
@@ -325,6 +339,7 @@ export default function AgentWorldPage() {
             {marketOpen && <WorldDialogSuspense title="世界市场 · 集市大厅" onClose={closeMarket} size="wide" fallback={<WorldOrbitLoader title="正在连接世界市场" subtitle="检索集市货架 · 实时计算商品供需物价"/>}><MarketDialog onClose={closeMarket} residents={world.summary?.agents || []}/></WorldDialogSuspense>}
             {farmOpen && <WorldDialogSuspense title="像素农场" onClose={closeFarm} size="wide" manageFocus={false} fallback={<WorldOrbitLoader title="正在铺开像素农场" subtitle="构建地形图块 · 加载农作物生长状态"/>}><FarmDialog initialAgentId={world.agentId} onClose={closeFarm}/></WorldDialogSuspense>}
             {momentsOpen && <WorldDialogSuspense title="朋友圈" size="wide" onClose={() => setMomentsOpen(false)} fallback={<WorldOrbitLoader title="正在读取朋友圈" subtitle="整理生活分享与讨论"/>}><MomentsDialog onClose={() => setMomentsOpen(false)}/></WorldDialogSuspense>}
+            {worksOpen && <WorldDialogSuspense title="世界作品" onClose={closeWorks} size="extra-wide" fallback={<WorldOrbitLoader title="正在检索世界作品" subtitle="读取文集文章 · 汇总创作记录"/>}><WorldWorksDialog onClose={closeWorks}/></WorldDialogSuspense>}
             {momentDetailId && <WorldDialogSuspense title="朋友圈动态" size="compact" onClose={() => setMomentDetailId(null)} fallback={<WorldOrbitLoader title="正在读取动态" subtitle="加载朋友圈内容与讨论"/>}><MomentDetailDialog momentId={momentDetailId} onClose={() => setMomentDetailId(null)}/></WorldDialogSuspense>}
             {combatOpen && !combatExploration && <WorldDialogSuspense title="冒险与战斗" onClose={closeCombat} size="wide" fallback={<WorldOrbitLoader title="正在打开冒险档案"/>}><CombatDialog residents={world.summary?.agents || []} initialAgentId={combatActor || world.agentId} onObserve={(id,actorId) => {setCombatActor(actorId);setCombatExploration(id);}} onClose={closeCombat}/></WorldDialogSuspense>}
             {combatExploration && <WorldDialogSuspense key={combatExploration} title="探索观察" onClose={() => setCombatExploration('')} size="extra-wide" fallback={<WorldOrbitLoader title="正在读取探索记录"/>}><CombatObservation id={combatExploration} onClose={() => setCombatExploration('')}/></WorldDialogSuspense>}

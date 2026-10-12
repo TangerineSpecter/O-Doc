@@ -9,6 +9,7 @@ type AgentWorldBannerStat = {
     color: string;
     iconColor: string;
     dot: boolean;
+    onClick?: () => void;
 };
 
 type AgentWorldBannerProps = {
@@ -63,18 +64,40 @@ export default function AgentWorldBanner({stats}: AgentWorldBannerProps) {
                 </div>
 
                 <div className="grid grid-cols-3 divide-x divide-slate-200/80 border-t border-slate-200/80 pt-3 md:border-l md:border-t-0 md:pl-5 md:pt-0">
-                    {stats.map(stat => (
-                        <div key={stat.label} className="min-w-0 px-2 first:pl-0 last:pr-0 sm:px-4">
-                            <div className={`flex items-center gap-1.5 text-xl font-semibold leading-none tabular-nums sm:text-2xl ${stat.color}`}>
-                                {stat.value}
-                                {stat.dot && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                    {stats.map(stat => {
+                        const content = (
+                            <>
+                                <div className={`flex items-center gap-1.5 text-xl font-semibold leading-none tabular-nums sm:text-2xl ${stat.color} ${stat.onClick ? 'transition-colors group-hover/stat:text-orange-600' : ''}`}>
+                                    {stat.value}
+                                    {stat.dot && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                                </div>
+                                <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium text-slate-500 sm:text-[11px] transition-colors group-hover/stat:text-orange-600">
+                                    <stat.icon className={`h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5 ${stat.iconColor.split(' ')[0] ?? 'text-slate-500'}`} />
+                                    <span className="truncate">{stat.label}</span>
+                                </div>
+                            </>
+                        );
+
+                        if (stat.onClick) {
+                            return (
+                                <button
+                                    key={stat.label}
+                                    type="button"
+                                    onClick={stat.onClick}
+                                    title={`点击查看${stat.label}`}
+                                    className="group/stat min-w-0 px-2 text-left first:pl-0 last:pr-0 sm:px-4 transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500 cursor-pointer"
+                                >
+                                    {content}
+                                </button>
+                            );
+                        }
+
+                        return (
+                            <div key={stat.label} className="min-w-0 px-2 first:pl-0 last:pr-0 sm:px-4">
+                                {content}
                             </div>
-                            <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium text-slate-500 sm:text-[11px]">
-                                <stat.icon className={`h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5 ${stat.iconColor.split(' ')[0] ?? 'text-slate-500'}`} />
-                                <span className="truncate">{stat.label}</span>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 <div aria-hidden="true" className="hidden xl:block" />
