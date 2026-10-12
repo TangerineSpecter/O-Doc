@@ -1,9 +1,10 @@
-import {PostPhotoStatus} from '../components/AgentPost/PostPhotoStatus';
+import {AgentPostActionMenu} from '../components/AgentPost/AgentPostActionMenu';
 import {AgentPostShare} from '../components/AgentPost/AgentPostShare';
 import {SocialDiscussion, type DiscussionEntry} from '../components/AgentWorld/SocialDiscussion';
 import PostRatingBadge from '../components/AgentPost/PostRatingBadge';
 import { CategoryMigration, MigrationAlert } from "../components/AgentWorld/CategoryMigration";
 import { PostRanking } from "../components/AgentWorld/PostRanking";
+import { LatestCommentsCard } from "../components/AgentWorld/LatestCommentsCard";
 import {SelectablePostBody} from '../components/AgentPost/SelectablePostBody';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {AgentPostMarkdown} from '../components/AgentPost/AgentPostMarkdown';
@@ -268,10 +269,6 @@ function AgentPostCollectionView({
         return () => observer.disconnect();
     }, [hasMore, isLoadingMore, articleId]);
 
-    const truncateText = (value?: string, max = 56) => {
-        const text = (value || '').replace(/\s+/g, ' ').trim();
-        return text.length > max ? `${text.slice(0, max)}...` : text;
-    };
 
     const loadPosts = useCallback(async () => {
         if (!collId) return;
@@ -478,14 +475,11 @@ function AgentPostCollectionView({
                                     <div className="flex items-center gap-2">
                                         <AgentPostShare post={activePost} estimatedReadTime={estimatedReadTime} professionName={activePostProfession} createdAtLabel={formatPostTime(activePost.createdAt)}/>
                                         {canManage && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setDeleteTarget(activePost)}
-                                                className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
-                                                title="删除帖子"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
+                                            <AgentPostActionMenu
+                                                postId={activePost.articleId}
+                                                onDelete={() => setDeleteTarget(activePost)}
+                                                onPhotoChanged={refreshPostPhoto}
+                                            />
                                         )}
                                     </div>
                                 </div>
@@ -522,7 +516,6 @@ function AgentPostCollectionView({
                                 </div>
                             </header>
 
-                            <PostPhotoStatus key={activePost.articleId} postId={activePost.articleId} onChanged={refreshPostPhoto}/>
                             <SelectablePostBody key={activePost.articleId}>
                                 <AgentPostMarkdown content={activePost.content || ''} materials={activePost.postSources} />
                             </SelectablePostBody>
@@ -942,54 +935,10 @@ function AgentPostCollectionView({
 
                         <aside className="space-y-5 min-[1900px]:absolute min-[1900px]:left-[calc(50%+584px)] min-[1900px]:top-0 min-[1900px]:w-[360px]">
                             <PostRanking collectionId={collId || ''} refreshKey={posts} onOpen={articleId => onNavigate?.('article', {collId, articleId})}/>
-                            <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
-                                <div className="border-b border-slate-100 px-5 py-4">
-                                    <h2 className="text-lg font-bold text-red-700">最新评论</h2>
-                                </div>
-                                <div className="divide-y divide-slate-100">
-                                    {latestComments.length > 0 ? latestComments.map(comment => (
-                                        <button
-                                            key={comment.commentId}
-                                            type="button"
-                                            onClick={() => onNavigate?.('article', {collId, articleId: comment.articleId})}
-                                            className="group flex w-full items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-orange-50/40"
-                                        >
-                                            <div className="shrink-0 mt-0.5">
-                                                <AgentAvatar name={comment.agentName} avatar={comment.agentAvatar} className="h-8 w-8 rounded-full" />
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center justify-between gap-2 mb-1.5">
-                                                    <div className="flex items-center gap-1.5 min-w-0">
-                                                        <span className="truncate text-sm font-bold text-slate-800 group-hover:text-orange-600 transition-colors">
-                                                            {comment.agentName || 'Agent'}
-                                                        </span>
-                                                        <span className="shrink-0 text-xs text-slate-400 font-normal">评论了</span>
-                                                    </div>
-                                                    <span className="shrink-0 text-[11px] text-slate-400 font-mono">
-                                                        {formatPostTime(comment.createdAt)}
-                                                    </span>
-                                                </div>
-
-                                                <div className="mb-2">
-                                                    <span className="block truncate text-xs font-bold text-slate-800 group-hover:text-orange-600 transition-colors">
-                                                        {/^[《【\[]/.test(postDisplayTitle(comment.postTitle || ''))
-                                                            ? postDisplayTitle(comment.postTitle || '')
-                                                            : `《${postDisplayTitle(comment.postTitle || '')}》`}
-                                                    </span>
-                                                </div>
-
-                                                <div className="border-l-2 border-orange-400 bg-orange-50/40 pl-2.5 py-1 rounded-r-md">
-                                                    <p className="line-clamp-3 text-xs leading-relaxed text-slate-600">
-                                                        {truncateText(comment.content, 80) || '暂无内容'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </button>
-                                    )) : (
-                                        <div className="px-5 py-8 text-center text-sm text-slate-400">暂无最新评论</div>
-                                    )}
-                                </div>
-                            </section>
+                            <LatestCommentsCard
+                                comments={latestComments}
+                                onOpenPost={articleId => onNavigate?.('article', {collId, articleId})}
+                            />
                         </aside>
                     </div>
                 ) : searchKeyword.trim() ? (

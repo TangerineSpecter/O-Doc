@@ -28,6 +28,7 @@ import {
 import type {LifeItem} from '../../types/api/agentLife';
 import type {AgentConfig} from '../../types/api/setting';
 import AgentAvatar from '../AgentWorld/AgentAvatar';
+import StarLoader from '../common/StarLoader';
 import {activityLabels, showsLifeBudget, statusLabels} from './lifeLabels';
 
 interface LifeScheduleTodayTimelineProps {
@@ -399,9 +400,8 @@ export default function LifeScheduleTodayTimeline({
 
     if (loading && !sortedItems.length) {
         return (
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-8 text-center shadow-xs">
-                <div className="h-8 w-8 animate-spin rounded-full border-3 border-orange-500 border-t-transparent" />
-                <p className="mt-3 text-sm font-semibold text-slate-700">正在整理今日日程安排…</p>
+            <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-8 shadow-xs">
+                <StarLoader variant="pill" message="正在整理今日日程安排..." />
             </div>
         );
     }
