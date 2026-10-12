@@ -85,7 +85,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
         <WorldDialog
             title="居民生活日程"
             titleAction={scheduleHelp}
-            description="上海时间 · 计划根据实际经历持续调整"
+            description="计划根据实际经历持续调整"
             onClose={onClose}
             size="extra-wide"
         >
@@ -242,111 +242,103 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                     </div>
                 ) : (
                     <div className="flex flex-1 min-h-0 flex-col space-y-2.5 overflow-hidden">
-                        {/* 日期周翻页与统计条 */}
-                        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs border border-slate-100">
-                            {/* 日期切换导航 */}
-                            {mode === 'today' ? (
-                                <div className="flex items-center gap-2 rounded-lg bg-orange-50 px-3 py-2 text-orange-700">
-                                    <CalendarDays className="h-4 w-4 shrink-0" />
-                                    <span className="font-semibold">今天</span>
-                                    <span className="font-mono text-xs text-orange-600">{today}</span>
-                                </div>
-                            ) : (
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setStart(
-                                            dayjs(start).subtract(7, 'day').format('YYYY-MM-DD')
-                                        );
-                                        setPage(1);
-                                    }}
-                                    className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-medium text-slate-600 shadow-2xs transition-colors hover:bg-slate-50 hover:text-slate-900 active:scale-95"
-                                >
-                                    <ChevronLeft className="h-3.5 w-3.5 shrink-0" />
-                                    <span>上一周</span>
-                                </button>
-
-                                <span className="font-mono font-semibold text-slate-800">
-                                    {start} — {endDisplay}
-                                </span>
-
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setStart(end);
-                                        setPage(1);
-                                    }}
-                                    className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-medium text-slate-600 shadow-2xs transition-colors hover:bg-slate-50 hover:text-slate-900 active:scale-95"
-                                >
-                                    <span>下一周</span>
-                                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                                </button>
-
-                                {!isThisWeek ? (
+                        {/* 日期周翻页与统计条（仅在周日程和看板等非今日视图下展示） */}
+                        {mode !== 'today' && (
+                            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs border border-slate-100">
+                                <div className="flex items-center gap-2">
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            setStart(thisMonday);
+                                            setStart(
+                                                dayjs(start).subtract(7, 'day').format('YYYY-MM-DD')
+                                            );
                                             setPage(1);
                                         }}
-                                        className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-600 shadow-2xs transition-colors hover:bg-orange-100 active:scale-95"
+                                        className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-medium text-slate-600 shadow-2xs transition-colors hover:bg-slate-50 hover:text-slate-900 active:scale-95"
                                     >
-                                        <RotateCcw className="h-3 w-3 shrink-0" />
-                                        <span>回到本周</span>
+                                        <ChevronLeft className="h-3.5 w-3.5 shrink-0" />
+                                        <span>上一周</span>
                                     </button>
-                                ) : (
-                                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                                        本周
+
+                                    <span className="font-mono font-semibold text-slate-800">
+                                        {start} — {endDisplay}
                                     </span>
-                                )}
-                            </div>
-                            )}
 
-                            {/* 右侧：统计、加载状态与紧凑/详细密度切换 */}
-                            <div className="flex items-center gap-3">
-                                {/* 密度切换开关 */}
-                                {mode !== 'today' && <div className="flex items-center rounded-lg bg-slate-100 p-0.5">
                                     <button
                                         type="button"
-                                        onClick={() => setDensity('compact')}
-                                        title="紧凑模式（适合高频日程一屏查看）"
-                                        className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
-                                            density === 'compact'
-                                                ? 'bg-white font-semibold text-slate-800 shadow-2xs'
-                                                : 'text-slate-500 hover:text-slate-700'
-                                        }`}
+                                        onClick={() => {
+                                            setStart(end);
+                                            setPage(1);
+                                        }}
+                                        className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-medium text-slate-600 shadow-2xs transition-colors hover:bg-slate-50 hover:text-slate-900 active:scale-95"
                                     >
-                                        <Minimize2 className="h-3 w-3 shrink-0" />
-                                        <span>紧凑</span>
+                                        <span>下一周</span>
+                                        <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                                     </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setDensity('normal')}
-                                        title="详细模式（展示更多意图与预算明细）"
-                                        className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
-                                            density === 'normal'
-                                                ? 'bg-white font-semibold text-slate-800 shadow-2xs'
-                                                : 'text-slate-500 hover:text-slate-700'
-                                        }`}
-                                    >
-                                        <Maximize2 className="h-3 w-3 shrink-0" />
-                                        <span>详细</span>
-                                    </button>
-                                </div>}
 
-                                {schedule.loading ? (
-                                    <div className="inline-flex items-center gap-1.5 text-slate-400">
-                                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
-                                        <span>正在加载…</span>
+                                    {!isThisWeek ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setStart(thisMonday);
+                                                setPage(1);
+                                            }}
+                                            className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg border border-orange-200 bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-600 shadow-2xs transition-colors hover:bg-orange-100 active:scale-95"
+                                        >
+                                            <RotateCcw className="h-3 w-3 shrink-0" />
+                                            <span>回到本周</span>
+                                        </button>
+                                    ) : (
+                                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                                            本周
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* 右侧：统计、加载状态与紧凑/详细密度切换 */}
+                                <div className="flex items-center gap-3">
+                                    <div className="flex items-center rounded-lg bg-slate-100 p-0.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setDensity('compact')}
+                                            title="紧凑模式（适合高频日程一屏查看）"
+                                            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
+                                                density === 'compact'
+                                                    ? 'bg-white font-semibold text-slate-800 shadow-2xs'
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                            }`}
+                                        >
+                                            <Minimize2 className="h-3 w-3 shrink-0" />
+                                            <span>紧凑</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDensity('normal')}
+                                            title="详细模式（展示更多意图与预算明细）"
+                                            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
+                                                density === 'normal'
+                                                    ? 'bg-white font-semibold text-slate-800 shadow-2xs'
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                            }`}
+                                        >
+                                            <Maximize2 className="h-3 w-3 shrink-0" />
+                                            <span>详细</span>
+                                        </button>
                                     </div>
-                                ) : (
-                                    <span className="text-slate-500">
-                                        共 <strong className="font-semibold text-slate-700">{schedule.data.total}</strong> 项安排
-                                    </span>
-                                )}
+
+                                    {schedule.loading ? (
+                                        <div className="inline-flex items-center gap-1.5 text-slate-400">
+                                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+                                            <span>正在加载…</span>
+                                        </div>
+                                    ) : (
+                                        <span className="text-slate-500">
+                                            共 <strong className="font-semibold text-slate-700">{schedule.data.total}</strong> 项安排
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {schedule.error && mode !== 'today' && (
                             <div
