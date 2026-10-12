@@ -54,6 +54,7 @@ async def _receive(config: dict, parameters: dict, seconds: float, inbox: queue.
                     content = getattr(choice.delta, 'content', None)
                     if isinstance(content, str) and content:
                         parts.append(content)
+                        inbox.put(('output', content))
                         count += len(content)
                         elapsed = time.monotonic() - started
                         if len(parts) == 1 or elapsed - last_progress >= 2:
@@ -101,7 +102,11 @@ def _drive(config: dict, parameters: dict, expires: float, metadata: dict) -> st
         raise AIRequestTimeout('模型调用达到 120 秒硬时限')
     from system_settings.token_usage.capture import Capture
     capture = Capture(config, attempt=metadata.get('request_attempt', 1))
+    capture.set_request(parameters)
     status = 'interrupted'
+    response_content = None
+    failure = None
+    output_parts = []
     inbox, cancelled = queue.Queue(), threading.Event()
     thread = threading.Thread(target=_network, args=(config, parameters, seconds, inbox, cancelled), daemon=True, name='bounded-ai-network')
     thread.start()
@@ -119,16 +124,24 @@ def _drive(config: dict, parameters: dict, expires: float, metadata: dict) -> st
                 capture.counts(value)
                 emit_ai_event('model_usage', '模型返回用量统计', **metadata, prompt_tokens=value['input_tokens'], completion_tokens=value['output_tokens'])
                 continue
+            if kind == 'output':
+                output_parts.append(value)
+                continue
             if kind == 'done':
                 status = 'success'
+                response_content = value
                 return value
             if kind == 'error':
                 status = 'failed'
+                failure = value
                 if isinstance(value, (TimeoutError, asyncio.CancelledError)):
                     raise AIRequestTimeout('模型调用达到硬时限或连接已取消') from value
                 raise value
             event, title, details = value
             emit_ai_event(event, title, **metadata, **details)
+    except BaseException as exc:
+        failure = exc
+        raise
     finally:
         cancelled.set()
         thread.join(timeout=2)
@@ -136,7 +149,10 @@ def _drive(config: dict, parameters: dict, expires: float, metadata: dict) -> st
             kind, value = inbox.get_nowait()
             if kind == 'usage':
                 capture.counts(value)
-        capture.finish(status)
+            elif kind == 'output':
+                output_parts.append(value)
+        capture.set_response({'content': response_content if response_content is not None else ''.join(output_parts)})
+        capture.finish(status, error=failure)
 
 
 def _json_unsupported(exc: Exception) -> bool:

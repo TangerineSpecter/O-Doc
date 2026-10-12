@@ -121,6 +121,8 @@ def reconcile_successes(task, state: dict) -> None:
         if not isinstance(slot, int) or not 0 <= slot < len(state['slots']):
             continue
         key = str(slot)
+        skipped = set(record.random_context.get('skipped_agent_ids', [])) & set(state['slots'][slot]['agents'])
+        state.setdefault('skipped', {})[key] = sorted(set(state.get('skipped', {}).get(key, [])) | skipped)
         completed = set(state['completed'].get(key, []))
         for result in record.agent_runs:
             if result.get('status') == 'success' and result.get('agent') in state['slots'][slot]['agents']:
@@ -135,7 +137,8 @@ def reconcile_successes(task, state: dict) -> None:
 def next_slot(state: dict) -> tuple[int, list[str]] | None:
     for index, slot in enumerate(state['slots']):
         completed = state['completed'].get(str(index), [])
-        pending = [agent for agent in slot['agents'] if agent not in completed and agent not in state.get('unavailable', [])]
+        skipped = state.get('skipped', {}).get(str(index), [])
+        pending = [agent for agent in slot['agents'] if agent not in completed and agent not in skipped and agent not in state.get('unavailable', [])]
         if pending:
             return index, pending
     return None
@@ -249,6 +252,8 @@ def run_random_task(scheduler, task, now: datetime) -> None:
         save_cycle_snapshot(task, state)
         reconcile_successes(task, state)
         mark_unavailable_agents(task, state)
+        from .agent_archive_schedule import mark_archived_slots
+        mark_archived_slots(task, state, now)
         reconcile_successes(task, state)
         AgentRandomRuntime.objects.filter(pk=task.pk, lease_token=token).update(state=state)
         pending = next_slot(state)
@@ -271,7 +276,7 @@ def run_random_task(scheduler, task, now: datetime) -> None:
             AgentActivity.objects.filter(run_record=record, activity_type='work', status='running').update(
                 status='failed', summary=record.summary, current_action='执行已中断', updated_at=timezone.now())
         thread.start()
-        agents_by_id = {agent.pk: agent for agent in Agent.objects.select_related('model').filter(pk__in=agent_ids)}
+        agents_by_id = {agent.pk: agent for agent in Agent.objects.select_related('model').filter(pk__in=agent_ids, archived_at__isnull=True)}
         agents = [agents_by_id[agent_id] for agent_id in agent_ids if agent_id in agents_by_id]
         snapshot_task = copy.copy(task)
         snapshot_task.execution_mode = state['config']['mode']
@@ -282,7 +287,7 @@ def run_random_task(scheduler, task, now: datetime) -> None:
         except Exception:
             logger.exception('Random task attempt interrupted: task=%s, slot=%s', task.pk, index)
         reconcile_successes(task, state)
-        remaining = [agent for agent in agent_ids if agent not in state['completed'].get(str(index), []) and agent not in state.get('unavailable', [])]
+        remaining = [agent for agent in agent_ids if agent not in state['completed'].get(str(index), []) and agent not in state.get('skipped', {}).get(str(index), []) and agent not in state.get('unavailable', [])]
         if remaining:
             attempts = state['attempts'].get(str(index), 0)
             state['attempts'][str(index)] = attempts + 1

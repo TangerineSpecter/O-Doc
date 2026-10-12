@@ -47,6 +47,8 @@ def commit(farm, key, operation, task, agent_token, world_token, now, context):
 def tend_farm(farm_id: str, world_token: str, agent_token: str, task: AgentTask, now, *, force=False) -> None:
     from .farm_service import advance_farm
     from .execution import stamina
+    from system_settings.agent_availability import require_active_agent
+    require_active_agent(farm_id)
     farm = advance_farm(farm_id, now)
     if not WorldActionRuntime.objects.filter(pk='world', token=world_token, enabled=True).exists():
         return

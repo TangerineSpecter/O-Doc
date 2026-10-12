@@ -54,7 +54,7 @@ class FeishuIMWebSocketManager:
     def sync_enabled_agents(self):
         close_old_connections()
         try:
-            agents = list(Agent.objects.filter(feishu_im_enabled=True))
+            agents = list(Agent.objects.filter(feishu_im_enabled=True, archived_at__isnull=True))
         except (OperationalError, ProgrammingError) as exc:
             logger.warning('Feishu IM WS manager skipped before database is ready: %s', exc)
             return
@@ -77,13 +77,16 @@ class FeishuIMWebSocketManager:
         finally:
             close_old_connections()
 
-        if not agent or not agent.feishu_im_enabled:
+        if not agent or agent.archived or not agent.feishu_im_enabled:
             self.stop_agent(agent_id)
             return
 
         self.start_agent(agent)
 
     def start_agent(self, agent, restart=False):
+        if agent.archived:
+            self.stop_agent(agent.pk)
+            return
         if not agent.feishu_app_id or not agent.feishu_app_secret:
             logger.warning('Feishu IM WS skipped for %s: missing app_id/app_secret', agent.id)
             return

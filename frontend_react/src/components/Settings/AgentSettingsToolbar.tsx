@@ -1,4 +1,4 @@
-import {Plus} from 'lucide-react';
+import {Archive, Plus} from 'lucide-react';
 
 type AgentView = 'list' | 'tasks';
 
@@ -7,6 +7,8 @@ interface AgentSettingsToolbarProps {
     onViewChange: (view: AgentView) => void;
     onCreateAgent: () => void;
     onCreateTask: () => void;
+    onOpenArchive: () => void;
+    archivedCount: number;
 }
 
 const views: Array<{value: AgentView; label: string}> = [
@@ -15,10 +17,13 @@ const views: Array<{value: AgentView; label: string}> = [
 ];
 
 export default function AgentSettingsToolbar({
-    activeView, onViewChange, onCreateAgent, onCreateTask,
+    activeView, onViewChange, onCreateAgent, onCreateTask, onOpenArchive, archivedCount,
 }: AgentSettingsToolbarProps) {
     return (
-        <div className="flex shrink-0 items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+            <button type="button" onClick={onOpenArchive} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:border-orange-300 hover:text-orange-600 focus-visible:outline-orange-500">
+                <Archive className="h-3.5 w-3.5"/>归档居民 <span>{archivedCount}</span>
+            </button>
             <div className="grid grid-cols-2 shrink-0 rounded-lg bg-slate-100 p-0.5" aria-label="Agent 管理视图">
                 {views.map(view => (
                     <button

@@ -20,7 +20,7 @@ def ensure_task(owner: str) -> AgentTask:
     from ..life_config import config_for
     identity='builtin-explore:'+hashlib.sha256(owner.encode()).hexdigest()[:24]
     participants=config_for(owner).settings.get('agent_ids',[]) or list(LifeProfile.objects.filter(owner_id=owner).values_list('pk',flat=True))
-    participants=list(Agent.objects.filter(pk__in=participants).values_list('pk',flat=True))
+    participants=list(Agent.objects.filter(pk__in=participants, archived_at__isnull=True).values_list('pk',flat=True))
     if not participants:raise ValueError('请先在统一生活中选择参与居民')
     task,_=AgentTask.objects.get_or_create(pk=identity,defaults={'task_kind':'exploration','name':'迷宫探索','exploration_config':{'owner_id':owner},'agent_id':participants[0],'agent_ids':participants,'enabled':True})
     return task

@@ -68,7 +68,7 @@ def select_agent(task, now=None, *, cost=INTERACTION_COST, qualifies=None):
     from .combat.schedule import occupied_ids
     scope = CURRENT.get()
     if scope:
-        candidate = Agent.objects.select_related('model').filter(pk=scope['actor_id']).first()
+        candidate = Agent.objects.select_related('model').filter(pk=scope['actor_id'], archived_at__isnull=True).first()
         if not candidate or not allowed(task,candidate.pk):
             raise ValueError('日程居民已暂停或归属不匹配')
         from .travel_candidates import travelling_ids
@@ -76,7 +76,7 @@ def select_agent(task, now=None, *, cost=INTERACTION_COST, qualifies=None):
             return None
         return candidate
     ids = task.agent_ids or ([task.agent_id] if task.agent_id else [])
-    agents = {a.pk: a for a in Agent.objects.select_related('model').filter(pk__in=ids)}
+    agents = {a.pk: a for a in Agent.objects.select_related('model').filter(pk__in=ids, archived_at__isnull=True)}
     busy = set(AgentExecutionLease.objects.filter(until__gt=now).values_list('agent_id', flat=True))
     from .travel_candidates import travelling_ids
     busy.update(travelling_ids())

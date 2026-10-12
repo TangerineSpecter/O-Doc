@@ -811,6 +811,8 @@ class SyncManager:
                 remote_pk_map[model_label].add(str(pk))
 
         skip_extra_delete = (not full_overwrite) and self.is_remote_version_older((remote_meta or {}).get('app_version'))
+        from system_settings.agent_archive_sync import prepare_restore, release_changed_names, revoke_archived_execution
+        agent_rows = prepare_restore(data_list, full_overwrite=full_overwrite, retain_extra=skip_extra_delete)
         restored_models = [
             model_map[model_label]
             for model_label, primary_keys in remote_pk_map.items()
@@ -827,6 +829,7 @@ class SyncManager:
 
         with transaction.atomic(), suspend_tracking():
             self._ensure_not_aborted(should_abort)
+            release_changed_names(agent_rows, retain_extra=skip_extra_delete)
             self._lock_restored_sequence_tables(restored_models)
             from system_settings.token_usage.sync import normalize_restored_usage
             from system_settings.token_usage.capture import active_keys
@@ -926,6 +929,7 @@ class SyncManager:
             reset_photo_runtime()
             from system_settings.models import AgentMemoryLease
             AgentMemoryLease.objects.all().update(token='', until=None)
+            revoke_archived_execution()
             if not any(item.get('model', '').startswith('system_settings.social') for item in data_list):
                 from system_settings.agent_world.social_migration import seed_legacy_relations
                 seed_legacy_relations()
@@ -1661,6 +1665,8 @@ class SyncManager:
         merge_aggregates(result, result_revisions, local_data, remote.get('data') or [], local_revisions, remote_revisions)
         validate_memories(result, memory_metadata(result))
         refresh_merged_integrity(result, result_revisions)
+        from system_settings.agent_archive_sync import validate_names
+        validate_names(result)
         # Keep cooking asset checkpoints intact: reject partial domain merges rather
         # than manufacturing a new checkpoint for an inconsistent XP/material chain.
         validate_cooking_source(result, cooking_metadata(result))

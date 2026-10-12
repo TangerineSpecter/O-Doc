@@ -193,7 +193,7 @@ def refresh_pair(actor, counterpart):
 
 def recompute_all_relations():
     """定时维护仅更新创作力；长期关系不按窗口重置。"""
-    for agent in Agent.objects.all():
+    for agent in Agent.objects.filter(archived_at__isnull=True):
         refresh_creativity(agent)
 
 
@@ -243,7 +243,10 @@ def relation_graph(owner_id=None, include_departed=False):
     from .agent_world.travel_models import AgentInventoryItem
     from django.db.models import Sum
 
-    agents = list(Agent.objects.select_related("profession").all())
+    agents_query = Agent.objects.select_related("profession").all()
+    if not include_departed:
+        agents_query = agents_query.filter(archived_at__isnull=True)
+    agents = list(agents_query)
     creativity = {item.agent_id: item for item in AgentCreativity.objects.all()}
     running_ids = set(AgentActivity.objects.filter(status='running').exclude(agent_id=None).values_list('agent_id', flat=True))
     from .agent_world.combat.queries import resident_presence
@@ -292,6 +295,7 @@ def relation_graph(owner_id=None, include_departed=False):
         c_info = combat_info_map.get(agent.id)
         nodes.append({
             'id': agent.id,
+            'archived': agent.archived, 'departed': agent.archived,
             'name': agent.name,
             'avatar': agent.avatar,
             'money': format(agent.money, '.2f'),

@@ -97,6 +97,8 @@ def commit_feedback(action_id, task, agent, post, feedback, token, *, manual=Fal
         from .life_scope import check_current_authorization
         check_current_authorization()
         agent = Agent.objects.select_for_update().get(pk=agent.pk)
+        from system_settings.agent_availability import require_active_agent
+        require_active_agent(agent)
         task = AgentTask.objects.select_for_update().get(pk=task.pk)
         if not life_allowed(task,agent.pk) or (not manual and not task.enabled):
             raise ValueError('Agent 已解绑或任务已暂停')

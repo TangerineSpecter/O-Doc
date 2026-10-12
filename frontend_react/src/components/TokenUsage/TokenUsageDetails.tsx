@@ -3,7 +3,7 @@ import {ChevronDown, ChevronRight, Layers} from 'lucide-react';
 import {useTokenExecutions} from '../../hooks/useTokenUsage';
 import {useAgentRunRecord} from '../../hooks/useAgentRunRecord';
 import type {TokenFilters} from '../../types/api/tokenUsage';
-import {tokenNumber, usageTime} from '../../utils/tokenUsage';
+import {purposeNames, tokenNumber, usageTime} from '../../utils/tokenUsage';
 import RunTokenUsage from './RunTokenUsage';
 import TokenRequestList from './TokenRequestList';
 
@@ -40,11 +40,53 @@ export default function TokenUsageDetails({filters}: {filters: TokenFilters}) {
                     )}
                 </div>
 
+                {result?.unassigned && (
+                    <div className="mb-2.5 rounded-xl border border-orange-100 bg-orange-50/50 px-3 py-2.5">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                                <p className="text-xs font-semibold text-slate-800">
+                                    未关联执行记录
+                                    <span className="ml-2 text-[11px] font-normal text-slate-500">
+                                        {result.unassigned.requestCount} 次请求
+                                    </span>
+                                    {result.unassigned.incompleteCount > 0 && (
+                                        <span className="ml-2 text-[11px] font-medium text-amber-700">
+                                            {result.unassigned.incompleteCount} 次用量不完整
+                                        </span>
+                                    )}
+                                </p>
+                                <p className="mt-0.5 text-[11px] text-slate-500">
+                                    这些请求计入 Agent 总用量，但没有归属到具体任务执行；完整明细见下方。
+                                </p>
+                            </div>
+                            <p className="shrink-0 text-xs font-bold tabular-nums text-orange-600">
+                                {tokenNumber(result.unassigned.totalTokens)} token
+                            </p>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                            {result.unassigned.purposes.map(purpose => (
+                                <span
+                                    key={purpose.key}
+                                    className="rounded-lg border border-orange-100 bg-white/80 px-2 py-1 text-[10px] text-slate-600"
+                                >
+                                    {purposeNames[purpose.key] || purpose.key} {purpose.requestCount} 次
+                                    <span className="ml-1 font-semibold tabular-nums text-slate-700">
+                                        · {tokenNumber(purpose.totalTokens)} token
+                                    </span>
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {loading ? (
                     <div className="py-4 text-center text-xs text-slate-400">正在加载执行记录…</div>
                 ) : !result?.items.length ? (
                     <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-center text-xs text-slate-400">
-                        此范围暂无任务执行；非任务调用可在下方请求明细中查看。
+                        此范围暂无任务执行；
+                        {result?.unassigned
+                            ? '未关联请求已在上方汇总，可在下方查看明细。'
+                            : '非任务调用可在下方请求明细中查看。'}
                     </div>
                 ) : (
                     <div className="space-y-2">

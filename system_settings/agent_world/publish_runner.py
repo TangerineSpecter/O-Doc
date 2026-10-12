@@ -42,6 +42,8 @@ def commit_publication(action_id: str, token: str, world_token: str, *, manual=F
     check_current_authorization()
     task = AgentTask.objects.select_for_update().get(pk=action.task_id)
     agent = Agent.objects.select_for_update().get(pk=action.agent_id)
+    from system_settings.agent_availability import require_active_agent
+    require_active_agent(agent)
     if task.task_kind != 'post_publish' or (not manual and not task.enabled):
         raise SkipPublication('任务已暂停或类型发生变化')
     if not WorldActionRuntime.objects.filter(pk='world', token=world_token, until__gt=timezone.now()).exists():
@@ -99,6 +101,12 @@ def repair_publication(action):
 
 
 def preview(task, agent):
+    from system_settings.agent_availability import agent_operation
+    with agent_operation(agent) as current:
+        return _preview(task, current)
+
+
+def _preview(task, agent):
     reason = eligibility(task, agent, preview=True)
     if reason:
         return {'status': 'skipped', 'reason': reason}

@@ -1,10 +1,13 @@
-import {RefreshCw} from 'lucide-react';
+import {useState} from 'react';
+import {ChevronDown, ChevronRight, RefreshCw} from 'lucide-react';
 import {useTokenRequests} from '../../hooks/useTokenUsage';
 import type {TokenFilters} from '../../types/api/tokenUsage';
 import {purposeNames, requestStatus, tokenNumber, usageTime} from '../../utils/tokenUsage';
+import TokenRequestContent from './TokenRequestContent';
 
 export default function TokenRequestList({filters}: {filters: TokenFilters}) {
     const {result, loading, error, more, reload, retry} = useTokenRequests(filters);
+    const [selected, setSelected] = useState('');
 
     return (
         <div className="space-y-2.5">
@@ -79,6 +82,20 @@ export default function TokenRequestList({filters}: {filters: TokenFilters}) {
                                 <span>思考 {tokenNumber(row.reasoningTokens)}</span>
                             )}
                         </div>
+
+                        <div className="mt-1.5 flex justify-end">
+                            <button
+                                type="button"
+                                aria-expanded={selected === row.id}
+                                onClick={() => setSelected(value => value === row.id ? '' : row.id)}
+                                className="inline-flex items-center gap-1 whitespace-nowrap shrink-0 rounded-md px-2 py-1 text-[11px] font-medium text-orange-600 hover:bg-orange-50"
+                            >
+                                {selected === row.id ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                {selected === row.id ? '收起内容' : '查看输入与输出'}
+                            </button>
+                        </div>
+
+                        {selected === row.id && <TokenRequestContent id={row.id} />}
 
                         {!isComplete && (
                             <p className="mt-1.5 text-[11px] text-amber-600">用量尚不完整，当前仅统计已知消耗</p>

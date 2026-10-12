@@ -1,6 +1,7 @@
 export interface LifeSettings {
     agentIds: string[]; mode: 'fixed' | 'random'; period: 'daily' | 'weekly' | 'monthly' | 'yearly'; count: number;
     intervalMinutes: number; activeStart: string; activeEnd: string; minGapMinutes: number; minRemainingMinutes: number;
+    decisionModelId: string;
 }
 export interface LifeConfig {settings: LifeSettings; pausedAgents: string[]; migrated: boolean; profileAgentIds?: string[]; activeAgentIds?: string[]; migrationSummary?: {convertedItems: number; runningItems: number}; activeCycle: Array<{id: string; startsAt: string; endsAt: string}>}
 export interface LifeProfile {id: string; preferences: string; direction: string}

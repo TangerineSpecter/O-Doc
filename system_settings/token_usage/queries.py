@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo
 from django.db.models import QuerySet
 from rest_framework.request import Request
 from django.db.models import BigIntegerField, Count, Max, Q, Sum
-from django.db.models.functions import Coalesce, TruncDate
+from django.db.models.functions import Coalesce, TruncDate, TruncHour
 from .models import AgentTokenUsage
 from system_settings.agent_world.life_time import local_time, storage_time
 
@@ -71,6 +71,25 @@ def summary(rows: QuerySet, request: Request) -> dict:
     result = total(rows)
     result['days'] = list(rows.annotate(day=TruncDate('started_at', tzinfo=SHANGHAI)).values('day')
                           .annotate(**metrics()).order_by('day'))
+    params = request.query_params
+    today = local_time().date().isoformat()
+    start = params.get('start_date') or today
+    end = params.get('end_date') or today
+    if params.get('all') != '1' and start == end:
+        hourly = {}
+        hour_rows = (rows.annotate(hour=TruncHour('started_at', tzinfo=SHANGHAI))
+                     .values('hour').annotate(**metrics()).order_by('hour'))
+        for item in hour_rows:
+            hour = local_time(item.pop('hour')).strftime('%H')
+            hourly[hour] = finish_metrics(item)
+        empty_hour = finish_metrics({
+            'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
+            'request_count': 0, 'incomplete_count': 0, 'execution_count': 0,
+        })
+        result['hours'] = [
+            {'hour': f'{hour:02d}', **hourly.get(f'{hour:02d}', empty_hour)}
+            for hour in range(24)
+        ]
     accessible = visible_usage(request)
     result['agents'] = list(accessible.values('agent_key').annotate(name=Max('agent_name')).order_by('name'))
     result['tasks'] = list(accessible.exclude(task_key='').values('task_key').annotate(name=Max('task_name')).order_by('name'))
@@ -78,6 +97,7 @@ def summary(rows: QuerySet, request: Request) -> dict:
 
 
 def breakdown(rows: QuerySet, group: str, page: int) -> dict:
+    all_rows = rows
     mapping = {'agent': ('agent_key', 'agent_name'), 'task': ('task_key', 'task_name'),
                'purpose': ('purpose', None), 'record': ('record_key', 'task_name')}
     if group not in mapping:
@@ -98,7 +118,19 @@ def breakdown(rows: QuerySet, group: str, page: int) -> dict:
         item['key'] = item.pop(key)
         item.setdefault('name', item['key'])
         items.append(finish_metrics(item))
-    return {'items': items, 'total': count, 'page': page, 'has_more': page * 30 < count}
+    result = {'items': items, 'total': count, 'page': page, 'has_more': page * 30 < count}
+    if group == 'record':
+        unassigned_rows = all_rows.filter(record_key='')
+        unassigned = unassigned_rows.aggregate(**metrics(), last_at=Max('started_at'))
+        result['unassigned'] = None
+        if unassigned['request_count']:
+            unassigned['last_at'] = local_time(unassigned['last_at']).isoformat()
+            unassigned['purposes'] = []
+            for purpose in unassigned_rows.values('purpose').annotate(**metrics()).order_by('-total_tokens', 'purpose'):
+                purpose['key'] = purpose.pop('purpose')
+                unassigned['purposes'].append(finish_metrics(purpose))
+            result['unassigned'] = finish_metrics(unassigned)
+    return result
 
 
 def record_summaries(keys: list[str], request: Request | None = None) -> dict:

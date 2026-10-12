@@ -40,7 +40,7 @@ def initialize_states(now=None):
 
 def eligible(state) -> bool:
     config = LifeConfig.objects.filter(pk=state.owner_id).first()
-    return bool(config and state.agent_id in config.settings.get('agent_ids', []) and state.agent_id not in config.paused_agents
+    return bool(not state.agent.archived and config and state.agent_id in config.settings.get('agent_ids', []) and state.agent_id not in config.paused_agents
         and LifeProfile.objects.filter(pk=state.agent_id, owner_id=state.owner_id).exists()
         and WorldActionRuntime.objects.filter(pk='world', enabled=True).exists())
 
@@ -195,7 +195,7 @@ def process(state, now=None):
 
 
 def run_daily(now=None):
-    for state in AgentMemoryState.objects.select_related('agent').order_by('pk'):
+    for state in AgentMemoryState.objects.select_related('agent').filter(agent__archived_at__isnull=True).order_by('pk'):
         try:
             process(state, now)
         except Exception as exc:

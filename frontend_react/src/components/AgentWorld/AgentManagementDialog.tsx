@@ -1,15 +1,10 @@
-import {useState} from 'react';
-import {createPortal} from 'react-dom';
 import {useSettings} from '../../hooks/useSettings';
 import {AgentSettings} from '../Settings/AgentSettings';
-import ConfirmationModal from '../common/ConfirmationModal';
 import WorldDialog from './WorldDialog';
 import WorldOrbitLoader from './WorldOrbitLoader';
 
 export default function AgentManagementDialog({onClose}: {onClose: () => void}) {
     const settings = useSettings();
-    const [deleteAgentId, setDeleteAgentId] = useState<string | null>(null);
-    const [deleting, setDeleting] = useState(false);
 
     return (
         <WorldDialog title="Agent 管理" onClose={onClose} size="wide">
@@ -29,26 +24,11 @@ export default function AgentManagementDialog({onClose}: {onClose: () => void}) 
                     onSaveTask={settings.handleSaveAgentTask}
                     onRunTaskNow={settings.handleRunAgentTaskNow}
                     onDeleteTask={settings.handleDeleteAgentTask}
-                    onDelete={target => setDeleteAgentId(target.agentId)}
+                    archivedAgents={settings.archivedAgents}
+                    archiveConflictId={settings.agentNameConflictId}
+                    onArchive={settings.handleArchiveAgent}
+                    onRestore={settings.handleRestoreAgent}
                 />
-            )}
-            {deleteAgentId !== null && createPortal(
-                <ConfirmationModal
-                    isOpen
-                    title="确认删除 Agent"
-                    description="此操作无法撤销，确定要删除该 Agent 吗？"
-                    confirmText="删除"
-                    type="danger"
-                    isLoading={deleting}
-                    onClose={() => setDeleteAgentId(null)}
-                    onConfirm={async () => {
-                        setDeleting(true);
-                        await settings.handleDeleteAgent(deleteAgentId);
-                        setDeleting(false);
-                        setDeleteAgentId(null);
-                    }}
-                />,
-                document.body,
             )}
         </WorldDialog>
     );

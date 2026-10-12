@@ -7,7 +7,7 @@ export const RELATION_TIER_COLORS: Record<string, string> = {
     敌对: '#be123c', 朋友: '#f97316', 知己: '#c2410c',
 };
 
-export const relationNodeName = (node: AgentRelationNode) => node.departed ? `${node.name}（已离开）`
+export const relationNodeName = (node: AgentRelationNode) => node.departed ? `${node.name}（${node.archived ? '已归档' : '历史居民'}）`
     : node.kind === 'user' ? `${node.name}（用户）` : node.name;
 
 export const isRelationImageAvatar = (avatar?: string) => Boolean(avatar && /^(https?:|data:|\/)/.test(avatar));

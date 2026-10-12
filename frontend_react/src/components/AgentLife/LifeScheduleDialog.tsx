@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import {
     CalendarDays,
     Columns3,
+    Clock3,
     SlidersHorizontal,
     ChevronLeft,
     ChevronRight,
@@ -22,6 +23,7 @@ import LifeFailedReplanBar from './LifeFailedReplanBar';
 import LifeProfilePanel from './LifeProfilePanel';
 import LifeScheduleWeekView from './LifeScheduleWeekView';
 import LifeScheduleListView from './LifeScheduleListView';
+import LifeScheduleTodayTimeline from './LifeScheduleTodayTimeline';
 import LifeScheduleHelp from './LifeScheduleHelp';
 import {statusLabels} from './lifeLabels';
 
@@ -37,10 +39,11 @@ const getThisMonday = () => {
 
 export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
     const thisMonday = getThisMonday();
+    const today = dateKey(new Date().toISOString());
     const [start, setStart] = useState(thisMonday);
     const [actorId, setActorId] = useState('');
     const [status, setStatus] = useState('');
-    const [mode, setMode] = useState<'week' | 'list' | 'profile'>('week');
+    const [mode, setMode] = useState<'week' | 'today' | 'list' | 'profile'>('week');
     const [density, setDensity] = useState<'compact' | 'normal'>('compact');
     const [agents, setAgents] = useState<AgentConfig[]>([]);
     const [selected, setSelected] = useState<string | null>(null);
@@ -50,8 +53,10 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
     const end = dayjs(start).add(7, 'day').format('YYYY-MM-DD');
     const endDisplay = dayjs(end).subtract(1, 'day').format('YYYY-MM-DD');
     const isThisWeek = start === thisMonday;
+    const scheduleStart = mode === 'today' ? today : start;
+    const scheduleEnd = mode === 'today' ? dayjs(today).add(1, 'day').format('YYYY-MM-DD') : end;
 
-    const schedule = useAgentLifeSchedule(start, end, actorId, status, page, mode === 'week' ? 'week' : 'list');
+    const schedule = useAgentLifeSchedule(scheduleStart, scheduleEnd, actorId, status, page, mode === 'week' ? 'week' : 'list');
 
     useEffect(() => {
         const c = new AbortController();
@@ -91,7 +96,10 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                     <div className="flex items-center rounded-lg bg-slate-200/60 p-1">
                         <button
                             type="button"
-                            onClick={() => setMode('week')}
+                            onClick={() => {
+                                setMode('week');
+                                setPage(1);
+                            }}
                             className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-all ${
                                 mode === 'week'
                                     ? 'bg-white font-semibold text-slate-800 shadow-2xs'
@@ -103,7 +111,25 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                         </button>
                         <button
                             type="button"
-                            onClick={() => setMode('list')}
+                            onClick={() => {
+                                setMode('today');
+                                setPage(1);
+                            }}
+                            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-all ${
+                                mode === 'today'
+                                    ? 'bg-white font-semibold text-slate-800 shadow-2xs'
+                                    : 'font-medium text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <Clock3 className="h-3.5 w-3.5 shrink-0" />
+                            <span>今日日程</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setMode('list');
+                                setPage(1);
+                            }}
                             className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-all ${
                                 mode === 'list'
                                     ? 'bg-white font-semibold text-slate-800 shadow-2xs'
@@ -115,7 +141,10 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                         </button>
                         <button
                             type="button"
-                            onClick={() => setMode('profile')}
+                            onClick={() => {
+                                setMode('profile');
+                                setPage(1);
+                            }}
                             className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-all ${
                                 mode === 'profile'
                                     ? 'bg-white font-semibold text-slate-800 shadow-2xs'
@@ -216,6 +245,13 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                         {/* 日期周翻页与统计条 */}
                         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs border border-slate-100">
                             {/* 日期切换导航 */}
+                            {mode === 'today' ? (
+                                <div className="flex items-center gap-2 rounded-lg bg-orange-50 px-3 py-2 text-orange-700">
+                                    <CalendarDays className="h-4 w-4 shrink-0" />
+                                    <span className="font-semibold">今天</span>
+                                    <span className="font-mono text-xs text-orange-600">{today}</span>
+                                </div>
+                            ) : (
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
@@ -265,11 +301,12 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                     </span>
                                 )}
                             </div>
+                            )}
 
                             {/* 右侧：统计、加载状态与紧凑/详细密度切换 */}
                             <div className="flex items-center gap-3">
                                 {/* 密度切换开关 */}
-                                <div className="flex items-center rounded-lg bg-slate-100 p-0.5">
+                                {mode !== 'today' && <div className="flex items-center rounded-lg bg-slate-100 p-0.5">
                                     <button
                                         type="button"
                                         onClick={() => setDensity('compact')}
@@ -296,7 +333,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                         <Maximize2 className="h-3 w-3 shrink-0" />
                                         <span>详细</span>
                                     </button>
-                                </div>
+                                </div>}
 
                                 {schedule.loading ? (
                                     <div className="inline-flex items-center gap-1.5 text-slate-400">
@@ -311,7 +348,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                             </div>
                         </div>
 
-                        {schedule.error && (
+                        {schedule.error && mode !== 'today' && (
                             <div
                                 role="alert"
                                 className="shrink-0 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700"
@@ -321,7 +358,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                         )}
 
                         {actorId ? (
-                            <LifeFailedReplanBar actorId={actorId} start={start} end={end} onDone={schedule.refresh} />
+                            <LifeFailedReplanBar actorId={actorId} start={scheduleStart} end={scheduleEnd} onDone={schedule.refresh} />
                         ) : null}
 
                         {/* 视图展示 */}
@@ -339,6 +376,17 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                                         density={density}
                                     />
                                 </div>
+                            ) : mode === 'today' ? (
+                                <LifeScheduleTodayTimeline
+                                    loading={schedule.loading}
+                                    error={Boolean(schedule.error)}
+                                    items={schedule.data.items}
+                                    agents={agents}
+                                    total={schedule.data.total}
+                                    page={page}
+                                    onPageChange={setPage}
+                                    onSelectItem={setSelected}
+                                />
                             ) : (
                                 <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
                                     <LifeScheduleListView

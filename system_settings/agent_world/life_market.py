@@ -30,7 +30,7 @@ def ensure_daily_market(config: LifeConfig, now: datetime) -> None:
     left = max(left, now + timedelta(minutes=5))
     if left >= right:
         return
-    actors = sorted(Agent.objects.filter(pk__in=settings['agent_ids'], model__isnull=False)
+    actors = sorted(Agent.objects.filter(pk__in=settings['agent_ids'], model__isnull=False, archived_at__isnull=True)
                     .values_list('pk', flat=True))
     if not actors:
         return

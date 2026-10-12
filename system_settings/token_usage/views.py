@@ -1,10 +1,12 @@
 from datetime import datetime
 from django.db.models import Q
 from django.utils import timezone
+from rest_framework.exceptions import NotFound
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from utils.response_utils import success_result, valid_result
-from .queries import breakdown, filtered_usage, summary
+from . import details as request_details
+from .queries import breakdown, filtered_usage, summary, visible_usage
 from .report import export_report
 from system_settings.agent_world.life_time import local_time, storage_time
 
@@ -18,8 +20,29 @@ class TokenUsageView(APIView):
     permission_classes = [IsAuthenticated]
     kind = 'summary'
 
-    def get(self, request):
+    def get(self, request, request_id=None):
         try:
+            request_details.maintain()
+            if self.kind == 'content':
+                row = visible_usage(request).filter(pk=request_id).only('id', 'started_at', 'status', 'ended_at').first()
+                if row is None:
+                    raise NotFound()
+                detail = request_details.read(row.pk, row.started_at)
+                if detail is not None and row.status != 'running' and detail.get('status') != row.status:
+                    # 写入失败可能只留下请求中的旧快照，不能将其展示成完整结果。
+                    detail = None
+                data = ({'available': False, 'message': '请求内容未记录或已超过 30 天保留期'} if detail is None else {
+                    'available': True,
+                    'request': detail.get('request'),
+                    'response': detail.get('response'),
+                    'status': row.status,
+                    'error_type': detail.get('error_type'),
+                    'started_at': detail.get('started_at'),
+                    'ended_at': local_time(row.ended_at).isoformat() if row.ended_at else None,
+                })
+                result = success_result(data)
+                result['Cache-Control'] = 'no-store'
+                return result
             rows = filtered_usage(request)
             if self.kind == 'export':
                 return export_report(rows, request)

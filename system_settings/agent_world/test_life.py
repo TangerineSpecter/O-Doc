@@ -664,6 +664,7 @@ class LifeProposalParsingTests(SimpleTestCase):
         with self.assertRaisesMessage(ValueError, '生活规划未返回有效正文'):
             parse_life_proposal('<think>正在思考但是没有生成正文...</think>')
 
+    @patch('system_settings.agent_world.life_planner.require_active_agent', new=lambda agent: agent)
     def test_ask_passes_thinking_disabled_and_strips_thinking(self):
         from unittest.mock import MagicMock, patch
         from .life_planner import ask
@@ -680,6 +681,7 @@ class LifeProposalParsingTests(SimpleTestCase):
             self.assertEqual(res, {'plans': []})
             self.assertEqual(mock_complete.call_args.kwargs['extra_body'], {'thinking': {'type': 'disabled'}})
 
+    @patch('system_settings.agent_world.life_planner.require_active_agent', new=lambda agent: agent)
     def test_ask_retries_when_first_attempt_fails(self):
         from unittest.mock import MagicMock, patch
         from .life_planner import ask

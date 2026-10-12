@@ -276,6 +276,21 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
     const inputPercent = totalTokens > 0 ? ((inputTokens / totalTokens) * 100).toFixed(1) : null;
     const outputPercent = totalTokens > 0 ? ((outputTokens / totalTokens) * 100).toFixed(1) : null;
 
+    const isSingleDayFilter = Boolean(
+        filters.all !== '1' && filters.start_date && filters.start_date === filters.end_date
+    );
+    const showHourly = isSingleDayFilter && Boolean(summary?.hours?.length);
+    const chartData = useMemo((): {day: string; hour: string; totalTokens: number}[] => {
+        if (!summary) return [];
+        if (!showHourly) {
+            return summary.days.map(item => ({day: item.day, hour: '', totalTokens: item.totalTokens}));
+        }
+        const byHour = new Map((summary.hours || []).map(item => [item.hour, item]));
+        return Array.from({length: 24}, (_, hour) => {
+            const key = String(hour).padStart(2, '0');
+            return {day: key, hour: key, totalTokens: byHour.get(key)?.totalTokens || 0};
+        });
+    }, [summary, showHourly]);
     const peakDay = summary?.days?.length
         ? summary.days.reduce((max, d) => (d.totalTokens > max.totalTokens ? d : max), summary.days[0])
         : null;
@@ -516,7 +531,7 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                     </div>
                 </div>
 
-                {/* 每日消耗趋势图：柱状图 BarChart */}
+                {/* 单日按小时展示，多日按天展示 */}
                 {summary && (
                     <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -524,30 +539,30 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                                 <div className="rounded-md bg-orange-50 p-1 text-orange-600">
                                     <BarChart3 className="h-3.5 w-3.5" />
                                 </div>
-                                <h3 className="text-sm font-bold text-slate-800">每日消耗趋势</h3>
+                                <h3 className="text-sm font-bold text-slate-800">
+                                    {showHourly ? '每小时消耗趋势' : '每日消耗趋势'}
+                                </h3>
                                 <span className="text-xs text-slate-400">
-                                    ({summary.days.length} 天记录)
+                                    {showHourly ? '(24 小时)' : `(${summary.days.length} 天记录)`}
                                 </span>
                             </div>
-                            {peakDay && (
+                            {showHourly ? (
                                 <div className="text-xs text-slate-500">
-                                    {summary.days.length > 1 ? (
-                                        <span>
-                                            单日峰值：
-                                            <strong className="font-semibold text-orange-600">
-                                                {tokenNumber(peakDay.totalTokens)}
-                                            </strong>{' '}
-                                            ({peakDay.day.slice(5)})
-                                        </span>
-                                    ) : (
-                                        <span>
-                                            今日累计：
-                                            <strong className="font-semibold text-orange-600">
-                                                {tokenNumber(peakDay.totalTokens)}
-                                            </strong>{' '}
-                                            token
-                                        </span>
-                                    )}
+                                    当日累计：
+                                    <strong className="font-semibold text-orange-600">
+                                        {tokenNumber(summary.totalTokens)}
+                                    </strong>{' '}
+                                    token
+                                </div>
+                            ) : peakDay && (
+                                <div className="text-xs text-slate-500">
+                                    <span>
+                                        单日峰值：
+                                        <strong className="font-semibold text-orange-600">
+                                            {tokenNumber(peakDay.totalTokens)}
+                                        </strong>{' '}
+                                        ({peakDay.day.slice(5)})
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -555,16 +570,17 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                             <div className="h-44 w-full min-w-0">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart
-                                        data={summary.days}
+                                        data={chartData}
                                         margin={{left: -8, right: 12, top: 10, bottom: 0}}
                                     >
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis
-                                            dataKey="day"
+                                            dataKey={showHourly ? 'hour' : 'day'}
+                                            interval={showHourly ? 2 : 0}
                                             tick={{fontSize: 10, fill: '#64748b'}}
                                             tickLine={false}
                                             axisLine={{stroke: '#e2e8f0'}}
-                                            tickFormatter={(day: string) => day.slice(5)}
+                                            tickFormatter={(value: string) => showHourly ? `${value}:00` : value.slice(5)}
                                         />
                                         <YAxis
                                             width={48}
@@ -586,7 +602,9 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                                                 const val = Number(payload[0].value || 0);
                                                 return (
                                                     <div className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-md backdrop-blur-xs">
-                                                        <p className="text-[11px] font-semibold text-slate-600">{label}</p>
+                                                        <p className="text-[11px] font-semibold text-slate-600">
+                                                            {showHourly ? `${label}:00` : label}
+                                                        </p>
                                                         <p className="mt-0.5 text-xs font-bold text-orange-600">
                                                             {tokenNumber(val)}{' '}
                                                             <span className="text-[10px] font-normal text-slate-400">

@@ -1,4 +1,4 @@
-export interface AnalyticsResident {id: string; name: string; avatar: string; departed: boolean}
+export interface AnalyticsResident {id: string; name: string; avatar: string; departed: boolean; archived?: boolean}
 export interface AnalyticsFilters {start_date: string; end_date: string; actor_id?: string}
 export interface AnalyticsOverview {
     activeResidents: number; activeDays: number; publications: number; interactions: number;

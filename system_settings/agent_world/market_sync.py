@@ -76,7 +76,7 @@ def reconcile_market() -> None:
                    for delta in trade.result.get('deltas', [])]
     WorldLedger.objects.filter(kind='market').exclude(pk__in=ledger_keys).delete()
     energy_keys = [hashlib.sha256(('market-energy:'+key).encode()).hexdigest()
-                   for key in MarketSession.objects.values_list('pk', flat=True)]
+        for key in MarketSession.objects.exclude(mode='archive').values_list('pk', flat=True)]
     WorldAction.objects.filter(snapshot__market_energy=True).exclude(pk__in=energy_keys).delete()
     for trade in MarketTransaction.objects.select_related('session'):
         if trade.owner_id != trade.session.owner_id or trade.actor_id != trade.session.actor_id:
@@ -88,6 +88,10 @@ def reconcile_market() -> None:
                 'kind':'market','amount':delta['amount'],'created_at':trade.created_at,
                 'snapshot':{'market_transaction_id':trade.pk}})
     for session in MarketSession.objects.all():
+        if session.mode == 'archive':
+            if session.status != 'closed' or session.call_count:
+                raise SyncError('归档下架会话不得包含执行授权或工具调用')
+            continue
         WorldAction.objects.update_or_create(pk=hashlib.sha256(('market-energy:'+session.pk).encode()).hexdigest(), defaults={'actor_id':session.actor_id,
             'task':session.task,'status':'success','consumed_at':session.created_at,'energy_cost':5,'effects_done':True,
             'snapshot':{'market_energy':True},'result':{'session_id':session.pk}})

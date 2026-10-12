@@ -81,18 +81,22 @@ def create_completion(client, config: dict, *, retries: int = 1, **parameters):
     from openai import APIConnectionError, APIStatusError
     from system_settings.token_usage.capture import Capture
     for attempt in range(1, retries + 2):
+        if parameters.get('stream') and config.get('provider_type') in ('OpenAi', 'DeepSeek', 'MiniMax', 'NewAPI'):
+            parameters['stream_options'] = {'include_usage': True}
         capture = Capture(config, attempt=attempt)
+        if hasattr(capture, 'set_request'):
+            capture.set_request(parameters)
         try:
-            if parameters.get('stream') and config.get('provider_type') in ('OpenAi', 'DeepSeek', 'MiniMax', 'NewAPI'):
-                parameters['stream_options'] = {'include_usage': True}
             response = client.chat.completions.create(**parameters)
             if parameters.get('stream'):
                 return TrackedStream(response, capture)
+            if hasattr(capture, 'set_response'):
+                capture.set_response(response)
             capture.usage(getattr(response, 'usage', None))
             capture.finish('success')
             return response
         except BaseException as exc:
-            capture.finish('failed')
+            capture.finish('failed', error=exc)
             retry = isinstance(exc, APIConnectionError) or (
                 isinstance(exc, APIStatusError) and (
                     exc.response.headers.get('x-should-retry') == 'true' or exc.status_code in (408, 409, 429) or exc.status_code >= 500
@@ -116,19 +120,31 @@ class TrackedStream:
     def __init__(self, stream, capture):
         self.stream, self.capture = stream, capture
         self.finished = False
+        self.output_parts = []
+
+    def _finish(self, status: str, error: BaseException | None = None) -> None:
+        if self.finished:
+            return
+        if hasattr(self.capture, 'set_response'):
+            self.capture.set_response({'content': ''.join(self.output_parts)})
+        self.capture.finish(status, error=error)
+        self.finished = True
 
     def __iter__(self):
         terminal = False
         try:
             for chunk in self.stream:
                 self.capture.usage(getattr(chunk, 'usage', None))
-                terminal = terminal or any(getattr(c, 'finish_reason', None) for c in chunk.choices)
+                for choice in getattr(chunk, 'choices', []):
+                    delta = getattr(choice, 'delta', None)
+                    content = getattr(delta, 'content', None)
+                    if isinstance(content, str):
+                        self.output_parts.append(content)
+                    terminal = terminal or bool(getattr(choice, 'finish_reason', None))
                 yield chunk
-            self.capture.finish('success' if terminal else 'interrupted')
-            self.finished = True
-        except BaseException:
-            self.capture.finish('interrupted')
-            self.finished = True
+            self._finish('success' if terminal else 'interrupted')
+        except BaseException as exc:
+            self._finish('interrupted', error=exc)
             raise
 
     def close(self):
@@ -136,5 +152,4 @@ class TrackedStream:
             self.stream.close()
         finally:
             if not self.finished:
-                self.capture.finish('interrupted')
-                self.finished = True
+                self._finish('interrupted')

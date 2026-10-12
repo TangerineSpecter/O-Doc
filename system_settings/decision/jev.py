@@ -45,15 +45,20 @@ def choose(owner: str, state: dict, criteria: dict[str, object], *, deadline: fl
     request_id = request_identifier(capture.row)
     started, stage, status = time.monotonic(), 'request', None
     try:
+        payload = {'model': MODEL, 'state': state, 'questions': {'next_action': {
+            'type': 'choice', 'instructions': 'Choose the next feasible market action using the resident preferences and current needs. Waiting is allowed. Use other for a different quantity or a complex plan. Never assume an unexecuted action succeeded.',
+            'criteria': criteria}}}
+        if hasattr(capture, 'set_request'):
+            capture.set_request({'method': 'POST', 'url': BASE_URL + '/systemone', 'json': payload})
         response = requests.post(BASE_URL + '/systemone', headers={'Authorization': 'Bearer ' + secret},
-            json={'model': MODEL, 'state': state, 'questions': {'next_action': {
-                'type': 'choice', 'instructions': 'Choose the next feasible market action using the resident preferences and current needs. Waiting is allowed. Use other for a different quantity or a complex plan. Never assume an unexecuted action succeeded.',
-                'criteria': criteria}}}, timeout=min(20, remaining))
+            json=payload, timeout=min(20, remaining))
         status = response.status_code
         if status != 200:
             raise DecisionUnavailable(f'JEV 不可用（HTTP {status}）')
         stage = 'response_json'
         data = response.json()
+        if hasattr(capture, 'set_response'):
+            capture.set_response({'raw': response.text, 'json': data})
         stage = 'response_validation'
         if not isinstance(data, dict):
             raise DecisionUnavailable('JEV 响应结构无效')
@@ -91,7 +96,7 @@ def choose(owner: str, state: dict, criteria: dict[str, object], *, deadline: fl
         if isinstance(exc, Exception):
             detail = record_failure(exc, stage=stage, request_id=request_id, started=started,
                                     status=status, row=capture.row, validation=isinstance(exc, DecisionUnavailable))
-        capture.finish('failed')
+        capture.finish('failed', error=exc)
         if isinstance(exc, (DecisionUnavailable, requests.RequestException, ValueError, TypeError, AttributeError)):
             raise DecisionUnavailable(detail) from None
         raise

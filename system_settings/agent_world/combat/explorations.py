@@ -76,6 +76,8 @@ def available_window(owner, actor, duration, life_id='', now=None):
 @guarded
 @transaction.atomic
 def request(owner, agent, key, constraints, *, life_item=None, now=None):
+    from system_settings.agent_availability import require_active_agent
+    agent = require_active_agent(agent)
     if key=='combat-worker':raise ValueError('请求键为系统保留标识')
     old = Exploration.objects.filter(pk=key).first()
     if old:

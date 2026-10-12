@@ -145,6 +145,8 @@ def commit(op, agent, token, context, incoming, discussion, moments, value):
         if not WorldActionRuntime.objects.filter(pk='world', enabled=True).exists(): raise ValueError('世界运行已关闭')
         if not AgentExecutionLease.objects.filter(agent=agent, token=token, until__gt=timezone.now()).exists(): raise ValueError('执行锁失效')
         agent = Agent.objects.select_for_update().get(pk=agent.pk)
+        from system_settings.agent_availability import require_active_agent
+        require_active_agent(agent)
         if stamina(agent) < ENERGY_COST: raise ValueError('体力不足')
         from .life_config import effective_settings
         left, right = window(effective_settings(life), local_time().date())
@@ -298,7 +300,7 @@ def tick_social(scheduler):
             if not settings_for(config)['enabled']: continue
             from .life_models import LifeProfile
             ids = LifeProfile.objects.filter(owner_id=config.pk, pk__in=config.settings.get('agent_ids', [])).values_list('pk', flat=True)
-            for agent in Agent.objects.filter(pk__in=ids).select_related('model'):
+            for agent in Agent.objects.filter(pk__in=ids, archived_at__isnull=True).select_related('model'):
                 try:
                     with farm_gate(), transaction.atomic(): op = next_opportunity(config, agent, now)
                     if op: run(op, agent)

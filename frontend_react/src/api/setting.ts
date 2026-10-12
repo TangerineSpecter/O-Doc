@@ -190,7 +190,9 @@ export const getImageUploadConfig = () => request.get<any, ImageUploadConfig>('/
 
 export const saveImageUploadConfig = (data: ImageUploadConfig) => request.post<any, ImageUploadConfig>('/settings/config/save_image_upload_config/', data);
 
-export const getAgents = () => request.get<AgentConfig[]>('/settings/agents/');
+export const getAgents = (status: 'active' | 'archived' | 'all' = 'active') => request.get<AgentConfig[]>('/settings/agents/', {params: {status}});
+export const archiveAgent = (id: string) => request.post<unknown, AgentConfig>(`/settings/agents/${id}/archive/`);
+export const restoreAgent = (id: string) => request.post<unknown, AgentConfig>(`/settings/agents/${id}/restore/`);
 
 export const saveAgent = (data: SaveAgentConfigParams) => {
     if (data.id) {

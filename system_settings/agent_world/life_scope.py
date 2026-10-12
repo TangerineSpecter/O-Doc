@@ -22,6 +22,9 @@ def enrich(context):
 
 
 def allowed(task, actor_id):
+    from system_settings.models import Agent
+    if not Agent.objects.filter(pk=actor_id, archived_at__isnull=True).exists():
+        return False
     from .life_config import task_owner, config_for, effective_settings
     from .life_models import LifeProfile
     profile = LifeProfile.objects.filter(pk=actor_id).first()
@@ -39,6 +42,8 @@ def allowed(task, actor_id):
 
 
 def check_item_authorization(item):
+    from system_settings.agent_availability import require_active_agent
+    require_active_agent(item.actor_id)
     from .life_config import config_for
     from system_settings.models import WorldActionRuntime,AgentTask
     config = config_for(item.owner_id)

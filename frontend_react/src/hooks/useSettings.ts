@@ -6,7 +6,8 @@ import {
     AgentConfig,
     AgentTaskConfig,
     AIProvider,
-    deleteAgent,
+    archiveAgent,
+    restoreAgent,
     deleteAgentTask,
     deleteMCPServer,
     deleteSkill,
@@ -47,6 +48,8 @@ export const useSettings = () => {
     // --- State ---
     const [providers, setProviders] = useState<AIProvider[]>([]);
     const [agents, setAgents] = useState<AgentConfig[]>([]);
+    const [archivedAgents, setArchivedAgents] = useState<AgentConfig[]>([]);
+    const [agentNameConflictId, setAgentNameConflictId] = useState<string | null>(null);
     const [agentTasks, setAgentTasks] = useState<AgentTaskConfig[]>([]);
     const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
     const [skills, setSkills] = useState<SkillConfig[]>([]);
@@ -118,14 +121,16 @@ export const useSettings = () => {
             const [providersRes, systemConfigRes, agentsRes, agentTasksRes, mcpServersRes, skillsRes] = await Promise.all([
                 getProviders(),
                 getSystemAIConfig(),
-                getAgents(),
+                getAgents('all'),
                 getAgentTasks(),
                 getMCPServers(),
                 getSkills()
             ]);
 
             setProviders(providersRes as unknown as AIProvider[]);
-            setAgents(agentsRes as unknown as AgentConfig[]);
+            const allAgents = agentsRes as unknown as AgentConfig[];
+            setAgents(allAgents.filter(agent => !agent.archived));
+            setArchivedAgents(allAgents.filter(agent => agent.archived));
             setAgentTasks(agentTasksRes as unknown as AgentTaskConfig[]);
             setMcpServers(mcpServersRes as unknown as MCPServerConfig[]);
             setSkills(skillsRes as unknown as SkillConfig[]);
@@ -289,6 +294,7 @@ export const useSettings = () => {
 
     const handleSaveAgent = async (agentData: Partial<AgentConfig>) => {
         setIsSaving(true);
+        setAgentNameConflictId(null);
         try {
             const payload = {
                 id: agentData.id,
@@ -321,20 +327,48 @@ export const useSettings = () => {
             toast.success(agentData.id ? 'Agent 已更新' : 'Agent 已创建');
             return true;
         } catch (error) {
-            toast.error('保存 Agent 失败');
+            const failure = error as {message?: string; response?: {data?: {data?: {agentId?: string; archived?: boolean}}}};
+            const conflict = failure.response?.data?.data;
+            if (conflict?.archived && conflict.agentId) {
+                setAgentNameConflictId(conflict.agentId);
+                try {
+                    const archived = await getAgents('archived');
+                    setArchivedAgents(archived as unknown as AgentConfig[]);
+                } catch {
+                    // 保留现有归档列表和原始同名提示；用户仍可重新加载管理面板。
+                }
+            }
+            toast.error(failure.message || '保存 Agent 失败');
             return false;
         } finally {
             setIsSaving(false);
         }
     };
 
-    const handleDeleteAgent = async (id: string) => {
+    const handleArchiveAgent = async (id: string) => {
         try {
-            await deleteAgent(id);
+            const archived = await archiveAgent(id);
             setAgents(prev => prev.filter(agent => agent.id !== id));
-            toast.success('Agent 已删除');
+            setArchivedAgents(prev => [archived, ...prev.filter(agent => agent.id !== id)]);
+            toast.success('居民已归档，在售商品已下架');
+            return true;
         } catch (error) {
-            toast.error('删除 Agent 失败');
+            toast.error(error instanceof Error ? error.message : '归档 Agent 失败');
+            return false;
+        }
+    };
+
+    const handleRestoreAgent = async (id: string) => {
+        try {
+            const restored = await restoreAgent(id);
+            setArchivedAgents(prev => prev.filter(agent => agent.id !== id));
+            setAgents(prev => [restored, ...prev.filter(agent => agent.id !== id)]);
+            setAgentNameConflictId(null);
+            toast.success('居民已恢复，将按原配置执行未来任务');
+            return true;
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : '恢复 Agent 失败');
+            return false;
         }
     };
 
@@ -559,6 +593,8 @@ export const useSettings = () => {
     return {
         providers,
         agents,
+        archivedAgents,
+        agentNameConflictId,
         agentTasks,
         mcpServers,
         skills,
@@ -582,7 +618,8 @@ export const useSettings = () => {
         handleRunAgentTaskNow,
         handleSaveMCPServer,
         handleDelete,
-        handleDeleteAgent,
+        handleArchiveAgent,
+        handleRestoreAgent,
         handleDeleteAgentTask,
         handleDeleteMCPServer,
         handleScanMCPServers,

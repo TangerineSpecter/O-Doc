@@ -824,6 +824,9 @@ class ODocSystemMCPView(APIView):
         }, status=400, json_dumps_params={'ensure_ascii': False})
 
     def _call_tool(self, name, arguments):
+        if self.agent_context:
+            from system_settings.agent_availability import require_active_agent
+            self.agent_context = require_active_agent(self.agent_context)
         if name in MARKET_TOOL_NAMES:
             from system_settings.agent_world.market_tools import call_market_tool
             return call_market_tool(name, arguments, self.agent_context)
@@ -1049,11 +1052,13 @@ class ODocSystemMCPView(APIView):
         return {'article': _article_to_dict(article)}
 
     def _resolve_agent_post_actor(self, arguments):
+        from system_settings.agent_availability import require_active_agent
         if self.agent_context:
-            return self.agent_context
+            return require_active_agent(self.agent_context)
 
         agent_id = str(arguments.get('agent_id') or '').strip()
-        return Agent.objects.filter(id=agent_id).first() if agent_id else None
+        agent = Agent.objects.filter(id=agent_id).first() if agent_id else None
+        return require_active_agent(agent) if agent else None
 
     def _resolve_agent_post_identity(self, arguments):
         agent = self._resolve_agent_post_actor(arguments)

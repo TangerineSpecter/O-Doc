@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
-import {getTokenGroups, getTokenRequests, getTokenSummary} from '../api/tokenUsage';
-import type {TokenFilters, TokenGroups, TokenRequests, TokenSummary} from '../types/api/tokenUsage';
+import {getTokenGroups, getTokenRequestContent, getTokenRequests, getTokenSummary} from '../api/tokenUsage';
+import type {TokenFilters, TokenGroups, TokenRequestContent, TokenRequests, TokenSummary} from '../types/api/tokenUsage';
 
 export function useTokenUsage(filters: TokenFilters, group: string, page: number, refresh: number) {
     const filterKey = JSON.stringify(filters);
@@ -111,6 +111,26 @@ export function useTokenRequests(filters: TokenFilters) {
         },
         retry: () => setRefresh(v => v + 1),
         more: () => setPosition({filterKey, cursor: result?.nextCursor || undefined})};
+}
+
+export function useTokenRequestContent(id: string) {
+    const [result, setResult] = useState<TokenRequestContent | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    useEffect(() => {
+        const controller = new AbortController();
+        setLoading(true);
+        setError('');
+        getTokenRequestContent(id, controller.signal).then(value => {
+            if (!controller.signal.aborted) setResult(value);
+        }).catch(() => {
+            if (!controller.signal.aborted) setError('请求内容读取失败，请稍后重试');
+        }).finally(() => {
+            if (!controller.signal.aborted) setLoading(false);
+        });
+        return () => controller.abort();
+    }, [id]);
+    return {result, loading, error};
 }
 
 export function useTokenExecutions(filters: TokenFilters) {

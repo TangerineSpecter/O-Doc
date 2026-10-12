@@ -176,7 +176,8 @@ def recall_short_term_memories(agent, record, query_text, limit=DEFAULT_RECALL_L
             id=str(memory_id),
             agent=agent,
             expires_at__gt=now,
-            promoted_at__isnull=True,
+            agent__archived_at__isnull=True,
+        promoted_at__isnull=True,
         ).first()
         if not memory:
             continue
@@ -247,10 +248,12 @@ def store_short_term_memory(agent, record):
 
 
 def promote_due_short_term_memories():
+    from .agent_availability import AgentUnavailableError
     now = timezone.now()
     cutoff = now - timedelta(days=get_memory_ttl_days())
     candidates = list(AgentShortTermMemory.objects.select_related('agent').filter(
         promoted_at__isnull=True,
+        agent__archived_at__isnull=True,
         expires_at__gt=now,
         created_at__gte=cutoff,
         recall_count__gte=PROMOTION_RECALL_COUNT,
@@ -262,7 +265,11 @@ def promote_due_short_term_memories():
         query_sources = memory.query_sources if isinstance(memory.query_sources, list) else []
         if len(set(query_sources)) < PROMOTION_QUERY_SOURCE_COUNT:
             continue
-        promoted = promote_short_term_memory(memory)
+        try:
+            promoted = promote_short_term_memory(memory)
+        except AgentUnavailableError:
+            logger.info('Skipping unavailable agent memory promotion: agent=%s memory=%s', memory.agent_id, memory.pk)
+            continue
         if promoted:
             promoted_count += 1
 
@@ -271,10 +278,19 @@ def promote_due_short_term_memories():
 
 
 def promote_short_term_memory(memory):
+    from .agent_availability import agent_operation
+    with agent_operation(memory.agent) as agent:
+        result = _promote_short_term_memory(memory)
+        return result
+
+
+def _promote_short_term_memory(memory):
     suggested = _summarize_memory_for_promotion(memory)
     if not suggested:
         return None
 
+    from .agent_availability import require_active_agent
+    require_active_agent(memory.agent)
     long_memory = AgentLongTermMemory.objects.create(
         agent=memory.agent,
         scope='user' if memory.sender_id else 'chat',
@@ -298,7 +314,7 @@ def promote_short_term_memory(memory):
 
 def purge_expired_short_term_memories(now=None):
     now = now or timezone.now()
-    expired = list(AgentShortTermMemory.objects.filter(expires_at__lte=now).values_list('id', flat=True)[:500])
+    expired = list(AgentShortTermMemory.objects.filter(expires_at__lte=now, agent__archived_at__isnull=True).values_list('id', flat=True)[:500])
     if not expired:
         return 0
 

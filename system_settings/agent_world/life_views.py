@@ -50,7 +50,15 @@ class LifeConfigView(APIView):
     def post(self,request):
         try:
             config=config_for(owner_of(request))
-            config.settings=validate_settings(request.data.get('settings',request.data))
+            raw_settings=request.data.get('settings',request.data)
+            settings=validate_settings(raw_settings)
+            if 'decision_model_id' not in raw_settings:
+                settings['decision_model_id']=config.settings.get('decision_model_id','')
+            from system_settings.models import Agent
+            added=set(settings['agent_ids'])-set(config.settings.get('agent_ids', []))
+            if Agent.objects.filter(pk__in=added, archived_at__isnull=False).exists():
+                raise ValueError('不能新增归档居民参与生活，请先恢复')
+            config.settings=settings
             ensure_profiles(config.pk,config.settings['agent_ids'])
             config.migrated=True;config.save()
             return self.get(request)

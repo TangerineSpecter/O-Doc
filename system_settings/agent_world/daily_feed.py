@@ -539,10 +539,11 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
         amount = next((entry.get('amount') for entry in result.get('deltas', [])
                        if entry.get('actor_id') == row.actor_id), None)
         events.append(_event(category, 'market', row.pk, row.created_at, row.actor_id,
-                             row.actor_name, MARKET_LABELS.get(kind, '市场操作'), detail,
+                             row.actor_name, '归档下架' if op.get('reason') == 'agent_archive' else MARKET_LABELS.get(kind, '市场操作'), detail,
                              amount=amount, target={'kind': 'market', 'id': row.pk}))
         session = session_map[row.session_id]
-        events[-1]['_execution_group'] = 'market:' + (session.record_id or session.pk)
+        if session.mode != 'archive':
+            events[-1]['_execution_group'] = 'market:' + (session.record_id or session.pk)
         events[-1]['_execution_failed'] = bool(session.record and session.record.status == 'failed')
         seller_id = result.get('seller_id') if kind == 'buy_listing' else None
         if seller_id:
@@ -553,6 +554,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
                                  amount=seller_amount, target={'kind': 'market', 'id': row.pk}))
             events[-1]['_execution_group'] = 'market-sale:' + (session.record_id or session.pk)
     for row in sessions:
+        if row.mode == 'archive':
+            continue
         group = 'market:' + (row.record_id or row.pk)
         event = _event('market', 'market-enter', row.pk, row.created_at, row.actor_id,
                        row.actor_name, '进入市场', target={'kind': 'market', 'id': row.pk})

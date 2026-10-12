@@ -70,6 +70,7 @@ class SystemSettingSerializer(serializers.ModelSerializer):
 
 
 class AgentSerializer(PostScopeValidation, serializers.ModelSerializer):
+    archived = serializers.BooleanField(read_only=True)
     stamina = serializers.SerializerMethodField()
     profession_name = serializers.CharField(source="profession.name", read_only=True, default="")
     model_detail = AIModelSerializer(source='model', read_only=True)
@@ -78,6 +79,7 @@ class AgentSerializer(PostScopeValidation, serializers.ModelSerializer):
         model = Agent
         fields = [
             'id',
+            'archived', 'archived_at',
             'name',
             'avatar',
             'full_body_image',
@@ -96,7 +98,8 @@ class AgentSerializer(PostScopeValidation, serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'model_detail', 'money', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'archived_at', 'model_detail', 'money', 'created_at', 'updated_at']
+        extra_kwargs = {'name': {'validators': []}}
 
     def get_stamina(self, obj):
         from .agent_world.execution import stamina
@@ -110,6 +113,8 @@ class AgentSerializer(PostScopeValidation, serializers.ModelSerializer):
         value = value.strip()
         if not value:
             raise serializers.ValidationError("Agent 名称不能为空")
+        from .agent_archive import check_name
+        check_name(value, self.instance.pk if self.instance else None)
         return value
 
     def validate_full_body_image(self, value):
@@ -452,7 +457,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             ids = [obj.agent_id]
         if not ids:
             return []
-        agents = {agent.id: agent.name for agent in Agent.objects.filter(id__in=ids)}
+        agents = {agent.id: agent.name + ('（已归档）' if agent.archived else '') for agent in Agent.objects.filter(id__in=ids)}
         return [agents[agent_id] for agent_id in ids if agent_id in agents]
 
     def get_random_progress(self, obj):
@@ -723,9 +728,15 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             from utils.drf_utils import get_current_user_identifier
             owner=get_current_user_identifier(self.context['request'])
             configured=config_for(owner).settings.get('agent_ids',[])
-            if configured:attrs['agent_ids']=configured
+            if configured:
+                previous = set(self.instance.agent_ids or [self.instance.agent_id]) if self.instance else set()
+                archived = set(Agent.objects.filter(pk__in=configured, archived_at__isnull=False).values_list('pk', flat=True))
+                attrs['agent_ids'] = [key for key in configured if key not in archived or key in previous]
             if kind=='post_interaction':attrs['world_state']={**getattr(self.instance,'world_state',{}),**attrs.get('world_state',{}),'owner_id':owner}
         agent_ids = attrs.get('agent_ids')
+        followup = attrs.get('followup_agent')
+        if followup and followup.archived and (not self.instance or self.instance.followup_agent_id != followup.pk):
+            raise serializers.ValidationError({'followup_agent': '后续居民已归档，请先恢复'})
         selected_agent = attrs.get('agent') or getattr(self.instance, 'agent', None)
 
         if agent_ids is not None:
@@ -741,10 +752,16 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             missing_ids = [agent_id for agent_id in cleaned_agent_ids if agent_id not in existing_ids]
             if missing_ids:
                 raise serializers.ValidationError({"agents": f"Agent 不存在：{', '.join(missing_ids)}"})
+            previous_ids = set(self.instance.agent_ids or [self.instance.agent_id]) if self.instance else set()
+            archived_added = [agent.name for agent in existing_agents if agent.archived and agent.pk not in previous_ids]
+            if archived_added:
+                raise serializers.ValidationError({'agents': '不能新增归档居民绑定：' + '、'.join(archived_added)})
             attrs['agent_ids'] = cleaned_agent_ids
             first_agent = next(agent for agent in existing_agents if agent.id == cleaned_agent_ids[0])
             attrs['agent'] = first_agent
         elif selected_agent and not getattr(self.instance, 'agent_ids', None):
+            if selected_agent.archived and (not self.instance or self.instance.agent_id != selected_agent.pk):
+                raise serializers.ValidationError({'agent': '居民已归档，请先恢复'})
             attrs['agent_ids'] = [selected_agent.id]
 
         if kind == 'market':

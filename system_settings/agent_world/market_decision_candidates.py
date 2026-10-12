@@ -99,7 +99,7 @@ def candidates(owner: str, agent) -> list[dict]:
     while True:
         rows = listings(owner, {'page': number})
         from system_settings.models import Agent
-        sellers = set(Agent.objects.filter(pk__in=[r['seller_id'] for r in rows['items']]).values_list('pk', flat=True))
+        sellers = set(Agent.objects.filter(pk__in=[r['seller_id'] for r in rows['items']], archived_at__isnull=True).values_list('pk', flat=True))
         for row in rows['items']:
             if row['seller_id'] == agent.pk:
                 detail = {key: row[key] for key in ('id', 'version', 'unit_price', 'remaining_quantity', 'created_at')}

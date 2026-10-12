@@ -42,6 +42,7 @@ services:
       DJANGO_MEDIA_ROOT: /app/runtime/media
       DJANGO_STATIC_ROOT: /app/staticfiles
       ODOC_SYSTEM_LOG_DIR: /app/runtime/system_logs
+      ODOC_TOKEN_USAGE_DETAIL_DIR: /app/runtime/token_usage_details
       ODOC_CHROMA_PATH: /app/runtime/chroma_data
       ODOC_AUTO_UPDATE: "true"
       ODOC_UPDATE_DIR: /app/runtime/update
@@ -49,6 +50,7 @@ services:
       - ./deploy/runtime/media:/app/runtime/media
       - ./deploy/runtime/chroma_data:/app/runtime/chroma_data
       - ./deploy/runtime/system_logs:/app/runtime/system_logs
+      - ./deploy/runtime/token_usage_details:/app/runtime/token_usage_details
       - ./deploy/runtime/update:/app/runtime/update
 
   updater:

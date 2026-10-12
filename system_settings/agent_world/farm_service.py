@@ -254,6 +254,8 @@ def commit_operation(farm_id, opportunity_id, index, operation, reason, task, ag
     from .life_scope import check_current_authorization
     check_current_authorization()
     agent = Agent.objects.select_for_update().get(pk=farm_id)
+    from system_settings.agent_availability import require_active_agent
+    require_active_agent(agent)
     task = AgentTask.objects.select_for_update().get(pk=task.pk)
     if task.task_kind != 'farm' or not task.enabled or not life_allowed(task,agent.pk):
         raise ValueError('农场任务已停止或居民已解绑')

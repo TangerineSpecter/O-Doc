@@ -14,7 +14,8 @@ from utils.token_usage import usage_scope
 
 def context(run: Exploration) -> dict:
     from system_settings.models import Agent
-    agent=Agent.objects.get(pk=run.actor_id)
+    from system_settings.agent_availability import require_active_agent
+    agent=require_active_agent(run.actor_id)
     profile=CombatProfile.objects.get(pk=run.actor_id)
     catalog=current(run.catalog_id)
     from .queries import profile_view
@@ -56,7 +57,8 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
     from ..life_context import build_context
     run=Exploration.objects.get(pk=run_id)
     if run.status!='preparing':return run
-    agent=Agent.objects.get(pk=run.actor_id)
+    from system_settings.agent_availability import require_active_agent
+    agent=require_active_agent(run.actor_id)
     item=LifeItem.objects.filter(pk=run.life_item_id).first()
     scope=life_scope(item,build_context(run.owner_id,agent,item)) if item else nullcontext()
     session=None
@@ -98,6 +100,13 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
 
 
 def promotion(run_id: str, *, planner=None, require_permit: bool=False) -> None:
+    from system_settings.agent_availability import agent_operation
+    run = Exploration.objects.get(pk=run_id)
+    with agent_operation(run.actor_id):
+        return _promotion(run_id, planner=planner, require_permit=require_permit)
+
+
+def _promotion(run_id: str, *, planner=None, require_permit: bool=False) -> None:
     from system_settings.models import Agent
     run=Exploration.objects.get(pk=run_id)
     if run.status not in TERMINAL:return

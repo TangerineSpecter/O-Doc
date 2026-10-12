@@ -85,6 +85,8 @@ def verify_feishu_token(agent, token):
 
 
 def handle_feishu_message_event(agent, normalized_event):
+    from .agent_availability import require_active_agent
+    agent = require_active_agent(agent)
     event = normalized_event.get('event') or {}
     message = event.get('message') or {}
     sender = event.get('sender') or {}
@@ -143,6 +145,19 @@ def handle_feishu_sdk_message_event(agent_id, event):
 
 
 def _process_feishu_record(record_id):
+    from .agent_availability import agent_operation
+    close_old_connections()
+    try:
+        record = AgentIMMessage.objects.get(pk=record_id)
+        with agent_operation(record.agent_id):
+            _process_feishu_record_body(record_id)
+    except ValueError as exc:
+        AgentIMMessage.objects.filter(pk=record_id).update(status=AgentIMMessage.STATUS_FAILED, error=str(exc), updated_at=timezone.now())
+    finally:
+        close_old_connections()
+
+
+def _process_feishu_record_body(record_id):
     close_old_connections()
     typing_reaction_id = ''
     try:
@@ -168,6 +183,8 @@ def _process_feishu_record(record_id):
 
         if typing_reaction_id:
             _try_delete_feishu_message_reaction(agent, record.message_id, typing_reaction_id)
+        from .agent_availability import require_active_agent
+        require_active_agent(agent)
         send_feishu_reply(agent, record.message_id, reply)
         record.response = reply
         record.status = AgentIMMessage.STATUS_REPLIED
@@ -192,6 +209,8 @@ def _process_feishu_record(record_id):
 
 @attributed('im')
 def _build_agent_reply(agent, user_text, record):
+    from .agent_availability import require_active_agent
+    agent = require_active_agent(agent)
     system_prompt = build_agent_system_prompt(
         agent.prompt or '你是一个可靠的文档协作 Agent。请简洁、准确地回复用户。'
     )
@@ -304,6 +323,9 @@ def _build_agent_mcp_tool_context(agent):
 
 
 def _execute_agent_mcp_tool(tool_context, safe_tool_name, arguments):
+    from .agent_availability import require_active_agent
+    if tool_context.get('agent'):
+        require_active_agent(tool_context['agent'])
     entry = tool_context['tool_map'].get(safe_tool_name)
     if not entry:
         raise RuntimeError(f"未知 MCP Tool：{safe_tool_name}")

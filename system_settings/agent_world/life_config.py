@@ -1,13 +1,13 @@
 """配置校验及活动归属；周期快照让配置变更不改写已分配身份。"""
 from django.utils import timezone
-from system_settings.models import Agent, AgentTask
+from system_settings.models import AIModel, Agent, AgentTask
 from .life_time import storage_time
 from .life_models import LifeConfig, LifeProfile, LifeCycle
 
 KINDS = ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'exploration')
 DEFAULTS = {'agent_ids': [], 'mode': 'fixed', 'period': 'daily', 'count': 12,
             'interval_minutes': 60, 'active_start': '00:00', 'active_end': '24:00',
-            'min_gap_minutes': 15, 'min_remaining_minutes': 240}
+            'min_gap_minutes': 15, 'min_remaining_minutes': 240, 'decision_model_id': ''}
 
 
 def task_owner(task: AgentTask) -> str | None:
@@ -43,6 +43,11 @@ def validate_settings(data: dict) -> dict:
         raise ValueError('活动结束时间必须晚于开始时间')
     if value['min_remaining_minutes']>minutes(value['active_end'])-minutes(value['active_start']):
         raise ValueError('新规划最少剩余时间不能超过每日活动窗口')
+    model_id = value['decision_model_id']
+    if not isinstance(model_id, str) or len(model_id) > 40:
+        raise ValueError('世界决策模型无效')
+    if model_id and not AIModel.objects.filter(pk=model_id, type='chat').exists():
+        raise ValueError('世界决策模型不存在或不是对话模型')
     ids = value['agent_ids']
     if not isinstance(ids, list) or any(not isinstance(x, str) for x in ids) or len(ids) != len(set(ids)):
         raise ValueError('参与居民列表无效')
@@ -63,8 +68,11 @@ def effective_settings(config: LifeConfig, now=None) -> dict:
     now = now or timezone.now()
     cycle = LifeCycle.objects.filter(owner_id=config.pk, starts_at__lte=storage_time(now), ends_at__gt=storage_time(now)).order_by('-starts_at').first()
     if cycle:
-        return {**cycle.snapshot.get('settings',config.settings),'agent_ids':cycle.snapshot.get('participants',cycle.snapshot.get('settings',{}).get('agent_ids',[]))}
-    return config.settings
+        value = {**cycle.snapshot.get('settings',config.settings),'agent_ids':cycle.snapshot.get('participants',cycle.snapshot.get('settings',{}).get('agent_ids',[]))}
+    else:
+        value = dict(config.settings)
+    archived = set(Agent.objects.filter(pk__in=value.get('agent_ids', []), archived_at__isnull=False).values_list('pk', flat=True))
+    return {**value, 'agent_ids': [key for key in value.get('agent_ids', []) if key not in archived]}
 
 
 def owns_actor(owner: str, actor: str) -> bool:

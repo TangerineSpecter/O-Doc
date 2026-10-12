@@ -87,7 +87,7 @@ export function MarketTransactions({items}: {items: MarketTransaction[]}) {
                                                       : 'bg-slate-100 text-slate-600'
                                             }`}
                                         >
-                                            {marketOperationLabels[row.operation.kind] || row.operation.kind}
+                                            {row.operation.reason === 'agent_archive' ? '归档下架' : marketOperationLabels[row.operation.kind] || row.operation.kind}
                                         </span>
                                     </div>
                                     <p className="mt-1 text-xs text-slate-600">
@@ -236,14 +236,14 @@ export function MarketSessions({items}: {items: MarketSession[]}) {
                                         </span>
                                     </div>
                                     <p className="mt-0.5 text-[11px] text-slate-400">
-                                        {marketTime(row.createdAt)} 进入集市 · {row.reason || '自主经营采办'}
+                                        {marketTime(row.createdAt)} {row.mode === 'archive' ? '归档下架' : '进入集市'} · {row.reason || '自主经营采办'}
                                     </p>
                                 </div>
                             </div>
 
                             <div className="flex items-center gap-2">
                                 <span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600 tabular-nums">
-                                    {row.callCount} / 20 次交互操作
+                                    {row.mode === 'archive' ? '管理操作 · 不消耗体力' : `${row.callCount} / 20 次交互操作`}
                                 </span>
                                 <button
                                     type="button"

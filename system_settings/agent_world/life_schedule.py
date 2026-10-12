@@ -96,7 +96,7 @@ def ensure_cycle(config, now=None):
     settings['agent_ids'] = ids
     ensure_profiles(config.pk, ids)
     from system_settings.models import Agent
-    settings['agent_ids'] = list(Agent.objects.filter(pk__in=ids, model__isnull=False).values_list('pk', flat=True))
+    settings['agent_ids'] = list(Agent.objects.filter(pk__in=ids, model__isnull=False, archived_at__isnull=True).values_list('pk', flat=True))
     try:
         allocations = allocation_times(settings, now)
     except ValueError:
@@ -183,9 +183,10 @@ def retry_failed(item: LifeItem, reason: str) -> None:
 @guarded
 @transaction.atomic
 def recover(config, now=None, *, resume_actor=None, delay_reason=None):
+    from system_settings.models import Agent
     now = local_time(now)
     settings = {**DEFAULTS, **config.settings}
-    rows = list(LifeItem.objects.select_for_update().filter(owner_id=config.pk, status__in=OPEN).order_by('scheduled_at', 'id'))
+    rows = list(LifeItem.objects.select_for_update().filter(owner_id=config.pk, status__in=OPEN).exclude(actor_id__in=Agent.objects.filter(archived_at__isnull=False).values('pk')).order_by('scheduled_at', 'id'))
     occupied={}
     for row in rows:
         if row.activity != 'market_prepare' and row.status!='paused' and local_time(row.scheduled_at)>=now:

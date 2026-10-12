@@ -24,7 +24,7 @@ def check_mcp():
 
 
 def owner_for(agent: Agent) -> str:
-    if not agent or not Agent.objects.filter(pk=agent.pk).exists():
+    if not agent or not Agent.objects.filter(pk=agent.pk, archived_at__isnull=True).exists():
         raise ValueError('市场操作需要当前有效 Agent 上下文')
     from .life_models import LifeProfile
     profile=LifeProfile.objects.filter(pk=agent.pk).first()
@@ -73,7 +73,7 @@ def invalid_reason(session, now=None):
     now = now or timezone.now()
     if session.status != 'active': return session.reason or '市场会话已结束'
     if session.expires_at <= now: return '市场会话达到五分钟上限'
-    if not Agent.objects.filter(pk=session.actor_id).exists(): return '居民已删除'
+    if not Agent.objects.filter(pk=session.actor_id, archived_at__isnull=True).exists(): return '居民已归档或不存在'
     runtime = MarketRuntime.objects.filter(pk=session.pk).first()
     if not runtime or not AgentExecutionLease.objects.filter(agent_id=session.actor_id, token=runtime.agent_token, until__gt=now).exists():
         return '市场会话执行凭证失效'
@@ -116,6 +116,8 @@ def enter(owner: str, agent: Agent, key: str, *, task=None, record=None, mode='m
     from .market_shop import config_for
     config_for(owner)
     agent = Agent.objects.select_for_update().get(pk=agent.pk)
+    from system_settings.agent_availability import require_active_agent
+    require_active_agent(agent)
     if stamina(agent, now) < COST: raise ValueError('体力不足')
     lease, _ = AgentExecutionLease.objects.get_or_create(agent=agent)
     if lease.until and lease.until > now: raise ValueError('居民正在执行其他任务')

@@ -10,7 +10,8 @@ from .life_schedule import OPEN, stable_id, revise
 
 
 def run_manual_life(task, actor, owner, scheduler, *, publish_category_id=''):
-    agent=Agent.objects.get(pk=actor)
+    from system_settings.agent_availability import require_active_agent
+    agent=require_active_agent(actor)
     now=timezone.now()
     reserved=sum((remaining_reservation(r) for r in LifeItem.objects.filter(owner_id=owner,actor_id=actor,status__in=OPEN)),Decimal(0))
     budget = max(Decimal(0), agent.money-reserved) if allows_spending(task.task_kind) else Decimal(0)

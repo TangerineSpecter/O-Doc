@@ -13,7 +13,8 @@ import { WorldIncomeTab } from './WorldIncomeTab';
 
 import {MarketSettings} from '../Market/MarketSettings';
 import SocialSettingsDialog from './SocialSettingsDialog';
-type WorldTab = 'categories' | 'professions' | 'income' | 'market' | 'social';
+import {WorldDecisionModelSettings} from './WorldDecisionModelSettings';
+type WorldTab = 'categories' | 'professions' | 'income' | 'market' | 'social' | 'decision-model';
 
 export function WorldManagement() {
     const state = useAgentWorldManagement();
@@ -129,12 +130,21 @@ export function WorldManagement() {
                         <div className="min-w-0">
                             <h3 className="font-bold text-slate-800 text-sm">Agent 世界</h3>
                             <p className="text-xs text-slate-500 mt-0.5 truncate max-w-md lg:max-w-lg xl:max-w-xl">
-                                管理 Agent 世界的分类、职业、收益与市场规则。
+                                管理 Agent 世界规则与统一决策模型。
                             </p>
                         </div>
                     </div>
                     {/* 胶囊分段控制器：纯粹导航控件，移动端自适应全宽横向平滑滚动，PC端靠右紧凑排列 */}
                     <div className="flex min-w-0 w-full overflow-x-auto scrollbar-hide rounded-lg bg-slate-100 p-0.5 sm:w-auto sm:shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => setTab('decision-model')}
+                            className={`whitespace-nowrap shrink-0 rounded-md px-3 py-1 text-xs font-medium transition-all ${
+                                tab === 'decision-model' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            决策模型
+                        </button>
                         <button
                             type="button"
                             onClick={() => setTab('social')}
@@ -237,6 +247,7 @@ export function WorldManagement() {
                     )}
 
                     {tab === 'social' && <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><div><h3 className="text-sm font-bold text-slate-800">居民的社交习惯</h3><p className="mt-2 text-xs text-slate-400">管理参与居民、自动社交节奏和可选配图。</p></div><button type="button" onClick={() => setSocialSettingsOpen(true)} className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white">社交设置</button></div>}
+                    {tab === 'decision-model' && <WorldDecisionModelSettings/>}
                     {socialSettingsOpen && <SocialSettingsDialog onClose={() => setSocialSettingsOpen(false)}/>}
                     {tab === 'market' && <MarketSettings/>}
                     {tab === 'income' && (

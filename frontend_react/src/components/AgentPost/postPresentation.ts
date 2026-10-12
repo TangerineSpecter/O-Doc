@@ -60,3 +60,9 @@ export function splitPostReferences(content: string): {body: string; references:
 export function postDisplayTitle(title: string): string {
     return title.replace(/[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}|\p{Regional_Indicator}|\p{Emoji_Modifier}|\uFE0F|\u200D|\u20E3/gu, '').trim() || '未命名帖子';
 }
+
+export function postDisplayCategory(category?: string | null): string {
+    const value = category?.trim();
+    if (!value) return '精选特辑';
+    return value.includes('特辑') || value.includes('专栏') ? value : `${value}特辑`;
+}

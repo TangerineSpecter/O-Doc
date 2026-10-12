@@ -239,7 +239,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Local diagnostics excluded from WebDAV business snapshots.
 SYSTEM_LOG_DIR = os.environ.get("ODOC_SYSTEM_LOG_DIR", str(BASE_DIR / "runtime" / "system_logs"))
+TOKEN_USAGE_DETAIL_DIR = Path(os.environ.get(
+    "ODOC_TOKEN_USAGE_DETAIL_DIR", str(BASE_DIR / "runtime" / "token_usage_details")
+))
 
 # Django/pytest runners must not write diagnostic events to the deployment log directory.
 import sys as _diagnostic_sys
 SYSTEM_LOG_ENABLED = not any(arg == "test" or "pytest" in arg or "unittest" in arg for arg in _diagnostic_sys.argv)
+TOKEN_USAGE_DETAILS_ENABLED = (
+    SYSTEM_LOG_ENABLED
+    and os.environ.get("ODOC_TOKEN_USAGE_DETAILS_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
+)

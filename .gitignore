@@ -56,3 +56,4 @@ deploy/.env
 .trae/
 
 /runtime/system_logs/
+/runtime/token_usage_details/

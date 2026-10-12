@@ -1,4 +1,6 @@
 import {createPortal} from 'react-dom';
+import {AgentArchiveDialog} from './agent/AgentArchiveDialog';
+import ConfirmationModal from '../common/ConfirmationModal';
 import {MarketTaskFields} from './agent/MarketTaskFields';
 import {ModelThinkingBadge} from './ModelThinkingBadge';
 import {TaskModelSelect} from './agent/TaskModelSelect';
@@ -23,6 +25,7 @@ import {
     Repeat2,
     Sparkles,
     Trash2,
+    Archive,
     Users,
     WandSparkles,
     X,
@@ -82,7 +85,10 @@ interface AgentSettingsProps {
     onSaveTask: (task: Partial<AgentTaskConfig>) => Promise<boolean>;
     onRunTaskNow: (taskId: string) => Promise<boolean>;
     onDeleteTask: (taskId: string) => void;
-    onDelete: (target: { type: 'agent', agentId: string }) => void;
+    archivedAgents: AgentConfig[];
+    archiveConflictId?: string | null;
+    onArchive: (id: string) => Promise<boolean>;
+    onRestore: (id: string) => Promise<boolean>;
 }
 
 type AgentForm = {
@@ -185,8 +191,12 @@ export const AgentSettings = ({
                                   onSaveTask,
                                   onRunTaskNow,
                                   onDeleteTask,
-                                  onDelete,
+                                  archivedAgents, archiveConflictId, onArchive, onRestore,
                               }: AgentSettingsProps) => {
+    const [archiveOpen, setArchiveOpen] = useState(false);
+    const [archiveTarget, setArchiveTarget] = useState<AgentConfig | null>(null);
+    const [archiving, setArchiving] = useState(false);
+    const allResidents = [...agents, ...archivedAgents];
     const [activeView, setActiveView] = useState<AgentView>('list');
     const {progressByTask, worldProgressByTask, refreshFailed} = useRandomTaskProgress(tasks, activeView === 'tasks');
     const [modalOpen, setModalOpen] = useState(false);
@@ -285,8 +295,8 @@ export const AgentSettings = ({
 
     const selectedModel = modelOptions.find(model => model.value === form.model);
     const taskAgentOptions = useMemo<SettingsSelectOption<string>[]>(() => {
-        return agents.map(agent => ({value: agent.id, label: agent.name}));
-    }, [agents]);
+        return [...agents, ...archivedAgents.filter(agent => agent.id === taskForm.followupAgent)].map(agent => ({value: agent.id, label: agent.name + (agent.archived ? '（已归档）' : ''), disabled: !!agent.archived}));
+    }, [agents, archivedAgents, taskForm.followupAgent]);
     const executionModeOptions: SettingsSelectOption<AgentTaskExecutionMode>[] = [
         {value: 'parallel', label: '并行执行', description: '多个 Agent 同时执行，适合独立产出和快速对比'},
         {value: 'serial', label: '串行执行', description: taskForm.scheduleMode === 'random' && taskForm.trigger === '定时任务'
@@ -671,10 +681,10 @@ export const AgentSettings = ({
     const getSkillName = (skillId: string) => skills.find(skill => skill.id === skillId)?.name || skillId;
     const getTaskAgentIds = (task: AgentTaskConfig) => task.agents?.length ? task.agents : (task.agent ? [task.agent] : []);
     const getTaskAgentNames = (task: AgentTaskConfig) => {
-        if (task.agentNames?.length) return task.agentNames;
-        const agentIds = getTaskAgentIds(task);
-        const names = agentIds.map(agentId => agents.find(agent => agent.id === agentId)?.name).filter(Boolean) as string[];
-        return names.length ? names : [task.agentName].filter(Boolean);
+        return getTaskAgentIds(task).map((id, index) => {
+            const agent = allResidents.find(row => row.id === id);
+            return agent ? agent.name + (agent.archived ? '（已归档）' : '') : task.agentNames?.[index] || id;
+        });
     };
     const formatAgentSummary = (names: string[]) => {
         if (names.length <= 1) return names[0] || '-';
@@ -726,6 +736,8 @@ export const AgentSettings = ({
                         onViewChange={setActiveView}
                         onCreateAgent={openCreateModal}
                         onCreateTask={openCreateTaskModal}
+                        onOpenArchive={() => setArchiveOpen(true)}
+                        archivedCount={archivedAgents.length}
                     />
                 </div>
             </div>
@@ -1030,11 +1042,11 @@ export const AgentSettings = ({
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => onDelete({type: 'agent', agentId: agent.id})}
+                                        onClick={() => setArchiveTarget(agent)}
                                         className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                                        title="删除 Agent"
+                                        title="归档 Agent"
                                     >
-                                        <Trash2 className="h-4 w-4"/>
+                                        <Archive className="h-4 w-4"/>
                                     </button>
                                 </div>
                             </div>
@@ -1043,6 +1055,11 @@ export const AgentSettings = ({
                 </div>
             )}
 
+            {archiveOpen && <AgentArchiveDialog agents={archivedAgents} focusId={archiveConflictId} onRestore={onRestore} onClose={() => setArchiveOpen(false)}/>}
+            {archiveTarget && createPortal(<ConfirmationModal isOpen title={`归档 ${archiveTarget.name}`} description="居民资料、任务绑定和资产保留，可随时恢复。归档后不执行任务，所有在售商品下架并退回背包。" confirmText="归档居民" type="warning" isLoading={archiving} onClose={() => setArchiveTarget(null)} onConfirm={async () => {
+                setArchiving(true);
+                try {if (await onArchive(archiveTarget.id)) setArchiveTarget(null);} finally {setArchiving(false);}
+            }}/>, document.body)}
             {previewTask && <PostPublishPreviewModal key={previewTask.id} task={previewTask} agents={agents} onClose={() => setPreviewTask(null)}/>}
             {taskModalOpen && createPortal(
                 <div data-modal-scroll-lock className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
@@ -1081,23 +1098,24 @@ export const AgentSettings = ({
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 {!isSystemTask && <div className="space-y-2">
                                     <label className="text-sm font-semibold text-slate-700">执行 Agent</label>
-                                    <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+                                    <div className="max-h-40 space-y-2 overflow-y-auto scrollbar-hide rounded-xl border border-slate-200 bg-slate-50 p-2">
                                         {agents.length === 0 ? (
                                             <div className="px-3 py-6 text-center text-xs text-slate-400">暂无可选 Agent</div>
-                                        ) : agents.map(agent => {
+                                        ) : [...agents, ...archivedAgents.filter(agent => taskForm.agents.includes(agent.id))].map(agent => {
                                             const selected = taskForm.agents.includes(agent.id);
                                             return (
                                                 <button
                                                     key={agent.id}
                                                     type="button"
                                                     onClick={() => toggleTaskAgent(agent.id)}
+                                                    disabled={!!agent.archived}
                                                     className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${selected ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-slate-100 bg-white text-slate-600 hover:border-orange-100 hover:bg-orange-50/50'}`}
                                                 >
                                                     <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selected ? 'border-orange-500 bg-orange-500' : 'border-slate-300 bg-white'}`}>
                                                         {selected && <CheckCircle2 className="h-3 w-3 text-white"/>}
                                                     </span>
                                                     <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
-                                                        <span className="truncate font-medium">{agent.name}</span>
+                                                        <span className="truncate font-medium">{agent.name}{agent.archived ? '（已归档）' : ''}</span>
                                                         {agent.professionName && (
                                                             <ProfessionBadge professionName={agent.professionName} size="xs"/>
                                                         )}
@@ -1138,7 +1156,7 @@ export const AgentSettings = ({
                             </div>}
                             {!isSystemTask && taskForm.trigger === '定时任务' && taskForm.scheduleMode === 'random' && <RandomTaskScheduleFields
                                 period={taskForm.randomPeriod} count={taskForm.randomCount} mode={taskForm.executionMode}
-                                agents={taskForm.agents.map(id => ({id, name: agents.find(agent => agent.id === id)?.name || id}))}
+                                agents={taskForm.agents.map(id => ({id, name: allResidents.find(agent => agent.id === id)?.name || id}))}
                                 allocations={taskForm.randomAllocations}
                                 onPeriodChange={randomPeriod => setTaskForm({...taskForm, randomPeriod})}
                                 onCountChange={randomCount => setTaskForm({...taskForm, randomCount})}
@@ -1420,7 +1438,8 @@ export const AgentSettings = ({
                             </button>
                         </div>
 
-                        <div className="p-6 space-y-6 max-h-[72vh] overflow-y-auto">
+                        <div className="p-6 space-y-6 max-h-[72vh] overflow-y-auto scrollbar-hide">
+                            {archiveConflictId && archivedAgents.find(agent => agent.id === archiveConflictId)?.name === form.name.trim() && <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-xs text-orange-700"><p>归档中已存在同名 Agent，可恢复原居民。</p><button type="button" className="mt-2 font-semibold underline" onClick={() => {setModalOpen(false); setArchiveOpen(true);}}>查看归档居民</button></div>}
                             <AgentAvatarField
                                 name={form.name || 'Agent'}
                                 avatar={form.avatar}

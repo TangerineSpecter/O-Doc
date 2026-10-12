@@ -179,6 +179,8 @@ class AgentTaskScheduler:
             close_old_connections()
 
     def _is_due(self, task, now):
+        if not self._scheduled_agents(task, now):
+            return False
         last_record = AgentRunRecord.objects.filter(task=task, followup_depth=0).order_by('-started_at').first()
         last_started_at = _to_local(last_record.started_at) if last_record else None
 
@@ -193,6 +195,17 @@ class AgentTaskScheduler:
             return False
 
         return not last_started_at or last_started_at < scheduled_at
+
+    def _scheduled_agents(self, task, now):
+        scheduled = self._get_scheduled_datetime(task, now) if task.schedule_type != 'interval' else None
+        eligible = []
+        for agent in self._get_task_agents(task):
+            resumed = _to_local(agent.execution_resumed_at) if agent.execution_resumed_at else None
+            if resumed and ((scheduled and scheduled <= resumed) or
+                            (task.schedule_type == 'interval' and now < resumed + timedelta(minutes=max(1, task.interval_minutes or 1)))):
+                continue
+            eligible.append(agent)
+        return eligible
 
     @staticmethod
     def _get_scheduled_datetime(task, now):
@@ -303,6 +316,12 @@ class AgentTaskScheduler:
             return self._run_world_task(run_opportunity, task, life_key, trigger)
         started = timezone.now()
         agents = agents_override if agents_override is not None else self._get_task_agents(task)
+        if trigger == '定时任务' and not random_context:
+            eligible = {agent.pk for agent in self._scheduled_agents(task, _local_now())}
+            agents = [agent for agent in agents if agent.pk in eligible]
+        from .models import Agent
+        active_ids = set(Agent.objects.filter(pk__in=[a.pk for a in agents], archived_at__isnull=True).values_list('pk', flat=True))
+        agents = [a for a in agents if a.pk in active_ids]
         primary_agent = agents[0] if agents else None
         task_name = task_name_override or task.name
         agent_runs = [
@@ -456,6 +475,8 @@ class AgentTaskScheduler:
 
     @attributed('task')
     def _run_task_for_agent_body(self, record, task, agent, previous_content='', prompt_override=''):
+        from .agent_availability import require_active_agent
+        agent = require_active_agent(agent)
         agent_started = timezone.now()
         create_work_activity(record, agent)
         self._append_agent_run_step(record, agent.id, 'running', '开始执行', f"Agent：{agent.name}")
@@ -468,6 +489,7 @@ class AgentTaskScheduler:
                 tool_sequence = {'value': 0}
 
                 def execute_tool(tool_name, arguments):
+                    require_active_agent(agent)
                     entry = tool_context['tool_map'].get(tool_name) or {}
                     original_name = entry.get('tool_name') or tool_name
                     update_work_activity(record, agent, current_action=friendly_tool_action(original_name))
@@ -503,6 +525,7 @@ class AgentTaskScheduler:
                     )}],
                     model_id=task_model_id(task, agent),
                 )
+            require_active_agent(agent)
             self._append_agent_run_step(record, agent.id, 'success', 'AI 内容生成完成', f"生成内容长度：{len(content or '')} 字符")
             summary = self._build_completion_summary(content)
             duration = self._format_duration(max(0, int((timezone.now() - agent_started).total_seconds())))
@@ -571,7 +594,7 @@ class AgentTaskScheduler:
     def _run_configured_followups(self, task, record, results):
         if not task.followup_enabled or not task.followup_agent_id:
             return
-        target_agent = Agent.objects.select_related('model').filter(id=task.followup_agent_id).first()
+        target_agent = Agent.objects.select_related('model').filter(id=task.followup_agent_id, archived_at__isnull=True).first()
         if not target_agent:
             return
 
@@ -922,7 +945,7 @@ class AgentTaskScheduler:
         if not agent_ids:
             return []
 
-        agents = {agent.id: agent for agent in Agent.objects.select_related('model').filter(id__in=agent_ids)}
+        agents = {agent.id: agent for agent in Agent.objects.select_related('model').filter(id__in=agent_ids, archived_at__isnull=True)}
         return [agents[agent_id] for agent_id in agent_ids if agent_id in agents]
 
     @staticmethod

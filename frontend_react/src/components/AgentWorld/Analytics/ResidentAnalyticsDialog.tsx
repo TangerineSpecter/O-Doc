@@ -57,7 +57,7 @@ export default function ResidentAnalyticsDialog({
         {value: '', label: '全部居民'},
         ...residents.map(row => ({
             value: row.id,
-            label: row.name + (row.departed ? ' · 已离开' : ''),
+            label: row.name + (row.departed ? (row.archived ? ' · 已归档' : ' · 历史居民') : ''),
         })),
     ];
 
@@ -177,7 +177,7 @@ export default function ResidentAnalyticsDialog({
                             <span className="text-[11px] text-orange-600/80">的个人生活档案</span>
                             {currentResident.departed && (
                                 <span className="rounded bg-orange-200/60 px-1 py-0.2 text-[9px] text-orange-700">
-                                    已离开小镇
+                                    {currentResident.archived ? '已归档' : '历史居民'}
                                 </span>
                             )}
                         </div>

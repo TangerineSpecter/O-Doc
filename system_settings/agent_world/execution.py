@@ -17,6 +17,7 @@ INTERACTION_COST = Decimal('10')
 RECOVERY_PER_HOUR = Decimal('5')
 # 生活调度在占用失败时要保留原安排。手动执行仍走忙碌跳过。
 defer_when_world_busy = ContextVar('defer_when_world_busy', default=False)
+agent_tokens = ContextVar('agent_execution_tokens', default=None)
 
 
 class WorldLeaseBusy(Exception):
@@ -36,12 +37,25 @@ def stamina(agent, now=None) -> Decimal:
 
 @contextmanager
 def execution_lease(model, lookup: dict, *, token_prefix=''):
+    agent_id = None
+    if model.__name__ in ('AgentExecutionLease', 'AgentMemoryLease'):
+        agent_id = getattr(lookup.get('agent'), 'pk', None) or lookup.get('agent_id') or lookup.get('pk')
+        from system_settings.agent_availability import require_active_agent
+        current = require_active_agent(agent_id)
+        existing = (agent_tokens.get() or {}).get((model.__name__, str(agent_id)))
+        if existing:
+            if not model.objects.filter(pk=current.pk, token=existing, until__gt=timezone.now()).exists():
+                raise ValueError('居民执行授权已失效')
+            yield existing
+            return
     token = token_prefix + uuid.uuid4().hex
     if not token_prefix and model.__name__=='AgentExecutionLease':
         from .life_scope import CURRENT
         if CURRENT.get():token='life:'+token  # 本机命名空间，恢复不撤销自定义任务的租约。
     from .farm_gate import farm_gate
     with farm_gate():
+        if agent_id:
+            require_active_agent(agent_id)
         row, _ = model.objects.get_or_create(**lookup)
         from .combat.models import Exploration
         occupied = model.__name__ == 'AgentExecutionLease' and Exploration.objects.filter(
@@ -64,9 +78,12 @@ def execution_lease(model, lookup: dict, *, token_prefix=''):
     worker = threading.Thread(target=heartbeat, daemon=True, name='world-action-lease') if acquired else None
     if worker:
         worker.start()
+    marker = agent_tokens.set({**(agent_tokens.get() or {}), (model.__name__, str(agent_id)): token}) if acquired and agent_id else None
     try:
         yield token if acquired else None
     finally:
+        if marker is not None:
+            agent_tokens.reset(marker)
         stop.set()
         if worker:
             worker.join(timeout=1)

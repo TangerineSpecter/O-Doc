@@ -2,7 +2,7 @@ from .agent_world.farm_gate import guarded
 import logging
 import threading
 
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -41,7 +41,7 @@ class AgentRelationView(APIView):
         from utils.drf_utils import get_current_user_identifier
         return success_result(relation_graph(
             owner_id=get_current_user_identifier(request),
-            include_departed=request.query_params.get('includeDeparted', '').lower() == 'true',
+            include_departed=request.query_params.get('include_departed', request.query_params.get('includeDeparted', '')).lower() == 'true',
         ))
 
 
@@ -53,6 +53,43 @@ def _local_now():
 class AgentViewSet(viewsets.ModelViewSet):
     queryset = Agent.objects.select_related('model', 'model__provider', 'profession').all()
     serializer_class = AgentSerializer
+
+    def get_object(self):
+        agent = super().get_object()
+        if agent.archived and self.request.method not in ('GET', 'HEAD', 'OPTIONS') and self.action not in ('archive', 'restore', 'destroy'):
+            from .agent_archive import AgentArchivedError
+            raise AgentArchivedError('居民已归档，请先恢复再编辑或执行')
+        return agent
+
+    def get_queryset(self):
+        rows = super().get_queryset()
+        if self.action == 'list':
+            status = self.request.query_params.get('status', 'active')
+            if status == 'active':
+                return rows.filter(archived_at__isnull=True)
+            if status == 'archived':
+                return rows.filter(archived_at__isnull=False)
+            if status != 'all':
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError('居民状态必须为 active、archived 或 all')
+        return rows
+
+    def handle_exception(self, exc):
+        from .agent_archive import AgentNameConflict, AgentArchivedError
+        if isinstance(exc, AgentArchivedError):
+            return valid_result(str(exc), status=409)
+        if isinstance(exc, AgentNameConflict):
+            return valid_result(str(exc), data={'agentId': exc.agent.pk, 'archived': exc.agent.archived}, status=409)
+        return super().handle_exception(exc)
+
+    def _save_agent(self, serializer):
+        from .agent_archive import check_name
+        try:
+            with transaction.atomic():
+                serializer.save()
+        except IntegrityError:
+            check_name(serializer.validated_data.get('name', ''), serializer.instance.pk if serializer.instance else None)
+            raise
 
     @action(detail=False, methods=['post'], url_path='describe-avatar', permission_classes=[IsAuthenticated])
     def describe_avatar(self, request):
@@ -104,36 +141,51 @@ class AgentViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         return success_result(self.get_serializer(self.filter_queryset(self.get_queryset()), many=True).data)
 
+    @guarded
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        self._save_agent(serializer)
         self._sync_feishu_im_connection(serializer.instance.id)
         return success_result(serializer.data)
 
     def retrieve(self, request, *args, **kwargs):
         return success_result(self.get_serializer(self.get_object()).data)
 
+    @guarded
+    @transaction.atomic
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
+        if instance.archived:
+            return valid_result('居民已归档，请先恢复再编辑', status=409)
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
+        self._save_agent(serializer)
         self._sync_feishu_im_connection(instance.id)
         return success_result(serializer.data)
 
     @guarded
     @transaction.atomic
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        agent_id = instance.id
-        from .agent_world.combat.models import Exploration
-        if Exploration.objects.filter(actor_id=agent_id,status__in=['preparing','active','paused','settling']).exists():
-            return valid_result('居民仍有未结束探索，请先召回并结算',status=409)
-        self.perform_destroy(instance)
-        self._sync_feishu_im_connection(agent_id)
-        return success_result()
+        return self.archive(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'])
+    def archive(self, request, *args, **kwargs):
+        from .agent_archive import archive_agent
+        try:
+            agent = archive_agent(self.get_object().pk)
+        except ValueError as exc:
+            return valid_result(str(exc), status=409)
+        self._sync_feishu_im_connection(agent.pk)
+        return success_result(self.get_serializer(agent).data)
+
+    @action(detail=True, methods=['post'])
+    def restore(self, request, *args, **kwargs):
+        from .agent_archive import restore_agent
+        agent = restore_agent(self.get_object().pk)
+        self._sync_feishu_im_connection(agent.pk)
+        return success_result(self.get_serializer(agent).data)
 
     @action(detail=True, methods=['get', 'post'], url_path='memories')
     @guarded
@@ -362,6 +414,10 @@ class AgentTaskViewSet(viewsets.ModelViewSet):
         from .agent_world.life_config import KINDS,task_owner
         from .agent_world.life_scope import allowed
         actor=request.data.get('actor_id')
+        if task.task_kind not in KINDS:
+            ids = task.agent_ids or [task.agent_id]
+            if not Agent.objects.filter(pk__in=ids, archived_at__isnull=True).exists():
+                return valid_result('任务居民均已归档，请先恢复居民', status=409)
         if task.task_kind in KINDS:
             from utils.drf_utils import get_current_user_identifier
             if task_owner(task)!=get_current_user_identifier(request) or not actor or not allowed(task,actor):
@@ -483,7 +539,7 @@ class AgentActivityViewSet(viewsets.ReadOnlyModelViewSet):
             item['agent_id']: item['count']
             for item in today_activities.exclude(agent_id=None).values('agent_id').annotate(count=Count('id'))
         }
-        agents_queryset = list(Agent.objects.all())
+        agents_queryset = list(Agent.objects.filter(archived_at__isnull=True))
         agent_count = len(agents_queryset)
         latest_by_agent = {}
         for activity in ordered_activities.exclude(agent_id=None):

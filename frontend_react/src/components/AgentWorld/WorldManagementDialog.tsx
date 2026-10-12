@@ -5,7 +5,7 @@ export default function WorldManagementDialog({onClose}: {onClose: () => void}) 
     return (
         <WorldDialog
             title="世界管理"
-            description="管理 Agent 世界的分类、职业、收益与市场规则。"
+            description="管理 Agent 世界规则、社交习惯和统一决策模型。"
             onClose={onClose}
             size="wide"
         >

@@ -13,6 +13,7 @@ from system_mcp.image_generation import image_generation_options
 from system_mcp.image_generation_tasks import generate_image, get_image_generation_result
 from system_mcp.image_generation import MCP_USER_ID
 from .execution import execution_lease
+from .farm_gate import guarded
 from .publish_image_prompt import build_prompt
 
 logger = logging.getLogger(__name__)
@@ -217,7 +218,7 @@ def recover_photos():
     enabled = set(WorldActionRuntime.objects.filter(pk__startswith='post-photo:', enabled=True).values_list('pk', flat=True))
     if not enabled:
         return
-    actions = WorldAction.objects.filter(status='success', snapshot__photo__status__in=ACTIVE).select_related('agent').order_by('updated_at', 'pk').iterator()
+    actions = WorldAction.objects.filter(status='success', snapshot__photo__status__in=ACTIVE, agent__archived_at__isnull=True).select_related('agent').order_by('updated_at', 'pk').iterator()
     processed = 0
     for action in actions:
         if runtime_id(action) not in enabled:
@@ -237,8 +238,11 @@ def reset_photo_runtime():
     _started_times.clear()
 
 
+@guarded
 @transaction.atomic
 def operate_photo(action, operation):
+    from system_settings.agent_availability import require_active_agent
+    require_active_agent(action.actor_id)
     action = WorldAction.objects.select_for_update().get(pk=action.pk)
     photo = dict(action.snapshot.get('photo', {}))
     runtime = WorldActionRuntime.objects.select_for_update().filter(pk=runtime_id(action)).first()

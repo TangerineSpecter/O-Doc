@@ -39,7 +39,7 @@ def retry_image(moment):
     agent = Agent.objects.filter(pk=moment.actor_id[9:]).first()
     config = SocialConfig.objects.get(pk=moment.owner_id)
     cfg = settings_for(config, agent.pk if agent else None)
-    if not agent or not cfg['image_enabled'] or len(moment.images) >= 9: raise ValueError('居民或配图能力不可用')
+    if not agent or agent.archived or not cfg['image_enabled'] or len(moment.images) >= 9: raise ValueError('居民已归档或配图能力不可用')
     state = moment.image_state
     from system_mcp.image_generation import resolve_image_model, supports_references
     from system_settings.grsai_images import GrsaiImageError
@@ -89,6 +89,8 @@ def recover_image(moment):
                 if not config or not settings_for(config, moment.actor_id[9:])['enabled']: return
             state = dict(moment.image_state)
             agent = Agent.objects.filter(pk=moment.actor_id[9:]).first()
+            if agent and agent.archived:
+                return
             if not agent:
                 moment.image_state = {**state, 'status': 'failed', 'error': '居民不存在，配图请求已停止'}
                 moment.save()
@@ -135,8 +137,9 @@ def recover_image(moment):
 
 
 def recover_images(*, manual_only: bool = False) -> None:
-    from system_settings.models import WorldActionRuntime
+    from system_settings.models import WorldActionRuntime, Agent
     rows = Moment.objects.filter(is_valid=True, image_state__status__in=['pending', 'generating'])
+    rows = rows.exclude(actor_id__in=['agent-id:' + key for key in Agent.objects.filter(archived_at__isnull=False).values_list('pk', flat=True)])
     if manual_only:
         rows = rows.filter(image_state__manual=True)
     handled = 0

@@ -32,6 +32,8 @@ def commit_portion(actor_id: str, opportunity_id: str, index: int, recipe_id: st
     check_current_authorization()
     task = AgentTask.objects.select_for_update().get(pk=task.pk)
     agent = Agent.objects.select_for_update().get(pk=actor_id)
+    from system_settings.agent_availability import require_active_agent
+    require_active_agent(agent)
     owner = task.cooking_config.get('owner_id')
     if task.task_kind != 'cooking' or not task.enabled or not owner or not allowed(task, actor_id):
         raise ValueError('烹饪任务已停止或居民已解绑')

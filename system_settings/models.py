@@ -177,6 +177,8 @@ class SyncEntityState(models.Model):
 
 
 class Agent(models.Model):
+    archived_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    execution_resumed_at = models.DateTimeField(null=True, blank=True)
     post_collection_ids = models.JSONField(default=list, blank=True)
     post_category_ids = models.JSONField(default=list, blank=True)
     profession = models.ForeignKey("system_settings.WorldProfession", null=True, blank=True, on_delete=models.SET_NULL)
@@ -283,6 +285,7 @@ class Agent(models.Model):
 
     class Meta:
         db_table = 'sys_agent'
+        constraints = [models.UniqueConstraint(fields=['name'], name='agent_name_unique')]
         db_table_comment = 'Agent 配置表'
         verbose_name = 'Agent'
         verbose_name_plural = verbose_name
@@ -290,6 +293,16 @@ class Agent(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def archived(self):
+        return self.archived_at is not None
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.strip()
+        if not self.name:
+            raise ValueError('Agent 名称不能为空')
+        return super().save(*args, **kwargs)
 
 
 class AgentIMMessage(models.Model):

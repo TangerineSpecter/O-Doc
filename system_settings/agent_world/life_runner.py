@@ -49,7 +49,7 @@ def finish_running(config, now):
 def due_item(config, now):
     due = LifeItem.objects.filter(
         owner_id=config.pk, status__in=['pending', 'deferred'], scheduled_at__lte=timezone.now(),
-    ).exclude(actor_id__in=config.paused_agents).order_by('scheduled_at').first()
+    ).exclude(actor_id__in=config.paused_agents).exclude(actor_id__in=Agent.objects.filter(archived_at__isnull=False).values('pk')).order_by('scheduled_at').first()
     if not due:
         return None
     retry = due.context.get('planning_retry_at')
@@ -77,6 +77,8 @@ def execute_item(item: LifeItem, scheduler) -> None:
     from .life_config import config_for
     config=config_for(item.owner_id)
     agent=Agent.objects.select_related('model').filter(pk=item.actor_id).first()
+    if agent and agent.archived:
+        return
     if not agent:
         revise(item,'居民已删除',status='cancelled');return
     if item.actor_id in config.paused_agents:
@@ -238,9 +240,9 @@ def _plan_cycle(config, scheduler, now):
         elif capability.task_kind == 'investment':
             from .investment_service import validate_agents, account_for
             validate_agents(config.pk, active_ids)
-            for resident in Agent.objects.filter(pk__in=active_ids):
+            for resident in Agent.objects.filter(pk__in=active_ids, archived_at__isnull=True):
                 account_for(config.pk, resident)
-    candidates = LifeItem.objects.filter(owner_id=config.pk, status__in=['pending', 'deferred']).exclude(activity='market_prepare').order_by('scheduled_at')
+    candidates = LifeItem.objects.filter(owner_id=config.pk, status__in=['pending', 'deferred']).exclude(activity='market_prepare').exclude(actor_id__in=Agent.objects.filter(archived_at__isnull=False).values('pk')).order_by('scheduled_at')
     today = local_time(now).date().isoformat()
     actor = None
     for entry in candidates:

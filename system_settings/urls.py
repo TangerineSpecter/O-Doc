@@ -67,6 +67,7 @@ urlpatterns = [
     path('agent-world/token-usage/summary/', TokenUsageView.as_view(kind='summary')),
     path('agent-world/token-usage/breakdown/', TokenUsageView.as_view(kind='breakdown')),
     path('agent-world/token-usage/requests/', TokenUsageView.as_view(kind='requests')),
+    path('agent-world/token-usage/requests/<str:request_id>/content/', TokenUsageView.as_view(kind='content')),
     path('agent-world/cooking/recipes/', CookingRecipesView.as_view()),
     path('agent-world/cooking/recipes/<str:recipe_id>/', CookingRecipeView.as_view()),
     path('agent-world/cooking/agents/<str:agent_id>/', CookingSkillView.as_view()),

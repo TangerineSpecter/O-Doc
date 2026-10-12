@@ -118,6 +118,8 @@ def commit(decision: InvestmentDecision, agent: Agent, key: str, operation: dict
     if InvestmentTrade.objects.filter(decision=decision, operation__code=operation['code'], operation__side=opposite).exists():
         raise ValueError('同一次机会不能对同一股票反向交易')
     agent = Agent.objects.select_for_update().get(pk=agent.pk)
+    from system_settings.agent_availability import require_active_agent
+    require_active_agent(agent)
     ensure_opening(agent)
     balance = WorldLedger.objects.filter(agent_id=agent.pk).aggregate(total=Sum('amount'))['total'] or Decimal(0)
     account = account_for(decision.owner_id, agent)

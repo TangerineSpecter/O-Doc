@@ -63,6 +63,24 @@ def check_session(session, at):
         raise ValueError(reason)
 
 
+def withdraw_listing(listing, agent, key):
+    """正常撤单与归档撤单共用精确托管返还及版本变更。调用方持有业务锁和事务。"""
+    if listing.seller_id != agent.pk or listing.status != 'active':
+        raise ValueError('只能下架自己的在售挂牌')
+    if listing.item.get('quantity') != listing.remaining_quantity or not listing.remaining_quantity:
+        raise ValueError('挂牌托管数量不一致')
+    # 同时验证价格批次，避免不完整托管载荷进入背包。
+    payload, _ = split_escrow(listing.item, listing.remaining_quantity)
+    item = deliver(listing.owner_id, agent, payload, key)
+    result = {'item_id': item.pk, 'name': payload['name'], 'quantity': listing.remaining_quantity}
+    listing.remaining_quantity, listing.status = 0, 'withdrawn'
+    listing.item = {**listing.item, 'quantity': 0, 'source': {**listing.item.get('source', {}), 'lots': []}}
+    listing.version += 1
+    listing.operation_keys = [*listing.operation_keys, key]
+    listing.save()
+    return result
+
+
 @guarded
 @transaction.atomic
 def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=None) -> dict:
@@ -77,6 +95,8 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         return old.result
     check_session(session, at)
     agent = Agent.objects.select_for_update().get(pk=agent.pk)
+    from system_settings.agent_availability import require_active_agent
+    require_active_agent(agent)
     owner, kind = session.owner_id, operation['kind']
     result = {'kind': kind}
     deltas = []
@@ -153,7 +173,7 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
             if listing.seller_id == agent.pk: raise ValueError('不能购买自己的商品')
             count = quantity(operation.get('quantity'))
             seller = Agent.objects.select_for_update().filter(pk=listing.seller_id).first()
-            if not seller: raise ValueError('卖家已删除，挂牌暂不可成交')
+            if not seller or seller.archived: raise ValueError('卖家已删除，挂牌暂不可成交')
             payload, remaining = split_escrow(listing.item, count)
             amount = listing.unit_price*count
             change_money(agent, -amount, key, at); change_money(seller, amount, key, at)
@@ -165,17 +185,15 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
         else:
             if listing.seller_id != agent.pk: raise ValueError('只能修改自己的挂牌')
             if kind == 'withdraw':
-                result['item_id'] = deliver(owner, agent, listing.item, key).pk
-                result.update(name=listing.item['name'], quantity=listing.remaining_quantity)
-                listing.remaining_quantity, listing.status = 0, 'withdrawn'
-                listing.item = {**listing.item, 'quantity':0, 'source':{**listing.item.get('source',{}), 'lots':[]}}
+                result.update(withdraw_listing(listing, agent, key))
             else:
                 old_price = str(listing.unit_price)
                 listing.unit_price = price(operation.get('unit_price')); listing.repriced_at = at
                 listing.history = [*listing.history, {'from':old_price,'to':str(listing.unit_price),'at':at.isoformat(),'transaction_id':key}]
-        listing.version += 1
-        listing.operation_keys = [*listing.operation_keys, key]
-        listing.save()
+        if kind != 'withdraw':
+            listing.version += 1
+            listing.operation_keys = [*listing.operation_keys, key]
+            listing.save()
         result.update(listing_id=listing.pk, version=listing.version, unit_price=str(listing.unit_price))
     else: raise ValueError('未知市场操作')
     result['deltas'] = deltas

@@ -64,6 +64,8 @@ export interface ImageUploadConfig {
 }
 
 export interface AgentConfig {
+    archived?: boolean;
+    archivedAt?: string | null;
     postCollectionIds?: string[];
     postCategoryIds?: string[];
     stamina?: string;
@@ -88,7 +90,7 @@ export interface AgentConfig {
     updatedAt?: string;
 }
 
-export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'modelDetail' | 'money' | 'stamina' | 'createdAt' | 'updatedAt'> & {
+export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'archived' | 'archivedAt' | 'modelDetail' | 'money' | 'stamina' | 'createdAt' | 'updatedAt'> & {
     id?: string;
 };
 
@@ -257,6 +259,7 @@ export interface AgentActivityListResult {
 }
 
 export interface AgentRelationNode {
+    archived?: boolean;
     currentAction?: string;
     departed?: boolean;
     kind?: 'agent' | 'user';

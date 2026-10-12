@@ -113,6 +113,9 @@ def _download(task: ImageGenerationTask, client, content: bytes | str | None = N
 
 
 def generate_image(arguments: object, agent: Agent | None = None) -> dict:
+    if agent:
+        from system_settings.agent_availability import require_active_agent
+        agent = require_active_agent(agent)
     data = validate_generation_arguments(arguments)
     request_id = data.pop('request_id', None) or uuid.uuid4().hex
     digest = canonical_hash(data)
@@ -132,12 +135,17 @@ def generate_image(arguments: object, agent: Agent | None = None) -> dict:
         client = GrsaiImageClient(model) if model.provider.type == 'Grsai' else NewApiImageClient(model)
     except GrsaiImageError as exc:
         raise ValueError(str(exc)) from exc
-    task, created = ImageGenerationTask.objects.get_or_create(**scope, request_id=request_id, defaults={
-        'input_hash': digest, 'request_data': {**data, 'provider_options': options,
-                                             'provider_config_hash': _provider_config_hash(model)},
-        'model_id': str(model.pk), 'provider_type': model.provider.type,
-        'lease_until': timezone.now() + LEASE_DURATION,
-    })
+    from system_settings.agent_world.farm_gate import farm_gate
+    from django.db import transaction
+    with farm_gate(), transaction.atomic():
+        if agent:
+            require_active_agent(agent)
+        task, created = ImageGenerationTask.objects.get_or_create(**scope, request_id=request_id, defaults={
+            'input_hash': digest, 'request_data': {**data, 'provider_options': options,
+                                                 'provider_config_hash': _provider_config_hash(model)},
+            'model_id': str(model.pk), 'provider_type': model.provider.type,
+            'lease_until': timezone.now() + LEASE_DURATION,
+        })
     if not created:
         if task.input_hash != digest:
             raise ValueError('相同 request_id 不可用于不同生图参数')
@@ -175,6 +183,9 @@ def generate_image(arguments: object, agent: Agent | None = None) -> dict:
 
 
 def get_image_generation_result(arguments: object, agent: Agent | None = None) -> dict:
+    if agent:
+        from system_settings.agent_availability import require_active_agent
+        require_active_agent(agent)
     if not isinstance(arguments, dict) or set(arguments) != {'task_id'}:
         raise ValueError('请仅提供 task_id')
     task_id = arguments['task_id']

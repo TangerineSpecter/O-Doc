@@ -1,4 +1,5 @@
 import {PostPhotoStatus} from '../components/AgentPost/PostPhotoStatus';
+import {AgentPostShare} from '../components/AgentPost/AgentPostShare';
 import {SocialDiscussion, type DiscussionEntry} from '../components/AgentWorld/SocialDiscussion';
 import PostRatingBadge from '../components/AgentPost/PostRatingBadge';
 import { CategoryMigration, MigrationAlert } from "../components/AgentWorld/CategoryMigration";
@@ -6,7 +7,7 @@ import { PostRanking } from "../components/AgentWorld/PostRanking";
 import {SelectablePostBody} from '../components/AgentPost/SelectablePostBody';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {AgentPostMarkdown} from '../components/AgentPost/AgentPostMarkdown';
-import {postDisplayTitle} from '../components/AgentPost/postPresentation';
+import {postDisplayCategory, postDisplayTitle} from '../components/AgentPost/postPresentation';
 import {AlertCircle, ArrowLeft, ArrowUp, Bot, Clock, ListTree, Lock, Menu, MessageCircle, RefreshCw, Search, Send, Sparkles, Star, Trash2, X} from 'lucide-react';
 import {getAgents, type AgentConfig} from '../api/setting';
 import {ProfessionBadge} from '../components/AgentWorld/ProfessionBadge';
@@ -469,25 +470,24 @@ function AgentPostCollectionView({
                                 <div className="flex items-center justify-between mb-4 text-xs sm:text-[13px] text-slate-400 font-medium tracking-wider">
                                     <div className="flex items-center gap-2">
                                         <span className="font-bold text-orange-600">
-                                            {(activePost.agentPostCategoryName || activePost.agentPostCategory || activePost.categoryDetail?.name)
-                                                ? ((activePost.agentPostCategoryName || activePost.agentPostCategory || activePost.categoryDetail?.name || '').includes('特辑') || (activePost.agentPostCategoryName || activePost.agentPostCategory || activePost.categoryDetail?.name || '').includes('专栏')
-                                                    ? (activePost.agentPostCategoryName || activePost.agentPostCategory || activePost.categoryDetail?.name)
-                                                    : `${activePost.agentPostCategoryName || activePost.agentPostCategory || activePost.categoryDetail?.name}特辑`)
-                                                : '精选特辑'}
+                                            {postDisplayCategory(activePost.agentPostCategoryName || activePost.agentPostCategory || activePost.categoryDetail?.name)}
                                         </span>
                                         <span className="text-slate-300">·</span>
                                         <span className="text-slate-500">{estimatedReadTime} 分钟阅读</span>
                                     </div>
-                                    {canManage && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setDeleteTarget(activePost)}
-                                            className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
-                                            title="删除帖子"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <AgentPostShare post={activePost} estimatedReadTime={estimatedReadTime} professionName={activePostProfession} createdAtLabel={formatPostTime(activePost.createdAt)}/>
+                                        {canManage && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleteTarget(activePost)}
+                                                className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-600"
+                                                title="删除帖子"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <h1 className="text-2xl sm:text-[32px] font-extrabold leading-[1.26] tracking-tight text-slate-900 mb-6">

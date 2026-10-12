@@ -81,7 +81,7 @@ def load_facts(request, owner, start, end):
     for actor in list(actors):
         remember(actor)
     for agent in Agent.objects.filter(pk__in=actors):
-        facts.residents[agent.pk] = {'id': agent.pk, 'name': agent.name, 'avatar': agent.avatar or '', 'departed': False}
+        facts.residents[agent.pk] = {'id': agent.pk, 'name': agent.name, 'avatar': agent.avatar or '', 'departed': agent.archived, 'archived': agent.archived}
 
     def window(query, time='created_at'):
         return query.filter(**{time+'__gte': start, time+'__lt': end})

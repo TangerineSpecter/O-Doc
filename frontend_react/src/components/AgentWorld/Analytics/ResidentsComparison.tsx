@@ -91,7 +91,7 @@ export default function ResidentsComparison({rows}: {rows: AnalyticsComparison[]
                                                 </span>
                                                 {row.departed && (
                                                     <span className="shrink-0 rounded bg-slate-100 px-1 py-0.5 text-[9px] text-slate-400">
-                                                        已离开
+                                                        {row.archived ? '已归档' : '历史居民'}
                                                     </span>
                                                 )}
                                             </div>

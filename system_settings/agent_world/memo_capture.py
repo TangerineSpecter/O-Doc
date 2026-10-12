@@ -37,8 +37,11 @@ def run_capture(task, trigger, agents_override=None, random_context=None):
     agent = (agents_override or [None])[0]
     if agent is None:
         import random
-        candidates = list(Agent.objects.filter(pk__in=ids))
+        candidates = list(Agent.objects.filter(pk__in=ids, archived_at__isnull=True))
         agent = random.choice(candidates) if candidates else None
+    from system_settings.agent_availability import require_active_agent
+    if agent:
+        agent = require_active_agent(agent)
     owner = task.memo_config.get('owner_id')
     if not agent or not owner:
         raise ValueError('随手记缺少居民或所属账号')
@@ -53,6 +56,8 @@ def run_capture(task, trigger, agents_override=None, random_context=None):
             if not token:
                 raise ValueError('居民正在执行其他任务')
             def check():
+                from system_settings.agent_availability import require_active_agent
+                require_active_agent(agent)
                 if not AgentRunRecord.objects.filter(pk=record.pk, status='running').exists() or not AgentExecutionLease.objects.filter(agent=agent, token=token, until__gt=timezone.now()).exists():
                     raise ValueError('随手记执行授权已失效')
                 if context.get('lease_token'):
