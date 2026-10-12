@@ -164,6 +164,11 @@ export const saveProvider = (data: Partial<AIProvider>) => {
 // 3. 删除服务商
 export const deleteProvider = (id: string) => request.delete(`/settings/providers/${id}/`);
 
+// 3.1 获取服务商站点 favicon
+export const fetchProviderFavicon = (url: string) => {
+    return request.get<unknown, {faviconUrl: string; origin: string}>('/settings/providers/fetch_favicon/', {params: {url}});
+};
+
 // 4. 添加/保存模型
 export const saveModel = (data: ModelInput & {provider: string, id?: string}) => {
     if (data.id) return request.patch<AIModel>(`/settings/models/${data.id}/`, data);

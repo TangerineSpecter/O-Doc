@@ -238,3 +238,76 @@ class ModelThinkingTests(TestCase):
                 self.assertEqual(request['extra_body'], {'thinking': {'type': expected}} if expected else None)
                 self.model.refresh_from_db()
                 self.assertEqual(self.model.thinking_mode, mode)
+
+class AIProviderFaviconTests(SimpleTestCase):
+    def request_view(self, url=None, *, authenticated=True):
+        from system_settings.ai_views import AIProviderViewSet
+        factory = APIRequestFactory()
+        params = {'url': url} if url is not None else None
+        request = factory.get('/settings/providers/fetch_favicon/', params)
+        if authenticated:
+            force_authenticate(request, user=SimpleNamespace(is_authenticated=True))
+        action_permissions = AIProviderViewSet.fetch_favicon.kwargs.get('permission_classes')
+        view_kwargs = {'permission_classes': action_permissions} if action_permissions is not None else {}
+        view = AIProviderViewSet.as_view({'get': 'fetch_favicon'}, **view_kwargs)
+        return view(request)
+
+    def rendered_data(self, response):
+        response.render()
+        return json.loads(response.content)['data']
+
+    def test_fetch_favicon_requires_authentication(self):
+        response = self.request_view('https://custom-api.example.com', authenticated=False)
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_fetch_favicon_missing_url(self):
+        response = self.request_view()
+        self.assertEqual(response.status_code, 400)
+
+    @patch('system_settings.ai_views._fetch_resource')
+    def test_fetch_favicon_uses_rendered_camel_case_response(self, fetch_resource):
+        fetch_resource.return_value = SimpleNamespace(
+            final_url='https://custom-api.example.com/',
+            content=b'<link href="/favicon.svg?v=1" rel="icon" type="image/svg+xml">',
+        )
+
+        response = self.request_view('https://custom-api.example.com/v1')
+        self.assertEqual(response.status_code, 200)
+        data = self.rendered_data(response)
+        self.assertEqual(data['faviconUrl'], 'https://custom-api.example.com/favicon.svg?v=1')
+        self.assertEqual(data['origin'], 'https://custom-api.example.com')
+        self.assertNotIn('favicon_url', data)
+        fetch_resource.assert_called_once()
+        self.assertEqual(fetch_resource.call_args.args[0], 'https://custom-api.example.com')
+
+    @patch('system_settings.ai_views._fetch_resource')
+    def test_fetch_favicon_falls_back_when_fetch_fails(self, fetch_resource):
+        from utils.web_parser import WebParserError
+        fetch_resource.side_effect = WebParserError('blocked or unavailable')
+
+        response = self.request_view('https://custom-api.example.com')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            self.rendered_data(response)['faviconUrl'],
+            'https://custom-api.example.com/favicon.ico',
+        )
+
+    @patch('utils.web_parser.requests.get')
+    def test_fetch_favicon_rejects_private_targets_before_network_request(self, remote_get):
+        response = self.request_view('http://127.0.0.1:8080/v1')
+        self.assertEqual(response.status_code, 200)
+        remote_get.assert_not_called()
+
+    @patch('utils.web_parser._resolve_host', return_value=('93.184.216.34',))
+    @patch('utils.web_parser.requests.get')
+    def test_fetch_favicon_rejects_redirects_to_private_targets(self, remote_get, _resolve_host):
+        remote_get.return_value = SimpleNamespace(
+            status_code=302,
+            headers={'Location': 'http://127.0.0.1/admin'},
+            raw=None,
+            close=MagicMock(),
+        )
+
+        response = self.request_view('https://custom-api.example.com')
+        self.assertEqual(response.status_code, 200)
+        remote_get.assert_called_once()

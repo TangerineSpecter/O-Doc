@@ -1,12 +1,18 @@
+import time
+from urllib.parse import urljoin, urlsplit, urlunsplit
+
 import requests
+from bs4 import BeautifulSoup
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 
 from system_settings.models import Agent, AIModel, AIProvider, GeoLocation
 from system_settings.serializers import AIModelSerializer, AIProviderSerializer, GeoLocationSerializer
 from utils.response_utils import success_result, valid_result
+from utils.web_parser import WebParserError, _fetch_resource
 
 
 class AIProviderViewSet(viewsets.ModelViewSet):
@@ -28,6 +34,56 @@ class AIProviderViewSet(viewsets.ModelViewSet):
             'model_name': name, 'model_type': request.query_params.get('type', 'chat'),
             'thinking_protocol': request.query_params.get('protocol', 'auto'),
         }, probe_ollama=True))
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def fetch_favicon(self, request):
+        url = (request.query_params.get('url') or '').strip()
+        if not url:
+            return valid_result(msg='url 参数不能为空', status=400)
+
+        if '://' not in url:
+            url = 'https://' + url
+        try:
+            parsed = urlsplit(url)
+            scheme = parsed.scheme.lower()
+            if scheme not in {'http', 'https'} or not parsed.hostname or parsed.username or parsed.password:
+                return valid_result(msg='无效的 URL', status=400)
+            parsed.port  # Validate malformed and out-of-range ports before the fetch.
+            origin = urlunsplit((scheme, parsed.netloc, '', '', ''))
+        except (TypeError, ValueError, UnicodeError):
+            return valid_result(msg='无效的 URL', status=400)
+
+        favicon_url = None
+        try:
+            resource = _fetch_resource(
+                origin,
+                max_bytes=256 * 1024,
+                accepted_content_types={'text/html', 'application/xhtml+xml'},
+                size_error='服务商首页过大，已跳过图标自动发现。',
+                deadline=time.monotonic() + 3.5,
+            )
+        except WebParserError:
+            resource = None
+
+        if resource:
+            soup = BeautifulSoup(resource.content, 'html.parser')
+            for link in soup.find_all('link', href=True):
+                rel = link.get('rel', [])
+                rel_values = rel.split() if isinstance(rel, str) else rel
+                if not any('icon' in str(value).lower() for value in rel_values):
+                    continue
+                raw_href = str(link['href']).strip()
+                if not raw_href:
+                    continue
+                candidate_url = urljoin(resource.final_url, raw_href)
+                if urlsplit(candidate_url).scheme.lower() in {'http', 'https'}:
+                    favicon_url = candidate_url
+                    break
+
+        if not favicon_url:
+            favicon_url = f"{origin}/favicon.ico"
+
+        return success_result({'favicon_url': favicon_url, 'origin': origin})
 
     # 【关键点】必须重写 list 方法，否则 DRF 默认只返回一个数组，前端就会报错
     def list(self, request, *args, **kwargs):

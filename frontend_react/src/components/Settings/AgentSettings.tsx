@@ -717,7 +717,7 @@ export const AgentSettings = ({
         });
     };
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 pb-6 sm:pb-8">
             <div className="bg-white rounded-2xl border border-slate-200 px-5 py-3.5 shadow-sm">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-center gap-3">

@@ -6,8 +6,10 @@ import {
     Calendar,
     Check,
     CheckCircle2,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
+    ChevronUp,
     Clock,
     Clock3,
     Coffee,
@@ -347,10 +349,13 @@ export default function LifeScheduleTodayTimeline({
         });
     }, [items]);
 
+    const [showEarlyHistory, setShowEarlyHistory] = useState(false);
+
     // 统计指标（实时反映当天开销与达成率）
     const stats = useMemo(() => {
         const totalCount = sortedItems.length;
         const completedCount = sortedItems.filter((i) => i.status === 'completed').length;
+        const restCount = sortedItems.filter((i) => i.status === 'rest').length;
         const runningCount = sortedItems.filter((i) => i.status === 'running').length;
         const pendingCount = sortedItems.filter((i) => i.status === 'pending').length;
         const failedCount = sortedItems.filter((i) => i.status === 'failed').length;
@@ -371,6 +376,7 @@ export default function LifeScheduleTodayTimeline({
         return {
             totalCount,
             completedCount,
+            restCount,
             runningCount,
             pendingCount,
             failedCount,
@@ -389,14 +395,30 @@ export default function LifeScheduleTodayTimeline({
     // 当前时段
     const currentPeriod = getPeriodByMinutes(currentTime.minutes);
 
-    // 区分已完成与未完成安排（单行展示）
-    const completedItems = useMemo(() => {
-        return displayItems.filter((i) => i.status === 'completed');
+    // 已终态/已结算安排（已完成、休息跳过、失败、取消）
+    const settledItems = useMemo(() => {
+        const settledStatuses = new Set(['completed', 'rest', 'failed', 'cancelled']);
+        return displayItems.filter((i) => settledStatuses.has(i.status));
     }, [displayItems]);
 
-    const unfinishedItems = useMemo(() => {
-        return displayItems.filter((i) => i.status !== 'completed');
+    // 待处理与进行中安排（待执行、进行中、已顺延、暂停）
+    const activeItems = useMemo(() => {
+        const settledStatuses = new Set(['completed', 'rest', 'failed', 'cancelled']);
+        return displayItems.filter((i) => !settledStatuses.has(i.status));
     }, [displayItems]);
+
+    // 移动端时间轴切分：当前时刻之前 vs 当前时刻之后
+    const pastItems = useMemo(() => {
+        return displayItems.filter(
+            (i) => parseShanghaiMinutes(i.scheduledAt) <= currentTime.minutes
+        );
+    }, [displayItems, currentTime.minutes]);
+
+    const futureItems = useMemo(() => {
+        return displayItems.filter(
+            (i) => parseShanghaiMinutes(i.scheduledAt) > currentTime.minutes
+        );
+    }, [displayItems, currentTime.minutes]);
 
     if (loading && !sortedItems.length) {
         return (
@@ -519,18 +541,34 @@ export default function LifeScheduleTodayTimeline({
                                 <span className="font-mono text-[10px]">{stats.pendingCount}</span>
                             </button>
                         )}
-                        <button
-                            type="button"
-                            onClick={() => setStatusFilter('completed')}
-                            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
-                                statusFilter === 'completed'
-                                    ? 'bg-white font-semibold text-emerald-700 shadow-2xs'
-                                    : 'text-emerald-600 hover:text-emerald-800'
-                            }`}
-                        >
-                            <span>已完成</span>
-                            <span className="font-mono text-[10px]">{stats.completedCount}</span>
-                        </button>
+                        {stats.completedCount > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => setStatusFilter('completed')}
+                                className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
+                                    statusFilter === 'completed'
+                                        ? 'bg-white font-semibold text-emerald-700 shadow-2xs'
+                                        : 'text-emerald-600 hover:text-emerald-800'
+                                }`}
+                            >
+                                <span>已完成</span>
+                                <span className="font-mono text-[10px]">{stats.completedCount}</span>
+                            </button>
+                        )}
+                        {stats.restCount > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => setStatusFilter('rest')}
+                                className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-all ${
+                                    statusFilter === 'rest'
+                                        ? 'bg-white font-semibold text-slate-700 shadow-2xs'
+                                        : 'text-slate-600 hover:text-slate-800'
+                                }`}
+                            >
+                                <span>休息</span>
+                                <span className="font-mono text-[10px]">{stats.restCount}</span>
+                            </button>
+                        )}
                         {stats.failedCount > 0 && (
                             <button
                                 type="button"
@@ -549,8 +587,8 @@ export default function LifeScheduleTodayTimeline({
                 </div>
             </div>
 
-            {/* 顶栏 2：【24小时全景微缩时间刻度光轨】 */}
-            <div className="shrink-0 border-b border-slate-100 bg-white px-4 py-1.5">
+            {/* 顶栏 2：【24小时全景微缩时间刻度光轨】（仅在桌面/宽屏端展示，移动端隐去避免像素级重叠噪点） */}
+            <div className="hidden sm:block shrink-0 border-b border-slate-100 bg-white px-4 py-1.5">
                 <Day24HourRibbon
                     items={sortedItems}
                     currentMinutes={currentTime.minutes}
@@ -559,79 +597,178 @@ export default function LifeScheduleTodayTimeline({
                 />
             </div>
 
-            {/* 主内容区域：单行已完成 -> 当前时间标尺 -> 单行未完成 -> 常驻实时大盘 */}
+            {/* 主内容区域 */}
             <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide p-3 sm:p-4 space-y-3.5">
-                {/* 1. 已完成安排（单行横向排布） */}
-                <div>
-                    <div className="flex items-center justify-between pb-1.5">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                            <span>已完成安排</span>
-                            <span className="font-mono text-[11px] font-normal text-slate-400">
-                                ({completedItems.length})
-                            </span>
-                        </div>
-                    </div>
-
-                    {completedItems.length > 0 ? (
-                        <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide py-1">
-                            {completedItems.map((item) => (
-                                <div key={item.id} className="w-72 shrink-0">
-                                    <CompactGridCard
-                                        item={item}
-                                        agent={agentById.get(item.actorId)}
-                                        onSelect={() => onSelectItem(item.id)}
-                                    />
+                {/* ========================================================= */}
+                {/* A. 移动端专属：贯穿全天的顺时序单列垂直时间流 (sm:hidden) */}
+                {/* ========================================================= */}
+                <div className="block sm:hidden space-y-2.5">
+                    {/* 有状态筛选时的平铺展示 */}
+                    {statusFilter !== 'all' ? (
+                        <div>
+                            <div className="pb-1.5 text-xs font-bold text-slate-700">
+                                筛选结果 ({displayItems.length})
+                            </div>
+                            {displayItems.length > 0 ? (
+                                <div className="space-y-2">
+                                    {displayItems.map((item) => (
+                                        <CompactGridCard
+                                            key={item.id}
+                                            item={item}
+                                            agent={agentById.get(item.actorId)}
+                                            onSelect={() => onSelectItem(item.id)}
+                                        />
+                                    ))}
                                 </div>
-                            ))}
+                            ) : (
+                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-4 text-center text-xs text-slate-400">
+                                    没有符合该状态的安排
+                                </div>
+                            )}
                         </div>
                     ) : (
-                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 px-3 py-2.5 text-center text-xs text-slate-400">
-                            今日暂无已完成安排
-                        </div>
+                        <>
+                            {/* 早前记录折叠开关（当早前记录较多时，默认收拢，提升首屏聚焦度） */}
+                            {pastItems.length > 2 && (
+                                <div className="flex items-center justify-center pt-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEarlyHistory(!showEarlyHistory)}
+                                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50/90 px-3 py-1 text-[11px] font-medium text-slate-600 shadow-2xs transition-all hover:bg-white active:scale-95"
+                                    >
+                                        {showEarlyHistory ? (
+                                            <>
+                                                <ChevronUp className="h-3 w-3 text-slate-400" />
+                                                <span>收起早前安排 ({pastItems.length - 1} 项)</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <ChevronDown className="h-3 w-3 text-slate-400" />
+                                                <span>展开早前安排 ({pastItems.length - 1} 项)</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* 过去安排列表（未展开时仅展示紧邻当前时刻的前1项） */}
+                            {(showEarlyHistory || pastItems.length <= 2
+                                ? pastItems
+                                : pastItems.slice(-1)
+                            ).map((item) => (
+                                <CompactGridCard
+                                    key={item.id}
+                                    item={item}
+                                    agent={agentById.get(item.actorId)}
+                                    onSelect={() => onSelectItem(item.id)}
+                                />
+                            ))}
+
+                            {/* 当前时刻分割标尺 */}
+                            <CurrentDividerBar
+                                timeString={currentTime.timeString}
+                                hoursRemaining={currentTime.hoursRemaining}
+                                unfinishedCount={activeItems.length}
+                            />
+
+                            {/* 后续待办与进行中安排 */}
+                            {futureItems.length > 0 ? (
+                                <div className="space-y-2">
+                                    {futureItems.map((item) => (
+                                        <CompactGridCard
+                                            key={item.id}
+                                            item={item}
+                                            agent={agentById.get(item.actorId)}
+                                            isFuture
+                                            onSelect={() => onSelectItem(item.id)}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="rounded-xl border border-dashed border-emerald-200/80 bg-emerald-50/20 px-3 py-2.5 text-center text-xs text-emerald-700">
+                                    🎉 今日后续无更多安排，居民自由休憩中 ✨
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
 
-                {/* 2. 当前时刻分割带 */}
-                <CurrentDividerBar
-                    timeString={currentTime.timeString}
-                    hoursRemaining={currentTime.hoursRemaining}
-                    unfinishedCount={unfinishedItems.length}
-                />
-
-                {/* 3. 未完成安排（单行横向排布） */}
-                <div>
-                    <div className="flex items-center justify-between pb-1.5">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                            <Clock className="h-3.5 w-3.5 text-amber-500" />
-                            <span>待处理与进行中安排</span>
-                            <span className="font-mono text-[11px] font-normal text-slate-400">
-                                ({unfinishedItems.length})
-                            </span>
+                {/* ========================================================= */}
+                {/* B. 桌面/宽屏端展示：双行水平横滑走廊 (hidden sm:block) */}
+                {/* ========================================================= */}
+                <div className="hidden sm:block space-y-3.5">
+                    {/* 1. 已结算安排（已完成、休息、失败等已落定事项） */}
+                    <div>
+                        <div className="flex items-center justify-between pb-1.5">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                <span>已结算安排</span>
+                                <span className="font-mono text-[11px] font-normal text-slate-400">
+                                    ({settledItems.length})
+                                </span>
+                            </div>
                         </div>
+
+                        {settledItems.length > 0 ? (
+                            <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide py-1">
+                                {settledItems.map((item) => (
+                                    <div key={item.id} className="w-72 shrink-0">
+                                        <CompactGridCard
+                                            item={item}
+                                            agent={agentById.get(item.actorId)}
+                                            onSelect={() => onSelectItem(item.id)}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 px-3 py-2.5 text-center text-xs text-slate-400">
+                                今日暂无已结算安排
+                            </div>
+                        )}
                     </div>
 
-                    {unfinishedItems.length > 0 ? (
-                        <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide py-1">
-                            {unfinishedItems.map((item) => (
-                                <div key={item.id} className="w-72 shrink-0">
-                                    <CompactGridCard
-                                        item={item}
-                                        agent={agentById.get(item.actorId)}
-                                        isFuture
-                                        onSelect={() => onSelectItem(item.id)}
-                                    />
-                                </div>
-                            ))}
+                    {/* 2. 当前时刻分割带 */}
+                    <CurrentDividerBar
+                        timeString={currentTime.timeString}
+                        hoursRemaining={currentTime.hoursRemaining}
+                        unfinishedCount={activeItems.length}
+                    />
+
+                    {/* 3. 待处理与进行中安排 */}
+                    <div>
+                        <div className="flex items-center justify-between pb-1.5">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                <Clock className="h-3.5 w-3.5 text-amber-500" />
+                                <span>待处理与进行中安排</span>
+                                <span className="font-mono text-[11px] font-normal text-slate-400">
+                                    ({activeItems.length})
+                                </span>
+                            </div>
                         </div>
-                    ) : (
-                        <div className="rounded-xl border border-dashed border-emerald-200/80 bg-emerald-50/20 px-3 py-2.5 text-center text-xs text-emerald-700">
-                            🎉 今日所有安排已全部完成，居民自由休憩中 ✨
-                        </div>
-                    )}
+
+                        {activeItems.length > 0 ? (
+                            <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide py-1">
+                                {activeItems.map((item) => (
+                                    <div key={item.id} className="w-72 shrink-0">
+                                        <CompactGridCard
+                                            item={item}
+                                            agent={agentById.get(item.actorId)}
+                                            isFuture
+                                            onSelect={() => onSelectItem(item.id)}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-dashed border-emerald-200/80 bg-emerald-50/20 px-3 py-2.5 text-center text-xs text-emerald-700">
+                                🎉 今日所有安排已全部完成，居民自由休憩中 ✨
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* 4. 常驻实时概览面板（图一对应）：生活节律、活动构成、财务与达成率 */}
+                {/* 4. 常驻实时概览面板（生活节律、活动构成、财务与达成率，移动端可折叠） */}
                 <TodayInsightsSection stats={stats} agents={agents} items={sortedItems} />
             </div>
 
@@ -953,20 +1090,40 @@ function TodayInsightsSection({
     const activeAgents = agents.filter((a) =>
         items.some((i) => i.actorId === a.id)
     );
+    const [mobileExpanded, setMobileExpanded] = useState(false);
 
     return (
-        <div className="mt-3 rounded-xl border border-slate-200/80 bg-gradient-to-b from-slate-50/60 to-white p-3.5 shadow-2xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+        <div className="mt-3 rounded-xl border border-slate-200/80 bg-gradient-to-b from-slate-50/60 to-white p-3 sm:p-3.5 shadow-2xs">
+            <div
+                onClick={() => setMobileExpanded(!mobileExpanded)}
+                className="flex items-center justify-between cursor-pointer sm:cursor-default border-b border-slate-100 pb-2 select-none"
+            >
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                     <Sparkles className="h-3.5 w-3.5 text-orange-500" />
                     <span>今日居民生活概览与节律</span>
+                    <span className="text-[10px] font-normal text-slate-400 sm:hidden">
+                        ({mobileExpanded ? '点击收起' : '点击展开'})
+                    </span>
                 </div>
-                <span className="text-[11px] text-slate-400">
-                    今日共产生 {stats.totalCount} 项生活行为
-                </span>
+                <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-slate-400">
+                        今日共产生 {stats.totalCount} 项生活行为
+                    </span>
+                    <div className="sm:hidden text-slate-400">
+                        {mobileExpanded ? (
+                            <ChevronUp className="h-3.5 w-3.5" />
+                        ) : (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                        )}
+                    </div>
+                </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div
+                className={`mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3 ${
+                    mobileExpanded ? 'block space-y-3 sm:space-y-0' : 'hidden sm:grid'
+                }`}
+            >
                 {/* 卡片 1：今日活跃居民 */}
                 <div className="rounded-lg border border-slate-100 bg-white p-2.5">
                     <span className="text-[11px] text-slate-400">今日活跃居民</span>

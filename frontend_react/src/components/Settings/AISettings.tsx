@@ -1,7 +1,7 @@
-import {useState} from 'react';
+import {useState, useEffect, useMemo} from 'react';
 import {DecisionSettings} from './DecisionSettings';
 import {CheckCircle2, Edit2, Eye, Globe, ImagePlus, Key, Layers, Loader2, Plus, Server, Trash2, Wifi, X, XCircle, Zap} from 'lucide-react';
-import {AIModel, AIModelConnectionResult, AIProvider, ModelType, SystemAIConfig, testAIModelConnection} from '@/api/setting';
+import {AIModel, AIModelConnectionResult, AIProvider, ModelType, SystemAIConfig, testAIModelConnection, fetchProviderFavicon} from '@/api/setting';
 import {SettingsSelect, SettingsSelectOption} from './SettingsSelect';
 import {useToast} from '../common/ToastProvider';
 
@@ -14,69 +14,158 @@ import siliconFlowLogo from '@/assets/models/siliconFlow.svg'
 import xiaomiLogo from '@/assets/models/xiaomi.png'
 import minimaxLogo from '@/assets/models/minimax.jpg'
 
+const GoogleIcon = () => (
+    <svg className="w-5 h-5" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+    </svg>
+);
 
-// --- Logo Component ---
-const ProviderLogo = ({type, name}: { type: string, name: string }) => {
+const getOrigin = (urlStr?: string): string | null => {
+    if (!urlStr || typeof urlStr !== 'string') return null;
+    try {
+        const trimmed = urlStr.trim();
+        if (!trimmed) return null;
+        const normalized = trimmed.startsWith('http://') || trimmed.startsWith('https://')
+            ? trimmed
+            : `https://${trimmed}`;
+        const url = new URL(normalized);
+        return url.origin;
+    } catch {
+        return null;
+    }
+};
 
-    // 2. 样式配置表
-    // 策略：使用图片的厂商 -> 用白底 (bg-white) 或透明底
-    //       使用 SVG/文字的厂商 -> 用品牌色底 (bg-[color])
-    const brandStyles: Record<string, string> = {
-        // --- 纯色背景类 (SVG / Text) ---
-        'OpenAi': 'bg-white text-white',         // OpenAI 绿
-        'Ollama': 'bg-white text-white',             // Ollama 黑
-        'Google AI': 'bg-white border border-slate-200 text-slate-700', // Google 通常是彩色的，这里用白底
-        'custom': 'bg-slate-500 text-white',         // 自定义 灰
-        // --- 图片类 (Image) ---
-        // 关键点：这里把背景色去掉了，改为 bg-white，并加了浅边框以防图片也是白底导致看不清边界
-        'SiliconFlow': 'bg-white border border-slate-200 p-1',
-        'DeepSeek': 'bg-white border border-slate-200',
-        'Qwen': 'bg-white border border-slate-200',
-        'Xiaomi': 'bg-white border border-slate-200',
-        'Doubao': 'bg-white border border-slate-200',
-        'MiniMax': 'bg-white border border-slate-200',
-    };
+const FaviconLogo = ({baseUrl, name}: { baseUrl?: string; name: string }) => {
+    const origin = useMemo(() => getOrigin(baseUrl), [baseUrl]);
+    const [candidateIndex, setCandidateIndex] = useState(0);
+    const [isLoaded, setIsLoaded] = useState(false);
+    const [hasError, setHasError] = useState(false);
+    const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
 
-    // 3. 图标渲染逻辑
-    const renderIcon = () => {
-        switch (type) {
-            case 'OpenAi':
-                return <img src={openaiLogo} alt="OpenAI" className="w-full h-full object-contain"/>;
-            case 'Ollama':
-                return <img src={ollamaLogo} alt="Ollama" className="w-full h-full object-contain"/>;
-            case 'Google AI':
-                return <img src={deepseekLogo} alt="DeepSeek" className="w-full h-full object-contain"/>;
+    const candidates = useMemo(() => {
+        if (!origin) return [];
+        const list: string[] = [];
+        const cached = localStorage.getItem(`provider_favicon_${origin}`);
+        if (cached) {
+            list.push(cached);
+        }
+        if (resolvedUrl && !list.includes(resolvedUrl)) {
+            list.push(resolvedUrl);
+        }
+        const commonPaths = [
+            `${origin}/favicon.ico`,
+            `${origin}/favicon.svg`,
+            `${origin}/favicon.png`,
+            `${origin}/apple-touch-icon.png`,
+        ];
+        for (const p of commonPaths) {
+            if (!list.includes(p)) {
+                list.push(p);
+            }
+        }
+        return list;
+    }, [origin, resolvedUrl]);
 
-            // --- 图片渲染区域 ---
-            case 'DeepSeek':
-                return <img src={deepseekLogo} alt="DeepSeek"
-                            className="w-full h-full p-0.5 object-contain translate-x-[2px] translate-y-[2px] p-0.5"/>;
-            case 'Xiaomi':
-                return <img src={xiaomiLogo} alt="Xiaomi" className="w-full h-full object-contain p-0.01"/>;
-            case 'Qwen':
-                return <img src={qwenLogo} alt="Qwen" className="w-full h-full object-contain p-0.5"/>;
-            case 'Doubao':
-                return <img src={doubaoLogo} alt="Doubao" className="w-full h-full object-cover"/>;
-            case 'SiliconFlow':
-                return <img src={siliconFlowLogo} alt="SiliconFlowLogo" className="w-full h-full object-contain"/>;
-            case 'MiniMax':
-                return <img src={minimaxLogo} alt="MiniMax" className="w-full h-full object-contain"/>;
+    useEffect(() => {
+        if (!origin) return;
+        const cached = localStorage.getItem(`provider_favicon_${origin}`);
+        if (cached) return;
 
-            default:
-                // 默认兜底：首字母
-                return <span className="font-bold text-sm">{name.charAt(0).toUpperCase()}</span>;
+        let cancelled = false;
+        fetchProviderFavicon(origin).then(res => {
+            if (!cancelled && res?.faviconUrl) {
+                setResolvedUrl(res.faviconUrl);
+                try {
+                    localStorage.setItem(`provider_favicon_${origin}`, res.faviconUrl);
+                } catch {}
+            }
+        }).catch(() => {});
+
+        return () => {
+            cancelled = true;
+        };
+    }, [origin]);
+
+    const currentSrc = candidates[candidateIndex];
+
+    const handleImgError = () => {
+        if (candidateIndex < candidates.length - 1) {
+            setCandidateIndex(prev => prev + 1);
+        } else {
+            setHasError(true);
         }
     };
 
-    const style = brandStyles[type] || brandStyles['custom'];
+    const handleImgLoad = () => {
+        setIsLoaded(true);
+        if (origin && currentSrc) {
+            try {
+                localStorage.setItem(`provider_favicon_${origin}`, currentSrc);
+            } catch {}
+        }
+    };
+
+    if (!origin || hasError || candidates.length === 0) {
+        return (
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm shrink-0 overflow-hidden bg-slate-500 text-white font-bold text-sm">
+                {name.charAt(0).toUpperCase()}
+            </div>
+        );
+    }
 
     return (
-        // 添加 overflow-hidden 确保图片圆角跟随容器
-        <div
-            className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm shrink-0 overflow-hidden ${style}`}>
-            {renderIcon()}
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm shrink-0 overflow-hidden bg-white border border-slate-200 p-1.5 relative">
+            <img
+                src={currentSrc}
+                alt={name}
+                referrerPolicy="no-referrer"
+                onError={handleImgError}
+                onLoad={handleImgLoad}
+                className={`w-full h-full object-contain transition-opacity duration-200 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+            />
+            {!isLoaded && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-slate-400 font-bold text-xs">
+                    {name.charAt(0).toUpperCase()}
+                </div>
+            )}
         </div>
     );
+};
+
+// --- Logo Component ---
+const ProviderLogo = ({type, name, baseUrl}: { type: string; name: string; baseUrl?: string }) => {
+    const presetLogos: Record<string, string> = {
+        'OpenAi': openaiLogo,
+        'Ollama': ollamaLogo,
+        'DeepSeek': deepseekLogo,
+        'Xiaomi': xiaomiLogo,
+        'Qwen': qwenLogo,
+        'Doubao': doubaoLogo,
+        'SiliconFlow': siliconFlowLogo,
+        'MiniMax': minimaxLogo,
+    };
+
+    if (type === 'Google AI') {
+        return (
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm shrink-0 overflow-hidden bg-white border border-slate-200">
+                <GoogleIcon />
+            </div>
+        );
+    }
+
+    if (presetLogos[type]) {
+        return (
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm shrink-0 overflow-hidden bg-white border border-slate-200 p-1">
+                <img src={presetLogos[type]} alt={name} className="w-full h-full object-contain" />
+            </div>
+        );
+    }
+
+    // 自定义类型或未知类型（如 custom, NewAPI 等），优先根据 baseUrl 读取其站点的 tab 图标（favicon）
+    return <FaviconLogo baseUrl={baseUrl} name={name} />;
 };
 
 // --- Main Component ---
@@ -130,7 +219,7 @@ export const AISettings = ({
         };
         const labels = {chat: '对话', image: '图像识别', image_generation: '生图', embedding: '向量', rerank: '重排'};
         return (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${styles[type]}`}>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium shrink-0 whitespace-nowrap leading-none ${styles[type]}`}>
                 {labels[type]}
             </span>
         );
@@ -333,7 +422,7 @@ export const AISettings = ({
                                 className="flex items-center justify-between px-5 py-4 bg-slate-50/50 border-b border-slate-100 group-hover:bg-orange-50/30 transition-colors">
                                 <div className="flex items-center gap-4">
                                     {/* Logo 展示 */}
-                                    <ProviderLogo type={provider.type} name={provider.name}/>
+                                    <ProviderLogo type={provider.type} name={provider.name} baseUrl={provider.baseUrl}/>
 
                                     <div>
                                         <div className="flex items-center gap-2">
@@ -359,7 +448,7 @@ export const AISettings = ({
                                     <button onClick={() => onDelete({type: 'provider', providerId: provider.id})}
                                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                                         <Trash2 className="w-4 h-4"/></button>
-                                </div>
+                                 </div>
                             </div>
 
                             {/* Models List */}
@@ -377,31 +466,36 @@ export const AISettings = ({
                                 </div>
 
                                 {provider.models.length > 0 ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                                         {provider.models.map(model => {
                                             const result = connectionResults[model.id];
                                             const isTesting = !!testingModelIds[model.id];
 
                                             return (
                                                 <div key={model.id}
-                                                     className="flex items-start justify-between gap-2 p-3 rounded-xl border border-slate-100 bg-slate-50/30 hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all group/model">
-                                                    <div className="flex items-start gap-2.5 min-w-0">
+                                                     className="flex items-start justify-between gap-2.5 p-3 rounded-xl border border-slate-100 bg-slate-50/30 hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all group/model">
+                                                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
                                                         <div
                                                             className="w-1.5 h-1.5 rounded-full bg-slate-300 group-hover/model:bg-orange-400 transition-colors shrink-0 mt-2"></div>
-                                                        <div className="flex flex-col min-w-0">
+                                                        <div className="flex flex-col min-w-0 flex-1">
                                                             <span
-                                                                className="text-sm font-medium text-slate-700 truncate">{model.name}</span>
-                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                className="text-sm font-medium text-slate-700 truncate"
+                                                                title={model.name}>{model.name}</span>
+                                                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                                                 <ModelTypeBadge type={model.type}/>
-                                                                {['chat', 'image'].includes(model.type) && (model.thinkingCapability?.supported || model.thinkingMode && model.thinkingMode !== 'default') && <span className="text-[10px] text-slate-500">思考：{model.thinkingCapability && !model.thinkingCapability.supported ? '需确认能力' : model.thinkingMode === 'enabled' ? '开启' : model.thinkingMode === 'disabled' ? '关闭' : '默认'}</span>}
+                                                                {['chat', 'image'].includes(model.type) && (model.thinkingCapability?.supported || model.thinkingMode && model.thinkingMode !== 'default') && (
+                                                                    <span className="text-[10px] text-slate-500 shrink-0 whitespace-nowrap">
+                                                                        思考：{model.thinkingCapability && !model.thinkingCapability.supported ? '需确认能力' : model.thinkingMode === 'enabled' ? '开启' : model.thinkingMode === 'disabled' ? '关闭' : '默认'}
+                                                                    </span>
+                                                                )}
                                                                 {result && (
                                                                     <span
-                                                                        className={`inline-flex items-center gap-1 text-[10px] font-medium ${result.ok ? 'text-emerald-600' : 'text-rose-600'}`}
+                                                                        className={`inline-flex items-center gap-1 text-[10px] font-medium shrink-0 whitespace-nowrap ${result.ok ? 'text-emerald-600' : 'text-rose-600'}`}
                                                                         title={result.detail || (result.elapsedMs ? `${result.elapsedMs}ms` : '')}
                                                                     >
-                                                                        {result.ok ? <CheckCircle2 className="w-3 h-3"/> :
-                                                                            <XCircle className="w-3 h-3"/>}
-                                                                        {result.ok ? `${result.elapsedMs}ms` : '失败'}
+                                                                        {result.ok ? <CheckCircle2 className="w-3 h-3 shrink-0"/> :
+                                                                            <XCircle className="w-3 h-3 shrink-0"/>}
+                                                                        <span>{result.ok ? `${result.elapsedMs}ms` : '失败'}</span>
                                                                     </span>
                                                                 )}
                                                             </div>

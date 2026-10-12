@@ -165,7 +165,7 @@ function WorldDialogFrame({
                         </button>
                     </div>
                 )}
-                <div className={`min-h-0 min-w-0 w-full flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide flex flex-col ${bare ? '' : 'px-4 py-3 sm:px-5 sm:py-4'}`}>{children}</div>
+                <div className={`min-h-0 min-w-0 w-full flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide flex flex-col ${bare ? '' : 'px-4 pt-3 pb-4 sm:px-5 sm:pt-4 sm:pb-5'}`}>{children}</div>
             </div>
         </div>,
         document.body

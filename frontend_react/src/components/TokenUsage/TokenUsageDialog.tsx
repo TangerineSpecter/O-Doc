@@ -302,7 +302,7 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
             onClose={onClose}
             size="extra-wide"
         >
-            <div className="space-y-4">
+            <div className="space-y-4 pb-6 sm:pb-8">
                 {/* 顶部全局筛选条 */}
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="w-32">

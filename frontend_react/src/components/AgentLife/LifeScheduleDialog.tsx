@@ -93,7 +93,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                 {/* 顶部主控制栏：分段选项卡与全局筛选器 */}
                 <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-slate-50/50 p-2.5">
                     {/* 视图模式分段控制器 */}
-                    <div className="flex items-center rounded-lg bg-slate-200/60 p-1">
+                    <div className="flex max-w-full items-center rounded-lg bg-slate-200/60 p-1 overflow-x-auto scrollbar-hide shrink-0">
                         <button
                             type="button"
                             onClick={() => {
@@ -157,9 +157,9 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                     </div>
 
                     {/* 筛选下拉与操作 */}
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         {/* 居民筛选 */}
-                        <div className="w-36">
+                        <div className="flex-1 sm:w-36 min-w-[110px]">
                             <Select
                                 menuPortal
                                 value={actorId}
@@ -177,7 +177,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
 
                         {/* 状态筛选 */}
                         {mode !== 'profile' && (
-                            <div className="w-32">
+                            <div className="flex-1 sm:w-32 min-w-[100px]">
                                 <Select
                                     menuPortal
                                     value={status}
@@ -202,7 +202,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                             type="button"
                             onClick={schedule.refresh}
                             title="刷新数据"
-                            className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-2xs transition-all hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95"
+                            className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-2xs transition-all hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95 ml-auto sm:ml-0"
                         >
                             <RefreshCw
                                 className={`h-3.5 w-3.5 shrink-0 ${schedule.loading ? 'animate-spin text-orange-500' : ''}`}
