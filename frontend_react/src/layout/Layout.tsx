@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import FloatingActionMenu from '../components/FloatingActionMenu';
 import { AIChatWindow } from '../components/AIChatWindow';
 import { PeekingBotButton } from '../components/AIChatWindow/PeekingBotButton';
@@ -14,6 +15,25 @@ import MobileBottomBar from '../components/common/MobileBottomBar';
 import { AuthProvider } from '../contexts/AuthContext';
 import {clearAuthToken, getAuthToken} from '../utils/authStorage';
 import { registerSwipeBackInterceptor } from '../utils/swipeBackRegistry';
+import { useScrollDirection } from '../hooks/useScrollDirection';
+
+/**
+ * 判断当前路由是否属于文章或帖子的具体阅读详情页。
+ * 仅对文章、帖子、图书导读等具体正文详情页开启移动端沉浸阅读滚动收起；
+ * 专栏列表、文集目录、首页、备忘录等其他管理/列表页面不生效。
+ */
+function isReadingDetailPage(pathname: string): boolean {
+    const segments = pathname.split('/').filter(Boolean);
+    // 匹配 /article/:collId/:articleId（段数 >= 3 说明不是文集/专栏首页列表，而是单篇阅读详情）
+    if (segments[0] === 'article' && segments.length >= 3) {
+        return true;
+    }
+    // 匹配 /books/:collId/guide/:bookId（图书导读正文阅读）
+    if (segments[0] === 'books' && segments[2] === 'guide' && segments.length >= 4) {
+        return true;
+    }
+    return false;
+}
 
 interface LayoutProps {
     children: ReactNode;
@@ -21,6 +41,11 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, onNavigate }: LayoutProps) {
+    const location = useLocation();
+    const isReadingMode = isReadingDetailPage(location.pathname);
+    const isArticleReadingMode = isReadingMode && location.pathname.startsWith('/article/');
+    const isNavVisible = useScrollDirection({ enabled: isReadingMode });
+
     // --- 状态管理 ---
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
@@ -170,6 +195,7 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                 userInfo={userInfo}
                 onLogout={handleLogout}
                 onOpenProfile={() => setIsProfileOpen(true)}
+                isVisible={isNavVisible}
             />
 
             <ProfileCenterModal
@@ -180,13 +206,16 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                 onLogout={handleLogout}
             />
 
-            <div className="pb-24 sm:pb-0">
+            <div
+                className={`pb-24 sm:pb-0 ${isArticleReadingMode ? 'reading-article-layout' : ''}`}
+                data-nav-visible={isNavVisible ? 'true' : 'false'}
+            >
                 {children}
             </div>
 
             {/* 移动端底部胶囊导航栏：闪念、提示词库、正中间橙色大圆AI按钮、资源库、数据统计 */}
             {!isChatOpen && !isAgentPanelOpen && (
-                <MobileBottomBar onOpenAI={handleOpenAIEntry} />
+                <MobileBottomBar onOpenAI={handleOpenAIEntry} isVisible={isNavVisible} />
             )}
 
             {isAuthenticated && (

@@ -1,4 +1,4 @@
-import { Bot, Network, Sparkles, UserRound, Users } from 'lucide-react';
+import { BarChart3, Bot, Network, Settings, Sparkles, UserRound, Users } from 'lucide-react';
 import type { AgentWorldAgentStatus } from '../../types/api/setting';
 import AgentAvatar from './AgentAvatar';
 
@@ -8,22 +8,82 @@ interface AgentResidentsProps {
     onSelectAgent: (agentId: string) => void;
     onOpenRelation?: () => void;
     onOpenAttributes?: () => void;
+    onOpenAnalytics?: () => void;
+    onOpenManagement?: () => void;
 }
 
 /**
  * 移动端专用的横向平滑滚动居民状态条
  * 位于首屏顶部（Hero 下方、动态列表上方），让用户无需翻滚到最底端即可一眼感知 Agent 状态并直接进行筛选
  */
-function ResidentActions({onOpenRelation, onOpenAttributes}: Pick<AgentResidentsProps, 'onOpenRelation' | 'onOpenAttributes'>) {
-    if (!onOpenRelation && !onOpenAttributes) return null;
+function ResidentActions({
+    onOpenRelation,
+    onOpenAttributes,
+    onOpenAnalytics,
+    onOpenManagement,
+    compact = false,
+}: Pick<AgentResidentsProps, 'onOpenRelation' | 'onOpenAttributes' | 'onOpenAnalytics' | 'onOpenManagement'> & {compact?: boolean}) {
+    if (!onOpenRelation && !onOpenAttributes && !onOpenAnalytics && !onOpenManagement) return null;
+
+    if (compact) {
+        return (
+            <div className="mt-2 grid grid-cols-4 gap-1.5 border-t border-slate-100/90 pt-2">
+                {onOpenRelation && (
+                    <button
+                        type="button"
+                        onClick={onOpenRelation}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg bg-slate-50 py-1.5 px-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-700 active:scale-95"
+                    >
+                        <Network className="h-3 w-3 shrink-0" />
+                        <span className="truncate">关系图谱</span>
+                    </button>
+                )}
+                {onOpenAttributes && (
+                    <button
+                        type="button"
+                        onClick={onOpenAttributes}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg bg-slate-50 py-1.5 px-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-700 active:scale-95"
+                    >
+                        <UserRound className="h-3 w-3 shrink-0" />
+                        <span className="truncate">属性</span>
+                    </button>
+                )}
+                {onOpenAnalytics && (
+                    <button
+                        type="button"
+                        onClick={onOpenAnalytics}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg bg-orange-50/80 py-1.5 px-1 text-[11px] font-medium text-orange-700 transition-colors hover:bg-orange-100 active:scale-95"
+                    >
+                        <BarChart3 className="h-3 w-3 shrink-0 text-orange-600" />
+                        <span className="truncate">数据分析</span>
+                    </button>
+                )}
+                {onOpenManagement && (
+                    <button
+                        type="button"
+                        onClick={onOpenManagement}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg bg-slate-50 py-1.5 px-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 active:scale-95"
+                    >
+                        <Settings className="h-3 w-3 shrink-0 text-slate-500" />
+                        <span className="truncate">Agent管理</span>
+                    </button>
+                )}
+            </div>
+        );
+    }
+
     return (
         <div className="mt-3 grid grid-cols-2 gap-2">
-            <button type="button" onClick={onOpenRelation} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-orange-200 hover:text-orange-700">
-                <Network className="h-3.5 w-3.5"/>关系图谱
-            </button>
-            <button type="button" onClick={onOpenAttributes} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-orange-200 hover:text-orange-700">
-                <UserRound className="h-3.5 w-3.5"/>属性
-            </button>
+            {onOpenRelation && (
+                <button type="button" onClick={onOpenRelation} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-orange-200 hover:text-orange-700">
+                    <Network className="h-3.5 w-3.5"/>关系图谱
+                </button>
+            )}
+            {onOpenAttributes && (
+                <button type="button" onClick={onOpenAttributes} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-orange-200 hover:text-orange-700">
+                    <UserRound className="h-3.5 w-3.5"/>属性
+                </button>
+            )}
         </div>
     );
 }
@@ -34,27 +94,75 @@ export function AgentResidentsMobileBar({
     onSelectAgent,
     onOpenRelation,
     onOpenAttributes,
+    onOpenAnalytics,
+    onOpenManagement,
 }: AgentResidentsProps) {
     const totalActivities = agents.reduce((sum, agent) => sum + (agent.todayCount || 0), 0);
     const activeAgentsCount = agents.filter(a => a.status === 'running').length;
 
     return (
         <section aria-label="居民状态" className="mb-3 rounded-2xl border border-orange-100/90 bg-white/95 p-3 shadow-xs">
-            {/* 顶栏微标题与活跃指示 */}
-            <div className="mb-2 flex items-center justify-between px-0.5">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                    <Users className="h-3.5 w-3.5 text-orange-500" />
-                    <span>居民状态</span>
+            {/* 顶栏微标题与右上角快捷功能按钮 */}
+            <div className="mb-2 flex items-center justify-between gap-1.5 px-0.5">
+                <div className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <Users className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+                    <span className="shrink-0">居民状态</span>
                     <span className="text-[11px] font-normal text-slate-400">({agents.length})</span>
+                    {activeAgentsCount > 0 && (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600" title={`${activeAgentsCount} 位工作中`}>
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
+                            <span className="hidden xs:inline">{activeAgentsCount} 正在工作</span>
+                        </span>
+                    )}
                 </div>
-                {activeAgentsCount > 0 ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
-                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
-                        {activeAgentsCount} 位工作中
-                    </span>
-                ) : (
-                    <span className="text-[10px] text-slate-400">点击头像可快速筛选</span>
-                )}
+
+                {/* 右上角快捷操作工具组 */}
+                <div className="flex shrink-0 items-center gap-1">
+                    {onOpenRelation && (
+                        <button
+                            type="button"
+                            onClick={onOpenRelation}
+                            className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-95"
+                            title="关系图谱"
+                        >
+                            <Network className="h-3 w-3 shrink-0 text-slate-500" />
+                            <span>图谱</span>
+                        </button>
+                    )}
+                    {onOpenAttributes && (
+                        <button
+                            type="button"
+                            onClick={onOpenAttributes}
+                            className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-95"
+                            title="属性"
+                        >
+                            <UserRound className="h-3 w-3 shrink-0 text-slate-500" />
+                            <span>属性</span>
+                        </button>
+                    )}
+                    {onOpenAnalytics && (
+                        <button
+                            type="button"
+                            onClick={onOpenAnalytics}
+                            className="inline-flex items-center gap-0.5 rounded-lg border border-orange-200/80 bg-orange-50/80 px-1.5 py-1 text-[11px] font-medium text-orange-700 transition-colors hover:bg-orange-100 active:scale-95"
+                            title="居民数据分析"
+                        >
+                            <BarChart3 className="h-3 w-3 shrink-0 text-orange-600" />
+                            <span>分析</span>
+                        </button>
+                    )}
+                    {onOpenManagement && (
+                        <button
+                            type="button"
+                            onClick={onOpenManagement}
+                            className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200/80 bg-slate-50/70 px-1.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 active:scale-95"
+                            title="Agent 管理"
+                        >
+                            <Settings className="h-3 w-3 shrink-0 text-slate-500" />
+                            <span>管理</span>
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* 横向滚动列表 */}
@@ -123,7 +231,6 @@ export function AgentResidentsMobileBar({
                     );
                 })}
             </div>
-            <ResidentActions onOpenRelation={onOpenRelation} onOpenAttributes={onOpenAttributes}/>
         </section>
     );
 }

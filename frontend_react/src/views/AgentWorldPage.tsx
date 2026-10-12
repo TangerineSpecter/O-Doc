@@ -186,22 +186,25 @@ export default function AgentWorldPage() {
         <main className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
             <AgentWorldBanner stats={statsData} />
 
-            {/* 卡片下方操作栏：左侧管理入口，右侧紧跟返回文集 */}
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5 sm:mt-3.5">
-                <div className="flex items-center gap-2 text-xs text-slate-500">
+            {/* 卡片下方操作栏：生活玩法横向滑条，移动端隐藏左侧标题标签，直接顶格横滑 */}
+            <div className="mt-2.5 flex items-center gap-2 sm:mt-3.5">
+                <div className="hidden sm:flex shrink-0 items-center gap-1.5 text-xs text-slate-500">
                     <span className="flex h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
-                    <span className="font-semibold text-slate-700">全域生活动态</span>
-                    <span className="text-slate-300 hidden sm:inline">·</span>
-                    <span className="text-[11px] text-slate-400 hidden sm:inline">实时见证智能体思考与成长轨迹</span>
+                    <span className="font-semibold text-slate-700 whitespace-nowrap">生活世界</span>
+                    <span className="text-slate-300 hidden md:inline">·</span>
+                    <span className="text-[11px] text-slate-400 hidden md:inline">实时见证成长轨迹</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={() => setUsageOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100"><BarChart3 className="h-3.5 w-3.5"/>用量统计</button>
-                    <button type="button" onClick={() => setMomentsOpen(true)} className="inline-flex items-center shrink-0 gap-1.5 whitespace-nowrap rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 shadow-2xs transition-all duration-150 hover:border-rose-300 hover:bg-rose-100 hover:shadow-xs active:scale-95"><MessageCircle className="h-3.5 w-3.5 shrink-0"/>朋友圈</button>
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto scrollbar-hide py-1">
+                    <button type="button" onClick={() => setMomentsOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-600 shadow-2xs transition-all duration-150 hover:border-rose-300 hover:bg-rose-100 hover:shadow-xs active:scale-95"><MessageCircle className="h-3.5 w-3.5 shrink-0"/>朋友圈</button>
+                    <button type="button" onClick={() => setFarmOpen(true)} onMouseEnter={preloadFarm} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-lime-200 bg-lime-50 px-2.5 py-1.5 text-xs font-semibold text-lime-700 shadow-2xs transition-all duration-150 hover:border-lime-300 hover:bg-lime-100 hover:shadow-xs active:scale-95"><Sprout className="h-3.5 w-3.5 shrink-0"/>像素农场</button>
+                    <button type="button" onClick={() => setMarketOpen(true)} onMouseEnter={preloadMarket} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 shadow-2xs transition-all duration-150 hover:border-emerald-300 hover:bg-emerald-100 hover:shadow-xs active:scale-95"><Store className="h-3.5 w-3.5 shrink-0"/>世界市场</button>
+                    <button type="button" onClick={() => setInvestmentOpen(true)} onMouseEnter={preloadInvestment} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-xs font-semibold text-orange-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-100 hover:shadow-xs active:scale-95"><TrendingUp className="h-3.5 w-3.5 shrink-0"/>股票投资</button>
+                    <button type="button" onClick={() => setLifeOpen(true)} onMouseEnter={preloadLifeSchedule} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-2xs transition-all duration-150 hover:border-blue-300 hover:bg-blue-100 hover:shadow-xs active:scale-95"><CalendarDays className="h-3.5 w-3.5 shrink-0"/>生活日程</button>
                     <button
                         type="button"
                         onClick={() => setWorksOpen(true)}
                         onMouseEnter={preloadWorks}
-                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 shadow-2xs transition-all duration-150 hover:border-amber-300 hover:bg-amber-100 hover:text-amber-900 hover:shadow-xs active:scale-95"
+                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 shadow-2xs transition-all duration-150 hover:border-amber-300 hover:bg-amber-100 hover:text-amber-900 hover:shadow-xs active:scale-95"
                     >
                         <BookOpenText className="h-3.5 w-3.5 shrink-0 text-amber-600"/>世界作品
                     </button>
@@ -209,46 +212,15 @@ export default function AgentWorldPage() {
                         type="button"
                         onClick={() => {setCatalogSection('items'); setCatalogOpen(true);}}
                         onMouseEnter={preloadCatalog}
-                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 hover:shadow-xs active:scale-95"
+                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 hover:shadow-xs active:scale-95"
                     >
                         <BookOpenText className="h-3.5 w-3.5 shrink-0"/>世界图鉴
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => setLifeOpen(true)}
-                        onMouseEnter={preloadLifeSchedule}
-                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-2xs transition-all duration-150 hover:border-blue-300 hover:bg-blue-100 hover:shadow-xs active:scale-95"
-                    >
-                        <CalendarDays className="h-3.5 w-3.5 shrink-0"/>生活日程
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setInvestmentOpen(true)}
-                        onMouseEnter={preloadInvestment}
-                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-100 hover:shadow-xs active:scale-95"
-                    >
-                        <TrendingUp className="h-3.5 w-3.5 shrink-0"/>股票投资
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setMarketOpen(true)}
-                        onMouseEnter={preloadMarket}
-                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-2xs transition-all duration-150 hover:border-emerald-300 hover:bg-emerald-100 hover:shadow-xs active:scale-95"
-                    >
-                        <Store className="h-3.5 w-3.5 shrink-0"/>世界市场
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setFarmOpen(true)}
-                        onMouseEnter={preloadFarm}
-                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-lime-200 bg-lime-50 px-3 py-1.5 text-xs font-semibold text-lime-700 shadow-2xs transition-all duration-150 hover:border-lime-300 hover:bg-lime-100 hover:shadow-xs active:scale-95"
-                    >
-                        <Sprout className="h-3.5 w-3.5 shrink-0"/>像素农场
-                    </button>
+                    <button type="button" onClick={() => setUsageOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100"><BarChart3 className="h-3.5 w-3.5"/>用量统计</button>
                     <button
                         type="button"
                         onClick={() => setWorldManagementOpen(true)}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-600 hover:shadow-xs active:scale-95"
+                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-600 hover:shadow-xs active:scale-95"
                     >
                         <Settings className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                         <span>世界管理</span>
@@ -256,7 +228,7 @@ export default function AgentWorldPage() {
                     <button
                         type="button"
                         onClick={() => navigate('/')}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-600 hover:shadow-xs active:scale-95"
+                        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition-all duration-150 hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-600 hover:shadow-xs active:scale-95"
                     >
                         <ArrowLeft className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                         <span>返回文集</span>
@@ -266,17 +238,17 @@ export default function AgentWorldPage() {
 
             {lifeOpen && <WorldDialogSuspense title="居民生活日程" onClose={closeLife} size="extra-wide" fallback={<WorldOrbitLoader title="正在排布居民生活日程" subtitle="读取今日动态流 · 校验行动预留资金"/>}><LifeScheduleDialog onClose={closeLife}/></WorldDialogSuspense>}
 
-            {/* 移动端专属居民状态横滑栏：置顶于动态流上方，随时可横滑感知与点击筛选 (< lg) */}
-            <div className="mt-3 lg:hidden [&>section]:mb-0">
+            {/* 移动端专属居民状态横滑栏：置顶于动态流上方，内置紧凑操作，消除底部冗余大按钮 (< lg) */}
+            <div className="mt-2.5 lg:hidden [&>section]:mb-0">
                 <AgentResidentsMobileBar
                     agents={residents}
                     selectedAgentId={world.agentId}
                     onSelectAgent={world.setAgentId}
                     onOpenRelation={() => setPanel('graph')}
                     onOpenAttributes={() => setPanel('attributes')}
+                    onOpenAnalytics={() => setAnalyticsActor(world.agentId)}
+                    onOpenManagement={openAgentManagement}
                 />
-                {analyticsButton}
-                {managementButton}
             </div>
 
             <div className="mt-3.5 grid gap-5 lg:mt-5 lg:grid-cols-[minmax(0,1fr)_280px]">

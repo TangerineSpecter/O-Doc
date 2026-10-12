@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { StickyNote, Sparkles, Library, BarChart2 } from 'lucide-react';
-import BlinkingBotIcon from './BlinkingBotIcon';
 
 interface MobileBottomBarProps {
     onOpenAI: () => void;
+    isVisible?: boolean;
 }
 
 interface NavItem {
@@ -44,9 +44,117 @@ const rightItems: NavItem[] = [
     },
 ];
 
-export default function MobileBottomBar({ onOpenAI }: MobileBottomBarProps) {
+function WorldPlanetIcon({ className = "w-6 h-6" }: { className?: string }) {
+    return (
+        <span className={`relative flex items-center justify-center ${className}`}>
+            {/* 围绕星球旋转的微型卫星轨道 */}
+            <span className="absolute -inset-[3px] animate-[spin_6s_linear_infinite] pointer-events-none">
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-amber-300 shadow-[0_0_6px_rgba(252,211,77,0.9)]" />
+            </span>
+            <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-full h-full text-white drop-shadow-sm"
+            >
+                <circle cx="12" cy="12" r="9" />
+                <ellipse cx="12" cy="12" rx="4" ry="9" />
+                <path d="M3.6 9h16.8" />
+                <path d="M3.6 15h16.8" />
+            </svg>
+        </span>
+    );
+}
+
+const LONG_PRESS_DURATION = 480;
+
+export default function MobileBottomBar({ onOpenAI, isVisible = true }: MobileBottomBarProps) {
     const location = useLocation();
     const navigate = useNavigate();
+
+    const isWorldActive = location.pathname.startsWith('/agent-world');
+
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isLongPressRef = useRef(false);
+    const wasMovedRef = useRef(false);
+    const startCoordRef = useRef<{ x: number; y: number } | null>(null);
+    const [isPressing, setIsPressing] = useState(false);
+
+    const cancelPress = useCallback(() => {
+        if (timerRef.current) {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+        }
+        setIsPressing(false);
+    }, []);
+
+    const startPress = useCallback((clientX: number, clientY: number) => {
+        isLongPressRef.current = false;
+        wasMovedRef.current = false;
+        setIsPressing(true);
+        startCoordRef.current = { x: clientX, y: clientY };
+
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+            isLongPressRef.current = true;
+            setIsPressing(false);
+            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                try {
+                    navigator.vibrate?.(40);
+                } catch {
+                    // ignore
+                }
+            }
+            onOpenAI();
+        }, LONG_PRESS_DURATION);
+    }, [onOpenAI]);
+
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+        };
+    }, []);
+
+    const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+        if (e.button !== 0 && e.pointerType === 'mouse') return;
+        startPress(e.clientX, e.clientY);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+        if (!startCoordRef.current || !timerRef.current) return;
+        const dx = Math.abs(e.clientX - startCoordRef.current.x);
+        const dy = Math.abs(e.clientY - startCoordRef.current.y);
+        if (dx > 10 || dy > 10) {
+            wasMovedRef.current = true;
+            cancelPress();
+        }
+    };
+
+    const handlePointerUp = () => {
+        cancelPress();
+    };
+
+    const handlePointerCancel = () => {
+        cancelPress();
+    };
+
+    const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+        if (isLongPressRef.current || wasMovedRef.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            isLongPressRef.current = false;
+            wasMovedRef.current = false;
+            return;
+        }
+        if (location.pathname.startsWith('/agent-world')) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            navigate('/agent-world');
+        }
+    };
 
     const renderButton = (item: NavItem) => {
         const isActive = location.pathname.startsWith(item.path);
@@ -82,7 +190,11 @@ export default function MobileBottomBar({ onOpenAI }: MobileBottomBarProps) {
     return (
         <nav
             aria-label="移动端底部导航"
-            className="fixed bottom-3 inset-x-3 max-w-md mx-auto z-40 sm:hidden pb-[env(safe-area-inset-bottom)]"
+            className={`fixed bottom-3 inset-x-3 max-w-md mx-auto z-40 sm:hidden pb-[env(safe-area-inset-bottom)] transition-all duration-300 ease-in-out ${
+                isVisible === false
+                    ? 'translate-y-28 opacity-0 pointer-events-none'
+                    : 'translate-y-0 opacity-100'
+            }`}
         >
             <div className="relative flex items-center justify-between h-[58px] px-2 bg-white/95 backdrop-blur-md rounded-full border border-slate-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
                 {/* 左侧两项：闪念、提示词库 */}
@@ -90,19 +202,68 @@ export default function MobileBottomBar({ onOpenAI }: MobileBottomBarProps) {
                     {leftItems.map(renderButton)}
                 </div>
 
-                {/* 正中间凸起的大圆橙色 AI 按钮 */}
+                {/* 正中间凸起大圆：单击进入 Agent 世界，长按呼出 AI 助手 */}
                 <div className="relative flex flex-col items-center justify-center px-1 -mt-5 shrink-0">
+                    {/* 单独提供键盘可聚焦的 AI 入口；聚焦时显示，避免仅依赖触屏长按 */}
                     <button
                         type="button"
                         onClick={onOpenAI}
-                        className="relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/35 border-[3.5px] border-white active:scale-95 transition-transform group"
-                        title="打开 AI 助手"
                         aria-label="打开 AI 助手"
+                        className="pointer-events-none absolute -top-8 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white opacity-0 shadow-md focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2"
                     >
-                        <BlinkingBotIcon className="w-6 h-6 transition-transform group-hover:scale-110" />
+                        打开 AI 助手
                     </button>
-                    <span className="text-[10px] text-orange-600 font-bold tracking-tight mt-0.5 whitespace-nowrap">
-                        AI 助手
+
+                    {/* 长按充能环（橘色向内收缩 / 闭合的环形进度，480ms 充满唤起 AI 助手） */}
+                    <svg className="absolute -inset-1.5 w-[68px] h-[68px] pointer-events-none -rotate-90">
+                        <circle
+                            cx="34"
+                            cy="34"
+                            r="28"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            className={`text-orange-500 transition-all ${
+                                isPressing ? 'duration-[480ms] ease-linear opacity-100' : 'duration-150 ease-out opacity-0'
+                            }`}
+                            style={{
+                                strokeDasharray: 175.9,
+                                strokeDashoffset: isPressing ? 0 : 175.9,
+                            }}
+                        />
+                    </svg>
+
+                    <button
+                        type="button"
+                        onClick={handleClick}
+                        onPointerDown={handlePointerDown}
+                        onPointerMove={handlePointerMove}
+                        onPointerUp={handlePointerUp}
+                        onPointerCancel={handlePointerCancel}
+                        onContextMenu={(e) => e.preventDefault()}
+                        style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
+                        className={`relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30 border-[3.5px] border-white transition-all select-none touch-manipulation group ${
+                            isPressing ? 'scale-90 shadow-sm' : 'active:scale-95'
+                        } ${
+                            isWorldActive ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-white' : ''
+                        }`}
+                        title="单击进入 Agent 世界 · 长按唤起 AI 助手"
+                        aria-label="进入 Agent 世界，长按打开 AI 助手"
+                    >
+                        <WorldPlanetIcon className="w-6 h-6 transition-transform group-hover:scale-110" />
+
+                        {/* 右上角精致 AI 微标，提示用户支持长按 AI 助手 */}
+                        <span
+                            className="absolute -top-1 -right-1 px-1.5 py-[0.5px] rounded-full bg-orange-500 text-white text-[8px] font-extrabold shadow-sm border border-white tracking-tighter select-none pointer-events-none"
+                            title="长按呼出 AI 助手"
+                        >
+                            AI
+                        </span>
+                    </button>
+                    <span className={`text-[10px] tracking-tight mt-0.5 whitespace-nowrap transition-colors ${
+                        isWorldActive ? 'text-emerald-600 font-bold' : 'text-slate-600 font-medium'
+                    }`}>
+                        Agent 世界
                     </span>
                 </div>
 

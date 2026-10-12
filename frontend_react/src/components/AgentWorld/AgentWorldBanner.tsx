@@ -22,9 +22,9 @@ export default function AgentWorldBanner({stats}: AgentWorldBannerProps) {
     return (
         <section
             aria-labelledby="agent-world-title"
-            className="relative isolate overflow-hidden rounded-2xl border border-orange-100 bg-[#fffdfa] shadow-sm"
+            className="relative isolate overflow-hidden rounded-2xl border border-orange-100 bg-[#fffdfa] px-3 py-2.5 shadow-2xs sm:px-5 sm:py-3"
         >
-            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 hidden w-[58%] xl:block">
+            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 hidden w-[45%] lg:block opacity-40">
                 <img
                     src={bannerWorldscapeUrl}
                     alt=""
@@ -35,47 +35,49 @@ export default function AgentWorldBanner({stats}: AgentWorldBannerProps) {
                 />
             </div>
 
-            <div className="relative grid gap-5 px-4 py-4 sm:px-6 sm:py-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-8 xl:grid-cols-[minmax(0,1fr)_auto_190px]">
-                <div className="flex min-w-0 items-center gap-3.5 sm:gap-4">
-                    <div className="agent-world-banner__bot relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-orange-200 bg-white text-orange-600 shadow-[0_3px_12px_rgba(234,122,43,0.10)] sm:h-14 sm:w-14">
-                        <span aria-hidden="true" className="absolute inset-[5px] rounded-full border border-dashed border-orange-200/80" />
-                        <BlinkingBotIcon className="relative h-6 w-6 sm:h-7 sm:w-7" strokeWidth={1.8} />
-                        <span aria-hidden="true" className="agent-world-banner__status-orbit pointer-events-none absolute -inset-1">
-                            <span className="absolute left-1/2 top-[-2px] h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 border-white bg-emerald-500 shadow-[0_0_0_1px_rgba(16,185,129,0.18)]" />
+            <div className="relative flex items-center justify-between gap-2.5 sm:gap-6">
+                {/* 左侧：微型机器人头像 + 标题 */}
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                    <div className="agent-world-banner__bot relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-orange-200 bg-white text-orange-600 shadow-2xs sm:h-9 sm:w-9">
+                        <span aria-hidden="true" className="absolute inset-[2.5px] rounded-full border border-dashed border-orange-200/80 sm:inset-[3.5px]" />
+                        <BlinkingBotIcon className="relative h-3.5 w-3.5 sm:h-4.5 sm:w-4.5" strokeWidth={1.8} />
+                        <span aria-hidden="true" className="agent-world-banner__status-orbit pointer-events-none absolute -inset-0.5">
+                            <span className="absolute left-1/2 top-[-1px] h-1.5 w-1.5 -translate-x-1/2 rounded-full border border-white bg-emerald-500 shadow-[0_0_0_1px_rgba(16,185,129,0.18)]" />
                         </span>
                     </div>
-                    <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <h1 id="agent-world-title" className="text-xl font-bold tracking-[-0.04em] text-slate-900 sm:text-[26px]">
-                                Agent 世界
-                            </h1>
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-700">
-                                <span className="relative flex h-2 w-2">
-                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-50 motion-reduce:animate-none" />
-                                    <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-500" />
-                                </span>
-                                今日正在发生
+                    <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
+                        <h1 id="agent-world-title" className="text-sm font-bold tracking-tight text-slate-900 whitespace-nowrap sm:text-base">
+                            Agent 世界
+                        </h1>
+                        <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
+                            <span className="relative flex h-1.5 w-1.5">
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-50 motion-reduce:animate-none" />
+                                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-orange-500" />
                             </span>
-                        </div>
-                        <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6">
-                            他们的调查、作品和观点变化，都在这里留下痕迹。
-                        </p>
+                            今日正在发生
+                        </span>
+                        <span className="sm:hidden relative flex h-2 w-2 shrink-0">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-50 motion-reduce:animate-none" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-500" />
+                        </span>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-3 divide-x divide-slate-200/80 border-t border-slate-200/80 pt-3 md:border-l md:border-t-0 md:pl-5 md:pt-0">
+                {/* 右侧：统计指标纯单行水平并排 */}
+                <div className="flex shrink-0 items-center gap-1.5 divide-x divide-slate-100 sm:gap-3 sm:divide-slate-200/80">
                     {stats.map(stat => {
                         const content = (
-                            <>
-                                <div className={`flex items-center gap-1.5 text-xl font-semibold leading-none tabular-nums sm:text-2xl ${stat.color} ${stat.onClick ? 'transition-colors group-hover/stat:text-orange-600' : ''}`}>
+                            <div className="flex items-center gap-1 pl-1.5 first:pl-0 sm:gap-1.5 sm:pl-3">
+                                <stat.icon className={`h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5 ${stat.iconColor.split(' ')[0] ?? 'text-slate-400'}`} />
+                                <span className={`text-xs sm:text-sm font-bold tabular-nums leading-none ${stat.color} ${stat.onClick ? 'transition-colors group-hover/stat:text-orange-600' : ''}`}>
                                     {stat.value}
-                                    {stat.dot && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
-                                </div>
-                                <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium text-slate-500 sm:text-[11px] transition-colors group-hover/stat:text-orange-600">
-                                    <stat.icon className={`h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5 ${stat.iconColor.split(' ')[0] ?? 'text-slate-500'}`} />
-                                    <span className="truncate">{stat.label}</span>
-                                </div>
-                            </>
+                                </span>
+                                <span className="text-[10px] text-slate-500 whitespace-nowrap sm:text-xs transition-colors group-hover/stat:text-orange-600">
+                                    <span className="hidden sm:inline">{stat.label}</span>
+                                    <span className="sm:hidden">{stat.label.replace('今日', '')}</span>
+                                </span>
+                                {stat.dot && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />}
+                            </div>
                         );
 
                         if (stat.onClick) {
@@ -85,7 +87,7 @@ export default function AgentWorldBanner({stats}: AgentWorldBannerProps) {
                                     type="button"
                                     onClick={stat.onClick}
                                     title={`点击查看${stat.label}`}
-                                    className="group/stat min-w-0 px-2 text-left first:pl-0 last:pr-0 sm:px-4 transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500 cursor-pointer"
+                                    className="group/stat min-w-0 transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-500 cursor-pointer"
                                 >
                                     {content}
                                 </button>
@@ -93,14 +95,12 @@ export default function AgentWorldBanner({stats}: AgentWorldBannerProps) {
                         }
 
                         return (
-                            <div key={stat.label} className="min-w-0 px-2 first:pl-0 last:pr-0 sm:px-4">
+                            <div key={stat.label} className="min-w-0">
                                 {content}
                             </div>
                         );
                     })}
                 </div>
-
-                <div aria-hidden="true" className="hidden xl:block" />
             </div>
         </section>
     );

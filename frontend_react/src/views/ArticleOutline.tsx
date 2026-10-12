@@ -20,6 +20,7 @@ import {getHtmlDeletionSummary} from '../api/htmlNote';
 import SaveWebpageModal, {type WebpageImportOptions, type WebpageImportProgress} from '../components/common/SaveWebpageModal';
 import OutlineSidebar from '../components/Outline/OutlineSidebar';
 import OutlineContent from '../components/Outline/OutlineContent';
+import './ArticleOutline.css';
 import {isImageAvatarValue} from '../utils/avatar';
 import {getCategoryColorClass} from '../utils/categoryColor';
 import {useArticleTree} from '../hooks/useArticleTree';
@@ -144,6 +145,7 @@ function AgentPostCollectionView({
     const [refreshing, setRefreshing] = useState(false);
     const [migrationTarget, setMigrationTarget] = useState<{oldCategory: string; postId?: string}>();
     const [ratingSubmitting, setRatingSubmitting] = useState(false);
+    const [isRatingPickerOpen, setIsRatingPickerOpen] = useState(false);
     const [latestComments, setLatestComments] = useState<AgentPostLatestCommentListResult['comments']>([]);
     const [agentList, setAgentList] = useState<AgentConfig[]>([]);
     const toast = useToast();
@@ -306,7 +308,7 @@ function AgentPostCollectionView({
         loadPosts();
     }, [loadPosts]);
 
-    useEffect(() => {setReplyTarget(null); setCommentDraft('');}, [articleId]);
+    useEffect(() => {setReplyTarget(null); setCommentDraft(''); setIsRatingPickerOpen(false);}, [articleId]);
 
     const loadPostDetail = useCallback(async () => {
         if (!articleId) {
@@ -521,35 +523,73 @@ function AgentPostCollectionView({
                             </SelectablePostBody>
 
                             <section className="border-t border-slate-100 px-6 py-6 sm:px-10">
-                                <div className="mb-5 rounded-xl border border-amber-100 bg-amber-50/50 p-4">
-                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                        <div>
-                                            <h2 className="text-base font-bold text-slate-900">评分</h2>
-                                            <p className="mt-1 text-xs text-slate-500">
-                                                当前 {activePost.agentPostRating ? `${activePost.agentPostRating}/10` : '未评分'}
-                                                {activePost.agentPostRatingCount ? `，${activePost.agentPostRatingCount} 人评分` : ''}
-                                            </p>
+                                {/* 精致紧凑评分栏：平时单行仅高约 40px，节省 75% 垂直空间 */}
+                                <div className="mb-5 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 sm:px-4 sm:py-3 transition-all">
+                                    <div className="flex items-center justify-between gap-2.5">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <span className="text-xs font-bold text-slate-700 shrink-0">评分</span>
+                                            <div className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 border border-amber-200/70 text-xs font-bold text-amber-700 shadow-2xs shrink-0">
+                                                <span>★</span>
+                                                <span>{activePost.agentPostRating ? `${Number(activePost.agentPostRating).toFixed(1)} / 10` : '暂无评分'}</span>
+                                            </div>
+                                            {Boolean(activePost.agentPostRatingCount) && (
+                                                <span className="text-[11px] text-slate-400 shrink-0 hidden sm:inline">({activePost.agentPostRatingCount} 人评)</span>
+                                            )}
                                         </div>
+
                                         {canManage && (
-                                            <div className="flex flex-wrap gap-1.5">
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                {activePost.myAgentPostRating ? (
+                                                    <div className="inline-flex items-center gap-1 text-xs text-slate-600">
+                                                        <span className="text-slate-400 hidden sm:inline">我的评分:</span>
+                                                        <span className="font-bold text-amber-600 font-num">{activePost.myAgentPostRating} 分</span>
+                                                    </div>
+                                                ) : null}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsRatingPickerOpen(prev => !prev)}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-orange-600 bg-white border border-orange-200 rounded-lg shadow-2xs hover:bg-orange-50 active:scale-95 transition-all"
+                                                >
+                                                    <span>{isRatingPickerOpen ? '收起' : (activePost.myAgentPostRating ? '修改评分' : '为本篇打分')}</span>
+                                                    <span className="text-[9px] text-orange-400">{isRatingPickerOpen ? '▲' : '▼'}</span>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* 展开的 1~10 紧凑评分条（单行自适应紧凑等宽分布，评分后自动收起） */}
+                                    {canManage && isRatingPickerOpen && (
+                                        <div className="mt-2.5 pt-2.5 border-t border-slate-200/70 flex items-center justify-between gap-2 animate-in fade-in duration-200">
+                                            <div className="flex items-center justify-between sm:justify-start gap-1 sm:gap-1.5 w-full sm:w-auto flex-1 min-w-0">
+                                                <span className="text-[11px] text-slate-400 shrink-0 mr-1 hidden sm:inline">打分 (1-10):</span>
                                                 {Array.from({length: 10}, (_, index) => index + 1).map(value => (
                                                     <button
                                                         key={value}
                                                         type="button"
-                                                        onClick={() => handleRatePost(value)}
+                                                        onClick={async () => {
+                                                            await handleRatePost(value);
+                                                            setIsRatingPickerOpen(false);
+                                                        }}
                                                         disabled={ratingSubmitting}
-                                                        className={`h-8 min-w-8 rounded-lg border px-2 text-xs font-bold transition-all ${
+                                                        className={`flex-1 sm:flex-initial h-7 sm:w-7 rounded-lg border text-xs font-bold transition-all flex items-center justify-center ${
                                                             activePost.myAgentPostRating === value
-                                                                ? 'border-amber-400 bg-amber-400 text-white shadow-sm shadow-amber-400/30'
-                                                                : 'border-amber-200 bg-white text-amber-600 hover:border-amber-300 hover:bg-amber-100'
+                                                                ? 'border-amber-400 bg-amber-400 text-white shadow-2xs'
+                                                                : 'border-slate-200 bg-white text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 active:scale-95'
                                                         } disabled:cursor-not-allowed disabled:opacity-60`}
                                                     >
                                                         {value}
                                                     </button>
                                                 ))}
                                             </div>
-                                        )}
-                                    </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsRatingPickerOpen(false)}
+                                                className="text-[11px] text-slate-400 hover:text-slate-600 shrink-0 px-1 hidden sm:block"
+                                            >
+                                                收起
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="mb-4 flex items-center justify-between">
@@ -619,49 +659,49 @@ function AgentPostCollectionView({
                 />
             )}
             <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-                {/* 纯净去框排版 Header */}
-                <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
-                    <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
-                        {/* 左侧：专栏视觉身份与概览信息 */}
-                        <div className="flex items-start gap-4 sm:gap-5 min-w-0 max-w-3xl">
-                            {/* 图标展示盒：立体质感底座 + 专属 Agent 浮动角标 */}
+                {/* 精致紧凑排版 Header（移动端紧凑自适应，PC 端大屏舒展） */}
+                <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-6 shadow-xs sm:shadow-sm">
+                    <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 sm:gap-6">
+                        {/* 专栏视觉身份与概览信息 */}
+                        <div className="flex items-start gap-3 sm:gap-5 min-w-0 max-w-3xl">
+                            {/* 图标展示盒 */}
                             <div className="relative shrink-0 mt-0.5">
-                                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-indigo-50/60 via-white to-slate-50 border border-slate-200/90 shadow-xs flex items-center justify-center transition-all duration-200 hover:shadow-sm hover:border-indigo-200">
+                                <div className="w-11 h-11 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-50/60 via-white to-slate-50 border border-slate-200/90 shadow-2xs sm:shadow-xs flex items-center justify-center transition-all duration-200 hover:border-indigo-200">
                                     {anthologyInfo?.iconId ? (
-                                        getIconComponent(anthologyInfo.iconId, 'w-7 h-7 sm:w-8 sm:h-8')
+                                        getIconComponent(anthologyInfo.iconId, 'w-5.5 h-5.5 sm:w-8 sm:h-8')
                                     ) : (
-                                        <ListTree className="w-7 h-7 sm:w-8 sm:h-8 text-indigo-500" />
+                                        <ListTree className="w-5.5 h-5.5 sm:w-8 sm:h-8 text-indigo-500" />
                                     )}
                                 </div>
                                 <div
-                                    className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white shadow-xs ring-2 ring-white"
+                                    className="absolute -bottom-1 -right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-indigo-600 text-white shadow-2xs ring-2 ring-white"
                                     title="Agent 智能体专栏"
                                 >
-                                    <Bot className="w-3 h-3" />
+                                    <Bot className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                                 </div>
                             </div>
 
-                            {/* 专栏主体信息：标题、专栏标识、简介与共创智能体阵容 */}
-                            <div className="min-w-0 flex-1 space-y-2">
+                            {/* 专栏主体信息 */}
+                            <div className="min-w-0 flex-1 space-y-1 sm:space-y-2">
                                 {/* 标题与徽章行 */}
-                                <div className="flex flex-wrap items-center gap-2.5">
-                                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                                    <h1 className="text-base sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
                                         {anthologyInfo?.title || 'Agent 专栏'}
                                     </h1>
                                     <div className="flex items-center gap-1.5 shrink-0">
-                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 shadow-xs">
-                                            <Sparkles className="w-3 h-3 text-indigo-500" />
+                                        <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 shadow-2xs">
+                                            <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-indigo-500" />
                                             Agent 专栏
                                         </span>
                                         {anthologyInfo?.permission === 'private' && (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200 shadow-xs">
-                                                <Lock className="w-3 h-3" />
+                                            <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs">
+                                                <Lock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                                                 私密
                                             </span>
                                         )}
                                         {anthologyInfo?.isTop && (
-                                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold text-red-600 bg-red-50 border border-red-100 shadow-xs">
-                                                <ArrowUp className="w-3 h-3" strokeWidth={3} />
+                                            <span className="inline-flex items-center gap-0.5 px-1.5 sm:px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-bold text-red-600 bg-red-50 border border-red-100 shadow-2xs">
+                                                <ArrowUp className="w-2.5 h-2.5 sm:w-3 sm:h-3" strokeWidth={3} />
                                                 置顶
                                             </span>
                                         )}
@@ -669,7 +709,7 @@ function AgentPostCollectionView({
                                 </div>
 
                                 {/* 专栏简介 */}
-                                <p className="text-sm text-slate-600 leading-relaxed line-clamp-2 max-w-2xl">
+                                <p className="text-xs sm:text-sm text-slate-500 sm:text-slate-600 leading-relaxed line-clamp-1 sm:line-clamp-2 max-w-2xl">
                                     {anthologyInfo?.description?.trim() ? (
                                         anthologyInfo.description
                                     ) : (
@@ -677,8 +717,37 @@ function AgentPostCollectionView({
                                     )}
                                 </p>
 
-                                {/* 驻留共创智能体与最新发布动态 */}
-                                <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
+                                {/* 移动端紧凑信息条：智能体阵容 + 核心指标融为一体 */}
+                                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-500 pt-0.5 sm:hidden">
+                                    {residentAgents.length > 0 && (
+                                        <div className="inline-flex items-center gap-1.5">
+                                            <div className="flex items-center -space-x-1">
+                                                {residentAgents.slice(0, 4).map((agent, i) => (
+                                                    <AgentAvatar
+                                                        key={agent.name + i}
+                                                        name={agent.name}
+                                                        avatar={agent.avatar}
+                                                        className="h-4 w-4 rounded-full ring-1 ring-white shadow-2xs"
+                                                    />
+                                                ))}
+                                            </div>
+                                            <span className="text-[11px] font-medium text-slate-700">{residentAgents.length}位共创</span>
+                                        </div>
+                                    )}
+                                    <span className="text-slate-300">·</span>
+                                    <span className="text-[11px]"><b className="font-semibold text-slate-800">{posts.length}</b> 篇</span>
+                                    <span className="text-slate-300">·</span>
+                                    <span className="text-[11px]"><b className="font-semibold text-slate-800">{totalInteractionCount}</b> 互动</span>
+                                    {averageRating && (
+                                        <>
+                                            <span className="text-slate-300">·</span>
+                                            <span className="text-[11px] font-bold text-amber-500">★ {averageRating}</span>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* PC 端展开的共创智能体与发布动态 */}
+                                <div className="hidden sm:flex flex-wrap items-center gap-2.5 pt-0.5">
                                     {residentAgents.length > 0 && (
                                         <div
                                             className="inline-flex items-center gap-2 rounded-full bg-slate-50/90 px-2.5 py-1 border border-slate-200/80 shadow-xs hover:bg-slate-100/80 transition-colors"
@@ -723,10 +792,10 @@ function AgentPostCollectionView({
                             </div>
                         </div>
 
-                        {/* 右侧：极简数据指标与操作工具 */}
-                        <div className="flex flex-col sm:flex-row xl:flex-col items-stretch xl:items-end gap-3.5 shrink-0 border-t xl:border-t-0 pt-4 xl:pt-0 border-slate-100">
-                            {/* 极简指标项 */}
-                            <div className="flex items-center gap-4 text-xs text-slate-500 px-1">
+                        {/* 右侧：数据指标与操作工具 */}
+                        <div className="flex flex-col sm:flex-row xl:flex-col items-stretch xl:items-end gap-2.5 sm:gap-3.5 shrink-0 pt-2 sm:pt-4 xl:pt-0 border-t border-slate-100 sm:border-t xl:border-t-0">
+                            {/* PC 端指标项 */}
+                            <div className="hidden sm:flex items-center gap-4 text-xs text-slate-500 px-1">
                                 <div>
                                     <span className="text-base font-bold text-slate-900">{posts.length}</span> 篇帖子
                                 </div>
@@ -744,15 +813,15 @@ function AgentPostCollectionView({
                                 )}
                             </div>
 
-                            {/* 操作栏 */}
-                            <div className="flex items-center gap-2">
-                                <div className="relative w-44 sm:w-56">
+                            {/* 操作栏（移动端自适应填满，PC 保持规整） */}
+                            <div className="flex items-center gap-2 w-full xl:w-auto">
+                                <div className="relative flex-1 min-w-0 sm:w-56 xl:w-56">
                                     <input
                                         type="text"
                                         value={searchKeyword}
                                         onChange={(e) => setSearchKeyword(e.target.value)}
                                         placeholder="搜索本专栏帖子..."
-                                        className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-orange-500 shadow-xs"
+                                        className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-orange-500 shadow-2xs"
                                     />
                                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                                     {searchKeyword && (
@@ -770,7 +839,7 @@ function AgentPostCollectionView({
                                     type="button"
                                     onClick={handleRefresh}
                                     disabled={refreshing || loading}
-                                    className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-orange-600 hover:border-orange-200 hover:bg-orange-50/50 transition-colors shadow-xs disabled:opacity-50"
+                                    className="p-1.5 sm:p-2 shrink-0 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-orange-600 hover:border-orange-200 hover:bg-orange-50/50 transition-colors shadow-2xs disabled:opacity-50"
                                     title="刷新帖子"
                                 >
                                     <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-orange-500' : ''}`} />
@@ -779,10 +848,10 @@ function AgentPostCollectionView({
                                 <button
                                     type="button"
                                     onClick={onBackHome}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-xs"
+                                    className="inline-flex shrink-0 items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-2xs"
                                 >
                                     <ArrowLeft className="w-3.5 h-3.5 text-slate-400" />
-                                    返回首页
+                                    <span>返回</span>
                                 </button>
                             </div>
                         </div>
@@ -1233,7 +1302,7 @@ export default function ArticleOutline({onNavigate, collId, title, articleId}: A
     };
 
     return (
-        <div className="flex h-[calc(100vh-64px)] bg-[#F9FAFB] text-slate-800 font-sans overflow-hidden">
+        <div className="article-outline-shell flex h-[calc(100vh-64px)] bg-[#F9FAFB] text-slate-800 font-sans overflow-hidden">
             {isAuthenticated && (
                 <ConfirmationModal
                     isOpen={isDeleteModalOpen}

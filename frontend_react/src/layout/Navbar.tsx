@@ -14,9 +14,10 @@ interface NavbarProps {
     userInfo: UserInfo | null;
     onLogout: () => void;
     onOpenProfile: () => void;
+    isVisible?: boolean;
 }
 
-export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, onOpenProfile }: NavbarProps) {
+export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, onOpenProfile, isVisible = true }: NavbarProps) {
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [hasNewVersion, setHasNewVersion] = useState(false);
@@ -139,8 +140,12 @@ export default function Navbar({ onNavigate, onOpenSearch, userInfo, onLogout, o
         window.open('https://github.com/TangerineSpecter/O-Doc', '_blank');
     };
 
+    const shouldHide = !isVisible && !isNotificationOpen && !isUserMenuOpen;
+
     return (
-        <nav className="sticky top-0 z-[90] bg-white/80 backdrop-blur-md border-b border-slate-200">
+        <nav className={`sticky top-0 z-[90] bg-white/80 backdrop-blur-md border-b border-slate-200 transition-transform duration-300 ease-in-out ${
+            shouldHide ? '-translate-y-full sm:translate-y-0 pointer-events-none sm:pointer-events-auto' : 'translate-y-0'
+        }`}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
 

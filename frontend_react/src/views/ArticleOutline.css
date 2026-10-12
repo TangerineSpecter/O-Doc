@@ -1,0 +1,17 @@
+@media (max-width: 639px) {
+    .reading-article-layout:has(.article-outline-shell) {
+        margin-top: -64px;
+        padding-bottom: 0;
+    }
+
+    .reading-article-layout:has(.article-outline-shell) .article-outline-shell {
+        height: 100vh;
+        height: 100dvh;
+        padding-top: 64px;
+        transition: padding-top 300ms ease-in-out;
+    }
+
+    .reading-article-layout[data-nav-visible='false']:has(.article-outline-shell) .article-outline-shell {
+        padding-top: 0;
+    }
+}
