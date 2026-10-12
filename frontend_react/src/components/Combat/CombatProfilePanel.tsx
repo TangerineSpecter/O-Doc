@@ -187,10 +187,23 @@ export default function CombatProfilePanel({
                     {/* 可转职提醒横幅 */}
                     {profile.promotionOptions.length > 0 && (
                         <div className="mt-3 rounded-xl bg-amber-50/80 p-2.5 border border-amber-200/70 text-xs text-amber-800">
-                            <p className="font-semibold">已达转职条件！完成本次探索后即可选择职业分支：</p>
+                            <p className="font-semibold">已达到转职等级。Agent 完成职业选择前，不能继续探索。</p>
                             <p className="text-[11px] text-amber-700 mt-0.5">
-                                可选分支：{profile.promotionOptions.map(row => row.name).join('、')}
+                                Agent 可选分支：{profile.promotionOptions.map(row => row.name).join('、')}
                             </p>
+                            <p className="mt-0.5 text-[11px] text-amber-700">门槛后的经验会暂存，转职后继续结算。</p>
+                            {profile.activeExplorationId && (
+                                <p className="mt-0.5 text-[11px] text-amber-700">当前探索已暂停；选择完成后会自动继续剩余行程。</p>
+                            )}
+                            <button
+                                type="button"
+                                disabled={actions.busy || profile.promotionBusy}
+                                onClick={() => void actions.act({operation: 'retry_promotion'})}
+                                className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <Sparkles className="h-3.5 w-3.5" />
+                                {profile.promotionBusy ? 'Agent 正在选择职业…' : profile.activeExplorationId ? '让 Agent 重试转职' : '让 Agent 选择职业'}
+                            </button>
                         </div>
                     )}
 
@@ -284,7 +297,12 @@ export default function CombatProfilePanel({
                             {profile.activeExplorationId ? (
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-2 text-xs font-semibold text-orange-700">
                                     <Flame className="h-3.5 w-3.5" />
-                                    探索进行中
+                                    {profile.promotionOptions.length > 0 ? '等待转职' : '探索进行中'}
+                                </span>
+                            ) : profile.promotionOptions.length > 0 ? (
+                                <span className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800">
+                                    <Sparkles className="h-4 w-4" />
+                                    待转职
                                 </span>
                             ) : (
                                 <button

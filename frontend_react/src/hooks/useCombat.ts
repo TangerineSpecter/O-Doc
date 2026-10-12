@@ -82,6 +82,34 @@ export function useCombat(actorId: string) {
         return () => controller.abort();
     }, [actorId, page, version]);
 
+    const refreshCombatState = Boolean(data?.actor === actorId && (data.profile?.activeExplorationId || data.profile?.promotionBusy));
+    useEffect(() => {
+        if (!actorId || !refreshCombatState) return;
+        let active = true, pending = false;
+        const controller = new AbortController();
+        const refresh = async () => {
+            if (pending || document.hidden) return;
+            pending = true;
+            try {
+                const profile = await getCombatProfile(actorId, controller.signal);
+                if (!active || currentActorRef.current !== actorId) return;
+                setData(previous => {
+                    if (!previous || previous.actor !== actorId) return previous;
+                    profileCache.set(actorId, {profile, history: previous.history});
+                    return {...previous, profile};
+                });
+                setError('');
+            } catch (e) {
+                if (active && !controller.signal.aborted && currentActorRef.current === actorId)
+                    setError(e instanceof Error ? e.message : '冒险状态刷新失败');
+            } finally {pending = false;}
+        };
+        const timer = window.setInterval(() => {void refresh();}, 5000);
+        const visibility = () => {if (!document.hidden) void refresh();};
+        document.addEventListener('visibilitychange', visibility);
+        return () => {active = false;controller.abort();window.clearInterval(timer);document.removeEventListener('visibilitychange', visibility);};
+    }, [actorId, refreshCombatState]);
+
     return {
         data: data?.actor === actorId ? data : null,
         loading,

@@ -69,9 +69,8 @@ export default function CombatObservationSummary({
     const active = ['preparing', 'active', 'paused'].includes(snapshot.status);
     const statusTheme = getStatusTheme(snapshot.status);
 
-    const statusText = `${statusLabels[snapshot.status] || snapshot.status} · ${
-        statusLabels[snapshot.stage] || snapshot.stage
-    }`;
+    const stageLabel=snapshot.stage==='promotion'&&!snapshot.promotionBusy?'转职选择待重试':statusLabels[snapshot.stage]||snapshot.stage;
+    const statusText = `${statusLabels[snapshot.status] || snapshot.status} · ${stageLabel}`;
 
     return (
         <div
@@ -160,7 +159,7 @@ export default function CombatObservationSummary({
             {/* 快捷操作按钮 */}
             {snapshot.canControl && active && onCommand && (
                 <div className="ml-auto flex items-center gap-1.5 pl-2">
-                    {snapshot.status === 'paused' && (
+                    {snapshot.status === 'paused' && !['promotion','promotion_failed'].includes(snapshot.stage) && (
                         <button
                             type="button"
                             disabled={busy}

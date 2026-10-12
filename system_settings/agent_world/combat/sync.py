@@ -86,7 +86,8 @@ def validate_source(data,meta=None):
             elif kind=='round':
                 for event in payload['events']:
                     if event['kind']!='kill':continue
-                    progression,_=attributes.award(event_catalog,progression,event['experience'])
+                    progression,_=attributes.award(event_catalog,progression,event['experience'],
+                        stop_at_promotion=bool(payload.get('promotion_gate',False)))
                     for reward in event['rewards']:
                         if reward['kind']=='equipment':expected_gear[reward['equipment_id']]=reward['item']
                         else:stock['combat.'+reward['item']['id']]+=reward['quantity']
@@ -156,6 +157,14 @@ def revoke(*, disable_auto=True):
     for runtime in CombatRuntime.objects.filter(Q(requests__has_key='promotion_allowed')|Q(pk='combat-worker')|Q(pk__startswith='auto:')):
         runtime.requests={k:v for k,v in runtime.requests.items() if k=='origin'}
         runtime.save(update_fields=['requests'])
+    from .permissions import local_runtime
+    from . import attributes
+    from .store import current
+    for run in Exploration.objects.filter(status='paused'):
+        if not local_runtime(run):continue
+        profile=CombatProfile.objects.filter(pk=run.actor_id).first()
+        if run.phase in ('promotion','promotion_failed') or (profile and attributes.promotion_options(current(profile.catalog_id),profile.progression)):
+            CombatRuntime.objects.filter(pk=run.pk).update(promotion_pending=True)
     for run in Exploration.objects.filter(status__in=['preparing','active']):
         if run.status=='preparing':
             from .explorations import finish

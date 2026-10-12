@@ -19,10 +19,10 @@ def require_active_agent(agent):
 
 
 @contextmanager
-def agent_operation(agent):
+def agent_operation(agent, *, promotion_run_id: str = ''):
     from .agent_world.execution import execution_lease
     current = require_active_agent(agent)
-    with execution_lease(AgentExecutionLease, {'agent': current}) as token:
+    with execution_lease(AgentExecutionLease, {'agent': current}, promotion_run_id=promotion_run_id) as token:
         if not token:
             raise AgentUnavailableError('居民正在执行其他任务，请稍后重试')
         yield current

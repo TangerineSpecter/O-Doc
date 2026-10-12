@@ -36,7 +36,7 @@ def stamina(agent, now=None) -> Decimal:
 
 
 @contextmanager
-def execution_lease(model, lookup: dict, *, token_prefix=''):
+def execution_lease(model, lookup: dict, *, token_prefix='', promotion_run_id: str = ''):
     agent_id = None
     if model.__name__ in ('AgentExecutionLease', 'AgentMemoryLease'):
         agent_id = getattr(lookup.get('agent'), 'pk', None) or lookup.get('agent_id') or lookup.get('pk')
@@ -58,9 +58,18 @@ def execution_lease(model, lookup: dict, *, token_prefix=''):
             require_active_agent(agent_id)
         row, _ = model.objects.get_or_create(**lookup)
         from .combat.models import Exploration
-        occupied = model.__name__ == 'AgentExecutionLease' and Exploration.objects.filter(
-            actor_id=row.agent_id, status__in=['preparing', 'active', 'paused', 'settling'],
-        ).exists()
+        occupied = False
+        if model.__name__ == 'AgentExecutionLease':
+            explorations = Exploration.objects.filter(
+                actor_id=row.agent_id, status__in=['preparing', 'active', 'paused', 'settling'],
+            )
+            # Only the promotion task may enter its own paused run; other runs and
+            # the resident's existing task lease still participate in the mutex.
+            if promotion_run_id and explorations.filter(
+                pk=promotion_run_id, status='paused', phase__in=['promotion', 'promotion_failed', 'interrupted'],
+            ).exists():
+                explorations = explorations.exclude(pk=promotion_run_id)
+            occupied = explorations.exists()
         acquired = 0 if occupied else model.objects.filter(pk=row.pk).filter(
             Q(until__isnull=True) | Q(until__lte=timezone.now()),
         ).update(token=token, until=timezone.now() + timedelta(minutes=10))

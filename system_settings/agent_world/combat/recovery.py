@@ -1,6 +1,6 @@
 """Resume only local explorations; downtime never extends their departure deadline."""
 from datetime import timedelta
-from .models import CombatFact, Exploration
+from .models import CombatFact, CombatProfile, Exploration
 from .permissions import local_runtime
 from ..life_time import local_time
 
@@ -22,6 +22,15 @@ def recover(now=None) -> None:
             end=deadline(run)
             if end and now>=end:
                 finish(run.pk,'completed','已到预计返回时间；暂停期间不计探索成果',now)
+                continue
+            if run.phase in ('promotion','promotion_failed'):
+                # The promotion worker owns this pause. Calling resume here would turn
+                # the required level gate into an accidental recall on every restart.
+                continue
+            from . import attributes
+            from .store import current
+            profile=CombatProfile.objects.filter(pk=run.actor_id).first()
+            if profile and attributes.promotion_options(current(profile.catalog_id),profile.progression):
                 continue
             try:
                 resume(run.pk,now=now)

@@ -200,7 +200,7 @@ export const ChatMessageList = ({
         <div
             ref={chatBodyRef}
             onScroll={onScroll}
-            className="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-6 pb-6 sm:pb-10 space-y-4 sm:space-y-6 bg-slate-50/30"
+            className="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-6 pb-6 sm:pb-10 space-y-4 sm:space-y-6 bg-slate-50/30 scrollbar-hide"
         >
             {messages.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4 sm:space-y-6 -mt-6 sm:-mt-10 px-4">

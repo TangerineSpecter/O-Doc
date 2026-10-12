@@ -103,6 +103,8 @@ def request(owner, agent, key, constraints, *, life_item=None, now=None):
     profile = ensure(owner,agent,now)
     adopt_catalog(profile,catalog)
     recover(profile,now)
+    if attributes.promotion_options(catalog,profile.progression):
+        raise ValueError('达到转职等级，等待 Agent 完成转职后才能继续探索')
     profile.save()
     row = Exploration.objects.create(pk=key,owner_id=owner,actor_id=agent.pk,actor_name=agent.name,catalog_id=catalog.version,
         life_item_id=life_item.pk if life_item else '',duration_seconds=duration,snapshot={'constraints':constraints,'origin':uuid.uuid4().hex})
@@ -116,6 +118,48 @@ def busy_for_life(actor, item):
     from ..travel_candidates import travelling_ids
     from ..market_models import MarketSession
     return actor in travelling_ids() or Exploration.objects.filter(actor_id=actor,status__in=OPEN).exists() or MarketSession.objects.filter(actor_id=actor,status='active').exists() or AgentExecutionLease.objects.filter(agent_id=actor,until__gt=storage_time(local_time())).exists() or LifeItem.objects.filter(actor_id=actor,status='running').exclude(pk=item).exists()
+
+
+@guarded
+@transaction.atomic
+def request_promotion_retry(owner, agent, key):
+    from system_settings.agent_availability import require_active_agent
+    agent=require_active_agent(agent)
+    profile=CombatProfile.objects.select_for_update().filter(pk=agent.pk,owner_id=owner).first()
+    if not profile:raise ValueError('冒险档案不存在')
+    catalog=current(profile.catalog_id)
+    if not attributes.promotion_options(catalog,profile.progression):raise ValueError('当前没有待完成的转职')
+    run=Exploration.objects.filter(owner_id=owner,actor_id=agent.pk,status='paused').order_by('-created_at').first()
+    if not run:
+        run=Exploration.objects.filter(owner_id=owner,actor_id=agent.pk,ended_at__isnull=False).order_by('-ended_at').first()
+    if not run:raise ValueError('找不到可继续转职的探索记录')
+    runtime=CombatRuntime.objects.select_for_update().filter(pk=run.pk).first()
+    if run.status=='paused':
+        if not runtime or not local_runtime(run):raise ValueError('其他设备只可展示探索历史，不能接续转职')
+        if run.phase not in ('promotion','promotion_failed','interrupted'):
+            raise ValueError('当前探索尚未到达转职处理点')
+    else:
+        if runtime and runtime.requests.get('promotion_allowed'):
+            raise ValueError('Agent 正在处理转职选择')
+        runtime,_=CombatRuntime.objects.get_or_create(pk=run.pk,defaults={'owner_id':owner,'requests':{'origin':run.snapshot.get('origin','')}})
+        if not local_runtime(run):
+            runtime.authorized=False;runtime.requests={'origin':run.snapshot.get('origin','')};runtime.save(update_fields=['authorized','requests'])
+    if runtime.requests.get('promotion_retry_key')==key or runtime.promotion_pending or runtime.requests.get('promotion_allowed'):
+        return run
+    runtime.requests={**runtime.requests,'promotion_retry_key':key}
+    runtime.promotion_pending=True;runtime.save(update_fields=['promotion_pending','requests'])
+    return run
+
+
+def hold_for_promotion(run, profile):
+    run.status,run.phase,run.reason='paused','promotion','达到转职等级，等待 Agent 选择职业后继续探索'
+    run.next_tick_at=None;run.revision+=1;run.save()
+    runtime=CombatRuntime.objects.filter(pk=run.pk).first()
+    if runtime:
+        runtime.authorized=False;runtime.promotion_pending=True;runtime.token='';runtime.until=None
+        runtime.save(update_fields=['authorized','promotion_pending','token','until'])
+    AgentExecutionLease.objects.filter(agent_id=run.actor_id,token=lease_token(run.pk)).update(token='',until=None)
+    return append(profile,f'{run.pk}:promotion-pause:{run.revision}','promotion_pause',{'reason':run.reason},run)
 
 
 def consume(run, profile, amount, block, now):
@@ -146,6 +190,7 @@ def depart(run_id, plan, now=None):
         check_item_authorization(item)
     profile.catalog_id=run.catalog_id
     catalog=current(run.catalog_id)
+    if attributes.promotion_options(catalog,profile.progression):raise ValueError('达到转职等级，等待 Agent 完成转职后才能继续探索')
     dungeon=catalog.row('dungeons',plan['dungeon_id'])
     catalog.row('styles',plan['style_id'])
     duration=plan['duration_seconds']
@@ -280,6 +325,9 @@ def tick(run_id, expected_revision=None, now=None):
         append(profile,f'{run.pk}:pause:{run.revision}','pause',{'reason':run.reason},run)
         return run
     catalog=current(run.catalog_id)
+    if attributes.promotion_options(catalog,profile.progression):
+        hold_for_promotion(run,profile)
+        return run
     day=now.date().isoformat()
     config=CombatConfig.objects.get(pk=run.owner_id)
     credits=day_parts(local_time(run.next_tick_at)-timedelta(seconds=15),15)
@@ -314,7 +362,7 @@ def tick(run_id, expected_revision=None, now=None):
     if enemy and enemy['hp']<=0:
         experience=attributes.kill_experience(catalog,enemy['level'],profile.progression['level'],enemy['rank'])
         old=stats(profile,catalog)
-        profile.progression,growth=attributes.award(catalog,profile.progression,experience)
+        profile.progression,growth=attributes.award(catalog,profile.progression,experience,stop_at_promotion=True)
         derived=stats(profile,catalog)
         player=run.state['player']
         player['hp']=max(1,math.floor(player['hp']/old['hp_max']*derived['hp_max']))
@@ -343,10 +391,21 @@ def tick(run_id, expected_revision=None, now=None):
         spawn(run,catalog,now)
         events.append({'kind':'encounter','monster_id':run.state['monster_id'],'name':run.state['enemy']['name']})
     profile.hp,profile.mp=run.state['player']['hp'],run.state['player']['mp'];profile.save()
+    promotion_gate=bool(attributes.promotion_options(catalog,profile.progression))
+    if promotion_gate:
+        run.status,run.phase,run.reason='paused','promotion','达到转职等级，等待 Agent 选择职业后继续探索'
+        run.next_tick_at=None;run.revision+=1;run.save()
+        runtime=CombatRuntime.objects.filter(pk=run.pk).first()
+        if runtime:
+            runtime.authorized=False;runtime.promotion_pending=True;runtime.token='';runtime.until=None
+            runtime.save(update_fields=['authorized','promotion_pending','token','until'])
+        AgentExecutionLease.objects.filter(agent_id=run.actor_id,token=lease_token(run.pk)).update(token='',until=None)
+        append(profile,f'{run.pk}:round:{tick_number}','round',{'events':events,'growth':growth,'consumption':charges,'potions':{k:before[k]-run.state['potions'].get(k,0) for k in before},'promotion_gate':True},run)
+        return run
     next_tick=local_time(run.next_tick_at)+timedelta(seconds=15)
     run.next_tick_at=min(next_tick,end) if end else next_tick
     run.revision+=1;run.save()
-    append(profile,f'{run.pk}:round:{tick_number}','round',{'events':events,'growth':growth,'consumption':charges,'potions':{k:before[k]-run.state['potions'].get(k,0) for k in before}},run)
+    append(profile,f'{run.pk}:round:{tick_number}','round',{'events':events,'growth':growth,'consumption':charges,'potions':{k:before[k]-run.state['potions'].get(k,0) for k in before},'promotion_gate':False},run)
     return run
 
 
@@ -360,6 +419,7 @@ def resume(run_id, now=None):
     runtime=local_runtime(run)
     if not runtime:raise ValueError('其他设备只可展示探索历史，不能接续')
     profile=CombatProfile.objects.get(pk=run.actor_id)
+    if attributes.promotion_options(current(profile.catalog_id),profile.progression):raise ValueError('转职选择尚未完成，不能继续探索')
     from .recovery import deadline
     end=deadline(run)
     if end and now>=end:

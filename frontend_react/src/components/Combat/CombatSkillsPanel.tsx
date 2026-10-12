@@ -82,12 +82,12 @@ export default function CombatSkillsPanel({profile}: {profile: CombatProfile}) {
                     </div>
                     <h4 className="text-sm font-bold text-slate-800">暂无已领悟技能</h4>
                     <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto">
-                        居民当前处于新手阶段。当角色等级达到 <strong>Lv.10</strong> 并在探索返回后完成一转，即可自动领悟专属职业技能！
+                        达到转职等级后，当前探索会暂停，由 Agent 选择职业；完成转职才能继续探索，并自动领悟对应技能。
                     </p>
                     {profile.promotionOptions.length > 0 && (
                         <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs text-amber-800 border border-amber-200">
                             <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                            <span>可选转职分支：{profile.promotionOptions.map(row => row.name).join('、')}</span>
+                            <span>Agent 可选分支：{profile.promotionOptions.map(row => row.name).join('、')}</span>
                         </div>
                     )}
                 </div>

@@ -184,6 +184,14 @@ export const AIChatWindow = ({
     // 自动滚动控制
     const chatBodyRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
+
+    // 确保弹窗外层卡片自身 scrollTop 始终为 0，防止任何非预期的外层滚动偏移
+    useEffect(() => {
+        if (isOpen && cardRef.current) {
+            cardRef.current.scrollTop = 0;
+        }
+    }, [isOpen, activeConversationKey]);
 
     useEffect(() => {
         const container = chatBodyRef.current;
@@ -194,7 +202,7 @@ export const AIChatWindow = ({
             return;
         }
 
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
     }, [messages, isMinimized, isOpen, isLoading, shouldAutoScroll]);
 
     const handleChatBodyScroll = () => {
@@ -256,11 +264,17 @@ export const AIChatWindow = ({
 
             {/* 主容器 */}
             <div
+                ref={cardRef}
                 className="relative h-full w-full sm:h-[80vh] sm:max-h-[820px] sm:w-[min(1120px,95vw)] bg-white sm:rounded-2xl shadow-2xl sm:border sm:border-slate-200 flex flex-col md:flex-row animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 sm:ring-1 sm:ring-slate-900/5 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
+                onScroll={(e) => {
+                    if (e.currentTarget.scrollTop !== 0) {
+                        e.currentTarget.scrollTop = 0;
+                    }
+                }}
             >
                 {showContactSidebar && (
-                    <div className="hidden md:block shrink-0">
+                    <div className="hidden md:block shrink-0 h-full">
                         <AgentSidebar
                             conversationItems={conversationItems}
                             activeConversationKey={activeConversationKey}
@@ -272,9 +286,9 @@ export const AIChatWindow = ({
                     </div>
                 )}
 
-                <div className="flex min-w-0 flex-1 flex-col h-full">
+                <div className="flex min-w-0 min-h-0 flex-1 flex-col h-full overflow-hidden">
                     {/* Header */}
-                    <div className="flex items-center justify-between px-3.5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 sm:px-6 sm:py-4 sm:pt-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur-sm shrink-0">
+                    <div className="flex items-center justify-between px-3.5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 sm:px-6 sm:py-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur-sm shrink-0">
                         <div className="min-w-0 flex items-center gap-2 sm:gap-3 text-slate-800">
                             {/* 移动端返回按钮 */}
                             <button

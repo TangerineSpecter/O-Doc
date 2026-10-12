@@ -16,6 +16,18 @@ def passives(catalog: Catalog, learned: dict) -> list[dict]:
             for effect in catalog.skill(sid, rank)[1]]
 
 
+def promotion_options(catalog: Catalog, progress: dict) -> list[dict]:
+    return [row for row in catalog.tables['professions']
+            if row['parent_id'] == progress['job'] and row['enabled'] == '1'
+            and int(row['required_level']) <= progress['level']]
+
+
+def promotion_level(catalog: Catalog, progress: dict) -> int | None:
+    levels = [int(row['required_level']) for row in catalog.tables['professions']
+              if row['parent_id'] == progress['job'] and row['enabled'] == '1']
+    return min(levels) if levels else None
+
+
 def attributes(catalog: Catalog, progress: dict, equipment: list[dict]) -> dict:
     additions = {}
     for item in equipment:
@@ -56,13 +68,16 @@ def attributes(catalog: Catalog, progress: dict, equipment: list[dict]) -> dict:
     return values
 
 
-def award(catalog: Catalog, progress: dict, experience: int) -> tuple[dict, list[dict]]:
+def award(catalog: Catalog, progress: dict, experience: int, *, stop_at_promotion: bool = False) -> tuple[dict, list[dict]]:
     updated = deepcopy(progress)
     records = []
     if updated['level'] >= 99:
         return updated, records
     updated['experience'] += experience
+    gate = promotion_level(catalog, updated) if stop_at_promotion else None
     while updated['level'] < 99:
+        if gate is not None and updated['level'] >= gate:
+            break
         cost = int(catalog.row('level_experience', f'level.{updated["level"]}')['experience_to_next'])
         if updated['experience'] < cost:
             break

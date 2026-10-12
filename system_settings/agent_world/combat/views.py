@@ -113,11 +113,14 @@ class CombatView(APIView):
                 if operation=='prepare':
                     run=explorations.request(owner,agent,key,request.data.get('constraints',{}))
                     return respond(queries.snapshot(run))
+                if operation=='retry_promotion':
+                    explorations.request_promotion_retry(owner,agent,key)
+                    return respond(queries.profile_view(owner,agent))
                 if operation=='preview_equip':
                     profile=get_object_or_404(CombatProfile,pk=agent.pk,owner_id=owner)
                     return respond({'attributes':profiles.preview_equipment(profile,request.data.get('equipment',{}))})
                 if operation=='equip':profiles.equip(owner,agent,key,request.data.get('equipment',{}))
-                elif operation=='promote':profiles.promote(owner,agent,key,request.data.get('job_id'))
+                elif operation=='promote':raise ValueError('转职分支由 Agent 根据探索经历自动选择')
                 elif operation=='initialize':
                     profile=profiles.ensure(owner,agent)
                     append(profile,key,'initialize_request',{'arguments':{}})

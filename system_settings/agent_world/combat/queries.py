@@ -17,7 +17,7 @@ def resident_presence(owner: str | None = None) -> dict[str, dict]:
     if owner is not None:
         runs=runs.filter(owner_id=owner)
     return {run.actor_id:{'status':'idle' if run.status=='paused' else 'running',
-        'current_action':labels[run.status]} for run in runs}
+        'current_action':'等待 Agent 完成转职' if run.status=='paused' and run.phase in ('promotion','promotion_failed') else labels[run.status]} for run in runs}
 
 
 def with_timezone(value):
@@ -50,11 +50,15 @@ def profile_view(owner,agent):
     equipment=list(EquipmentInstance.objects.filter(actor_id=agent.pk,owner_id=owner,sold=False).order_by('-created_at').values())
     skills=[{'id':sid,'rank':rank,**catalog.row('skills',sid),'parameters':{**catalog.skill(sid,rank)[0],'current_cost':str(engine.cost(catalog,{'level':progression['level'],'passives':attributes.passives(catalog,progression['skills'])},sid,rank))},'effects':catalog.skill(sid,rank)[1]} for sid,rank in progression['skills'].items()]
     run=Exploration.objects.filter(actor_id=agent.pk,owner_id=owner,status__in=['preparing','active','paused','settling']).first()
+    options=attributes.promotion_options(catalog,progression)
+    promotion_run=run or (Exploration.objects.filter(actor_id=agent.pk,owner_id=owner,ended_at__isnull=False).order_by('-ended_at').first() if options else None)
+    promotion_runtime=CombatRuntime.objects.filter(pk=promotion_run.pk).first() if promotion_run else None
+    promotion_busy=bool(promotion_runtime and (promotion_runtime.promotion_pending or promotion_runtime.requests.get('promotion_allowed')))
     return {'initialized':bool(profile),'actor_id':agent.pk,'progression':progression,'attributes':derived,'hp':profile.hp if profile else derived['hp_max'],
         'mp':profile.mp if profile else derived['mp_max'],'loadout':profile.loadout if profile else {},'equipment':equipment,'skills':skills,
         'potions':[{**row,'owned':stock_quantity(agent.pk,owner,'combat.'+row['id'])} for row in catalog.tables['potions']],
         'materials':[{**row,'owned':stock_quantity(agent.pk,owner,'combat.'+row['id'])} for row in catalog.tables['materials']],
-        'active_exploration_id':run.pk if run else None,'promotion_options':[row for row in catalog.tables['professions'] if row['parent_id']==progression['job'] and int(row['required_level'])<=progression['level']],
+        'active_exploration_id':run.pk if run else None,'promotion_options':options,'promotion_busy':promotion_busy,
         'rest_until':local_time(profile.rest_until).isoformat() if profile and profile.rest_until else None,
         'loot_progress':profile.loot_progress if profile else {},'discoveries':{'encountered':sorted(set(CombatEncounter.objects.filter(owner_id=owner,actor_id=agent.pk).values_list('monster__id',flat=True))),'defeated':sorted(set(CombatEncounter.objects.filter(owner_id=owner,actor_id=agent.pk,result__killed=True).values_list('monster__id',flat=True))),'equipment':sorted(set(EquipmentInstance.objects.filter(owner_id=owner,actor_id=agent.pk).values_list('template_id',flat=True)))}}
 
@@ -71,6 +75,8 @@ def snapshot(run,cursor=0,limit=100):
     # Read-only artwork IDs come from the frozen departure/encounter state.
     # No visual clock or demo damage enters persisted combat data or WebDAV.
     equipment=run.snapshot.get('equipment',[])
+    runtime=CombatRuntime.objects.filter(pk=run.pk).first()
+    promotion_busy=bool(runtime and (runtime.promotion_pending or runtime.requests.get('promotion_allowed')))
     visual={'dungeon_id':run.snapshot.get('plan',{}).get('dungeon_id',''),
         'job_id':run.snapshot.get('progression',{}).get('job','job.novice'),
         'weapon_id':next((item.get('template_id','') for item in equipment if item.get('slot')=='weapon'),'none'),
@@ -79,6 +85,7 @@ def snapshot(run,cursor=0,limit=100):
     return {'id':run.pk,'actor_id':run.actor_id,'version':run.revision,'can_control':bool(local_runtime(run)),'catalog_version':run.catalog_id,'stage':run.phase,'status':run.status,'reason':run.reason,
         'remaining_seconds':remaining if end else None,
         'elapsed_seconds':run.elapsed_seconds,'duration_seconds':run.duration_seconds,'next_tick_at':local_time(run.next_tick_at).isoformat() if run.next_tick_at else None,
+        'promotion_busy':promotion_busy,
         'player':run.state.get('player'),'enemy':run.state.get('enemy'),'visual':visual,'potions':run.state.get('potions',{}),'result':run.result,
         'events':events,'latest_cursor':confirmed,'next_cursor':events[-1]['sequence'] if events else min(cursor,confirmed),'has_more':bool(events and events[-1]['sequence']<confirmed)}
 

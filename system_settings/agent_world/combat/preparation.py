@@ -1,9 +1,11 @@
-"""Only preparation and post-return promotion call the resident's model."""
+"""Preparation and level-gated promotion call the resident's model."""
 from contextlib import nullcontext
 import hashlib
 from django.db import transaction
 from .models import Exploration, CombatProfile, CombatRuntime
-from .profiles import equip, promote, stats
+from .facts import append
+from .profiles import equip, promote, stats, wearing
+from . import attributes
 from .store import current
 from .explorations import depart, finish, TERMINAL
 from ..farm_gate import farm_gate
@@ -102,27 +104,68 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
 def promotion(run_id: str, *, planner=None, require_permit: bool=False) -> None:
     from system_settings.agent_availability import agent_operation
     run = Exploration.objects.get(pk=run_id)
-    with agent_operation(run.actor_id):
-        return _promotion(run_id, planner=planner, require_permit=require_permit)
+    with agent_operation(run.actor_id, promotion_run_id=run.pk):
+        resume_after = _promotion(run_id, planner=planner, require_permit=require_permit)
+    if resume_after:
+        from .explorations import resume
+        try:
+            resume(run_id)
+        except Exception:
+            with farm_gate(),transaction.atomic():
+                locked=Exploration.objects.select_for_update().filter(pk=run_id).first()
+                profile=CombatProfile.objects.filter(pk=run.actor_id).first()
+                if locked and profile and locked.status=='paused' and locked.phase=='promotion' and not attributes.promotion_options(current(profile.catalog_id),profile.progression):
+                    locked.phase='interrupted';locked.reason='转职已完成，但当前探索无法自动恢复；可手动继续或召回'
+                    locked.revision+=1;locked.save(update_fields=['phase','reason','revision'])
+                    append(profile,f'{locked.pk}:promotion-resume-failed:{locked.revision}',
+                        'promotion_resume_failed',{'reason':locked.reason},locked)
+            raise
 
 
-def _promotion(run_id: str, *, planner=None, require_permit: bool=False) -> None:
+def _promotion(run_id: str, *, planner=None, require_permit: bool=False) -> bool:
     from system_settings.models import Agent
     run=Exploration.objects.get(pk=run_id)
-    if run.status not in TERMINAL:return
+    paused_for_promotion=run.status=='paused' and run.phase in ('promotion','promotion_failed','interrupted')
+    if run.status not in TERMINAL and not paused_for_promotion:return False
     agent=Agent.objects.filter(pk=run.actor_id).first()
-    if not agent:return
+    if not agent:raise ValueError('待转职居民不可用')
     for _ in range(3):
-        if require_permit and not CombatRuntime.objects.filter(pk=run_id,requests__promotion_allowed=True).exists():return
+        if require_permit and not CombatRuntime.objects.filter(pk=run_id,requests__promotion_allowed=True).exists():return False
         profile=CombatProfile.objects.get(pk=run.actor_id)
         catalog=current(profile.catalog_id)
-        options=[row for row in catalog.tables['professions'] if row['parent_id']==profile.progression['job'] and int(row['required_level'])<=profile.progression['level'] and row['enabled']=='1']
-        if not options:return
+        options=attributes.promotion_options(catalog,profile.progression)
+        if not options:break
         original_job=profile.progression['job']
         with usage_scope(agent=agent,purpose='combat_promotion'):
-            plan=(planner or ask)(agent,'返回后请选择战斗职业分支，返回 {job_id,reason}；只能选择options中的直接分支。',{'progression':profile.progression,'options':options,'report':run.result.get('report')})
+            plan=(planner or ask)(agent,'你已达到战斗职业转职等级。请从 options 中选择一个直接分支并给出简短理由，返回 {job_id,reason}。完成转职前不得继续探索。',
+                {'progression':profile.progression,'options':options,'report':run.result.get('report'),
+                 'exploration':{'elapsed_seconds':run.elapsed_seconds,'result':run.result,
+                    'dungeon_id':run.snapshot.get('plan',{}).get('dungeon_id','')}})
         if not isinstance(plan,dict) or plan.get('job_id') not in {row['id'] for row in options}:raise ValueError('转职选择不符合可选直接分支')
+        reason=plan.get('reason','')
+        if not isinstance(reason,str):raise ValueError('转职理由格式无效')
         with farm_gate(),transaction.atomic():
-            if require_permit and not CombatRuntime.objects.filter(pk=run_id,requests__promotion_allowed=True).exists():return
-            if CombatProfile.objects.get(pk=run.actor_id).progression['job']!=original_job:return
-            promote(run.owner_id,agent,run.pk+':promote:'+original_job,plan['job_id'])
+            locked=Exploration.objects.select_for_update().get(pk=run_id)
+            if require_permit and not CombatRuntime.objects.filter(pk=run_id,requests__promotion_allowed=True).exists():return False
+            profile=CombatProfile.objects.select_for_update().get(pk=run.actor_id)
+            if profile.progression['job']!=original_job:return False
+            in_paused_run=locked.status=='paused' and locked.phase in ('promotion','promotion_failed','interrupted')
+            profile=promote(run.owner_id,agent,run.pk+':promote:'+original_job,plan['job_id'],
+                exploration_id=run.pk if in_paused_run else '',reason=reason)
+            if in_paused_run:
+                derived=stats(profile,catalog)
+                player={**locked.state['player'],'stats':derived,'level':profile.progression['level'],
+                    'skills':profile.progression['skills'],'passives':attributes.passives(catalog,profile.progression['skills']),
+                    'hp':profile.hp,'mp':profile.mp}
+                locked.snapshot={**locked.snapshot,'progression':profile.progression,'equipment':wearing(profile)}
+                locked.state={**locked.state,'player':player}
+                locked.revision+=1;locked.save(update_fields=['snapshot','state','revision'])
+                state_key='promotion-state:'+hashlib.sha256(f'{run.pk}:{original_job}'.encode()).hexdigest()
+                append(profile,state_key,'promotion_state',
+                    {'job_id':plan['job_id'],'progression':profile.progression,'loadout':profile.loadout},locked)
+                run=locked
+    profile=CombatProfile.objects.get(pk=run.actor_id)
+    catalog=current(profile.catalog_id)
+    if attributes.promotion_options(catalog,profile.progression):raise ValueError('转职阶段未能全部完成')
+    run.refresh_from_db()
+    return run.status=='paused' and run.phase in ('promotion','promotion_failed','interrupted')

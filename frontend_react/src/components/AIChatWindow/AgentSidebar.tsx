@@ -36,8 +36,8 @@ export const AgentSidebar = ({
     setContactSidebarOpen,
 }: AgentSidebarProps) => {
     return (
-        <aside className="hidden w-72 shrink-0 border-r border-slate-100 bg-slate-50/80 md:flex md:flex-col">
-            <div className="border-b border-slate-100 px-4 py-4">
+        <aside className="hidden w-72 shrink-0 border-r border-slate-100 bg-slate-50/80 md:flex md:flex-col h-full">
+            <div className="border-b border-slate-100 px-4 py-4 shrink-0">
                 <div className="flex items-center justify-between">
                     <div>
                         <h2 className="text-base font-bold text-slate-900">AI 中心</h2>
@@ -62,7 +62,7 @@ export const AgentSidebar = ({
                     />
                 </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            <div className="min-h-0 flex-1 overflow-y-auto p-2 scrollbar-hide">
                 {conversationItems.map(item => {
                     const active = activeConversationKey === item.id;
                     return (

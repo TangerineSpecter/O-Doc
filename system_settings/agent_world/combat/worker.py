@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 import threading
+from django.db.models import Q
 from django.db import close_old_connections
 from .models import Exploration, CombatRuntime
 from .explorations import tick, finish
@@ -50,7 +51,8 @@ def promote_one(identity):
         close_old_connections()
         from .preparation import promotion
         promotion(identity,require_permit=True)
-    except Exception:logger.exception('探索转职判断失败，档案保留可转职分支 run=%s',identity)
+    except Exception:
+        logger.exception('探索转职判断失败，档案保留可转职分支 run=%s',identity)
     finally:
         with farm_gate():
             runtime=CombatRuntime.objects.filter(pk=identity).first()
@@ -73,15 +75,20 @@ def advance():
             if existing and existing.is_alive():continue
             worker=threading.Thread(target=prepare_one,args=(identity,),name='combat-prepare',daemon=True)
             _preparations[identity]=worker;worker.start()
-        from .models import CombatFact, CombatProfile
+        from .models import CombatProfile
         from .facts import append
         from django.db import transaction
-        for run in Exploration.objects.filter(ended_at__isnull=False,id__in=CombatRuntime.objects.filter(promotion_pending=True).values('id')).exclude(id__in=CombatFact.objects.filter(kind='promotion_attempt').values('exploration_id')):
+        promotable=Exploration.objects.filter(
+            (Q(ended_at__isnull=False)|Q(status='paused')),
+            id__in=CombatRuntime.objects.filter(promotion_pending=True).values('id'))
+        for run in promotable:
             with farm_gate(),transaction.atomic():
+                runtime=CombatRuntime.objects.select_for_update().filter(pk=run.pk).first()
+                if not runtime or not runtime.promotion_pending or runtime.requests.get('promotion_allowed'):
+                    continue
                 append(CombatProfile.objects.get(pk=run.actor_id),run.pk+':promotion_attempt','promotion_attempt',{},run)
-                CombatRuntime.objects.filter(pk=run.pk).update(promotion_pending=False)
-                runtime=CombatRuntime.objects.get(pk=run.pk)
-                runtime.requests={**runtime.requests,'promotion_allowed':True};runtime.save(update_fields=['requests'])
+                runtime.promotion_pending=False
+                runtime.requests={**runtime.requests,'promotion_allowed':True};runtime.save(update_fields=['promotion_pending','requests'])
             threading.Thread(target=promote_one,args=(run.pk,),name='combat-promotion',daemon=True).start()
         for key,worker in list(_preparations.items()):
             if not worker.is_alive():_preparations.pop(key,None)

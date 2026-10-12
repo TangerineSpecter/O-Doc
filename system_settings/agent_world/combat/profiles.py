@@ -81,8 +81,8 @@ def adopt_catalog(profile,catalog):
     append(profile,'catalog:'+profile.pk+':'+catalog.version,'catalog',{'catalog_id':catalog.version,'skills':profile.progression['skills']})
 
 
-def idle(profile):
-    if Exploration.objects.filter(actor_id=profile.pk, status__in=OPEN).exists():
+def idle(profile, *, excluding=''):
+    if Exploration.objects.filter(actor_id=profile.pk, status__in=OPEN).exclude(pk=excluding).exists():
         raise ValueError('探索进行中，装备和职业已固定')
 
 
@@ -116,11 +116,11 @@ def equip(owner, agent, key, changes, *, preparing=None):
 
 @guarded
 @transaction.atomic
-def promote(owner, agent, key, job):
+def promote(owner, agent, key, job, *, exploration_id='', reason=''):
     if replay(agent.pk,key,'promote',job):
         return CombatProfile.objects.get(pk=agent.pk)
     profile = ensure(owner,agent)
-    idle(profile)
+    idle(profile,excluding=exploration_id)
     catalog = current(profile.catalog_id)
     profile.progression = attributes.promote(catalog,profile.progression,job)
     for slot, identity in list(profile.loadout.items()):
@@ -135,7 +135,7 @@ def promote(owner, agent, key, job):
     derived = stats(profile,catalog)
     profile.hp, profile.mp = min(profile.hp,derived['hp_max']),min(profile.mp,derived['mp_max'])
     profile.save()
-    append(profile,key,'promote',{'arguments':job,'progression':profile.progression,'loadout':profile.loadout,'catalog_id':catalog.version})
+    append(profile,key,'promote',{'arguments':job,'reason':reason[:400],'progression':profile.progression,'loadout':profile.loadout,'catalog_id':catalog.version})
     return profile
 
 
