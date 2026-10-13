@@ -14,11 +14,14 @@ class PreviewScene {
     private actionStartedAt=0;
     private pose:Pose='idle';
     private disposed=false;
+    private appInitialized=false;
+    private appDestroyed=false;
     constructor(private host:HTMLElement, private jobId:string, private headUrl:string) {}
 
     async init() {
         await this.app.init({background:0xeef2f0,antialias:false,autoDensity:true,resolution:Math.min(devicePixelRatio||1,2),preference:'webgl',autoStart:false});
-        if(this.disposed){this.app.destroy(true,{children:true});return;}
+        this.appInitialized=true;
+        if(this.disposed){this.destroyApplication();return;}
         const urls=[...new Set([identitySheet,...outfitArts.map(item=>item.body.url),...independentWeapons.map(item=>item.art.url)])];
         const sheets=await Promise.all(urls.map(async url=>{
             const texture=await Assets.load<Texture>(url);texture.source.scaleMode='nearest';return [url,texture] as const;
@@ -31,6 +34,7 @@ class PreviewScene {
         this.app.canvas.style.cssText='display:block;width:100%;height:100%;image-rendering:pixelated';
         this.host.appendChild(this.app.canvas);
         await this.actor.setHeadImage(this.headUrl);
+        if(this.disposed)return;
         this.app.ticker.add(()=>{
             const t=(performance.now()-this.startedAt)/1000;
             const age=this.pose==='idle'?Infinity:(performance.now()-this.actionStartedAt)/1000;
@@ -62,9 +66,18 @@ class PreviewScene {
         this.app.render();
     }
     dispose() {
+        if(this.disposed)return;
         this.disposed=true;
-        this.app.destroy(true,{children:true});
+        this.destroyApplication();
         this.host.replaceChildren();
+    }
+
+    private destroyApplication() {
+        // Application.init() awaits renderer creation before Pixi initializes its plugins.
+        // React StrictMode can clean up this scene while that await is still pending.
+        if(!this.appInitialized||this.appDestroyed)return;
+        this.appDestroyed=true;
+        this.app.destroy(true,{children:true});
     }
 }
 
