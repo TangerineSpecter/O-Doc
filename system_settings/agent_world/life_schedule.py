@@ -149,6 +149,8 @@ def _retry_context(item: LifeItem, *, clear_plan: bool) -> dict:
 
 def requeue(item: LifeItem, reason: str) -> None:
     """把安排重新变成待规划，供下一次规划消费。"""
+    if is_settled_exploration(item):
+        raise ValueError('迷宫探索已正常结算，不能作为失败安排重新规划')
     if item.status == 'running':
         raise ValueError('活动正在执行')
     if item.activity == 'market_prepare':
@@ -192,6 +194,8 @@ def retry_failed(item: LifeItem, reason: str) -> None:
     """保留已规划活动，换新的执行键再跑一次；规划失败则重新排队。"""
     if item.status != 'failed':
         raise ValueError('只能重试失败的安排')
+    if is_settled_exploration(item):
+        raise ValueError('迷宫探索已正常结算，不能作为执行失败重试')
     if item.activity == 'market_prepare':
         blocked = retry_block_reason(item)
         if blocked:
@@ -205,6 +209,17 @@ def retry_failed(item: LifeItem, reason: str) -> None:
         return
     revise(item, reason, status='pending', attempts=0, record_id='', result={},
            context=_retry_context(item, clear_plan=False))
+
+
+def is_settled_exploration(item: LifeItem) -> bool:
+    if item.activity != 'exploration' or item.status != 'failed':
+        return False
+    from .combat.models import Exploration
+    from .combat.explorations import execution_completed
+    run = Exploration.objects.filter(
+        life_item_id=item.pk, record_id=item.record_id, ended_at__isnull=False,
+    ).only('status').first()
+    return bool(run and execution_completed(run.status))
 
 
 @guarded

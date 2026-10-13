@@ -822,12 +822,45 @@ class AgentRunUsageListSerializer(serializers.ListSerializer):
         from .token_usage.queries import record_summaries
         records = list(data.all() if hasattr(data, 'all') else data)
         self.context['token_usage_summaries'] = record_summaries([row.pk for row in records], self.context.get('request'))
+        failed_exploration_ids = [row.pk for row in records if row.status == 'failed' and row.task_name == '迷宫探索']
+        if failed_exploration_ids:
+            from utils.drf_utils import get_current_user_identifier
+            from .agent_world.combat.explorations import EXECUTION_COMPLETED
+            from .agent_world.combat.models import Exploration
+            owner = get_current_user_identifier(self.context['request']) if self.context.get('request') else ''
+            runs = Exploration.objects.filter(
+                record_id__in=failed_exploration_ids, ended_at__isnull=False,
+                status__in=EXECUTION_COMPLETED,
+            )
+            if owner:
+                runs = runs.filter(owner_id=owner)
+            self.context['settled_exploration_record_ids'] = set(runs.values_list('record_id', flat=True))
+        else:
+            self.context['settled_exploration_record_ids'] = set()
         return super().to_representation(records)
 
 
 class AgentRunRecordSerializer(serializers.ModelSerializer):
     token_usage = serializers.SerializerMethodField()
     chain_token_usage = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+
+    def get_status(self, record):
+        if record.status != 'failed' or record.task_name != '迷宫探索':
+            return record.status
+        settled_ids = self.context.get('settled_exploration_record_ids')
+        if settled_ids is not None:
+            return 'success' if record.pk in settled_ids else record.status
+        from utils.drf_utils import get_current_user_identifier
+        from .agent_world.combat.explorations import EXECUTION_COMPLETED
+        from .agent_world.combat.models import Exploration
+        runs = Exploration.objects.filter(
+            record_id=record.pk, ended_at__isnull=False, status__in=EXECUTION_COMPLETED,
+        )
+        request = self.context.get('request')
+        if request:
+            runs = runs.filter(owner_id=get_current_user_identifier(request))
+        return 'success' if runs.exists() else record.status
 
     def get_token_usage(self, record):
         from .token_usage.queries import record_summaries

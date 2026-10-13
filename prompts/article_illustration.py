@@ -117,7 +117,7 @@ def remember_pending_article_illustration(*, user_id: str, task_id: str, image_u
 
 
 def save_article_illustration(*, image: GeneratedImage, user_id: str, task_id: str = '',
-                             original_name: str = '文章配图') -> ArticleIllustrationAssetData:
+                             original_name: str = '文章配图', source_type: str = 'content') -> ArticleIllustrationAssetData:
     if task_id:
         existing = get_saved_article_illustration(task_id=task_id, user_id=user_id)
         if existing:
@@ -151,7 +151,7 @@ def save_article_illustration(*, image: GeneratedImage, user_id: str, task_id: s
                 mime_type=image.mime_type,
                 file_hash=image.file_hash,
                 uploader=user_id,
-                source_type='content',
+                source_type=source_type,
                 metadata={'article_illustration_task_id': task_id} if task_id else {},
             )
         return {'id': asset.id, 'image_url': get_resource_view_url(asset.id)}

@@ -208,6 +208,12 @@ class Agent(models.Model):
         db_comment='角色全身立绘或设定拆解图的资源地址，随 Agent 配置同步'
     )
 
+    battle_appearance = models.JSONField(
+        null=True, blank=True, default=None,
+        verbose_name='战斗形象',
+        db_comment='Agent 战斗头部素材与编辑参数，图片资源通过 Asset 同步'
+    )
+
     model = models.ForeignKey(
         AIModel,
         related_name='agents',

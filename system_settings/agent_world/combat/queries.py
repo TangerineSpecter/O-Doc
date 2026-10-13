@@ -82,6 +82,14 @@ def snapshot(run,cursor=0,limit=100):
         'weapon_id':next((item.get('template_id','') for item in equipment if item.get('slot')=='weapon'),'none'),
         'monster_id':run.state.get('monster_id','') if run.state.get('enemy') else '',
         'encounter_id':f'{run.pk}:{run.state.get("encounter",0)}'}
+    from assets.models import Asset
+    from system_settings.models import Agent
+    agent = Agent.objects.filter(pk=run.actor_id).only('battle_appearance').first()
+    appearance = agent.battle_appearance if agent else None
+    head_asset_id = appearance.get('head_asset_id') if isinstance(appearance, dict) else None
+    if head_asset_id and Asset.objects.filter(pk=head_asset_id, uploader=run.owner_id, is_valid=True, file_type='image').exists():
+        from utils.resource_assets import get_resource_view_url
+        visual['head_image_url'] = get_resource_view_url(head_asset_id)
     return {'id':run.pk,'actor_id':run.actor_id,'version':run.revision,'can_control':bool(local_runtime(run)),'catalog_version':run.catalog_id,'stage':run.phase,'status':run.status,'reason':run.reason,
         'remaining_seconds':remaining if end else None,
         'elapsed_seconds':run.elapsed_seconds,'duration_seconds':run.duration_seconds,'next_tick_at':local_time(run.next_tick_at).isoformat() if run.next_tick_at else None,

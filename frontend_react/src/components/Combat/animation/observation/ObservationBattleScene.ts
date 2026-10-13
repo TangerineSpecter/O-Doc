@@ -52,6 +52,7 @@ export class ObservationBattleScene {
     private sourceX=-180;
     private targetX=172;
     private phase='';
+    private previousHeadUrl?:string;
     constructor(private readonly host:HTMLElement,private visual:ObservationVisual,
         private readonly onPhase:(phase:string)=>void,private readonly onError:(message:string)=>void) {}
 
@@ -105,6 +106,10 @@ export class ObservationBattleScene {
         const weapon=independentWeapons.some(item=>item.id===this.visual.weaponId)?this.visual.weaponId:'none';
         this.hero!.configure({outfit:this.visual.jobId,weapon,aura:getProfessionAura(this.visual.jobId),showBody:true,
             showOutfit:true,showWeapon:weapon!=='none',showRear:true,showGround:true,backdrop:'plain',paused:this.paused});
+        if(this.visual.headImageUrl!==this.previousHeadUrl){
+            this.previousHeadUrl=this.visual.headImageUrl;
+            void this.hero!.setHeadImage(this.visual.headImageUrl);
+        }
         this.hero!.visible=this.visual.hasPlayer;
     }
     private async replaceMonster() {

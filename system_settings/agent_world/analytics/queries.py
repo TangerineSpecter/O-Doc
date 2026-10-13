@@ -161,3 +161,32 @@ def load_facts(request, owner, start, end):
     facts.wins = list(window(CombatEncounter.objects.filter(owner_id=owner, result__killed=True), 'ended_at'))
     facts.ledger = list(window(WorldLedger.objects.filter(agent_id__in=actors).exclude(kind='opening').exclude(amount=0)))
     return facts
+
+
+def visible_resident_ids(owner):
+    """Return the same account-visible resident identities used by analytics."""
+    actors = _actor_scope(owner)
+    foreign = set()
+    for model in (LifeProfile, AgentFarm, CookingSkill, InvestmentAccount, CombatProfile):
+        foreign.update(model.objects.exclude(owner_id=owner).values_list('id', flat=True))
+    actors.update(Agent.objects.exclude(pk__in=foreign).values_list('id', flat=True))
+    actors.update(CookingSkill.objects.filter(owner_id=owner).values_list('id', flat=True))
+
+    for model in (CookingOperation, MarketTransaction, InvestmentTrade):
+        actors.update(model.objects.filter(owner_id=owner).values_list('actor_id', flat=True).distinct())
+    for model, field in ((AgentFarm, 'id'), (CookingSkill, 'id'),
+                         (TravelJourney, 'actor_id'), (Exploration, 'actor_id')):
+        actors.update(model.objects.filter(owner_id=owner).values_list(field, flat=True).distinct())
+    actors.update(filter(None, (resident_id(value) for value in
+        Moment.objects.filter(owner_id=owner).values_list('actor_id', flat=True).distinct())))
+    for model in (MomentComment, MomentLike):
+        actors.update(filter(None, (resident_id(value) for value in
+            model.objects.filter(moment__owner_id=owner).values_list('actor_id', flat=True).distinct())))
+
+    activities = AgentActivity.objects.filter(metadata__owner_id=owner)
+    actors.update(activities.exclude(agent_id__isnull=True).exclude(agent_id='').values_list('agent_id', flat=True).distinct())
+    actors.update(filter(None, activities.filter(agent_id__isnull=True).values_list(
+        'metadata__agentSnapshot__id', flat=True).distinct()))
+    actors.update(filter(None, activities.filter(agent_id='').values_list(
+        'metadata__agentSnapshot__id', flat=True).distinct()))
+    return actors

@@ -64,6 +64,7 @@ export interface ImageUploadConfig {
 }
 
 export interface AgentConfig {
+    battleAppearance?: AgentBattleAppearance | null;
     archived?: boolean;
     archivedAt?: string | null;
     postCollectionIds?: string[];
@@ -88,6 +89,45 @@ export interface AgentConfig {
     feishuEncryptKey: string;
     createdAt?: string;
     updatedAt?: string;
+}
+
+export interface AgentBattleAppearance {
+    version: 1;
+    sourceAssetId: string;
+    cutoutAssetId: string;
+    headAssetId: string;
+    sourceImageUrl: string;
+    cutoutImageUrl: string;
+    headImageUrl: string;
+    transform: {x: number; y: number; scale: number; crop?: {x: number; y: number; width: number; height: number}};
+}
+
+export interface BattleAppearanceGenerationOptions {
+    configured: boolean;
+    message?: string;
+    modelId?: string;
+    modelName?: string;
+    provider?: string;
+    mode?: string;
+    supportsReferenceImages?: boolean;
+    maxReferenceImages?: number;
+    agentReferenceImages?: {avatar?: string; fullBody?: string};
+    aspectRatioOptions?: {value: string; label: string}[];
+    imageSizeOptions?: {value: string; label: string}[];
+    imageSizeOptionsByAspectRatio?: Record<string, {value: string; label: string}[]>;
+    defaultAspectRatio?: string;
+    defaultImageSize?: string;
+    description?: string;
+}
+
+export interface BattleAppearanceImageTask {
+    taskId: string;
+    requestId: string;
+    status: string;
+    assetId?: string;
+    imageUrl?: string;
+    message?: string;
+    retryAfterSeconds?: number;
 }
 
 export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'archived' | 'archivedAt' | 'modelDetail' | 'money' | 'stamina' | 'createdAt' | 'updatedAt'> & {

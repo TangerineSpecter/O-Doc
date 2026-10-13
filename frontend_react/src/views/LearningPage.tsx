@@ -9,6 +9,7 @@ import ExercisePanel from '../components/Learning/ExercisePanel';
 import ScenePanel from '../components/Learning/ScenePanel';
 import LearningItems from '../components/Learning/LearningItems';
 import LearningGrowth from '../components/Learning/LearningGrowth';
+import LearningStatistics from '../components/Learning/LearningStatistics';
 import TeacherChat from '../components/Learning/TeacherChat';
 import {ExerciseList, KnowledgeList, PlanEditor, ProfilePanel} from '../components/Learning/StudyOverview';
 import {buttonClass, cardClass} from '../components/Learning/presentation';
@@ -43,7 +44,7 @@ export default function LearningPage() {
                         <nav aria-label="学习内容" className="flex gap-1 overflow-x-auto rounded-full bg-slate-100 p-1 scrollbar-hide">{['今日学习', '复习', '学习画像', '学习记录'].map(v => <button key={v} aria-current={tab === v ? 'page' : undefined} onClick={() => setTab(v)} className={`flex-1 whitespace-nowrap rounded-full px-3 py-2 text-sm ${tab === v ? 'bg-white font-medium text-orange-600 shadow-sm' : 'text-slate-500'}`}>{v}</button>)}</nav>
                         {tab === '今日学习' && <><ExerciseList course={course} history={false} open={open}/><PlanEditor course={course} busy={busy} save={async (stages, stage) => {await learningApi.plan(collId, course.plan!.id, stages, stage); await refresh();}}/></>}
                         {tab === '复习' && <><KnowledgeList knowledge={course.knowledge || []} dueOnly open={open} practice={id => generate({knowledgeId: id})} busy={busy}/><LearningItems collId={collId} items={course.items || []} busy={busy} refresh={refresh} act={run} practice={generate} open={open}/></>}
-                        {tab === '学习画像' && <><LearningGrowth course={course} open={open}/><ProfilePanel course={course} busy={busy} evaluate={() => void run(() => learningApi.evaluate(collId, crypto.randomUUID()))} correct={async value => {await learningApi.correct(collId, value); await refresh();}}/><KnowledgeList knowledge={course.knowledge || []} dueOnly={false} open={open} practice={id => generate({knowledgeId: id})} busy={busy}/></>}
+                        {tab === '学习画像' && <><LearningStatistics course={course} open={open}/><LearningGrowth course={course} open={open}/><ProfilePanel course={course} busy={busy} evaluate={() => void run(() => learningApi.evaluate(collId, crypto.randomUUID()))} correct={async value => {await learningApi.correct(collId, value); await refresh();}}/><KnowledgeList knowledge={course.knowledge || []} dueOnly={false} open={open} practice={id => generate({knowledgeId: id})} busy={busy}/></>}
                         {tab === '学习记录' && <ExerciseList course={course} history open={open}/>}
                     </>}
                 </div>

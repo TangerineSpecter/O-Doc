@@ -10,7 +10,7 @@ export interface CombatProfile {
 }
 export interface Combatant {name: string; level: number; hp: number; mp: number; stats: Record<string, number | string>; skills?: Record<string, number>; rank?: string; states: {code: string; name: string; remaining?: number}[]}
 /** Derived from existing exploration state, never persisted as animation data. */
-export interface CombatVisualSnapshot {dungeonId:string;jobId:string;weaponId:string;monsterId:string;encounterId:string}
+export interface CombatVisualSnapshot {dungeonId:string;jobId:string;weaponId:string;monsterId:string;encounterId:string;headImageUrl?:string}
 export interface CombatAction {kind: string; actor?: string; target?: string; action?: string; name?: string; hit?: boolean; critical?: boolean; damage?: number; healing?: number; restored?: number; experience?: number; monster?: {id?: string; name: string; level: number; rank?: string}; rewards?: CombatReward[]}
 export interface CombatReward {id: string; kind: string; item: EquipmentSnapshot | CombatRow; equipmentId?: string; quantity?: number; elapsedSeconds: number}
 export interface CombatEvent {id: string; sequence: number; kind: string; elapsedSeconds: number; payload: {events?: CombatAction[]; report?: string; reason?: string}; createdAt: string}

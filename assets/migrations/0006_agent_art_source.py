@@ -1,0 +1,13 @@
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+    dependencies = [('assets', '0005_item_icon_source')]
+
+    operations = [
+        migrations.AlterField(
+            model_name='asset',
+            name='source_type',
+            field=models.CharField(choices=[('attachment', '附件'), ('content', '内容'), ('image', '图片文集'), ('prompt', '提示词效果'), ('item_icon', '物品图标'), ('agent_art', 'Agent 战斗形象'), ('other', '其他')], db_comment='资源来源类型', default='other', max_length=20, verbose_name='资源来源类型'),
+        ),
+    ]

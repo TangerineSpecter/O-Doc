@@ -52,6 +52,7 @@ SCENE_DEFAULTS = {
     'article_illustration': {'aspect_ratio': '16:9', 'image_size': '1K'},
     'agent_post_illustration': {'aspect_ratio': '16:9', 'image_size': '1K'},
     'travel_photo': {'aspect_ratio': '16:9', 'image_size': '1K'},
+    'battle_head': {'aspect_ratio': '1:1', 'image_size': '1K'},
 }
 
 AGENT_POST_IMAGE_SIZE = '1K'

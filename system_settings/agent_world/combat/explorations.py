@@ -19,6 +19,12 @@ from ..execution import stamina
 from ..inventory_stock import take_stock, add_stock
 
 TERMINAL = ('completed','fallen','recalled','exhausted','interrupted','failed')
+EXECUTION_COMPLETED = ('completed','recalled','fallen','exhausted')
+
+
+def execution_completed(status):
+    """Expected exploration outcomes are settled tasks; only execution faults fail the task."""
+    return status in EXECUTION_COMPLETED
 
 
 def seeded(run, channel):
@@ -294,14 +300,14 @@ def settle(run, profile, status, reason, now):
     if not record:
         record=AgentRunRecord.objects.create(agent_id=run.actor_id if Agent.objects.filter(pk=run.actor_id).exists() else None,agent_name=run.actor_name,task_name='迷宫探索',trigger='生活安排' if run.life_item_id else '手动探索')
         run.record_id=record.pk;run.save(update_fields=['record_id'])
-    record.status='success' if status in ('completed','recalled') else 'failed'
+    record.status='success' if execution_completed(status) else 'failed'
     record.summary,record.output,record.duration=report[:255],report,f'{run.elapsed_seconds//60} 分钟'
     record.steps=[{'kind':'exploration','exploration_id':run.pk,'result':run.result}];record.save()
     if run.life_item_id:
         from ..life_models import LifeItem
         from ..life_schedule import revise
         item=LifeItem.objects.filter(pk=run.life_item_id).first()
-        if item:revise(item,'战斗探索已结算',status='completed' if record.status=='success' else 'failed',record_id=record.pk,result={'exploration_id':run.pk,'reason':report})
+        if item:revise(item,'战斗探索已结算',status='completed' if execution_completed(status) else 'failed',record_id=record.pk,result={'exploration_id':run.pk,'reason':report})
     append(profile,run.pk+':terminal','terminal',{'status':status,'report':report,'returned':returned,'record_id':record.pk},run)
     return run
 

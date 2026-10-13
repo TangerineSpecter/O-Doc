@@ -44,7 +44,7 @@ def resolve_image_model(model_id=None):
     return model
 
 
-def image_generation_options(agent=None, model_id=None, scene='generic') -> dict:
+def image_generation_options(agent=None, model_id=None, scene='generic', user_id=MCP_USER_ID) -> dict:
     try:
         model = resolve_image_model(model_id)
     except GrsaiImageError as exc:
@@ -59,7 +59,7 @@ def image_generation_options(agent=None, model_id=None, scene='generic') -> dict
             if not resource_id:
                 continue
             try:
-                readable_reference_assets([resource_id], user_id=MCP_USER_ID)
+                readable_reference_assets([resource_id], user_id=user_id)
             except ValueError:
                 continue
             references[role] = resource_id

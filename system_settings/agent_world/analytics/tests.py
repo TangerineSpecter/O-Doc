@@ -48,6 +48,16 @@ class AnalyticsTests(TestCase):
         return AgentActivity.objects.create(event_key=values.pop('event_key', 'event'), agent=self.a,
             title='活动', occurred_at=self.at, artifact_coll_id=self.coll.pk, **values)
 
+    def test_ledger_endpoint_returns_visible_resident_entries(self):
+        WorldLedger.objects.create(pk='ledger-detail', agent_id=self.a.pk, kind='income',
+                                   amount=Decimal('12.50'), created_at=self.at)
+        response = self.client.get('/api/settings/agent-world/analytics/ledger/', {
+            'start_date': '2026-10-01', 'end_date': '2026-10-02', 'actor_id': self.a.pk,
+        })
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(len(response.data['data']['items']), 1)
+        self.assertEqual(response.data['data']['items'][0]['id'], 'ledger-detail')
+
     def test_publication_dedup_and_failed_events(self):
         self.activity(activity_type='publication', artifact_kind='agentPost', artifact_id=self.post.pk, artifact_article_id=self.post.pk)
         self.activity(event_key='duplicate', activity_type='publication', artifact_kind='agentPost', artifact_id=self.post.pk)

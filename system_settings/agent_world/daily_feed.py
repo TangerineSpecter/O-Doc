@@ -403,6 +403,13 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
                                 if isinstance(run, dict) and run.get('agent') == row.agent_id), '')
             event['outputPreview'] = preview
         events.append(event)
+    from .combat.models import Exploration
+    from .combat.explorations import EXECUTION_COMPLETED, execution_completed
+    settled_exploration_records = set(Exploration.objects.filter(
+        owner_id=owner, updated_at__gte=start, updated_at__lt=end, ended_at__isnull=False,
+        status__in=EXECUTION_COMPLETED,
+    ).exclude(record_id='').values_list('record_id', flat=True))
+
     # 历史自定义任务可能没有 AgentActivity；使用执行记录补齐，而不重复已有任务卡片。
     # 自定义任务没有账号字段；只展示归属可由居民资料或已有资产确认的执行。
     run_scope = Q(agent_id__in=actors)
@@ -411,7 +418,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     for row in runs:
         event = _event('record', 'run', row.pk, row.started_at, row.agent_id,
                        row.agent_name or names.get(row.agent_id), row.task_name, row.summary,
-                       status=row.status, target={'kind': 'run', 'id': row.pk})
+                       status='success' if row.pk in settled_exploration_records else row.status,
+                       target={'kind': 'run', 'id': row.pk})
         event['outputPreview'] = str(row.output or '')[:300]
         events.append(event)
     completed_runs = AgentRunRecord.objects.filter(updated_at__gte=start, updated_at__lt=end,
@@ -419,16 +427,16 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     for row in completed_runs.exclude(started_at__gte=start, started_at__lt=end):
         event = _event('record', 'run-finished', row.pk, row.updated_at, row.agent_id,
                        row.agent_name or names.get(row.agent_id), f'{row.task_name}结束', row.summary,
-                       status=row.status, target={'kind': 'run', 'id': row.pk})
+                       status='success' if row.pk in settled_exploration_records else row.status,
+                       target={'kind': 'run', 'id': row.pk})
         event['outputPreview'] = str(row.output or '')[:300]
         events.append(event)
 
-    from .combat.models import Exploration
     for run in Exploration.objects.filter(owner_id=owner,updated_at__gte=start,updated_at__lt=end):
         when=run.ended_at or run.updated_at
         events.append(_event('exploration','exploration',run.pk,when,run.actor_id,run.actor_name,
             f'迷宫探索 · {run.elapsed_seconds//60} 分钟',run.result.get('report') or f'击败 {run.result.get("kills",0)} 只怪物，经验 {run.result.get("experience",0)}',
-            status='success' if run.status in ('completed','recalled') else 'paused' if run.status=='paused' else 'running' if run.status in ('preparing','active','settling') else 'failed',target={'kind':'exploration','id':run.pk}))
+            status='success' if execution_completed(run.status) else 'paused' if run.status=='paused' else 'running' if run.status in ('preparing','active','settling') else 'failed',target={'kind':'exploration','id':run.pk}))
     from .cooking_models import CookingOperation
     day_cookings = CookingOperation.objects.filter(owner_id=owner, created_at__gte=start, created_at__lt=end)
     cooking_opp_ids = day_cookings.exclude(opportunity_id='').values_list('opportunity_id', flat=True)

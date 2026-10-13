@@ -60,6 +60,9 @@ import {isImageAvatarValue} from '@/utils/avatar';
 import {AgentPromptGenerator} from './agent/AgentPromptGenerator';
 import {PromptEditorModal} from '@/components/common/PromptEditorModal';
 import {PostInteractionScopeFields} from './agent/PostInteractionScopeFields';
+import {BattleAppearanceEntry} from './agent/battle-appearance/BattleAppearanceEntry';
+import {BattleAppearanceEditor} from './agent/battle-appearance/BattleAppearanceEditor';
+import type {AgentBattleAppearance} from '@/types/api/setting';
 
 import {WorldRunnerSwitch} from './agent/WorldRunnerSwitch';
 import {SystemTaskProgress} from './agent/SystemTaskProgress';
@@ -195,6 +198,8 @@ export const AgentSettings = ({
                               }: AgentSettingsProps) => {
     const [archiveOpen, setArchiveOpen] = useState(false);
     const [archiveTarget, setArchiveTarget] = useState<AgentConfig | null>(null);
+    const [battleAppearanceTarget,setBattleAppearanceTarget]=useState<AgentConfig|null>(null);
+    const [battleAppearanceOverrides,setBattleAppearanceOverrides]=useState<Record<string,AgentBattleAppearance|null>>({});
     const [archiving, setArchiving] = useState(false);
     const allResidents = [...agents, ...archivedAgents];
     const [activeView, setActiveView] = useState<AgentView>('list');
@@ -922,6 +927,8 @@ export const AgentSettings = ({
                         const mcpSummary = mcpNames.length > 0 ? `${mcpNames.length} 个 MCP` : '未配置';
                         const skillNames = (agent.skills || []).map(getSkillName);
                         const skillSummary = skillNames.length > 0 ? `${skillNames.length} 个技能` : '未配置';
+                        const battleAppearance=Object.prototype.hasOwnProperty.call(battleAppearanceOverrides,agent.id)
+                            ?battleAppearanceOverrides[agent.id]:agent.battleAppearance;
 
                         return (
                             <div
@@ -1024,6 +1031,7 @@ export const AgentSettings = ({
                                 </div>
 
                                 <div className="flex shrink-0 items-center justify-end gap-1 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+                                    <BattleAppearanceEntry agentId={agent.id} headAssetId={battleAppearance?.headAssetId} onClick={()=>setBattleAppearanceTarget(agent)}/>
                                     <button
                                         type="button"
                                         onClick={() => openMemoryModal(agent)}
@@ -1056,6 +1064,7 @@ export const AgentSettings = ({
             )}
 
             {archiveOpen && <AgentArchiveDialog agents={archivedAgents} focusId={archiveConflictId} onRestore={onRestore} onClose={() => setArchiveOpen(false)}/>}
+            {battleAppearanceTarget&&<BattleAppearanceEditor key={battleAppearanceTarget.id} agent={battleAppearanceTarget} imageModels={getModelsByType('image_generation')} onClose={()=>setBattleAppearanceTarget(null)} onSaved={appearance=>setBattleAppearanceOverrides(current=>({...current,[battleAppearanceTarget.id]:appearance}))}/>}
             {archiveTarget && createPortal(<ConfirmationModal isOpen title={`归档 ${archiveTarget.name}`} description="居民资料、任务绑定和资产保留，可随时恢复。归档后不执行任务，所有在售商品下架并退回背包。" confirmText="归档居民" type="warning" isLoading={archiving} onClose={() => setArchiveTarget(null)} onConfirm={async () => {
                 setArchiving(true);
                 try {if (await onArchive(archiveTarget.id)) setArchiveTarget(null);} finally {setArchiving(false);}

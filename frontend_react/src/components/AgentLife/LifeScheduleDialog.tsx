@@ -43,7 +43,7 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
     const [start, setStart] = useState(thisMonday);
     const [actorId, setActorId] = useState('');
     const [status, setStatus] = useState('');
-    const [mode, setMode] = useState<'week' | 'today' | 'list' | 'profile'>('week');
+    const [mode, setMode] = useState<'week' | 'today' | 'list' | 'profile'>('today');
     const [density, setDensity] = useState<'compact' | 'normal'>('compact');
     const [agents, setAgents] = useState<AgentConfig[]>([]);
     const [selected, setSelected] = useState<string | null>(null);
@@ -97,21 +97,6 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                         <button
                             type="button"
                             onClick={() => {
-                                setMode('week');
-                                setPage(1);
-                            }}
-                            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-all ${
-                                mode === 'week'
-                                    ? 'bg-white font-semibold text-slate-800 shadow-2xs'
-                                    : 'font-medium text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                            <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                            <span>周日程</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
                                 setMode('today');
                                 setPage(1);
                             }}
@@ -123,6 +108,21 @@ export default function LifeScheduleDialog({onClose}: {onClose: () => void}) {
                         >
                             <Clock3 className="h-3.5 w-3.5 shrink-0" />
                             <span>今日日程</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setMode('week');
+                                setPage(1);
+                            }}
+                            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-all ${
+                                mode === 'week'
+                                    ? 'bg-white font-semibold text-slate-800 shadow-2xs'
+                                    : 'font-medium text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                            <span>周日程</span>
                         </button>
                         <button
                             type="button"

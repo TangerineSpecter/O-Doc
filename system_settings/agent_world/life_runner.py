@@ -24,9 +24,10 @@ def finish_running(config, now):
         key=execution_key(item)
         if item.activity=='exploration':
             from .combat.models import Exploration
+            from .combat.explorations import execution_completed
             run=Exploration.objects.filter(life_item_id=item.pk).first()
             if run:
-                if run.ended_at:revise(item,'探索已结束',status='completed' if run.status in ('completed','recalled') else 'failed',record_id=run.record_id,result={'reason':run.result.get('report',''),'exploration_id':run.pk})
+                if run.ended_at:revise(item,'探索已结束',status='completed' if execution_completed(run.status) else 'failed',record_id=run.record_id,result={'reason':run.result.get('report',''),'exploration_id':run.pk})
                 continue
         trip=TravelJourney.objects.filter(pk=key).first()
         if not trip and key!=item.pk:

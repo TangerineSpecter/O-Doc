@@ -537,10 +537,10 @@ export default function AnalyticsContent({data}: {data: ResidentAnalytics}) {
                     <Section
                         title="居民生活对比排行榜"
                         icon={Users}
-                        description="比较全镇居民活跃出勤、创作成果与经济收支。点击各表头支持升降序切换。"
+                        description="比较全镇居民活跃出勤、创作成果与经济收支。点击表头排序，点击居民查看区间内收支明细。"
                         wide
                     >
-                        <ResidentsComparison rows={data.comparison}/>
+                        <ResidentsComparison rows={data.comparison} startDate={data.startDate} endDate={data.endDate}/>
                     </Section>
                 )}
             </div>

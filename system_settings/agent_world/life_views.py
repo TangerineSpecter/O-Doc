@@ -1,6 +1,7 @@
 """账号隔离的生活配置、目标、日程和调整接口。"""
 from datetime import datetime, timedelta
 from django.db import transaction
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -10,7 +11,7 @@ from .farm_gate import guarded
 from .life_models import LifeProfile, LifeGoal, LifeItem, LifeCycle
 from .life_config import config_for, validate_settings, ensure_profiles, effective_settings, DEFAULTS
 from .life_time import storage_time,local_time
-from .life_schedule import OPEN, SHANGHAI, recover, revise, requeue, retry_block_reason, retry_failed
+from .life_schedule import OPEN, SHANGHAI, recover, revise, requeue, retry_block_reason, retry_failed, is_settled_exploration
 
 
 def owner_of(request):
@@ -24,8 +25,26 @@ def actor_for(owner, identity):
     return Agent.objects.get(pk=identity)
 
 
-def item_data(item, detail=False):
-    value={field:getattr(item,field) for field in ('id','owner_id','actor_id','original_at','scheduled_at','activity','task_id','status','intent','budget','spent','record_id','result','attempts')}
+def settled_exploration_item_ids(items):
+    candidates = {item.pk: item.record_id for item in items if item.activity == 'exploration' and item.status == 'failed'}
+    if not candidates:
+        return set()
+    from .combat.models import Exploration
+    from .combat.explorations import EXECUTION_COMPLETED
+    matching_runs = Exploration.objects.filter(
+        life_item_id__in=candidates, ended_at__isnull=False, status__in=EXECUTION_COMPLETED,
+    ).values_list('life_item_id', 'record_id')
+    return {item_id for item_id, record_id in matching_runs if candidates[item_id] == record_id}
+
+
+def item_data(item, detail=False, settled_exploration_ids=None):
+    status = item.status
+    if status == 'failed' and item.activity == 'exploration':
+        is_settled = (item.pk in settled_exploration_ids) if settled_exploration_ids is not None else is_settled_exploration(item)
+        if is_settled:
+            status = 'completed'
+    value={field:getattr(item,field) for field in ('id','owner_id','actor_id','original_at','scheduled_at','activity','task_id','intent','budget','spent','record_id','result','attempts')}
+    value['status']=status
     from .life_budget_policy import effective_budget
     value['budget']=effective_budget(item)
     value['original_at']=local_time(item.original_at).isoformat()
@@ -33,7 +52,7 @@ def item_data(item, detail=False):
     if detail:
         value['context']=item.context
         value['revisions']=list(item.revisions.order_by('created_at').values('id','before','after','reason','created_at'))
-        if item.status == 'failed' and item.activity == 'market_prepare':
+        if status == 'failed' and item.activity == 'market_prepare':
             blocked=retry_block_reason(item)
             value['retry_available']=not blocked
             value['retry_blocked_reason']=blocked
@@ -170,7 +189,21 @@ class LifeScheduleView(APIView):
             if not timedelta(0)<end-start<=timedelta(days=366):raise ValueError('查询范围须为1至366天')
             qs=qs.filter(scheduled_at__gte=storage_time(start),scheduled_at__lt=storage_time(end))
             if request.query_params.get('actor_id'):qs=qs.filter(actor_id=request.query_params['actor_id'])
-            if request.query_params.get('status'):qs=qs.filter(status=request.query_params['status'])
+            requested_status=request.query_params.get('status')
+            if requested_status in ('completed','failed'):
+                from .combat.models import Exploration
+                from .combat.explorations import EXECUTION_COMPLETED
+                settled_exploration=Exploration.objects.filter(
+                    life_item_id=OuterRef('pk'), record_id=OuterRef('record_id'),
+                    owner_id=owner_of(request), ended_at__isnull=False, status__in=EXECUTION_COMPLETED,
+                )
+                qs=qs.annotate(_settled_exploration=Exists(settled_exploration))
+                if requested_status=='completed':
+                    qs=qs.filter(Q(status='completed')|Q(_settled_exploration=True))
+                else:
+                    qs=qs.filter(status='failed',_settled_exploration=False)
+            elif requested_status:
+                qs=qs.filter(status=requested_status)
             page=int(request.query_params.get('page','1'))
             if page<1:raise ValueError('页码无效')
             view=request.query_params.get('view','list')
@@ -179,9 +212,13 @@ class LifeScheduleView(APIView):
             if view=='week':
                 if end-start>timedelta(days=7):raise ValueError('周日程查询范围不能超过7天')
                 # 日历必须以完整日期范围分组，不能把分页缺失误呈现为当天无安排。
-                items=[item_data(i) for i in ordered]
+                rows=list(ordered)
+                settled_ids=settled_exploration_item_ids(rows)
+                items=[item_data(i,settled_exploration_ids=settled_ids) for i in rows]
                 return success_result({'total':len(items),'items':items,'page':1})
-            return success_result({'total':qs.count(),'items':[item_data(i) for i in ordered[(page-1)*100:page*100]],'page':page})
+            rows=list(ordered[(page-1)*100:page*100])
+            settled_ids=settled_exploration_item_ids(rows)
+            return success_result({'total':qs.count(),'items':[item_data(i,settled_exploration_ids=settled_ids) for i in rows],'page':page})
         except ValueError as exc:return valid_result(str(exc),status=400)
 
     @guarded

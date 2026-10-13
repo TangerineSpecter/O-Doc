@@ -183,7 +183,10 @@ def is_asset_used_by_agent(resource_id):
     return (
         is_asset_used_by_inventory(resource_id)
         or is_asset_used_by_catalog_item(resource_id)
-        or Agent.objects.filter(Q(avatar=url) | Q(full_body_image=url)).exists()
+        or Agent.objects.filter(Q(avatar=url) | Q(full_body_image=url)
+                                | Q(battle_appearance__source_asset_id=resource_id)
+                                | Q(battle_appearance__cutout_asset_id=resource_id)
+                                | Q(battle_appearance__head_asset_id=resource_id)).exists()
         or AgentActivity.objects.filter(metadata__agentSnapshot__avatar=url).exists()
         or Article.objects.filter(agent_post_creator_avatar=url).exists()
         or ArticlePostComment.objects.filter(creator_avatar=url).exists()
@@ -227,10 +230,13 @@ def get_agent_resource_usage(resource_ids=None):
     from django.db.models import Q
 
     prefix = RESOURCE_VIEW_PREFIX
-    queryset = Agent.objects.filter(Q(avatar__startswith=prefix) | Q(full_body_image__startswith=prefix))
+    queryset = Agent.objects.filter(Q(avatar__startswith=prefix) | Q(full_body_image__startswith=prefix)
+                                    | Q(battle_appearance__source_asset_id__isnull=False)
+                                    | Q(battle_appearance__cutout_asset_id__isnull=False)
+                                    | Q(battle_appearance__head_asset_id__isnull=False))
 
     usage = {}
-    for agent in queryset.only('id', 'name', 'avatar', 'full_body_image'):
+    for agent in queryset.only('id', 'name', 'avatar', 'full_body_image', 'battle_appearance'):
         for image_url in (agent.avatar, agent.full_body_image):
             resource_id = extract_resource_id_from_view_url(image_url)
             if not resource_id:
@@ -238,6 +244,12 @@ def get_agent_resource_usage(resource_ids=None):
             if resource_ids is not None and resource_id not in resource_ids:
                 continue
             usage.setdefault(resource_id, {'id': agent.id, 'title': agent.name})
+
+        appearance = agent.battle_appearance or {}
+        for key in ('source_asset_id', 'cutout_asset_id', 'head_asset_id'):
+            resource_id = appearance.get(key)
+            if resource_id and (resource_ids is None or resource_id in resource_ids):
+                usage.setdefault(resource_id, {'id': agent.id, 'title': f'{agent.name} · 战斗形象'})
 
     from system_settings.agent_world.social_models import Moment
     for moment in Moment.objects.filter(is_valid=True).only('images', 'actor_id', 'identity'):

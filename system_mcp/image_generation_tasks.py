@@ -14,7 +14,7 @@ from prompts.article_illustration import get_saved_article_illustration, save_ar
 from prompts.generation import _validate_image_content
 from prompts.models import ImageGenerationTask
 from system_settings.grsai_images import GrsaiImageClient, GrsaiImageError
-from system_settings.image_generation_options import resolve_image_generation_request
+from system_settings.image_generation_options import get_image_generation_profile, resolve_image_generation_request
 from system_settings.models import AIModel, Agent
 from system_settings.newapi_images import NewApiImageClient
 from system_settings.sync_state import canonical_hash
@@ -44,8 +44,8 @@ def image_task_context(task: ImageGenerationTask):
         request_context.reset(token)
 
 
-def _scope(agent: Agent | None) -> dict:
-    return {'user_id': MCP_USER_ID, 'agent_key': str(agent.pk) if agent else ''}
+def _scope(agent: Agent | None, user_id: str = MCP_USER_ID) -> dict:
+    return {'user_id': user_id, 'agent_key': str(agent.pk) if agent else ''}
 
 
 def _output(task: ImageGenerationTask) -> dict:
@@ -84,6 +84,22 @@ def _provider_config_hash(model: AIModel) -> str:
                            'base_url': model.provider.base_url, 'provider_type': model.provider.type})
 
 
+def _download_generated_images(image_urls: list[str]) -> list:
+    """Fetch provider images without inheriting a configured loopback proxy."""
+    images = []
+    for image_url in dict.fromkeys(image_urls):
+        with requests.Session() as session:
+            session.trust_env = False
+            try:
+                fetched = fetch_remote_image(image_url, session=session)
+            except WebParserError as exc:
+                raise GrsaiImageError(f'图片下载失败：{exc}', retryable=True) from exc
+        images.append(_validate_image_content(fetched.content))
+    if not images:
+        raise GrsaiImageError('图片服务没有返回可保存的图片')
+    return images
+
+
 def _accept_result(task: ImageGenerationTask, result) -> None:
     values = {'provider_task_id': result.task_id, 'error_message': ''}
     if result.status == 'succeeded':
@@ -99,27 +115,24 @@ def _download(task: ImageGenerationTask, client, content: bytes | str | None = N
     if saved is None:
         if task.provider_type == 'Grsai':
             # 保留远端 URL/实际连接校验；不把环境代理的回环地址当成图片源。
-            with requests.Session() as session:
-                session.trust_env = False
-                try:
-                    fetched = fetch_remote_image(task.image_url, session=session)
-                except WebParserError as exc:
-                    raise GrsaiImageError(f'图片下载失败：{exc}', retryable=True) from exc
-            image = _validate_image_content(fetched.content)
+            image = _download_generated_images([task.image_url])[0]
         else:
             image = _validate_image_content(content if isinstance(content, bytes) else client.fetch_image(task.image_url))
-        saved = save_article_illustration(image=image, user_id=task.user_id, task_id=marker, original_name='生成图片')
+        source_type = 'agent_art' if task.request_data.get('scene') == 'battle_head' else 'content'
+        saved = save_article_illustration(image=image, user_id=task.user_id, task_id=marker,
+                                          original_name='生成图片', source_type=source_type)
     _write(task, status='succeeded', asset_id=saved['id'], error_message='')
 
 
-def generate_image(arguments: object, agent: Agent | None = None) -> dict:
+def generate_image(arguments: object, agent: Agent | None = None, *, user_id: str = MCP_USER_ID,
+                   scene: str = 'generic') -> dict:
     if agent:
         from system_settings.agent_availability import require_active_agent
         agent = require_active_agent(agent)
     data = validate_generation_arguments(arguments)
     request_id = data.pop('request_id', None) or uuid.uuid4().hex
     digest = canonical_hash(data)
-    scope = _scope(agent)
+    scope = _scope(agent, user_id)
     existing = ImageGenerationTask.objects.filter(**scope, request_id=request_id).first()
     if existing:
         if existing.input_hash != digest:
@@ -130,8 +143,11 @@ def generate_image(arguments: object, agent: Agent | None = None) -> dict:
         references = data['reference_image_ids']
         if references and not supports_references(model):
             raise ValueError('当前模型不支持参考图，请选择支持以图生图的 Grsai 模型')
-        options = resolve_image_generation_request(model, {key: data[key] for key in ('aspect_ratio', 'image_size') if key in data}, scene='generic')
-        images = load_reference_images(references, user_id=MCP_USER_ID)
+        request_options = {key: data[key] for key in ('aspect_ratio', 'image_size') if key in data}
+        if get_image_generation_profile(model).mode == 'automatic':
+            request_options = {}
+        options = resolve_image_generation_request(model, request_options, scene=scene)
+        images = load_reference_images(references, user_id=user_id)
         client = GrsaiImageClient(model) if model.provider.type == 'Grsai' else NewApiImageClient(model)
     except GrsaiImageError as exc:
         raise ValueError(str(exc)) from exc
@@ -141,7 +157,7 @@ def generate_image(arguments: object, agent: Agent | None = None) -> dict:
         if agent:
             require_active_agent(agent)
         task, created = ImageGenerationTask.objects.get_or_create(**scope, request_id=request_id, defaults={
-            'input_hash': digest, 'request_data': {**data, 'provider_options': options,
+            'input_hash': digest, 'request_data': {**data, 'scene': scene, 'provider_options': options,
                                                  'provider_config_hash': _provider_config_hash(model)},
             'model_id': str(model.pk), 'provider_type': model.provider.type,
             'lease_until': timezone.now() + LEASE_DURATION,
@@ -182,7 +198,7 @@ def generate_image(arguments: object, agent: Agent | None = None) -> dict:
     return _output(task)
 
 
-def get_image_generation_result(arguments: object, agent: Agent | None = None) -> dict:
+def get_image_generation_result(arguments: object, agent: Agent | None = None, *, user_id: str = MCP_USER_ID) -> dict:
     if agent:
         from system_settings.agent_availability import require_active_agent
         require_active_agent(agent)
@@ -191,7 +207,7 @@ def get_image_generation_result(arguments: object, agent: Agent | None = None) -
     task_id = arguments['task_id']
     if not isinstance(task_id, str) or len(task_id) != 32 or any(c not in '0123456789abcdef' for c in task_id):
         raise ValueError('生成任务 ID 无效')
-    task = ImageGenerationTask.objects.filter(pk=task_id, **_scope(agent)).first()
+    task = ImageGenerationTask.objects.filter(pk=task_id, **_scope(agent, user_id)).first()
     if task is None:
         raise ValueError('生成任务不存在或无权访问')
     if task.status not in ACTIVE:

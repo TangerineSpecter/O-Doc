@@ -8,6 +8,14 @@ export interface AnalyticsComparison extends AnalyticsResident {
     activeDays: number; publications: number; interactions: number; received: number;
     income: string; expense: string; net: string;
 }
+export interface ResidentAnalyticsLedgerEntry {
+    id: string; agentId: string; agentName: string; kind: string; amount: string;
+    createdAt: string; detail: string; snapshot: Record<string, unknown> | null;
+}
+export interface ResidentAnalyticsLedgerPage {
+    items: ResidentAnalyticsLedgerEntry[]; page: number; pageSize: number;
+    hasMore: boolean; nextPage: number | null;
+}
 export interface ResidentAnalytics {
     startDate: string; endDate: string; actorId: string;
     residents: AnalyticsResident[]; overview: AnalyticsOverview;

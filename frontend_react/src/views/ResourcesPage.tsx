@@ -36,7 +36,7 @@ const getResourcePreviewUrl = (file: ResourceItem) =>
     file.type === 'image' ? `/api/resource/view/${file.id}` : '';
 
 const getAgentResourceLabel = (file: ResourceItem) =>
-    file.sourceType === 'item_icon' ? 'Agent 道具图标' : 'Agent 头像 / 立绘';
+    file.sourceType === 'item_icon' ? 'Agent 道具图标' : file.sourceType === 'agent_art' ? 'Agent 战斗形象' : 'Agent 头像 / 立绘';
 
 const TYPE_CONFIG: Record<string, TypeConfigItem> = {
     all: {label: '全部', icon: <HardDrive/>, color: 'text-slate-500 bg-slate-100'},

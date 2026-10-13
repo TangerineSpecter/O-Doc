@@ -9,6 +9,9 @@ import type {
     AgentMemoryType,
     SaveAgentLongTermMemoryParams,
     AgentConfig,
+    AgentBattleAppearance,
+    BattleAppearanceGenerationOptions,
+    BattleAppearanceImageTask,
     AgentRunRecordConfig,
     AgentActivityListResult,
     AgentActivityType,
@@ -55,6 +58,9 @@ export type {
     AgentMemoryType,
     SaveAgentLongTermMemoryParams,
     AgentConfig,
+    AgentBattleAppearance,
+    BattleAppearanceGenerationOptions,
+    BattleAppearanceImageTask,
     AgentRunRecordConfig,
     AgentTaskConfig,
     AgentTaskExecutionMode,
@@ -207,6 +213,18 @@ export const saveAgent = (data: SaveAgentConfigParams) => {
 };
 
 export const deleteAgent = (id: string) => request.delete(`/settings/agents/${id}/`);
+
+const agentBattleAppearanceUrl = (agentId: string) => `/settings/agents/${encodeURIComponent(agentId)}/battle-appearance/`;
+export const getAgentBattleAppearance = (agentId: string) => request.get<never, AgentBattleAppearance | {configured: false}>(agentBattleAppearanceUrl(agentId));
+export const saveAgentBattleAppearance = (agentId: string, data: Omit<AgentBattleAppearance, 'sourceImageUrl' | 'cutoutImageUrl' | 'headImageUrl'>) =>
+    request.put<never, AgentBattleAppearance>(agentBattleAppearanceUrl(agentId), data);
+export const clearAgentBattleAppearance = (agentId: string) => request.delete(agentBattleAppearanceUrl(agentId));
+export const getBattleAppearanceGenerationOptions = (agentId: string, modelId?: string) =>
+    request.get<never, BattleAppearanceGenerationOptions>(`/settings/agents/${encodeURIComponent(agentId)}/battle-appearance-generation-options/`, {params: modelId ? {modelId} : undefined});
+export const generateBattleAppearanceImage = (agentId: string, data: {prompt: string; modelId?: string; requestId: string; aspectRatio?: string; imageSize?: string; referenceImageIds?: string[]; useAgentAvatar?: boolean}) =>
+    request.post<never, BattleAppearanceImageTask>(`/settings/agents/${encodeURIComponent(agentId)}/battle-appearance-generation/`, data, {timeout: 180000});
+export const getBattleAppearanceImageTask = (agentId: string, taskId?: string) =>
+    request.get<never, BattleAppearanceImageTask | BattleAppearanceImageTask[]>(`/settings/agents/${encodeURIComponent(agentId)}/battle-appearance-generation/`, {params: taskId ? {taskId} : undefined, timeout: 60000});
 
 export const getAgentMemorySummary = (agentId: string) => request.get<unknown, import('../types/api/setting').AgentMemorySummary>(`/settings/agents/${agentId}/memory-status/`);
 

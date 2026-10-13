@@ -6,6 +6,7 @@ import {drawPlayerHands} from './playerHandDrawing';
 import {getPlayerHandAnchors, noviceHandAnchors} from './playerHandRegistration';
 import {getPlayerWeaponRegistration} from './playerWeaponRegistration';
 import {drawPlayerBase} from './playerBaseDrawing';
+import {getAuthToken} from '@/utils/authStorage';
 
 /** Fixed novice identity. Wardrobe, hand pixels and equipment have separate owners. */
 export class LayeredPlayerActor extends Container {
@@ -20,6 +21,9 @@ export class LayeredPlayerActor extends Container {
     private readonly weapon = new Sprite();
     private readonly ownedTextures:Texture[]=[];
     private costumeTexture?:Texture;
+    private readonly defaultHeadTexture!:Texture;
+    private customHeadRequest=0;
+    private customHeadTexture?:Texture;
     private weaponTexture?:Texture;
     private outfitId='';
     private weaponId='';
@@ -37,7 +41,7 @@ export class LayeredPlayerActor extends Container {
             const texture=this.slice({url:identitySheet,size:{width:1774,height:887},region:part});
             this.ownedTextures.push(texture);
             const sprite=key==='head'?this.head:new Sprite();sprite.texture=texture;
-            if(key==='head') {sprite.position.set(0,0);}
+            if(key==='head') {sprite.position.set(0,0);this.defaultHeadTexture=texture;}
             else if(key==='leftBoot') {sprite.position.set(104,500);this.bodyLayer.addChild(sprite);}
             else if(key==='rightBoot') {sprite.position.set(195,500);this.bodyLayer.addChild(sprite);}
         }
@@ -98,6 +102,26 @@ export class LayeredPlayerActor extends Container {
         drawPlayerHands(this.hands,holding,anchors);
     }
 
+    async setHeadImage(url?:string) {
+        const request=++this.customHeadRequest;
+        if(!url) {this.head.texture=this.defaultHeadTexture;this.customHeadTexture?.destroy(true);this.customHeadTexture=undefined;return;}
+        try {
+            const token=getAuthToken();
+            const response=await fetch(url,{headers:token?{Authorization:`Token ${token}`}:{}});
+            if(!response.ok)throw new Error('head image is unavailable');
+            const bitmap=await createImageBitmap(await response.blob());
+            const texture=Texture.from(bitmap);
+            if(request!==this.customHeadRequest){texture.destroy(true);return;}
+            texture.source.scaleMode='nearest';
+            const previous=this.customHeadTexture;
+            this.customHeadTexture=texture;
+            this.head.texture=texture;
+            previous?.destroy(true);
+        } catch {
+            if(request===this.customHeadRequest){this.head.texture=this.defaultHeadTexture;this.customHeadTexture?.destroy(true);this.customHeadTexture=undefined;}
+        }
+    }
+
     update(time:number,lean=0,lift=0) {this.upper.y=Math.round(Math.sin(time*2.1)*2)-lift;this.upper.rotation=lean;}
     /** Rotate carried art around its registered grip; clothing and hands stay intact. */
     setWeaponSwing(rotation:number) {this.weapon.rotation=this.weaponRestRotation+rotation;}
@@ -110,7 +134,9 @@ export class LayeredPlayerActor extends Container {
     }
 
     override destroy() {
+        this.customHeadRequest++;
         super.destroy({children:true});
+        this.customHeadTexture?.destroy(true);
         this.ownedTextures.forEach(t=>t.destroy(false));
         this.costumeTexture?.destroy(false);this.weaponTexture?.destroy(false);
     }
