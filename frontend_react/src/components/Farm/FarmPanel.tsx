@@ -3,7 +3,6 @@ import {
     ChevronLeft,
     ChevronRight,
     CloudRain,
-    ExternalLink,
     Eye,
     History,
     Package,
@@ -180,73 +179,67 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
 
     return (
         <div className="w-full min-w-0 flex-1 flex flex-col min-h-0 gap-3">
-            {/* 顶部单行一体化控制栏 */}
-            <div className="w-full min-w-0 shrink-0 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 p-2 text-xs">
-                {/* 左侧：天气、余额、行动 */}
-                <div className="flex flex-wrap items-center gap-2.5">
-                    {farm && (
-                        <>
-                            {/* 天气徽标 */}
-                            <span
-                                className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 font-semibold ${
-                                    farm.weather === 'rain'
-                                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                        : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                }`}
-                            >
-                                {farm.weather === 'rain' ? (
-                                    <CloudRain className="h-3.5 w-3.5" />
-                                ) : (
-                                    <Sun className="h-3.5 w-3.5" />
-                                )}
-                                <span>{farm.weather === 'rain' ? '雨天 · 自动浇水' : '晴天'}</span>
-                            </span>
+            {/* 顶部单行一体化控制栏（横向滚动，小屏不折行占用垂直空间） */}
+            <div className="w-full min-w-0 shrink-0 overflow-x-auto scrollbar-hide rounded-xl border border-slate-200/80 bg-slate-50/50 p-1.5 sm:p-2 text-xs">
+                <div className="flex items-center justify-between gap-2.5 min-w-max w-full">
+                    {/* 左侧：天气、余额、行动 */}
+                    <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                        {farm && (
+                            <>
+                                {/* 天气徽标 */}
+                                <span
+                                    className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 font-semibold ${
+                                        farm.weather === 'rain'
+                                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    }`}
+                                >
+                                    {farm.weather === 'rain' ? (
+                                        <CloudRain className="h-3.5 w-3.5" />
+                                    ) : (
+                                        <Sun className="h-3.5 w-3.5" />
+                                    )}
+                                    <span>{farm.weather === 'rain' ? '雨天 · 自动浇水' : '晴天'}</span>
+                                </span>
 
-                            {/* 余额 */}
-                            <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 font-mono font-medium text-slate-700 shadow-2xs">
-                                <Coins className="h-3 w-3 text-amber-500" />
-                                <span>余额 ¥{farm.balance ?? '0.00'}</span>
-                            </span>
+                                {/* 余额 */}
+                                <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 font-mono font-medium text-slate-700 shadow-2xs">
+                                    <Coins className="h-3 w-3 text-amber-500" />
+                                    <span>余额 ¥{farm.balance ?? '0.00'}</span>
+                                </span>
 
-                            {/* 行动状态 */}
-                            <span className="hidden truncate text-slate-500 sm:inline max-w-[200px] xl:max-w-xs">
-                                {farm.currentAction || '按自己的节奏生活'}
-                            </span>
-                        </>
-                    )}
-                </div>
+                                {/* 行动状态 */}
+                                <span className="hidden truncate text-slate-500 sm:inline max-w-[200px] xl:max-w-xs">
+                                    {farm.currentAction || '按自己的节奏生活'}
+                                </span>
+                            </>
+                        )}
+                    </div>
 
-                {/* 右侧：操作按钮群 */}
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                    <Link
-                        to="/agent-world?settings=agents"
-                        className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-600 shadow-2xs hover:bg-slate-50"
-                    >
-                        <span>任务设置</span>
-                        <ExternalLink className="h-3 w-3" />
-                    </Link>
+                    {/* 右侧：操作按钮群 */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                        {farm && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setInventory(true)}
+                                    className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
+                                >
+                                    <Package className="h-3.5 w-3.5" />
+                                    <span>打开背包</span>
+                                </button>
 
-                    {farm && (
-                        <>
-                            <button
-                                type="button"
-                                onClick={() => setInventory(true)}
-                                className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
-                            >
-                                <Package className="h-3.5 w-3.5" />
-                                <span>打开背包</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setConfigure(true)}
-                                className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1 font-medium text-white shadow-2xs transition-all hover:bg-orange-600 active:scale-95"
-                            >
-                                <Settings2 className="h-3.5 w-3.5" />
-                                <span>农场配置</span>
-                            </button>
-                        </>
-                    )}
+                                <button
+                                    type="button"
+                                    onClick={() => setConfigure(true)}
+                                    className="inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1 font-medium text-white shadow-2xs transition-all hover:bg-orange-600 active:scale-95"
+                                >
+                                    <Settings2 className="h-3.5 w-3.5" />
+                                    <span>农场配置</span>
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -287,11 +280,11 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                     </Link>
                 </section>
             ) : (
-                /* 主体分栏：移动端自适应流动，PC 端左右等高分栏（消除弹窗纵向滚动） */
-                <div className="w-full min-w-0 flex-1 min-h-0 grid gap-3.5 lg:grid-cols-[minmax(0,1fr)_360px]">
+                /* 小屏只滚动主体，保留顶部操作条；PC 端左右等高分栏。 */
+                <div className="w-full min-w-0 flex flex-1 min-h-0 flex-col gap-3.5 overflow-y-auto scrollbar-hide lg:grid lg:overflow-visible lg:grid-cols-[minmax(0,1fr)_360px]">
                     {/* 左侧：像素画布与居民切换展示 */}
-                    <div className="w-full min-w-0 flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-3 shadow-2xs min-h-0">
-                        <div className="w-full min-w-0 flex-1 flex items-center justify-center min-h-0">
+                    <div className="w-full min-w-0 flex flex-col rounded-2xl border border-slate-200/90 bg-white p-3 shadow-2xs shrink-0 lg:flex-1 lg:min-h-0 lg:justify-between">
+                        <div className="w-full min-w-0 flex items-center justify-center shrink-0 lg:flex-1 lg:min-h-0">
                             <FarmCanvas farm={farm} onSelect={handleSelect} />
                         </div>
 
@@ -370,21 +363,11 @@ export default function FarmPanel({initialAgentId}: {initialAgentId: string}) {
                                     </button>
                                 )}
                             </div>
-
-                            <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] text-slate-400">
-                                <span>现实时间成长 · 缺水或缺饲料暂停 · 动物满心50%双产、10%金色产物</span>
-                                {farms.length > 1 && (
-                                    <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-slate-400">
-                                        按 <kbd className="rounded border border-slate-200 bg-slate-50 px-1 py-0.5 font-mono text-[9px] shadow-2xs text-slate-500">←</kbd>
-                                        <kbd className="rounded border border-slate-200 bg-slate-50 px-1 py-0.5 font-mono text-[9px] shadow-2xs text-slate-500">→</kbd> 快捷切换居民
-                                    </span>
-                                )}
-                            </div>
                         </div>
                     </div>
 
                     {/* 右侧：一体化观察与记录面板 */}
-                    <div className="w-full min-w-0 flex flex-col rounded-2xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden min-h-0">
+                    <div className="w-full min-w-0 flex h-80 max-h-[50dvh] flex-col rounded-2xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden shrink-0 lg:h-auto lg:max-h-none lg:shrink lg:min-h-0">
                         {/* 顶部 Tab 切换控制器 */}
                         <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/70 p-2">
                             <div className="flex rounded-lg bg-slate-200/60 p-0.5">

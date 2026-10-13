@@ -1,6 +1,7 @@
 import {useEffect, useRef} from 'react';
 import WorldDialog from '../AgentWorld/WorldDialog';
 import FarmPanel from './FarmPanel';
+import {FarmInfoButton} from './FarmInfoButton';
 
 export default function FarmDialog({initialAgentId, onClose}: {initialAgentId: string; onClose: () => void}) {
     const panel = useRef<HTMLDivElement>(null);
@@ -17,7 +18,7 @@ export default function FarmDialog({initialAgentId, onClose}: {initialAgentId: s
         dialog?.addEventListener('keydown', trap as EventListener);
         return () => {dialog?.removeEventListener('keydown', trap as EventListener);};
     }, []);
-    return <WorldDialog title="像素农场" description="播种、照料，等待一场雨。看看居民今天怎样经营。" onClose={onClose} size="wide">
+    return <WorldDialog title="像素农场" titleAction={<FarmInfoButton />} description="播种、照料，等待一场雨。看看居民今天怎样经营。" onClose={onClose} size="wide">
         <div ref={panel} tabIndex={-1} className="w-full min-w-0 flex-1 flex flex-col min-h-0"><FarmPanel initialAgentId={initialAgentId}/></div>
     </WorldDialog>;
 }

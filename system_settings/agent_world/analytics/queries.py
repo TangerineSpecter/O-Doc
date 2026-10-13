@@ -80,8 +80,15 @@ def load_facts(request, owner, start, end):
         remember(actor or snapshot.get('id', ''), snapshot.get('name', ''), snapshot.get('avatar', ''))
     for actor in list(actors):
         remember(actor)
-    for agent in Agent.objects.filter(pk__in=actors):
-        facts.residents[agent.pk] = {'id': agent.pk, 'name': agent.name, 'avatar': agent.avatar or '', 'departed': agent.archived, 'archived': agent.archived}
+    for agent in Agent.objects.filter(pk__in=actors).select_related('profession'):
+        facts.residents[agent.pk] = {
+            'id': agent.pk,
+            'name': agent.name,
+            'avatar': agent.avatar or '',
+            'departed': agent.archived,
+            'archived': agent.archived,
+            'professionName': agent.profession.name if agent.profession else None,
+        }
 
     def window(query, time='created_at'):
         return query.filter(**{time+'__gte': start, time+'__lt': end})
@@ -160,6 +167,8 @@ def load_facts(request, owner, start, end):
     facts.explorations = list(window(Exploration.objects.filter(owner_id=owner), 'ended_at'))
     facts.wins = list(window(CombatEncounter.objects.filter(owner_id=owner, result__killed=True), 'ended_at'))
     facts.ledger = list(window(WorldLedger.objects.filter(agent_id__in=actors).exclude(kind='opening').exclude(amount=0)))
+    from ..market_finance import classify_market_ledger_entries
+    classify_market_ledger_entries(facts.ledger, owner)
     return facts
 
 

@@ -12,27 +12,36 @@ const columns: {key: ComparisonColumn; label: string}[] = [
     {key: 'interactions', label: '主动互动'},
     {key: 'income', label: '收入'},
     {key: 'expense', label: '支出'},
-    {key: 'net', label: '净收支'},
+    {key: 'net', label: '净收入'},
 ];
+
+const ROW_HEIGHT = 48;
+const HEADER_HEIGHT = 44;
+const MAX_VISIBLE_ROWS = 10;
+const MAX_HEIGHT = HEADER_HEIGHT + MAX_VISIBLE_ROWS * ROW_HEIGHT;
 
 export default function ResidentsComparison({rows, startDate, endDate}: {
     rows: AnalyticsComparison[]; startDate: string; endDate: string;
 }) {
-    const [column, setColumn] = useState<ComparisonColumn>('activeDays');
+    const [column, setColumn] = useState<ComparisonColumn>('net');
     const [descending, setDescending] = useState(true);
     const [selectedResident, setSelectedResident] = useState<AnalyticsComparison | null>(null);
 
     const sortedRows = sortAnalyticsResidents(rows, column, descending);
+    const rowCount = sortedRows.length;
+    const listHeight = rowCount === 0 ? 160 : Math.min(MAX_HEIGHT, HEADER_HEIGHT + rowCount * ROW_HEIGHT);
 
     return (
-        <div className="h-[min(560px,70vh)] min-h-[360px] overflow-hidden rounded-xl">
+        <div
+            className="overflow-hidden rounded-xl transition-[height] duration-300 ease-in-out"
+            style={{height: selectedResident ? MAX_HEIGHT : listHeight}}
+        >
             <div className={`flex h-full w-[200%] transition-transform duration-300 ease-in-out motion-reduce:transition-none ${selectedResident ? '-translate-x-1/2' : 'translate-x-0'}`}>
                 <div className={`h-full w-1/2 min-w-0 ${selectedResident ? 'pointer-events-none' : ''}`} aria-hidden={Boolean(selectedResident)}>
-                    <div className="h-full overflow-y-auto scrollbar-hide">
-                        <div className="overflow-x-auto scrollbar-hide">
-                            <table className="w-full min-w-[700px] text-xs">
-                                <thead>
-                                    <tr className="border-b border-slate-100 bg-slate-50/60 text-slate-500">
+                    <div className="h-full overflow-auto scrollbar-hide">
+                        <table className="w-full min-w-[700px] text-xs">
+                            <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 shadow-[0_1px_0_0_#f1f5f9]">
+                                <tr className="h-11 border-b border-slate-100">
                                         <th className="py-2.5 pl-3 pr-2 text-left font-medium w-12 text-center">排名</th>
                                         <th className="py-2.5 px-3 text-left font-medium">居民</th>
                                         {columns.map(item => {
@@ -84,7 +93,7 @@ export default function ResidentsComparison({rows, startDate, endDate}: {
                                         const isNetZero = netStr === '0' || netStr === '0.00';
                 
                                         return (
-                                            <tr key={row.id} className="transition-colors hover:bg-orange-50/20">
+                                            <tr key={row.id} className="h-12 transition-colors hover:bg-orange-50/20">
                                                 <td className="py-3 pl-3 pr-2 text-center">
                                                     <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${rankBadge}`}>
                                                         {rank}
@@ -159,7 +168,6 @@ export default function ResidentsComparison({rows, startDate, endDate}: {
                             )}
                         </div>
                     </div>
-                </div>
                 <div className="h-full w-1/2 min-w-0">
                     <ResidentLedgerPanel
                         resident={selectedResident}

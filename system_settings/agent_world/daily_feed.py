@@ -626,6 +626,8 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
 
     ledger = list(WorldLedger.objects.filter(created_at__gte=start, created_at__lt=end,
                                              agent_id__in=actors).exclude(kind='opening').exclude(amount=0))
+    from .market_finance import classify_market_ledger_entries
+    classify_market_ledger_entries(ledger, owner)
     from .ledger_details import ledger_details
     descriptions = ledger_details(ledger, owner)
     travel_ids = {row.snapshot.get('journey_id') for row in ledger
@@ -635,9 +637,12 @@ def day_events(request, owner, day, actor_id='', *, scope: FeedScope | None = No
     for row in ledger:
         snapshot = row.snapshot if isinstance(row.snapshot, dict) else {}
         description = descriptions.get(row.pk, '')
+        ledger_label = (('农场收入' if row.amount > 0 else '农场支出') if row.kind == 'farm' else
+                        ('市场收入' if row.amount > 0 else '市场支出') if row.kind == 'market' else
+                        LEDGER_LABELS.get(row.kind, '收入' if row.amount > 0 else '支出'))
         entry = _event('finance', 'ledger', row.pk, row.created_at, row.agent_id,
                        row.agent_name or names.get(row.agent_id),
-                       LEDGER_LABELS.get(row.kind, '收入' if row.amount > 0 else '支出'),
+                       ledger_label,
                        description, amount=row.amount,
                        target=None)
         # 资金视角始终完整；总时间线用业务事实代表对应扣款，避免同一笔成交出现两次。

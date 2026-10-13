@@ -82,9 +82,11 @@ class LedgerView(APIView):
             rows = rows.filter(amount__lt=0)
         from .ledger_details import ledger_details
         entries = list(rows[:200])
+        from .market_finance import classify_market_ledger_entries
+        classify_market_ledger_entries(entries)
         details = ledger_details(entries)
         data = LedgerSerializer(entries, many=True).data
-        return success_result([{**row, 'detail': details.get(entry.pk, '') if entry.kind == 'market' else ''} for entry, row in zip(entries, data)])
+        return success_result([{**row, 'detail': details.get(entry.pk, '')} for entry, row in zip(entries, data)])
 
 
 class SettlementsView(APIView):

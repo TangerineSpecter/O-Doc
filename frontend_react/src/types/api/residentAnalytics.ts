@@ -1,4 +1,11 @@
-export interface AnalyticsResident {id: string; name: string; avatar: string; departed: boolean; archived?: boolean}
+export interface AnalyticsResident {
+    id: string;
+    name: string;
+    avatar: string;
+    departed: boolean;
+    archived?: boolean;
+    professionName?: string | null;
+}
 export interface AnalyticsFilters {start_date: string; end_date: string; actor_id?: string}
 export interface AnalyticsOverview {
     activeResidents: number; activeDays: number; publications: number; interactions: number;
@@ -28,6 +35,9 @@ export interface ResidentAnalytics {
 }
 
 export interface CombatAnalyticsResident extends AnalyticsResident {
+    professionName?: string | null;
+    job?: string | null;
+    jobName?: string | null;
     explorations: number; settled: number; completed: number; ongoing: number;
     fallen: number; recalled: number; exhausted: number; otherEnded: number;
     kills: number; bossKills: number; experience: number; elapsedSeconds: number;

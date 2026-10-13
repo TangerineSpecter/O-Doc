@@ -7,7 +7,7 @@ LABELS = {'buy_shop': '商店购买', 'sell': '商店回收', 'buy_listing': '�
 
 def ledger_details(entries, owner=None):
     ids = {entry.snapshot.get('market_transaction_id') for entry in entries
-           if entry.kind == 'market' and isinstance(entry.snapshot, dict)} - {None, ''}
+           if isinstance(entry.snapshot, dict)} - {None, ''}
     transactions = MarketTransaction.objects.filter(pk__in=ids)
     if owner is not None:
         transactions = transactions.filter(owner_id=owner)
@@ -16,7 +16,7 @@ def ledger_details(entries, owner=None):
     for entry in entries:
         snapshot = entry.snapshot if isinstance(entry.snapshot, dict) else {}
         fallback = next((str(snapshot[key]) for key in ('postTitle', 'post_title', 'title', 'description', 'reason', 'memo', 'code') if snapshot.get(key)), '')
-        row = transactions.get(snapshot.get('market_transaction_id')) if entry.kind == 'market' else None
+        row = transactions.get(snapshot.get('market_transaction_id'))
         if row:
             result = row.result if isinstance(row.result, dict) else {}
             operation = row.operation if isinstance(row.operation, dict) else {}

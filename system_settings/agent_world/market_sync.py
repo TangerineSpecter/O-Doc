@@ -72,20 +72,35 @@ def reconcile_market() -> None:
         for key in farm.state.get('market_purchase_keys',[]):
             trade = MarketTransaction.objects.filter(pk=key,owner_id=farm.owner_id,actor_id=farm.pk).first()
             if not trade or trade.operation.get('kind') != 'buy_shop': raise SyncError('农场动物缺失市场购买依据')
-    ledger_keys = [f'market:{trade.pk}:{delta["actor_id"]}' for trade in MarketTransaction.objects.all()
+    trades = list(MarketTransaction.objects.select_related('session'))
+    ledger_keys = [f'market:{trade.pk}:{delta["actor_id"]}' for trade in trades
                    for delta in trade.result.get('deltas', [])]
-    WorldLedger.objects.filter(kind='market').exclude(pk__in=ledger_keys).delete()
+    WorldLedger.objects.filter(pk__startswith='market:').exclude(pk__in=ledger_keys).delete()
+    listing_ids = {trade.operation.get('listing_id') for trade in trades
+                   if isinstance(trade.operation, dict) and trade.operation.get('kind') == 'buy_listing'}
+    listings = {row.pk: row for row in MarketListing.objects.filter(pk__in=listing_ids)}
+    from .market_finance import farm_product_names, transaction_finance_kind
+    names_by_owner = {}
     energy_keys = [hashlib.sha256(('market-energy:'+key).encode()).hexdigest()
         for key in MarketSession.objects.exclude(mode='archive').values_list('pk', flat=True)]
     WorldAction.objects.filter(snapshot__market_energy=True).exclude(pk__in=energy_keys).delete()
-    for trade in MarketTransaction.objects.select_related('session'):
+    for trade in trades:
         if trade.owner_id != trade.session.owner_id or trade.actor_id != trade.session.actor_id:
             raise SyncError('市场成交与会话归属不一致')
         for delta in trade.result.get('deltas',[]):
+            if trade.owner_id not in names_by_owner:
+                names_by_owner[trade.owner_id] = farm_product_names(trade.owner_id)
+            operation = trade.operation if isinstance(trade.operation, dict) else {}
+            listing = listings.get(operation.get('listing_id'))
+            ledger_kind = transaction_finance_kind(
+                trade, delta['actor_id'], delta['amount'], listing=listing,
+                product_names=names_by_owner[trade.owner_id],
+            )
             WorldLedger.objects.update_or_create(pk=f'market:{trade.pk}:{delta["actor_id"]}', defaults={
                 'agent_id':delta['actor_id'],'agent_name':trade.actor_name if delta['actor_id']==trade.actor_id else
                     Agent.objects.filter(pk=delta['actor_id']).values_list('name',flat=True).first() or '',
-                'kind':'market','amount':delta['amount'],'created_at':trade.created_at,
+                'kind':ledger_kind,
+                'amount':delta['amount'],'created_at':trade.created_at,
                 'snapshot':{'market_transaction_id':trade.pk}})
     for session in MarketSession.objects.all():
         if session.mode == 'archive':

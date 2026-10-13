@@ -8,6 +8,7 @@ export interface ProfessionBadgeProps {
     emptyText?: string;
     className?: string;
     showIcon?: boolean;
+    icon?: React.ComponentType<{ className?: string }>;
 }
 
 export function ProfessionBadge({
@@ -18,6 +19,7 @@ export function ProfessionBadge({
     emptyText = '无业',
     className = '',
     showIcon = true,
+    icon: IconComponent = Briefcase,
 }: ProfessionBadgeProps) {
     if (!professionName) {
         if (!showEmpty) return null;
@@ -26,7 +28,7 @@ export function ProfessionBadge({
                 className={`inline-flex shrink-0 items-center gap-1 rounded-md border border-dashed border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-400 ${className}`}
                 title="暂未设定职业"
             >
-                {showIcon && <Briefcase className="h-2.5 w-2.5 shrink-0 text-slate-300" />}
+                {showIcon && <IconComponent className="h-2.5 w-2.5 shrink-0 text-slate-300" />}
                 <span>{emptyText}</span>
             </span>
         );
@@ -63,7 +65,7 @@ export function ProfessionBadge({
             className={`inline-flex shrink-0 items-center rounded-md border transition-all ${variantClasses} ${sizeClasses} ${className}`}
             title={`职业：${professionName}`}
         >
-            {showIcon && <Briefcase className={`${iconSizes} shrink-0 ${iconColors}`} />}
+            {showIcon && <IconComponent className={`${iconSizes} shrink-0 ${iconColors}`} />}
             <span className="truncate max-w-[140px]">{professionName}</span>
         </span>
     );

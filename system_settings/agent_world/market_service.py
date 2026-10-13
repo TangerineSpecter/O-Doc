@@ -35,7 +35,7 @@ def price(value):
     return result
 
 
-def change_money(agent, amount, key, at, *, operation_kind=None):
+def change_money(agent, amount, key, at, *, operation_kind=None, ledger_kind='market'):
     ensure_opening(agent)
     balance = WorldLedger.objects.filter(agent_id=agent.pk).aggregate(total=Sum('amount'))['total'] or Decimal(0)
     if balance+amount < 0 or balance+amount > Decimal('9999999999.99'):
@@ -46,7 +46,7 @@ def change_money(agent, amount, key, at, *, operation_kind=None):
                       purchase_kind=operation_kind)
     if amount:
         WorldLedger.objects.create(pk=f'market:{key}:{agent.pk}', agent_id=agent.pk, agent_name=agent.name,
-            kind='market', amount=amount, created_at=at, snapshot={'market_transaction_id': key})
+            kind=ledger_kind, amount=amount, created_at=at, snapshot={'market_transaction_id': key})
         agent.money = balance+amount
         agent.save(update_fields=['money'])
 
@@ -159,7 +159,9 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
             lots = payload['source'].get('lots')
             amount = sum((Decimal(l['price'])*l['quantity'] for l in lots), Decimal(0)) if lots else Decimal(payload['value'])*count
             if amount < 0: raise ValueError('回收价无效')
-            change_money(agent, amount, key, at, operation_kind=kind)
+            from .market_finance import finance_kind_for_sku
+            change_money(agent, amount, key, at, operation_kind=kind,
+                         ledger_kind=finance_kind_for_sku(payload['source'].get('sku', '')))
             deltas.append({'actor_id':agent.pk,'amount':str(amount)})
             result['total'] = str(amount)
         else:
@@ -180,7 +182,9 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
             payload, remaining = split_escrow(listing.item, count)
             amount = listing.unit_price*count
             change_money(agent, -amount, key, at, operation_kind=kind)
-            change_money(seller, amount, key, at, operation_kind=kind)
+            from .market_finance import finance_kind_for_sku
+            change_money(seller, amount, key, at, operation_kind=kind,
+                         ledger_kind=finance_kind_for_sku(payload['source'].get('sku', '')))
             result['item_id'] = deliver(owner, agent, payload, key).pk
             listing.item, listing.remaining_quantity = remaining, remaining['quantity']
             if not listing.remaining_quantity: listing.status = 'sold'

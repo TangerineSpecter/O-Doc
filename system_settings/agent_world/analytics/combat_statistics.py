@@ -1,7 +1,17 @@
 """Read-only departure-cohort combat statistics, scoped to the authenticated owner."""
-from ..combat.models import CombatFact, CombatEncounter, Exploration
+from ..combat.models import CombatFact, CombatEncounter, Exploration, CombatProfile
 
 OPEN = {'preparing', 'active', 'paused', 'settling'}
+
+JOB_NAMES = {
+    'job.novice': '新手', 'job.warrior': '战士', 'job.mage': '法师', 'job.ranger': '游侠', 'job.priest': '牧师',
+    'job.swordsman': '剑士', 'job.guardian': '守卫', 'job.elementalist': '元素师', 'job.occultist': '秘术师',
+    'job.archer': '弓手', 'job.assassin': '刺客', 'job.cleric': '祭司', 'job.naturalist': '自然使',
+    'job.swordmaster': '剑圣', 'job.spellblade': '魔剑士', 'job.paladin': '圣骑士', 'job.berserker': '狂战士',
+    'job.pyromancer': '炎术师', 'job.cryomancer': '冰术师', 'job.warlock': '咒术师', 'job.summoner': '召唤师',
+    'job.sharpshooter': '神射手', 'job.hunter': '猎人', 'job.shadowdancer': '影舞者', 'job.trickster': '诡术师',
+    'job.highpriest': '神官', 'job.inquisitor': '审判者', 'job.druid': '德鲁伊', 'job.warden': '守望者',
+}
 
 
 def count(value):
@@ -9,16 +19,32 @@ def count(value):
 
 
 def aggregate_combat(residents, runs, encounters):
-    rows = {actor: {**resident, 'explorations': 0, 'settled': 0, 'completed': 0,
-        'ongoing': 0, 'fallen': 0, 'recalled': 0, 'exhausted': 0, 'otherEnded': 0,
-        'kills': 0, 'bossKills': 0, 'experience': 0, 'elapsedSeconds': 0,
-        'longestSeconds': 0, 'energy': 0, 'potions': 0, 'monsters': {}, 'destinations': set()}
-        for actor, resident in residents.items()}
+    profiles = {p.pk: p for p in CombatProfile.objects.filter(pk__in=residents.keys())}
+    rows = {}
+    for actor, resident in residents.items():
+        profile = profiles.get(actor)
+        job_id = profile.progression.get('job', 'job.novice') if profile and profile.progression else None
+        job_name = JOB_NAMES.get(job_id, job_id) if job_id else None
+        rows[actor] = {
+            **resident,
+            'professionName': resident.get('professionName'),
+            'job': job_id,
+            'jobName': job_name,
+            'explorations': 0, 'settled': 0, 'completed': 0,
+            'ongoing': 0, 'fallen': 0, 'recalled': 0, 'exhausted': 0, 'otherEnded': 0,
+            'kills': 0, 'bossKills': 0, 'experience': 0, 'elapsedSeconds': 0,
+            'longestSeconds': 0, 'energy': 0, 'potions': 0, 'monsters': {}, 'destinations': set(),
+        }
     seen = set()
     for run in runs:
         row = rows.get(run.actor_id)
         if row is None or run.pk in seen:
             continue
+        if not row.get('jobName'):
+            snap_job = (run.snapshot.get('progression') or {}).get('job')
+            if snap_job:
+                row['job'] = snap_job
+                row['jobName'] = JOB_NAMES.get(snap_job, snap_job)
         seen.add(run.pk)
         row['explorations'] += 1
         if run.status in OPEN:

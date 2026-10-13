@@ -81,6 +81,8 @@ class AnalyticsLedgerView(APIView):
         ).exclude(kind='opening').exclude(amount=0).order_by('-created_at', '-id')[offset:offset+page_size+1])
         has_more = len(entries) > page_size
         entries = entries[:page_size]
+        from ..market_finance import classify_market_ledger_entries
+        classify_market_ledger_entries(entries, owner)
         details = ledger_details(entries, owner)
         serialized = LedgerSerializer(entries, many=True).data
         items = [

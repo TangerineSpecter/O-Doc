@@ -35,7 +35,92 @@ def indexed_rows(rows: object, expected: set[str], label: str) -> dict[str, dict
     return {row['id']: row for row in rows}
 
 
-def propose(agent, context: dict, ask: Callable) -> dict:
+def farm_planning_context(context: dict, farms: list[dict], slots: dict[str, dict]) -> dict:
+    """Project only the current farm facts needed to choose today's planting queue."""
+    value = {}
+    farm = context.get('farm')
+    if isinstance(farm, dict):
+        plots = []
+        for plot in farm.get('plots', []):
+            crop = plot.get('crop')
+            if not crop:
+                plots.append(None)
+                continue
+            rules = crop.get('rules') or {}
+            growth = rules.get('growth_seconds')
+            grown = crop.get('grown', 0)
+            remaining = max(0, growth - grown) if isinstance(growth, (int, float)) and isinstance(grown, (int, float)) else None
+            plots.append({'name': rules.get('name'), 'remaining_seconds': remaining})
+        value['farm'] = {'plots': plots}
+
+    planting = context.get('planting') or {}
+    crops = []
+    for crop in planting.get('crop_comparisons', []):
+        quantity = crop.get('seed_quantity', 0)
+        if type(quantity) is not int or quantity <= 0:
+            continue
+        row = {key: crop[key] for key in ('name', 'seed_sku', 'seed_quantity', 'growth_seconds') if key in crop}
+        base = crop.get('without_fertilizer') or {}
+        row['without_fertilizer'] = {key: base[key] for key in ('expected_quantity', 'expected_revenue') if key in base}
+        row['fertilizers'] = {}
+        for kind, option in (crop.get('fertilizers') or {}).items():
+            row['fertilizers'][kind] = {key: option[key] for key in (
+                'expected_quantity', 'expected_revenue', 'additional_net_revenue',
+                'inventory_additional_net_revenue') if key in option}
+        crops.append(row)
+
+    fertilizers = {}
+    for kind, stock in (planting.get('fertilizers') or {}).items():
+        quote = stock.get('quote') or {}
+        fertilizers[kind] = {
+            'quantity': stock.get('quantity', 0),
+            'next_inventory_cost': stock.get('next_inventory_cost'),
+            'market_price': quote.get('price'),
+        }
+    value['planting'] = {'crops': crops, 'fertilizers': fertilizers}
+    if 'balance' in context:
+        value['balance'] = context['balance']
+
+    queue = context.get('farm_queue')
+    if queue is None:
+        value['farm_queue'] = None
+    else:
+        value['farm_queue'] = {
+            key: queue[key] for key in ('day', 'status', 'procurement_limit') if key in queue
+        }
+        value['farm_queue']['entries'] = [
+            {key: entry[key] for key in ('sku', 'quantity', 'remaining', 'fertilizer_mode', 'fertilizer') if key in entry}
+            for entry in queue.get('entries', [])
+        ]
+
+    rules = context.get('farm_queue_rules') or {}
+    if rules.get('cutoff'):
+        value['cutoff'] = rules['cutoff']
+    value['slots'] = [
+        {key: slots[row['id']][key] for key in ('id', 'time') if key in slots[row['id']]}
+        | ({'reason': row['reason']} if row.get('reason') else {})
+        for row in farms
+    ]
+    return value
+
+
+def normalize_slot_time_aliases(rows: object, farms: list[dict], slots: dict[str, dict]) -> object:
+    """Accept the exact slot timestamp when a model confuses it with the internal item ID."""
+    if not isinstance(rows, list):
+        return rows
+    counts = {}
+    for row in farms:
+        at = slots[row['id']]['time']
+        counts[at] = counts.get(at, 0) + 1
+    aliases = {slots[row['id']]['time']: row['id'] for row in farms
+               if counts[slots[row['id']]['time']] == 1}
+    return [({**row, 'id': aliases[row['id']]}
+             if isinstance(row, dict) and isinstance(row.get('id'), str) and row['id'] in aliases else row)
+            for row in rows]
+
+
+def propose(agent, context: dict, ask: Callable, ask_detail: Callable | None = None) -> dict:
+    ask_detail = ask_detail or ask
     choice = ask(agent,
         '今天有slots中的这些行动机会。根据自己的角色性格、兴趣、目标和近期经历，'
         '决定各次机会想做什么，也可以rest。不需要平均分配活动或为了职业强选某项。'
@@ -76,7 +161,7 @@ def propose(agent, context: dict, ask: Callable) -> dict:
             funds['travel_costs'] = deepcopy(context.get('travel_costs'))
         funds['slots'] = [{**row, 'time': slots[row['id']]['time'],
                            'spent': slots[row['id']]['spent']} for row in paid]
-        response = ask(agent,
+        response = ask_detail(agent,
             '活动已经选定，只为slots中的活动提供总预算，不得换活动。'
             '结合真实余额及其他安排预留分配，预算不能小于已支出，总预留不能超过余额。'
             '预算只是预留，不是扣款；目的地和具体操作在执行对应活动时再决定。'
@@ -95,21 +180,22 @@ def propose(agent, context: dict, ask: Callable) -> dict:
                 proposal[key] = response[key]
     farms = [row for row in plans if row['activity'] == 'farm']
     if farms:
-        farming = {key: deepcopy(context[key]) for key in
-                   ('farm', 'inventory', 'planting', 'balance', 'farm_queue', 'farm_queue_rules') if key in context}
-        farming['slots'] = [{**row, 'time': slots[row['id']]['time']} for row in farms]
-        response = ask(agent,
+        farming = farm_planning_context(context, farms, slots)
+        response = ask_detail(agent,
             '已选择农场开工，现在单独准备种植队列，不得换活动。'
-            '只从planting.crop_comparisons的seed_sku选择种子，数量不能超过seed_quantity；'
-            '按地块、在田作物、周期及截止估算，不保证全部种完。没有种子必须返回空entries，'
+            '只从planting.crops中选择有库存的seed_sku，数量不能超过seed_quantity；'
+            '结合空地、在田作物剩余时间、作物周期和cutoff估算，不保证全部种完。没有可用种子必须返回空entries，'
+            '根据种子与肥料的估算产量、收益和库存决定是否施肥；optional表示缺肥时不阻塞，required表示缺肥时等待。'
             '保留采购上限作为补给意向，具体作物和数量等市场实际买到种子后再确定。'
-            '返回 {"plans":[{"id":"时间点ID","farm_plan":{"entries":'
+            '返回 {"plans":[{"id":"slots中对应的id","farm_plan":{"entries":'
             '[{"sku":"种子SKU","quantity":当天目标数量,"fertilizer_mode":'
             '"none或optional或required","fertilizer":"quality或yield或null"}],'
             '"procurement_limit":"采购上限"}}]}。允许空队列。'
+            'id必须逐字复制slots[].id；slots[].time仅用于判断开工时间，不能作为id。'
             '采购由独立每日市场预算承担，不在开工日程重复预留。'
             '已固化的队列普通修订不会重建。', farming)
-        specifications = indexed_rows(response.get('plans'), {row['id'] for row in farms}, '种植计划')
+        specifications = indexed_rows(normalize_slot_time_aliases(response.get('plans'), farms, slots),
+                                      {row['id'] for row in farms}, '种植计划')
         from .farm_plan_inventory import inventory_plan
         for row in farms:
             row['farm_plan'] = inventory_plan(specifications[row['id']].get('farm_plan'),

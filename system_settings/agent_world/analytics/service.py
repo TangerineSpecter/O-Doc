@@ -65,7 +65,7 @@ def aggregate(facts, first, last, actor=''):
         row.update(activeDays=active_days, net=money(row['income']-row['expense']),
                    income=money(row['income']), expense=money(row['expense']))
         rows.append(row)
-    rows.sort(key=lambda row: (-row['activeDays'], row['id']))
+    rows.sort(key=lambda row: (-Decimal(row['net']), -row['activeDays'], row['id']))
     income = sum((day['income'] for day in days.values()), Decimal(0))
     expense = sum((day['expense'] for day in days.values()), Decimal(0))
     total = sum(categories.values())
