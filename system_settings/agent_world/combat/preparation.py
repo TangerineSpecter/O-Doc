@@ -90,7 +90,7 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
     from ..market_tools import call_market_tool
     from ..market_spending import MarketPurchaseBlocked
     from ..life_models import LifeItem
-    from ..life_scope import life_scope
+    from ..life_scope import life_scope, manual_combat_potion_scope
     from ..life_context import build_context
     run=Exploration.objects.get(pk=run_id)
     if run.status!='preparing':return run
@@ -98,9 +98,10 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
     agent=require_active_agent(run.actor_id)
     item=LifeItem.objects.filter(pk=run.life_item_id).first()
     scope=life_scope(item,build_context(run.owner_id,agent,item)) if item else nullcontext()
+    manual_potion_scope=manual_combat_potion_scope(run.owner_id,agent.pk) if not item else nullcontext()
     session=None
     try:
-        with scope:
+        with scope,manual_potion_scope:
             # Persist the proposed preparation before any paid transaction. Retry never asks for a new plan.
             plan=run.snapshot.get('prepared_plan')
             if plan is None:

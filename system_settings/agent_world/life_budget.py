@@ -6,7 +6,8 @@ from .life_budget_policy import (UNBUDGETED_PURCHASE_ACTIVITIES, allows_spending
                                  remaining_reservation, validate_activity_budget)
 from .life_models import LifeItem
 from .life_schedule import OPEN, revise
-from .life_scope import CURRENT, check_item_authorization
+from .life_scope import (CURRENT, check_item_authorization,
+                         manual_combat_potion_owner)
 from .farm_gate import guarded
 
 
@@ -43,13 +44,25 @@ def future_allocations(rows: list[LifeItem], allocations: list[dict], reason: st
     return changes
 
 
-def charge_budget(agent: Agent, amount: Decimal, *, item_id: str | None = None, business_key: str | None = None) -> None:
+def charge_budget(agent: Agent, amount: Decimal, *, item_id: str | None = None,
+                  business_key: str | None = None, purchase_kind: str | None = None) -> None:
     """调用方必须在持有居民/资产锁的扣款事务内；旧独立手动操作兼容。"""
     if amount <= 0:
         return
     scope = CURRENT.get()
     identity = item_id or (scope['item_id'] if scope and scope['actor_id'] == agent.pk else None)
     if not identity:
+        owner = manual_combat_potion_owner(agent.pk)
+        if owner is None:
+            return
+        if purchase_kind != 'buy_potion':
+            raise ValueError('手动探索采购只允许购买冒险药剂')
+        reservations = LifeItem.objects.select_for_update().filter(
+            owner_id=owner, actor_id=agent.pk, status__in=OPEN,
+        )
+        reserved = sum((remaining_reservation(row) for row in reservations), Decimal(0))
+        if agent.money-amount < reserved:
+            raise ValueError('真实余额不足或资金已预留给其他生活安排')
         return
     item = LifeItem.objects.select_for_update().filter(pk=identity, actor_id=agent.pk).first()
     if not item:
@@ -57,15 +70,18 @@ def charge_budget(agent: Agent, amount: Decimal, *, item_id: str | None = None, 
             return
         raise ValueError('生活预算安排不存在')
     check_item_authorization(item)
-    unbudgeted_purchase = item.activity in UNBUDGETED_PURCHASE_ACTIVITIES
-    if not allows_spending(item.activity) and not unbudgeted_purchase:
+    unbudgeted_potion_purchase = (item.activity in UNBUDGETED_PURCHASE_ACTIVITIES
+                                  and purchase_kind == 'buy_potion')
+    if item.activity in UNBUDGETED_PURCHASE_ACTIVITIES and not unbudgeted_potion_purchase:
+        raise ValueError('探索安排只允许购买冒险药剂')
+    if not allows_spending(item.activity) and not unbudgeted_potion_purchase:
         raise ValueError('当前活动不支持世界货币消费')
     if item.status not in OPEN:
         raise ValueError('生活安排已结束')
     others = LifeItem.objects.select_for_update().filter(owner_id=item.owner_id, actor_id=agent.pk, status__in=OPEN).exclude(pk=item.pk)
     reserved = sum((remaining_reservation(r) for r in others), Decimal(0))
-    if (not unbudgeted_purchase and item.spent+amount > item.budget) or agent.money-amount < reserved:
-        if unbudgeted_purchase:
+    if (not unbudgeted_potion_purchase and item.spent+amount > item.budget) or agent.money-amount < reserved:
+        if unbudgeted_potion_purchase:
             raise ValueError('真实余额不足或资金已预留给其他生活安排')
         raise ValueError('支出超出生活预算；请调用adjust_life_budget说明原因重新分配，不能动用后续活动预留')
     if business_key:
@@ -73,7 +89,7 @@ def charge_budget(agent: Agent, amount: Decimal, *, item_id: str | None = None, 
         if business_key in keys:raise ValueError('生活支出业务键已经提交')
         item.context={**item.context,'debit_keys':[*keys,business_key]}
     item.spent += amount
-    if unbudgeted_purchase:
+    if unbudgeted_potion_purchase:
         # Keep the synchronized total valid without reserving future money.
         item.budget = item.spent
     item.save(update_fields=['spent','budget','context','updated_at'])

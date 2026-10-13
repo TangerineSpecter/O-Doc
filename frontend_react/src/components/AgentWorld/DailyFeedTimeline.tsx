@@ -1,7 +1,9 @@
 import {ExecutionFeedSteps} from './ExecutionFeedSteps';
+import {ExplorationFeedSettlement} from './ExplorationFeedSettlement';
+import {parseSettlementReport} from '../Combat/observationRecords';
 import PostRatingBadge from '../AgentPost/PostRatingBadge';
 import {Activity, ArrowDown, ArrowUp, BookOpenText, CircleDollarSign, CornerDownRight, Heart, MapPin, MessageCircle, MessageSquare, Package, RefreshCw, Sparkles, Sprout, Star, Store, TrendingUp} from 'lucide-react';
-import {useEffect, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import type {DailyFeedCategory, DailyFeedEvent} from '../../types/api/dailyFeed';
 import type {AgentActivity, AgentWorldAgentStatus} from '../../types/api/setting';
 import {shanghaiDay, useDailyFeed} from '../../hooks/useDailyFeed';
@@ -139,6 +141,11 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
         mainDetail = mainDetail.slice(0, -` · ${planReason}`.length);
     }
 
+    const parsedExploration = useMemo(() => {
+        if (event.category !== 'exploration' || !mainDetail) return null;
+        return parseSettlementReport(mainDetail);
+    }, [event.category, mainDetail]);
+
     return <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 transition-all hover:border-orange-200/80">
         <div className="flex items-start gap-3">
             <AgentAvatar name={agent?.name || event.actorName} avatar={agent?.avatar || ''} size="md"/>
@@ -162,7 +169,9 @@ function EventCard({event, residents, onOpen}: {event: DailyFeedEvent; residents
                 </div>
                 {mainDetail && (
                     <div className="mt-1.5">
-                        {isMotive ? (
+                        {parsedExploration ? (
+                            <ExplorationFeedSettlement parsed={parsedExploration} status={event.status} />
+                        ) : isMotive ? (
                             <div className="mt-2.5 rounded-r-lg border-l-2 border-orange-400 bg-orange-50/30 py-1.5 pl-3">
                                 <span className="mb-1 flex items-center gap-1 text-xs font-semibold text-slate-700">
                                     <span>💭</span> 内心动机：

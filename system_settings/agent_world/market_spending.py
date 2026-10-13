@@ -4,7 +4,7 @@ from system_settings.models import Agent
 from .life_budget_policy import UNBUDGETED_PURCHASE_ACTIVITIES, effective_budget, remaining_reservation
 from .life_models import LifeItem
 from .life_schedule import OPEN
-from .life_scope import CURRENT
+from .life_scope import CURRENT, in_manual_combat_potion_scope
 from .market_models import MarketTransaction, MarketListing
 from .market_shop import current_batch
 
@@ -13,6 +13,17 @@ class MarketPurchaseBlocked(ValueError):
     def __init__(self, code: str, message: str, context: dict):
         super().__init__(message)
         self.result = {'error': message, 'code': code, 'spending': context}
+
+
+def _is_unbudgeted_exploration(owner: str, actor: str) -> bool:
+    if in_manual_combat_potion_scope(owner, actor):
+        return True
+    scope = CURRENT.get()
+    if not scope or scope['actor_id'] != actor or scope['owner_id'] != owner:
+        return False
+    activity = LifeItem.objects.filter(pk=scope['item_id'], actor_id=actor,
+                                       owner_id=owner).values_list('activity', flat=True).first()
+    return activity in UNBUDGETED_PURCHASE_ACTIVITIES
 
 
 def spending_context(owner: str, actor: str) -> dict:
@@ -33,6 +44,12 @@ def spending_context(owner: str, actor: str) -> dict:
                      min(remaining_reservation(item), agent.money-reserved))
         result.update(item_id=item.pk, budget=str(effective_budget(item)), spent=str(item.spent),
                       reserved_for_others=str(reserved), spendable=str(max(Decimal(0), spendable)))
+    elif in_manual_combat_potion_scope(owner, actor):
+        reserved = sum((remaining_reservation(r) for r in LifeItem.objects.filter(
+            owner_id=owner, actor_id=actor, status__in=OPEN,
+        )), Decimal(0))
+        result.update(reserved_for_others=str(reserved),
+                      spendable=str(max(Decimal(0), agent.money-reserved)))
     return result
 
 
@@ -42,6 +59,9 @@ def check_purchase(owner: str, actor: str, operation: dict) -> None:
     from .market_service import price, quantity
     count = quantity(operation.get('quantity'))
     context = spending_context(owner, actor)
+    exploration_scope = _is_unbudgeted_exploration(owner, actor)
+    if exploration_scope and operation['kind'] != 'buy_potion':
+        raise ValueError('探索活动只允许购买冒险药剂')
     if operation['kind']=='buy_potion':
         from .combat.models import CombatProfile
         from .combat.store import current
@@ -74,11 +94,7 @@ def check_purchase(owner: str, actor: str, operation: dict) -> None:
     amount = unit_price * count
     if amount > Decimal(context['spendable']):
         message = f"本次需{amount}币，当前可消费{context['spendable']}币；"
-        scope = CURRENT.get()
-        unbudgeted_purchase = False
-        if scope and scope['actor_id'] == actor and scope['owner_id'] == owner:
-            item = LifeItem.objects.filter(pk=scope['item_id'], actor_id=actor, owner_id=owner).first()
-            unbudgeted_purchase = bool(item and item.activity in UNBUDGETED_PURCHASE_ACTIVITIES)
+        unbudgeted_purchase = exploration_scope and operation['kind'] == 'buy_potion'
         if unbudgeted_purchase:
             message += '药剂是可选补给，可减少数量或放弃购买；探索本身不需要生活预算。'
             code = 'insufficient_balance'

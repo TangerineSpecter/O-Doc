@@ -70,6 +70,7 @@ class CombatView(APIView):
                 # A rejected purchase must not undo the already accepted entry fee.
                 from ..market_sessions import enter
                 from ..market_tools import call_market_tool
+                from ..life_scope import manual_combat_potion_scope
                 with farm_gate():
                     agent=actor_for(owner,identity)
                     operation=request.data.get('trade',{})
@@ -77,7 +78,11 @@ class CombatView(APIView):
                     if not isinstance(operation,dict) or operation.get('kind') not in names:raise ValueError('未知冒险商店操作')
                     with transaction.atomic():profiles.ensure(owner,agent)
                     session=enter(owner,agent,request.data.get('session_key',key),mode='mcp')
-                    return respond(call_market_tool(names[operation['kind']],{'request_id':key,'session_id':session.pk,**{k:v for k,v in operation.items() if k!='kind'}},agent))
+                    arguments={'request_id':key,'session_id':session.pk,**{k:v for k,v in operation.items() if k!='kind'}}
+                    if operation['kind']=='buy_potion':
+                        with manual_combat_potion_scope(owner,agent.pk):
+                            return respond(call_market_tool(names[operation['kind']],arguments,agent))
+                    return respond(call_market_tool(names[operation['kind']],arguments,agent))
             with farm_gate(),transaction.atomic():
                 if self.kind=='config':
                     arguments={k:v for k,v in request.data.items() if k!='key'}

@@ -35,14 +35,15 @@ def price(value):
     return result
 
 
-def change_money(agent, amount, key, at):
+def change_money(agent, amount, key, at, *, operation_kind=None):
     ensure_opening(agent)
     balance = WorldLedger.objects.filter(agent_id=agent.pk).aggregate(total=Sum('amount'))['total'] or Decimal(0)
     if balance+amount < 0 or balance+amount > Decimal('9999999999.99'):
         raise ValueError('余额不足或余额超出范围')
     if amount < 0:
         from .life_budget import charge_budget
-        charge_budget(agent,-amount,business_key=f'market:{key}:{agent.pk}')
+        charge_budget(agent,-amount,business_key=f'market:{key}:{agent.pk}',
+                      purchase_kind=operation_kind)
     if amount:
         WorldLedger.objects.create(pk=f'market:{key}:{agent.pk}', agent_id=agent.pk, agent_name=agent.name,
             kind='market', amount=amount, created_at=at, snapshot={'market_transaction_id': key})
@@ -102,7 +103,9 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
     deltas = []
     if kind in ('buy_potion','sell_combat_material','sell_combat_equipment'):
         from .combat.market import transact
-        result.update(transact(owner,agent,key,operation,change_money,at))
+        def change_combat_money(target, amount, transaction_key, transaction_at):
+            return change_money(target,amount,transaction_key,transaction_at,operation_kind=kind)
+        result.update(transact(owner,agent,key,operation,change_combat_money,at))
         deltas = result['deltas']
     elif kind == 'buy_shop':
         batch = current_batch(owner, at)
@@ -121,7 +124,7 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
             if slot_id not in bought and len(bought)>=2:
                 raise ValueError('本小时最多购买两个商品格，常驻农资不占额度')
         amount = price(item['price'])*count
-        change_money(agent, -amount, key, at)
+        change_money(agent, -amount, key, at, operation_kind=kind)
         if item['kind'] == 'animal':
             if count != 1: raise ValueError('动物每个商品位仅一只')
             farm = AgentFarm.objects.select_for_update().filter(pk=agent.pk, owner_id=owner).first()
@@ -156,7 +159,7 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
             lots = payload['source'].get('lots')
             amount = sum((Decimal(l['price'])*l['quantity'] for l in lots), Decimal(0)) if lots else Decimal(payload['value'])*count
             if amount < 0: raise ValueError('回收价无效')
-            change_money(agent, amount, key, at)
+            change_money(agent, amount, key, at, operation_kind=kind)
             deltas.append({'actor_id':agent.pk,'amount':str(amount)})
             result['total'] = str(amount)
         else:
@@ -176,7 +179,8 @@ def trade(session: MarketSession, agent: Agent, key: str, operation: dict, now=N
             if not seller or seller.archived: raise ValueError('卖家已删除，挂牌暂不可成交')
             payload, remaining = split_escrow(listing.item, count)
             amount = listing.unit_price*count
-            change_money(agent, -amount, key, at); change_money(seller, amount, key, at)
+            change_money(agent, -amount, key, at, operation_kind=kind)
+            change_money(seller, amount, key, at, operation_kind=kind)
             result['item_id'] = deliver(owner, agent, payload, key).pk
             listing.item, listing.remaining_quantity = remaining, remaining['quantity']
             if not listing.remaining_quantity: listing.status = 'sold'

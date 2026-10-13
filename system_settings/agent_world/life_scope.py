@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 CURRENT = ContextVar('life_execution', default=None)
+MANUAL_COMBAT_POTION = ContextVar('manual_combat_potion_purchase', default=None)
 
 
 @contextmanager
@@ -14,6 +15,26 @@ def life_scope(item, context):
             yield
     finally:
         CURRENT.reset(token)
+
+
+@contextmanager
+def manual_combat_potion_scope(owner: str, actor_id: str):
+    """Protect scheduled funds during combat-potion purchases without a LifeItem."""
+    token = MANUAL_COMBAT_POTION.set({'owner_id': owner, 'actor_id': actor_id})
+    try:
+        yield
+    finally:
+        MANUAL_COMBAT_POTION.reset(token)
+
+
+def in_manual_combat_potion_scope(owner: str, actor_id: str) -> bool:
+    scope = MANUAL_COMBAT_POTION.get()
+    return bool(scope and scope['owner_id'] == owner and scope['actor_id'] == actor_id)
+
+
+def manual_combat_potion_owner(actor_id: str) -> str | None:
+    scope = MANUAL_COMBAT_POTION.get()
+    return scope['owner_id'] if scope and scope['actor_id'] == actor_id else None
 
 
 def enrich(context):

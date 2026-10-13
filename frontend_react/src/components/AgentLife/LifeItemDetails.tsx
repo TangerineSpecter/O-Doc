@@ -242,9 +242,15 @@ export default function LifeItemDetails({
 
                         {item.result?.reason && (
                             <div className="flex items-start gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-xs">
-                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+                                {item.status === 'failed' ? (
+                                    <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                                ) : (
+                                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+                                )}
                                 <div className="space-y-0.5">
-                                    <span className="font-semibold text-slate-700">实际执行结果</span>
+                                    <span className="font-semibold text-slate-700">
+                                        {item.status === 'failed' ? '执行失败原因' : '实际执行结果'}
+                                    </span>
                                     <p className="text-slate-600 leading-relaxed">{item.result.reason}</p>
                                 </div>
                             </div>
@@ -332,12 +338,17 @@ export default function LifeItemDetails({
 
                         {/* 调整表单操作 */}
                         {(['pending', 'deferred', 'paused', 'running'].includes(item.status) ||
-                            (item.status === 'failed' && item.activity !== 'market_prepare')) && (
+                            (item.status === 'failed' && item.activity !== 'market_prepare') ||
+                            (item.status === 'failed' && item.activity === 'market_prepare' && item.retryAvailable)) && (
                             <div className="space-y-3 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
                                         <FileEdit className="h-3.5 w-3.5 text-orange-500" />
-                                        <span>调整原因说明</span>
+                                        <span>
+                                            {item.status === 'failed' && item.activity === 'market_prepare'
+                                                ? '重试原因说明'
+                                                : '调整原因说明'}
+                                        </span>
                                     </div>
                                     <span className="text-[11px] text-slate-400">
                                         {reason.length > 0 ? `${reason.length} 字` : '必填'}
@@ -349,7 +360,9 @@ export default function LifeItemDetails({
                                     onChange={(e) => setReason(e.target.value)}
                                     placeholder={
                                         item.status === 'failed'
-                                            ? '请说明重试或重新规划的原因…'
+                                            ? item.activity === 'market_prepare'
+                                                ? '请说明重试这次市场机会的原因…'
+                                                : '请说明重试或重新规划的原因…'
                                             : '请输入重新规划或取消的原因…'
                                     }
                                     className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all leading-relaxed"
@@ -357,13 +370,18 @@ export default function LifeItemDetails({
                                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                                     <span className="text-[11px] text-slate-400">
                                         {!reason.trim()
-                                            ? '请先填写调整原因，再执行相应操作'
+                                            ? item.activity === 'market_prepare'
+                                                ? '请先填写重试原因'
+                                                : '请先填写调整原因，再执行相应操作'
                                             : item.status === 'failed'
-                                              ? '重试会保留这次活动；已经过点的时间会顺延到可执行空档'
+                                              ? item.activity === 'market_prepare'
+                                                  ? '只重试这次尚未进入市场的机会，且须在当天活动窗口内'
+                                                  : '重试会保留这次活动；已经过点的时间会顺延到可执行空档'
                                               : '调整操作将记录进历史流水'}
                                     </span>
                                     <div className="flex items-center gap-2">
-                                        {item.status === 'failed' && item.activity !== 'travel' && (
+                                        {item.status === 'failed' && item.activity !== 'travel' &&
+                                            (item.activity !== 'market_prepare' || item.retryAvailable) && (
                                             <button
                                                 type="button"
                                                 disabled={busy || !reason.trim()}
@@ -376,7 +394,7 @@ export default function LifeItemDetails({
                                                 <span>重试</span>
                                             </button>
                                         )}
-                                        <button
+                                        {!(item.status === 'failed' && item.activity === 'market_prepare') && <button
                                             type="button"
                                             disabled={busy || !reason.trim() || item.status === 'running'}
                                             onClick={() => void change('replan')}
@@ -390,7 +408,7 @@ export default function LifeItemDetails({
                                                 className={`h-3.5 w-3.5 shrink-0 ${busy && item.status !== 'failed' ? 'animate-spin' : ''}`}
                                             />
                                             <span>重新规划</span>
-                                        </button>
+                                        </button>}
                                         {item.status !== 'failed' && (
                                             <button
                                                 type="button"
@@ -404,6 +422,12 @@ export default function LifeItemDetails({
                                         )}
                                     </div>
                                 </div>
+                            </div>
+                        )}
+                        {item.status === 'failed' && item.activity === 'market_prepare' && !item.retryAvailable && (
+                            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                                <span>{item.retryBlockedReason || '这次每日市场机会暂时不能重试'}</span>
                             </div>
                         )}
                     </>

@@ -10,7 +10,7 @@ from .farm_gate import guarded
 from .life_models import LifeProfile, LifeGoal, LifeItem, LifeCycle
 from .life_config import config_for, validate_settings, ensure_profiles, effective_settings, DEFAULTS
 from .life_time import storage_time,local_time
-from .life_schedule import OPEN, SHANGHAI, recover, revise, requeue, retry_failed
+from .life_schedule import OPEN, SHANGHAI, recover, revise, requeue, retry_block_reason, retry_failed
 
 
 def owner_of(request):
@@ -33,6 +33,10 @@ def item_data(item, detail=False):
     if detail:
         value['context']=item.context
         value['revisions']=list(item.revisions.order_by('created_at').values('id','before','after','reason','created_at'))
+        if item.status == 'failed' and item.activity == 'market_prepare':
+            blocked=retry_block_reason(item)
+            value['retry_available']=not blocked
+            value['retry_blocked_reason']=blocked
     return value
 
 

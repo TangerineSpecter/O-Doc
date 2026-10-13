@@ -273,7 +273,14 @@ def settle(run, profile, status, reason, now):
     run.ended_at,run.next_tick_at=now,None
     run.revision+=1
     report=f'{run.actor_name}探索{run.elapsed_seconds//60}分钟，击败{run.result.get("kills",0)}只怪物，获得{run.result.get("experience",0)}经验；消耗{run.result.get("energy",0)}体力。{reason}'
-    names=[f'{reward["item"]["name"]}×{reward.get("quantity",1)}' for reward in run.result.get('rewards',[])]
+    reward_counts = {}
+    for reward in run.result.get('rewards', []):
+        if isinstance(reward, dict):
+            item = reward.get('item') or {}
+            name = item.get('name') if isinstance(item, dict) else None
+            if name:
+                reward_counts[name] = reward_counts.get(name, 0) + reward.get('quantity', 1)
+    names=[f'{name}×{count}' for name, count in reward_counts.items()]
     if names:report+=' 收获：'+'、'.join(names)+'。'
     report+=f'消耗药剂 {sum(run.result.get("potions_used",{}).values())} 瓶，返回 Lv.{profile.progression["level"]}。'
     run.result={**run.result,'report':report,'returned_potions':returned}

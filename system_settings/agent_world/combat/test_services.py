@@ -65,6 +65,35 @@ class ExplorationTests(TestCase):
         self.assertEqual(fitted['potions'],{})
         self.assertIn('探索本身不需要生活预算',fitted['reason'])
 
+    def test_manual_exploration_potion_plan_preserves_future_life_reservations(self):
+        from ..life_models import LifeItem
+        from .preparation import prepare
+        future=LifeItem.objects.create(pk='future-travel-reservation',owner_id='admin',actor_id=self.agent.pk,
+            original_at=self.now,scheduled_at=self.now+timedelta(days=2),activity='travel',status='pending',budget=9995)
+        run=explorations.request('admin',self.agent,'manual-reserved-potion-plan',{},now=self.now)
+        plan={**self.plan,'purchases':{'potion.heal.1':2},'potions':{'potion.heal.1':2},'equipment':{}}
+        run=prepare(run.pk,planner=lambda *args:plan)
+        self.agent.refresh_from_db();future.refresh_from_db()
+        prepared=run.snapshot['prepared_plan']
+        self.assertEqual(run.status,'active')
+        self.assertEqual(prepared['purchases'],{})
+        self.assertEqual(prepared['potions'],{})
+        self.assertEqual(self.agent.money,10000)
+        self.assertEqual((future.budget,future.spent),(9995,0))
+
+    def test_manual_combat_potion_debit_rechecks_future_life_reservations(self):
+        from decimal import Decimal
+        from django.db import transaction
+        from ..life_budget import charge_budget
+        from ..life_models import LifeItem
+        from ..life_scope import manual_combat_potion_scope
+        LifeItem.objects.create(pk='future-potion-reservation',owner_id='admin',actor_id=self.agent.pk,
+            original_at=self.now,scheduled_at=self.now+timedelta(days=2),activity='travel',status='pending',budget=9995)
+        with manual_combat_potion_scope('admin',self.agent.pk),transaction.atomic():
+            locked=type(self.agent).objects.select_for_update().get(pk=self.agent.pk)
+            with self.assertRaisesRegex(ValueError,'真实余额不足或资金已预留给其他生活安排'):
+                charge_budget(locked,Decimal('6'),business_key='manual-combat-potion',purchase_kind='buy_potion')
+
     def test_life_exploration_with_zero_budget_can_buy_potions_and_depart(self):
         from system_settings.models import SystemSetting,WorldActionRuntime
         from ..life_models import LifeConfig,LifeItem

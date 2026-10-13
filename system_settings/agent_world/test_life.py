@@ -192,9 +192,12 @@ class LifeTests(TestCase):
         item=self.item(activity='exploration',status='running',budget=0)
         future=self.item('future',activity='travel',status='pending',budget=9000)
         with life_scope(item,{}),transaction.atomic():
+            with self.assertRaisesRegex(ValueError,'探索安排只允许购买冒险药剂'):
+                charge_budget(self.agents[0],Decimal('1'),purchase_kind='buy_shop')
+        with life_scope(item,{}),transaction.atomic():
             self.assertFalse(allows_spending('exploration'))
             self.assertEqual(remaining_reservation(item),0)
-            charge_budget(self.agents[0],Decimal('12'),business_key='combat-potion')
+            charge_budget(self.agents[0],Decimal('12'),business_key='combat-potion',purchase_kind='buy_potion')
         item.refresh_from_db()
         future.refresh_from_db()
         self.assertEqual((item.budget,item.spent),(Decimal('12'),Decimal('12')))

@@ -6,8 +6,8 @@ from zoneinfo import ZoneInfo
 from django.db import transaction
 from django.utils import timezone
 from system_settings.agent_random_schedule import period_bounds
-from .life_models import LifeCycle, LifeItem, LifeRevision
-from .life_config import DEFAULTS, ensure_profiles
+from .life_models import LifeConfig, LifeCycle, LifeItem, LifeRevision
+from .life_config import DEFAULTS, effective_settings, ensure_profiles, tasks_for
 from .farm_gate import guarded
 from .life_time import local_time,storage_time
 
@@ -163,12 +163,39 @@ def requeue(item: LifeItem, reason: str) -> None:
            attempts=0, context=_retry_context(item, clear_plan=True), result={}, record_id='')
 
 
+def retry_block_reason(item: LifeItem, now=None) -> str:
+    """每日市场机会仅在当天、尚未进入市场时允许重试。"""
+    if item.activity != 'market_prepare':
+        return ''
+    now = local_time(now)
+    original = local_time(item.original_at)
+    if now.date() != original.date():
+        return '每日市场机会只能在原定当天重试'
+    config = LifeConfig.objects.filter(pk=item.owner_id).first()
+    if not config:
+        return '生活配置不存在，无法重试每日市场机会'
+    settings = {**DEFAULTS, **effective_settings(config, now)}
+    _, right = window(settings, original.date())
+    if now >= right:
+        return '当天市场活动窗口已结束，不能补跑'
+    if not any(task.pk == item.task_id and task.enabled and task.task_kind == 'market'
+               for task in tasks_for(item.owner_id)):
+        return '市场任务已停用或删除，无法重试'
+    if item.record_id:
+        from .market_models import MarketSession
+        if MarketSession.objects.filter(record_id=item.record_id).exists():
+            return '本次机会已进入市场并消耗体力，不能再次重试'
+    return ''
+
+
 def retry_failed(item: LifeItem, reason: str) -> None:
     """保留已规划活动，换新的执行键再跑一次；规划失败则重新排队。"""
     if item.status != 'failed':
         raise ValueError('只能重试失败的安排')
     if item.activity == 'market_prepare':
-        raise ValueError('每日市场机会不是普通生活次数，不能重试')
+        blocked = retry_block_reason(item)
+        if blocked:
+            raise ValueError(blocked)
     if item.activity == 'travel':
         from .travel_models import TravelJourney
         if TravelJourney.objects.filter(pk=item.pk).exists():
