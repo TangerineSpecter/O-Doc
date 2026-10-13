@@ -1,7 +1,9 @@
+import type {BattleAppearanceOverlays} from './setting';
+
 export interface CombatRow {id: string; name?: string; [key: string]: string | undefined}
 export interface CombatCatalog {version: string; tables: Record<string, CombatRow[]>; monsterPreviews: {id: string; level: number; attributes: Record<string, number | string>}[]}
 export interface EquipmentSnapshot {templateId: string; name: string; slot: string; level: number; quality: string; value: string; stats: Record<string, number>; affixes: {id: string; stat: string; value: number}[]}
-export interface CombatEquipment {id: string; snapshot: EquipmentSnapshot; bound: boolean; locked: boolean; value: string}
+export interface CombatEquipment {id: string; templateId?:string; snapshot: EquipmentSnapshot; bound: boolean; locked: boolean; value: string}
 export interface CombatProfile {
     discoveries: {encountered: string[]; defeated: string[]; equipment: string[]}; initialized: boolean; actorId: string; progression: {level: number; experience: number; job: string; stats: Record<string, number>; skills: Record<string, number>};
     attributes: Record<string, number | string>; hp: number; mp: number; loadout: Record<string, string>; equipment: CombatEquipment[];
@@ -10,7 +12,7 @@ export interface CombatProfile {
 }
 export interface Combatant {name: string; level: number; hp: number; mp: number; stats: Record<string, number | string>; skills?: Record<string, number>; rank?: string; states: {code: string; name: string; remaining?: number}[]}
 /** Derived from existing exploration state, never persisted as animation data. */
-export interface CombatVisualSnapshot {dungeonId:string;jobId:string;weaponId:string;monsterId:string;encounterId:string;headImageUrl?:string}
+export interface CombatVisualSnapshot {dungeonId:string;jobId:string;weaponId:string;monsterId:string;encounterId:string;headImageUrl?:string;headBehindBody?:boolean;characterImageUrl?:string;appearanceOverlays?:BattleAppearanceOverlays}
 export interface CombatAction {kind: string; actor?: string; target?: string; action?: string; name?: string; hit?: boolean; critical?: boolean; damage?: number; healing?: number; restored?: number; experience?: number; monster?: {id?: string; name: string; level: number; rank?: string}; rewards?: CombatReward[]}
 export interface CombatReward {id: string; kind: string; item: EquipmentSnapshot | CombatRow; equipmentId?: string; quantity?: number; elapsedSeconds: number}
 export interface CombatEvent {id: string; sequence: number; kind: string; elapsedSeconds: number; payload: {events?: CombatAction[]; report?: string; reason?: string}; createdAt: string}

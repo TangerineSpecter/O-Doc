@@ -172,6 +172,13 @@ def get_prompt_resource_usage(resource_ids=None):
 
 
 def is_asset_used_by_agent(resource_id):
+    from prompts.models import ImageGenerationTask
+    # Keep the ordered references needed to inspect/recover a battle-head task.
+    references = ImageGenerationTask.objects.filter(
+        request_data__scene='battle_head', request_data__icontains=resource_id,
+    ).values_list('request_data', flat=True)
+    if any(resource_id in data.get('reference_image_ids', []) for data in references):
+        return True
     from system_settings.agent_world.social_models import Moment
     if any(resource_id in row.images for row in Moment.objects.filter(is_valid=True).only('images')):
         return True
@@ -186,7 +193,8 @@ def is_asset_used_by_agent(resource_id):
         or Agent.objects.filter(Q(avatar=url) | Q(full_body_image=url)
                                 | Q(battle_appearance__source_asset_id=resource_id)
                                 | Q(battle_appearance__cutout_asset_id=resource_id)
-                                | Q(battle_appearance__head_asset_id=resource_id)).exists()
+                                | Q(battle_appearance__head_asset_id=resource_id)
+                                | Q(battle_appearance__character_asset_id=resource_id)).exists()
         or AgentActivity.objects.filter(metadata__agentSnapshot__avatar=url).exists()
         or Article.objects.filter(agent_post_creator_avatar=url).exists()
         or ArticlePostComment.objects.filter(creator_avatar=url).exists()
@@ -233,9 +241,17 @@ def get_agent_resource_usage(resource_ids=None):
     queryset = Agent.objects.filter(Q(avatar__startswith=prefix) | Q(full_body_image__startswith=prefix)
                                     | Q(battle_appearance__source_asset_id__isnull=False)
                                     | Q(battle_appearance__cutout_asset_id__isnull=False)
-                                    | Q(battle_appearance__head_asset_id__isnull=False))
+                                    | Q(battle_appearance__head_asset_id__isnull=False)
+                                    | Q(battle_appearance__character_asset_id__isnull=False))
 
     usage = {}
+    from prompts.models import ImageGenerationTask
+    image_tasks = list(ImageGenerationTask.objects.filter(request_data__scene='battle_head').values('agent_key', 'request_data'))
+    names = dict(Agent.objects.filter(pk__in={task['agent_key'] for task in image_tasks}).values_list('pk', 'name'))
+    for task in image_tasks:
+        for reference_id in task['request_data'].get('reference_image_ids', []):
+            if resource_ids is None or reference_id in resource_ids:
+                usage.setdefault(reference_id, {'id': task['agent_key'], 'title': f"{names.get(task['agent_key'], '居民')} · 战斗生图参考"})
     for agent in queryset.only('id', 'name', 'avatar', 'full_body_image', 'battle_appearance'):
         for image_url in (agent.avatar, agent.full_body_image):
             resource_id = extract_resource_id_from_view_url(image_url)
@@ -246,7 +262,7 @@ def get_agent_resource_usage(resource_ids=None):
             usage.setdefault(resource_id, {'id': agent.id, 'title': agent.name})
 
         appearance = agent.battle_appearance or {}
-        for key in ('source_asset_id', 'cutout_asset_id', 'head_asset_id'):
+        for key in ('source_asset_id', 'cutout_asset_id', 'head_asset_id', 'character_asset_id'):
             resource_id = appearance.get(key)
             if resource_id and (resource_ids is None or resource_id in resource_ids):
                 usage.setdefault(resource_id, {'id': agent.id, 'title': f'{agent.name} · 战斗形象'})

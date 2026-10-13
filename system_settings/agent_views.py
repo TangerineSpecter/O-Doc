@@ -139,11 +139,13 @@ class AgentViewSet(viewsets.ModelViewSet):
         owner_id = get_current_user_identifier(request)
         from assets.models import Asset
         current_appearance = agent.battle_appearance
-        current_ids = [current_appearance.get(key) for key in ('source_asset_id', 'cutout_asset_id', 'head_asset_id')] if isinstance(current_appearance, dict) else []
+        current_ids = ([current_appearance.get(key) for key in ('source_asset_id', 'cutout_asset_id',
+                        'character_asset_id' if current_appearance.get('version') == 3 else 'head_asset_id')
+                       if current_appearance.get(key)] if isinstance(current_appearance, dict) else [])
         if request.method == 'GET':
             appearance = current_appearance
             resource_ids = set(current_ids)
-            if not current_ids or not all(current_ids) or Asset.objects.filter(pk__in=resource_ids, uploader=owner_id, is_valid=True, file_type='image').count() != len(resource_ids):
+            if not current_ids or Asset.objects.filter(pk__in=resource_ids, uploader=owner_id, is_valid=True, file_type='image').count() != len(resource_ids):
                 appearance = None
             value = appearance_view(appearance)
             return success_result(value or {'configured': False})
@@ -171,11 +173,11 @@ class AgentViewSet(viewsets.ModelViewSet):
         from system_mcp.image_generation import image_generation_options
         agent = self.get_object()
         return success_result(image_generation_options(
-            agent=agent, model_id=request.query_params.get('modelId'), scene='battle_head',
+            agent=agent, model_id=request.query_params.get('model_id') or request.query_params.get('modelId'), scene='battle_head',
             user_id=get_current_user_identifier(request),
         ))
 
-    @action(detail=True, methods=['get', 'post'], url_path='battle-appearance-generation', permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['get', 'post', 'delete'], url_path='battle-appearance-generation', permission_classes=[IsAuthenticated])
     def battle_appearance_generation(self, request, pk=None):
         from utils.drf_utils import get_current_user_identifier
         from system_mcp.image_generation import image_generation_options
@@ -183,20 +185,36 @@ class AgentViewSet(viewsets.ModelViewSet):
         from prompts.models import ImageGenerationTask
         from rest_framework.exceptions import ValidationError
         from .agent_availability import require_active_agent
+        from system_mcp.image_task_lifecycle import cancel_battle_head_task, expire_battle_head_tasks
 
         agent = self.get_object()
         owner_id = get_current_user_identifier(request)
         require_active_agent(agent)
         scope = {'user_id': owner_id, 'agent_key': str(agent.pk)}
+        if request.method == 'DELETE':
+            try:
+                task = cancel_battle_head_task(request.query_params.get('task_id') or request.query_params.get('taskId', ''), owner_id, str(agent.pk))
+                return success_result(_output(task))
+            except ValueError as exc:
+                return valid_result(str(exc), status=404)
+        expire_battle_head_tasks(owner_id, str(agent.pk))
         if request.method == 'GET':
-            task_id = request.query_params.get('taskId')
+            task_id = request.query_params.get('task_id') or request.query_params.get('taskId')
             if task_id:
                 try:
                     return success_result(get_image_generation_result({'task_id': task_id}, agent, user_id=owner_id))
                 except ValueError as exc:
                     return valid_result(str(exc), status=404)
-            tasks = ImageGenerationTask.objects.filter(**scope, request_data__scene='battle_head').order_by('-created_at')[:10]
+            tasks = ImageGenerationTask.objects.filter(**scope, request_data__scene='battle_head').exclude(status='discarded').order_by('-created_at')[:10]
             return success_result([_output(task) for task in tasks])
+
+        active_task = ImageGenerationTask.objects.filter(
+            **scope,
+            request_data__scene='battle_head',
+            status__in=['submitting', 'generating', 'download_pending'],
+        ).order_by('-created_at').first()
+        if active_task:
+            return success_result(_output(active_task))
 
         data = request.data.copy()
         if not isinstance(data, dict):
@@ -205,27 +223,24 @@ class AgentViewSet(viewsets.ModelViewSet):
             options = image_generation_options(agent, data.get('model_id'), 'battle_head', owner_id)
             if not options.get('configured'):
                 return valid_result(options.get('message') or '请先配置生图模型', status=400)
-            use_agent_avatar = data.pop('use_agent_avatar', True)
-            if not data.get('reference_image_ids') and use_agent_avatar and options.get('supports_reference_images'):
-                default_avatar = options.get('agent_reference_images', {}).get('avatar')
-                if default_avatar:
-                    data['reference_image_ids'] = [default_avatar]
-            if data.get('reference_image_ids') and not options.get('supports_reference_images'):
-                return valid_result('当前模型不支持参考图，请关闭参考图后使用文字生成，或切换支持参考图的模型', status=400)
-            user_prompt = str(data.get('prompt', '')).strip()
-            style_prompt = (
-                'Create a single pixel-art RPG battle character head sprite, matching a retro pixel game asset. '
-                'Use hard-edged chunky pixels, a limited harmonious palette, crisp pixel clusters, and a straight-on slight three-quarter facing direction consistent with the supplied game reference. '
-                'Show complete hair, face, ears, hair ornaments, and only a small neck. Preserve distinctive hair accessories. '
-                'No shoulders, torso, clothing below the neck, text, frame, scenery, gradients, antialiasing, or blur. '
-                'Use a perfectly flat vivid magenta background (#FF00FF) for clean connected-region removal. '
-                'Center the complete head with generous margin; square 1:1 composition.'
-            )
-            data['prompt'] = f'{style_prompt}\n\nCharacter appearance: {user_prompt}' if user_prompt else style_prompt
+            from .battle_head_generation import build_battle_head_request
+            data = build_battle_head_request(data, options)
             return success_result(generate_image(data, agent, user_id=owner_id, scene='battle_head'))
         except (ValueError, ValidationError) as exc:
             detail = getattr(exc, 'detail', str(exc))
             return valid_result(str(detail), status=400)
+
+    @action(detail=True, methods=['post'], url_path='battle-appearance-generation-recover', permission_classes=[IsAuthenticated])
+    def battle_appearance_generation_recover(self, request, pk=None):
+        from utils.drf_utils import get_current_user_identifier
+        from system_mcp.image_task_lifecycle import recover_battle_head_task
+        from system_mcp.image_generation_tasks import _output
+        agent = self.get_object()
+        try:
+            task = recover_battle_head_task(request.data.get('task_id', ''), get_current_user_identifier(request), str(agent.pk))
+            return success_result(_output(task))
+        except ValueError as exc:
+            return valid_result(str(exc), status=400)
 
     @staticmethod
     def _sync_feishu_im_connection(agent_id):

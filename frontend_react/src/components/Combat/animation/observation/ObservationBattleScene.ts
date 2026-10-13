@@ -1,5 +1,5 @@
 import {Application,Assets,Container,Graphics,Sprite,Text,Texture} from 'pixi.js';
-import {LayeredPlayerActor} from '../playerAppearance/LayeredPlayerActor';
+import {DEFAULT_APPEARANCE_OVERLAYS,LayeredPlayerActor} from '../playerAppearance/LayeredPlayerActor';
 import {identitySheet,outfitArts,independentWeapons} from '../playerAppearance/layeredPlayerArt';
 import {ProfessionAuraRenderer} from '../playerAppearance/ProfessionAuraRenderer';
 import {getProfessionAura} from '../../art/professionAuras';
@@ -53,6 +53,8 @@ export class ObservationBattleScene {
     private targetX=172;
     private phase='';
     private previousHeadUrl?:string;
+    private previousCharacterUrl?:string;
+    private previousOverlayKey='';
     constructor(private readonly host:HTMLElement,private visual:ObservationVisual,
         private readonly onPhase:(phase:string)=>void,private readonly onError:(message:string)=>void) {}
 
@@ -110,6 +112,14 @@ export class ObservationBattleScene {
             this.previousHeadUrl=this.visual.headImageUrl;
             void this.hero!.setHeadImage(this.visual.headImageUrl);
         }
+        if(this.visual.characterImageUrl!==this.previousCharacterUrl){
+            this.previousCharacterUrl=this.visual.characterImageUrl;
+            void this.hero!.setFullBodyImage(this.visual.characterImageUrl);
+        }
+        const overlays=this.visual.appearanceOverlays||DEFAULT_APPEARANCE_OVERLAYS;
+        const overlayKey=JSON.stringify(overlays);
+        if(overlayKey!==this.previousOverlayKey){this.previousOverlayKey=overlayKey;this.hero!.setAppearanceOverlays(overlays);}
+        this.hero!.setHeadBehindBody(Boolean(this.visual.headBehindBody));
         this.hero!.visible=this.visual.hasPlayer;
     }
     private async replaceMonster() {

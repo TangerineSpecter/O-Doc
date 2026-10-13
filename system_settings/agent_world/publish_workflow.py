@@ -17,6 +17,9 @@ from utils.source_urls import canonical_url, normalize_source_url
 from .publish_title import validate_title
 from .publish_references import rebuild_references
 
+PUBLISH_TOTAL_DEADLINE_SECONDS = 600
+PUBLISH_MODEL_DEADLINE_SECONDS = 300
+
 
 class SkipPublication(ValueError):
     pass
@@ -45,7 +48,7 @@ class Workflow:
         self.state = snapshot or {'template_version': 2, 'config': task.publish_config, 'phase': 'select', 'search_count': 0, 'materials': []}
         self.save = save or (lambda state: None)
         self.progress = progress or (lambda phase: None)
-        self.deadline = time.monotonic() + 300
+        self.deadline = time.monotonic() + PUBLISH_TOTAL_DEADLINE_SECONDS
         self.repairs = self.state.get('format_repairs', 0)
         self.state.setdefault('role_prompt', f'当前 Agent：{agent.name}\n{agent.prompt}')
         self.state.setdefault('extra', task.prompt)
@@ -60,7 +63,7 @@ class Workflow:
 
     def checkpoint(self, phase):
         if time.monotonic() >= self.deadline:
-            raise TimeoutError('发帖流程达到5分钟时限')
+            raise TimeoutError('发帖流程达到总时限')
         self.state['phase'] = phase
         self.save(self.state)
         self.progress(phase)
@@ -71,11 +74,12 @@ class Workflow:
         while True:
             remaining = self.deadline - time.monotonic()
             if remaining <= 0:
-                raise TimeoutError('发帖流程达到5分钟时限')
+                raise TimeoutError('发帖流程达到总时限')
             from utils.completion_options import thinking_options
             config = AIService.get_client_config_for_model(task_model_id(self.task, self.agent))
             raw = complete(config, messages,
-                           json_output=True, extra_body=thinking_options(config), deadline_seconds=remaining)
+                           json_output=True, extra_body=thinking_options(config), deadline_seconds=remaining,
+                           max_deadline_seconds=PUBLISH_MODEL_DEADLINE_SECONDS)
             try:
                 value = json.loads(AIService.strip_thinking(raw).strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
                 if not isinstance(value, dict):

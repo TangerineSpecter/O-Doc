@@ -24,6 +24,10 @@ export function WorldProfessionModal({
     const [name, setName] = useState(profession?.name ?? '');
     const [description, setDescription] = useState(profession?.description ?? '');
     const [farmYieldPercentage, setFarmYieldPercentage] = useState(profession?.farmYieldPercentage ?? '0');
+    const [mazeEquipmentDropBonusPercentage, setMazeEquipmentDropBonusPercentage] = useState(profession?.mazeEquipmentDropBonusPercentage ?? '0');
+    const [mazeMaterialYieldPercentage, setMazeMaterialYieldPercentage] = useState(profession?.mazeMaterialYieldPercentage ?? '0');
+    const [mazeEquipmentIntervalReductionPercentage, setMazeEquipmentIntervalReductionPercentage] = useState(profession?.mazeEquipmentIntervalReductionPercentage ?? '0');
+    const [mazeExperienceBonusPercentage, setMazeExperienceBonusPercentage] = useState(profession?.mazeExperienceBonusPercentage ?? '0');
     const ai = useProfessionDescription();
     const [bonuses, setBonuses] = useState<WorldBonus[]>(
         () => (profession?.bonuses ? profession.bonuses.map(b => ({ ...b })) : [])
@@ -56,6 +60,10 @@ export function WorldProfessionModal({
             description: description.trim(),
             ...(profession?.id ? {} : {enabled: true}),
             farmYieldPercentage,
+            mazeEquipmentDropBonusPercentage,
+            mazeMaterialYieldPercentage,
+            mazeEquipmentIntervalReductionPercentage,
+            mazeExperienceBonusPercentage,
             bonuses,
         });
     };
@@ -82,7 +90,7 @@ export function WorldProfessionModal({
                                 {isEdit ? '编辑职业' : '新增职业'}
                             </h3>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                配置帖子收益与农场产量，两类加成独立生效
+                                配置帖子收益、农场产量与迷宫探索加成
                             </p>
                         </div>
                     </div>
@@ -142,6 +150,37 @@ export function WorldProfessionModal({
                             value={farmYieldPercentage} onChange={e => setFarmYieldPercentage(e.target.value)}
                             className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800" />
                         <p className="mt-2 text-xs leading-5 text-slate-500">0 表示无增产。覆盖作物、鸡蛋、羊毛、牛奶等收获产物；不足1个的加成按居民和具体产物分别累计，品质分别计算。购买、交易、赠送不产生加成。</p>
+                    </div>
+
+                    <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-4 space-y-4">
+                        <div>
+                            <label htmlFor="maze-equipment-drop-bonus" className="block text-xs font-semibold text-slate-700">普通装备掉落率加成（百分点）</label>
+                            <input id="maze-equipment-drop-bonus" type="number" min="0" max="100" step="0.0001" required
+                                value={mazeEquipmentDropBonusPercentage} onChange={e => setMazeEquipmentDropBonusPercentage(e.target.value)}
+                                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800" />
+                            <p className="mt-2 text-xs leading-5 text-slate-500">普通与精英怪基础概率为 20%，直接加百分点并最高按 100% 结算；例如填 10 会变成 30%。装备品质仍按原有白、蓝、金比例抽取；Boss 现有保底规则不变。出装备会占用这次掉落机会，因此不会同时获得这次的材料。</p>
+                        </div>
+                        <div>
+                            <label htmlFor="maze-material-yield" className="block text-xs font-semibold text-slate-700">迷宫材料产量加成（%）</label>
+                            <input id="maze-material-yield" type="number" min="0" max="100" step="0.0001" required
+                                value={mazeMaterialYieldPercentage} onChange={e => setMazeMaterialYieldPercentage(e.target.value)}
+                                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800" />
+                            <p className="mt-2 text-xs leading-5 text-slate-500">材料基础数量按原掉落表抽取后再增加；不足 1 件的部分按居民和材料分别累计，累计满 1 件时发放。</p>
+                        </div>
+                        <div>
+                            <label htmlFor="maze-equipment-interval-reduction" className="block text-xs font-semibold text-slate-700">装备额度间隔缩短（%）</label>
+                            <input id="maze-equipment-interval-reduction" type="number" min="0" max="100" step="0.0001" required
+                                value={mazeEquipmentIntervalReductionPercentage} onChange={e => setMazeEquipmentIntervalReductionPercentage(e.target.value)}
+                                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800" />
+                            <p className="mt-2 text-xs leading-5 text-slate-500">基础间隔为 30 分钟；填 20 会缩短到 24 分钟。装备额度存量仍最多保留 1 个，最短间隔按普通掉落额度的 5 分钟计算。</p>
+                        </div>
+                        <div>
+                            <label htmlFor="maze-experience-bonus" className="block text-xs font-semibold text-slate-700">迷宫经验加成（%）</label>
+                            <input id="maze-experience-bonus" type="number" min="0" max="100" step="0.0001" required
+                                value={mazeExperienceBonusPercentage} onChange={e => setMazeExperienceBonusPercentage(e.target.value)}
+                                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800" />
+                            <p className="mt-2 text-xs leading-5 text-slate-500">每次击杀先计算基础经验，再按此比例加成并四舍五入为整数；例如基础经验 50、加成 20% 时获得 60。加成最高 100%，出发时固定本次探索的加成。</p>
+                        </div>
                     </div>
 
                     {/* 分类收益加成配置 */}

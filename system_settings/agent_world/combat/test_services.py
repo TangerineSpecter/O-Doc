@@ -25,6 +25,22 @@ class ExplorationTests(TestCase):
         run=explorations.request('admin',self.agent,key,{},now=self.now)
         return explorations.depart(run.pk,self.plan,now=self.now)
 
+    def test_snapshot_reads_current_extended_head_layer_for_existing_run(self):
+        from assets.models import Asset
+        from .queries import snapshot
+        run = self.run_trip()
+        asset = Asset.objects.create(id='long-hair-head', name='head.png', uploader='admin',
+                                     file_type='image', file_size=10, file_path='image/head.png',
+                                     file_extension='.png', mime_type='image/png', file_hash='head-hash')
+        self.agent.battle_appearance = {'version': 2, 'head_asset_id': asset.pk, 'transform': {'hair_layer': 'behind'}}
+        self.agent.save(update_fields=['battle_appearance'])
+        visual = snapshot(run)['visual']
+        self.assertEqual(visual['head_image_url'], '/api/resource/view/long-hair-head')
+        self.assertTrue(visual['head_behind_body'])
+        self.agent.battle_appearance = None
+        self.agent.save(update_fields=['battle_appearance'])
+        self.assertNotIn('head_image_url', snapshot(run)['visual'])
+
     def test_preparation_and_resume_respect_execution_token_length(self):
         from system_settings.models import AgentExecutionLease
         from .preparation import prepare

@@ -92,15 +92,21 @@ export interface AgentConfig {
 }
 
 export interface AgentBattleAppearance {
-    version: 1;
+    version: 1 | 2 | 3;
     sourceAssetId: string;
     cutoutAssetId: string;
-    headAssetId: string;
+    headAssetId?: string;
+    characterAssetId?: string;
     sourceImageUrl: string;
     cutoutImageUrl: string;
-    headImageUrl: string;
-    transform: {x: number; y: number; scale: number; crop?: {x: number; y: number; width: number; height: number}};
+    headImageUrl?: string;
+    characterImageUrl?: string;
+    transform: {x: number; y: number; scale: number; crop?: {x: number; y: number; width: number; height: number}; neckAnchor?: {x: number; y: number}; hairLayer?: 'front' | 'behind'};
+    overlays?: BattleAppearanceOverlays;
 }
+
+export interface BattleOverlayTransform {x:number;y:number;scale:number;rotation:number}
+export interface BattleAppearanceOverlays {leftHand:BattleOverlayTransform;rightHand:BattleOverlayTransform;weapon:BattleOverlayTransform}
 
 export interface BattleAppearanceGenerationOptions {
     configured: boolean;
@@ -128,6 +134,10 @@ export interface BattleAppearanceImageTask {
     imageUrl?: string;
     message?: string;
     retryAfterSeconds?: number;
+    createdAt?: string;
+    updatedAt?: string;
+    elapsedSeconds?: number;
+    waitLimitSeconds?: number;
 }
 
 export type SaveAgentConfigParams = Omit<AgentConfig, 'id' | 'archived' | 'archivedAt' | 'modelDetail' | 'money' | 'stamina' | 'createdAt' | 'updatedAt'> & {

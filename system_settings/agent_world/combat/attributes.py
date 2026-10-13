@@ -1,6 +1,7 @@
 """Permanent growth and derived attributes; no models, clocks or network."""
 import math
 from copy import deepcopy
+from decimal import Decimal, ROUND_HALF_UP
 from .catalog import Catalog, numeric
 
 STATS = ('strength', 'dexterity', 'intelligence', 'vitality', 'spirit', 'luck')
@@ -126,3 +127,16 @@ def kill_experience(catalog: Catalog, level: int, actor_level: int, rank: str) -
     delta = level - actor_level
     factor = 1 if -3 <= delta <= 3 else 1 + .1 * (delta + 3) if -9 <= delta <= -4 else .1 if -19 <= delta <= -10 else .02 if delta <= -20 else 1 + min(.2, .04 * (delta - 3))
     return max(1, math.floor(min(base, limit) * numeric(catalog.row('monster_ranks', rank), 'experience_multiplier') * factor))
+
+
+def apply_experience_bonus(experience: int, percentage) -> int:
+    """Apply a frozen maze profession bonus and round the awarded XP to an integer."""
+    try:
+        bonus = Decimal(str(percentage or 0))
+        if not bonus.is_finite():
+            bonus = Decimal(0)
+    except Exception:
+        bonus = Decimal(0)
+    bonus = min(Decimal(100), max(Decimal(0), bonus))
+    adjusted = Decimal(max(0, int(experience))) * (Decimal(100) + bonus) / Decimal(100)
+    return int(adjusted.quantize(Decimal('1'), rounding=ROUND_HALF_UP))

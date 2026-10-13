@@ -1,10 +1,14 @@
 import type {CombatSnapshot} from '../../../../types/api/combat';
+import type {BattleAppearanceOverlays} from '../../../../types/api/setting';
 import {getAtlasSkill} from '../skillPreview/atlasSkillProfiles';
 import type {AtlasSkillProfile} from '../skillPreview/atlasSkillProfiles';
 
 export interface ObservationVisual {
     dungeonId:string;jobId:string;weaponId:string;monsterId:string;encounterId:string;
     headImageUrl?:string;
+    headBehindBody?:boolean;
+    characterImageUrl?:string;
+    appearanceOverlays?:BattleAppearanceOverlays;
     skills:AtlasSkillProfile[];fighting:boolean;searching:boolean;hasPlayer:boolean;hasEnemy:boolean;
     kills:number;playerAlive:boolean;
 }
@@ -16,7 +20,8 @@ export function observationVisual(snapshot:CombatSnapshot,disconnected:boolean):
         .filter(([,rank])=>rank>0).map(([id])=>getAtlasSkill(id))
         .filter((skill):skill is AtlasSkillProfile=>Boolean(skill));
     return {dungeonId:visual?.dungeonId??'',jobId:visual?.jobId??'job.novice',weaponId:visual?.weaponId??'none',
-        monsterId:visual?.monsterId??'',encounterId:visual?.encounterId??'',headImageUrl:visual?.headImageUrl,skills,
+        monsterId:visual?.monsterId??'',encounterId:visual?.encounterId??'',headImageUrl:visual?.headImageUrl,headBehindBody:visual?.headBehindBody,
+        characterImageUrl:visual?.characterImageUrl,appearanceOverlays:visual?.appearanceOverlays,skills,
         fighting:!disconnected&&snapshot.status==='active'&&snapshot.stage==='battle'&&Boolean(snapshot.enemy)&&Boolean(snapshot.player&&snapshot.player.hp>0),
         searching:snapshot.status==='active'&&snapshot.stage==='searching',
         hasPlayer:Boolean(snapshot.player),hasEnemy:Boolean(snapshot.enemy),

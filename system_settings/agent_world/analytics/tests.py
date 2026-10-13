@@ -233,3 +233,48 @@ class AnalyticsTests(TestCase):
         self.assertEqual(self.client.get('/api/settings/agent-world/analytics/', {'start_date': 'bad', 'end_date': '2026-10-02'}).status_code, 400)
         self.client.force_authenticate(None)
         self.assertIn(self.client.get('/api/settings/agent-world/analytics/').status_code, (401, 403))
+
+
+class CombatAnalyticsTests(AnalyticsTests):
+    def exploration(self, key, actor, status='completed', owner='admin', departed=True, at=None, **values):
+        run = Exploration.objects.create(pk=key, owner_id=owner, actor_id=actor.pk, actor_name=actor.name,
+            catalog_id='test', status=status, elapsed_seconds=values.get('elapsed', 600),
+            snapshot={'plan': {'dungeon_id': 'dungeon.moss_cave'}},
+            result={'kills': values.get('kills', 5), 'experience': 100, 'energy': 4, 'potions_used': {'heal': 2}},
+            ended_at=None if status in ('active', 'paused') else self.at)
+        if departed:
+            CombatFact.objects.create(pk=key+':depart', owner_id=owner, actor_id=actor.pk, exploration_id=key,
+                kind='depart', sequence=CombatFact.objects.filter(actor_id=actor.pk).count()+1,
+                digest='test', created_at=at or self.at)
+        return run
+
+    def test_departure_cohort_outcomes_dedup_and_actor_filter(self):
+        run = self.exploration('complete', self.a)
+        self.exploration('fallen', self.a, status='fallen', elapsed=300)
+        self.exploration('active', self.a, status='active', elapsed=150)
+        self.exploration('prepared-failed', self.a, status='failed', departed=False, kills=0)
+        self.exploration('old-departure', self.a, at=self.at-timedelta(days=3))
+        self.exploration('other-resident', self.b)
+        CombatFact.objects.create(pk='duplicate-depart', owner_id='admin', actor_id=self.a.pk, exploration_id=run.pk,
+            kind='depart', sequence=50, digest='test', created_at=self.at)
+        CombatEncounter.objects.create(pk='boss-win', owner_id='admin', actor_id=self.a.pk, exploration_id=run.pk,
+            number=1, monster={'id':'boss', 'name':'首领', 'rank':'boss', 'level':10}, result={'killed':True}, ended_at=self.at)
+        result = self.fetch()
+        row = next(row for row in result['combatComparison'] if row['id']==self.a.pk)
+        self.assertEqual((row['explorations'],row['settled'],row['ongoing']), (3,2,1))
+        self.assertEqual((row['successRate'],row['elapsedSeconds'],row['kills'],row['bossKills']), (50.0,1050,15,1))
+        self.assertEqual((row['energy'],row['potions'],row['experience']), (12,6,300))
+        self.assertEqual(row['monsters'][0]['highestLevel'],10)
+        self.assertEqual(row['unclassifiedKills'],14)
+        self.assertEqual(result['combatComparison'],self.fetch()['combatComparison'])
+        self.assertEqual([row['id'] for row in self.fetch(self.b.pk)['combatComparison']],[self.b.pk])
+
+    def test_empty_ongoing_and_foreign_owner_records(self):
+        self.exploration('foreign', self.a, owner='other', kills=99)
+        self.exploration('only-active', self.b, status='paused', kills=0, elapsed=0)
+        rows = {row['id']:row for row in self.fetch()['combatComparison']}
+        self.assertEqual(rows[self.a.pk]['explorations'],0)
+        self.assertIsNone(rows[self.a.pk]['successRate'])
+        self.assertEqual(rows[self.b.pk]['ongoing'],1)
+        self.assertIsNone(rows[self.b.pk]['successRate'])
+        self.assertIsNone(rows[self.b.pk]['killsPerHour'])

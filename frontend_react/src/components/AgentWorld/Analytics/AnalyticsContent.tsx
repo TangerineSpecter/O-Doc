@@ -22,6 +22,7 @@ import {analyticsMoney} from '../../../utils/residentAnalytics';
 import AgentAvatar from '../AgentAvatar';
 import {ActivityChart, FinanceChart} from './AnalyticsCharts';
 import ResidentsComparison from './ResidentsComparison';
+import CombatResidentsRanking from './CombatResidentsRanking';
 
 function Section({
     title,
@@ -532,6 +533,9 @@ export default function AnalyticsContent({data}: {data: ResidentAnalytics}) {
                     )}
                 </Section>
 
+                <Section title="居民战斗经历排行榜" icon={Swords} description="比较实际探索与击败成果，点击居民打开战斗统计卡片。" wide>
+                    <CombatResidentsRanking rows={data.combatComparison||[]} startDate={data.startDate} endDate={data.endDate}/>
+                </Section>
                 {/* 居民对比（多居民汇总模式） */}
                 {!individual && (
                     <Section

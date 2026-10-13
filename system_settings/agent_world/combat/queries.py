@@ -86,10 +86,17 @@ def snapshot(run,cursor=0,limit=100):
     from system_settings.models import Agent
     agent = Agent.objects.filter(pk=run.actor_id).only('battle_appearance').first()
     appearance = agent.battle_appearance if agent else None
-    head_asset_id = appearance.get('head_asset_id') if isinstance(appearance, dict) else None
-    if head_asset_id and Asset.objects.filter(pk=head_asset_id, uploader=run.owner_id, is_valid=True, file_type='image').exists():
+    character_asset_id = appearance.get('character_asset_id') if isinstance(appearance, dict) and appearance.get('version') == 3 else None
+    head_asset_id = appearance.get('head_asset_id') if isinstance(appearance, dict) and not character_asset_id else None
+    character_valid = character_asset_id and Asset.objects.filter(pk=character_asset_id, uploader=run.owner_id, is_valid=True, file_type='image').exists()
+    if character_valid:
+        from utils.resource_assets import get_resource_view_url
+        visual['character_image_url'] = get_resource_view_url(character_asset_id)
+        visual['appearance_overlays'] = appearance.get('overlays', {})
+    elif head_asset_id and Asset.objects.filter(pk=head_asset_id, uploader=run.owner_id, is_valid=True, file_type='image').exists():
         from utils.resource_assets import get_resource_view_url
         visual['head_image_url'] = get_resource_view_url(head_asset_id)
+        visual['head_behind_body'] = appearance.get('transform', {}).get('hair_layer') == 'behind'
     return {'id':run.pk,'actor_id':run.actor_id,'version':run.revision,'can_control':bool(local_runtime(run)),'catalog_version':run.catalog_id,'stage':run.phase,'status':run.status,'reason':run.reason,
         'remaining_seconds':remaining if end else None,
         'elapsed_seconds':run.elapsed_seconds,'duration_seconds':run.duration_seconds,'next_tick_at':local_time(run.next_tick_at).isoformat() if run.next_tick_at else None,

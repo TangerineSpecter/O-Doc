@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {alphaBounds,applyBrushStroke,removeFlatBackground} from './imageProcessing';
+import {alphaBounds,applyBrushStroke,autoHeadTransform,headFramePlacement,removeColorRegion,removeFlatBackground} from './imageProcessing';
 import type {PixelImage} from './imageProcessing';
 
 function canvas(width:number,height:number,color:[number,number,number,number]):PixelImage {
@@ -33,4 +33,64 @@ test('brush can erase pixels and restore them from the original image',()=>{
     assert.equal(erased.data[(2*5+2)*4+3],0);
     const restored=applyBrushStroke(erased,original,[{x:2,y:2}],1,'restore');
     assert.deepEqual(Array.from(restored.data.slice((2*5+2)*4,(2*5+2)*4+4)),[30,40,50,255]);
+});
+
+test('registered long hair extends below the neck without being clipped at the shoulder',()=>{
+    const placement=headFramePlacement({x:0,y:0,width:100,height:240},{x:0,y:0,scale:2,neckAnchor:{x:50,y:140}});
+    assert.equal(placement.y+140*2,310);
+    assert.equal(placement.y+placement.height,510);
+    assert.equal(placement.clipped,false);
+});
+
+test('auto alignment fits both the face above the neck and the hair below it',()=>{
+    const crop={x:0,y:0,width:100,height:240};
+    const transform=autoHeadTransform(crop,{x:50,y:140},'behind');
+    const placement=headFramePlacement(crop,transform);
+    assert.equal(transform.hairLayer,'behind');
+    assert.equal(placement.clipped,false);
+    assert.ok(placement.y+placement.height>310);
+});
+
+test('old unregistered transforms retain the original head placement',()=>{
+    assert.deepEqual(headFramePlacement({x:10,y:20,width:100,height:100},{x:0,y:0,scale:2}),{x:87,y:55,width:200,height:200,clipped:false});
+});
+
+
+test('clicked background pocket is removed without deleting disconnected same-color details',()=>{
+    const source=canvas(7,7,[110,35,40,255]);
+    for(const [x,y] of [[2,2],[2,3],[3,3],[5,5]])source.data.set([255,0,255,255],(y*7+x)*4);
+    const cleaned=removeColorRegion(source,{x:2,y:2},8);
+    for(const [x,y] of [[2,2],[2,3],[3,3]])assert.equal(cleaned.data[(y*7+x)*4+3],0);
+    assert.equal(cleaned.data[(5*7+5)*4+3],255);
+    assert.equal(cleaned.data[(2*7+3)*4+3],255);
+    assert.equal(source.data[(2*7+2)*4+3],255);
+    assert.deepEqual(removeColorRegion(source,{x:2,y:2},8).data,cleaned.data);
+});
+
+test('color region tolerance clears fringe pixels and stops at transparent gaps',()=>{
+    const source=canvas(5,1,[255,0,255,255]);
+    source.data.set([238,8,246,255],4);
+    source.data[11]=0;
+    const cleaned=removeColorRegion(source,{x:0,y:0},20);
+    assert.equal(cleaned.data[7],0);
+    assert.equal(cleaned.data[15],255);
+    assert.equal(removeColorRegion(source,{x:0,y:0},4).data[7],255);
+    assert.strictEqual(removeColorRegion(source,{x:2,y:0}),source);
+});
+
+test('partly transparent source keeps its alpha instead of treating it as a flat backdrop',()=>{
+    const source=canvas(3,3,[180,0,220,255]);source.data[3]=128;
+    const result=removeFlatBackground(source);
+    assert.equal(result.alreadyTransparent,true);
+    assert.deepEqual(result.image.data,source.data);
+});
+
+test('large accepted artwork fits fully without clamping scale above the fitted value', async()=>{
+    const {autoCharacterTransform,characterFramePlacement,BATTLE_CHARACTER_MIN_SCALE}=await import('./imageProcessing');
+    for(const bounds of [{x:0,y:0,width:3900,height:1950},{x:0,y:0,width:16384,height:400},{x:0,y:0,width:400,height:16384}]){
+        const transform=autoCharacterTransform(bounds);
+        assert.ok(transform.scale>=BATTLE_CHARACTER_MIN_SCALE);
+        assert.ok(transform.scale<.1);
+        assert.equal(characterFramePlacement(bounds,transform).clipped,false);
+    }
 });

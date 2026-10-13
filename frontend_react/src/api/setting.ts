@@ -221,10 +221,14 @@ export const saveAgentBattleAppearance = (agentId: string, data: Omit<AgentBattl
 export const clearAgentBattleAppearance = (agentId: string) => request.delete(agentBattleAppearanceUrl(agentId));
 export const getBattleAppearanceGenerationOptions = (agentId: string, modelId?: string) =>
     request.get<never, BattleAppearanceGenerationOptions>(`/settings/agents/${encodeURIComponent(agentId)}/battle-appearance-generation-options/`, {params: modelId ? {modelId} : undefined});
-export const generateBattleAppearanceImage = (agentId: string, data: {prompt: string; modelId?: string; requestId: string; aspectRatio?: string; imageSize?: string; referenceImageIds?: string[]; useAgentAvatar?: boolean}) =>
+export const generateBattleAppearanceImage = (agentId: string, data: {prompt: string; modelId?: string; requestId: string; aspectRatio?: string; imageSize?: string; poseReferenceImageId?: string; appearanceReferenceImageId?: string; useAgentAvatar?: boolean; backgroundMode?: 'flat' | 'transparent'}) =>
     request.post<never, BattleAppearanceImageTask>(`/settings/agents/${encodeURIComponent(agentId)}/battle-appearance-generation/`, data, {timeout: 180000});
 export const getBattleAppearanceImageTask = (agentId: string, taskId?: string) =>
     request.get<never, BattleAppearanceImageTask | BattleAppearanceImageTask[]>(`/settings/agents/${encodeURIComponent(agentId)}/battle-appearance-generation/`, {params: taskId ? {taskId} : undefined, timeout: 60000});
+export const cancelBattleAppearanceImageTask = (agentId: string, taskId: string) =>
+    request.delete<never, BattleAppearanceImageTask>(`/settings/agents/${encodeURIComponent(agentId)}/battle-appearance-generation/`, {params: {taskId}});
+export const recoverBattleAppearanceImageTask = (agentId: string, taskId: string) =>
+    request.post<never, BattleAppearanceImageTask>(`/settings/agents/${encodeURIComponent(agentId)}/battle-appearance-generation-recover/`, {taskId}, {timeout: 180000});
 
 export const getAgentMemorySummary = (agentId: string) => request.get<unknown, import('../types/api/setting').AgentMemorySummary>(`/settings/agents/${agentId}/memory-status/`);
 

@@ -11,6 +11,7 @@ from ..models import WorldLedger
 from ..serializers import LedgerSerializer
 from .queries import load_facts, visible_resident_ids
 from .service import aggregate
+from .combat_statistics import load_combat_statistics
 
 
 class AnalyticsParams(serializers.Serializer):
@@ -39,8 +40,10 @@ class AnalyticsView(APIView):
         facts = load_facts(request, get_current_user_identifier(request), start, end)
         if actor and actor not in facts.residents:
             raise PermissionDenied('无法查看该居民的数据。')
+        residents = {key: value for key, value in facts.residents.items() if not actor or key == actor}
         return success_result({'startDate': first.isoformat(), 'endDate': last.isoformat(), 'actorId': actor,
-                               **aggregate(facts, first, last, actor)})
+                               **aggregate(facts, first, last, actor),
+                               'combatComparison': load_combat_statistics(get_current_user_identifier(request), start, end, residents)})
 
 
 class AnalyticsLedgerParams(serializers.Serializer):

@@ -22,6 +22,7 @@ from utils.resource_assets import get_resource_view_url
 from utils.web_parser import fetch_remote_image, WebParserError
 from .image_generation import MCP_USER_ID, resolve_image_model, supports_references, validate_generation_arguments
 from .image_references import load_reference_images
+from .image_task_lifecycle import BATTLE_HEAD_WAIT_SECONDS, expire_battle_head_tasks, write_image_task
 
 ACTIVE = {'submitting', 'generating', 'download_pending'}
 LEASE_DURATION = timedelta(minutes=3)
@@ -50,6 +51,10 @@ def _scope(agent: Agent | None, user_id: str = MCP_USER_ID) -> dict:
 
 def _output(task: ImageGenerationTask) -> dict:
     result = {'task_id': task.pk, 'request_id': task.request_id, 'status': task.status}
+    if task.request_data.get('scene') == 'battle_head':
+        result.update(created_at=task.created_at.isoformat(), updated_at=task.updated_at.isoformat(),
+                      elapsed_seconds=max(0, int((timezone.now() - task.created_at).total_seconds())),
+                      wait_limit_seconds=BATTLE_HEAD_WAIT_SECONDS)
     if task.status == 'succeeded':
         if Asset.objects.filter(pk=task.asset_id, uploader=task.user_id, is_valid=True).exists():
             url = get_resource_view_url(task.asset_id)
@@ -64,6 +69,9 @@ def _output(task: ImageGenerationTask) -> dict:
 
 
 def _write(task: ImageGenerationTask, **values) -> None:
+    if task.request_data.get('scene') == 'battle_head':
+        write_image_task(task, **values)
+        return
     for key, value in values.items():
         setattr(task, key, value)
     task.save(update_fields=[*values, 'updated_at'])
@@ -210,6 +218,9 @@ def get_image_generation_result(arguments: object, agent: Agent | None = None, *
     task = ImageGenerationTask.objects.filter(pk=task_id, **_scope(agent, user_id)).first()
     if task is None:
         raise ValueError('生成任务不存在或无权访问')
+    if task.request_data.get('scene') == 'battle_head':
+        expire_battle_head_tasks(user_id, task.agent_key)
+        task.refresh_from_db()
     if task.status not in ACTIVE:
         return _output(task)
     now = timezone.now()

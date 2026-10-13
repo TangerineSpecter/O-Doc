@@ -21,7 +21,7 @@ ENCOUNTER=LABEL+'combatencounter'
 
 def validate_source(data,meta=None):
     from utils.sync_manager import SyncError
-    if meta and meta.get('combat_schema_version',0)>1:
+    if meta and meta.get('combat_schema_version',0)>3:
         raise SyncError('战斗快照版本过新，请升级所有设备')
     rows={(r['model'],str(r['pk'])):{'id':str(r['pk']),**r['fields']} for r in data}
     profiles={pk:r for (model,pk),r in rows.items() if model==PROFILE}
@@ -177,4 +177,4 @@ def revoke(*, disable_auto=True):
 
 def metadata(data=None):
     actors=sorted(CombatProfile.objects.values_list('pk',flat=True)) if data is None else sorted(str(r['pk']) for r in data if r['model']==PROFILE)
-    return {'combat_schema_version':1,'combat_actors':actors}
+    return {'combat_schema_version':3,'combat_actors':actors}

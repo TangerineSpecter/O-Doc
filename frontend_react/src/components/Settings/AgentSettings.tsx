@@ -1031,7 +1031,7 @@ export const AgentSettings = ({
                                 </div>
 
                                 <div className="flex shrink-0 items-center justify-end gap-1 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
-                                    <BattleAppearanceEntry agentId={agent.id} headAssetId={battleAppearance?.headAssetId} onClick={()=>setBattleAppearanceTarget(agent)}/>
+                                    <BattleAppearanceEntry agentId={agent.id} appearance={battleAppearance} onClick={()=>setBattleAppearanceTarget(agent)}/>
                                     <button
                                         type="button"
                                         onClick={() => openMemoryModal(agent)}

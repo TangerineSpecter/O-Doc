@@ -5,7 +5,46 @@ export interface PixelImage {
 }
 
 export interface CropRect {x: number; y: number; width: number; height: number}
-export interface HeadTransform {x: number; y: number; scale: number}
+export interface HeadTransform {x: number; y: number; scale: number; neckAnchor?: {x: number; y: number}; hairLayer?: 'front' | 'behind'}
+export interface CharacterTransform {x: number; y: number; scale: number}
+export const HEAD_ART_FRAME = {width: 374, height: 528, neck: {x: 187, y: 310}};
+export const BATTLE_CHARACTER_MIN_SCALE = 0.01;
+export const BATTLE_CHARACTER_MAX_SCALE = 4;
+export const BATTLE_CHARACTER_FRAME = {width: 374, height: 528};
+
+/** Fit the complete silhouette to the battle frame, keeping every hair strand and the feet. */
+export function autoCharacterTransform(bounds: CropRect): CharacterTransform {
+    const scale = Math.max(BATTLE_CHARACTER_MIN_SCALE, Math.min(BATTLE_CHARACTER_MAX_SCALE, 338 / bounds.width, 500 / bounds.height));
+    return {x: 0, y: 0, scale};
+}
+
+export function characterFramePlacement(crop: CropRect, transform: CharacterTransform) {
+    const width = Math.max(1, Math.round(crop.width * transform.scale));
+    const height = Math.max(1, Math.round(crop.height * transform.scale));
+    const x = Math.round((BATTLE_CHARACTER_FRAME.width - width) / 2 + transform.x);
+    const y = Math.round(BATTLE_CHARACTER_FRAME.height - height + transform.y);
+    return {x, y, width, height, clipped: x < 0 || y < 0 || x + width > BATTLE_CHARACTER_FRAME.width || y + height > BATTLE_CHARACTER_FRAME.height};
+}
+
+export function renderCharacterFrame(sourceCanvas: HTMLCanvasElement, crop: CropRect, transform: CharacterTransform) {
+    const canvas = document.createElement('canvas');
+    canvas.width = BATTLE_CHARACTER_FRAME.width; canvas.height = BATTLE_CHARACTER_FRAME.height;
+    const context = canvas.getContext('2d', {willReadFrequently: true});
+    if (!context) throw new Error('无法初始化像素画布');
+    context.imageSmoothingEnabled = false;
+    const placement = characterFramePlacement(crop, transform);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(sourceCanvas, crop.x, crop.y, crop.width, crop.height, placement.x, placement.y, placement.width, placement.height);
+    return {canvas, clipped: placement.clipped};
+}
+
+export function autoHeadTransform(bounds: CropRect, neckAnchor?: {x: number; y: number}, hairLayer: HeadTransform['hairLayer'] = 'front'): HeadTransform {
+    const anchor = neckAnchor || {x: bounds.x + Math.floor((bounds.width - 1) / 2), y: bounds.y + bounds.height - 1};
+    const above = Math.max(1, anchor.y - bounds.y);
+    const below = Math.max(1, bounds.y + bounds.height - anchor.y);
+    const scale = Math.max(.1, Math.min(4, 374 / bounds.width * .88, 310 / above * .96, 218 / below * .96));
+    return {x: 0, y: 0, scale, neckAnchor: anchor, hairLayer};
+}
 
 const colorDistance = (data: Uint8ClampedArray, offset: number, color: [number, number, number]) =>
     Math.max(Math.abs(data[offset] - color[0]), Math.abs(data[offset + 1] - color[1]), Math.abs(data[offset + 2] - color[2]));
@@ -32,7 +71,7 @@ export function removeFlatBackground(source: PixelImage, tolerance = 24) {
     const data = new Uint8ClampedArray(source.data);
     if (data.length !== width * height * 4) throw new Error('图片像素数据长度无效');
     let hasAlpha = false;
-    for (let p = 3; p < data.length; p += 4) if (data[p] === 0) { hasAlpha = true; break; }
+    for (let p = 3; p < data.length; p += 4) if (data[p] < 255) { hasAlpha = true; break; }
     if (hasAlpha) return {image: {...source, data}, color: null as [number, number, number] | null, removed: 0, alreadyTransparent: true};
 
     const color = edgeBackgroundColor(source);
@@ -69,6 +108,29 @@ export function alphaBounds(image: PixelImage): CropRect | null {
     return right < left || bottom < top ? null : {x: left, y: top, width: right - left + 1, height: bottom - top + 1};
 }
 
+/** Remove the clicked connected color patch, including pockets enclosed by hair or sleeves. */
+export function removeColorRegion(source: PixelImage, point: {x:number;y:number}, tolerance=24): PixelImage {
+    const {width,height}=source;
+    const x=Math.floor(point.x),y=Math.floor(point.y);
+    if(x<0||y<0||x>=width||y>=height)return source;
+    const start=y*width+x,offset=start*4;
+    if(source.data[offset+3]===0)return source;
+    const color:[number,number,number]=[source.data[offset],source.data[offset+1],source.data[offset+2]];
+    const data=new Uint8ClampedArray(source.data),visited=new Uint8Array(width*height),queue=new Int32Array(width*height);
+    let read=0,write=0;
+    const enqueue=(index:number)=>{
+        if(visited[index]||data[index*4+3]===0||colorDistance(data,index*4,color)>tolerance)return;
+        visited[index]=1;queue[write++]=index;
+    };
+    enqueue(start);
+    while(read<write){
+        const index=queue[read++],column=index%width;data[index*4+3]=0;
+        if(column>0)enqueue(index-1);if(column+1<width)enqueue(index+1);
+        if(index>=width)enqueue(index-width);if(index+width<width*height)enqueue(index+width);
+    }
+    return {...source,data};
+}
+
 export function applyBrushStroke(image: PixelImage, original: PixelImage, points: {x: number; y: number}[], radius: number, mode: 'erase' | 'restore'): PixelImage {
     const data = new Uint8ClampedArray(image.data);
     const r = Math.max(1, Math.round(radius));
@@ -98,15 +160,26 @@ export function applyBrushStroke(image: PixelImage, original: PixelImage, points
 
 export function renderHeadFrame(sourceCanvas: HTMLCanvasElement, crop: CropRect, transform: HeadTransform) {
     const canvas = document.createElement('canvas');
-    canvas.width = 374; canvas.height = 310;
+    canvas.width = HEAD_ART_FRAME.width; canvas.height = HEAD_ART_FRAME.height;
     const context = canvas.getContext('2d', {willReadFrequently: true});
     if (!context) throw new Error('无法初始化像素画布');
     context.imageSmoothingEnabled = false;
     const width = Math.max(1, Math.round(crop.width * transform.scale));
     const height = Math.max(1, Math.round(crop.height * transform.scale));
-    const x = Math.round((374 - width) / 2 + transform.x);
-    const y = Math.round((310 - height) / 2 + transform.y);
+    const placement = headFramePlacement(crop, transform);
+    const {x, y} = placement;
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(sourceCanvas, crop.x, crop.y, crop.width, crop.height, x, y, width, height);
-    return {canvas, clipped: x < 0 || y < 0 || x + width > 374 || y + height > 310};
+    return {canvas, clipped: placement.clipped};
+}
+
+/** The neck stays at the body seam while hair may extend below it. */
+export function headFramePlacement(crop: CropRect, transform: HeadTransform) {
+    const width = Math.max(1, Math.round(crop.width * transform.scale));
+    const height = Math.max(1, Math.round(crop.height * transform.scale));
+    const anchor = transform.neckAnchor;
+    // Old configurations used the centre of the 374×310 head region.
+    const x = Math.round((anchor ? HEAD_ART_FRAME.neck.x - (anchor.x - crop.x) * width / crop.width : (374 - width) / 2) + transform.x);
+    const y = Math.round((anchor ? HEAD_ART_FRAME.neck.y - (anchor.y - crop.y) * height / crop.height : (310 - height) / 2) + transform.y);
+    return {x, y, width, height, clipped: x < 0 || y < 0 || x + width > HEAD_ART_FRAME.width || y + height > HEAD_ART_FRAME.height};
 }

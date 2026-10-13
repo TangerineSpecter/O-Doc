@@ -1,6 +1,6 @@
 """Agent 世界持久数据；全部参与 WebDAV 同步。"""
 import uuid
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -29,11 +29,33 @@ class WorldProfession(models.Model):
     description = models.TextField(blank=True)
     enabled = models.BooleanField(default=True)
     farm_yield_percentage = models.DecimalField(max_digits=12, decimal_places=4, default=0, validators=[MinValueValidator(0)])
+    maze_equipment_drop_bonus_percentage = models.DecimalField(
+        max_digits=12, decimal_places=4, default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    maze_material_yield_percentage = models.DecimalField(
+        max_digits=12, decimal_places=4, default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    maze_equipment_interval_reduction_percentage = models.DecimalField(
+        max_digits=12, decimal_places=4, default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    maze_experience_bonus_percentage = models.DecimalField(
+        max_digits=12, decimal_places=4, default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         app_label = 'system_settings'
-        constraints = [models.CheckConstraint(condition=models.Q(farm_yield_percentage__gte=0), name='world_farm_bonus_nonnegative')]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(farm_yield_percentage__gte=0), name='world_farm_bonus_nonnegative'),
+            models.CheckConstraint(condition=models.Q(maze_equipment_drop_bonus_percentage__gte=0, maze_equipment_drop_bonus_percentage__lte=100), name='world_prof_maze_drop_range'),
+            models.CheckConstraint(condition=models.Q(maze_material_yield_percentage__gte=0, maze_material_yield_percentage__lte=100), name='world_maze_mat_range'),
+            models.CheckConstraint(condition=models.Q(maze_equipment_interval_reduction_percentage__gte=0, maze_equipment_interval_reduction_percentage__lte=100), name='world_prof_maze_int_range'),
+            models.CheckConstraint(condition=models.Q(maze_experience_bonus_percentage__gte=0, maze_experience_bonus_percentage__lte=100), name='world_prof_maze_exp_range'),
+        ]
 
 
 class WorldProfessionCategory(models.Model):

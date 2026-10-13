@@ -66,7 +66,7 @@ def search(config: dict, query: str, mode: str, days: int, deadline: float, *, s
         raise ValueError('搜索工具 schema 包含不支持的必填参数，请更新服务配置')
     remaining = deadline-time.monotonic()
     if remaining <= 0:
-        raise TimeoutError('发帖流程达到5分钟时限')
+        raise TimeoutError('发帖流程达到总时限')
     started = time.monotonic()
     from .publish_diagnostics import logger as diagnostic_logger
     options = {key: value for key, value in args.items() if key != 'query'}

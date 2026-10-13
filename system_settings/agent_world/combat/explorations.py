@@ -222,7 +222,9 @@ def depart(run_id, plan, now=None):
     for item in EquipmentInstance.objects.filter(pk__in=profile.loadout.values()):
         if not allowed(catalog,item.template_id,profile.progression['job'],profile.progression['level'],item.snapshot['level']):raise ValueError('出发装备已停用或不满足职业/等级条件')
     run.duration_seconds=duration
-    run.snapshot={**run.snapshot,'plan':plan,'equipment':wearing(profile),'progression':profile.progression}
+    profession_bonuses = rewards.profession_bonus_snapshot(agent)
+    run.snapshot={**run.snapshot,'plan':plan,'equipment':wearing(profile),'progression':profile.progression,
+                  'profession_bonuses':profession_bonuses}
     run.result={'energy':0,'experience':0,'kills':0,'potions_used':{},'rewards':[],'growth':[]}
     run.state={'player':engine.fighter(derived,agent.name,profile.progression['level'],hp=profile.hp,mp=profile.mp,skills=profile.progression['skills'],passives=attributes.passives(catalog,profile.progression['skills'])),
         'enemy':None,'potions':potions,'encounter':0,'nonboss_kills':0,'boss_seen':False,'waiting_until':0}
@@ -234,7 +236,7 @@ def depart(run_id, plan, now=None):
     run.next_tick_at=now+timedelta(seconds=15)
     run.revision+=1
     run.save()
-    append(profile,run.pk+':depart','depart',{'plan':plan,'consumption':charges},run)
+    append(profile,run.pk+':depart','depart',{'plan':plan,'profession_bonuses':profession_bonuses,'consumption':charges},run)
     return run
 
 
@@ -352,7 +354,16 @@ def tick(run_id, expected_revision=None, now=None):
         try:charges.append(consume(run,profile,2,run.elapsed_seconds//300,now))
         except ValueError:return settle(run,profile,'exhausted','体力不足，探索结束',now)
     run.elapsed_seconds+=15
-    for credited_day,seconds in credits.items():rewards.accrue(profile.loot_progress,seconds,credited_day)
+    profession_bonuses = run.snapshot.get('profession_bonuses') or {}
+    for credited_day,seconds in credits.items():
+        rewards.accrue(
+            profile.loot_progress,
+            seconds,
+            credited_day,
+            loot_interval_seconds=int(catalog.rules['loot_interval_seconds']),
+            equipment_interval_seconds=int(catalog.rules['equipment_interval_seconds']),
+            equipment_interval_reduction_percentage=profession_bonuses.get('maze_equipment_interval_reduction_percentage', 0),
+        )
     profile.save()
     if run.elapsed_seconds>=run.duration_seconds:
         run.revision+=1;run.save()
@@ -373,7 +384,11 @@ def tick(run_id, expected_revision=None, now=None):
     enemy=run.state.get('enemy')
     earned=[];growth=[]
     if enemy and enemy['hp']<=0:
-        experience=attributes.kill_experience(catalog,enemy['level'],profile.progression['level'],enemy['rank'])
+        base_experience=attributes.kill_experience(catalog,enemy['level'],profile.progression['level'],enemy['rank'])
+        experience=attributes.apply_experience_bonus(
+            base_experience,
+            profession_bonuses.get('maze_experience_bonus_percentage', 0),
+        )
         old=stats(profile,catalog)
         profile.progression,growth=attributes.award(catalog,profile.progression,experience,stop_at_promotion=True)
         derived=stats(profile,catalog)
@@ -383,7 +398,14 @@ def tick(run_id, expected_revision=None, now=None):
         player.update(stats=derived,level=profile.progression['level'],skills=profile.progression['skills'],passives=attributes.passives(catalog,profile.progression['skills']))
         run.result['experience']+=experience;run.result['kills']+=1
         run.result['growth']+=growth
-        earned=rewards.drops(catalog,run.state['monster_id'],enemy['level'],profile.loot_progress,seeded(run,f'reward:{run.state["encounter"]}'))
+        earned=rewards.drops(
+            catalog,
+            run.state['monster_id'],
+            enemy['level'],
+            profile.loot_progress,
+            seeded(run,f'reward:{run.state["encounter"]}'),
+            profession_bonuses,
+        )
         for index,reward in enumerate(earned):
             identity=f'{run.pk}:reward:{run.state["encounter"]}:{index}'
             if reward['kind']=='equipment':

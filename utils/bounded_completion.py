@@ -96,10 +96,16 @@ def _network(config: dict, parameters: dict, seconds: float, inbox: queue.Queue,
         inbox.put(('error', exc))
 
 
-def _drive(config: dict, parameters: dict, expires: float, metadata: dict) -> str:
+def _drive(
+    config: dict,
+    parameters: dict,
+    expires: float,
+    metadata: dict,
+    hard_deadline_seconds: float = DEADLINE_SECONDS,
+) -> str:
     seconds = expires - time.monotonic()
     if seconds <= 0:
-        raise AIRequestTimeout('模型调用达到 120 秒硬时限')
+        raise AIRequestTimeout(f'模型调用达到 {math.ceil(hard_deadline_seconds)} 秒硬时限')
     from system_settings.token_usage.capture import Capture
     capture = Capture(config, attempt=metadata.get('request_attempt', 1))
     capture.set_request(parameters)
@@ -115,7 +121,7 @@ def _drive(config: dict, parameters: dict, expires: float, metadata: dict) -> st
             check_ai_control()
             remaining = expires - time.monotonic()
             if remaining <= 0:
-                raise AIRequestTimeout('模型调用达到 120 秒硬时限，已取消连接')
+                raise AIRequestTimeout(f'模型调用达到 {math.ceil(hard_deadline_seconds)} 秒硬时限，已取消连接')
             try:
                 kind, value = inbox.get(timeout=min(.25, remaining))
             except queue.Empty:
@@ -135,7 +141,7 @@ def _drive(config: dict, parameters: dict, expires: float, metadata: dict) -> st
                 status = 'failed'
                 failure = value
                 if isinstance(value, (TimeoutError, asyncio.CancelledError)):
-                    raise AIRequestTimeout('模型调用达到硬时限或连接已取消') from value
+                    raise AIRequestTimeout(f'模型调用达到 {math.ceil(hard_deadline_seconds)} 秒硬时限或连接已取消') from value
                 raise value
             event, title, details = value
             emit_ai_event(event, title, **metadata, **details)
@@ -169,8 +175,19 @@ def _thinking_unsupported(exc: Exception) -> bool:
     return ('thinking' in message or 'enable_thinking' in message) and any(word in message for word in ('unsupported', 'not support', 'unknown', 'unrecognized', 'not permitted', 'extra input', '不支持'))
 
 
-def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int | None = None, extra_body: dict, deadline_seconds: float = DEADLINE_SECONDS, allow_retries: bool = True) -> str:
-    deadline = time.monotonic() + min(DEADLINE_SECONDS, deadline_seconds)
+def complete(
+    config: dict,
+    prompt: str,
+    *,
+    json_output: bool,
+    max_tokens: int | None = None,
+    extra_body: dict,
+    deadline_seconds: float = DEADLINE_SECONDS,
+    allow_retries: bool = True,
+    max_deadline_seconds: float = DEADLINE_SECONDS,
+) -> str:
+    hard_deadline_seconds = min(max_deadline_seconds, deadline_seconds)
+    deadline = time.monotonic() + hard_deadline_seconds
     network_retries, request_attempt = 0, 0
     use_json = json_output
     current_extra_body = dict(extra_body)
@@ -184,11 +201,11 @@ def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int | 
         check_ai_control()
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            raise AIRequestTimeout('模型调用达到 120 秒硬时限')
+            raise AIRequestTimeout(f'模型调用达到 {math.ceil(hard_deadline_seconds)} 秒硬时限')
         request_attempt += 1
         metadata = {key: config.get(key, '') for key in ('provider_name', 'model_name', 'model_role')}
         thinking_disabled = current_extra_body.get('enable_thinking') is False or current_extra_body.get('thinking', {}).get('type') == 'disabled'
-        metadata.update(request_id=uuid.uuid4().hex, request_attempt=request_attempt, streaming=1, timeout_seconds=math.ceil(remaining), deadline_seconds=DEADLINE_SECONDS, sdk_retries=0, max_tokens=max_tokens, json_mode='json_object' if use_json else 'prompt' if json_output else 'text', thinking_mode='disabled' if thinking_disabled or current_extra_body.get('reasoning_effort') == 'none' else 'enabled' if config.get('thinking_mode') == 'enabled' else 'provider_default')
+        metadata.update(request_id=uuid.uuid4().hex, request_attempt=request_attempt, streaming=1, timeout_seconds=math.ceil(remaining), deadline_seconds=math.ceil(hard_deadline_seconds), sdk_retries=0, max_tokens=max_tokens, json_mode='json_object' if use_json else 'prompt' if json_output else 'text', thinking_mode='disabled' if thinking_disabled or current_extra_body.get('reasoning_effort') == 'none' else 'enabled' if config.get('thinking_mode') == 'enabled' else 'provider_default')
         parameters = {'model': config['model_name'], 'messages': [{'role': 'user', 'content': prompt}], 'stream': True,
                       **temperature_options(config, current_extra_body, .2)}
         if max_tokens is not None:
@@ -201,7 +218,7 @@ def complete(config: dict, prompt: str, *, json_output: bool, max_tokens: int | 
             parameters['response_format'] = {'type': 'json_object'}
         emit_ai_event('model_request_started', '正在请求模型，等待首个输出', **metadata)
         try:
-            return _drive(config, parameters, deadline, metadata)
+            return _drive(config, parameters, deadline, metadata, hard_deadline_seconds)
         except Exception as exc:
             from system_logs.capture import capture
             capture('大模型请求尝试失败', module='ai', exc=exc, attempt=request_attempt,
