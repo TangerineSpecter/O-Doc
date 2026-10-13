@@ -176,7 +176,7 @@ class LifeTests(TestCase):
         item.refresh_from_db();self.assertEqual(item.scheduled_at.date(),NOW.date()+timedelta(days=1));self.assertEqual(item.scheduled_at.astimezone(SHANGHAI).hour,8)
 
     def test_budget_protects_travel_and_rollback(self):
-        item=self.item(budget=7000)
+        item=self.item(activity='investment',budget=7000)
         self.item('trip',activity='travel',budget=3000)
         with life_scope(item,{}),transaction.atomic():
             with self.assertRaises(ValueError):charge_budget(self.agents[0],Decimal('8000'))
@@ -186,6 +186,20 @@ class LifeTests(TestCase):
         with self.assertRaises(ValueError):adjust_budget('admin',self.ids[0],[{'id':'trip','budget':'9000'}],'总额不足')
         adjust_budget('admin',self.ids[0],[{'id':item.pk,'budget':'8000'},{'id':'trip','budget':'2000'}],'减少购物预算')
         self.assertEqual(item.revisions.count(),1)
+
+    def test_exploration_does_not_reserve_budget_but_tracks_optional_purchase(self):
+        from .life_budget_policy import allows_spending, remaining_reservation
+        item=self.item(activity='exploration',status='running',budget=0)
+        future=self.item('future',activity='travel',status='pending',budget=9000)
+        with life_scope(item,{}),transaction.atomic():
+            self.assertFalse(allows_spending('exploration'))
+            self.assertEqual(remaining_reservation(item),0)
+            charge_budget(self.agents[0],Decimal('12'),business_key='combat-potion')
+        item.refresh_from_db()
+        future.refresh_from_db()
+        self.assertEqual((item.budget,item.spent),(Decimal('12'),Decimal('12')))
+        self.assertEqual(remaining_reservation(item),0)
+        self.assertEqual(remaining_reservation(future),Decimal('9000'))
 
     def test_apply_plan_and_completed_goals_excluded(self):
         item=self.item()

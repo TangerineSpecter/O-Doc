@@ -2,7 +2,6 @@ import {useState, useMemo} from 'react';
 import {
     Coins,
     Tag,
-    User,
     Footprints,
     ArrowUpRight,
     ArrowDownLeft,
@@ -14,8 +13,25 @@ import {
 } from 'lucide-react';
 import type {MarketSession, MarketTransaction} from '../../types/api/market';
 import {marketMoney, marketOperationLabels, marketTime} from './marketPresentation';
+import {TransactionItemIcon} from './TransactionItemIcon';
+import AgentAvatar from '../AgentWorld/AgentAvatar';
 
-export function MarketTransactions({items}: {items: MarketTransaction[]}) {
+export function MarketTransactions({
+    items,
+    residents = [],
+}: {
+    items: MarketTransaction[];
+    residents?: Array<{id: string; name: string; avatar?: string}>;
+}) {
+    const residentMap = useMemo(() => {
+        const map = new Map<string, {name: string; avatar?: string}>();
+        for (const r of residents) {
+            if (r.id) map.set(r.id, r);
+            if (r.name) map.set(r.name, r);
+        }
+        return map;
+    }, [residents]);
+
     // 统计数据
     const stats = useMemo(() => {
         let totalVolume = 0;
@@ -56,24 +72,8 @@ export function MarketTransactions({items}: {items: MarketTransaction[]}) {
                             className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-xs hover:border-orange-200 hover:shadow-sm transition-all"
                         >
                             <div className="flex items-center gap-3">
-                                {/* 状态图标 */}
-                                <div
-                                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
-                                        isBuy
-                                            ? 'border-orange-200 bg-orange-50 text-orange-600'
-                                            : isSell
-                                              ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
-                                              : 'border-blue-200 bg-blue-50 text-blue-600'
-                                    }`}
-                                >
-                                    {isBuy ? (
-                                        <ArrowDownLeft className="h-5 w-5" />
-                                    ) : isSell ? (
-                                        <ArrowUpRight className="h-5 w-5" />
-                                    ) : (
-                                        <Tag className="h-5 w-5" />
-                                    )}
-                                </div>
+                                {/* 道具形象 / 状态图标 */}
+                                <TransactionItemIcon transaction={row} isBuy={isBuy} isSell={isSell} />
 
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2">
@@ -151,21 +151,22 @@ export function MarketTransactions({items}: {items: MarketTransaction[]}) {
                                 <span className="text-[11px] font-semibold text-slate-600 block mb-2">活跃交易居民</span>
                                 <div className="space-y-1.5">
                                     {stats.topActors.map(([name, count], i) => (
-                                        <div key={name} className="flex items-center justify-between text-xs text-slate-600">
-                                            <div className="flex items-center gap-1.5">
-                                                <span
-                                                    className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold ${
-                                                        i === 0
-                                                            ? 'bg-amber-100 text-amber-700'
-                                                            : 'bg-slate-100 text-slate-500'
-                                                    }`}
-                                                >
-                                                    {i + 1}
-                                                </span>
-                                                <span className="font-medium text-slate-700">{name}</span>
-                                            </div>
-                                            <span className="text-[11px] text-slate-400 tabular-nums">{count} 笔交易</span>
-                                        </div>
+                                                <div key={name} className="flex items-center justify-between text-xs text-slate-600">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span
+                                                            className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold ${
+                                                                i === 0
+                                                                    ? 'bg-amber-100 text-amber-700'
+                                                                    : 'bg-slate-100 text-slate-500'
+                                                            }`}
+                                                        >
+                                                            {i + 1}
+                                                        </span>
+                                                        <AgentAvatar name={name} avatar={residentMap.get(name)?.avatar} size="xs" />
+                                                        <span className="font-medium text-slate-700">{name}</span>
+                                                    </div>
+                                                    <span className="text-[11px] text-slate-400 tabular-nums">{count} 笔交易</span>
+                                                </div>
                                     ))}
                                 </div>
                             </div>
@@ -187,12 +188,27 @@ export function MarketTransactions({items}: {items: MarketTransaction[]}) {
     );
 }
 
-export function MarketSessions({items}: {items: MarketSession[]}) {
+export function MarketSessions({
+    items,
+    residents = [],
+}: {
+    items: MarketSession[];
+    residents?: Array<{id: string; name: string; avatar?: string}>;
+}) {
     const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
     const toggleExpand = (id: string) => {
         setExpandedIds(prev => ({...prev, [id]: !prev[id]}));
     };
+
+    const residentMap = useMemo(() => {
+        const map = new Map<string, {name: string; avatar?: string}>();
+        for (const r of residents) {
+            if (r.id) map.set(r.id, r);
+            if (r.name) map.set(r.name, r);
+        }
+        return map;
+    }, [residents]);
 
     if (!items.length) {
         return (
@@ -209,6 +225,7 @@ export function MarketSessions({items}: {items: MarketSession[]}) {
             {items.map(row => {
                 const isActive = row.status === 'active';
                 const isExpanded = expandedIds[row.id] ?? true; // 默认展开最新动态
+                const resident = residentMap.get(row.actorId) || residentMap.get(row.actorName);
 
                 return (
                     <article
@@ -217,10 +234,12 @@ export function MarketSessions({items}: {items: MarketSession[]}) {
                     >
                         {/* 动态头部 */}
                         <div className="flex flex-wrap items-center justify-between gap-2.5 pb-3 border-b border-slate-100">
-                            <div className="flex items-center gap-2">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-50 text-orange-600 font-bold text-xs">
-                                    <User className="h-4 w-4" />
-                                </div>
+                            <div className="flex items-center gap-2.5">
+                                <AgentAvatar
+                                    name={resident?.name || row.actorName}
+                                    avatar={resident?.avatar}
+                                    size="sm"
+                                />
                                 <div>
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-xs font-bold text-slate-800">{row.actorName}</span>

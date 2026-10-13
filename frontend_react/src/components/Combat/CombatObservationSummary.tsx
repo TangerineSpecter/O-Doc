@@ -146,14 +146,14 @@ export default function CombatObservationSummary({
 
             {/* 药剂消耗指标 */}
             <div
-                className="flex items-center gap-1 rounded-full bg-slate-100/70 px-2 py-0.5 text-slate-500"
-                title="已消耗药剂 / 携带剩余"
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-100/70 px-2 py-0.5 text-slate-500"
+                title="药剂：已消耗数量与本次探索剩余数量"
             >
                 <FlaskConical className="h-3 w-3 shrink-0 text-indigo-400" />
                 <span>药剂</span>
-                <span className="font-mono font-bold text-slate-800 tabular-nums">{used}</span>
-                <span className="text-[10px] text-slate-400">/</span>
-                <span className="font-mono text-slate-500 tabular-nums">{carried}</span>
+                <span className="font-mono font-bold text-slate-800 tabular-nums">已消耗 {used} 瓶</span>
+                <span aria-hidden="true" className="text-[10px] text-slate-400">·</span>
+                <span className="font-mono text-slate-600 tabular-nums">剩余 {carried} 瓶</span>
             </div>
 
             {/* 快捷操作按钮 */}

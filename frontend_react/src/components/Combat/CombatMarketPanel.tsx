@@ -1,6 +1,8 @@
 import type {useCombatActions} from '../../hooks/useCombatActions';
 import type {CombatProfile} from '../../types/api/combat';
 import {Coins, Info, ShoppingBag, Store} from 'lucide-react';
+import {MaterialPortrait} from './atlas/MaterialPortrait';
+import {PotionPortrait} from './atlas/PotionPortrait';
 
 export default function CombatMarketPanel({
     profile,
@@ -54,11 +56,16 @@ export default function CombatMarketPanel({
                                     key={potion.id}
                                     className="flex items-center justify-between rounded-lg bg-slate-50/80 p-2.5 border border-slate-100 text-xs"
                                 >
-                                    <div>
-                                        <p className="font-semibold text-slate-800">{potion.name}</p>
-                                        <p className="mt-0.5 text-[11px] text-slate-500">
-                                            库存 <strong className="text-slate-700 font-bold">{potion.owned}</strong> 瓶 · 单价 ¥{potion.purchasePrice}
-                                        </p>
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-white">
+                                            <PotionPortrait potionId={potion.id} name={potion.name} decorative className="h-9 w-9"/>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="truncate font-semibold text-slate-800">{potion.name}</p>
+                                            <p className="mt-0.5 text-[11px] text-slate-500">
+                                                库存 <strong className="text-slate-700 font-bold">{potion.owned}</strong> 瓶 · 单价 ¥{potion.purchasePrice}
+                                            </p>
+                                        </div>
                                     </div>
                                     <button
                                         type="button"
@@ -99,11 +106,16 @@ export default function CombatMarketPanel({
                                     key={mat.id}
                                     className="flex items-center justify-between rounded-lg bg-slate-50/80 p-2.5 border border-slate-100 text-xs"
                                 >
-                                    <div>
-                                        <p className="font-semibold text-slate-800">{mat.name}</p>
-                                        <p className="mt-0.5 text-[11px] text-slate-500">
-                                            持有 <strong className="text-slate-700 font-bold">{mat.owned}</strong> 个 · 回收 ¥{mat.salePrice}/个
-                                        </p>
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-white">
+                                            <MaterialPortrait materialId={mat.id} name={mat.name} decorative className="h-9 w-9"/>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="truncate font-semibold text-slate-800">{mat.name}</p>
+                                            <p className="mt-0.5 text-[11px] text-slate-500">
+                                                持有 <strong className="text-slate-700 font-bold">{mat.owned}</strong> 个 · 回收 ¥{mat.salePrice}/个
+                                            </p>
+                                        </div>
                                     </div>
                                     <button
                                         type="button"

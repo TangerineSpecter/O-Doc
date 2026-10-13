@@ -55,6 +55,36 @@ class ExplorationTests(TestCase):
             self.assertEqual(lease.token,'')
             self.assertIsNone(lease.until)
 
+    def test_unaffordable_optional_potions_are_removed_from_exploration_plan(self):
+        from .preparation import fit_potion_plan
+        run=explorations.request('admin',self.agent,'unbudgeted-potion-plan',{},now=self.now)
+        plan={**self.plan,'purchases':{'potion.heal.1':2},'potions':{'potion.heal.1':2}}
+        with patch('system_settings.agent_world.market_spending.spending_context',return_value={'spendable':'0'}):
+            fitted=fit_potion_plan(run,self.agent,plan)
+        self.assertEqual(fitted['purchases'],{})
+        self.assertEqual(fitted['potions'],{})
+        self.assertIn('探索本身不需要生活预算',fitted['reason'])
+
+    def test_life_exploration_with_zero_budget_can_buy_potions_and_depart(self):
+        from system_settings.models import SystemSetting,WorldActionRuntime
+        from ..life_models import LifeConfig,LifeItem
+        from ..life_schedule import DEFAULTS
+        from .preparation import prepare
+        WorldActionRuntime.objects.create(pk='world',enabled=True)
+        LifeConfig.objects.create(pk='admin',settings={**DEFAULTS,'agent_ids':[self.agent.pk]},migrated=True)
+        SystemSetting.objects.create(key='system_mcp_config',value={'enabled':True})
+        item=LifeItem.objects.create(pk='zero-budget-exploration',owner_id='admin',actor_id=self.agent.pk,
+            original_at=self.now,scheduled_at=self.now,activity='exploration',status='running',budget=0)
+        run=explorations.request('admin',self.agent,'zero-budget-preparation',{},life_item=item,now=self.now)
+        plan={**self.plan,'purchases':{'potion.heal.1':2},'potions':{'potion.heal.1':2},'equipment':{}}
+        with patch('system_settings.agent_world.life_context.build_context',return_value={}):
+            run=prepare(run.pk,planner=lambda *args:plan)
+        item.refresh_from_db()
+        self.agent.refresh_from_db()
+        self.assertEqual(run.status,'active')
+        self.assertEqual((item.budget,item.spent),(12,12))
+        self.assertEqual(self.agent.money,9988)
+
     def data(self):
         from django.apps import apps
         return json.loads(serializers.serialize('json',[row for model in apps.get_app_config('system_settings').get_models() if model.__name__!='CombatRuntime' for row in model.objects.all()]))

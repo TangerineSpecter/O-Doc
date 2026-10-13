@@ -1,6 +1,7 @@
 import type {ReactNode} from 'react';
 import type {InventoryItem} from '../../types/api/travel';
 import {MaterialPortrait} from '../Combat/atlas/MaterialPortrait';
+import {PotionPortrait} from '../Combat/atlas/PotionPortrait';
 import {farmItemIcon} from '../Farm/assets';
 import {ItemIconImage} from './ItemIconImage';
 
@@ -13,7 +14,9 @@ export function InventoryItemIcon({item, className, fallback}: {
     const sku = item.source.sku || '';
     const builtin = sku.startsWith('combat.material.')
         ? <MaterialPortrait materialId={sku.slice('combat.'.length)} name={item.name} decorative className={className}/>
-        : <ItemIconImage src={farmItemIcon(sku)} alt={item.name} className={className} fallback={fallback}/>;
+        : sku.startsWith('combat.potion.')
+            ? <PotionPortrait potionId={sku.slice('combat.'.length)} name={item.name} decorative className={className}/>
+            : <ItemIconImage src={farmItemIcon(sku)} alt={item.name} className={className} fallback={fallback}/>;
 
     return item.iconUrl
         ? <ItemIconImage src={item.iconUrl} alt={item.name} className={className} fallback={builtin}/>

@@ -1,5 +1,6 @@
 """Preparation and level-gated promotion call the resident's model."""
 from contextlib import nullcontext
+from decimal import Decimal
 import hashlib
 from django.db import transaction
 from .models import Exploration, CombatProfile, CombatRuntime
@@ -21,9 +22,12 @@ def context(run: Exploration) -> dict:
     profile=CombatProfile.objects.get(pk=run.actor_id)
     catalog=current(run.catalog_id)
     from .queries import profile_view
+    from ..market_spending import spending_context
+    spending=spending_context(run.owner_id,agent.pk)
     return {'constraints':run.snapshot['constraints'],'adventure':profile_view(run.owner_id,agent),
         'dungeons':catalog.tables['dungeons'],'styles':catalog.tables['styles'],'potions':catalog.tables['potions'],
         'balance':str(agent.money),'inventory':{r['id']:stock_quantity(agent.pk,run.owner_id,'combat.'+r['id']) for r in catalog.tables['potions']},
+        'purchase_funds':spending['spendable'],
         'energy_costs':{'30min':22,'60min':34,'120min':58,'market_entry':5}}
 
 
@@ -50,10 +54,41 @@ def validate(run: Exploration,plan: dict) -> dict:
     return plan
 
 
+def fit_potion_plan(run: Exploration, agent, plan: dict) -> dict:
+    """Fit optional purchases and carried potions to unreserved cash and stock."""
+    from ..market_spending import spending_context
+    catalog=current(run.catalog_id)
+    funds=Decimal(spending_context(run.owner_id,agent.pk)['spendable'])
+    purchases={}
+    changed=False
+    for sid,count in plan.get('purchases',{}).items():
+        unit_price=Decimal(catalog.row('potions',sid)['purchase_price'])
+        affordable=min(count,int(funds//unit_price))
+        if affordable:
+            purchases[sid]=affordable
+            funds-=unit_price*affordable
+        if affordable!=count:
+            changed=True
+    potions={}
+    for sid,count in plan.get('potions',{}).items():
+        available=stock_quantity(agent.pk,run.owner_id,'combat.'+sid)+purchases.get(sid,0)
+        carry=min(count,available)
+        if carry:
+            potions[sid]=carry
+        if carry!=count:
+            changed=True
+    fitted={**plan,'purchases':purchases,'potions':potions}
+    if changed:
+        reason=str(fitted.get('reason') or '').strip()
+        fitted['reason']=(reason+'；' if reason else '')+'药剂按未预留余额与现有库存调整；探索本身不需要生活预算。'
+    return fitted
+
+
 def prepare(run_id: str, *, planner=None) -> Exploration:
     from system_settings.models import Agent
     from ..market_sessions import enter, close_session
     from ..market_tools import call_market_tool
+    from ..market_spending import MarketPurchaseBlocked
     from ..life_models import LifeItem
     from ..life_scope import life_scope
     from ..life_context import build_context
@@ -70,8 +105,8 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
             plan=run.snapshot.get('prepared_plan')
             if plan is None:
                 with usage_scope(agent=agent,purpose='exploration_prepare'):
-                    plan=(planner or ask)(agent,'为迷宫探索准备出发。只决定出发地点、时长、风格、换装、药剂采购和携带，不参与战斗。遵守constraints，返回 JSON: {dungeon_id, duration_seconds, style_id, equipment:{部位:装备ID}, purchases:{药剂ID:数量}, potions:{药剂ID:携带数量}, reason}。无需采购时purchases为空。考虑余额、全程体力和推荐等级。',context(run))
-                validate(run,plan)
+                    plan=(planner or ask)(agent,'为迷宫探索准备出发。只决定出发地点、时长、风格、换装、药剂采购和携带，不参与战斗。探索本身不需要生活预算；药剂是可选补给，只能使用purchase_funds中的未预留真实余额。若余额不足，减少或放弃采购，并按现有库存决定携带，不要因此放弃探索。遵守constraints，返回 JSON: {dungeon_id, duration_seconds, style_id, equipment:{部位:装备ID}, purchases:{药剂ID:数量}, potions:{药剂ID:携带数量}, reason}。考虑全程体力和推荐等级。',context(run))
+                plan=fit_potion_plan(run,agent,validate(run,plan))
                 with farm_gate(),transaction.atomic():
                     locked=Exploration.objects.select_for_update().get(pk=run_id)
                     if locked.status!='preparing' or not CombatRuntime.objects.filter(pk=run_id,authorized=True).exists():return locked
@@ -88,10 +123,32 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
                 marker=PREPARING.set(run.pk)
                 try:session=enter(run.owner_id,agent,hashlib.sha256((run.pk+':market').encode()).hexdigest(),mode='mcp')
                 finally:PREPARING.reset(marker)
+                completed_purchases={}
                 for index,(sid,n) in enumerate(purchases.items()):
                     with farm_gate():
                         if not Exploration.objects.filter(pk=run.pk,status='preparing').exists() or not CombatRuntime.objects.filter(pk=run.pk,authorized=True).exists():raise ValueError('准备期间探索已取消')
-                        call_market_tool('buy_combat_potion',{'request_id':hashlib.sha256((run.pk+f':purchase:{index}').encode()).hexdigest(),'session_id':session.pk,'potion_id':sid,'quantity':n},agent)
+                        try:
+                            call_market_tool('buy_combat_potion',{'request_id':hashlib.sha256((run.pk+f':purchase:{index}').encode()).hexdigest(),'session_id':session.pk,'potion_id':sid,'quantity':n},agent)
+                        except (MarketPurchaseBlocked,ValueError) as exc:
+                            blocked_code=getattr(exc,'result',{}).get('code')
+                            if blocked_code not in ('life_budget_exceeded','insufficient_balance') and str(exc)!='真实余额不足或资金已预留给其他生活安排':
+                                raise
+                            adjusted_potions={}
+                            for potion_id,count in plan.get('potions',{}).items():
+                                carry=min(count,stock_quantity(agent.pk,run.owner_id,'combat.'+potion_id))
+                                if carry:adjusted_potions[potion_id]=carry
+                            note='可用余额变化后跳过未完成药剂采购，按现有库存出发。'
+                            reason=str(plan.get('reason') or '').strip()
+                            plan={**plan,'purchases':completed_purchases,'potions':adjusted_potions,
+                                  'reason':(reason+'；' if reason else '')+note}
+                            with transaction.atomic():
+                                locked=Exploration.objects.select_for_update().get(pk=run.pk)
+                                if locked.status!='preparing' or not CombatRuntime.objects.filter(pk=run.pk,authorized=True).exists():return locked
+                                locked.snapshot={**locked.snapshot,'prepared_plan':plan};locked.revision+=1;locked.save()
+                                append(CombatProfile.objects.get(pk=locked.actor_id),locked.pk+':purchase-adjustment',
+                                    'purchase_adjustment',{'reason':note,'purchases':completed_purchases,'potions':adjusted_potions},locked)
+                            break
+                        completed_purchases[sid]=n
                 close_session(session,'探索补给采购完成');session=None
             return depart(run.pk,plan)
     except Exception as exc:

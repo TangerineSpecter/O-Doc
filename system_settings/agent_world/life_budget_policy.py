@@ -1,7 +1,11 @@
 """按实际世界货币消费能力限制预算；模型服务费用不属于生活预算。"""
 from decimal import Decimal
 
-SPENDING_ACTIVITIES = frozenset({'travel', 'farm', 'market', 'market_prepare', 'investment', 'exploration'})
+SPENDING_ACTIVITIES = frozenset({'travel', 'farm', 'market', 'market_prepare', 'investment'})
+
+# Exploration itself is free. Optional potion purchases may spend unreserved cash,
+# but exploration never reserves a planned life budget for them.
+UNBUDGETED_PURCHASE_ACTIVITIES = frozenset({'exploration'})
 
 
 def allows_spending(activity: str) -> bool:

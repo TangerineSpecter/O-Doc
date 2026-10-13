@@ -34,7 +34,7 @@ export default function MarketDialog({
     residents,
 }: {
     onClose: () => void;
-    residents: Array<{id: string; name: string}>;
+    residents: Array<{id: string; name: string; avatar?: string}>;
 }) {
     const market = useMarket();
     const data =
@@ -205,9 +205,9 @@ export default function MarketDialog({
                     ) : market.tab === 'listings' ? (
                         <MarketListings items={market.listings?.items || []} />
                     ) : market.tab === 'transactions' ? (
-                        <MarketTransactions items={market.transactions?.items || []} />
+                        <MarketTransactions items={market.transactions?.items || []} residents={residents} />
                     ) : (
-                        <MarketSessions items={market.sessions?.items || []} />
+                        <MarketSessions items={market.sessions?.items || []} residents={residents} />
                     )}
                 </div>
 

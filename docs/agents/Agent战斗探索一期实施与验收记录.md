@@ -94,6 +94,8 @@ Boss 核心场景使用战士路径、推荐 Boss 区间中值等级、均衡风
 
 另运行统一生活测试 58 项，54 项通过，4 项既有失败。使用 Git HEAD 的未修改 life_budget_policy 模块再次运行这 4 项，得到相同的 3 错误/1 断言失败：test_budget_protects_travel_and_rollback、test_planning_can_adjust_future_commitments_with_reason、test_travel_budget_can_be_reassigned_before_payment、test_shared_context_has_past_and_future。其旧夹具为不允许消费的默认活动配置预算；本次只增加 exploration 的可消费分类，没有放宽原规则。
 
+2026-10-13 预算边界修正：迷宫探索不预留生活预算；可选药剂按未被其他安排预留的真实余额购买。余额不足时减少采购与携带数量，继续按现有库存出发。此规则取代本记录中将 exploration 归为生活预算消费活动的早期实现；未新增字段或同步格式。
+
 浏览器验收可启动 `scripts/combat_design/acceptance_server.py --port 11809`，另在 frontend_react 使用 ODOC_API_PROXY 指向该端口启动 Vite；`scripts/fixtures/combat.html` 是独立测试入口。执行 `scripts/combat_design/test_ui.cjs`，通过 PLAYWRIGHT_MODULE/NODE_PATH 指定已有 Playwright，CHROME_PATH 指定 Chrome。脚本使用隔离服务器生成的测试凭据，仅监听本地接口。长历史滚动测试使用一致版本的响应夹具，其余准备、后台回合、关闭/重开、召回和历史读取使用真实后端业务路径。真实模型/WebDAV 未被浏览器测试调用。
 
 统一图鉴验收使用同一隔离服务，运行 `scripts/combat_design/test_catalog_ui.cjs`，访问实际 `/agent-world` 页面。已验证桌面 1440×1000、窄屏 390×844、单一图鉴入口及 SVG、仅一个外层弹窗、真实物品与食谱数据、五个冒险分类无「全部」、一级/二级切换保留筛选和滚动、嵌套图标编辑、键盘焦点、接口失败/重试与关闭。类型检查、图鉴新模块的定向 lint 和生产构建通过；图鉴移出后的冒险准备/观察/召回/换装/历史浏览器回归也通过。

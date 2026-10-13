@@ -2,7 +2,8 @@
 from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from system_settings.models import Agent
-from .life_budget_policy import allows_spending, remaining_reservation, validate_activity_budget
+from .life_budget_policy import (UNBUDGETED_PURCHASE_ACTIVITIES, allows_spending,
+                                 remaining_reservation, validate_activity_budget)
 from .life_models import LifeItem
 from .life_schedule import OPEN, revise
 from .life_scope import CURRENT, check_item_authorization
@@ -56,20 +57,26 @@ def charge_budget(agent: Agent, amount: Decimal, *, item_id: str | None = None, 
             return
         raise ValueError('生活预算安排不存在')
     check_item_authorization(item)
-    if not allows_spending(item.activity):
+    unbudgeted_purchase = item.activity in UNBUDGETED_PURCHASE_ACTIVITIES
+    if not allows_spending(item.activity) and not unbudgeted_purchase:
         raise ValueError('当前活动不支持世界货币消费')
     if item.status not in OPEN:
         raise ValueError('生活安排已结束')
     others = LifeItem.objects.select_for_update().filter(owner_id=item.owner_id, actor_id=agent.pk, status__in=OPEN).exclude(pk=item.pk)
     reserved = sum((remaining_reservation(r) for r in others), Decimal(0))
-    if item.spent+amount > item.budget or agent.money-amount < reserved:
+    if (not unbudgeted_purchase and item.spent+amount > item.budget) or agent.money-amount < reserved:
+        if unbudgeted_purchase:
+            raise ValueError('真实余额不足或资金已预留给其他生活安排')
         raise ValueError('支出超出生活预算；请调用adjust_life_budget说明原因重新分配，不能动用后续活动预留')
     if business_key:
         keys=item.context.get('debit_keys',[])
         if business_key in keys:raise ValueError('生活支出业务键已经提交')
         item.context={**item.context,'debit_keys':[*keys,business_key]}
     item.spent += amount
-    item.save(update_fields=['spent','context','updated_at'])
+    if unbudgeted_purchase:
+        # Keep the synchronized total valid without reserving future money.
+        item.budget = item.spent
+    item.save(update_fields=['spent','budget','context','updated_at'])
 
 
 @guarded

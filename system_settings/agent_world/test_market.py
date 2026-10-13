@@ -82,10 +82,10 @@ class MarketTests(TestCase):
     def add(self, actor, sku='crop.radish', count=3, value=18):
         return add_stock(actor.pk,'admin',actor.name,sku,count,'萝卜' if sku.startswith('crop.') else '金色鸡蛋','farm_crop',value)
 
-    def life_item(self, budget=0):
+    def life_item(self, budget=0, activity='market_prepare'):
         from .life_models import LifeItem
         return LifeItem.objects.create(id=uuid.uuid4().hex, owner_id='admin', actor_id=self.a.pk,
-            original_at=self.now, scheduled_at=self.now, activity='market_prepare',
+            original_at=self.now, scheduled_at=self.now, activity=activity,
             task_id=self.task.pk, status='running', budget=budget, context={'manual': True})
 
     def test_zero_budget_precheck_then_adjust_and_buy_with_live_feedback(self):
@@ -112,6 +112,19 @@ class MarketTests(TestCase):
             self.assertEqual(Decimal(context['spending']['spendable']), 20)
         self.a.refresh_from_db()
         self.assertEqual(self.a.money, 9990)
+
+    def test_exploration_potion_funds_ignore_unplanned_activity_budget(self):
+        from .life_scope import life_scope
+        from .life_models import LifeItem
+        from .market_spending import spending_context
+        item=self.life_item(activity='exploration')
+        LifeItem.objects.create(id=uuid.uuid4().hex,owner_id='admin',actor_id=self.a.pk,
+            original_at=self.now,scheduled_at=self.now+timedelta(hours=1),activity='travel',
+            status='pending',budget=9950)
+        with life_scope(item,{}):
+            spending=spending_context('admin',self.a.pk)
+        self.assertEqual(Decimal(spending['budget']),Decimal('0'))
+        self.assertEqual(Decimal(spending['spendable']),Decimal('50'))
 
     def test_precheck_preserves_other_commitments_and_allows_smaller_purchase(self):
         from .life_scope import life_scope
