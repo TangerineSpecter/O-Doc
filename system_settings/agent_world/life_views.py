@@ -75,8 +75,9 @@ class LifeConfigView(APIView):
             config=config_for(owner_of(request))
             raw_settings=request.data.get('settings',request.data)
             settings=validate_settings(raw_settings)
-            if 'decision_model_id' not in raw_settings:
-                settings['decision_model_id']=config.settings.get('decision_model_id','')
+            for key in ('decision_model_id', 'jev_enabled', 'jev_excluded_scenes'):
+                if key not in raw_settings:
+                    settings[key] = config.settings.get(key, DEFAULTS[key])
             from system_settings.models import Agent
             added=set(settings['agent_ids'])-set(config.settings.get('agent_ids', []))
             if Agent.objects.filter(pk__in=added, archived_at__isnull=False).exists():

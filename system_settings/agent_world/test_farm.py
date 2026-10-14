@@ -538,12 +538,12 @@ class FarmTests(TestCase):
         expand = next(o for o in options if o['operation']['kind'] == 'expand')
         item = self.farm_life_item('farm-plan', 500)
         initial = json.dumps({'choices': [expand['id']], 'reason': '扩地只要500'})
-        with life_scope(item, {}), patch('system_settings.agent_world.farm_runner.AIService.chat_completion_messages',
+        with life_scope(item, {}), patch('system_settings.decision.routing.complete',
                 side_effect=[initial, '{"choices":[],"reason":"先照料，暂不扩地"}']) as call:
             decision = decide(self.task, self.agent, farm, options)
-            context = json.loads(call.call_args.args[0][1]['content'].split('\n补充经营偏好：')[0])
+            context = json.loads(call.call_args.args[1].split('\n资料：', 1)[1].split('\n补充经营偏好：')[0])
             self.assertEqual(context['spending']['spendable'], '500.00')
-            self.assertIn('需要 1000', call.call_args.args[0][-1]['content'])
+            self.assertIn('需要 1000', call.call_args.args[1])
             self.assertEqual(decision['choices'], [])
             self.assertEqual(call.call_count, 2)
         item.refresh_from_db()
@@ -586,28 +586,28 @@ class FarmTests(TestCase):
     def test_invalid_model_format_only_one_correction(self):
         from .farm_runner import decide
         farm=AgentFarm.objects.get(pk=self.agent.pk)
-        with patch('system_settings.agent_world.farm_runner.AIService.chat_completion_messages', autospec=True, return_value='{"choices":["invalid"],"reason":"x"}') as call:
+        with patch('system_settings.decision.routing.complete', autospec=True, return_value='{"choices":["invalid"],"reason":"x"}') as call:
             with self.assertRaises(ValueError):decide(self.task,self.agent,farm,candidates(farm,self.agent.money))
             self.assertEqual(call.call_count,2)
-            self.assertTrue(all(args.kwargs == {'model_id': self.agent.model_id} for args in call.call_args_list))
+            self.assertTrue(all(args.args[0]['model_id'] == self.agent.model_id and args.kwargs['allow_retries'] is False for args in call.call_args_list))
 
     def test_decision_uses_real_ai_adapter_and_agent_model(self):
         from .farm_runner import decide
         farm = AgentFarm.objects.get(pk=self.agent.pk)
-        # 只替换网络客户端，保留真实 AIService 参数、模型选择及字符串返回契约。
-        with patch('utils.ai_service.OpenAI') as sdk:
-            sdk.return_value.chat.completions.create.return_value = SimpleNamespace(
-                choices=[SimpleNamespace(message=SimpleNamespace(content='```json\n{"choices":["0"],"reason":"买饲料"}\n```'))])
+        # Replace only the bounded adapter's transport driver; keep routing and request construction.
+        with patch('utils.bounded_completion._drive', return_value='```json\n{"choices":["0"],"reason":"买饲料"}\n```') as driver:
             result = decide(self.task, self.agent, farm, candidates(farm, self.agent.money))
             self.assertEqual(result, {'choices': ['0'], 'reason': '买饲料'})
-            self.assertEqual(sdk.return_value.chat.completions.create.call_count, 1)
-            self.assertEqual(sdk.return_value.chat.completions.create.call_args.kwargs['model'], self.agent.model.name)
-            self.assertEqual(sdk.call_args.kwargs['base_url'], 'https://example.invalid/v1')
+            driver.assert_called_once()
+            config = driver.call_args.args[0]
+            self.assertEqual(config['model_name'], self.agent.model.name)
+            self.assertEqual(config['model_id'], self.agent.model_id)
+            self.assertEqual(config['base_url'], 'https://example.invalid/v1')
 
     def test_model_format_correction_can_return_valid_plan(self):
         from .farm_runner import decide
         farm = AgentFarm.objects.get(pk=self.agent.pk)
-        with patch('system_settings.agent_world.farm_runner.AIService.chat_completion_messages', autospec=True,
+        with patch('system_settings.decision.routing.complete', autospec=True,
                    side_effect=['不是JSON', '{"choices":["0"],"reason":"购买饲料"}']) as call:
             result = decide(self.task, self.agent, farm, candidates(farm, self.agent.money))
             self.assertEqual(result, {'choices': ['0'], 'reason': '购买饲料'})
@@ -617,15 +617,15 @@ class FarmTests(TestCase):
         from .farm_runner import decide
         farm = AgentFarm.objects.get(pk=self.agent.pk)
         options = candidates(farm, self.agent.money)
-        with patch('system_settings.agent_world.farm_runner.AIService.chat_completion_messages', autospec=True,
+        with patch('system_settings.decision.routing.complete', autospec=True,
                    return_value='{"choices":[],"reason":"休息"}') as call:
             decide(self.task, self.agent, farm, options)
-            before = call.call_args.args[0][1]['content']
+            before = call.call_args.args[1].split('\n资料：', 1)[1]
             farm.state['operation_keys'] = [f'{i:064x}:0' for i in range(10000)]
             farm.state['inventory_snapshot'] = [{'source': {'lots': ['历史批次'] * 10000}}]
             farm.state['last_operation'] = {'reason': '历史经营理由'}
             decide(self.task, self.agent, farm, options)
-            after = call.call_args.args[0][1]['content']
+            after = call.call_args.args[1].split('\n资料：', 1)[1]
             context = json.loads(after.split('\n补充经营偏好：')[0])
             self.assertEqual(context['farm'], {key: farm.state[key] for key in ('plots', 'buildings', 'animals')})
             self.assertLessEqual(abs(len(after) - len(before)), 100)

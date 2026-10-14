@@ -99,6 +99,17 @@ class AgentViewSet(viewsets.ModelViewSet):
             return valid_result(msg='请提供有效的头像资源', data=serializer.errors, status=400)
         return success_result(describe_avatar(request, serializer.validated_data['avatar']))
 
+    @action(detail=False, methods=['post'], url_path='organize-role', permission_classes=[IsAuthenticated])
+    def organize_role(self, request):
+        from .agent_role_organizer import OrganizeRoleSerializer, organize_role
+        serializer = OrganizeRoleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            return success_result(organize_role(serializer.validated_data))
+        except Exception:
+            logger.exception('Role organization failed')
+            return valid_result(msg='整理失败，请检查模型配置或重试；原设定未修改', status=502)
+
     @action(detail=False, methods=['post'], url_path='generate-prompt', permission_classes=[IsAuthenticated])
     def generate_prompt(self, request):
         from .agent_prompt_generation import AgentPromptOutputError, GenerateAgentPromptSerializer, describe_avatar, generate_agent_prompt
@@ -224,7 +235,7 @@ class AgentViewSet(viewsets.ModelViewSet):
             if not options.get('configured'):
                 return valid_result(options.get('message') or '请先配置生图模型', status=400)
             from .battle_head_generation import build_battle_head_request
-            data = build_battle_head_request(data, options)
+            data = build_battle_head_request(data, options, agent)
             return success_result(generate_image(data, agent, user_id=owner_id, scene='battle_head'))
         except (ValueError, ValidationError) as exc:
             detail = getattr(exc, 'detail', str(exc))

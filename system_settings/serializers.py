@@ -85,7 +85,7 @@ class AgentSerializer(PostScopeValidation, serializers.ModelSerializer):
             'full_body_image',
             'model',
             'model_detail',
-            'prompt',
+            'prompt', 'role_profile',
             'money', 'profession', 'profession_name',
             'post_collection_ids', 'post_category_ids', 'stamina',
             'mcp_servers',
@@ -100,6 +100,14 @@ class AgentSerializer(PostScopeValidation, serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'archived_at', 'model_detail', 'money', 'created_at', 'updated_at']
         extra_kwargs = {'name': {'validators': []}}
+
+    def validate_role_profile(self, value):
+        from .agent_role import validate_profile
+        try:
+            validated = validate_profile(value)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+        return {**((self.instance.role_profile or {}) if self.instance else {}), **validated}
 
     def get_stamina(self, obj):
         from .agent_world.execution import stamina

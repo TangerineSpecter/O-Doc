@@ -157,7 +157,7 @@ export const MOCK_PROVIDERS: AIProvider[] = [
 
 // 这里预留后续对接真实接口的位置
 // 1. 获取所有服务商列表
-export const getProviders = () => request.get<AIProvider[]>('/settings/providers/');
+export const getProviders = () => request.get<unknown, AIProvider[]>('/settings/providers/');
 
 // 2. 保存服务商 (新增或更新)
 export const saveProvider = (data: Partial<AIProvider>) => {

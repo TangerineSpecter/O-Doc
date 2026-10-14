@@ -78,6 +78,7 @@ export interface AgentConfig {
     fullBodyImage?: string;
     model: string | null;
     modelDetail?: AIModel | null;
+    roleProfile?: Partial<import('./agentPrompt').RoleProfile>;
     prompt: string;
     money: string;
     mcpServers: string[];

@@ -1,7 +1,7 @@
 """Role-labeled references and prompt for complete Agent battle sprites."""
 
 
-def build_battle_head_request(arguments: dict, options: dict) -> dict:
+def build_battle_head_request(arguments: dict, options: dict, agent=None) -> dict:
     data = dict(arguments)
     background_mode = data.pop('background_mode', 'flat')
     if background_mode not in ('flat', 'transparent'):
@@ -79,5 +79,8 @@ def build_battle_head_request(arguments: dict, options: dict) -> dict:
     )
     if user_prompt:
         prompt += f'\n\nOptional outfit or appearance adjustments from the user: {user_prompt}'
+    from .agent_role import role_text
+    if agent is not None:
+        prompt += '\n' + role_text(agent, 'image')
     data['prompt'] = prompt
     return data

@@ -19,7 +19,10 @@ def prepare_image(moment, agent, cfg, prompt):
         options = image_generation_options(agent, model_id=cfg['image_model_id'], scene='moment')
         if not options.get('configured'): raise ValueError(options.get('message') or '未配置生图模型')
         from .social_image_prompt import image_prompt
+        include_actor = not prompt.startswith('主体选择：仅场景或物品')
         prompt, refs = image_prompt(prompt, options.get('agent_reference_images', {}))
+        from system_settings.agent_role import role_text
+        prompt += '\n' + role_text(agent, 'image' if include_actor else 'repair')
         if refs and not options.get('supports_reference_images'): raise ValueError('模型不支持角色参考图')
         from system_settings.image_generation_options import resolve_image_generation_request
         from system_mcp.image_generation import resolve_image_model

@@ -1,3 +1,4 @@
+from system_settings.agent_role import role_text, profile_version
 """Daily proposals are evidence-bound; only a validated transaction advances the cursor."""
 import hashlib
 import json
@@ -81,7 +82,7 @@ def propose(agent, batch, evidence):
             'protected': not managed(m), 'sources': [
                 {'id': ref['id'], 'day': ref['day']} for ref in meta(m).get('sources', [])
             ]} for m in existing]
-    payload = {'actor': agent.name, 'role': agent.prompt[:1500], 'counts': batch['counts'],
+    payload = {'actor': agent.name, 'role': role_text(agent, 'memory'), 'counts': batch['counts'],
                'sources': list(evidence.values()), 'existing': old}
     prompt = INSTRUCTION + json.dumps(payload, ensure_ascii=False)
     # 历史摘要足以匹配主题，完整来源保留在数据库；优先为本轮证据留空间。
@@ -160,14 +161,14 @@ def process(state, now=None):
             state.save()
             versions = memory_versions(state.agent)
         try:
-            agent_version = (state.agent.model_id, state.agent.prompt)
+            agent_version = profile_version(state.agent)
             batch, observed, evidence, worthy = prepare(state, day)
             proposals, used = propose(state.agent, batch, evidence) if worthy else ([], {})
             with farm_gate(), transaction.atomic():
                 current = AgentMemoryState.objects.select_for_update().select_related('agent').get(pk=state.pk)
                 if not eligible(current) or current.processed_day != state.processed_day or current.observations != state.observations or current.attempted_day != today or not AgentMemoryLease.objects.filter(pk=state.pk, token=token, until__gt=timezone.now()).exists():
                     raise ValueError('整理期间运行状态或租约已变化')
-                if (current.agent.model_id, current.agent.prompt) != agent_version:
+                if profile_version(current.agent) != agent_version:
                     raise ValueError('整理期间居民角色或模型已变化')
                 if memory_versions(state.agent) != versions or collect(state.owner_id, state.agent, day, state.enabled_at)['fingerprint'] != batch['fingerprint']:
                     raise ValueError('整理期间记忆或来源已变化，结果未采用')

@@ -315,6 +315,13 @@ class ExecutionTests(SproutFixture):
 
 
 class CaptureRunnerTests(CaptureFixture):
+    def setUp(self):
+        super().setUp()
+        from system_settings.models import AIProvider, AIModel
+        provider = AIProvider.objects.create(name='capture-fixture', type='OpenAi', base_url='https://example.invalid')
+        self.agent.model = AIModel.objects.create(provider=provider, name='fixture', type='chat')
+        self.agent.save(update_fields=['model'])
+
     def restore_during_capture(self, scheduled=False, skip=False):
         from utils.sync_manager import SyncManager
         from system_settings.agent_world.memo_capture import run_capture
@@ -333,7 +340,7 @@ class CaptureRunnerTests(CaptureFixture):
             # The snapshot contains this same running record; existence alone is insufficient.
             manager.apply_snapshot_data(data,manager.build_snapshot_meta(data_list=data))
             return json.dumps({'skip': skip, 'reason': '没有新想法', 'content': '恢复前的结果不能写入'})
-        with patch('system_settings.agent_world.memory.recall.memory_context',return_value=''), patch('system_settings.agent_world.memo_capture.AIService.get_client_config_for_model',return_value={}), patch('system_settings.agent_world.memo_capture.complete',side_effect=restore), patch('memos.capture.schedule_memo_vector_sync'):
+        with patch('system_settings.agent_world.memory.recall.memory_context',return_value=''), patch('system_settings.agent_world.memo_capture.AIService.get_client_config_for_model',return_value={}), patch('system_settings.decision.routing.complete',side_effect=restore), patch('memos.capture.schedule_memo_vector_sync'):
             record=run_capture(self.task,'定时任务' if scheduled else '手动执行',[self.agent],context if scheduled else None)
         self.assertEqual(record.status,'failed')
         record.refresh_from_db()
@@ -357,7 +364,7 @@ class CaptureRunnerTests(CaptureFixture):
         def revoked(*args, **kwargs):
             AgentExecutionLease.objects.filter(agent=self.agent).update(token='revoked')
             return json.dumps({'skip':False,'content':'不能提交这个结果'})
-        with patch('system_settings.agent_world.memory.recall.memory_context',return_value=''), patch('system_settings.agent_world.memo_capture.AIService.get_client_config_for_model',return_value={}), patch('system_settings.agent_world.memo_capture.complete',side_effect=revoked):
+        with patch('system_settings.agent_world.memory.recall.memory_context',return_value=''), patch('system_settings.agent_world.memo_capture.AIService.get_client_config_for_model',return_value={}), patch('system_settings.decision.routing.complete',side_effect=revoked):
             record=run_capture(self.task,'手动执行',[self.agent])
         self.assertEqual(record.status,'failed')
         self.assertFalse(MemoCapture.objects.exists())
@@ -383,14 +390,14 @@ class CaptureRunnerTests(CaptureFixture):
         from utils.sync_manager import SyncManager
         from system_settings.agent_world.memo_capture import run_capture
         context={'plan_id':'week','slot':0}
-        with patch('system_settings.agent_world.memory.recall.memory_context',return_value=''), patch('system_settings.agent_world.memo_capture.AIService.get_client_config_for_model',return_value={}), patch('system_settings.agent_world.memo_capture.complete',return_value=json.dumps({'skip':False,'content':'值得记录的真实问题'})), patch('memos.capture.schedule_memo_vector_sync'):
+        with patch('system_settings.agent_world.memory.recall.memory_context',return_value=''), patch('system_settings.agent_world.memo_capture.AIService.get_client_config_for_model',return_value={}), patch('system_settings.decision.routing.complete',return_value=json.dumps({'skip':False,'content':'值得记录的真实问题'})), patch('memos.capture.schedule_memo_vector_sync'):
             run_capture(self.task,'定时任务',[self.agent],context)
         manager=SyncManager()
         data=manager.build_snapshot_data()
         meta=manager.build_snapshot_meta(data_list=data)
         manager.apply_snapshot_data(data,meta)
         manager.apply_snapshot_data(data,meta)
-        with patch('system_settings.agent_world.memo_capture.complete') as model:
+        with patch('system_settings.decision.routing.complete') as model:
             run_capture(AgentTask.objects.get(pk=self.task.pk),'定时任务',[self.agent],context)
         model.assert_not_called()
         self.assertEqual(Memo.objects.count(),1)
@@ -399,7 +406,7 @@ class CaptureRunnerTests(CaptureFixture):
     def test_runner_retry_uses_receipt_without_model(self):
         from system_settings.agent_world.memo_capture import run_capture
         context={'plan_id':'week','slot':0}
-        with patch('system_settings.agent_world.memory.recall.memory_context',return_value='真实事实'), patch('system_settings.agent_world.memo_capture.AIService.get_client_config_for_model',return_value={}), patch('system_settings.agent_world.memo_capture.complete',return_value=json.dumps({'skip':False,'content':'一个有意思的具体观察','tag':'随想/生活'})) as model, patch('memos.capture.schedule_memo_vector_sync'):
+        with patch('system_settings.agent_world.memory.recall.memory_context',return_value='真实事实'), patch('system_settings.agent_world.memo_capture.AIService.get_client_config_for_model',return_value={}), patch('system_settings.decision.routing.complete',return_value=json.dumps({'skip':False,'content':'一个有意思的具体观察','tag':'随想/生活'})) as model, patch('memos.capture.schedule_memo_vector_sync'):
             first=run_capture(self.task,'定时任务',[self.agent],context)
             second=run_capture(self.task,'定时任务',[self.agent],context)
         self.assertEqual(first.status,'success')
@@ -410,7 +417,7 @@ class CaptureRunnerTests(CaptureFixture):
 
     def test_runner_voluntary_skip_is_success_without_memo(self):
         from system_settings.agent_world.memo_capture import run_capture
-        with patch('system_settings.agent_world.memory.recall.memory_context',return_value=''), patch('system_settings.agent_world.memo_capture.AIService.get_client_config_for_model',return_value={}), patch('system_settings.agent_world.memo_capture.complete',return_value=json.dumps({'skip':True,'reason':'没有新的观察'})):
+        with patch('system_settings.agent_world.memory.recall.memory_context',return_value=''), patch('system_settings.agent_world.memo_capture.AIService.get_client_config_for_model',return_value={}), patch('system_settings.decision.routing.complete',return_value=json.dumps({'skip':True,'reason':'没有新的观察'})):
             record=run_capture(self.task,'定时任务',[self.agent],{'plan_id':'week','slot':0})
         self.assertEqual(record.status,'success')
         self.assertEqual(record.agent_runs[0]['captureOutcome'],'skipped')

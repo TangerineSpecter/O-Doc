@@ -142,9 +142,9 @@ export function BuiltinPostTaskCard({
                     {description}
                 </p>
                 {task.taskKind === 'market' && (
-                    <span className={`mt-2 inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${task.marketConfig?.decisionEnabled === true ? 'border-orange-100 bg-orange-50 text-orange-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+                    <span className={`mt-2 inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium border-slate-200 bg-slate-50 text-slate-500`}>
                         <KeyRound className="h-3 w-3 shrink-0"/>
-                        决策模型：{task.marketConfig?.decisionEnabled === true ? 'JEV 已开启' : '未开启'}
+                        决策模型：由世界设置统一管理
                     </span>
                 )}
                 {details}

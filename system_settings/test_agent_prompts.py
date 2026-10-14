@@ -12,6 +12,9 @@ from system_settings.feishu_im import _build_agent_reply
 
 class AgentPromptRoutingTests(SimpleTestCase):
     def setUp(self):
+        for target, value in [('system_settings.agent_world.memory.recall.memory_context', ''), ('system_settings.agent_availability.require_active_agent', None)]:
+            mocked = patch(target, new=(lambda agent: agent)) if value is None else patch(target, return_value=value)
+            mocked.start(); self.addCleanup(mocked.stop)
         memory_context = patch('system_settings.agent_world.travel_memory.travel_memory_context', return_value='')
         memory_context.start()
         self.addCleanup(memory_context.stop)

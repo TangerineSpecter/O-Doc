@@ -411,7 +411,7 @@ class TravelTests(TestCase):
         row.save()
         self.with_life_budget(row, budget=1500)
         def choose(journey, instruction, context, validate, **kwargs):
-            with self.assertRaisesRegex(ValueError, '本次可用旅行预算'):
+            with self.assertRaisesRegex(ValueError, '不能改变已确认旅行选择'):
                 validate({'destination_id': '1', 'shopping_budget': '0', 'reason': '想去'})
             return validate({'destination_id': 'skip', 'shopping_budget': '0', 'reason': '预算不足'})
         with patch('system_settings.agent_world.travel_steps.ask', side_effect=choose):
@@ -564,8 +564,8 @@ class TravelTests(TestCase):
         row = self.journey()
         def validate(value):
             raise ValueError('当地素材的依据必须是来源中的原文片段')
-        with patch('system_settings.agent_world.travel_ai.complete', return_value='{}') as model:
-            with self.assertRaisesRegex(ValueError, '旅行模型输出未通过校验：当地素材的依据'):
+        with patch('system_settings.decision.routing.complete', return_value='{}') as model:
+            with self.assertRaisesRegex(ValueError, '模型输出未通过场景校验：当地素材的依据'):
                 ask(row, '整理行程', {}, validate)
             self.assertIn('当地素材的依据必须是来源中的原文片段', model.call_args.args[1])
 
@@ -581,7 +581,7 @@ class TravelTests(TestCase):
         def validate(value):
             value['souvenirs'] = sourced_items(value['souvenirs'], [source], minimum=1, maximum=1)
             return value
-        with patch('system_settings.agent_world.travel_ai.complete', return_value=json.dumps(raw, ensure_ascii=False)) as model:
+        with patch('system_settings.decision.routing.complete', return_value=json.dumps(raw, ensure_ascii=False)) as model:
             result = ask(row, '整理旅行内容', {'sources': [source]}, validate)
         self.assertEqual(result['souvenirs'][0]['name'], '库德族手工艺品')
         self.assertEqual(result['souvenirs'][0]['description'], '当地传统纪念品')
@@ -604,7 +604,7 @@ class TravelTests(TestCase):
         row.save()
         from .travel_ai import ask
         with patch('system_settings.agent_world.travel_steps.ask', side_effect=ask), \
-                patch('system_settings.agent_world.travel_ai.complete', return_value='{"choice":"庫爾德傳統茶","reaction":"茶很熱"}'):
+                patch('system_settings.decision.routing.complete', return_value='{"choice":"庫爾德傳統茶","reaction":"茶很熱"}'):
             advance(row)
         self.assertEqual(row.snapshot['food'], {'choice': '库尔德传统茶', 'reaction': '茶很热'})
 

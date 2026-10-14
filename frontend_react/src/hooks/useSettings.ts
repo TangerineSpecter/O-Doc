@@ -304,6 +304,7 @@ export const useSettings = () => {
                 fullBodyImage: agentData.fullBodyImage || '',
                 model: agentData.model || null,
                 prompt: agentData.prompt || '',
+                ...(agentData.roleProfile !== undefined ? {roleProfile: agentData.roleProfile} : {}),
                 mcpServers: agentData.mcpServers || [],
                 postCollectionIds: agentData.postCollectionIds || [],
                 postCategoryIds: agentData.postCategoryIds || [],

@@ -12,6 +12,30 @@ from .investment_queries import overview
 from .travel_models import TravelDestination, TravelJourney
 
 
+def build_social_context(owner: str, agent) -> dict:
+    """Load only the bounded facts consumed by social decisions and publish evidence."""
+    from .social_models import SocialOpportunity
+    context = {
+        'actor_id': agent.pk,
+        'recent_social': list(SocialOpportunity.objects.filter(
+            owner_id=owner, actor_id=agent.pk, status='completed'
+        ).order_by('-created_at').values('id', 'result', 'created_at')[:5]),
+        'recent_experiences': list(AgentRunRecord.objects.filter(
+            agent_id=agent.pk
+        ).order_by('-created_at').values('id', 'task_name', 'status', 'summary', 'created_at')[:8]),
+        'ongoing_travel': list(TravelJourney.objects.filter(
+            actor_id=agent.pk, returned_at__isnull=True, status__in=['active', 'waiting', 'paused', 'manual']
+        ).values('phase', 'status')[:5]),
+    }
+    profile = LifeProfile.objects.filter(pk=agent.pk, owner_id=owner).first()
+    context['preferences'] = profile.preferences if profile else ''
+    context['direction'] = profile.direction if profile else ''
+    context['goals'] = list(LifeGoal.objects.filter(owner_id=owner, actor_id=agent.pk, status='active').values('id', 'title', 'condition', 'progress')[:20])
+    import json
+    from django.core.serializers.json import DjangoJSONEncoder
+    return json.loads(json.dumps(context, cls=DjangoJSONEncoder, ensure_ascii=False))
+
+
 def build_context(owner: str, agent, item: LifeItem | None = None) -> dict:
     profile = LifeProfile.objects.filter(pk=agent.pk, owner_id=owner).first()
     context = actor_context(owner, agent)
@@ -23,7 +47,7 @@ def build_context(owner: str, agent, item: LifeItem | None = None) -> dict:
         context['investment'] = overview(owner, agent.pk)
     except ValueError:
         context['investment'] = None
-    context.update(actor_id=agent.pk, actor_name=agent.name, role=agent.prompt, profession_id=agent.profession_id,
+    context.update(actor_id=agent.pk, actor_name=agent.name, profession_id=agent.profession_id,
                    profession=agent.profession.name if agent.profession_id else '未设置',
                    preferences=profile.preferences if profile else '', direction=profile.direction if profile else '')
     goals=LifeGoal.objects.filter(owner_id=owner, actor_id=agent.pk, status='active')

@@ -90,10 +90,8 @@ class ChatView(APIView):
             if selected_agent_id:
                 try:
                     agent = Agent.objects.get(id=selected_agent_id)
-                    if agent.prompt:
-                        system_prompt = agent.prompt
-                    else:
-                        system_prompt = CHAT_SYSTEM_PROMPT
+                    from system_settings.agent_role import role_text
+                    system_prompt = role_text(agent)
                     system_prompt = build_agent_system_prompt(system_prompt)
                     from system_settings.agent_world.travel_memory import travel_memory_context
                     system_prompt += '\n\n' + travel_memory_context(agent)

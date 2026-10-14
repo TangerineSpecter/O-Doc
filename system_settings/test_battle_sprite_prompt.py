@@ -1,10 +1,20 @@
 """Prompt-only regressions; no database or provider requests."""
 import unittest
+from types import SimpleNamespace
 
 from system_settings.battle_head_generation import build_battle_head_request
 
 
 class BattleSpritePromptTests(unittest.TestCase):
+    def test_current_agent_appearance_and_supplement_are_included_once(self):
+        agent = SimpleNamespace(name='菲伦', prompt='公共补充要求',
+                                role_profile={'appearance': '紫色长发', 'personality': '认真'})
+        request = build_battle_head_request({}, {}, agent)
+        self.assertIn('当前 Agent：菲伦', request['prompt'])
+        self.assertIn('紫色长发', request['prompt'])
+        self.assertEqual(request['prompt'].count('公共补充要求'), 1)
+        self.assertNotIn('认真', request['prompt'])
+
     def test_transparent_request_has_no_conflicting_flat_background_instruction(self):
         request = build_battle_head_request({'background_mode': 'transparent'}, {})
         self.assertIn('genuinely transparent alpha', request['prompt'])

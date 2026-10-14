@@ -1,3 +1,4 @@
+from system_settings.agent_role import role_text
 """One market session shared by text decisions, JEV and the single-operation helper."""
 import hashlib
 import json
@@ -148,7 +149,7 @@ class MarketExecution:
             tools.append(BUDGET_TOOL)
         self.phase = phase
         progress(self.record, phase)
-        prompt = RULES + '\n' + build_agent_system_prompt(f'当前 Agent：{self.agent.name}\n{self.agent.prompt}', conversation=False) + '\n' + self.memory
+        prompt = RULES + '\n' + role_text(self.agent, 'planning') + '\n' + self.memory
         if helper:
             prompt += '\n本次仅协助一个复杂操作。可查询必要细节、进入现有市场；成功完成一次交易/预算修改/队列修改后立即返回决策流程。不要连续提交多个写操作。'
         payload = {'market_state': context, '经营偏好': self.task.prompt,
@@ -164,6 +165,7 @@ class MarketExecution:
         self.helper_failure = None
         allowed = {t['function']['name'] for t in tools}
 
+        prior_effects = []
         def execute(name: str, arguments: dict) -> dict:
             self.check()
             if selected:
@@ -173,7 +175,14 @@ class MarketExecution:
                     return {'error': '挂牌操作参数须为对象'}
                 if name == selected['tool'] and any(arguments.get(k) != v for k, v in selected['arguments'].items()):
                     return {'error': '不能改变JEV已选定的操作参数，请使用selected_operation.arguments'}
-            result = self.execute(name, arguments)
+            for effect in prior_effects:
+                if effect['tool'] == name and {k:v for k,v in effect.get('arguments', {}).items() if k not in ('request_id', 'reason')} == {k:v for k,v in arguments.items() if k not in ('request_id', 'reason')}:
+                    return {**effect['result'], 'already_completed': True}
+            from system_settings.decision.routing import MODEL_ERRORS, ToolOperationFailure
+            try:
+                result = self.execute(name, arguments)
+            except MODEL_ERRORS as exc:
+                raise ToolOperationFailure('市场工具执行失败，须核实当前状态后重试') from exc
             if selected and name == selected['tool'] and 'error' in result:
                 self.helper_failure = result
                 raise ComplexStepFinished('挂牌操作失败，返回JEV刷新真实状态')
@@ -181,10 +190,19 @@ class MarketExecution:
 
         try:
             with usage_scope(owner_id=self.owner, agent=self.agent, task=self.task, record=self.record, purpose='task', phase=phase):
-                ai_service.chat_completion_messages_with_tools(
+                from system_settings.decision.routing import run_models
+                def invoke(config):
+                    nonlocal prior_effects
+                    self.check()
+                    prior_effects = list(self.effects)
+                    payload['market_state'] = model_context(self.owner, self.agent)
+                    payload['completed_operations'] = self.effects
+                    payload['session'] = projection(self.session_payload())
+                    return ai_service.chat_completion_messages_with_tools(
                     [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(payload, cls=DjangoJSONEncoder, ensure_ascii=False)}],
-                    tools, execute, model_id=task_model_id(self.task, self.agent), max_rounds=min(24 - self.tool_count, 6 if helper else 24),
+                    tools, execute, model_id=config['model_id'], max_rounds=min(24 - self.tool_count, 6 if helper else 24),
                     deadline=self.deadline, message_transform=compact_messages, disable_thinking=True)
+                run_models(self.agent, invoke, task=self.task, decision=True, owner=self.owner, deadline=self.deadline, scene=phase, check=self.check)
                 return self.summary()
         except ComplexStepFinished as exc:
             return str(exc)
@@ -206,13 +224,12 @@ class MarketExecution:
         return f'本次完成{len(trades)}笔交易' + ('：' + detail if detail else '，未成交') + ('；' + '；'.join(other) if other else '')
 
     def run(self, ai_service) -> str:
-        if self.task.market_config.get('decision_enabled', False) is not True:
+        from system_settings.decision.routing import jev_enabled
+        if not jev_enabled(self.owner, 'market'):
             return self.text(ai_service)
         from system_settings.decision.jev import DecisionUnavailable
         from .market_decision_loop import decide
         try:
-            if self.task.market_config.get('decision_provider', 'jev') != 'jev':
-                raise DecisionUnavailable('决策服务配置不可用')
             return decide(self, ai_service)
         except DecisionUnavailable as exc:
             self.check()  # Expired/stopped sessions must never be revived by fallback.

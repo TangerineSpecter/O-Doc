@@ -31,7 +31,7 @@ def connection_test(owner: str) -> dict:
         raise DecisionUnavailable('JEV 连接检测失败，请检查网络与密钥') from None
 
 
-def choose(owner: str, state: dict, criteria: dict[str, object], *, deadline: float) -> tuple[str, float]:
+def choose(owner: str, state: dict, criteria: dict[str, object], *, deadline: float, instructions: str | None = None, question_id: str = 'next_action') -> tuple[str, float]:
     secret = api_key(owner)
     if not secret:
         raise DecisionUnavailable('本机尚未配置 JEV 密钥')
@@ -45,8 +45,8 @@ def choose(owner: str, state: dict, criteria: dict[str, object], *, deadline: fl
     request_id = request_identifier(capture.row)
     started, stage, status = time.monotonic(), 'request', None
     try:
-        payload = {'model': MODEL, 'state': state, 'questions': {'next_action': {
-            'type': 'choice', 'instructions': 'Choose the next feasible market action using the resident preferences and current needs. Waiting is allowed. Use other for a different quantity or a complex plan. Never assume an unexecuted action succeeded.',
+        payload = {'model': MODEL, 'state': state, 'questions': {question_id: {
+            'type': 'choice', 'instructions': instructions or 'Choose the next feasible market action using the resident preferences and current needs. Waiting is allowed. Use other for a different quantity or a complex plan. Never assume an unexecuted action succeeded.',
             'criteria': criteria}}}
         if hasattr(capture, 'set_request'):
             capture.set_request({'method': 'POST', 'url': BASE_URL + '/systemone', 'json': payload})
@@ -77,7 +77,7 @@ def choose(owner: str, state: dict, criteria: dict[str, object], *, deadline: fl
             capture.counts({'input_tokens': inp, 'output_tokens': out,
                             'total_tokens': inp + out if inp is not None and out is not None else None})
         stage = 'answer_validation'
-        answer = (data.get('answers') or {}).get('next_action')
+        answer = (data.get('answers') or {}).get(question_id)
         if not isinstance(answer, dict) or answer.get('type') != 'choice' or answer.get('choice') not in criteria:
             raise DecisionUnavailable('JEV 返回了无效候选')
         stage = 'probability_validation'

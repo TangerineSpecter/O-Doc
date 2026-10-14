@@ -186,7 +186,7 @@ class PublicationTests(TestCase):
         self.assertNotIn('content',rows[0])
 
     @patch('system_settings.agent_world.publish_workflow.search')
-    @patch('system_settings.agent_world.publish_workflow.complete')
+    @patch('system_settings.decision.routing.complete')
     @patch('system_settings.agent_world.publish_workflow.AIService.get_client_config_for_model',return_value={})
     def test_workflow_bounded_search_and_saved_materials(self, model, completion, search_mock):
         selection=self.state['selection']; assessment={**self.state['assessment'],'primary_source':False,'verification_query':'核实AI'}
@@ -199,7 +199,7 @@ class PublicationTests(TestCase):
         self.assertNotIn('raw_response',state)
 
     @patch('system_settings.agent_world.publish_workflow.search')
-    @patch('system_settings.agent_world.publish_workflow.complete',side_effect=['bad','still bad'])
+    @patch('system_settings.decision.routing.complete',side_effect=['bad','still bad'])
     @patch('system_settings.agent_world.publish_workflow.AIService.get_client_config_for_model',return_value={})
     def test_format_repair_only_once(self, model, completion, search_mock):
         with self.assertRaises(ValueError): Workflow(self.task,self.agent).run()

@@ -1,3 +1,5 @@
+import json
+from copy import deepcopy
 """社交闭环回归：隔离数据库、模拟模型与图片服务，不产生外部费用。"""
 from datetime import timedelta
 from unittest.mock import patch
@@ -22,6 +24,23 @@ from .life_schedule import stable_id
 
 
 class SocialTests(TestCase):
+    def mock_social(self, value):
+        # Mock the transport contract, keeping selection/validation and commits real.
+        def provider(agent, prompt, validate, **kwargs):
+            result = value() if callable(value) else deepcopy(value)
+            context = json.loads(prompt.rsplit('\n资料：', 1)[1])
+            if kwargs.get('decision'):
+                options = context['choices']
+                key = next(key for key, description in options.items()
+                           if json.loads(description)['action'] == result['action']
+                           and (result['action'] != 'read' or not result.get('content') or not result.get('moment_id') or json.loads(description).get('moment_id') == result['moment_id']))
+                return validate({'choice': key})
+            if result.get('action') == 'read':
+                if not result.get('content'): result['moment_id'] = context['selected_action']['moment_id']
+                else: result.setdefault('moment_id', context['selected_action']['moment_id'])
+            return validate(result)
+        return patch('system_settings.agent_world.social_model.complete_json', side_effect=provider)
+
     def setUp(self):
         self.owner = 'admin'
         self.user = User.objects.create_superuser(username='admin', password='test')
@@ -43,7 +62,7 @@ class SocialTests(TestCase):
     def test_daily_opportunity_can_rest_without_publishing(self):
         op = self.op('daily')
         before = Moment.objects.count()
-        with patch('system_settings.agent_world.life_planner.ask', return_value={
+        with self.mock_social({
                 'action': 'rest', 'reason': '现在没有什么想分享的'}), \
                 patch('system_settings.agent_world.social_runner.local_time', return_value=local_time().replace(hour=12)):
             run(op, self.agent)
@@ -63,7 +82,7 @@ class SocialTests(TestCase):
         previous.result = {'action': 'reply', 'content': '原来的回复', 'reason': '内部决策理由'}
         previous.save()
         op = self.op('daily')
-        with patch('system_settings.agent_world.life_planner.ask', return_value={
+        with self.mock_social({
                 'action': 'publish', 'reason': '想随口问问', 'content': '你们更喜欢哪种做法？', 'image_choice': 'none'}) as model, \
                 patch('system_settings.agent_world.social_runner.local_time', return_value=local_time().replace(hour=12)):
             run(op, self.agent)
@@ -72,10 +91,9 @@ class SocialTests(TestCase):
         row = Moment.objects.get(pk=op.result['moment_id'])
         self.assertEqual(row.content, '你们更喜欢哪种做法？')
         self.assertTrue(any(item['id'] == record.pk for item in row.evidence))
-        context = model.call_args.args[2]
+        context = json.loads(model.call_args.args[1].rsplit('\n资料：', 1)[1])
         self.assertIn('now', context)
-        self.assertEqual(context['moments'][0]['id'], peer.pk)
-        self.assertIn('created_at', context['moments'][0])
+        self.assertNotIn('moments', context)  # Publishing does not load unrelated read candidates.
         self.assertNotIn('upcoming', context['life'])
         history = context['life']['recent_social'][0]
         self.assertEqual(history['content_excerpt'], '原来的回复')
@@ -86,7 +104,7 @@ class SocialTests(TestCase):
         self.config.settings.update(image_enabled=True, daily_moments=2)
         self.config.save()
         decision = {'action': 'publish', 'reason': '想分享', 'content': '窗边的茶。', 'image_choice': 'generate'}
-        with patch('system_settings.agent_world.life_planner.ask', return_value=decision), patch('system_mcp.image_generation.image_generation_options') as options:
+        with self.mock_social(decision), patch('system_mcp.image_generation.image_generation_options') as options:
             run(self.op('daily'), self.agent)
         row = Moment.objects.get(content='窗边的茶。')
         self.assertEqual(row.image_state['status'], 'failed')
@@ -140,7 +158,7 @@ class SocialTests(TestCase):
         first = comment(self.owner, self.moment.pk, user_actor(self.owner), {'name': '我'}, '我觉得还有另一种可能。')
         incoming = SocialInbox.objects.get(source_id=first.pk)
         self.assertEqual(incoming.target_id, f'agent-id:{self.agent.pk}')
-        with patch('system_settings.agent_world.life_planner.ask', return_value={'action': 'reply', 'reason': '值得讨论', 'content': '你能具体说说吗？',
+        with self.mock_social({'action': 'reply', 'reason': '值得讨论', 'content': '你能具体说说吗？',
                 'received_appraisal': {'category': 'disagreement', 'reason': '观点不同但值得了解'},
                 'sent_appraisal': {'category': 'neutral', 'reason': '想继续了解'}}): run(self.op(), self.agent)
         incoming.refresh_from_db(); self.assertEqual(incoming.status, 'replied')
@@ -153,11 +171,11 @@ class SocialTests(TestCase):
 
     def test_optional_ignore_and_defer_are_not_reoffered(self):
         row = comment(self.owner, self.moment.pk, user_actor(self.owner), {'name': '我'}, '你怎么看？')
-        with patch('system_settings.agent_world.life_planner.ask', return_value={'action': 'defer', 'reason': '现在想休息'}): run(self.op(), self.agent)
+        with self.mock_social({'action': 'defer', 'reason': '现在想休息'}): run(self.op(), self.agent)
         incoming = SocialInbox.objects.get(source_id=row.pk)
         self.assertEqual(incoming.status, 'deferred'); self.assertGreater(incoming.available_at, timezone.now())
         incoming.status = 'pending'; incoming.available_at = timezone.now(); incoming.save()
-        with patch('system_settings.agent_world.life_planner.ask', return_value={'action': 'ignore', 'reason': '不想继续'}): run(self.op(), self.agent)
+        with self.mock_social({'action': 'ignore', 'reason': '不想继续'}): run(self.op(), self.agent)
         incoming.refresh_from_db(); self.assertEqual(incoming.status, 'ignored')
 
     def feed_activity(self, activity):
@@ -171,7 +189,7 @@ class SocialTests(TestCase):
     def run_reply(self, content, model_id='wrong-model-id'):
         from system_settings.models import AgentActivity
         op = self.op()
-        with patch('system_settings.agent_world.life_planner.ask', return_value={
+        with self.mock_social({
                 'action': 'reply', 'reason': '继续讨论', 'content': content, 'moment_id': model_id}), \
                 patch('system_settings.agent_world.social_runner.local_time', return_value=local_time().replace(hour=12)):
             run(op, self.agent)
@@ -241,7 +259,7 @@ class SocialTests(TestCase):
         from system_settings.models import AgentActivity
         other_moment = publish(self.owner, f'agent-id:{self.other.pk}', {}, '另一个动态')
         op = self.op('daily')
-        with patch('system_settings.agent_world.life_planner.ask', return_value={
+        with self.mock_social({
                 'action': 'read', 'reason': '只看看', 'moment_id': self.moment.pk, 'likes': []}), \
                 patch('system_settings.agent_world.social_runner.local_time', return_value=local_time().replace(hour=12)):
             run(op, self.agent)
@@ -295,7 +313,7 @@ class SocialTests(TestCase):
     def test_restart_does_not_repeat_committed_opportunity(self):
         self.moment.created_at = timezone.now()-timedelta(days=1); self.moment.save()
         op = self.op('daily')
-        with patch('system_settings.agent_world.life_planner.ask', return_value={'action': 'publish', 'reason': '想分享', 'content': '今天发生的真实小事。'}):
+        with self.mock_social({'action': 'publish', 'reason': '想分享', 'content': '今天发生的真实小事。'}):
             run(op, self.agent); run(op, self.agent)
         self.assertEqual(Moment.objects.count(), 2)
         self.assertEqual(WorldAction.objects.filter(pk=op.pk).count(), 1)
@@ -355,7 +373,7 @@ class SocialTests(TestCase):
         def change(*args, **kwargs):
             first.content = '修改后的评论'; first.save()
             return {'action': 'reply', 'reason': '回应', 'content': '回复原评论'}
-        with patch('system_settings.agent_world.life_planner.ask', side_effect=change): run(self.op(), self.agent)
+        with self.mock_social(change): run(self.op(), self.agent)
         self.assertEqual(self.moment.comments.count(), 1)
         self.assertFalse(WorldAction.objects.exists())
 

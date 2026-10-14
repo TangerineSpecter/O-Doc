@@ -5,6 +5,7 @@ import type {AgentPromptInput} from '@/types/api/agentPrompt';
 interface GenerationState {
     signature: string;
     phase: 'idle' | 'avatar' | 'research' | 'generation';
+    roleProfile?: import('@/types/api/agentPrompt').RoleProfile;
     preview: string;
     hasPreview: boolean;
     warning: string;
@@ -63,7 +64,8 @@ export const useAgentPromptGeneration = (input: AgentPromptInput, enabled: boole
             if (result.status === 'needs_information') {
                 update({question: result.question});
             } else if (result.prompt.trim()) {
-                update({preview: result.prompt, hasPreview: true});
+                update({preview: result.prompt, roleProfile: result.roleProfile, hasPreview: true});
+                return result;
             } else {
                 update({error: '生成结果为空，请重试。'});
             }

@@ -647,6 +647,8 @@ class LifeMarketTests(TestCase):
 class LifeProposalParsingTests(SimpleTestCase):
     def setUp(self):
         from unittest.mock import patch
+        candidates = patch('system_settings.decision.routing.candidates', return_value=['mod_minimax'])
+        candidates.start(); self.addCleanup(candidates.stop)
         memory = patch('system_settings.agent_world.memory.recall.memory_context', return_value='')
         memory.start()
         self.addCleanup(memory.stop)
@@ -693,7 +695,7 @@ class LifeProposalParsingTests(SimpleTestCase):
         mock_config = {'provider_type': 'MiniMax', 'model_name': 'MiniMax-M3', 'api_key': 'k', 'base_url': 'http://test'}
 
         with patch('utils.ai_service.AIService.get_client_config_for_model', return_value=mock_config), \
-             patch('system_settings.agent_world.life_planner.complete', return_value='<think>思考...</think>{"plans": []}') as mock_complete:
+             patch('system_settings.decision.routing.complete', return_value='<think>思考...</think>{"plans": []}') as mock_complete:
             res = ask(mock_agent, '规划', {})
             self.assertEqual(res, {'plans': []})
             self.assertEqual(mock_complete.call_args.kwargs['extra_body'], {'thinking': {'type': 'disabled'}})
@@ -710,11 +712,11 @@ class LifeProposalParsingTests(SimpleTestCase):
 
         responses = ['invalid json text', '{"plans": [{"id": "1", "activity": "rest"}]}']
         with patch('utils.ai_service.AIService.get_client_config_for_model', return_value=mock_config), \
-             patch('system_settings.agent_world.life_planner.complete', side_effect=responses) as mock_complete:
+             patch('system_settings.decision.routing.complete', side_effect=responses) as mock_complete:
             res = ask(mock_agent, '规划', {})
             self.assertEqual(res, {'plans': [{"id": "1", "activity": "rest"}]})
             self.assertEqual(mock_complete.call_count, 2)
-            self.assertIn('【格式修正要求】', mock_complete.call_args_list[1].args[1])
+            self.assertIn('上次输出未通过校验', mock_complete.call_args_list[1].args[1])
 
 
 

@@ -57,7 +57,8 @@ import {useAgentAvatarUpload} from './agent/useAgentAvatarUpload';
 import {AgentAvatarField} from './agent/AgentAvatarField';
 import {AgentFullBodyImageField} from './agent/AgentFullBodyImageField';
 import {isImageAvatarValue} from '@/utils/avatar';
-import {AgentPromptGenerator} from './agent/AgentPromptGenerator';
+import {AgentRoleEditor} from './agent/AgentRoleEditor';
+import {fullRoleText} from '@/utils/agentRole';
 import {PromptEditorModal} from '@/components/common/PromptEditorModal';
 import {PostInteractionScopeFields} from './agent/PostInteractionScopeFields';
 import {BattleAppearanceEntry} from './agent/battle-appearance/BattleAppearanceEntry';
@@ -103,6 +104,7 @@ type AgentForm = {
     avatar: string;
     fullBodyImage: string;
     model: string;
+    roleProfile?: Partial<import('@/types/api/agentPrompt').RoleProfile>;
     prompt: string;
     mcpServers: string[];
     skills: string[];
@@ -150,7 +152,7 @@ type AgentTaskForm = {
     followupPrompt: string;
 };
 
-const DEFAULT_PROMPT = '你是一个专注、可靠的文档协作 Agent。请根据用户目标主动拆解任务，保持回答清晰，并在需要时说明你的假设。';
+
 
 const getAgentAvatar = (agent: Pick<AgentConfig, 'avatar' | 'name'>) => {
     const value = agent.avatar?.trim();
@@ -216,7 +218,8 @@ export const AgentSettings = ({
         avatar: '',
         fullBodyImage: '',
         model: '',
-        prompt: DEFAULT_PROMPT,
+        prompt: '',
+        roleProfile: {},
         mcpServers: [],
         skills: [],
         feishuImEnabled: false,
@@ -387,7 +390,8 @@ export const AgentSettings = ({
             avatar: '',
             fullBodyImage: '',
             model: modelOptions[0]?.value || '',
-            prompt: DEFAULT_PROMPT,
+            prompt: '',
+        roleProfile: {},
             mcpServers: [],
             skills: [],
             feishuImEnabled: false,
@@ -481,6 +485,7 @@ export const AgentSettings = ({
             fullBodyImage: agent.fullBodyImage || '',
             model: agent.model || '',
             prompt: agent.prompt || '',
+            roleProfile: agent.roleProfile || {},
             mcpServers: agent.mcpServers || [],
             skills: agent.skills || [],
             feishuImEnabled: agent.feishuImEnabled ?? false,
@@ -516,6 +521,7 @@ export const AgentSettings = ({
             fullBodyImage: form.fullBodyImage.trim(),
             model: form.model || null,
             prompt: form.prompt.trim(),
+            roleProfile: form.roleProfile || {},
             mcpServers: form.mcpServers,
             skills: form.skills,
             feishuImEnabled: form.feishuImEnabled,
@@ -958,10 +964,10 @@ export const AgentSettings = ({
 
                                         <div className="group/prompt relative">
                                             <p className="line-clamp-1 sm:line-clamp-2 text-xs leading-5 text-slate-600">
-                                                {agent.prompt || '未设置提示词'}
+                                                {fullRoleText(agent.name, agent.roleProfile || {}, agent.prompt)}
                                             </p>
                                             <div className="pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-80 max-w-[min(80vw,28rem)] rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600 shadow-xl shadow-slate-900/10 group-hover/prompt:block">
-                                                {agent.prompt || '未设置提示词'}
+                                                {fullRoleText(agent.name, agent.roleProfile || {}, agent.prompt)}
                                             </div>
                                         </div>
 
@@ -1498,15 +1504,7 @@ export const AgentSettings = ({
                             </div>
 
                             <div className="space-y-2">
-                                <AgentPromptGenerator key={form.id || 'new-agent'} name={form.name} avatar={form.avatar} modelId={form.model} prompt={form.prompt} avatarUploading={avatarUploading} onApply={prompt => setForm(prev => ({...prev, prompt}))}/>
-                                <textarea
-                                    id="agent-prompt"
-                                    value={form.prompt}
-                                    onChange={event => setForm({...form, prompt: event.target.value})}
-                                    rows={7}
-                                    className="w-full resize-none px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm leading-6"
-                                    placeholder="描述这个 Agent 的角色、工作方式、边界和输出风格"
-                                />
+                                <AgentRoleEditor key={form.id || 'new-agent'} name={form.name} avatar={form.avatar} modelId={form.model} prompt={form.prompt} roleProfile={form.roleProfile || {}} avatarUploading={avatarUploading} onChange={(roleProfile, prompt) => setForm(prev => ({...prev, roleProfile, prompt}))}/>
                             </div>
 
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

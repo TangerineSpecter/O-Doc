@@ -1,3 +1,4 @@
+from system_settings.agent_role import role_text
 """JEV selects from finite live choices; text handles one complex step at a time."""
 import json
 import uuid
@@ -17,6 +18,14 @@ def decide(runtime, ai_service) -> str:
     def question(state, criteria):
         nonlocal visited
         runtime.check()
+        if len(criteria) == 1:
+            selection = next(iter(criteria))
+            progress(runtime.record, '系统选择说明', f'唯一合法候选：{selection}', 'info')
+            return selection
+        from system_settings.decision.routing import jev_enabled
+        if not jev_enabled(runtime.owner, 'market'):
+            from system_settings.decision.jev import DecisionUnavailable
+            raise DecisionUnavailable('世界设置已关闭或排除市场JEV，转普通模型继续当前状态')
         visited += 1
         if visited > 64:
             raise MarketFinished('市场决策达到执行上限')
@@ -32,7 +41,7 @@ def decide(runtime, ai_service) -> str:
         progress(runtime.record, runtime.phase, f'候选 {selection}，置信度 {confidence:.3f}', 'info')
         return selection
 
-    state = {'resident': {'name': runtime.agent.name, 'persona': runtime.agent.prompt,
+    state = {'resident': {'name': runtime.agent.name, 'persona': role_text(runtime.agent, 'decision'),
                          'preferences': runtime.task.prompt, 'memory': runtime.memory,
                          'shopping_guidance': SEED_GUIDANCE},
              'market': model_context(runtime.owner, runtime.agent),

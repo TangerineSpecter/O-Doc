@@ -1,3 +1,4 @@
+from system_settings.agent_role import role_text
 from utils.token_usage import attributed
 import base64
 import hashlib
@@ -212,7 +213,7 @@ def _build_agent_reply(agent, user_text, record):
     from .agent_availability import require_active_agent
     agent = require_active_agent(agent)
     system_prompt = build_agent_system_prompt(
-        agent.prompt or '你是一个可靠的文档协作 Agent。请简洁、准确地回复用户。'
+        role_text(agent)
     )
     system_prompt += (
         '\n\n当前消息来自飞书 IM 通道。请直接回复用户需要的内容；'

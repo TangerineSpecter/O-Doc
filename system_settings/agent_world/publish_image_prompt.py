@@ -4,7 +4,7 @@ import re
 from .social_image_prompt import CHIBI_STYLE
 
 
-def build_prompt(article, rule, references):
+def build_prompt(article, rule, references, agent=None):
     subject = rule.get('image_subject', 'auto')
     refs = list(dict.fromkeys(references.values())) if subject != 'scene' else []
     instruction = {
@@ -24,4 +24,7 @@ def build_prompt(article, rule, references):
         prompt += '\n用户补充画面要求（保持上述角色与事实约束）：' + rule['image_prompt'].strip()
     content = re.sub(r'!\[帖子配图\]\([^)]+\)', '', article.content or '')
     prompt += '\n帖子素材：' + json.dumps({'title': article.title, 'content': content[:3500]}, ensure_ascii=False)
-    return prompt[:8000], refs
+    if agent:
+        from system_settings.agent_role import role_text
+        prompt += '\n' + role_text(agent, 'repair' if subject == 'scene' else 'image')
+    return prompt, refs

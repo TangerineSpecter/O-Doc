@@ -1,3 +1,4 @@
+from system_settings.agent_role import role_text
 """只选择服务端给出的合法候选，模型不能自由改写美食制作或余额。"""
 from utils.token_usage import usage_scope
 import hashlib
@@ -30,22 +31,18 @@ def decide(task, agent, options):
     from .life_scope import enrich
     context = enrich({'skill': overview(task.cooking_config['owner_id'], agent.pk),
                       'stamina': str(stamina(agent)), 'recipes': options})
-    prompt = build_agent_system_prompt(f'当前 Agent：{agent.name}\n{agent.prompt}', conversation=False)
+    prompt = role_text(agent, 'planning')
     from .memory.recall import memory_context
     prompt += '\n' + memory_context(agent, '美食 制作 厨艺 ' + task.prompt)
     prompt += '\n你用自己的食材制作美食。根据偏好、原料机会成本、预期收益和成长选择可制作菜，合计最多六份，也可休息。每道菜选择 low_stars_first（日常制作）或 high_stars_first（精品制作），同星先进先出；高星材料不保证加工盈利，挂牌溢价不计保证收入。quality_previews 按当前等级估算，实际每份采用制作时等级。仅输出 JSON {"choices":[{"recipe_id":"食谱ID","quantity":1,"ingredient_strategy":"low_stars_first"}],"reason":"简短理由"}。不修改规则。'
     messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(context, ensure_ascii=False) + '\n制作偏好：' + task.prompt}]
-    for attempt in range(2):
-        output = AIService.chat_completion_messages(messages, model_id=task_model_id(task, agent)) or ''
-        try:
-            value = json.loads(output.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
-            decision = validate_decision(value, options)
-            build_plan(task.cooking_config['owner_id'], agent.pk, decision['choices'], options, stamina(agent))
-            return decision
-        except (ValueError, TypeError, KeyError) as exc:
-            if attempt:
-                raise ValueError('模型未返回有效制作计划')
-            messages.append({'role': 'user', 'content': f'计划无效：{exc}。请仅返回 choices 和 reason，选择合法食谱和材料策略，确保材料和体力满足整个计划，数量合计不超过六份。'})
+    from system_settings.decision.routing import complete_json
+    def validate(value):
+        decision = validate_decision(value, options)
+        build_plan(task.cooking_config['owner_id'], agent.pk, decision['choices'], options, stamina(agent))
+        return decision
+    return complete_json(agent, prompt + '\n' + messages[1]['content'], validate,
+                         task=task, decision=True, scene='制作计划')
 
 
 def validate_decision(value, options):

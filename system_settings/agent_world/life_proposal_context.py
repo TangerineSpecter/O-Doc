@@ -17,7 +17,7 @@ def readonly_proposal_context(owner: str, agent) -> dict:
     """
     profile = LifeProfile.objects.filter(pk=agent.pk, owner_id=owner).first()
     return {
-        'actor_id': agent.pk, 'actor_name': agent.name, 'role': agent.prompt,
+        'actor_id': agent.pk, 'actor_name': agent.name,
         'profession_id': agent.profession_id,
         'profession': agent.profession.name if agent.profession_id else '未设置',
         'preferences': profile.preferences if profile else '',

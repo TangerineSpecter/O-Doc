@@ -224,6 +224,7 @@ class Agent(models.Model):
         db_comment='使用模型ID'
     )
 
+    role_profile = models.JSONField(default=dict, blank=True, verbose_name='角色设定', db_comment='结构化角色设定，随 Agent 同步')
     prompt = models.TextField(blank=True, default='', verbose_name='提示词', db_comment='提示词')
 
     money = models.DecimalField(

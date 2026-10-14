@@ -87,6 +87,7 @@ class ReadonlyComparisonContextTests(TestCase):
             with CaptureQueriesContext(connection) as queries:
                 call_command('test_world_decision_models', agent_id=self.agent.pk, models=model.pk, stdout=StringIO())
         self.assertEqual(ask.call_count,1)
-        self.assertEqual(ask.call_args.args[2]['role'],self.agent.prompt)
+        self.assertNotIn('role', ask.call_args.args[2])
+        self.assertEqual(ask.call_args.args[0].prompt, self.agent.prompt)
         self.assertFalse(any(query['sql'].lstrip().upper().startswith(('INSERT','UPDATE','DELETE')) for query in queries))
         self.assertEqual((MarketBatch.objects.count(), MarketConfig.objects.count(), FarmCatalog.objects.count()), (0,0,0))

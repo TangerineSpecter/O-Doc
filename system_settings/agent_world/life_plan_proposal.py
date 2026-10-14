@@ -1,3 +1,4 @@
+import time
 """先决定生活意向，再为选定活动分配资金和准备领域计划。"""
 from copy import deepcopy
 from collections.abc import Callable
@@ -121,15 +122,22 @@ def normalize_slot_time_aliases(rows: object, farms: list[dict], slots: dict[str
 
 def propose(agent, context: dict, ask: Callable, ask_detail: Callable | None = None) -> dict:
     ask_detail = ask_detail or ask
-    choice = ask(agent,
-        '今天有slots中的这些行动机会。根据自己的角色性格、兴趣、目标和近期经历，'
-        '决定各次机会想做什么，也可以rest。不需要平均分配活动或为了职业强选某项。'
-        '现在只选择意向，不计算预算，不生成种植、路线、交易或创作细节；'
-        '资金和可行性会在选定活动后单独处理。farm每天最多安排一次开工。'
-        '返回 {"plans":[{"id":"时间点ID","activity":"activities中的kind或rest",'
-        '"reason":"想做这件事的原因"}],"goal_updates":[]}。'
-        '目标完成须引用真实evidence_record_id；允许放弃失效目标并说明原因。',
-        selection_context(context))
+    from .life_activity_decision import select_activities
+    selection_input = selection_context(context)
+    selection_input['_request_deadline'] = time.monotonic() + 180
+    slot_ids = {row['id'] for row in context['slots']}
+    selection_input['existing_farm_days'] = sorted({row['time'][:10] for row in context.get('upcoming', []) if row.get('activity') == 'farm' and row.get('id') not in slot_ids})
+    choice = select_activities(agent, selection_input, ask)
+    if choice is None:
+        choice = ask(agent,
+            '今天有slots中的这些行动机会。根据自己的角色性格、兴趣、目标和近期经历，'
+            '决定各次机会想做什么，也可以rest。不需要平均分配活动或为了职业强选某项。'
+            '现在只选择意向，不计算预算，不生成种植、路线、交易或创作细节；'
+            '资金和可行性会在选定活动后单独处理。farm每天最多安排一次开工。'
+            '返回 {"plans":[{"id":"时间点ID","activity":"activities中的kind或rest",'
+            '"reason":"想做这件事的原因"}],"goal_updates":[]}。'
+            '目标完成须引用真实evidence_record_id；允许放弃失效目标并说明原因。',
+            selection_input)
     slots = {row['id']: row for row in context['slots']}
     selected = indexed_rows(choice.get('plans'), set(slots), '活动选择')
     allowed = {row['kind'] for row in context.get('activities', [])} | {'rest'}

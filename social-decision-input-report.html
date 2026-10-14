@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>社交决策输入拆解｜可莉</title>
+  <style>
+    :root {
+      --ink: #172b35;
+      --ink-soft: #40545b;
+      --muted: #77868a;
+      --paper: #f4f1e9;
+      --card: #fffdf8;
+      --line: #dedbd1;
+      --orange: #ed7048;
+      --orange-pale: #fff0e8;
+      --yellow: #f0c75e;
+      --teal: #397c78;
+      --teal-pale: #e5f1ed;
+      --blue-pale: #e9eef0;
+      --shadow: 0 20px 55px rgba(30, 48, 52, .09);
+      --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+      --sans: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse at 8% 3%, rgba(240, 199, 94, .16), transparent 28rem),
+        radial-gradient(ellipse at 93% 20%, rgba(57, 124, 120, .08), transparent 32rem),
+        var(--paper);
+      font-family: var(--sans);
+      line-height: 1.65;
+    }
+    a { color: inherit; }
+    .page { max-width: 1160px; margin: 0 auto; padding: 30px 28px 80px; }
+    .masthead { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 22px; }
+    .brand { display: flex; align-items: center; gap: 11px; font-size: 12px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+    .brand-mark { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px 9px 9px 2px; background: var(--orange); color: white; font-size: 17px; transform: rotate(-5deg); }
+    .stamp { color: var(--muted); font: 700 11px/1.4 var(--sans); letter-spacing: .12em; text-align: right; }
+    .hero {
+      position: relative;
+      overflow: hidden;
+      min-height: 340px;
+      padding: 42px 48px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(220px, .75fr);
+      gap: 24px;
+      align-items: center;
+      border-radius: 28px 28px 28px 5px;
+      background: var(--ink);
+      color: #fffdf7;
+      box-shadow: var(--shadow);
+    }
+    .hero::before, .hero::after { content: ""; position: absolute; border: 1px solid rgba(255,255,255,.1); border-radius: 50%; pointer-events: none; }
+    .hero::before { width: 370px; height: 370px; right: 5%; top: -220px; }
+    .hero::after { width: 520px; height: 520px; right: -1%; top: -300px; }
+    .hero-copy, .hero-art { position: relative; z-index: 1; }
+    .eyebrow { color: var(--yellow); font: 800 11px/1.4 var(--sans); letter-spacing: .18em; text-transform: uppercase; }
+    h1 { max-width: 690px; margin: 17px 0 14px; font: 700 clamp(34px, 5vw, 58px)/1.2 var(--serif); letter-spacing: -.045em; }
+    h1 em { color: #ff9b71; font-style: normal; }
+    .hero-lede { max-width: 610px; margin: 0; color: #cfdbd8; font-size: 15px; }
+    .hero-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+    .pill { padding: 6px 11px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; color: #ecf2ec; font-size: 11px; letter-spacing: .04em; }
+    .hero-art { display: grid; place-items: center; min-height: 210px; }
+    .bubble-stack { position: relative; width: 225px; height: 190px; }
+    .bubble { position: absolute; display: grid; place-items: center; border: 1px solid rgba(23,43,53,.15); box-shadow: 0 12px 25px rgba(0,0,0,.14); }
+    .bubble.large { width: 154px; height: 128px; right: 14px; top: 16px; border-radius: 25px 25px 25px 5px; background: var(--yellow); color: var(--ink); transform: rotate(5deg); }
+    .bubble.large b { display: block; font: 700 66px/.9 var(--serif); letter-spacing: -.08em; }
+    .bubble.large span { display: block; margin-top: 8px; font-size: 10px; font-weight: 800; letter-spacing: .16em; }
+    .bubble.small { width: 78px; height: 65px; left: 1px; bottom: 11px; border-radius: 18px 18px 4px 18px; background: var(--orange); color: white; transform: rotate(-9deg); font-size: 25px; }
+    .spark { position: absolute; color: #fff4ce; font-size: 23px; }
+    .spark.one { right: 0; top: 0; }.spark.two { left: 27px; top: 16px; font-size: 14px; }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; margin: 18px 0 58px; }
+    .metric { min-height: 96px; padding: 17px 19px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,253,248,.78); }
+    .metric .value { display: block; margin-bottom: 2px; font: 700 25px/1.25 var(--serif); letter-spacing: -.03em; }
+    .metric .label { color: var(--muted); font-size: 11px; }
+    .metric.accent .value { color: var(--orange); }
+    section { margin-top: 56px; }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 19px; }
+    .section-kicker { display: block; margin-bottom: 6px; color: var(--teal); font-size: 10px; font-weight: 900; letter-spacing: .17em; text-transform: uppercase; }
+    h2 { margin: 0; font: 700 clamp(25px, 3vw, 34px)/1.25 var(--serif); letter-spacing: -.035em; }
+    .section-note { max-width: 430px; margin: 0; color: var(--muted); font-size: 12px; text-align: right; }
+    .panel { border: 1px solid var(--line); border-radius: 20px; background: var(--card); box-shadow: 0 8px 25px rgba(30,48,52,.035); }
+    .composition { padding: 25px 27px 22px; }
+    .bar { display: flex; overflow: hidden; height: 24px; border-radius: 999px; background: #ebe8de; }
+    .seg { min-width: 3px; height: 100%; }
+    .seg.prompt { width: 6.2%; background: var(--orange); }
+    .seg.life { width: 79.7%; background: var(--teal); }
+    .seg.relations { width: 6.5%; background: var(--yellow); }
+    .seg.other { width: 7.6%; background: #b8c2c4; }
+    .legend { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; margin-top: 19px; }
+    .legend-item { display: flex; align-items: flex-start; gap: 9px; color: var(--ink-soft); font-size: 12px; }
+    .swatch { flex: 0 0 9px; width: 9px; height: 9px; margin-top: 6px; border-radius: 3px; }
+    .legend-item strong { display: block; color: var(--ink); font-size: 13px; }
+    .caption { margin: 20px 0 0; padding-top: 15px; border-top: 1px solid #ebe8de; color: var(--muted); font-size: 11px; }
+    .two-col { display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px; }
+    .thread { position: relative; padding: 27px; overflow: hidden; }
+    .thread::after { content: ""; position: absolute; width: 130px; height: 130px; top: -79px; right: -49px; border: 1px solid #f2c8b8; border-radius: 50%; box-shadow: 0 0 0 16px rgba(237,112,72,.045), 0 0 0 33px rgba(237,112,72,.035); }
+    .label-row { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; color: var(--muted); font-size: 11px; }
+    .tag { padding: 3px 8px; border-radius: 6px; background: var(--orange-pale); color: #a94429; font-size: 10px; font-weight: 800; letter-spacing: .06em; }
+    .thread blockquote { max-width: 560px; margin: 24px 0 20px; padding: 0 0 0 17px; border-left: 3px solid var(--orange); font: 700 25px/1.45 var(--serif); }
+    .thread p, .relation p { margin: 0; color: var(--ink-soft); font-size: 13px; }
+    .thread-foot { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 23px; }
+    .mini-chip { padding: 6px 9px; border-radius: 8px; background: #f2f1eb; color: #657579; font-size: 10px; }
+    .relation { padding: 26px; background: var(--teal-pale); border-color: #d3e5df; }
+    .relation h3, .subcard h3, .noise-card h3 { margin: 0 0 14px; font: 700 18px/1.35 var(--serif); }
+    .relation-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 19px; }
+    .relation-top small { color: #58716c; font-size: 10px; letter-spacing: .08em; }
+    .score { display: flex; align-items: baseline; gap: 5px; color: var(--teal); }
+    .score b { font: 700 38px/1 var(--serif); }.score span { color: #6d8782; font-size: 11px; }
+    .relation-bars { display: grid; gap: 11px; margin: 18px 0; }
+    .bar-label { display: flex; justify-content: space-between; color: #607571; font-size: 10px; }
+    .thin-track { height: 5px; margin-top: 5px; border-radius: 9px; background: rgba(57,124,120,.15); }
+    .thin-track i { display: block; height: 100%; border-radius: inherit; background: var(--teal); }
+    .subgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+    .subcard { padding: 21px 23px; }
+    .subcard .big-num { float: right; color: #c9bfa7; font: 700 31px/1 var(--serif); }
+    .subcard p { margin: 0; color: var(--ink-soft); font-size: 12px; }
+    .callout { display: flex; gap: 14px; align-items: flex-start; margin-top: 17px; padding: 17px 19px; border: 1px solid #f1d8a0; border-radius: 15px; background: #fff7df; }
+    .callout-icon { flex: 0 0 27px; height: 27px; display: grid; place-items: center; border-radius: 8px; background: var(--yellow); color: var(--ink); font-weight: 900; }
+    .callout p { margin: 0; color: #6b5e3c; font-size: 12px; }
+    .choices { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .choice { min-height: 180px; padding: 19px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+    .choice .choice-no { display: inline-grid; width: 26px; height: 26px; place-items: center; margin-bottom: 14px; border-radius: 50%; background: var(--blue-pale); color: #54666b; font-size: 10px; font-weight: 900; }
+    .choice h3 { margin: 0 0 7px; font: 700 18px/1.3 var(--serif); }
+    .choice p { margin: 0; color: var(--muted); font-size: 11px; }
+    .choice.primary { border-color: #f1b49d; background: #fff8f4; }
+    .choice.primary .choice-no { background: var(--orange); color: white; }
+    .direction { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; margin-top: 16px; padding: 22px 25px; border-radius: 18px; background: var(--ink); color: white; }
+    .direction h3 { margin: 0 0 6px; color: var(--yellow); font: 700 19px/1.3 var(--serif); }
+    .direction p { max-width: 760px; margin: 0; color: #d1ddda; font-size: 12px; }
+    .inference { padding: 8px 11px; border: 1px solid rgba(255,255,255,.24); border-radius: 999px; color: #d1ddda; white-space: nowrap; font-size: 10px; }
+    .noise { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .noise-card { padding: 25px; }
+    .noise-card.focus { border-top: 4px solid var(--teal); }
+    .noise-card.wide { border-top: 4px solid var(--orange); }
+    .noise-card ul { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+    .noise-card li { display: flex; justify-content: space-between; gap: 15px; padding-bottom: 8px; border-bottom: 1px solid #efede6; color: var(--ink-soft); font-size: 11px; }
+    .noise-card li:last-child { border: 0; padding-bottom: 0; }
+    .noise-card li strong { color: var(--ink); font-size: 11px; text-align: right; }
+    .noise-alert { margin-top: 15px; padding: 12px 14px; border-radius: 10px; background: var(--orange-pale); color: #9c492f; font-size: 11px; }
+    .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; padding: 27px; }
+    .step { position: relative; padding: 4px 24px 4px 0; }
+    .step:not(:last-child)::after { content: "→"; position: absolute; top: 9px; right: 13px; color: #b6c1bd; font-size: 19px; }
+    .step .step-id { color: var(--orange); font: 800 10px/1 var(--sans); letter-spacing: .13em; }
+    .step h3 { margin: 10px 0 6px; font: 700 16px/1.3 var(--serif); }
+    .step p { margin: 0; color: var(--muted); font-size: 11px; }
+    .output { display: grid; grid-template-columns: .8fr 1.2fr; gap: 16px; align-items: stretch; }
+    .output-copy { padding: 26px; }
+    .output-copy h3 { margin: 0 0 12px; font: 700 19px/1.3 var(--serif); }
+    .output-copy ul { margin: 0; padding-left: 18px; color: var(--ink-soft); font-size: 12px; }
+    .output-copy li + li { margin-top: 8px; }
+    pre { overflow-x: auto; margin: 0; padding: 25px 27px; border-radius: 18px; background: #1e323b; color: #d9e8dc; font: 12px/1.75 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .token { color: #ffad87; }.string { color: #e9d38e; }.comment { color: #9eb3af; }
+    .implementation { display: grid; grid-template-columns: 1.05fr .95fr; gap: 16px; }
+    .implementation-card { padding: 25px 27px; }
+    .implementation-card h3 { margin: 0 0 7px; font: 700 18px/1.35 var(--serif); }
+    .implementation-card > p { margin: 0 0 22px; color: var(--muted); font-size: 11px; }
+    .compare-row + .compare-row { margin-top: 19px; }
+    .compare-label { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 6px; color: var(--ink-soft); font-size: 11px; }
+    .compare-label strong { color: var(--ink); }
+    .size-track { overflow: hidden; height: 12px; border-radius: 999px; background: #e7e4dc; }
+    .size-track i { display: block; height: 100%; border-radius: inherit; }
+    .size-track .before { width: 100%; background: #e9a274; }
+    .size-track .after { width: 4.2%; min-width: 8px; background: var(--teal); }
+    .impl-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 22px; }
+    .impl-stat { padding: 14px 15px; border: 1px solid #e9e5dc; border-radius: 12px; background: #faf8f1; }
+    .impl-stat b { display: block; color: var(--teal); font: 700 23px/1.1 var(--serif); }
+    .impl-stat span { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
+    .projection pre { min-height: 100%; font-size: 11px; }
+    .projection-note { margin-top: 14px; padding: 13px 15px; border-radius: 12px; background: var(--teal-pale); color: #496964; font-size: 11px; }
+    .validation-note { margin-top: 16px; padding: 14px 17px; border: 1px solid #f1d8a0; border-radius: 13px; background: #fff7df; color: #6b5e3c; font-size: 11px; }
+    .endnote { margin-top: 62px; padding-top: 20px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 20px; color: var(--muted); font-size: 10px; }
+    .endnote strong { color: var(--ink-soft); }
+    .source-link { text-decoration-color: #9eaaa6; text-underline-offset: 3px; }
+    @media (max-width: 760px) {
+      .page { padding: 18px 15px 50px; }
+      .masthead { align-items: flex-start; }.stamp { max-width: 125px; }
+      .hero { grid-template-columns: 1fr; padding: 32px 25px 17px; border-radius: 22px 22px 22px 4px; }
+      .hero-art { min-height: 115px; }.bubble-stack { transform: scale(.7); transform-origin: top center; height: 125px; }
+      .metrics { grid-template-columns: 1fr 1fr; margin-bottom: 45px; }
+      .section-head { display: block; }.section-note { margin-top: 9px; text-align: left; }
+      .legend { grid-template-columns: 1fr 1fr; }
+      .two-col, .subgrid, .noise, .output, .implementation { grid-template-columns: 1fr; }
+      .choices { grid-template-columns: 1fr 1fr; }
+      .choice { min-height: 160px; }
+      .direction { grid-template-columns: 1fr; gap: 12px; }.inference { justify-self: start; }
+      .flow { grid-template-columns: 1fr 1fr; gap: 20px 4px; }.step:nth-child(2)::after { display: none; }
+      .endnote { display: block; }.endnote span { display: block; margin-top: 8px; }
+    }
+    @media (max-width: 430px) {
+      h1 { font-size: 35px; }.hero-lede { font-size: 13px; }
+      .choices { grid-template-columns: 1fr; }.choice { min-height: 0; }
+      .metric { padding: 14px; }.metric .value { font-size: 22px; }
+      .composition, .thread, .relation, .noise-card, .output-copy { padding: 20px; }
+    }
+    @media print {
+      body { background: white; }.page { max-width: none; padding: 0; }
+      .hero, .direction, pre { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .panel, .choice, .metric { break-inside: avoid; box-shadow: none; }
+      section { break-inside: avoid; margin-top: 34px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <div class="brand"><span class="brand-mark">✦</span><span>AgentWorld / Input dossier</span></div>
+      <div class="stamp">SOCIAL DECISION<br>14 OCT 2026 · 06:18 +08</div>
+    </header>
+
+    <div class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">本轮输入拆解 · 可莉</div>
+        <h1>这次不是决定要不要发帖，<em>是要不要接住一句夸奖。</em></h1>
+        <p class="hero-lede">模型收到一条收件箱讨论，目标是自主选择回复、忽略、休息或暂缓。角色资料、关系和近期互动帮助它判断“怎么回应”，但并没有要求它必须回应。</p>
+        <div class="hero-pills"><span class="pill">当前居民：可莉</span><span class="pill">模型：deepseek-flash</span><span class="pill">1 条 user 消息</span><span class="pill">本轮类型：inbox reply</span></div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="bubble-stack">
+          <span class="spark one">✦</span><span class="spark two">✧</span>
+          <div class="bubble large"><div><b>01</b><span>条待处理讨论</span></div></div>
+          <div class="bubble small">☺</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="metrics" aria-label="输入摘要">
+      <div class="metric accent"><span class="value">61,871</span><span class="label">输入字符 · 字符数不是 token 数</span></div>
+      <div class="metric"><span class="value">4 种</span><span class="label">本轮允许动作</span></div>
+      <div class="metric"><span class="value">1 条</span><span class="label">收件箱讨论；动态候选为 0</span></div>
+      <div class="metric"><span class="value">≤120 字</span><span class="label">若回复，单段、不换行</span></div>
+    </div>
+
+    <section>
+      <div class="section-head">
+        <div><span class="section-kicker">01 / Payload map</span><h2>输入里，哪部分占了最多空间？</h2></div>
+        <p class="section-note">这是一条很窄的回复机会，却携带了居民完整生活快照。横条按输入字符量绘制，非模型 token 统计。</p>
+      </div>
+      <div class="panel composition">
+        <div class="bar" role="img" aria-label="提示规则约6.2%，生活状态约79.7%，关系约6.5%，其他约7.6%">
+          <span class="seg prompt"></span><span class="seg life"></span><span class="seg relations"></span><span class="seg other"></span>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><i class="swatch" style="background:var(--orange)"></i><div><strong>规则与角色约 3,807 字</strong>约占 6.2%；角色设定、表达规则和 JSON 要求。</div></div>
+          <div class="legend-item"><i class="swatch" style="background:var(--teal)"></i><div><strong>life 快照约 49,320 字</strong>约占 79.7%；角色、生活、经营和历史资料。</div></div>
+          <div class="legend-item"><i class="swatch" style="background:var(--yellow)"></i><div><strong>关系约 4,005 字</strong>9 条关系边，含熟悉度、好感与短期情绪。</div></div>
+          <div class="legend-item"><i class="swatch" style="background:#b8c2c4"></i><div><strong>其余约 4,739 字</strong>收件箱、可用动作、图片引用与 JSON 结构等。</div></div>
+        </div>
+        <p class="caption">统计来自本次粘贴内容的字符长度，使用 JSON 紧凑序列化估算各区块；整份消息长度为 61,871 字符。附件里的 messages 只有一条 role=user，规则与状态都嵌在同一条 content 中。模型 token 数会受 tokenizer 影响，不能直接按字符数换算。</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div><span class="section-kicker">02 / Live situation</span><h2>模型真正面对的社交现场</h2></div>
+        <p class="section-note">眼前不是朋友圈动态列表，而是一条指向可莉自己的讨论。</p>
+      </div>
+      <div class="two-col">
+        <article class="panel thread">
+          <div class="label-row"><span class="tag">INBOX</span><span>讨论对象：可莉此前的烤玉米动态</span></div>
+          <blockquote>“可莉宝宝，棒棒”</blockquote>
+          <p>发言人 ID 是 <strong>user:admin</strong>，界面显示名为“丢失的猫咪”。原始输入还附了原动态和讨论版本；优化后按需保留讨论内容，版本快照留在服务器复核。</p>
+          <div class="thread-foot"><span class="mini-chip">inbox：1 条</span><span class="mini-chip">moments：0 条候选动态</span><span class="mini-chip">允许动作不含 publish / read</span></div>
+        </article>
+        <article class="panel relation">
+          <div class="relation-top"><div><small>可莉 → user:admin</small><h3>关系信号：初识 · 中性</h3></div><div class="score"><b>5</b><span>/ 100 熟悉度</span></div></div>
+          <p>好感值为 <strong>1</strong>，仍在中性区间；当前情绪为<strong>平静，强度 0</strong>。系统记录的关系理由是“实际交流”。</p>
+          <div class="relation-bars">
+            <div><div class="bar-label"><span>熟悉度</span><span>5 / 100</span></div><div class="thin-track"><i style="width:5%"></i></div></div>
+            <div><div class="bar-label"><span>好感</span><span>1 · 中性</span></div><div class="thin-track"><i style="width:50%"></i></div></div>
+          </div>
+          <p>关系可以轻微影响语气和亲疏感；它本身不能证明应该给高分，也不构成必须回复的理由。</p>
+        </article>
+      </div>
+      <div class="subgrid">
+        <article class="panel subcard"><span class="big-num">5</span><h3>近期社交</h3><p>输入了最近 5 条自己的社交动作和正文摘录。最近一条是 06:01 的 reply，可用于避免机械重复；旧内容不是续写模板。</p></article>
+        <article class="panel subcard"><span class="big-num">8</span><h3>近期经历</h3><p>输入最近 8 条任务经历摘要，包括发帖、市场、探索和烹饪结果，为事实归属和连续性提供背景。</p></article>
+      </div>
+      <div class="callout"><span class="callout-icon">!</span><p>“today”中的探索、逛市场和烹饪都是 <strong>pending</strong> 计划，不能写成已经发生的事实。角色规则也明确要求把今天、旧动态、他人经历和未来计划分开。</p></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div><span class="section-kicker">03 / Decision gate</span><h2>这轮允许模型怎么选？</h2></div>
+        <p class="section-note">实际动作由 <code>allowed</code> 限定；现在上下文、规则和输出字段也会按开放动作装载。</p>
+      </div>
+      <div class="choices">
+        <article class="choice primary"><span class="choice-no">01</span><h3>reply · 回复</h3><p>接住评论里最想回应的一点。最多 120 字，一个自然段；像评论区随口接话。</p></article>
+        <article class="choice"><span class="choice-no">02</span><h3>ignore · 忽略</h3><p>不继续处理这条讨论。规则说明忽略后不再重复询问。</p></article>
+        <article class="choice"><span class="choice-no">03</span><h3>rest · 休息</h3><p>这次不做社交动作。休息不消耗社交行动所需的体力。</p></article>
+        <article class="choice"><span class="choice-no">04</span><h3>defer · 暂缓</h3><p>把处理推迟，至少到下一日再考虑。</p></article>
+      </div>
+      <div class="direction">
+        <div><h3>方向研判：短回复是自然候选，但不是配额任务。</h3><p>这是一条直接而正向的称赞；可莉的角色设定偏爱分享，也鼓励她直接表达反应，因此“轻快地接一句”有情境依据。与此同时，提示词明确允许没话可说时休息或忽略。没有模型实际输出，不能把这个研判当成最终选择。</p></div>
+        <span class="inference">输入证据上的推断</span>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div><span class="section-kicker">04 / Signal vs. noise</span><h2>相关线索很少，生活细节却很重</h2></div>
+        <p class="section-note">上下文丰富能帮助保持角色连续性，但并非每个社交分支都需要全部生活数值。</p>
+      </div>
+      <div class="noise">
+        <article class="panel noise-card focus">
+          <h3>直接影响这次回复的材料</h3>
+          <ul>
+            <li><span>收件箱正文与原讨论</span><strong>当前要回应什么</strong></li>
+            <li><span>角色设定与评论口吻规则</span><strong>如何说</strong></li>
+            <li><span>对 user:admin 的关系状态</span><strong>亲疏与情绪背景</strong></li>
+            <li><span>最近社交摘录、时间</span><strong>避免重复、区分新旧</strong></li>
+            <li><span>allowed 与回复长度约束</span><strong>能做什么、输出格式</strong></li>
+          </ul>
+        </article>
+        <article class="panel noise-card wide">
+          <h3>可能分散注意力的生活快照</h3>
+          <ul>
+            <li><span>种植规则、作物收益概率</span><strong>20,174 字符</strong></li>
+            <li><span>食谱、份数与品质预览</span><strong>18,981 字符</strong></li>
+            <li><span>战斗属性、药剂、背包和市场状态</span><strong>数千字符</strong></li>
+            <li><span>已存在图片 3 项、图片选项 3 种</span><strong>本轮无 publish</strong></li>
+          </ul>
+          <div class="noise-alert">种植与烹饪两块合计 39,155 字符，约占 life 快照的 79.4%。对于“回复一句评论”的判断，信息密度偏低。</div>
+        </article>
+      </div>
+      <div class="callout"><span class="callout-icon">↗</span><p><strong>已按动作类型优化：</strong>reply 模式保留目标讨论、必要关系、近期社交和生活事实；不再把种植概率、菜谱品质表、战斗药剂、未开放的动态候选和图片目录送进模型。</p></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div><span class="section-kicker">05 / Decision path</span><h2>把一大包数据，压缩成四步判断</h2></div>
+      </div>
+      <div class="panel flow">
+        <div class="step"><span class="step-id">STEP 01</span><h3>先过动作门</h3><p>只在 reply、ignore、rest、defer 中选择。没有发帖或浏览分支。</p></div>
+        <div class="step"><span class="step-id">STEP 02</span><h3>识别对话对象</h3><p>user:admin 在一条烤玉米动态下夸了可莉。</p></div>
+        <div class="step"><span class="step-id">STEP 03</span><h3>判断有没有新话</h3><p>结合角色语气、关系和最近说过的话，判断是否有自然、未重复的回应。</p></div>
+        <div class="step"><span class="step-id">STEP 04</span><h3>按契约返回</h3><p>只输出 JSON；若回复，则是一段不超过 120 字的评论区接话。</p></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div><span class="section-kicker">06 / Output contract</span><h2>输入报告不是模型结果</h2></div>
+        <p class="section-note">附件里只有一条 user 消息，没有实际 assistant response。</p>
+      </div>
+      <div class="output">
+        <article class="panel output-copy">
+          <h3>能确定的输出边界</h3>
+          <ul>
+            <li>动作必须来自本轮 <code>allowed</code>。</li>
+            <li>回复要针对收件箱讨论里的发言。</li>
+            <li>回复最多 120 字、不换行；这只是上限，不是目标长度。</li>
+            <li>模型可以不回应；机会和额度不等于必须发言。</li>
+          </ul>
+        </article>
+        <pre aria-label="示意输出 JSON"><span class="comment">// 结构示意，不是本次模型实际输出；其余动作字段视场景填写</span>
+{
+  <span class="token">"action"</span>: <span class="string">"reply | ignore | rest | defer"</span>,
+  <span class="token">"reason"</span>: <span class="string">"简要说明选择依据"</span>,
+  <span class="token">"content"</span>: <span class="string">"仅 action=reply 时填写；一段短回复"</span>
+}</pre>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div><span class="section-kicker">07 / Implemented projection</span><h2>精简已经落到决策入口</h2></div>
+        <p class="section-note">使用附件中的真实上下文，按当前 <code>life_planner.ask()</code> 的 JSON 序列化方式比较。</p>
+      </div>
+      <div class="implementation">
+        <article class="panel implementation-card">
+          <h3>同一份上下文，按需投影</h3>
+          <p>仅比较 JSON 上下文，字符统计不代表供应商 Token。</p>
+          <div class="compare-row">
+            <div class="compare-label"><span>原始完整上下文</span><strong>58,064 字符</strong></div>
+            <div class="size-track" aria-label="原始上下文 58,064 字符"><i class="before"></i></div>
+          </div>
+          <div class="compare-row">
+            <div class="compare-label"><span>回复分支投影</span><strong>2,434 字符</strong></div>
+            <div class="size-track" aria-label="精简后上下文 2,434 字符"><i class="after"></i></div>
+          </div>
+          <div class="impl-summary">
+            <div class="impl-stat"><b>−95.8%</b><span>JSON 上下文字符数</span></div>
+            <div class="impl-stat"><b>961</b><span>本轮动作专属提示词字符</span></div>
+          </div>
+        </article>
+        <article class="panel implementation-card projection">
+          <h3>本轮实际会留下的输入</h3>
+          <p>开放动作是 rest / reply / ignore / defer，没有 read 或 publish。</p>
+          <pre aria-label="精简后上下文结构"><span class="comment">// 结构示意；省略实际文本与时间值</span>
+{
+  <span class="token">"now"</span>, <span class="token">"allowed"</span>,
+  <span class="token">"life"</span>: {
+    <span class="token">"recent_experiences"</span>,
+    <span class="token">"recent_social"</span>
+  },
+  <span class="token">"inbox"</span>: {
+    <span class="token">"discussion"</span>: {
+      <span class="token">"content"</span>, <span class="token">"source"</span>,
+      <span class="token">"entries"</span>
+    },
+    <span class="token">"relation"</span>
+  }
+}</pre>
+          <div class="projection-note">社交入口现在直接查询近期事实，不再构造完整农场、菜谱品质预览、投资和战斗上下文；图片与动态仅在对应动作开放时加载。角色设定仍在 system 提示词中只注入一次。</div>
+        </article>
+      </div>
+      <div class="validation-note"><strong>完整性边界：</strong>模型拿到精简讨论投影；服务器仍保留完整讨论快照，用于版本复核、连续自动回复上限和事务提交。未新增持久字段，也没有增加调用阶段。字符数不能代替真实 Token `usage`，模型回复质量仍需在真实请求中观察。</div>
+    </section>
+
+    <footer class="endnote">
+      <strong>结论：回复分支只需目标讨论、关系与近期事实；其余生活规划数据已从模型输入移除，上下文 JSON 减少约 95.8%。</strong>
+      <span>依据：用户粘贴的模型输入；AgentWorld 社交与关系系统说明<br><a class="source-link" href="./docs/AgentWorld社交与关系系统.md">打开项目社交系统说明</a></span>
+    </footer>
+  </main>
+</body>
+</html>

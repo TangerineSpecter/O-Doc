@@ -28,6 +28,14 @@ def prepare_restore(data, *, full_overwrite, retain_extra):
     for identity, row in rows.items():
         fields = row['fields']
         fields['name'] = fields['name'].strip()
+        from .agent_role import validate_profile
+        from utils.sync_manager import SyncError
+        if 'role_profile' not in fields:
+            fields['role_profile'] = local[identity].role_profile if not full_overwrite and identity in local else {}
+        try:
+            fields['role_profile'] = validate_profile(fields['role_profile'])
+        except ValueError as exc:
+            raise SyncError('角色设定无效，拒绝同步：' + str(exc)) from exc
         if 'archived_at' not in fields:
             archived = local[identity].archived_at if not full_overwrite and identity in local else None
             fields['archived_at'] = archived.isoformat() if archived else None

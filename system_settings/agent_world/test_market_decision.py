@@ -25,6 +25,8 @@ class MarketDecisionTests(TestCase):
         self.task.market_config['decision_enabled'] = True
         self.task.market_config['decision_provider'] = 'jev'
         self.task.save()
+        from .life_models import LifeConfig
+        LifeConfig.objects.update_or_create(pk='admin', defaults={'settings': {'jev_enabled': True, 'jev_excluded_scenes': []}})
 
     def run_with(self, choose, text=None):
         with patch('system_settings.agent_world.market_runner.select_agent', return_value=self.a), \
@@ -39,6 +41,23 @@ class MarketDecisionTests(TestCase):
         self.assertEqual(record.status, 'success', record.summary)
         self.assertFalse(MarketSession.objects.filter(record=record).exists())
         self.assertEqual(model.call_count, 0)
+
+    def test_world_policy_can_disable_future_choices_in_active_session(self):
+        self.prepare()
+        from .life_models import LifeConfig
+        def choose(*args, **kwargs):
+            config = LifeConfig.objects.get(pk='admin')
+            config.settings['jev_enabled'] = False
+            config.save(update_fields=['settings'])
+            return 'enter', .9
+        def text(messages, tools, execute, **kwargs):
+            payload = json.loads(messages[1]['content'])
+            self.assertEqual(payload['session']['status'], 'active')
+            execute('leave_market', {'reason': '完成'})
+        record, model = self.run_with(choose, text)
+        self.assertEqual(record.status, 'success', record.summary)
+        self.assertEqual(model.call_count, 1)
+        self.assertEqual(MarketTransaction.objects.filter(session__record=record).count(), 0)
 
     def test_real_adapter_request_links_usage_to_resident_task_and_execution(self):
         from unittest.mock import Mock
@@ -195,6 +214,8 @@ class MarketDecisionTests(TestCase):
         from .farm_models import AgentFarm
         from .market_queries import actor_context
         self.prepare()
+        from .life_models import LifeConfig
+        LifeConfig.objects.update_or_create(pk='admin', defaults={'settings': {'jev_enabled': False, 'jev_excluded_scenes': []}})
         self.task.market_config['decision_enabled'] = False
         self.task.save()
         original = AgentFarm.objects.get(pk=self.a.pk).state

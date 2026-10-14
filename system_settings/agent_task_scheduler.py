@@ -1,3 +1,4 @@
+from system_settings.agent_role import role_text
 from utils.token_usage import attributed
 import logging
 from system_logs.context import diagnostic_operation
@@ -986,9 +987,9 @@ class AgentTaskScheduler:
         today = now.strftime('%Y-%m-%d')
         current_time = now.strftime('%Y-%m-%d %H:%M:%S')
         parts = []
-        if agent and agent.prompt:
+        if agent:
             parts.append(build_agent_system_prompt(
-                f"当前 Agent：{agent.name}\n{agent.prompt}", conversation=False,
+                role_text(agent), conversation=False,
             ))
         else:
             parts.append(CHAT_SYSTEM_PROMPT)

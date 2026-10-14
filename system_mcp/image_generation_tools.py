@@ -1,4 +1,5 @@
 """通用生图工具契约；场景、画风和参考图选择由调用方提供。"""
+from system_settings.image_prompt_limits import MAX_IMAGE_PROMPT_LENGTH
 
 IMAGE_GENERATION_TOOLS = [
     {
@@ -19,7 +20,7 @@ IMAGE_GENERATION_TOOLS = [
             'type': 'object',
             'properties': {
                 'model_id': {'type': 'string', 'minLength': 1, 'maxLength': 40, 'description': '可选模型配置 ID；省略时使用系统默认。先以同一 ID 查询生图能力。'},
-                'prompt': {'type': 'string', 'minLength': 1, 'maxLength': 8000, 'description': '完整生图提示词，由 Skill 决定内容和画风。'},
+                'prompt': {'type': 'string', 'minLength': 1, 'maxLength': MAX_IMAGE_PROMPT_LENGTH, 'description': '完整生图提示词，由 Skill 决定内容和画风。'},
                 'reference_image_ids': {'type': 'array', 'items': {'type': 'string', 'minLength': 1}, 'maxItems': 4,
                                         'uniqueItems': True, 'description': '按顺序提供已有图片的资源 ID；省略或空数组表示文生图。当前以图生图仅支持 Grsai。最多 4 张为本工具限制。'},
                 'aspect_ratio': {'type': 'string', 'description': '模型支持的比例，例如 3:4；先查询 get_image_generation_options。'},

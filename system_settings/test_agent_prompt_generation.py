@@ -103,8 +103,7 @@ class AgentPromptGenerationTests(SimpleTestCase):
             render_generated_prompt(json.dumps(body))
         body = ready_result()
         body['sections']['personality_type'] = '内向认真'
-        with self.assertRaises(ValueError):
-            render_generated_prompt(json.dumps(body))
+        self.assertEqual(render_generated_prompt(json.dumps(body))['role_profile']['mbti'], '')
 
     def test_research_character_uses_configured_tavily_mcp(self):
         server = SimpleNamespace(

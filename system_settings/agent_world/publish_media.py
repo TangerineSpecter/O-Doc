@@ -72,7 +72,7 @@ def prepare_photo(action, article, rule=None, *, force=False, attempt=0):
             if rule.get('image_subject') == 'agent':
                 raise ValueError('包含 Agent 时请选择支持角色参考图的生图模型')
             references = {}
-        prompt, refs = build_prompt(article, rule, references)
+        prompt, refs = build_prompt(article, rule, references, action.agent)
         photo['request'] = {'request_id': f'post:{action.pk}:0', 'model_id': options['model_id'],
                             'prompt': prompt, 'reference_image_ids': refs}
         if options.get('mode') != 'automatic':

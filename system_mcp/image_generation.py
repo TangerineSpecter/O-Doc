@@ -7,12 +7,13 @@ from system_settings.image_generation_options import serialize_image_generation_
 from utils.resource_assets import extract_resource_id_from_view_url
 from .image_references import MAX_REFERENCE_IMAGES, readable_reference_assets
 from system_settings.models import AIModel
+from system_settings.image_prompt_limits import MAX_IMAGE_PROMPT_LENGTH
 
 MCP_USER_ID = 'admin'
 
 
 class GenerateImageInput(serializers.Serializer):
-    prompt = serializers.CharField(max_length=8000, trim_whitespace=False)
+    prompt = serializers.CharField(max_length=MAX_IMAGE_PROMPT_LENGTH, trim_whitespace=False)
     reference_image_ids = serializers.ListField(
         child=serializers.CharField(max_length=32), max_length=MAX_REFERENCE_IMAGES, required=False, default=list)
     aspect_ratio = serializers.CharField(max_length=20, required=False)

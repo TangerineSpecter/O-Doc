@@ -1,3 +1,4 @@
+from system_settings.agent_role import role_text
 from utils.token_usage import usage_scope
 """只选择服务端给出的合法候选，模型不能自由改写农场或余额。"""
 import hashlib
@@ -82,33 +83,28 @@ def decide(task, agent, farm, options):
     context['spending'] = spending_context(agent)
     from .life_scope import enrich
     context=enrich(context)
-    prompt = build_agent_system_prompt(f'当前 Agent：{agent.name}\n{agent.prompt}', conversation=False)
+    prompt = role_text(agent, 'planning')
     from .memory.recall import memory_context
     prompt += '\n' + memory_context(agent, '农场 种植 收获 ' + task.prompt)
     prompt += '\n你在经营自己的农场。按兴趣选择最多六个不同候选，按顺序执行，允许休息。优先考虑照料、收获及资金；不必花光余额。需要调整生活预留时可增加 budget_allocations=[{"id":"安排ID","budget":"总预算"}] 和 budget_reason。仅输出 JSON {"choices":["候选ID"],"reason":"简短理由"}，休息时 choices=[]。'
     prompt += '\n按当前阶段选择操作，最多remaining_operations项，不得选择目标冲突的播种或施肥方案。施肥是可选投入，应比较实际报价、库存成本和预期净收益；可以为精品或未来挂牌投入，但不保证溢价成交。'
     prompt += '\n每个候选的cost是本次实际费用，扩地按当前地块阶段收费，不能沿用首次价格。所选候选cost之和不得超过spending.spendable；余额不等于本次可用预算。预算调整必须覆盖整份计划且保留后续预留；不足时优先选择免费种植、照料或收获，不可假定尚未发生的收入。'
     messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(context, ensure_ascii=False)+'\n补充经营偏好：'+task.prompt}]
-    for attempt in range(2):
-        output = AIService.chat_completion_messages(messages, model_id=task_model_id(task, agent)) or ''
-        try:
-            value = json.loads(output.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
-            choices = value['choices']
-            if not isinstance(choices, list) or len(choices) > (options[0].get('remaining_operations', 6) if options else 6) or any(not isinstance(i, str) or i not in {o['id'] for o in options} for i in choices) or len(set(choices)) != len(choices):
-                raise ValueError('经营候选无效')
-            if not isinstance(value.get('reason'), str) or not value['reason'].strip() or len(value['reason']) > 500:
-                raise ValueError('经营理由无效')
-            from .farm_plan import validate_resources
-            validate_resources(farm, [options[int(i)]['operation'] for i in choices])
-            if len(choices) * 2 > stamina(agent):
-                raise ValueError('整份阶段计划的体力不足，每项需要两点体力')
-            validate_plan_budget(agent, options, value)
-            return value
-        except (ValueError, TypeError, KeyError) as exc:
-            if attempt:
-                raise ValueError(f'模型未返回有效经营计划：{exc}') from exc
-            messages.append({'role': 'assistant', 'content': output})
-            messages.append({'role': 'user', 'content': f'经营计划校验失败：{exc}。请重新选择可执行候选，只返回候选 ID 列表、不超过500字的理由及必要的预算调整。'})
+    from system_settings.decision.routing import complete_json
+    def validate(value):
+        choices = value['choices']
+        if not isinstance(choices, list) or len(choices) > (options[0].get('remaining_operations', 6) if options else 6) or any(not isinstance(i, str) or i not in {o['id'] for o in options} for i in choices) or len(set(choices)) != len(choices):
+            raise ValueError('经营候选无效')
+        if not isinstance(value.get('reason'), str) or not value['reason'].strip() or len(value['reason']) > 500:
+            raise ValueError('经营理由无效')
+        from .farm_plan import validate_resources
+        validate_resources(farm, [next(option['operation'] for option in options if option['id'] == identity) for identity in choices])
+        if len(choices) * 2 > stamina(agent):
+            raise ValueError('整份阶段计划的体力不足，每项需要两点体力')
+        validate_plan_budget(agent, options, value)
+        return value
+    return complete_json(agent, prompt + '\n资料：' + messages[1]['content'], validate,
+                         task=task, decision=True, scene='农场经营计划')
 
 
 def finish(action, scheduler=None):

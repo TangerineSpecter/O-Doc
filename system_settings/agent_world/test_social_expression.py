@@ -46,13 +46,19 @@ class SocialLifeContextTests(SimpleTestCase):
 
 class AutoCommentLengthTests(SimpleTestCase):
     def setUp(self):
+        for target, value in [('system_settings.decision.routing.candidates', ['model']), ('system_settings.agent_world.social_model.owner_for', 'owner')]:
+            mocked = patch(target, return_value=value); mocked.start(); self.addCleanup(mocked.stop)
+        active = patch('system_settings.agent_availability.require_active_agent', new=lambda agent: agent)
+        active.start(); self.addCleanup(active.stop)
+        config = patch('system_settings.decision.routing.AIService.get_client_config_for_model', return_value={})
+        config.start(); self.addCleanup(config.stop)
         memory = patch('system_settings.agent_world.memory.recall.memory_context', return_value='')
         memory.start()
         self.addCleanup(memory.stop)
         self.agent = SimpleNamespace(pk='actor', name='角色', model_id='model',
                                      prompt='活泼直率。ENFP倾向：好奇，容易兴奋。')
         self.post = SimpleNamespace(content='南瓜燕麦粥', title='早餐')
-        self.task = SimpleNamespace(prompt='')
+        self.task = SimpleNamespace(pk='task', name='评论任务', task_kind='custom', model_id=None, prompt='')
 
     def evaluate(self, outputs):
         from .action_runner import evaluate
@@ -60,11 +66,11 @@ class AutoCommentLengthTests(SimpleTestCase):
                 patch('system_settings.agent_world.social_discussion.post_author', return_value='author'), \
                 patch('system_settings.agent_world.social_relations.context_for', return_value={}), \
                 patch('system_settings.agent_world.action_runner.stamina', return_value=100), \
-                patch('system_settings.agent_world.action_runner.AIService.chat_completion_messages',
+                patch('system_settings.decision.routing.complete',
                       side_effect=[json.dumps(value, ensure_ascii=False) for value in outputs]) as complete:
             result = evaluate(self.task, self.agent, self.post)
-            messages = complete.call_args.args[0]
-            self.assertIn(self.agent.prompt, messages[0]['content'])
+            prompt = complete.call_args.args[1]
+            self.assertIn(self.agent.prompt, prompt)
             return result, complete.call_count
 
     def feedback(self, content):
@@ -97,10 +103,10 @@ class AutoCommentLengthTests(SimpleTestCase):
                 patch('system_settings.agent_world.social_discussion.post_author', return_value='author'), \
                 patch('system_settings.agent_world.social_relations.context_for', return_value={}), \
                 patch('system_settings.agent_world.action_runner.stamina', return_value=100), \
-                patch('system_settings.agent_world.action_runner.AIService.chat_completion_messages',
+                patch('system_settings.decision.routing.complete',
                       return_value=json.dumps(self.feedback('这预测的范围也太宽了。'), ensure_ascii=False)) as complete:
             result = evaluate(self.task, self.agent, self.post)
-        prompt = complete.call_args.args[0][0]['content']
+        prompt = complete.call_args.args[1]
         self.assertIn(self.agent.prompt, prompt)
         for rule in ('像平时上网一样', '通常一两句', '不是文章评审', '判断过程不需要写进评论',
                      '不模仿其中的句式、篇幅和结尾'):
@@ -111,10 +117,12 @@ class AutoCommentLengthTests(SimpleTestCase):
     def test_moment_comments_and_replies_receive_the_same_daily_comment_rules(self):
         from .social_runner import decide
         for action in ('read', 'reply'):
-            with self.subTest(action=action), patch('system_settings.agent_world.life_planner.ask',
-                    return_value={'action': action, 'reason': '接话', 'content': '这预测的范围也太宽了。'}) as ask:
-                decide(self.agent, {'allowed': [action], 'image_choices': ['none']})
-                prompt = ask.call_args.args[1]
+            value = {'action': action, 'reason': '接话', 'content': '这预测的范围也太宽了。'}
+            if action == 'read': value['moment_id'] = 'm'
+            context = {'allowed': [action], 'image_choices': ['none'], 'moments': [{'id': 'm', 'content': '原动态'}] if action == 'read' else [], 'inbox': {'discussion': {'content': '消息'}} if action == 'reply' else None}
+            with self.subTest(action=action), patch('system_settings.decision.routing.complete', return_value=json.dumps(value, ensure_ascii=False)) as completion:
+                decide(self.agent, context, owner='owner')
+                prompt = completion.call_args.args[1]
                 self.assertIn('像平时上网一样', prompt)
                 self.assertIn('通常一两句', prompt)
                 self.assertIn('不是文章评审', prompt)
@@ -144,60 +152,44 @@ class AutoCommentLengthTests(SimpleTestCase):
 
     def social_decision(self, action, content):
         from .social_runner import decide
-        context = {'allowed': [action], 'image_choices': ['none']}
-        with patch('system_settings.agent_world.life_planner.ask', return_value={
-                'action': action, 'reason': '回应', 'content': content}):
-            return decide(self.agent, context)
+        value = {'action': action, 'reason': '回应', 'content': content}
+        if action == 'read': value['moment_id'] = 'm'
+        context = {'allowed': [action], 'image_choices': ['none'], 'moments': [{'id':'m','content':'动态'}] if action == 'read' else [], 'inbox': {'discussion': {'content':'消息'}} if action == 'reply' else None}
+        with patch('system_settings.decision.routing.complete', return_value=json.dumps(value, ensure_ascii=False)):
+            return decide(self.agent, context, owner='owner')
 
     def test_reply_and_moment_comment_reject_essays(self):
         for action in ('reply', 'read'):
             with self.subTest(action=action):
                 self.assertEqual(self.social_decision(action, '嗯，先吃饭。')['content'], '嗯，先吃饭。')
-                with self.assertRaises(ValueError):
-                    self.social_decision(action, '长' * (AUTO_COMMENT_MAX_LENGTH + 1))
+                with self.assertRaises(ValueError): self.social_decision(action, '长' * (AUTO_COMMENT_MAX_LENGTH + 1))
 
     def test_reply_is_rewritten_for_length_or_paragraphs_without_changing_context(self):
         from .social_runner import decide
-        context = {'allowed': ['reply', 'ignore', 'rest', 'publish'],
-                   'image_choices': ['none'], 'inbox': {'discussion': {
-                       'source': '种子明天给你。', 'content': '原帖背景', 'entries': []}}}
+        context = {'allowed': ['reply', 'ignore', 'rest', 'publish'], 'image_choices':['none'],
+            'inbox': {'discussion': {'source':'种子明天给你。','content':'原帖背景','entries':[]}}}
         before = deepcopy(context)
         for content in ('长' * (AUTO_REPLY_MAX_LENGTH + 1), '谢谢。\n明天见。'):
-            with self.subTest(content=content), patch(
-                    'system_settings.agent_world.life_planner.ask', side_effect=[
-                        {'action': 'reply', 'reason': '接话', 'content': content},
-                        {'action': 'reply', 'reason': '接话', 'content': '好，我明天来拿。'},
-                    ]) as ask:
-                result = decide(self.agent, context)
-                self.assertEqual(result['content'], '好，我明天来拿。')
-                self.assertEqual(ask.call_count, 2)
-                repair_context = ask.call_args.args[2]
-                self.assertEqual(repair_context['allowed'], ['reply', 'ignore', 'rest'])
-                self.assertEqual(repair_context['inbox'], before['inbox'])
-                self.assertEqual(context, before)
+            with self.subTest(content=content), patch('system_settings.agent_world.social_model.choose_scene', return_value='reply'), patch('system_settings.decision.routing.complete', side_effect=[json.dumps({'action':'reply','reason':'接话','content':content},ensure_ascii=False), json.dumps({'action':'reply','reason':'接话','content':'好，我明天来拿。'},ensure_ascii=False)]) as completion:
+                result = decide(self.agent, context, owner='owner')
+                self.assertEqual(result['content'],'好，我明天来拿。')
+                self.assertEqual(completion.call_count,2)
+                self.assertIn('种子明天给你。', completion.call_args.args[1])
+                self.assertEqual(context,before)
 
-    def test_reply_rewrite_can_end_discussion_but_cannot_publish(self):
+    def test_reply_rewrite_cannot_change_selected_action(self):
         from .social_runner import decide
-        context = {'allowed': ['reply', 'ignore', 'rest', 'publish'], 'image_choices': ['none']}
-        for action in ('ignore', 'rest', 'publish'):
-            with self.subTest(action=action), patch(
-                    'system_settings.agent_world.life_planner.ask', side_effect=[
-                        {'action': 'reply', 'reason': '接话', 'content': '长' * 121},
-                        {'action': action, 'reason': '已经说完了', 'content': '短动态'},
-                    ]):
-                if action == 'publish':
-                    with self.assertRaises(ValueError):
-                        decide(self.agent, context)
-                else:
-                    self.assertEqual(decide(self.agent, context)['action'], action)
+        context = {'allowed':['reply','ignore','rest','publish'],'image_choices':['none'], 'inbox':{'discussion':{'content':'消息'}}}
+        for action in ('ignore','rest','publish'):
+            with self.subTest(action=action), patch('system_settings.agent_world.social_model.choose_scene',return_value='reply'), patch('system_settings.decision.routing.complete', side_effect=[json.dumps({'action':'reply','reason':'接话','content':'长'*121}), json.dumps({'action':action,'reason':'结束','content':'短动态'})]):
+                with self.assertRaises(ValueError): decide(self.agent,context,owner='owner')
 
     def test_reply_limit_does_not_shorten_first_comments(self):
-        content = '评' * AUTO_COMMENT_MAX_LENGTH
-        self.assertEqual(self.social_decision('read', content)['content'], content)
-        self.assertEqual(self.evaluate([self.feedback(content)])[0]['comment'], content)
-        self.assertEqual(self.social_decision('reply', '答' * AUTO_REPLY_MAX_LENGTH)['content'],
-                         '答' * AUTO_REPLY_MAX_LENGTH)
+        content='评' * AUTO_COMMENT_MAX_LENGTH
+        self.assertEqual(self.social_decision('read',content)['content'],content)
+        self.assertEqual(self.evaluate([self.feedback(content)])[0]['comment'],content)
+        self.assertEqual(self.social_decision('reply','答'*AUTO_REPLY_MAX_LENGTH)['content'],'答'*AUTO_REPLY_MAX_LENGTH)
 
     def test_publishing_keeps_its_own_length_limit(self):
-        content = '正文' * 400
-        self.assertEqual(self.social_decision('publish', content)['content'], content)
+        content='正文' * 400
+        self.assertEqual(self.social_decision('publish',content)['content'],content)

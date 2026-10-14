@@ -307,6 +307,8 @@ class MarketIntentTests(TestCase):
     def test_text_only_receives_sale_listing_and_management_summary(self):
         self.listing()
         self.prepare()
+        from .life_models import LifeConfig
+        LifeConfig.objects.update_or_create(pk='admin', defaults={'settings': {'jev_enabled': False, 'jev_excluded_scenes': []}})
         self.task.market_config['decision_enabled'] = False
         self.task.save()
         def text(messages, tools, execute, **kwargs):
@@ -344,6 +346,8 @@ class MarketIntentTests(TestCase):
         candidate = next(row for row in candidates('admin', self.a) if row['arguments'].get('slot_id') == '0')
         self.assertIn(str(len(farm.state['plots'])), quantities(candidate))
         self.prepare()
+        from .life_models import LifeConfig
+        LifeConfig.objects.update_or_create(pk='admin', defaults={'settings': {'jev_enabled': False, 'jev_excluded_scenes': []}})
         self.task.market_config['decision_enabled'] = False
         self.task.save()
         def shop(messages, tools, execute, **kwargs):
@@ -392,6 +396,8 @@ class MarketIntentTests(TestCase):
 
     def test_detail_diagnostics_record_topic_and_size_without_query_body(self):
         self.prepare()
+        from .life_models import LifeConfig
+        LifeConfig.objects.update_or_create(pk='admin', defaults={'settings': {'jev_enabled': False, 'jev_excluded_scenes': []}})
         self.task.market_config['decision_enabled'] = False
         self.task.save()
         def read(messages, tools, execute, **kwargs):

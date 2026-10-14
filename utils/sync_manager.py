@@ -812,6 +812,8 @@ class SyncManager:
 
         skip_extra_delete = (not full_overwrite) and self.is_remote_version_older((remote_meta or {}).get('app_version'))
         from system_settings.agent_archive_sync import prepare_restore, release_changed_names, revoke_archived_execution
+        from system_settings.decision.restore import policy_defaults
+        restored_policy_defaults = policy_defaults(data_list, full_overwrite=full_overwrite)
         agent_rows = prepare_restore(data_list, full_overwrite=full_overwrite, retain_extra=skip_extra_delete)
         restored_models = [
             model_map[model_label]
@@ -925,6 +927,10 @@ class SyncManager:
             reconcile_life()
             from system_settings.agent_world.social_sync import reconcile_social
             reconcile_social()
+            # Validate the original source first. Adding legacy policy defaults earlier
+            # would change LifeConfig's fingerprint and reject valid old snapshots.
+            from system_settings.decision.restore import normalize_policy
+            normalize_policy(restored_policy_defaults)
             from system_settings.agent_world.publish_media import reset_photo_runtime
             reset_photo_runtime()
             from system_settings.models import AgentMemoryLease

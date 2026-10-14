@@ -1,3 +1,4 @@
+from system_settings.decision.routing import candidates as model_candidates
 """市场任务是真实工具循环，进入、离开与普通 MCP 使用相同服务。"""
 import json
 import logging
@@ -32,7 +33,7 @@ def run_market_opportunity(task: AgentTask, scheduler=None, *, key=None, manual=
             return None
         task.refresh_from_db()
         if not manual and not task.enabled: return None
-        agent = select_agent(task, cost=5, qualifies=lambda a:bool(task_model_id(task, a)))
+        agent = select_agent(task, cost=5, qualifies=lambda a:bool(model_candidates(a, task=task, decision=True)))
         record = AgentRunRecord.objects.create(task=task,task_name=task.name,agent=agent,agent_name=agent.name if agent else '',
             trigger='手动执行' if manual else '系统行动',status='running',summary='正在考虑是否逛市场',
             agent_runs=[{'agent':agent.pk,'agentName':agent.name,'agentAvatar':agent.avatar,

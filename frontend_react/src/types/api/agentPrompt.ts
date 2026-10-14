@@ -20,6 +20,7 @@ export interface AgentAvatarDescription {
 }
 
 export interface AgentPromptResult {
+    roleProfile?: RoleProfile;
     status: 'ready' | 'needs_information';
     prompt: string;
     question: string;
@@ -27,3 +28,9 @@ export interface AgentPromptResult {
     researchUsed?: boolean;
     warning: string;
 }
+
+export interface RoleProfile {
+    age: string; mbti: string; identity: string; personality: string;
+    preferences: string; expression: string; appearance: string;
+}
+export interface RoleDraft {roleProfile: RoleProfile; prompt: string; warnings: string[]}

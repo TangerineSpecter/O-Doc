@@ -1,3 +1,4 @@
+import time
 """旅行节点：模型只提议，持久化后的决策由服务器执行。"""
 import random
 from decimal import Decimal
@@ -44,6 +45,19 @@ def record_attempt(node, status, error='', *, node_status=None):
 def decide(journey, node, instruction, context, validate, skill=''):
     if node.result:
         return node.result
+    context = {**context, '_request_deadline': time.monotonic() + 120}
+    from .travel_decision import selection_for
+    selected = selection_for(journey, node, context)
+    if selected:
+        context = {**context, 'selected_choice': selected}
+        instruction += '\n选择已确认，不得改变selected_choice。只补充所需预算或人物反应；不要把系统说明当成真实感受。'
+        original_validate = validate
+        def validate(value):
+            if value.get(selected['field']) != selected['value']:
+                raise ValueError('不能改变已确认旅行选择')
+            if selected['field'] == 'destination_id':
+                value['reason'] = '系统选择说明：JEV选择目的地，不是人物感受。'
+            return original_validate(value)
     result = ask(journey, instruction, context, validate, skill=skill)
     node.result = result
     node.save(update_fields=['result', 'updated_at'])

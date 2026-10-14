@@ -46,7 +46,7 @@ export function PromptEditorModal({name, value, onChange, subject = 'Agent', rea
                             <X className="h-4 w-4"/>
                         </button>
                     </header>
-                    <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+                    <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide p-4 sm:p-6">
                         <textarea
                             autoFocus
                             aria-label={`${readOnly ? '查看' : '编辑'} ${subject} 提示词`}
@@ -58,7 +58,7 @@ export function PromptEditorModal({name, value, onChange, subject = 'Agent', rea
                         />
                     </div>
                     <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-3 sm:px-6">
-                        <p className="text-xs text-slate-500">{readOnly ? '系统技能提示词由内置文档管理，此处仅供查看。' : `内容会同步到提示词框，关闭后仍需保存${subject === 'Agent' ? ' Agent' : subject === '任务' ? '任务' : '技能'}。`}当前 {value.length} 字</p>
+                        <p className="text-xs text-slate-500">{readOnly ? subject === 'Agent' ? '完整角色设定预览，内容随字段自动组装。' : '系统技能提示词由内置文档管理，此处仅供查看。' : `内容会同步到提示词框，关闭后仍需保存${subject === 'Agent' ? ' Agent' : subject === '任务' ? '任务' : '技能'}。`}当前 {value.length} 字</p>
                         <button type="button" onClick={close} className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-600">完成</button>
                     </footer>
                 </section>

@@ -120,9 +120,9 @@ class Command(BaseCommand):
                     # and proposal validation. Override only model selection in memory.
                     with usage_scope(agent=agent, owner_id=profile.owner_id, purpose='planning'):
                         with patch(
-                            'system_settings.agent_world.life_planner.model_id_for_agent',
-                            return_value=model.pk,
-                        ):
+                            'system_settings.decision.routing.candidates',
+                            return_value=[model.pk],
+                        ), patch('system_settings.agent_world.life_activity_decision.jev_enabled', return_value=False):
                             proposal = propose(agent, context, life_planner.ask)
                     selection = proposal['plans'][0]
                     result = {
