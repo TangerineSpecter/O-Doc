@@ -5,6 +5,8 @@ export interface TokenMetrics {
     requestCount: number;
     incompleteCount: number;
     executionCount: number;
+    largeModelTokens: number;
+    decisionModelTokens: number;
     averageTokens: number | null;
     collected: boolean;
 }

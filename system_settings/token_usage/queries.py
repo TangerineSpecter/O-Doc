@@ -46,9 +46,20 @@ def filtered_usage(request: Request) -> QuerySet:
 
 
 def metrics() -> dict:
+    # JEV has a dedicated model/provider key; provider/model snapshots keep this
+    # classification stable even if a later adapter changes its internal key.
+    decision_model = (Q(model_key='decision:jev') | Q(provider_key='decision:jev') |
+                     Q(provider_name__iexact='TypeSafe JEV') | Q(model_name__istartswith='jev-'))
     return {
         'input_tokens': Coalesce(Sum('input_tokens'), 0, output_field=BigIntegerField()),
         'output_tokens': Coalesce(Sum('output_tokens'), 0, output_field=BigIntegerField()),
+        'large_model_tokens': Coalesce(
+            Sum('total_tokens', filter=~decision_model, output_field=BigIntegerField()),
+            0, output_field=BigIntegerField()),
+        'decision_model_tokens': Coalesce(
+            Sum('total_tokens', filter=decision_model, output_field=BigIntegerField()),
+            0, output_field=BigIntegerField()),
+        # Keep this alias after sums that read the model field of the same name.
         'total_tokens': Coalesce(Sum('total_tokens'), 0, output_field=BigIntegerField()),
         'request_count': Count('id'),
         'incomplete_count': Count('id', filter=Q(usage_complete=False) | Q(status='running')),
@@ -85,6 +96,7 @@ def summary(rows: QuerySet, request: Request) -> dict:
         empty_hour = finish_metrics({
             'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
             'request_count': 0, 'incomplete_count': 0, 'execution_count': 0,
+            'large_model_tokens': 0, 'decision_model_tokens': 0,
         })
         result['hours'] = [
             {'hour': f'{hour:02d}', **hourly.get(f'{hour:02d}', empty_hour)}
@@ -136,7 +148,9 @@ def breakdown(rows: QuerySet, group: str, page: int) -> dict:
 def record_summaries(keys: list[str], request: Request | None = None) -> dict:
     rows = visible_usage(request).filter(record_key__in=keys)
     results = {key: {'collected': False, 'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0,
-                     'request_count': 0, 'incomplete_count': 0, 'execution_count': 0, 'average_tokens': None, 'agents': []} for key in keys}
+                     'request_count': 0, 'incomplete_count': 0, 'execution_count': 0,
+                     'large_model_tokens': 0, 'decision_model_tokens': 0,
+                     'average_tokens': None, 'agents': []} for key in keys}
     for item in rows.values('record_key').annotate(**metrics()):
         key = item.pop('record_key')
         results[key] = {**finish_metrics(item), 'agents': []}

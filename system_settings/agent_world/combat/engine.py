@@ -29,7 +29,7 @@ def available(catalog: Catalog, player: dict, enemy: dict, tick: int, style: dic
             continue
         _, effects = catalog.skill(sid, rank)
         choices = []
-        if any(e['code'] in ('damage', 'dot') for e in effects):
+        if any(e['code'] in ('damage', 'dot', 'summon') for e in effects):
             q = 1.3 if style['id'] == 'style.assault' else 1
             if style['id'] == 'style.economy':
                 q *= clamp(.35 + .65 * t, .35, 1) * (.5 + .5 * m)
@@ -131,14 +131,14 @@ def step(catalog: Catalog, state: dict, style_id: str, tick: int, rng, *, waitin
     player, enemy = result['player'], result.get('enemy')
     events = []
     player['defending'] = False
-    upkeep(player, tick, events)
-    if player['hp'] <= 0 or waiting or not enemy:
+    upkeep(player, tick, events, opponent=enemy, catalog=catalog, rng=rng)
+    if player['hp'] <= 0 or waiting or not enemy or enemy['hp'] <= 0:
         return result, events
     expire(enemy, tick)
     events.extend(player_action(catalog, player, enemy, result['potions'], tick, catalog.row('styles', style_id), rng))
     if enemy['hp'] > 0:
-        upkeep(enemy, tick, events)
-        if enemy['hp'] > 0:
+        upkeep(enemy, tick, events, opponent=player, catalog=catalog, rng=rng)
+        if enemy['hp'] > 0 and player['hp'] > 0:
             events.extend(enemy_action(catalog, enemy, player, result['monster_id'], tick, rng))
     player['defending'] = False
     return result, events

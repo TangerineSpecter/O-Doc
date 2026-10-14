@@ -1,22 +1,22 @@
 {
-  "version": "combat-1.0.0",
+  "version": "combat-1.0.2",
   "status": "released",
-  "engine_schema": 1,
+  "engine_schema": 3,
   "files": {
     "professions.csv": {
       "sha256": "0de0aaa9f5fa541a32fc9fb28b99b0ecaa5d421c31f983a2f76dee6470fb4dd1",
       "rows": 29
     },
     "skills.csv": {
-      "sha256": "1c3bf3aa443fe1992bd611a3024db14bca9dfc7225baaad3783ffafdec7af2a3",
+      "sha256": "80c6d084a45ee5e27fdced65ac8d9e228f2b77bb2c25174fd4ee44ae52d870c8",
       "rows": 70
     },
     "skill_levels.csv": {
-      "sha256": "333605fa73fab13eef214e8c026eee738fdadfe3890ede4f07c0c5421780747a",
+      "sha256": "750429f0f8abf52dbdfe895030a60664fa32debcbe6d9b00c5b4ddda1105c999",
       "rows": 190
     },
     "skill_effects.csv": {
-      "sha256": "a9db941a54154b6fd533e9ee44a99935ab23be2215ab27a40067832417a57e3c",
+      "sha256": "ae4cad71e1a20fa132afd36879ccfc372549ff1418e01bd477ecd27ad7ad4c4a",
       "rows": 263
     },
     "dungeons.csv": {
@@ -100,5 +100,5 @@
       "rows": 63
     }
   },
-  "published_at": "2026-10-10T00:00:00+08:00"
+  "published_at": "2026-10-14T00:00:00+08:00"
 }

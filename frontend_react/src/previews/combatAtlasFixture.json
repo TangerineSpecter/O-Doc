@@ -726,7 +726,7 @@
       },
       {
         "id": "skill.player.033",
-        "name": "圣盾",
+        "name": "圣盾 (Holy Aegis)",
         "professionId": "job.paladin",
         "learnLevel": "70",
         "kind": "active",
@@ -774,7 +774,7 @@
       },
       {
         "id": "skill.player.039",
-        "name": "冰封术",
+        "name": "暴风雪",
         "professionId": "job.cryomancer",
         "learnLevel": "70",
         "kind": "active",
@@ -806,7 +806,7 @@
       },
       {
         "id": "skill.player.043",
-        "name": "魔灵契约",
+        "name": "魔灵契约 (Spirit Pact)",
         "professionId": "job.summoner",
         "learnLevel": "70",
         "kind": "active",
@@ -2191,7 +2191,7 @@
         "costPerLevel": "0.9",
         "costRankFactor": "1.0",
         "cooldownRounds": "5",
-        "description": "护盾 1.2 倍治疗强度，立即恢复 0.5 倍治疗强度",
+        "description": "圣盾吸收最大生命值 20% / 25% / 30% 的伤害，持续 3 轮；破盾时以 1.5 / 1.65 / 1.8 倍治疗强度造成一次魔法伤害",
         "enabled": "1"
       },
       {
@@ -2203,7 +2203,7 @@
         "costPerLevel": "0.9",
         "costRankFactor": "1.15",
         "cooldownRounds": "5",
-        "description": "护盾 1.2 倍治疗强度，立即恢复 0.5 倍治疗强度",
+        "description": "圣盾吸收最大生命值 20% / 25% / 30% 的伤害，持续 3 轮；破盾时以 1.5 / 1.65 / 1.8 倍治疗强度造成一次魔法伤害",
         "enabled": "1"
       },
       {
@@ -2215,7 +2215,7 @@
         "costPerLevel": "0.9",
         "costRankFactor": "1.3",
         "cooldownRounds": "5",
-        "description": "护盾 1.2 倍治疗强度，立即恢复 0.5 倍治疗强度",
+        "description": "圣盾吸收最大生命值 20% / 25% / 30% 的伤害，持续 3 轮；破盾时以 1.5 / 1.65 / 1.8 倍治疗强度造成一次魔法伤害",
         "enabled": "1"
       },
       {
@@ -2407,7 +2407,7 @@
         "costPerLevel": "0.9",
         "costRankFactor": "1.0",
         "cooldownRounds": "4",
-        "description": "1.5 倍魔攻，敌人攻击降低 20%",
+        "description": "三段魔法伤害，每段 0.5 / 0.55 / 0.6 倍魔攻；敌人攻击降低 20% / 22% / 24%，持续 2 轮",
         "enabled": "1"
       },
       {
@@ -2419,7 +2419,7 @@
         "costPerLevel": "0.9",
         "costRankFactor": "1.15",
         "cooldownRounds": "4",
-        "description": "1.5 倍魔攻，敌人攻击降低 20%",
+        "description": "三段魔法伤害，每段 0.5 / 0.55 / 0.6 倍魔攻；敌人攻击降低 20% / 22% / 24%，持续 2 轮",
         "enabled": "1"
       },
       {
@@ -2431,7 +2431,7 @@
         "costPerLevel": "0.9",
         "costRankFactor": "1.3",
         "cooldownRounds": "4",
-        "description": "1.5 倍魔攻，敌人攻击降低 20%",
+        "description": "三段魔法伤害，每段 0.5 / 0.55 / 0.6 倍魔攻；敌人攻击降低 20% / 22% / 24%，持续 2 轮",
         "enabled": "1"
       },
       {
@@ -2551,7 +2551,7 @@
         "costPerLevel": "1.0",
         "costRankFactor": "1.0",
         "cooldownRounds": "5",
-        "description": "之后每轮 0.5 倍魔攻附加伤害",
+        "description": "弱档 60%：2 段，每段 0.5 倍魔攻，降低命中 8 个百分点 1 轮；中档 30%：3 段，每段 0.6 倍魔攻，降低攻击 10% 1 轮；强档 10%：4 段，每段 0.8 倍魔攻，降低防御 12% 2 轮，并灼烧 2 轮（每轮 0.25 倍魔攻）。",
         "enabled": "1"
       },
       {
@@ -2563,7 +2563,7 @@
         "costPerLevel": "1.0",
         "costRankFactor": "1.15",
         "cooldownRounds": "5",
-        "description": "之后每轮 0.5 倍魔攻附加伤害",
+        "description": "弱档 60%：2 段，每段 0.55 倍魔攻，降低命中 8.8 个百分点 1 轮；中档 30%：3 段，每段 0.66 倍魔攻，降低攻击 11% 1 轮；强档 10%：4 段，每段 0.88 倍魔攻，降低防御 13.2% 2 轮，并灼烧 2 轮（每轮 0.275 倍魔攻）。",
         "enabled": "1"
       },
       {
@@ -2575,7 +2575,7 @@
         "costPerLevel": "1.0",
         "costRankFactor": "1.3",
         "cooldownRounds": "5",
-        "description": "之后每轮 0.5 倍魔攻附加伤害",
+        "description": "弱档 60%：2 段，每段 0.6 倍魔攻，降低命中 9.6 个百分点 1 轮；中档 30%：3 段，每段 0.72 倍魔攻，降低攻击 12% 1 轮；强档 10%：4 段，每段 0.96 倍魔攻，降低防御 14.4% 2 轮，并灼烧 2 轮（每轮 0.3 倍魔攻）。",
         "enabled": "1"
       },
       {
@@ -4915,25 +4915,25 @@
         "id": "skill.player.033.r1.e1",
         "skillLevelId": "skill.player.033.r1",
         "code": "shield",
-        "stat": "healing",
-        "value": "1.2",
+        "stat": "hp_max",
+        "value": "0.2",
         "duration": "3",
         "target": "self",
         "damageType": "",
-        "group": "shield",
+        "group": "holy_aegis",
         "hits": "1",
         "chance": "1"
       },
       {
         "id": "skill.player.033.r1.e2",
         "skillLevelId": "skill.player.033.r1",
-        "code": "heal",
+        "code": "shield_break",
         "stat": "healing",
-        "value": "0.5",
+        "value": "1.5",
         "duration": "0",
         "target": "self",
-        "damageType": "",
-        "group": "",
+        "damageType": "magic",
+        "group": "holy_aegis",
         "hits": "1",
         "chance": "1"
       },
@@ -4941,25 +4941,25 @@
         "id": "skill.player.033.r2.e1",
         "skillLevelId": "skill.player.033.r2",
         "code": "shield",
-        "stat": "healing",
-        "value": "1.32",
+        "stat": "hp_max",
+        "value": "0.25",
         "duration": "3",
         "target": "self",
         "damageType": "",
-        "group": "shield",
+        "group": "holy_aegis",
         "hits": "1",
         "chance": "1"
       },
       {
         "id": "skill.player.033.r2.e2",
         "skillLevelId": "skill.player.033.r2",
-        "code": "heal",
+        "code": "shield_break",
         "stat": "healing",
-        "value": "0.55",
+        "value": "1.65",
         "duration": "0",
         "target": "self",
-        "damageType": "",
-        "group": "",
+        "damageType": "magic",
+        "group": "holy_aegis",
         "hits": "1",
         "chance": "1"
       },
@@ -4967,25 +4967,25 @@
         "id": "skill.player.033.r3.e1",
         "skillLevelId": "skill.player.033.r3",
         "code": "shield",
-        "stat": "healing",
-        "value": "1.44",
+        "stat": "hp_max",
+        "value": "0.3",
         "duration": "3",
         "target": "self",
         "damageType": "",
-        "group": "shield",
+        "group": "holy_aegis",
         "hits": "1",
         "chance": "1"
       },
       {
         "id": "skill.player.033.r3.e2",
         "skillLevelId": "skill.player.033.r3",
-        "code": "heal",
+        "code": "shield_break",
         "stat": "healing",
-        "value": "0.6",
+        "value": "1.8",
         "duration": "0",
         "target": "self",
-        "damageType": "",
-        "group": "",
+        "damageType": "magic",
+        "group": "holy_aegis",
         "hits": "1",
         "chance": "1"
       },
@@ -5306,12 +5306,12 @@
         "skillLevelId": "skill.player.039.r1",
         "code": "damage",
         "stat": "magic_attack",
-        "value": "1.5",
+        "value": "0.5",
         "duration": "0",
         "target": "enemy",
         "damageType": "magic",
         "group": "",
-        "hits": "1",
+        "hits": "3",
         "chance": "1"
       },
       {
@@ -5332,12 +5332,12 @@
         "skillLevelId": "skill.player.039.r2",
         "code": "damage",
         "stat": "magic_attack",
-        "value": "1.65",
+        "value": "0.55",
         "duration": "0",
         "target": "enemy",
         "damageType": "magic",
         "group": "",
-        "hits": "1",
+        "hits": "3",
         "chance": "1"
       },
       {
@@ -5358,12 +5358,12 @@
         "skillLevelId": "skill.player.039.r3",
         "code": "damage",
         "stat": "magic_attack",
-        "value": "1.8",
+        "value": "0.6",
         "duration": "0",
         "target": "enemy",
         "damageType": "magic",
         "group": "",
-        "hits": "1",
+        "hits": "3",
         "chance": "1"
       },
       {
@@ -5538,10 +5538,10 @@
       {
         "id": "skill.player.043.r1.e1",
         "skillLevelId": "skill.player.043.r1",
-        "code": "dot",
+        "code": "summon",
         "stat": "magic_attack",
         "value": "0.5",
-        "duration": "3",
+        "duration": "0",
         "target": "enemy",
         "damageType": "magic",
         "group": "contract",
@@ -5551,10 +5551,10 @@
       {
         "id": "skill.player.043.r2.e1",
         "skillLevelId": "skill.player.043.r2",
-        "code": "dot",
+        "code": "summon",
         "stat": "magic_attack",
         "value": "0.55",
-        "duration": "3",
+        "duration": "0",
         "target": "enemy",
         "damageType": "magic",
         "group": "contract",
@@ -5564,10 +5564,10 @@
       {
         "id": "skill.player.043.r3.e1",
         "skillLevelId": "skill.player.043.r3",
-        "code": "dot",
+        "code": "summon",
         "stat": "magic_attack",
         "value": "0.6",
-        "duration": "3",
+        "duration": "0",
         "target": "enemy",
         "damageType": "magic",
         "group": "contract",

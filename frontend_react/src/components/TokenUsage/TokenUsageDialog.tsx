@@ -280,15 +280,18 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
         filters.all !== '1' && filters.start_date && filters.start_date === filters.end_date
     );
     const showHourly = isSingleDayFilter && Boolean(summary?.hours?.length);
-    const chartData = useMemo((): {day: string; hour: string; totalTokens: number}[] => {
+    const chartData = useMemo((): {day: string; hour: string; totalTokens: number; largeModelTokens: number; decisionModelTokens: number}[] => {
         if (!summary) return [];
         if (!showHourly) {
-            return summary.days.map(item => ({day: item.day, hour: '', totalTokens: item.totalTokens}));
+            return summary.days.map(item => ({day: item.day, hour: '', totalTokens: item.totalTokens,
+                largeModelTokens: item.largeModelTokens, decisionModelTokens: item.decisionModelTokens}));
         }
         const byHour = new Map((summary.hours || []).map(item => [item.hour, item]));
         return Array.from({length: 24}, (_, hour) => {
             const key = String(hour).padStart(2, '0');
-            return {day: key, hour: key, totalTokens: byHour.get(key)?.totalTokens || 0};
+            const item = byHour.get(key);
+            return {day: key, hour: key, totalTokens: item?.totalTokens || 0,
+                largeModelTokens: item?.largeModelTokens || 0, decisionModelTokens: item?.decisionModelTokens || 0};
         });
     }, [summary, showHourly]);
     const peakDay = summary?.days?.length
@@ -545,6 +548,10 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                                 <span className="text-xs text-slate-400">
                                     {showHourly ? '(24 小时)' : `(${summary.days.length} 天记录)`}
                                 </span>
+                                <span className="ml-2 inline-flex items-center gap-2 text-[10px] text-slate-500">
+                                    <span className="inline-flex items-center gap-1"><i aria-hidden="true" className="h-2 w-2 rounded-sm bg-orange-500" />大模型</span>
+                                    <span className="inline-flex items-center gap-1"><i aria-hidden="true" className="h-2 w-2 rounded-sm bg-violet-500" />决策</span>
+                                </span>
                             </div>
                             {showHourly ? (
                                 <div className="text-xs text-slate-500">
@@ -599,25 +606,29 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                                             cursor={{fill: '#ffedd5', opacity: 0.4, radius: 6}}
                                             content={({active, payload, label}) => {
                                                 if (!active || !payload?.length) return null;
-                                                const val = Number(payload[0].value || 0);
+                                                const point = payload[0].payload as typeof chartData[number];
                                                 return (
                                                     <div className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2 shadow-md backdrop-blur-xs">
                                                         <p className="text-[11px] font-semibold text-slate-600">
                                                             {showHourly ? `${label}:00` : label}
                                                         </p>
-                                                        <p className="mt-0.5 text-xs font-bold text-orange-600">
-                                                            {tokenNumber(val)}{' '}
-                                                            <span className="text-[10px] font-normal text-slate-400">
-                                                                Tokens
-                                                            </span>
-                                                        </p>
+                                                        <p className="mt-1 text-xs font-bold text-slate-700">总计 {tokenNumber(point.totalTokens)} token</p>
+                                                        <p className="mt-1 text-[11px] text-orange-600">大模型 {tokenNumber(point.largeModelTokens)}</p>
+                                                        <p className="text-[11px] text-violet-600">决策 {tokenNumber(point.decisionModelTokens)}</p>
                                                     </div>
                                                 );
                                             }}
                                         />
                                         <Bar
-                                            dataKey="totalTokens"
+                                            dataKey="largeModelTokens"
+                                            stackId="model-usage"
                                             fill="#f97316"
+                                            maxBarSize={44}
+                                        />
+                                        <Bar
+                                            dataKey="decisionModelTokens"
+                                            stackId="model-usage"
+                                            fill="#8b5cf6"
                                             radius={[6, 6, 0, 0]}
                                             maxBarSize={44}
                                         />
@@ -738,6 +749,9 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
                                             totalTokens > 0
                                                 ? Math.min(100, Math.max(0, (row.totalTokens / totalTokens) * 100))
                                                 : 0;
+                                        const modelTotal = row.largeModelTokens + row.decisionModelTokens;
+                                        const largeModelPercent = modelTotal > 0 ? (row.largeModelTokens / modelTotal) * 100 : 0;
+                                        const decisionModelPercent = modelTotal > 0 ? (row.decisionModelTokens / modelTotal) * 100 : 0;
                                         const title =
                                             group === 'purpose'
                                                 ? purposeNames[row.key] || row.name
@@ -837,16 +851,28 @@ export default function TokenUsageDialog({onClose}: {onClose: () => void}) {
 
                                                 {/* 右侧：占比条 + Token 数值 + 箭头 */}
                                                 <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 pl-9 sm:pl-0">
-                                                    {/* 占比条 */}
-                                                    <div className="hidden md:flex flex-col items-end gap-1">
+                                                    {/* Agent 内部大模型/决策模型构成 */}
+                                                    <div className="flex w-32 flex-col gap-1.5 sm:w-36 lg:w-44">
+                                                        <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-200/80" role="img"
+                                                            aria-label={`模型构成：大模型 ${largeModelPercent.toFixed(1)}%，决策 ${decisionModelPercent.toFixed(1)}%`}>
+                                                            <div className="h-full bg-orange-500" style={{width: `${largeModelPercent}%`}} />
+                                                            <div className="h-full bg-violet-500" style={{width: `${decisionModelPercent}%`}} />
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-500 tabular-nums">
+                                                            大模型 {largeModelPercent.toFixed(1)}% · 决策 {decisionModelPercent.toFixed(1)}%
+                                                        </span>
+                                                    </div>
+
+                                                    {/* 占全部筛选用量的比例 */}
+                                                    <div className="hidden flex-col items-end gap-1 md:flex">
                                                         <div className="h-1.5 w-24 rounded-full bg-slate-200/80 overflow-hidden">
                                                             <div
                                                                 className="h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full"
-                                                                style={{width: `${Math.max(4, percent)}%`}}
+                                                                style={{width: `${percent > 0 ? Math.max(4, percent) : 0}%`}}
                                                             />
                                                         </div>
                                                         <span className="text-[10px] text-slate-400 tabular-nums">
-                                                            占 {percent.toFixed(1)}%
+                                                            占全部 {percent.toFixed(1)}%
                                                         </span>
                                                     </div>
 

@@ -12,7 +12,7 @@ from pathlib import Path
 DIRECTORY = Path(__file__).resolve().parents[2] / 'docs/data/combat'
 SLOTS = {'weapon', 'head', 'body', 'hands', 'feet', 'accessory'}
 EFFECTS = {
-    'damage', 'heal', 'shield', 'dot', 'hot', 'modifier', 'attack_accuracy',
+    'damage', 'heal', 'shield', 'shield_break', 'summon', 'dot', 'hot', 'modifier', 'attack_accuracy',
     'attack_critical', 'attack_penetration', 'missing_hp_damage', 'shared_hit',
     'passive_percent', 'passive_flat', 'passive_cost', 'passive_conversion',
     'passive_low_hp', 'passive_damage', 'passive_duration',
@@ -40,7 +40,7 @@ def number(row: dict, field: str) -> float:
 def validate(directory: Path = DIRECTORY) -> dict[str, list[dict]]:
     manifest = json.loads((directory / 'manifest.json').read_text())
     require(manifest['status'] == 'design_only', 'Unexpected release status')
-    require(manifest['engine_schema'] == 1, 'Unknown schema')
+    require(manifest['engine_schema'] == 3, 'Unknown schema')
     require(set(manifest['files']) == {p.name for p in directory.glob('*.csv')}, 'Unlisted or missing CSV')
     tables = {}
     for name, info in manifest['files'].items():
@@ -112,6 +112,13 @@ def validate(directory: Path = DIRECTORY) -> dict[str, list[dict]]:
         require(0 <= number(row, 'chance') <= 1, 'Invalid effect chance')
         require(int(row['hits']) >= 1 and int(row['duration']) >= 0, 'Invalid hit/duration')
         number(row, 'value')
+        if row['code'] == 'summon':
+            require(row['target'] == 'enemy' and row['damage_type'] in {'physical', 'magic'} and bool(row['group']), 'Invalid summon effect')
+        if row['code'] == 'shield_break':
+            require(row['target'] == 'self' and bool(row['group']), 'Invalid shield-break effect')
+            require(any(peer['skill_level_id'] == row['skill_level_id'] and peer['code'] == 'shield' and
+                        peer['target'] == row['target'] and peer['group'] == row['group']
+                        for peer in tables['skill_effects']), 'Shield-break effect has no matching shield')
     players = [r for r in tables['skills'] if r['kind'] != 'monster']
     require(len(players) == 60, 'Player skill count')
     for skill in tables['skills']:

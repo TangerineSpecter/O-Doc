@@ -1,8 +1,10 @@
 # 战斗内容配置设计包
 
-版本：design-0.1；状态：design_only；更新日期：2026-10-10。
+版本：design-0.3；状态：design_only；更新日期：2026-10-14。
 
 这是配合 [系统规划](../../agents/Agent迷宫探索与战斗系统规划.md) 的可校验配置草案，**尚未接入生产启动、数据库、Agent 日程或 WebDAV**。生产启动器必须拒绝安装 design_only 包。发布版本须增加固定发布时间、兼容版本和迁移说明，不使用本机启动时间决定版本优先级。
+
+本版更新了三项主动技能与 `summon`、`shield_break` 规则。现有数值子模型报告仍针对 design-0.1，未用于宣称本版已完成职业平衡验收。
 
 ## 生成与校验
 
@@ -54,7 +56,7 @@ manifest.json 包含全部 CSV 的 SHA-256、行数、版本及结构版本。�
 
 - professions 的 growth 已是当前职业最终每级成长，不再叠加父职业；累计成长按每次实际升级时的职业保存。父职业关联同时用于继承已学技能与装备权限。
 - skill_levels 中 cost_rank_factor 已包含技能等级倍率，实际耗蓝为 ceil((cost_base + cost_per_level × 角色等级) × cost_rank_factor × 节流系数)，至少 1 MP。被动技能不耗蓝。
-- skill_effects.value 已包含该技能等级增幅，执行时不再乘一遍成长系数。modifier 的 accuracy/evasion/reduction/damage_taken 为比率加减，attack/defense/physical_defense/magic_defense 为原值百分比变化；attack/defense 同时作用物理与魔法。damage 的 hits 是独立段数；shared_hit 使混合伤害共享同次判定。group 标识非叠加状态，空值代表无持续状态。
+- skill_effects.value 已包含该技能等级增幅，执行时不再乘一遍成长系数。modifier 的 accuracy/evasion/reduction/damage_taken 为比率加减，attack/defense/physical_defense/magic_defense 为原值百分比变化；attack/defense 同时作用物理与魔法。damage 的 hits 是独立段数；shared_hit 使混合伤害共享同次判定。summon 按配置的弱/中/强权重选择分支，分支决定段数、伤害倍率和命中后的减益；强档可追加持续伤害。shield_break 与同 skill_level_id、target、group 的 shield 配对；护盾耗尽时触发一次普通魔法伤害。group 标识非叠加状态，空值代表无持续状态。
 - passive_percent 对指定属性按百分比增益；passive_flat 是比率或数值直接相加；passive_cost 降耗蓝；passive_conversion 按 strength_to_magic/spirit_to_magic 转换；passive_low_hp 在 HP 低于 30% 生效；passive_damage 按 burn/poison/contract/elite_boss 增伤；passive_duration 仅延长指定攻击和防御减益。六维被动先算，再派生属性，不循环回流。
 - monster_profiles 的 HP 为 floor((constant + linear×L + quadratic×L²) × profile_multiplier × rank_multiplier)，攻击/防御同理；MP 只用线性公式。普攻类型由 damage_type 指定，怪物伤害技能必须有相应攻击来源。等级抽样与 Boss 规则见规划，不在 CSV 执行字符串公式。
 - monster_actions.condition 只接受 always、hp_below_50、not_active；后两者分别要求生命低于 50%、技能自己的同组效果当前不存在。法力、冷却和目标过滤后再归一化剩余权重；普攻是兜底。

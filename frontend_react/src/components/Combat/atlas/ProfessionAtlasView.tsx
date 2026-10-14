@@ -397,7 +397,8 @@ export function ProfessionAtlasView({catalog}: ProfessionAtlasViewProps) {
                                                             </summary>
                                                             <div className="mt-1 pt-1 border-t border-slate-100 space-y-1 text-slate-600 leading-relaxed">
                                                                 <p className="text-slate-700 font-medium">
-                                                                    {rank.effectsText || '无特殊效果'}
+                                                                    <span className="text-slate-500">技能说明：</span>
+                                                                    {rank.description || rank.effectsText || '无特殊效果'}
                                                                 </p>
                                                                 {skill.kind === 'active' && (
                                                                     <p className="text-[10px] text-slate-400">

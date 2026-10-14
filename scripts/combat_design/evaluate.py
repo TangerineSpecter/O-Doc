@@ -272,9 +272,9 @@ def main() -> None:
                 'evaluation_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                 'csv_hashes': {name: row['sha256'] for name, row in manifest['files'].items()}}
     (OUTPUT / 'inputs.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + '\n')
-    text = '''# Agent 战斗系统数值子模型评估
+    text = f'''# Agent 战斗系统数值子模型评估
 
-日期：2026-10-10；目录版本：design-0.1；固定种子起点：20261010。
+日期：2026-10-10；目录版本：{manifest['version']}；固定种子起点：20261010。
 
 这份评估验证配置、动作权重、成长、经验曲线、Boss 概率及掉落预算，**不是完整战斗模拟或生产验收**。不包含真实模型选择、技能连招/持续效果、装备最优组合、实际存活率、药剂消耗和净收入；因此不能据此宣布职业或地牢已经平衡。
 

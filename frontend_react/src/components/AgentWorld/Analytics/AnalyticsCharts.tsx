@@ -58,8 +58,8 @@ function CustomTooltip({
 
 export function ActivityChart({data, individual}: {data: ResidentAnalytics['daily']; individual: boolean}) {
     return (
-        <div className="h-64 w-full min-w-0" role="img" aria-label="每日行为次数与活跃居民趋势">
-            <ResponsiveContainer width="100%" height="100%">
+        <div className="relative h-64 w-full min-w-0 overflow-hidden" role="img" aria-label="每日行为次数与活跃居民趋势">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                 <AreaChart data={data} margin={{left: -16, right: 16, top: 10, bottom: 0}}>
                     <defs>
                         <linearGradient id="activityGradient" x1="0" y1="0" x2="0" y2="1">
@@ -302,8 +302,8 @@ export function FinanceChart({data}: {data: ResidentAnalytics['daily']}) {
                 </div>
             </div>
 
-            <div className="h-60 w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
+            <div className="relative h-60 w-full min-w-0 overflow-hidden">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                     <BarChart
                         data={points}
                         margin={{left: -12, right: 12, top: 10, bottom: 0}}

@@ -31,17 +31,17 @@ skill.player.029,破甲斩,job.swordmaster,70,active,1
 skill.player.030,剑意,job.swordmaster,80,passive,1
 skill.player.031,魔刃斩,job.spellblade,70,active,1
 skill.player.032,魔刃修习,job.spellblade,80,passive,1
-skill.player.033,圣盾,job.paladin,70,active,1
+skill.player.033,圣盾 (Holy Aegis),job.paladin,70,active,1
 skill.player.034,圣铠,job.paladin,80,passive,1
 skill.player.035,狂怒击,job.berserker,70,active,1
 skill.player.036,不屈,job.berserker,80,passive,1
 skill.player.037,炎爆,job.pyromancer,70,active,1
 skill.player.038,炽热,job.pyromancer,80,passive,1
-skill.player.039,冰封术,job.cryomancer,70,active,1
+skill.player.039,暴风雪,job.cryomancer,70,active,1
 skill.player.040,寒霜护体,job.cryomancer,80,passive,1
 skill.player.041,衰败咒,job.warlock,70,active,1
 skill.player.042,咒术延展,job.warlock,80,passive,1
-skill.player.043,魔灵契约,job.summoner,70,active,1
+skill.player.043,魔灵契约 (Spirit Pact),job.summoner,70,active,1
 skill.player.044,契约精通,job.summoner,80,passive,1
 skill.player.045,穿透箭,job.sharpshooter,70,active,1
 skill.player.046,精准要害,job.sharpshooter,80,passive,1

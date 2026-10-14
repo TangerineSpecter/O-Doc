@@ -10,10 +10,9 @@
     }
 
     [role="dialog"].world-dialog-sized {
-        width: min(100%, calc(88vh * var(--world-dialog-ratio)));
-        height: auto;
+        width: min(calc(100vw - 2.5rem), calc(88vh * var(--world-dialog-ratio)));
+        height: 88vh;
         max-height: 88vh;
-        aspect-ratio: var(--world-dialog-ratio);
     }
 
     .world-dialog-sized-extra-wide {
@@ -38,13 +37,11 @@
 .world-dialog-panel-enter {
     animation: world-dialog-panel-mobile-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
     transform-origin: center center;
-    will-change: transform, opacity;
 }
 
 .world-dialog-panel-exit {
     animation: world-dialog-panel-mobile-out 0.16s cubic-bezier(0.4, 0, 1, 1) both;
     transform-origin: center center;
-    will-change: transform, opacity;
 }
 
 @keyframes world-dialog-backdrop-in {

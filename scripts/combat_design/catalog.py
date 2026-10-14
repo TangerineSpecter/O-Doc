@@ -14,7 +14,7 @@ OUTPUT = ROOT / 'docs/data/combat'
 STATS = ('strength', 'dexterity', 'intelligence', 'vitality', 'spirit', 'luck')
 JOB_KEYS = dict(zip(
     ('新手 战士 法师 游侠 牧师 剑士 守卫 元素师 秘术师 弓手 刺客 祭司 自然使 '
-     '剑圣 魔剑士 圣骑士 狂战士 炎术师 冰术师 咒术师 召唤师 神射手 猎人 '
+               '剑圣 魔剑士 圣骑士 狂战士 炎术师 冰术师 咒术师 召唤师 神射手 猎人 '
      '影舞者 诡术师 神官 审判者 德鲁伊 守望者').split(),
     ('novice warrior mage ranger priest swordsman guardian elementalist occultist '
      'archer assassin cleric naturalist swordmaster spellblade paladin berserker '
@@ -22,10 +22,12 @@ JOB_KEYS = dict(zip(
      'trickster highpriest inquisitor druid warden').split(), strict=True))
 SKILL_NAMES = ('重斩 护体 健壮 魔力弹 魔法屏障 冥想 精准射击 闪身 灵巧 治愈术 圣光 信念 '
                '连斩 剑术精通 盾击 坚壁 灼烧术 元素专注 虚弱咒 秘术节流 蓄力箭 鹰眼 背刺 致命技巧 '
-               '恢复祷言 治疗精通 荆棘术 自然韧性 破甲斩 剑意 魔刃斩 魔刃修习 圣盾 圣铠 狂怒击 不屈 '
-               '炎爆 炽热 冰封术 寒霜护体 衰败咒 咒术延展 魔灵契约 契约精通 穿透箭 精准要害 '
+               '恢复祷言 治疗精通 荆棘术 自然韧性 破甲斩 剑意 魔刃斩 魔刃修习 圣盾_Holy_Aegis 圣铠 狂怒击 不屈 '
+               '炎爆 炽热 暴风雪 寒霜护体 衰败咒 咒术延展 魔灵契约_Spirit_Pact 契约精通 穿透箭 精准要害 '
                '猎杀标记 狩猎经验 影袭 影步 毒刃 毒术精通 大治愈术 神恩 审判之光 圣光精通 '
                '回春术 自然祝福 森林结界 守望意志').split()
+SKILL_NAMES = [{'圣盾_Holy_Aegis': '圣盾 (Holy Aegis)',
+                '魔灵契约_Spirit_Pact': '魔灵契约 (Spirit Pact)'}.get(name, name) for name in SKILL_NAMES]
 # 编号固定，不能因文档排序改变身份；新增技能在末尾分配新编号，改名保留原编号。
 SKILL_IDS = {name:f'skill.player.{index:03d}' for index,name in enumerate(SKILL_NAMES,1)}
 
@@ -70,17 +72,30 @@ def player_effects() -> dict[str, list[dict]]:
         '恢复祷言': [hot(.55)], '荆棘术': [damage(1.1, True), status('accuracy', -.08, 2)],
         '破甲斩': [damage(1.8), status('physical_defense', -.20, 3)],
         '魔刃斩': [damage(.9), damage(.9, True), effect('shared_hit', '', 1)],
-        '圣盾': [shield(1.2, 'healing', 3), heal(.5)],
+        '圣盾 (Holy Aegis)': [effect('shield', 'hp_max', (.2, .25, .3), 3, 'self', group='holy_aegis'),
+                               effect('shield_break', 'healing', 1.5, target='self', damage_type='magic', group='holy_aegis')],
         '狂怒击': [damage(1.6), effect('missing_hp_damage', '', .5)],
-        '炎爆': [damage(1.8, True), dot(.25)], '冰封术': [damage(1.5, True), status('attack', -.20, 2)],
+        '炎爆': [damage(1.8, True), dot(.25)], '暴风雪': [damage(.5, True, hits=3), status('attack', -.20, 2)],
         '衰败咒': [dot(.4, 'decay'), status('defense', -.15, 3)],
-        '魔灵契约': [dot(.5, 'contract')], '穿透箭': [damage(1.8), effect('attack_penetration', '', .20)],
+        '魔灵契约 (Spirit Pact)': [effect('summon', 'magic_attack', .5, target='enemy', damage_type='magic', group='contract')],
+        '穿透箭': [damage(1.8), effect('attack_penetration', '', .20)],
         '猎杀标记': [status('damage_taken', .20, 3)], '影袭': [damage(.65, hits=3)],
         '毒刃': [damage(1.3), dot(.25, 'poison', False)], '大治愈术': [heal(2.2)],
         '审判之光': [damage(1.3, True), effect('damage', 'spirit', .6, damage_type='magic'), effect('shared_hit', '', 1)],
         '回春术': [hot(.6), status('reduction', .15, 3, 'self')],
         '森林结界': [status('reduction', .20, 3, 'self'), status('accuracy', -.10, 3)],
     }
+
+
+def skill_description(name: str, description: str, rank: int) -> str:
+    if name != '魔灵契约 (Spirit Pact)':
+        return description
+    scale = 1 + .1 * (rank - 1)
+    number = lambda value: f'{value * scale:.3f}'.rstrip('0').rstrip('.')
+    return (f'弱档 60%：2 段，每段 {number(.5)} 倍魔攻，降低命中 {number(8)} 个百分点 1 轮；'
+            f'中档 30%：3 段，每段 {number(.6)} 倍魔攻，降低攻击 {number(10)}% 1 轮；'
+            f'强档 10%：4 段，每段 {number(.8)} 倍魔攻，降低防御 {number(12)}% 2 轮，'
+            f'并灼烧 2 轮（每轮 {number(.25)} 倍魔攻）。')
 
 
 def passive_effects() -> dict[str, list[tuple[str,str,tuple[float,...]]]]:
@@ -166,12 +181,19 @@ def build() -> dict[str, list[dict]]:
             cost=(0,0)
             if name in active:
                 cost=tuple(map(float,active[name][2].rstrip('L').split('+')))
+            description=skill_description(name, active[name][1], rank) if kind=='active' else passive[name]
             put('skill_levels',dict(id=rid,skill_id=sid,rank=rank,required_level=min(99,learn+10*(rank-1)),
                  cost_base=cost[0],cost_per_level=cost[1],cost_rank_factor=1+.15*(rank-1),
-                 cooldown_rounds=int(active[name][3]) if kind=='active' else 0,description=active[name][1] if kind=='active' else passive[name],enabled=1))
+                 cooldown_rounds=int(active[name][3]) if kind=='active' else 0,description=description,enabled=1))
             if kind=='active':
                 for number,fx in enumerate(codes[name],1):
-                    value=fx['value'] if fx['code']=='shared_hit' else round(fx['value']*(1+.1*(rank-1)),6)
+                    configured=fx['value']
+                    if isinstance(configured,(tuple,list)):
+                        value=configured[rank-1]
+                    elif fx['code']=='shared_hit':
+                        value=configured
+                    else:
+                        value=round(configured*(1+.1*(rank-1)),6)
                     put('skill_effects',dict(id=f'{rid}.e{number}',skill_level_id=rid,**{**fx,'value':value},chance=1))
             else:
                 for number,(code,stat,values) in enumerate(passives[name],1):
@@ -333,7 +355,7 @@ def main() -> None:
         with path.open('w',newline='',encoding='utf-8') as stream:
             writer=csv.DictWriter(stream,fieldnames=list(values[0]));writer.writeheader();writer.writerows(values)
         files[path.name]={'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'rows':len(values)}
-    (OUTPUT/'manifest.json').write_text(json.dumps(dict(version='design-0.1',status='design_only',engine_schema=1,files=files),ensure_ascii=False,indent=2)+'\n')
+    (OUTPUT/'manifest.json').write_text(json.dumps(dict(version='design-0.3',status='design_only',engine_schema=3,files=files),ensure_ascii=False,indent=2)+'\n')
     print(json.dumps({key:len(value) for key,value in rows.items()},ensure_ascii=False))
 
 

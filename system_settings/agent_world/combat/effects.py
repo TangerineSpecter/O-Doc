@@ -4,6 +4,28 @@ from fractions import Fraction
 from .catalog import Catalog
 
 
+SUMMON_VARIANTS = (
+    {'name': '契约水滴史莱姆', 'probability': .6, 'hits': 2, 'damage_multiplier': 1.0,
+     'debuff': {'stat': 'accuracy', 'value': -.08, 'duration': 1, 'group': 'contract_weak_accuracy'}},
+    {'name': '暗影雷霆石像鬼', 'probability': .3, 'hits': 3, 'damage_multiplier': 1.2,
+     'debuff': {'stat': 'attack', 'value': -.10, 'duration': 1, 'group': 'contract_medium_attack'}},
+    {'name': '深渊熔岩巨像', 'probability': .1, 'hits': 4, 'damage_multiplier': 1.6,
+     'debuff': {'stat': 'defense', 'value': -.12, 'duration': 2, 'group': 'contract_strong_defense'},
+     'burn_value': .25, 'burn_duration': 2},
+)
+LEGACY_SUMMON_VARIANTS = tuple(
+    {'name': row['name'], 'probability': 1 / 3, 'hits': row['hits'], 'damage_multiplier': 1.0}
+    for row in (
+        {'name': '契约水滴史莱姆', 'hits': 2},
+        {'name': '暗影雷霆石像鬼', 'hits': 3},
+        {'name': '深渊熔岩巨像', 'hits': 4},
+    )
+)
+LEGACY_SUMMON_CATALOG = 'combat-1.0.1'
+HOLY_AEGIS_SKILL_ID = 'skill.player.033'
+HOLY_AEGIS_SHIELD_GROUP = 'holy_aegis'
+
+
 def clamp(value, low=0, high=1):
     return max(low, min(high, value))
 
@@ -41,16 +63,19 @@ def damage(raw, kind: str, attacker_level: int, target: dict, *, penetration=0, 
     return max(1, math.floor(result))
 
 
-def hurt(target: dict, amount: int) -> tuple[int, int]:
+def hurt(target: dict, amount: int) -> tuple[int, int, dict | None]:
     shield = next((s for s in target['states'] if s['code'] == 'shield'), None)
     absorbed = min(amount, shield['remaining']) if shield else 0
+    broken = None
     if shield:
         shield['remaining'] -= absorbed
         if shield['remaining'] <= 0:
+            if shield['group'] == HOLY_AEGIS_SHIELD_GROUP:
+                broken = dict(shield)
             target['states'].remove(shield)
     taken = min(target['hp'], amount - absorbed)
     target['hp'] -= taken
-    return taken, absorbed
+    return taken, absorbed, broken
 
 
 def status(target: dict, effect: dict) -> None:
@@ -73,11 +98,67 @@ def status(target: dict, effect: dict) -> None:
         same['expires'] = expires
 
 
+def _summon_variant(catalog: Catalog, rng) -> dict:
+    variants = LEGACY_SUMMON_VARIANTS if catalog.version == LEGACY_SUMMON_CATALOG else SUMMON_VARIANTS
+    roll = rng.random()
+    cumulative = 0.0
+    for variant in variants:
+        cumulative += variant['probability']
+        if roll < cumulative:
+            return variant
+    return variants[-1]
+
+
+def _apply_summon_aftermath(attacker: dict, target: dict, variant: dict, effect: dict,
+                            action_name: str, tick: int, passive_bonus: float,
+                            group_bonus: float) -> list[dict]:
+    if target['hp'] <= 0:
+        return []
+    rank_scale = float(effect['value']) / .5
+    events = []
+    debuff = variant.get('debuff')
+    if debuff:
+        duration = int(debuff['duration'])
+        status(target, {'code': 'modifier', 'group': debuff['group'], 'stat': debuff['stat'],
+                        'value': float(debuff['value']) * rank_scale, 'name': action_name,
+                        'expires': tick + duration})
+        events.append({'actor': attacker['name'], 'target': target['name'], 'action': action_name,
+                       'kind': 'modifier', 'duration': duration, 'group': debuff['group']})
+    if variant.get('burn_value'):
+        burn_value = float(variant['burn_value']) * rank_scale
+        burn_bonus = sum(float(row['value']) for row in attacker['passives']
+                         if row['code'] == 'passive_damage' and row['stat'] == 'burn')
+        raw = value(attacker, 'magic_attack') * burn_value
+        raw *= 1 + clamp(passive_bonus + group_bonus + burn_bonus, 0, 2)
+        duration = int(variant['burn_duration'])
+        status(target, {'code': 'dot', 'group': 'burn', 'stat': 'magic_attack', 'value': burn_value,
+                        'name': action_name, 'raw': raw, 'remaining': duration, 'next_tick': tick,
+                        'source_level': attacker['level'], 'damage_type': 'magic'})
+        events.append({'actor': attacker['name'], 'target': target['name'], 'action': action_name,
+                       'kind': 'dot', 'duration': duration, 'group': 'burn'})
+    return events
+
+
 def expire(fighter: dict, tick: int) -> None:
     fighter['states'] = [s for s in fighter['states'] if s['code'] in ('dot', 'hot') or s['expires'] > tick]
 
 
-def upkeep(fighter: dict, tick: int, events: list[dict]) -> None:
+def _shield_break(catalog: Catalog, bearer: dict, opponent: dict, shield: dict, tick: int, rng) -> list[dict]:
+    if shield['group'] != HOLY_AEGIS_SHIELD_GROUP or bearer['hp'] <= 0 or opponent['hp'] <= 0:
+        return []
+    rank = bearer['skills'].get(HOLY_AEGIS_SKILL_ID)
+    if not rank:
+        return []
+    _, effects = catalog.skill(HOLY_AEGIS_SKILL_ID, rank)
+    retribution = next((fx for fx in effects if fx['code'] == 'shield_break' and fx['group'] == shield['group']), None)
+    if not retribution:
+        return []
+    effect = {'code': 'damage', 'stat': retribution['stat'], 'value': float(retribution['value']),
+              'hits': 1, 'damage_type': retribution['damage_type'] or 'magic'}
+    return apply(catalog, bearer, opponent, [effect], '圣盾（Holy Aegis）·圣光十字波·圣光十字裁决圣柱', tick, rng)
+
+
+def upkeep(fighter: dict, tick: int, events: list[dict], *, opponent=None, catalog=None, rng=None) -> None:
     expire(fighter, tick)
     for code in ('dot', 'hot'):
         for state in list(fighter['states']):
@@ -85,8 +166,10 @@ def upkeep(fighter: dict, tick: int, events: list[dict]) -> None:
                 continue
             if code == 'dot':
                 amount = damage(state['raw'], state['damage_type'], state['source_level'], fighter)
-                taken, absorbed = hurt(fighter, amount)
+                taken, absorbed, broken = hurt(fighter, amount)
                 events.append({'actor': fighter['name'], 'action': state['name'], 'damage': taken, 'absorbed': absorbed, 'kind': 'dot'})
+                if broken and opponent is not None and catalog is not None and rng is not None:
+                    events.extend(_shield_break(catalog, fighter, opponent, broken, tick, rng))
             else:
                 restored = min(fighter['stats']['hp_max'] - fighter['hp'], math.floor(state['raw']))
                 fighter['hp'] += restored
@@ -102,7 +185,7 @@ def upkeep(fighter: dict, tick: int, events: list[dict]) -> None:
 def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], name: str, tick: int, rng) -> list[dict]:
     events = []
     parameter = lambda code: sum(float(f['value']) for f in effects if f['code'] == code)
-    direct = [f for f in effects if f['code'] == 'damage']
+    direct = [f for f in effects if f['code'] in ('damage', 'summon')]
     shared = bool(parameter('shared_hit'))
     critical_bonus = parameter('attack_critical')
     accuracy_bonus = parameter('attack_accuracy')
@@ -110,24 +193,44 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
     successful, shared_hit, shared_critical = False, None, None
     passive_bonus = sum(float(f['value']) for f in attacker['passives'] if f['code'] == 'passive_damage' and f['stat'] == 'elite_boss' and target.get('rank') in ('elite', 'boss'))
     for effect in direct:
-        for _ in range(int(effect['hits'])):
-            landed = shared_hit if shared and shared_hit is not None else hit(attacker, target, rng, accuracy_bonus)
-            critical = shared_critical if shared and shared_critical is not None else rng.random() < clamp(value(attacker, 'critical') + critical_bonus, 0, .6)
-            if shared:
+        summon = effect['code'] == 'summon'
+        variant = _summon_variant(catalog, rng) if summon else None
+        hit_count = int(variant['hits']) if variant else int(effect['hits'])
+        action_name = f'{name}·{variant["name"]}' if variant else name
+        group_bonus = sum(float(f['value']) for f in attacker['passives']
+                          if f['code'] == 'passive_damage' and f['stat'] == effect.get('group')) if summon else 0
+        variant_successful = False
+        for _ in range(hit_count):
+            if attacker['hp'] <= 0 or target['hp'] <= 0:
+                break
+            use_shared_roll = shared and not summon
+            landed = shared_hit if use_shared_roll and shared_hit is not None else hit(attacker, target, rng, accuracy_bonus)
+            critical = shared_critical if use_shared_roll and shared_critical is not None else rng.random() < clamp(value(attacker, 'critical') + critical_bonus, 0, .6)
+            if use_shared_roll:
                 shared_hit, shared_critical = landed, critical
             successful |= landed
+            variant_successful |= landed
             raw = value(attacker, effect['stat']) * float(effect['value'])
-            extra = (1 + parameter('missing_hp_damage') * (1 - attacker['hp'] / attacker['stats']['hp_max'])) * (1 + clamp(passive_bonus, 0, 2)) * (1 + clamp(value(target, 'damage_taken'), 0, 1))
+            if variant:
+                raw *= float(variant['damage_multiplier'])
+            extra = (1 + parameter('missing_hp_damage') * (1 - attacker['hp'] / attacker['stats']['hp_max'])) * (1 + clamp(passive_bonus + group_bonus, 0, 2)) * (1 + clamp(value(target, 'damage_taken'), 0, 1))
             amount = damage(raw, effect['damage_type'], attacker['level'], target, penetration=penetration,
                             variation=rng.uniform(.95, 1.05), critical=value(attacker, 'critical_damage') if critical else 1, extra=extra) if landed else 0
-            taken, absorbed = hurt(target, amount)
-            events.append({'actor': attacker['name'], 'target': target['name'], 'action': name, 'kind': 'damage',
+            taken, absorbed, broken = hurt(target, amount)
+            events.append({'actor': attacker['name'], 'target': target['name'], 'action': action_name, 'kind': 'damage',
                            'damage': taken, 'absorbed': absorbed, 'hit': landed, 'critical': landed and critical})
+            if broken:
+                events.extend(_shield_break(catalog, target, attacker, broken, tick, rng))
+        if variant and variant_successful:
+            events.extend(_apply_summon_aftermath(attacker, target, variant, effect, action_name,
+                                                   tick, passive_bonus, group_bonus))
     enemy_status = [f for f in effects if f.get('target') == 'enemy' and f['code'] in ('modifier', 'dot')]
     if not direct and enemy_status:
         successful = hit(attacker, target, rng, accuracy_bonus)
     for fx in effects:
         code = fx['code']
+        if code == 'shield_break':
+            continue
         if code not in ('heal', 'shield', 'hot', 'dot', 'modifier'):
             continue
         receiver = attacker if fx['target'] == 'self' else target
