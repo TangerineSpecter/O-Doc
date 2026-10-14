@@ -227,10 +227,15 @@ export function getEquipmentVisual(slot: string, name: string = '', isBossOnly =
         else if (name.includes('弓')) icon = Crosshair;
         else if (name.includes('杖')) icon = Wand2;
         else icon = Sword;
+    } else if (slot === 'offhand') {
+        icon = name.includes('魔法') ? Wand2 : Shield;
     } else if (slot === 'head') {
         icon = Crown;
     } else if (slot === 'body') {
-        icon = Shield;
+        if (name.includes('布甲')) icon = BookOpen;
+        else if (name.includes('皮甲')) icon = Feather;
+        else if (name.includes('轻甲')) icon = Footprints;
+        else icon = Shield;
     } else if (slot === 'hands') {
         icon = Hand;
     } else if (slot === 'feet') {
@@ -273,7 +278,12 @@ export function getProfessionVisual(id: string, _name: string = '', _parentId: s
         color = 'text-slate-600';
         bgGradient = 'from-slate-50 to-slate-100/40';
         border = 'border-slate-200';
-    } else if (id.includes('warrior') || id.includes('swordsman') || id.includes('guardian') || id.includes('swordmaster') || id.includes('spellblade') || id.includes('paladin') || id.includes('berserker')) {
+    } else if (id.includes('spellblade')) {
+        icon = Shield;
+        color = 'text-slate-600';
+        bgGradient = 'from-slate-50 to-blue-50/30';
+        border = 'border-slate-300';
+    } else if (id.includes('warrior') || id.includes('swordsman') || id.includes('guardian') || id.includes('swordmaster') || id.includes('paladin') || id.includes('berserker')) {
         icon = Swords;
         color = 'text-orange-600';
         bgGradient = 'from-orange-50 to-red-50/30';

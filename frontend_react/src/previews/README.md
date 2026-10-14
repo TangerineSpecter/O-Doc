@@ -237,7 +237,7 @@ Node 22 TypeScript、正式应用生产构建通过；新增文件 ESLint 无警
 `combatAtlasFixture.json` 是生产 CSV 目录的只读驼峰快照，不是居民数据；正式图鉴继续读取现有接口，生产组件不依赖预览 fixture。默认应用构建不包含独立预览 HTML。
 
 - 29 个职业共享原新手头部、靴子、身体框架与统一手掌，各有独立服装和职业氛围。静态列表由 `Combat/art/playerStillArt.ts` 生成缓存 PNG，详情用 `PlayerPortraitRenderer` 复用相同装配，列表不逐卡创建 WebGL。
-- 6 件已确认武器通过 `EquipmentPortrait` 展示，原源图未重画；换武器与职业外观解耦。
+- 6 件已确认武器绘制素材继续由 `EquipmentPortrait` 展示，原源图未重画；新增双手杖与副手装备按目录类型显示槽位图标，换武器与职业外观解耦。
 - 32 个目录主动技能及新手基础攻击示意均可播放；`Combat/animation/skillPreview/` 分离登记、绘制、场景和控件，弹窗支持重播、暂停、进度与演示武器替换。仅为视觉演示，不写入已学技能或结算伤害。
 - 24 件目录材料使用 `materialVisuals.ts` / `materialArtDrawing.ts` 同源像素绘制，列表详情共用，掉落、价格与稳定 ID 未变。
 

@@ -1,10 +1,10 @@
 # 战斗内容配置设计包
 
-版本：design-0.4；状态：design_only；更新日期：2026-10-14。
+版本：design-0.5；engine_schema=4；状态：design_only；更新日期：2026-10-14。
 
 这是配合 [系统规划](../../agents/Agent迷宫探索与战斗系统规划.md) 的可校验配置草案，**尚未接入生产启动、数据库、Agent 日程或 WebDAV**。生产启动器必须拒绝安装 design_only 包。发布版本须增加固定发布时间、兼容版本和迁移说明，不使用本机启动时间决定版本优先级。
 
-本版更新了三项主动技能与 `summon`、`shield_break` 规则，并将装备判定机会改为每 5 分钟一次、普通/精英未中即消耗。数值子模型报告按本版规则重跑，仍不代表完整战斗平衡验收。
+本版更新了盾卫路线、盾墙反伤、磐石之躯、11 项装备精通及七槽装备配置；增加 `reflect` 和装备条件被动效果码。装备判定机会仍为每 5 分钟一次、普通/精英未中即消耗。设计包不代表生产战斗目录，也不代表完整战斗平衡验收。
 
 ## 生成与校验
 
@@ -27,22 +27,22 @@ manifest.json 包含全部 CSV 的 SHA-256、行数、版本及结构版本。�
 | 文件 | 行数 | 用途 | 实际列 |
 | --- | ---: | --- | --- |
 | professions.csv | 29 | 职业树及最终每级六维、固定 HP/MP 成长 | id、name、parent_id、stage、required_level、hp_growth、mp_growth、enabled、strength_growth、dexterity_growth、intelligence_growth、vitality_growth、spirit_growth、luck_growth |
-| skills.csv | 70 | 玩家与怪物技能身份及归属 | id、name、profession_id、learn_level、kind、enabled |
-| skill_levels.csv | 190 | 自动学习、升级、耗蓝及冷却 | id、skill_id、rank、required_level、cost_base、cost_per_level、cost_rank_factor、cooldown_rounds、description、enabled |
-| skill_effects.csv | 263 | 每级技能的可执行数字效果 | id、skill_level_id、code、stat、value、duration、target、damage_type、group、hits、chance |
+| skills.csv | 81 | 玩家 71 项、魔物 10 项技能身份及归属 | id、name、profession_id、learn_level、kind、enabled |
+| skill_levels.csv | 223 | 自动学习、升级、耗蓝及冷却 | id、skill_id、rank、required_level、cost_base、cost_per_level、cost_rank_factor、cooldown_rounds、description、enabled |
+| skill_effects.csv | 338 | 每级技能的可执行数字效果 | id、skill_level_id、code、stat、value、duration、target、damage_type、group、hits、chance |
 | dungeons.csv | 6 | 地牢范围及唯一 Boss 概率参数 | id、name、recommended_level_min、recommended_level_max、boss_id、boss_level_min、boss_level_max、boss_start_kills、boss_probability_step、boss_probability_cap、enabled |
 | monsters.csv | 24 | 怪物等级、品阶与成长档案 | id、name、rank、profile、level_min、level_max、enabled |
 | dungeon_monsters.csv | 18 | 非 Boss 遭遇权重与区域关联 | id、dungeon_id、monster_id、level_min、level_max、encounter_weight、drop_table_id、enabled |
 | monster_actions.csv | 53 | 普攻/技能权重和条件码 | id、monster_id、action_kind、skill_id、weight、condition |
 | materials.csv | 24 | 固定材料等级和商店回收价格 | id、name、level、sale_price、enabled |
 | drops.csv | 48 | 各怪物的材料和普通装备池来源 | id、monster_id、item_kind、item_id、weight、quantity_min、quantity_max |
-| equipment_templates.csv | 17 | 装备部位、等级成长与 Boss 专属标记 | id、name、slot、root_job、level_min、level_max、physical_attack_base、physical_attack_growth、magic_attack_base、magic_attack_growth、hp_base、hp_growth、mp_base、mp_growth、physical_defense_base、physical_defense_growth、magic_defense_base、magic_defense_growth、healing_base、healing_growth、evasion、boss_only、enabled |
+| equipment_templates.csv | 36 | 七槽装备、等级成长、类型、精通限制与 Boss 专属标记 | id、name、slot、root_job、level_min、level_max、physical_attack_base、physical_attack_growth、magic_attack_base、magic_attack_growth、hp_base、hp_growth、mp_base、mp_growth、physical_defense_base、physical_defense_growth、magic_defense_base、magic_defense_growth、healing_base、healing_growth、evasion、boss_only、enabled、equipment_type、required_mastery、grip |
 | boss_drops.csv | 6 | Boss 专属护符及概率 | id、monster_id、equipment_id、exclusive_probability |
 | affixes.csv | 17 | 随机词条范围及单位 | id、stat、min_base、min_growth、max_base、max_growth、unit、enabled |
-| affix_slots.csv | 68 | 词条适用槽位 | id、affix_id、slot |
-| equipment_professions.csv | 359 | 装备职业权限 | id、equipment_id、profession_id |
-| equipment_affixes.csv | 203 | 各装备可抽词条与权重 | id、equipment_id、affix_id、weight |
-| equipment_pools.csv | 66 | 区域普通装备池 | id、pool_id、equipment_id、weight |
+| affix_slots.csv | 77 | 词条适用槽位 | id、affix_id、slot |
+| equipment_professions.csv | 904 | 装备职业权限 | id、equipment_id、profession_id |
+| equipment_affixes.csv | 365 | 各装备可抽词条与权重 | id、equipment_id、affix_id、weight |
+| equipment_pools.csv | 180 | 区域普通装备池 | id、pool_id、equipment_id、weight |
 | potions.csv | 8 | 常驻补给的购买条件、价格和恢复量 | id、name、kind、restore_value、required_level、purchase_price、shared_cooldown_rounds、enabled |
 | styles.csv | 5 | 五种风格的动作参数 | id、name、attack_weight、skill_weight、heal_threshold、mana_threshold、defend_factor、enabled |
 | level_experience.csv | 99 | 1～99 级升级需求，99 级下一等级需求为 0 | id、level、experience_to_next |

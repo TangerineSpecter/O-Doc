@@ -89,12 +89,12 @@ skill.player.029.r3,skill.player.029,3,90,10.0,0.9,1.3,4,1.8 倍物攻，敌人�
 skill.player.030.r1,skill.player.030,1,80,0,0,1.0,0,物攻 +5% / 7.5% / 10%,1
 skill.player.030.r2,skill.player.030,2,90,0,0,1.15,0,物攻 +5% / 7.5% / 10%,1
 skill.player.030.r3,skill.player.030,3,99,0,0,1.3,0,物攻 +5% / 7.5% / 10%,1
-skill.player.031.r1,skill.player.031,1,70,11.0,1.0,1.0,3,同段 0.9 倍物攻加 0.9 倍魔攻，分别减伤,1
-skill.player.031.r2,skill.player.031,2,80,11.0,1.0,1.15,3,同段 0.9 倍物攻加 0.9 倍魔攻，分别减伤,1
-skill.player.031.r3,skill.player.031,3,90,11.0,1.0,1.3,3,同段 0.9 倍物攻加 0.9 倍魔攻，分别减伤,1
-skill.player.032.r1,skill.player.032,1,80,0,0,1.0,0,力量的 10% / 15% / 20% 额外贡献魔攻,1
-skill.player.032.r2,skill.player.032,2,90,0,0,1.15,0,力量的 10% / 15% / 20% 额外贡献魔攻,1
-skill.player.032.r3,skill.player.032,3,99,0,0,1.3,0,力量的 10% / 15% / 20% 额外贡献魔攻,1
+skill.player.031.r1,skill.player.031,1,70,11.0,1.0,1.0,5,自身减伤 20% / 25% / 30%，持续 3 轮；期间每次受到命中的敌方攻击行动后，按该行动命中的原始伤害总和反弹 10% / 15% / 20%，按物理/魔法类型经过敌方防御结算，不暴击、不递归,1
+skill.player.031.r2,skill.player.031,2,80,11.0,1.0,1.15,5,自身减伤 20% / 25% / 30%，持续 3 轮；期间每次受到命中的敌方攻击行动后，按该行动命中的原始伤害总和反弹 10% / 15% / 20%，按物理/魔法类型经过敌方防御结算，不暴击、不递归,1
+skill.player.031.r3,skill.player.031,3,90,11.0,1.0,1.3,5,自身减伤 20% / 25% / 30%，持续 3 轮；期间每次受到命中的敌方攻击行动后，按该行动命中的原始伤害总和反弹 10% / 15% / 20%，按物理/魔法类型经过敌方防御结算，不暴击、不递归,1
+skill.player.032.r1,skill.player.032,1,80,0,0,1.0,0,生命上限 +5% / 7.5% / 10%,1
+skill.player.032.r2,skill.player.032,2,90,0,0,1.15,0,生命上限 +5% / 7.5% / 10%,1
+skill.player.032.r3,skill.player.032,3,99,0,0,1.3,0,生命上限 +5% / 7.5% / 10%,1
 skill.player.033.r1,skill.player.033,1,70,10.0,0.9,1.0,5,圣盾吸收最大生命值 20% / 25% / 30% 的伤害，持续 3 轮；破盾时以 1.5 / 1.65 / 1.8 倍治疗强度造成一次魔法伤害,1
 skill.player.033.r2,skill.player.033,2,80,10.0,0.9,1.15,5,圣盾吸收最大生命值 20% / 25% / 30% 的伤害，持续 3 轮；破盾时以 1.5 / 1.65 / 1.8 倍治疗强度造成一次魔法伤害,1
 skill.player.033.r3,skill.player.033,3,90,10.0,0.9,1.3,5,圣盾吸收最大生命值 20% / 25% / 30% 的伤害，持续 3 轮；破盾时以 1.5 / 1.65 / 1.8 倍治疗强度造成一次魔法伤害,1
@@ -179,6 +179,39 @@ skill.player.059.r3,skill.player.059,3,90,10.0,0.9,1.3,5,自身减伤 20%，敌�
 skill.player.060.r1,skill.player.060,1,80,0,0,1.0,0,魔防与精神各 +5% / 7.5% / 10%,1
 skill.player.060.r2,skill.player.060,2,90,0,0,1.15,0,魔防与精神各 +5% / 7.5% / 10%,1
 skill.player.060.r3,skill.player.060,3,99,0,0,1.3,0,魔防与精神各 +5% / 7.5% / 10%,1
+skill.player.061.r1,skill.player.061,1,10,0,0,1,0,穿戴对应类型的装备时生效：cloth_armor,1
+skill.player.061.r2,skill.player.061,2,20,0,0,1,0,穿戴对应类型的装备时生效：cloth_armor,1
+skill.player.061.r3,skill.player.061,3,30,0,0,1,0,穿戴对应类型的装备时生效：cloth_armor,1
+skill.player.062.r1,skill.player.062,1,10,0,0,1,0,穿戴对应类型的装备时生效：cloth_armor,1
+skill.player.062.r2,skill.player.062,2,20,0,0,1,0,穿戴对应类型的装备时生效：cloth_armor,1
+skill.player.062.r3,skill.player.062,3,30,0,0,1,0,穿戴对应类型的装备时生效：cloth_armor,1
+skill.player.063.r1,skill.player.063,1,10,0,0,1,0,穿戴对应类型的装备时生效：heavy_armor,1
+skill.player.063.r2,skill.player.063,2,20,0,0,1,0,穿戴对应类型的装备时生效：heavy_armor,1
+skill.player.063.r3,skill.player.063,3,30,0,0,1,0,穿戴对应类型的装备时生效：heavy_armor,1
+skill.player.064.r1,skill.player.064,1,10,0,0,1,0,穿戴对应类型的装备时生效：leather_armor,1
+skill.player.064.r2,skill.player.064,2,20,0,0,1,0,穿戴对应类型的装备时生效：leather_armor,1
+skill.player.064.r3,skill.player.064,3,30,0,0,1,0,穿戴对应类型的装备时生效：leather_armor,1
+skill.player.065.r1,skill.player.065,1,30,0,0,1,0,穿戴对应类型的装备时生效：light_armor,1
+skill.player.065.r2,skill.player.065,2,40,0,0,1,0,穿戴对应类型的装备时生效：light_armor,1
+skill.player.065.r3,skill.player.065,3,50,0,0,1,0,穿戴对应类型的装备时生效：light_armor,1
+skill.player.066.r1,skill.player.066,1,30,0,0,1,0,穿戴对应类型的装备时生效：plate_armor,1
+skill.player.066.r2,skill.player.066,2,40,0,0,1,0,穿戴对应类型的装备时生效：plate_armor,1
+skill.player.066.r3,skill.player.066,3,50,0,0,1,0,穿戴对应类型的装备时生效：plate_armor,1
+skill.player.067.r1,skill.player.067,1,10,0,0,1,0,穿戴对应类型的装备时生效：magic_shield,1
+skill.player.067.r2,skill.player.067,2,20,0,0,1,0,穿戴对应类型的装备时生效：magic_shield,1
+skill.player.067.r3,skill.player.067,3,30,0,0,1,0,穿戴对应类型的装备时生效：magic_shield,1
+skill.player.068.r1,skill.player.068,1,30,0,0,1,0,穿戴对应类型的装备时生效：small_shield,1
+skill.player.068.r2,skill.player.068,2,40,0,0,1,0,穿戴对应类型的装备时生效：small_shield,1
+skill.player.068.r3,skill.player.068,3,50,0,0,1,0,穿戴对应类型的装备时生效：small_shield,1
+skill.player.069.r1,skill.player.069,1,30,0,0,1,0,穿戴对应类型的装备时生效：two_handed_staff,1
+skill.player.069.r2,skill.player.069,2,40,0,0,1,0,穿戴对应类型的装备时生效：two_handed_staff,1
+skill.player.069.r3,skill.player.069,3,50,0,0,1,0,穿戴对应类型的装备时生效：two_handed_staff,1
+skill.player.070.r1,skill.player.070,1,30,0,0,1,0,穿戴对应类型的装备时生效：holy_staff,1
+skill.player.070.r2,skill.player.070,2,40,0,0,1,0,穿戴对应类型的装备时生效：holy_staff,1
+skill.player.070.r3,skill.player.070,3,50,0,0,1,0,穿戴对应类型的装备时生效：holy_staff,1
+skill.player.071.r1,skill.player.071,1,70,0,0,1,0,穿戴对应类型的装备时生效：large_shield,1
+skill.player.071.r2,skill.player.071,2,80,0,0,1,0,穿戴对应类型的装备时生效：large_shield,1
+skill.player.071.r3,skill.player.071,3,90,0,0,1,0,穿戴对应类型的装备时生效：large_shield,1
 skill.monster.strike.r1,skill.monster.strike,1,1,4,0.5,1,4,strike,1
 skill.monster.magic_strike.r1,skill.monster.magic_strike,1,1,4,0.5,1,4,magic_strike,1
 skill.monster.evasion.r1,skill.monster.evasion,1,1,4,0.5,1,4,evasion,1

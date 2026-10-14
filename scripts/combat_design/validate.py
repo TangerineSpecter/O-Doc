@@ -10,12 +10,15 @@ from decimal import Decimal, ROUND_CEILING
 from pathlib import Path
 
 DIRECTORY = Path(__file__).resolve().parents[2] / 'docs/data/combat'
-SLOTS = {'weapon', 'head', 'body', 'hands', 'feet', 'accessory'}
+SLOTS = {'weapon', 'offhand', 'head', 'body', 'hands', 'feet', 'accessory'}
+EQUIPMENT_TYPES = {'cloth_armor', 'heavy_armor', 'leather_armor', 'light_armor', 'plate_armor',
+                   'magic_shield', 'small_shield', 'large_shield', 'two_handed_staff', 'holy_staff'}
 EFFECTS = {
     'damage', 'heal', 'shield', 'shield_break', 'summon', 'dot', 'hot', 'modifier', 'attack_accuracy',
     'attack_critical', 'attack_penetration', 'missing_hp_damage', 'shared_hit',
     'passive_percent', 'passive_flat', 'passive_cost', 'passive_conversion',
-    'passive_low_hp', 'passive_damage', 'passive_duration',
+    'passive_low_hp', 'passive_damage', 'passive_duration', 'passive_equipment_percent',
+    'passive_equipment_flat', 'reflect',
 }
 EFFECT_STATS = {
     '', 'accuracy', 'attack', 'burn', 'contract', 'critical', 'critical_damage',
@@ -40,7 +43,7 @@ def number(row: dict, field: str) -> float:
 def validate(directory: Path = DIRECTORY) -> dict[str, list[dict]]:
     manifest = json.loads((directory / 'manifest.json').read_text())
     require(manifest['status'] == 'design_only', 'Unexpected release status')
-    require(manifest['engine_schema'] == 3, 'Unknown schema')
+    require(manifest['engine_schema'] == 4, 'Unknown schema')
     require(set(manifest['files']) == {p.name for p in directory.glob('*.csv')}, 'Unlisted or missing CSV')
     tables = {}
     for name, info in manifest['files'].items():
@@ -119,8 +122,14 @@ def validate(directory: Path = DIRECTORY) -> dict[str, list[dict]]:
             require(any(peer['skill_level_id'] == row['skill_level_id'] and peer['code'] == 'shield' and
                         peer['target'] == row['target'] and peer['group'] == row['group']
                         for peer in tables['skill_effects']), 'Shield-break effect has no matching shield')
+        if row['code'] == 'reflect':
+            require(row['target'] == 'self' and bool(row['group']) and int(row['duration']) > 0,
+                    'Invalid reflection status')
+        if row['code'] in {'passive_equipment_percent', 'passive_equipment_flat'}:
+            require(row['target'] == 'self' and row['group'] in EQUIPMENT_TYPES,
+                    'Invalid equipment mastery condition')
     players = [r for r in tables['skills'] if r['kind'] != 'monster']
-    require(len(players) == 60, 'Player skill count')
+    require(len(players) == 71, 'Player skill count')
     for skill in tables['skills']:
         require(skill['kind'] in {'active', 'passive', 'monster'}, 'Skill kind')
         ordered = sorted(ranks[skill['id']], key=lambda r: int(r['rank']))
@@ -182,6 +191,27 @@ def validate(directory: Path = DIRECTORY) -> dict[str, list[dict]]:
         require(row['slot'] in SLOTS, 'Equipment slot')
         require(1 <= int(row['level_min']) <= int(row['level_max']) <= 99, 'Equipment level')
         require(len(allowed_affixes[row['id']]) >= 3, 'Cannot generate gold gear')
+        equipment_type = row.get('equipment_type', '')
+        require(not equipment_type or equipment_type in EQUIPMENT_TYPES, 'Equipment type')
+        grip = row.get('grip', '')
+        require(grip in {'', 'one_handed', 'two_handed'}, 'Equipment grip')
+        if grip:
+            require(row['slot'] == 'weapon', 'Weapon grip on non-weapon')
+        if equipment_type.endswith('_armor'):
+            require(row['slot'] in {'body', 'hands', 'feet'}, 'Armor type on non-armor slot')
+        if equipment_type in {'magic_shield', 'small_shield', 'large_shield'}:
+            require(row['slot'] == 'offhand', 'Shield type on non-offhand slot')
+        if equipment_type in {'two_handed_staff', 'holy_staff'}:
+            require(row['slot'] == 'weapon', 'Staff type on non-weapon slot')
+        required_mastery = [value for value in row.get('required_mastery', '').split(';') if value]
+        require(all(identity in indexes['skills'] and indexes['skills'][identity]['kind'] == 'passive'
+                    for identity in required_mastery), 'Unknown equipment mastery')
+        if equipment_type:
+            require(required_mastery, 'Typed equipment has no mastery requirement')
+        if equipment_type == 'two_handed_staff':
+            require(grip == 'two_handed', 'Two-handed staff grip')
+        if equipment_type == 'holy_staff':
+            require(grip == 'one_handed', 'Holy staff grip')
     for row in tables['boss_drops']:
         require(indexes['monsters'][row['monster_id']]['rank'] == 'boss', 'Exclusive drop on normal monster')
         require(indexes['equipment_templates'][row['equipment_id']]['boss_only'] == '1', 'Exclusive gear flag')

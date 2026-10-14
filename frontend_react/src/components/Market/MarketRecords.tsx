@@ -1,10 +1,7 @@
 import {useState, useMemo} from 'react';
 import {
     Coins,
-    Tag,
     Footprints,
-    ArrowUpRight,
-    ArrowDownLeft,
     TrendingUp,
     ChevronDown,
     ChevronUp,

@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import WorldDialog from '../AgentWorld/WorldDialog';
 import {useCombat} from '../../hooks/useCombat';
 import {useCombatActions} from '../../hooks/useCombatActions';
@@ -29,12 +29,12 @@ export default function CombatDialog({
     const actorIndex = residents.findIndex(resident => resident.id === actor);
     const activeResident = residents[actorIndex];
 
-    const changeResident = (index: number) => {
+    const changeResident = useCallback((index: number) => {
         const resident = residents[index];
         if (!resident) return;
         setActor(resident.id);
-        state.setPage(1);
-    };
+        setPage(1);
+    }, [residents, setPage]);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -64,7 +64,7 @@ export default function CombatDialog({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [actorIndex, residents, historyOpen]);
+    }, [actorIndex, residents, historyOpen, changeResident]);
 
     return (
         <WorldDialog
@@ -120,9 +120,9 @@ export default function CombatDialog({
             {/* 探索历练史册弹窗卡片 */}
             {historyOpen && (
                 <CombatHistoryDialog
-                    history={data?.history}
+                    history={data?.history ?? undefined}
                     page={state.page}
-                    onPageChange={state.setPage}
+                    onPageChange={setPage}
                     residentName={activeResident?.name || '居民'}
                     onObserve={id => onObserve(id, actor)}
                     onClose={() => setHistoryOpen(false)}

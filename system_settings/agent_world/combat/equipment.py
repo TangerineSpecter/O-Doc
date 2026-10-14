@@ -7,7 +7,15 @@ from .equipment_rolls import affix_range, quality_base
 
 
 def allowed(catalog: Catalog, template_id: str, job: str, level: int, actual_level: int) -> bool:
-    return catalog.row('equipment_templates',template_id)['enabled']=='1' and actual_level <= level and any(r['equipment_id'] == template_id and r['profession_id'] == job for r in catalog.tables['equipment_professions'])
+    template = catalog.row('equipment_templates', template_id)
+    if template['enabled'] != '1' or actual_level > level:
+        return False
+    required_mastery = [value for value in template.get('required_mastery', '').split(';') if value]
+    if required_mastery:
+        learned = catalog.learned(job, level)
+        return any(identity in learned for identity in required_mastery)
+    return any(r['equipment_id'] == template_id and r['profession_id'] == job
+               for r in catalog.tables['equipment_professions'])
 
 
 def generate(catalog: Catalog, template_id: str, level: int, quality: str, rng, *, starter: bool = False) -> dict:
@@ -41,5 +49,11 @@ def generate(catalog: Catalog, template_id: str, level: int, quality: str, rng, 
         stats[primary] = stats.get(primary, 0) + 1
         affixes = [{'id': 'affix.' + primary, 'stat': primary, 'value': 1, 'min': 1, 'max': 1}]
     value = cash((Decimal(10) + Decimal('.5') * level) * Decimal(catalog.row('qualities', quality)['sale_multiplier']) * (1 + Decimal('.1') * Decimal(str(sum(positions) / len(positions)))))
-    return {'template_id': template_id, 'name': equipment_name(template, affixes, starter=starter, level=level), 'slot': template['slot'],
-            'level': level, 'quality': quality, 'stats': stats, 'affixes': affixes, 'value': str(0 if starter else value)}
+    item = {'template_id': template_id, 'name': equipment_name(template, affixes, starter=starter, level=level),
+            'slot': template['slot'], 'level': level, 'quality': quality, 'stats': stats,
+            'affixes': affixes, 'value': str(0 if starter else value)}
+    if template.get('equipment_type'):
+        item['equipment_type'] = template['equipment_type']
+    if template.get('grip'):
+        item['grip'] = template['grip']
+    return item

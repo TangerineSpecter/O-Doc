@@ -12,9 +12,33 @@ def initial() -> dict:
             'fixed_hp': 0, 'fixed_mp': 0, 'skills': {}}
 
 
-def passives(catalog: Catalog, learned: dict) -> list[dict]:
-    return [effect for sid, rank in learned.items() if catalog.row('skills', sid)['kind'] == 'passive'
-            for effect in catalog.skill(sid, rank)[1]]
+def has_equipment_type(equipment: list[dict], equipment_type: str) -> bool:
+    if equipment_type.endswith('_armor'):
+        required_slot = 'body'
+    elif equipment_type in {'magic_shield', 'small_shield', 'large_shield'}:
+        required_slot = 'offhand'
+    elif equipment_type in {'two_handed_staff', 'holy_staff'}:
+        required_slot = 'weapon'
+    else:
+        required_slot = ''
+    return any(item.get('equipment_type') == equipment_type and
+               (not required_slot or item.get('slot') == required_slot)
+               for item in equipment)
+
+
+def passives(catalog: Catalog, learned: dict, equipment: list[dict] | None = None) -> list[dict]:
+    equipped = equipment or []
+    result = []
+    for sid, rank in learned.items():
+        if catalog.row('skills', sid)['kind'] != 'passive':
+            continue
+        for effect in catalog.skill(sid, rank)[1]:
+            if effect['code'] in ('passive_equipment_percent', 'passive_equipment_flat'):
+                if not has_equipment_type(equipped, effect['group']):
+                    continue
+                effect = {**effect, 'code': 'passive_percent' if effect['code'].endswith('_percent') else 'passive_flat'}
+            result.append(effect)
+    return result
 
 
 def promotion_options(catalog: Catalog, progress: dict) -> list[dict]:
@@ -34,7 +58,7 @@ def attributes(catalog: Catalog, progress: dict, equipment: list[dict]) -> dict:
     for item in equipment:
         for key, value in item['stats'].items():
             additions[key] = additions.get(key, 0) + value
-    effects = passives(catalog, progress['skills'])
+    effects = passives(catalog, progress['skills'], equipment)
     percentages, flats = {}, {}
     for fx in effects:
         target = percentages if fx['code'] == 'passive_percent' else flats if fx['code'] == 'passive_flat' else None
@@ -89,7 +113,7 @@ def award(catalog: Catalog, progress: dict, experience: int, *, stop_at_promotio
         updated['fixed_hp'] += int(job['hp_growth'])
         updated['fixed_mp'] += int(job['mp_growth'])
         updated['level'] += 1
-        updated['skills'] = catalog.learned(updated['job'], updated['level'])
+        updated['skills'] = catalog.learned(updated['job'], updated['level'], updated.get('skills'))
         records.append({'level': updated['level'], 'job': updated['job'], 'catalog_id': catalog.version})
     if updated['level'] == 99:
         updated['experience'] = 0
@@ -102,7 +126,7 @@ def promote(catalog: Catalog, progress: dict, job_id: str) -> dict:
         raise ValueError('战斗职业分支或等级不符合转职条件')
     updated = deepcopy(progress)
     updated['job'] = job_id
-    updated['skills'] = catalog.learned(job_id, updated['level'])
+    updated['skills'] = catalog.learned(job_id, updated['level'], updated.get('skills'))
     return updated
 
 

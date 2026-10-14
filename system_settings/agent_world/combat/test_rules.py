@@ -16,7 +16,7 @@ class RuleTests(SimpleTestCase):
         with self.assertRaises(ValueError):validate(Path(__file__).resolve().parents[3]/'docs/data/combat')
         c=self.catalog
         self.assertEqual((len(c.tables['dungeons']),len(c.tables['monsters']),len(c.tables['professions'])),(6,24,29))
-        self.assertEqual(sum(r['kind']!='monster' for r in c.tables['skills']),60)
+        self.assertEqual(sum(r['kind']!='monster' for r in c.tables['skills']),71)
         for row in c.tables['skills']:
             for rank in c.ranks[row['id']]:
                 progress=attributes.initial();progress['skills']={row['id']:int(rank['rank'])};progress['level']=99
@@ -101,3 +101,46 @@ class RuleTests(SimpleTestCase):
                 self.assertLessEqual(gear['level'],min(level,int(dungeon['equipment_level_max']),int(template['level_max'])))
                 self.assertEqual(sum(row['kind']=='equipment' for row in rows),1)
                 self.assertEqual(progress['gear'],0)
+
+    def test_equipment_mastery_requires_matching_body_or_offhand_item(self):
+        c=self.catalog
+        progress=attributes.initial()
+        progress.update(job='job.mage',level=10)
+        progress['stats'].update(intelligence=20,spirit=100)
+        progress['skills']=c.learned(progress['job'],progress['level'])
+        base=attributes.attributes(c,progress,[])
+        cloth={'slot':'body','equipment_type':'cloth_armor','stats':{}}
+        gloves={'slot':'hands','equipment_type':'cloth_armor','stats':{}}
+        with_cloth=attributes.attributes(c,progress,[cloth])
+        with_gloves_only=attributes.attributes(c,progress,[gloves])
+        self.assertGreater(with_cloth['magic_attack'],base['magic_attack'])
+        self.assertGreater(with_cloth['magic_defense'],base['magic_defense'])
+        self.assertEqual(with_gloves_only,base)
+        self.assertTrue(equipment.allowed(c,'equip.offhand.magic_shield','job.mage',10,10))
+        self.assertFalse(equipment.allowed(c,'equip.offhand.magic_shield','job.priest',10,10))
+
+    def test_shield_wall_reduces_damage_and_reflects_one_multi_hit_action(self):
+        class FixedRandom:
+            @staticmethod
+            def random(): return 0
+            @staticmethod
+            def uniform(_low, _high): return 1
+
+        c=self.catalog
+        stats={'hp_max':2000,'mp_max':100,'physical_attack':100,'magic_attack':100,
+               'physical_defense':20,'magic_defense':20,'healing':0,'accuracy':1.1,
+               'evasion':0,'critical':0,'critical_damage':1,'damage_type':'physical'}
+        guard=engine.fighter(stats,'盾卫',70)
+        enemy=engine.fighter({**stats,'physical_defense':0,'magic_defense':0},'敌人',70)
+        _,shield_wall=c.skill('skill.player.031',1)
+        effects.apply(c,guard,enemy,shield_wall,'盾墙',1,FixedRandom())
+        incoming=[{'code':'damage','stat':'physical_attack','value':1,'hits':2,'damage_type':'physical'}]
+        events=effects.apply(c,enemy,guard,incoming,'多段攻击',2,FixedRandom())
+        reflected=[event for event in events if event.get('action')=='盾墙·反伤']
+        received=[event for event in events if event.get('action')=='多段攻击']
+        self.assertEqual(len(reflected),1)
+        self.assertEqual(reflected[0]['damage'],20)
+        self.assertFalse(reflected[0]['critical'])
+        self.assertEqual(len(received),2)
+        self.assertEqual([event['damage'] for event in received],[76,76])
+        self.assertEqual(enemy['hp'],1980)

@@ -155,7 +155,32 @@ def _shield_break(catalog: Catalog, bearer: dict, opponent: dict, shield: dict, 
         return []
     effect = {'code': 'damage', 'stat': retribution['stat'], 'value': float(retribution['value']),
               'hits': 1, 'damage_type': retribution['damage_type'] or 'magic'}
-    return apply(catalog, bearer, opponent, [effect], '圣盾（Holy Aegis）·圣光十字波·圣光十字裁决圣柱', tick, rng)
+    return apply(catalog, bearer, opponent, [effect], '圣盾（Holy Aegis）·圣光十字波·圣光十字裁决圣柱', tick, rng,
+                 allow_reflect=False)
+
+
+def _reflect_damage(catalog: Catalog, bearer: dict, attacker: dict, raw_by_type: dict[str, float], tick: int,
+                    rng) -> list[dict]:
+    if bearer['hp'] <= 0 or attacker['hp'] <= 0 or not raw_by_type:
+        return []
+    reflect = max((float(state['value']) for state in bearer['states']
+                   if state['code'] == 'reflect' and state['expires'] > tick), default=0)
+    if reflect <= 0:
+        return []
+    events = []
+    # One retaliation per incoming action. Multi-hit raw damage is accumulated by type;
+    # it is then mitigated by the attacker's matching defense, without crit or recursion.
+    for kind, raw in raw_by_type.items():
+        amount = damage(raw * reflect, kind, bearer['level'], attacker)
+        taken, absorbed, broken = hurt(attacker, amount)
+        events.append({'actor': bearer['name'], 'target': attacker['name'], 'action': '盾墙·反伤',
+                       'kind': 'damage', 'damage': taken, 'absorbed': absorbed,
+                       'hit': True, 'critical': False})
+        if broken:
+            events.extend(_shield_break(catalog, attacker, bearer, broken, tick, rng))
+        if attacker['hp'] <= 0:
+            break
+    return events
 
 
 def upkeep(fighter: dict, tick: int, events: list[dict], *, opponent=None, catalog=None, rng=None) -> None:
@@ -182,8 +207,10 @@ def upkeep(fighter: dict, tick: int, events: list[dict], *, opponent=None, catal
                 return
 
 
-def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], name: str, tick: int, rng) -> list[dict]:
+def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], name: str, tick: int, rng,
+          *, allow_reflect: bool = True) -> list[dict]:
     events = []
+    reflected_raw = {}
     parameter = lambda code: sum(float(f['value']) for f in effects if f['code'] == code)
     direct = [f for f in effects if f['code'] in ('damage', 'summon')]
     shared = bool(parameter('shared_hit'))
@@ -213,6 +240,9 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
             raw = value(attacker, effect['stat']) * float(effect['value'])
             if variant:
                 raw *= float(variant['damage_multiplier'])
+            if landed:
+                damage_kind = effect['damage_type'] or 'physical'
+                reflected_raw[damage_kind] = reflected_raw.get(damage_kind, 0) + raw
             extra = (1 + parameter('missing_hp_damage') * (1 - attacker['hp'] / attacker['stats']['hp_max'])) * (1 + clamp(passive_bonus + group_bonus, 0, 2)) * (1 + clamp(value(target, 'damage_taken'), 0, 1))
             amount = damage(raw, effect['damage_type'], attacker['level'], target, penetration=penetration,
                             variation=rng.uniform(.95, 1.05), critical=value(attacker, 'critical_damage') if critical else 1, extra=extra) if landed else 0
@@ -224,6 +254,8 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
         if variant and variant_successful:
             events.extend(_apply_summon_aftermath(attacker, target, variant, effect, action_name,
                                                    tick, passive_bonus, group_bonus))
+    if allow_reflect and reflected_raw:
+        events.extend(_reflect_damage(catalog, target, attacker, reflected_raw, tick, rng))
     enemy_status = [f for f in effects if f.get('target') == 'enemy' and f['code'] in ('modifier', 'dot')]
     if not direct and enemy_status:
         successful = hit(attacker, target, rng, accuracy_bonus)
@@ -231,7 +263,7 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
         code = fx['code']
         if code == 'shield_break':
             continue
-        if code not in ('heal', 'shield', 'hot', 'dot', 'modifier'):
+        if code not in ('heal', 'shield', 'hot', 'dot', 'modifier', 'reflect'):
             continue
         receiver = attacker if fx['target'] == 'self' else target
         if (receiver is target and (not successful or target['hp'] <= 0)) or rng.random() >= float(fx['chance']):
@@ -244,7 +276,7 @@ def apply(catalog: Catalog, attacker: dict, target: dict, effects: list[dict], n
             events.append({'actor': attacker['name'], 'action': name, 'kind': 'heal', 'healing': restored})
             continue
         state = {'code': code, 'group': fx['group'], 'stat': fx['stat'], 'value': float(fx['value']), 'name': name}
-        if code == 'modifier':
+        if code in ('modifier', 'reflect'):
             if receiver is target and fx['stat'] in ('attack', 'defense', 'physical_defense', 'magic_defense'):
                 duration += max((int(f['value']) for f in attacker['passives'] if f['code'] == 'passive_duration'), default=0)
             state['expires'] = tick + duration

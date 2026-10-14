@@ -1,5 +1,5 @@
 import {polygon} from '../pixelEffectDrawing';
-import {auraArc, auraGlow, auraLine, auraRune, auraSpark, tau} from './auraDrawingPrimitives';
+import {auraArc, auraGlow, auraLine, auraSpark, tau} from './auraDrawingPrimitives';
 import type {AuraContext, AuraPalette} from './auraDrawingPrimitives';
 
 /** Martial intent is expressed with motion and light, never substitute equipped weapons. */
@@ -34,9 +34,16 @@ export function drawWarriorAura(rear: AuraContext, floor: AuraContext, p: AuraPa
                 auraSpark(rear, Math.cos(a + 1.1) * (256 + i * 12), -305 + Math.sin(a + 1.1) * 238, 13, p);
             } break;
         case 'spellblade':
-            auraRune(rear, 0, -300, 270, 247, 6, time * .12, p, .3);
-            for (let i = 0; i < 2; i++) auraArc(rear, 0, -300, 277, 228, -time * .55 + i * Math.PI, 1.4, p);
-            for (const s of [-1, 1]) auraSpark(rear, s * 236, -230 + Math.sin(time * 1.1 + s) * 66, 14, p); break;
+            for (const s of [-1, 1]) {
+                const x = s * (172 + Math.sin(time * .7 + s) * 8), y = -282;
+                const pulse = .16 + .05 * (1 + Math.sin(time * 1.4 + s));
+                polygon(rear, [x, y - 128, x + s * 62, y - 91, x + s * 53, y + 64, x, y + 116,
+                    x - s * 53, y + 64, x - s * 62, y - 91], p.color, pulse);
+                auraLine(rear, [x - s * 42, y - 79, x, y - 105, x + s * 42, y - 79,
+                    x + s * 34, y + 48, x, y + 86, x - s * 34, y + 48, x - s * 42, y - 79], p.light, 4, .72);
+                auraSpark(rear, x, y + 63 + Math.sin(time * 1.7 + s) * 17, 12, p, .76);
+            }
+            auraArc(floor, 0, 6, 252, 42, -time * .22, 2.4, p, .7); break;
         case 'berserker':
             for (let i = 0; i < 6; i++) {
                 const t = (time * .19 + i / 6) % 1, s = i % 2 ? 1 : -1;

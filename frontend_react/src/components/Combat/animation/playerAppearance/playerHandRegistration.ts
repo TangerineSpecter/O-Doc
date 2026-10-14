@@ -14,7 +14,7 @@ const wrists: Record<string, [number, number, number, number]> = {
     elementalist: [102,417,303,417], pyromancer: [103,417,305,417],
     warrior: [76,430,306,430], swordsman: [77,430,309,430],
     guardian: [65,431,307,431], swordmaster: [80,431,311,431],
-    spellblade: [80,427,315,427], paladin: [86,430,320,427],
+    spellblade: [65,431,307,431], paladin: [86,430,320,427],
     berserker: [68,427,328,427], ranger: [96,431,298,431],
     archer: [88,431,307,431], assassin: [100,431,304,431],
     sharpshooter: [93,431,312,431], hunter: [102,429,305,429],

@@ -11,6 +11,39 @@ from ..farm_gate import guarded
 from ..life_time import local_time, storage_time
 
 OPEN = ('preparing', 'active', 'paused', 'settling')
+EQUIPMENT_SLOTS = {'weapon', 'offhand', 'head', 'body', 'hands', 'feet', 'accessory'}
+
+
+def two_handed(item, catalog) -> bool:
+    if not item:
+        return False
+    grip = item.snapshot.get('grip')
+    if not grip:
+        grip = catalog.row('equipment_templates', item.template_id).get('grip', '')
+    return grip == 'two_handed'
+
+
+def apply_loadout_changes(profile, catalog, changes, owner):
+    candidate = dict(profile.loadout)
+    for slot, identity in changes.items():
+        if slot not in EQUIPMENT_SLOTS:
+            raise ValueError('未知装备部位')
+        if identity is None:
+            candidate.pop(slot, None)
+            continue
+        item = EquipmentInstance.objects.filter(pk=identity, actor_id=profile.pk, owner_id=owner, sold=False).first()
+        if (not item or item.snapshot['slot'] != slot or
+                not equipment.allowed(catalog, item.template_id, profile.progression['job'],
+                                      profile.progression['level'], item.snapshot['level'])):
+            raise ValueError('装备不属于居民或不满足穿戴条件')
+        candidate[slot] = identity
+
+    weapon = EquipmentInstance.objects.filter(pk=candidate.get('weapon'), actor_id=profile.pk, sold=False).first()
+    if two_handed(weapon, catalog):
+        if changes.get('offhand') is not None:
+            raise ValueError('双手武器不能同时装备副手')
+        candidate.pop('offhand', None)
+    return candidate
 
 
 def wearing(profile):
@@ -73,7 +106,8 @@ def recover(profile, now):
 
 def adopt_catalog(profile,catalog):
     if profile.catalog_id==catalog.version:return
-    profile.progression={**profile.progression,'skills':catalog.learned(profile.progression['job'],profile.progression['level'])}
+    profile.progression={**profile.progression,'skills':catalog.learned(
+        profile.progression['job'],profile.progression['level'],profile.progression.get('skills'))}
     profile.catalog_id=catalog.version
     derived=stats(profile,catalog)
     profile.hp,profile.mp=min(profile.hp,derived['hp_max']),min(profile.mp,derived['mp_max'])
@@ -97,16 +131,7 @@ def equip(owner, agent, key, changes, *, preparing=None):
     if not preparing or not Exploration.objects.filter(pk=preparing,actor_id=profile.pk,status='preparing').exists():
         idle(profile)
     catalog = current(profile.catalog_id)
-    for slot, identity in changes.items():
-        if slot not in ('weapon','head','body','hands','feet','accessory'):
-            raise ValueError('未知装备部位')
-        if identity is None:
-            profile.loadout.pop(slot, None)
-            continue
-        item = EquipmentInstance.objects.filter(pk=identity, actor_id=profile.pk, owner_id=owner, sold=False).first()
-        if not item or item.snapshot['slot'] != slot or not equipment.allowed(catalog,item.template_id,profile.progression['job'],profile.progression['level'],item.snapshot['level']):
-            raise ValueError('装备不属于居民或不满足穿戴条件')
-        profile.loadout[slot] = identity
+    profile.loadout = apply_loadout_changes(profile, catalog, changes, owner)
     derived = stats(profile,catalog)
     profile.hp, profile.mp = min(profile.hp,derived['hp_max']), min(profile.mp,derived['mp_max'])
     profile.save()
@@ -127,9 +152,18 @@ def promote(owner, agent, key, job, *, exploration_id='', reason=''):
         item = EquipmentInstance.objects.get(pk=identity)
         if not equipment.allowed(catalog,item.template_id,job,profile.progression['level'],item.snapshot['level']):
             del profile.loadout[slot]
+    weapon = EquipmentInstance.objects.filter(pk=profile.loadout.get('weapon'), actor_id=profile.pk, sold=False).first()
+    if two_handed(weapon, catalog):
+        profile.loadout.pop('offhand', None)
     if 'weapon' not in profile.loadout:
-        template = next(r['equipment_id'] for r in catalog.tables['equipment_professions'] if r['profession_id']==job and catalog.row('equipment_templates',r['equipment_id'])['slot']=='weapon')
-        item = equipment.generate(catalog,template,int(catalog.row('professions',job)['required_level']),'white',random.Random(key),starter=True)
+        level = int(catalog.row('professions',job)['required_level'])
+        template = next(r['equipment_id'] for r in catalog.tables['equipment_professions']
+                        if r['profession_id'] == job and
+                        catalog.row('equipment_templates', r['equipment_id'])['slot'] == 'weapon' and
+                        int(catalog.row('equipment_templates', r['equipment_id'])['level_min']) <= level <=
+                        int(catalog.row('equipment_templates', r['equipment_id'])['level_max']) and
+                        equipment.allowed(catalog, r['equipment_id'], job, level, level))
+        item = equipment.generate(catalog,template,level,'white',random.Random(key),starter=True)
         gear = EquipmentInstance.objects.create(pk='promotion:'+hashlib.sha256(key.encode()).hexdigest()[:54],owner_id=owner,actor_id=agent.pk,catalog_id=catalog.version,template_id=template,snapshot=item,bound=True)
         profile.loadout['weapon'] = gear.pk
     derived = stats(profile,catalog)
@@ -144,12 +178,5 @@ def preview_equipment(profile,changes):
     from copy import copy
     result=copy(profile);result.loadout=dict(profile.loadout)
     catalog=current(profile.catalog_id)
-    for slot,identity in changes.items():
-        if slot not in ('weapon','head','body','hands','feet','accessory'):raise ValueError('未知装备部位')
-        if identity is None:
-            result.loadout.pop(slot,None)
-            continue
-        item=EquipmentInstance.objects.filter(pk=identity,actor_id=profile.pk,sold=False).first()
-        if not item or item.snapshot['slot']!=slot or not equipment.allowed(catalog,item.template_id,profile.progression['job'],profile.progression['level'],item.snapshot['level']):raise ValueError('装备不满足穿戴条件')
-        result.loadout[slot]=identity
+    result.loadout=apply_loadout_changes(profile,catalog,changes,profile.owner_id)
     return stats(result,catalog)

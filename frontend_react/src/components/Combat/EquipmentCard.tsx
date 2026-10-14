@@ -1,5 +1,5 @@
 import type {CombatEquipment} from '../../types/api/combat';
-import {qualityLabels, slotLabels, statLabels} from './presentation';
+import {equipmentTypeLabels, qualityLabels, slotLabels, statLabels} from './presentation';
 import {Heart, ShieldCheck, Tag} from 'lucide-react';
 
 export default function EquipmentCard({
@@ -53,6 +53,11 @@ export default function EquipmentCard({
                         {/* 槽位与状态标签 */}
                         <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[11px] text-slate-500">
                             <span className="font-medium text-slate-600">{slotLabels[gear.slot] || gear.slot}</span>
+                            {gear.equipmentType && (
+                                <span className="rounded-md bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">
+                                    {equipmentTypeLabels[gear.equipmentType] || gear.equipmentType}
+                                </span>
+                            )}
                             {worn && (
                                 <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.2 text-[10px] font-medium text-emerald-700 border border-emerald-200/60">
                                     <ShieldCheck className="w-2.5 h-2.5" />

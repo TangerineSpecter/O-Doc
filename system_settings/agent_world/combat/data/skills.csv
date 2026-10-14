@@ -29,8 +29,8 @@ skill.player.027,荆棘术,job.naturalist,30,active,1
 skill.player.028,自然韧性,job.naturalist,45,passive,1
 skill.player.029,破甲斩,job.swordmaster,70,active,1
 skill.player.030,剑意,job.swordmaster,80,passive,1
-skill.player.031,魔刃斩,job.spellblade,70,active,1
-skill.player.032,魔刃修习,job.spellblade,80,passive,1
+skill.player.031,盾墙,job.spellblade,70,active,1
+skill.player.032,磐石之躯,job.spellblade,80,passive,1
 skill.player.033,圣盾 (Holy Aegis),job.paladin,70,active,1
 skill.player.034,圣铠,job.paladin,80,passive,1
 skill.player.035,狂怒击,job.berserker,70,active,1
@@ -59,6 +59,17 @@ skill.player.057,回春术,job.druid,70,active,1
 skill.player.058,自然祝福,job.druid,80,passive,1
 skill.player.059,森林结界,job.warden,70,active,1
 skill.player.060,守望意志,job.warden,80,passive,1
+skill.player.061,布甲精通,job.mage,10,passive,1
+skill.player.062,布甲精通,job.priest,10,passive,1
+skill.player.063,重甲精通,job.warrior,10,passive,1
+skill.player.064,皮甲精通,job.ranger,10,passive,1
+skill.player.065,轻甲精通,job.assassin,30,passive,1
+skill.player.066,板甲精通,job.guardian,30,passive,1
+skill.player.067,魔法盾精通,job.mage,10,passive,1
+skill.player.068,小盾精通,job.guardian,30,passive,1
+skill.player.069,双手杖精通,job.elementalist,30,passive,1
+skill.player.070,圣杖精通,job.cleric,30,passive,1
+skill.player.071,大盾精通,job.spellblade,70,passive,1
 skill.monster.strike,重击,,1,monster,1
 skill.monster.magic_strike,灵击,,1,monster,1
 skill.monster.evasion,闪身,,1,monster,1

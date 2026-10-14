@@ -28,7 +28,7 @@ export const atlasSkillProfiles:AtlasSkillProfile[]=[
     profile(25,'恢复祷言','prayer',2,'holy_staff','#e0c78e','#fff6d8','self'),
     profile(27,'荆棘术','thorns',2,'holy_staff','#7ebd90','#ddf2b4'),
     profile(29,'破甲斩','break',3,'sword','#e9c774','#fff6ce','enemy','slash'),
-    profile(31,'魔刃斩','runeblade',3,'sword','#ac87df','#e8e4ff','enemy','slash'),
+    {...profile(31,'盾墙','barrier',3,'sword','#8298a4','#e3f5f3','self'),duration:3},
     profile(33,'圣盾','holyshield',3,'sword','#e5c67c','#fffadc','self'),
     profile(35,'狂怒击','rage',3,'axe','#df7152','#ffdca6','enemy','slash'),
     {...profile(37,'炎爆','burst',3,'staff','#ff923f','#fff4c5'),release:1.05,impact:1.35,duration:3},

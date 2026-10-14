@@ -1,7 +1,7 @@
 import {useMemo} from 'react';
 import {ArrowRight, Clock3, Compass, Footprints, Heart, Package, PauseCircle, PlayCircle, ShieldAlert, Sparkles, Swords, Trophy, ScrollText} from 'lucide-react';
 import type {CombatAction, CombatEvent} from '../../types/api/combat';
-import {elapsed, actionText} from './presentation';
+import {elapsed} from './presentation';
 import {
     observationEventMessage,
     observationEventGroups,
@@ -172,8 +172,9 @@ function AttackCard({action, playerName}: {action: CombatAction; playerName?: st
                             −{damage}
                         </span>
                     ) : damage != null ? (
-                        <span className="font-mono text-xs font-bold text-slate-800 tabular-nums">
-                            −{damage}
+                        <span className="flex flex-col items-end gap-0.5 font-mono text-xs font-bold text-slate-800 tabular-nums">
+                            <span>−{damage}</span>
+                            {action.absorbed ? <span className="text-[9px] font-semibold text-sky-600">吸收 {action.absorbed}</span> : null}
                         </span>
                     ) : null}
                 </div>

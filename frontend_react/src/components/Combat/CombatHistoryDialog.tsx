@@ -1,7 +1,7 @@
 import WorldDialog from '../AgentWorld/WorldDialog';
 import type {CombatHistory} from '../../types/api/combat';
 import {statusLabels} from './presentation';
-import {Clock, History, Sparkles} from 'lucide-react';
+import {Clock} from 'lucide-react';
 
 export default function CombatHistoryDialog({
     history,

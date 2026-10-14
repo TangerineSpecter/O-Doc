@@ -1,10 +1,11 @@
 import type {ComponentType} from 'react';
 import type {CombatEquipment, CombatProfile} from '../../types/api/combat';
 import {qualityLabels, slotLabels} from './presentation';
-import {Crown, Footprints, Gem, Hand, Shield, Sparkles, Sword} from 'lucide-react';
+import {Crown, Footprints, Gem, Hand, Shield, Sword} from 'lucide-react';
 
 const slotIcons: Record<string, ComponentType<{className?: string}>> = {
     weapon: Sword,
+    offhand: Shield,
     head: Crown,
     body: Shield,
     hands: Hand,
@@ -12,9 +13,10 @@ const slotIcons: Record<string, ComponentType<{className?: string}>> = {
     accessory: Gem,
 };
 
-// 按照 RPG 身体拓扑重排：左列攻伐外装（武器、手套、护符），右列防御披挂（头饰、护甲、靴子）
+// 按照 RPG 身体拓扑重排：主手与副手相邻，防护部位沿右列排列。
 const topologySlots: {slot: string; group: 'offense' | 'defense'}[] = [
     {slot: 'weapon', group: 'offense'},
+    {slot: 'offhand', group: 'defense'},
     {slot: 'head', group: 'defense'},
     {slot: 'hands', group: 'offense'},
     {slot: 'body', group: 'defense'},
@@ -38,16 +40,16 @@ export default function CombatLoadoutSlots({
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <Shield className="w-3.5 h-3.5 text-orange-500" />
-                    <span>装备装配（纸娃娃六槽）</span>
+                    <span>装备装配（纸娃娃七槽）</span>
                 </h4>
                 <div className="flex items-center gap-2">
                     <span className="text-[11px] text-slate-400">
-                        已装配 <strong className="text-orange-600 font-bold">{equippedCount}</strong> / 6
+                         已装配 <strong className="text-orange-600 font-bold">{equippedCount}</strong> / 7
                     </span>
                 </div>
             </div>
 
-            {/* 六槽位网格：左攻右守双列对称排列 */}
+            {/* 七槽位网格：主副手并列，护甲部位独立显示 */}
             <div className="grid grid-cols-2 gap-2">
                 {topologySlots.map(({slot}) => {
                     const equipmentId = profile.loadout[slot];

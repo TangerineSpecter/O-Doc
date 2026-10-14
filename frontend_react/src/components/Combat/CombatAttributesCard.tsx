@@ -1,4 +1,3 @@
-import {statLabels} from './presentation';
 import {Activity, Crosshair, Sparkles, Swords} from 'lucide-react';
 
 const baseStatsConfig = [

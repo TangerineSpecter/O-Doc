@@ -352,6 +352,13 @@ equip.boss.mist_forest.job.warden,equip.boss.mist_forest,job.warden
 equip.boss.sunken_ruins.job.warden,equip.boss.sunken_ruins,job.warden
 equip.boss.ember_fortress.job.warden,equip.boss.ember_fortress,job.warden
 equip.boss.star_rift.job.warden,equip.boss.star_rift,job.warden
+equip.staff.job.priest,equip.staff,job.priest
+equip.staff.job.cleric,equip.staff,job.cleric
+equip.staff.job.naturalist,equip.staff,job.naturalist
+equip.staff.job.highpriest,equip.staff,job.highpriest
+equip.staff.job.inquisitor,equip.staff,job.inquisitor
+equip.staff.job.druid,equip.staff,job.druid
+equip.staff.job.warden,equip.staff,job.warden
 equip.holy_staff.job.warden,equip.holy_staff,job.warden
 equip.head.job.warden,equip.head,job.warden
 equip.body.job.warden,equip.body,job.warden

@@ -5,7 +5,7 @@ import {AtlasGridCard} from './AtlasGridCard';
 import {EquipmentPortrait} from './EquipmentPortrait';
 import {RankBadge, BossCrownIcon} from './RankBadge';
 import {getEquipmentVisual} from './atlasIcons';
-import {slotLabels, statLabels} from '../presentation';
+import {equipmentTypeLabels, slotLabels, statLabels} from '../presentation';
 
 export interface EquipmentAtlasViewProps {
     catalog: CombatCatalog;
@@ -15,6 +15,7 @@ export interface EquipmentAtlasViewProps {
 const slotFilters = [
     {value: 'all', label: '全部'},
     {value: 'weapon', label: '武器'},
+    {value: 'offhand', label: '副手'},
     {value: 'head', label: '头饰'},
     {value: 'body', label: '护甲'},
     {value: 'hands', label: '手套'},
@@ -28,6 +29,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
     const equipmentAffixes = tables.equipmentAffixes || [];
     const affixes = tables.affixes || [];
     const professions = tables.professions || [];
+    const skills = tables.skills || [];
 
     const [slotFilter, setSlotFilter] = useState<string>('all');
     const [search, setSearch] = useState('');
@@ -88,6 +90,12 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
         // 职业限制
         const rootJobName =
             professions.find(p => p.id === selected.rootJob || p.id === `job.${selected.rootJob}`)?.name || '通用';
+        const requiredMasteryLabel = String(selected.requiredMastery || '').split(';').filter(Boolean)
+            .map(id => {
+                const mastery = skills.find(skill => skill.id === id);
+                const profession = professions.find(job => job.id === mastery?.professionId);
+                return mastery ? `${mastery.name}${profession ? `（${profession.name}）` : ''}` : '';
+            }).filter(Boolean).join('、');
 
         // 词条池
         const affixPool = equipmentAffixes
@@ -111,9 +119,11 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
             isBossOnly,
             baseStats,
             rootJobName,
+            requiredMasteryLabel,
+            equipmentTypeLabel: equipmentTypeLabels[String(selected.equipmentType || '')] || '',
             uniqueAffixes,
         };
-    }, [selected, discoveries, equipmentAffixes, affixes, professions]);
+    }, [selected, discoveries, equipmentAffixes, affixes, professions, skills]);
 
     const visual = selected
         ? getEquipmentVisual(selected.slot || '', selected.name, selectedDetails?.isBossOnly)
@@ -203,7 +213,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                         key={equip.id}
                                         id={equip.id}
                                         name={equip.name || equip.id}
-                                        title={`${equip.name} · ${slotLabels[equip.slot || ''] || equip.slot} · Lv.${equip.levelMin}–${equip.levelMax}${isAcquired ? ' (已获得)' : ''}`}
+                                        title={`${equip.name} · ${slotLabels[equip.slot || ''] || equip.slot}${equip.equipmentType ? ` · ${equipmentTypeLabels[equip.equipmentType] || equip.equipmentType}` : ''} · Lv.${equip.levelMin}–${equip.levelMax}${isAcquired ? ' (已获得)' : ''}`}
                                         selected={isSelected}
                                         onClick={() => setSelectedId(equip.id)}
                                         icon={<EquipmentPortrait equipmentId={equip.id} name={equip.name} slot={equip.slot} bossOnly={isBossOnly} decorative className="h-full w-full" fallbackClassName="h-8 w-8" />}
@@ -244,8 +254,13 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                             <Tag className="h-2.5 w-2.5 text-slate-400" />
                                             {slotLabels[selected.slot || ''] || selected.slot}
                                         </span>
+                                        {selectedDetails.equipmentTypeLabel && (
+                                            <span className="rounded-full border border-orange-200/70 bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
+                                                {selectedDetails.equipmentTypeLabel}
+                                            </span>
+                                        )}
                                         <span className="rounded-full bg-white/90 border border-slate-200/60 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-2xs">
-                                            {selectedDetails.rootJobName}
+                                            {selectedDetails.requiredMasteryLabel || selectedDetails.rootJobName}
                                         </span>
                                         {selectedDetails.isBossOnly && (
                                             <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/80 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-2xs">

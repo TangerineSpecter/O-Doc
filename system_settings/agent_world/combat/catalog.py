@@ -37,12 +37,21 @@ class Catalog:
             job = self.row('professions', job)['parent_id']
         return result[::-1]
 
-    def learned(self, job: str, level: int) -> dict[str, int]:
+    def learned(self, job: str, level: int, existing: dict | None = None) -> dict[str, int]:
         path = set(self.path(job))
         result = {}
         for row in self.tables['skills']:
             if row['profession_id'] in path and row['enabled'] == '1' and int(row['learn_level']) <= level:
                 result[row['id']] = max(int(r['rank']) for r in self.ranks[row['id']] if int(r['required_level']) <= level)
+        # A branch correction must not erase skills a resident already learned on the
+        # previous route. Historical skill IDs remain valid within the new catalog.
+        for identity in (existing or {}):
+            row = self.index['skills'].get(identity)
+            if not row or row['enabled'] != '1' or int(row['learn_level']) > level:
+                continue
+            eligible = [r for r in self.ranks[identity] if int(r['required_level']) <= level]
+            if eligible:
+                result[identity] = max(result.get(identity, 0), max(int(r['rank']) for r in eligible))
         return result
 
     def skill(self, identity: str, rank: int) -> tuple[dict, list[dict]]:

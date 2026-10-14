@@ -4,7 +4,7 @@ export const professionAuraProfiles = [
     {id:'swordsman',name:'剑士 · 流银剑弧',shape:'crescent',color:'#80aecd',light:'#e5f7ff',tier:2},
     {id:'guardian',name:'守卫 · 岩纹守护',shape:'rampart',color:'#91a6aa',light:'#e1ece5',tier:2},
     {id:'swordmaster',name:'剑圣 · 三重剑意',shape:'swords',color:'#c4b777',light:'#fff7d7',tier:3},
-    {id:'spellblade',name:'魔剑士 · 魔刃符印',shape:'runeblade',color:'#8877c0',light:'#b8e4ec',tier:3},
+    {id:'spellblade',name:'盾卫 · 巨盾壁垒',shape:'shieldwall',color:'#8298a4',light:'#e3f5f3',tier:3},
     {id:'cross',name:'圣骑士 · 十字光环',shape:'cross',color:'#d7ad58',light:'#fff9db',tier:3},
     {id:'berserker',name:'狂战士 · 狂怒锋芒',shape:'rage',color:'#b95251',light:'#ffc58b',tier:3},
     {id:'mage',name:'法师 · 奥术星环',shape:'arcane',color:'#79b5d2',light:'#dbf8ff',tier:1},

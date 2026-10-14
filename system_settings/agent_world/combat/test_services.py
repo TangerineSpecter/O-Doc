@@ -221,6 +221,31 @@ class ExplorationTests(TestCase):
         self.assertEqual(kill['rewards'][0]['item'], gear.snapshot)
         validate_source(self.data())
 
+    def test_two_handed_weapon_releases_and_blocks_offhand(self):
+        import random
+        from .store import current
+        from .equipment import generate
+        from .models import EquipmentInstance
+        from .profiles import apply_loadout_changes
+
+        profile=ensure('admin',self.agent,self.now)
+        catalog=current(profile.catalog_id)
+        profile.progression={**profile.progression,'job':'job.elementalist','level':30}
+        profile.progression['skills']=catalog.learned('job.elementalist',30)
+        offhand_snapshot=generate(catalog,'equip.offhand.magic_shield',10,'white',random.Random(11))
+        offhand=EquipmentInstance.objects.create(pk='test-two-hand-offhand',owner_id='admin',actor_id=self.agent.pk,
+            catalog_id=catalog.version,template_id='equip.offhand.magic_shield',snapshot=offhand_snapshot)
+        weapon_snapshot=generate(catalog,'equip.staff.two_handed',30,'white',random.Random(12))
+        weapon=EquipmentInstance.objects.create(pk='test-two-hand-staff',owner_id='admin',actor_id=self.agent.pk,
+            catalog_id=catalog.version,template_id='equip.staff.two_handed',snapshot=weapon_snapshot)
+        profile.loadout={**profile.loadout,'offhand':offhand.pk}
+        replaced=apply_loadout_changes(profile,catalog,{'weapon':weapon.pk},'admin')
+        self.assertNotIn('offhand',replaced)
+
+        profile.loadout={'weapon':weapon.pk}
+        with self.assertRaisesMessage(ValueError,'双手武器不能同时装备副手'):
+            apply_loadout_changes(profile,catalog,{'offhand':offhand.pk},'admin')
+
     def test_escrow_return_exactly_once(self):
         ensure('admin',self.agent,self.now)
         # Seed inventory with an authentic mocked market receipt in another test; here validate escrow itself.
@@ -548,6 +573,55 @@ class ExplorationTests(TestCase):
         self.assertEqual(MarketTransaction.objects.count(),1)
         self.assertEqual(WorldAction.objects.filter(snapshot__market_energy=True).count(),1)
         validate_source(self.data())
+
+    def test_catalog_adoption_sync_preserves_legacy_holy_staff_permissions(self):
+        from copy import deepcopy
+        from . import attributes, equipment
+        from .catalog import Catalog
+        from .facts import append
+        from .models import EquipmentInstance
+        from .profiles import promote, preview_equipment
+        from .store import digest
+
+        released=install()
+        legacy_tables=deepcopy(released.tables)
+        # Before equipment mastery, every priest branch could wear a level-10 holy staff.
+        holy_staff=next(row for row in legacy_tables['equipment_templates'] if row['id']=='equip.holy_staff')
+        holy_staff.update(level_min='10',equipment_type='',required_mastery='',grip='')
+        CombatCatalog.objects.create(pk='combat-1.0.3',digest=digest(legacy_tables),tables=legacy_tables)
+        legacy=Catalog(legacy_tables,'combat-1.0.3')
+
+        for path in [('job.priest',),('job.priest','job.naturalist'),
+                     ('job.priest','job.naturalist','job.druid'),
+                     ('job.priest','job.naturalist','job.warden')]:
+            with self.subTest(job=path[-1]):
+                actor=Agent.objects.create(name=path[-1],model=self.agent.model)
+                profile=ensure('admin',actor,self.now)
+                for job in path:
+                    target=int(legacy.row('professions',job)['required_level'])
+                    experience=sum(int(legacy.row('level_experience',f'level.{level}')['experience_to_next'])
+                                   for level in range(profile.progression['level'],target))
+                    profile.progression,_=attributes.award(legacy,profile.progression,experience)
+                    profile.save()
+                    append(profile,f'{actor.pk}:{job}:growth','round',{'events':[
+                        {'kind':'kill','experience':experience,'rewards':[]}]})
+                    profile=promote('admin',actor,f'{actor.pk}:{job}:promote',job)
+                weapon_id=profile.loadout['weapon']
+                weapon=EquipmentInstance.objects.get(pk=weapon_id)
+                self.assertEqual((weapon.template_id,weapon.catalog_id),('equip.holy_staff',legacy.version))
+                self.assertFalse(equipment.allowed(released,weapon.template_id,path[-1],
+                                                   profile.progression['level'],weapon.snapshot['level']))
+                validate_source(self.data())
+
+                with patch('system_settings.agent_world.combat.explorations.current',return_value=released):
+                    explorations.request('admin',actor,f'{actor.pk}:adopt',{},now=self.now)
+                profile.refresh_from_db()
+                self.assertEqual(profile.catalog_id,released.version)
+                self.assertEqual(profile.loadout['weapon'],weapon_id)
+                validate_source(self.data())
+                # Historical compatibility does not grant new equip requests a mastery exemption.
+                with self.assertRaisesRegex(ValueError,'穿戴条件'):
+                    preview_equipment(profile,{'weapon':weapon_id})
 
     def test_catalog_adoption_keeps_historical_growth_and_sync_provenance(self):
         profile=ensure('admin',self.agent,self.now)

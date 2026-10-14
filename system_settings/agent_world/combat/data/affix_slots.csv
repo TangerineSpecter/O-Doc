@@ -67,3 +67,12 @@ affix.accuracy.weapon,affix.accuracy,weapon
 affix.accuracy.hands,affix.accuracy,hands
 affix.evasion.feet,affix.evasion,feet
 affix.evasion.accessory,affix.evasion,accessory
+affix.strength.offhand,affix.strength,offhand
+affix.vitality.offhand,affix.vitality,offhand
+affix.intelligence.offhand,affix.intelligence,offhand
+affix.spirit.offhand,affix.spirit,offhand
+affix.hp_max.offhand,affix.hp_max,offhand
+affix.mp_max.offhand,affix.mp_max,offhand
+affix.physical_defense.offhand,affix.physical_defense,offhand
+affix.magic_defense.offhand,affix.magic_defense,offhand
+affix.healing.offhand,affix.healing,offhand
