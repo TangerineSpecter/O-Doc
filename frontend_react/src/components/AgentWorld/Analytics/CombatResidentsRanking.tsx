@@ -196,10 +196,10 @@ export default function CombatResidentsRanking({
             {/* 排行榜表格容器 */}
             <div className="scrollbar-hide max-h-[460px] overflow-auto rounded-xl border border-slate-200/80 bg-white shadow-2xs">
                 <table className="w-full min-w-[760px] text-xs">
-                    <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/95 text-slate-500 backdrop-blur-xs">
+                    <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50 text-slate-500">
                         <tr>
                             <th className="w-14 py-3 pl-3 pr-2 text-center font-medium">排名</th>
-                            <th className="sticky left-0 z-20 min-w-40 bg-slate-50/95 px-3 py-3 text-left font-medium backdrop-blur-xs">
+                            <th className="min-w-40 px-3 py-3 text-left font-medium">
                                 居民
                             </th>
                             <th className="min-w-24 px-3 py-3 text-left font-medium text-slate-500">
@@ -272,7 +272,7 @@ export default function CombatResidentsRanking({
                                     </td>
 
                                     {/* 居民信息 */}
-                                    <td className="sticky left-0 z-10 bg-white/95 px-3 py-3 backdrop-blur-xs transition-colors group-hover:bg-white">
+                                    <td className="px-3 py-3">
                                         <div className="flex items-center gap-2.5">
                                             <AgentAvatar name={row.name} avatar={row.avatar} size="xs" />
                                             <div className="min-w-0">

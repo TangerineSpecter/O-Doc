@@ -278,3 +278,14 @@ class CombatAnalyticsTests(AnalyticsTests):
         self.assertEqual(rows[self.b.pk]['ongoing'],1)
         self.assertIsNone(rows[self.b.pk]['successRate'])
         self.assertIsNone(rows[self.b.pk]['killsPerHour'])
+
+    def test_comparison_includes_profession_name(self):
+        from system_settings.models import WorldProfession
+        prof = WorldProfession.objects.create(name='吟游诗人')
+        self.a.profession = prof
+        self.a.save()
+        result = self.fetch()
+        row_a = next(r for r in result['comparison'] if r['id'] == self.a.pk)
+        row_b = next(r for r in result['comparison'] if r['id'] == self.b.pk)
+        self.assertEqual(row_a['professionName'], '吟游诗人')
+        self.assertIsNone(row_b['professionName'])

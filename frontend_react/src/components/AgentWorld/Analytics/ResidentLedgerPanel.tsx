@@ -3,6 +3,7 @@ import {ArrowDownLeft, ArrowLeft, ArrowUpRight, Loader2, RefreshCw} from 'lucide
 import {getResidentAnalyticsLedger} from '../../../api/residentAnalytics';
 import type {AnalyticsComparison, ResidentAnalyticsLedgerEntry} from '../../../types/api/residentAnalytics';
 import AgentAvatar from '../AgentAvatar';
+import {ProfessionBadge} from '../ProfessionBadge';
 
 const kindLabels: Record<string, string> = {
     post: '作品收入', comment: '评论收入', prize: '月榜奖金', travel: '旅行支出',
@@ -146,7 +147,18 @@ export default function ResidentLedgerPanel({
                 </button>
                 {resident && <AgentAvatar name={resident.name} avatar={resident.avatar} size="xs"/>}
                 <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-sm font-bold text-slate-800">{resident?.name || '居民收支明细'}</h3>
+                    <div className="flex items-center gap-1.5">
+                        <h3 className="truncate text-sm font-bold text-slate-800">{resident?.name || '居民收支明细'}</h3>
+                        {resident && (
+                            <ProfessionBadge
+                                professionName={resident.professionName}
+                                size="xs"
+                                variant="purple"
+                                showEmpty={!resident.departed}
+                                emptyText="无业"
+                            />
+                        )}
+                    </div>
                     <p className="mt-0.5 text-[11px] text-slate-400">{startDate} 至 {endDate} · 按时间由近到远</p>
                 </div>
                 <span className="shrink-0 rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-semibold text-orange-600">收支流水</span>

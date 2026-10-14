@@ -326,10 +326,10 @@ def build() -> dict[str, list[dict]]:
         put('monster_ranks',dict(id=kind,hp_multiplier=hp,attack_multiplier=attack,defense_multiplier=defense,experience_multiplier=exp))
     for key,count,sale,normal,elite,boss in [('white',1,1,.80,.60,.30),('blue',2,1.6,.18,.35,.55),('gold',3,2.4,.02,.05,.15)]:
         put('qualities',dict(id=key,affix_count=count,sale_multiplier=sale,normal_weight=normal,elite_weight=elite,boss_weight=boss))
-    rules={'round_seconds':15,'encounter_delay_seconds':30,'loot_interval_seconds':300,'equipment_interval_seconds':1800,
+    rules={'round_seconds':15,'encounter_delay_seconds':30,'loot_interval_seconds':300,'equipment_interval_seconds':300,
            'loot_carry_cap':2,'equipment_carry_cap':1,'entry_energy_cost':10,'energy_per_block':2,'energy_block_seconds':300,
            'daily_minutes':120,'level_cap':99,'normal_equipment_chance':.2,'normal_gold_chance':.02,'elite_gold_chance':.05,
-           'boss_gold_chance':.15,'weapon_sale_base':10,'weapon_sale_per_level':.5,'equipment_per_hour_limit':2,
+           'boss_gold_chance':.15,'weapon_sale_base':10,'weapon_sale_per_level':.5,'equipment_per_hour_limit':12,
            'potion_carry_cap':20,'defeat_rest_seconds':1800,'outside_recovery_seconds':300,
            'hp_recovery_ratio':.05,'mp_recovery_ratio':.10,'defeat_hp_ratio':.20,
            'hp_base':44,'mp_base':12,'hp_per_vitality':12,'mp_per_intelligence':6,'mp_per_spirit':4,
@@ -355,7 +355,7 @@ def main() -> None:
         with path.open('w',newline='',encoding='utf-8') as stream:
             writer=csv.DictWriter(stream,fieldnames=list(values[0]));writer.writeheader();writer.writerows(values)
         files[path.name]={'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'rows':len(values)}
-    (OUTPUT/'manifest.json').write_text(json.dumps(dict(version='design-0.3',status='design_only',engine_schema=3,files=files),ensure_ascii=False,indent=2)+'\n')
+    (OUTPUT/'manifest.json').write_text(json.dumps(dict(version='design-0.4',status='design_only',engine_schema=3,files=files),ensure_ascii=False,indent=2)+'\n')
     print(json.dumps({key:len(value) for key,value in rows.items()},ensure_ascii=False))
 
 

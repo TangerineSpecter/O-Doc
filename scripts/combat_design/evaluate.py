@@ -54,7 +54,7 @@ class Budget:
         require(seconds >= 0, 'Cannot reverse submitted time')
         new = self.seconds + seconds
         loot = new // 300 - self.seconds // 300
-        equipment = new // 1800 - self.seconds // 1800
+        equipment = new // 300 - self.seconds // 300
         self.truncated_loot += max(0, self.loot + loot - 2)
         self.truncated_equipment += max(0, self.equipment + equipment - 1)
         self.loot = min(2, self.loot + loot)
@@ -124,9 +124,11 @@ def budget_sample(tables: dict, dungeon: dict, duration: int, kill_seconds: int,
         opportunities = min(budget.loot, 2 if is_boss else 1)
         budget.loot -= opportunities
         for index in range(opportunities):
-            wanted = index == 0 if is_boss else rng.random() < .2
-            if wanted and budget.equipment:
+            has_gear_chance = budget.equipment > 0 and index == 0
+            wanted = has_gear_chance and (is_boss or rng.random() < .2)
+            if has_gear_chance:
                 budget.equipment -= 1
+            if wanted:
                 quality = rng.choices(qualities, [float(q[monster['rank'] + '_weight']) for q in qualities])[0]
                 exclusive = is_boss and rng.random() < .5
                 low = int(dungeon['boss_level_min'] if exclusive else dungeon['recommended_level_min'])
@@ -139,7 +141,7 @@ def budget_sample(tables: dict, dungeon: dict, duration: int, kill_seconds: int,
                 quantity = rng.randint(1, 2)
                 result['materials'] += quantity
                 result['value'] += Decimal(drops[monster['id']]['sale_price']) * quantity
-        require(result['equipment'] <= budget.seconds // 1800, 'Equipment inflation')
+        require(result['equipment'] <= budget.seconds // 300, 'Equipment inflation')
         require(result['materials'] <= 2 * (budget.seconds // 300), 'Material inflation')
     budget.advance(duration * 60 - budget.seconds)
     return result
@@ -186,7 +188,7 @@ def boundary_checks(tables: dict) -> list[str]:
     require(whole == split, 'Split/reset mismatch')
     carry = Budget()
     carry.advance(7200)
-    require((carry.loot, carry.equipment, carry.truncated_loot, carry.truncated_equipment) == (2, 1, 22, 3), 'Carry cap accounting')
+    require((carry.loot, carry.equipment, carry.truncated_loot, carry.truncated_equipment) == (2, 1, 22, 23), 'Carry cap accounting')
     checks.append('连续/拆分累计、跨日不清零、饱和额度截断记账一致')
     for style in tables['styles']:
         for hp in (0, .2, .5, .8, 1):
@@ -324,9 +326,9 @@ def main() -> None:
         if row['minutes'] == 60 and row['kill_seconds'] == 90:
             text += f"| {row['dungeon']} | {row['equipment']:.2f} | {row['materials']:.2f} | {row['value']:.2f} |\n"
     text += '''
-回收参考价值只是全部出售的估值，没有写现金账本，也没有减药剂费用。高效率不突破按有效时长授予的掉落额度。零额度开始的首个 30 分钟探索没有随机装备：30 分钟装备额度在终点获得并保留，终点不再额外战斗；下一次探索击杀才可消费。零额度 60 分钟也最多消耗 1 件装备额度，120 分钟最多 3 件，末端新额度留待下次。这属于「达到时长后，在下次击杀抽奖」规则，界面必须说明，不能宣称每半小时必得一件装备。
+回收参考价值只是全部出售的估值，没有写现金账本，也没有减药剂费用。装备判定机会按有效探索时间每 5 分钟产生一次，最多暂存 1 次；普通/精英未抽中装备时立即消耗本次机会，不继续重抽。零额度开始的首个 30 分钟探索在第 5、10、15、20、25 分钟的掉落结算中最多进行 5 次装备判定；第 30 分钟到达终点时不额外战斗，新机会留待下一次击杀。60 分钟、120 分钟探索分别最多完成 11、23 次终点前判定，终点新机会仍留待下次。装备判定次数不是装备件数保证。
 
-99 级长期极宽松价值上界为每小时 433.20：两件顶级满词条金装 314.16，加 24 件材料 119.04；由于装备和材料竞争同一物品机会，该上界实际更宽松。若仍担心 NPC 买入造成货币增长，优先根据完整战斗的存活、消耗与现有生活收入实测校准价格；不应直接把这一上界当作平均现金收入。
+99 级长期极宽松价值上界为每小时 2004.00：按 12 次机会都出顶级满词条金装计 1884.96，再加 24 件最高价材料 119.04。装备与材料竞争同一物品机会，这一加总故意重复计算，真实上界更低。若仍担心 NPC 买入造成货币增长，优先根据完整战斗的存活、消耗与现有生活收入实测校准价格；不应直接把这一上界当作平均现金收入。
 
 ## 复核结论与实施验收
 

@@ -4,6 +4,7 @@ import type {AnalyticsComparison} from '../../../types/api/residentAnalytics';
 import {analyticsMoney, sortAnalyticsResidents} from '../../../utils/residentAnalytics';
 import type {ComparisonColumn} from '../../../utils/residentAnalytics';
 import AgentAvatar from '../AgentAvatar';
+import {ProfessionBadge} from '../ProfessionBadge';
 import ResidentLedgerPanel from './ResidentLedgerPanel';
 
 const columns: {key: ComparisonColumn; label: string}[] = [
@@ -39,11 +40,14 @@ export default function ResidentsComparison({rows, startDate, endDate}: {
             <div className={`flex h-full w-[200%] transition-transform duration-300 ease-in-out motion-reduce:transition-none ${selectedResident ? '-translate-x-1/2' : 'translate-x-0'}`}>
                 <div className={`h-full w-1/2 min-w-0 ${selectedResident ? 'pointer-events-none' : ''}`} aria-hidden={Boolean(selectedResident)}>
                     <div className="h-full overflow-auto scrollbar-hide">
-                        <table className="w-full min-w-[700px] text-xs">
+                        <table className="w-full min-w-[780px] text-xs">
                             <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 shadow-[0_1px_0_0_#f1f5f9]">
                                 <tr className="h-11 border-b border-slate-100">
                                         <th className="py-2.5 pl-3 pr-2 text-left font-medium w-12 text-center">排名</th>
                                         <th className="py-2.5 px-3 text-left font-medium">居民</th>
+                                        <th className="min-w-24 px-3 py-2.5 text-left font-medium text-slate-500">
+                                            生活职业
+                                        </th>
                                         {columns.map(item => {
                                             const isCurrent = column === item.key;
                                             return (
@@ -123,6 +127,16 @@ export default function ResidentsComparison({rows, startDate, endDate}: {
                                                         </div>
                                                         <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition-colors group-hover:text-orange-500"/>
                                                     </button>
+                                                </td>
+                                                {/* 生活职业 */}
+                                                <td className="whitespace-nowrap px-3 py-3 text-left">
+                                                    <ProfessionBadge
+                                                        professionName={row.professionName}
+                                                        size="xs"
+                                                        variant="purple"
+                                                        showEmpty={!row.departed}
+                                                        emptyText="无业"
+                                                    />
                                                 </td>
                                                 {columns.map(item => {
                                                     const val = row[item.key];

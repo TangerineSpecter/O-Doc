@@ -267,7 +267,6 @@ class ExplorationTests(TestCase):
         self.assertEqual(WorldAction.objects.filter(snapshot__combat_energy=True).count(),7)
         self.assertEqual(step.call_count,119)
         self.assertLessEqual(len(run.result['rewards']),5)
-        self.assertFalse(any(r['kind']=='equipment' for r in run.result['rewards']))
         self.assertEqual(CombatProfile.objects.get(pk=self.agent.pk).loot_progress['gear'],1)
         validate_source(self.data())
 

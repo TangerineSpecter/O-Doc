@@ -39,7 +39,7 @@ def accrue(
     day: str,
     *,
     loot_interval_seconds: int = 300,
-    equipment_interval_seconds: int = 1800,
+    equipment_interval_seconds: int = 300,
     equipment_interval_reduction_percentage=0,
 ) -> None:
     progress['loot_time'] = progress.get('loot_time',0)+seconds
@@ -48,7 +48,7 @@ def accrue(
     equipment_interval_seconds = max(1, int(equipment_interval_seconds))
     reduction = _percentage(equipment_interval_reduction_percentage, cap=HUNDRED) / HUNDRED
     reduced_interval = int((Decimal(equipment_interval_seconds) * (1 - reduction)).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
-    # No more than one equipment allowance can accrue per ordinary loot allowance.
+    # Equipment rolls share the ordinary loot cadence and only one can be pending.
     effective_gear_interval = max(loot_interval_seconds, reduced_interval)
     progress['loot'] = min(2,progress.get('loot',0)+progress['loot_time']//loot_interval_seconds)
     progress['gear'] = min(1,progress.get('gear',0)+progress['gear_time']//effective_gear_interval)
@@ -99,10 +99,13 @@ def drops(
     rewards = []
     opportunities = min(progress.get('loot',0),2 if boss else 1)
     for index in range(opportunities):
-        gear = bool(pool) and progress.get('gear',0)>0 and index==0 and (boss or rng.random()<equipment_chance)
+        has_gear_chance = progress.get('gear',0)>0 and index==0
+        gear = has_gear_chance and bool(pool) and (boss or rng.random()<equipment_chance)
         progress['loot'] -= 1
-        if gear:
+        if has_gear_chance:
+            # A missed roll spends this opportunity; only a later time accrual grants another.
             progress['gear'] -= 1
+        if gear:
             trophy = next((r for r in catalog.tables['boss_drops'] if r['monster_id']==monster_id),None)
             if boss and trophy and catalog.row('equipment_templates',trophy['equipment_id'])['enabled']=='1' and int(catalog.row('equipment_templates',trophy['equipment_id'])['level_min'])<=upper and rng.random()<float(trophy['exclusive_probability']):
                 identity = trophy['equipment_id']

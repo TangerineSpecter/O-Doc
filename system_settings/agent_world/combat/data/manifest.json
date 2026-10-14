@@ -1,5 +1,5 @@
 {
-  "version": "combat-1.0.2",
+  "version": "combat-1.0.3",
   "status": "released",
   "engine_schema": 3,
   "files": {
@@ -96,7 +96,7 @@
       "rows": 3
     },
     "rules.csv": {
-      "sha256": "27da8d38838cb6d094f452165eb8c03d24c5522654e891d318bfc0a8f18a8d25",
+      "sha256": "2b803353271edb4b437680b1b9101d43ec255682ae4296b6c5e22ef4809b6636",
       "rows": 63
     }
   },

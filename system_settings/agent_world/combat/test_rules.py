@@ -62,7 +62,21 @@ class RuleTests(SimpleTestCase):
             drops=rewards.drops(self.catalog,'monster.slime',1,progress,random.Random(1))
             self.assertLessEqual(len(drops),1)
         self.assertEqual(progress['loot'],0)
+        self.assertEqual(progress['gear'],0)
         self.assertEqual(rewards.drops(self.catalog,'monster.slime',1,progress,random.Random(1)),[])
+
+    def test_equipment_opportunities_every_five_minutes_consume_misses(self):
+        self.assertEqual(self.catalog.rules['equipment_interval_seconds'],300)
+        self.assertEqual(self.catalog.rules['equipment_per_hour_limit'],12)
+        progress={}
+        for _ in range(5):
+            rewards.accrue(progress,300,'2026-10-10',
+                equipment_interval_seconds=int(self.catalog.rules['equipment_interval_seconds']))
+            self.assertEqual(progress['gear'],1)
+            drops=rewards.drops(self.catalog,'monster.slime',1,progress,random.Random(0))
+            self.assertEqual([row['kind'] for row in drops],['material'])
+            self.assertEqual((progress['loot'],progress['gear']),(0,0))
+        self.assertEqual(progress['gear_time'],0)
 
     def test_dot_precedes_healing_and_shield_refresh_does_not_stack(self):
         a=engine.fighter({'hp_max':100,'mp_max':10,'physical_defense':0},'A',1,hp=1)
@@ -86,3 +100,4 @@ class RuleTests(SimpleTestCase):
                 self.assertGreaterEqual(gear['level'],max(int(dungeon['equipment_level_min']),int(template['level_min'])))
                 self.assertLessEqual(gear['level'],min(level,int(dungeon['equipment_level_max']),int(template['level_max'])))
                 self.assertEqual(sum(row['kind']=='equipment' for row in rows),1)
+                self.assertEqual(progress['gear'],0)

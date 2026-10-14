@@ -59,7 +59,7 @@ def load_facts(request, owner, start, end):
     def remember(actor, name='', avatar=''):
         if actor:
             actors.add(actor)
-            facts.residents.setdefault(actor, {'id': actor, 'name': name or '历史居民', 'avatar': avatar, 'departed': True})
+            facts.residents.setdefault(actor, {'id': actor, 'name': name or '历史居民', 'avatar': avatar, 'departed': True, 'professionName': None})
             if name and facts.residents[actor]['name'] == '历史居民':
                 facts.residents[actor]['name'] = name
 

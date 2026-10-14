@@ -1,5 +1,5 @@
 {
-  "version": "design-0.3",
+  "version": "design-0.4",
   "status": "design_only",
   "engine_schema": 3,
   "files": {
@@ -96,7 +96,7 @@
       "rows": 3
     },
     "rules.csv": {
-      "sha256": "27da8d38838cb6d094f452165eb8c03d24c5522654e891d318bfc0a8f18a8d25",
+      "sha256": "0efb7b1d0570925950a4e31079df7a294ff2cb778a56e60bb145bfa733a8729f",
       "rows": 63
     }
   }

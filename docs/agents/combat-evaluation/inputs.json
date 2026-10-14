@@ -1,15 +1,15 @@
 {
-  "version": "design-0.1",
+  "version": "design-0.4",
   "seed_start": 20261010,
   "samples": 27000,
-  "manifest_sha256": "f93445927fad7ca362768092f10255b67edaed021ddbe6e3fe7f18b12ac0fd20",
-  "document_sha256": "5cb90030e557fd402ba27f4f6dcb8c48dccca70afd57c93b623ff3b2c91239fd",
-  "evaluation_sha256": "76495acd51891a2af3bfff7c7476da0d796b71b39bba0f23ef9b17df79bf4f9b",
+  "manifest_sha256": "94d9e3d9930f826cbf8dfb34be3c5099ab4c442bef39874ebfa55367a55723fb",
+  "document_sha256": "35b48633848f419a290e8b9dc5dab074169a64706004c1134b9dc8504524078f",
+  "evaluation_sha256": "0633e7a935f3d654093404461cf8c5236c66b7fe947b4078aa71423303dcbe79",
   "csv_hashes": {
     "professions.csv": "0de0aaa9f5fa541a32fc9fb28b99b0ecaa5d421c31f983a2f76dee6470fb4dd1",
-    "skills.csv": "1c3bf3aa443fe1992bd611a3024db14bca9dfc7225baaad3783ffafdec7af2a3",
-    "skill_levels.csv": "333605fa73fab13eef214e8c026eee738fdadfe3890ede4f07c0c5421780747a",
-    "skill_effects.csv": "a9db941a54154b6fd533e9ee44a99935ab23be2215ab27a40067832417a57e3c",
+    "skills.csv": "80c6d084a45ee5e27fdced65ac8d9e228f2b77bb2c25174fd4ee44ae52d870c8",
+    "skill_levels.csv": "750429f0f8abf52dbdfe895030a60664fa32debcbe6d9b00c5b4ddda1105c999",
+    "skill_effects.csv": "ae4cad71e1a20fa132afd36879ccfc372549ff1418e01bd477ecd27ad7ad4c4a",
     "dungeons.csv": "5491234715598235e095b8acdc6eadd9e7c84e88c584ea74e6f6a08f64d958cc",
     "monsters.csv": "bcbd68d0157161b541544cbd17c9e94d7962d56d8049578c423b15881bbd97b2",
     "dungeon_monsters.csv": "2f999ae7ce1faa4a5c0356f1448c4a96cbdbc2b663253db58b7f6196e521555f",
@@ -29,6 +29,6 @@
     "monster_profiles.csv": "babeb0b30b6dc42765c5962af7afe6a8fd63b88addbdd763caa9c64f01e84cf5",
     "monster_ranks.csv": "e0994f4de676e9fcc36d652f3fd1b53a70186c2a612ff4db105e4ba93751fad5",
     "qualities.csv": "4ece67b17ba754fc2a54795b002030bd4e9ebc5b5e88b5aefeea52b0e2e9052e",
-    "rules.csv": "27da8d38838cb6d094f452165eb8c03d24c5522654e891d318bfc0a8f18a8d25"
+    "rules.csv": "0efb7b1d0570925950a4e31079df7a294ff2cb778a56e60bb145bfa733a8729f"
   }
 }

@@ -2,7 +2,7 @@ id,value
 round_seconds,15
 encounter_delay_seconds,30
 loot_interval_seconds,300
-equipment_interval_seconds,1800
+equipment_interval_seconds,300
 loot_carry_cap,2
 equipment_carry_cap,1
 entry_energy_cost,10
@@ -16,7 +16,7 @@ elite_gold_chance,0.05
 boss_gold_chance,0.15
 weapon_sale_base,10
 weapon_sale_per_level,0.5
-equipment_per_hour_limit,2
+equipment_per_hour_limit,12
 potion_carry_cap,20
 defeat_rest_seconds,1800
 outside_recovery_seconds,300
