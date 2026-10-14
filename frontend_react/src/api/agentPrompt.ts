@@ -7,5 +7,5 @@ export const describeAgentAvatar = (avatar: string, signal: AbortSignal) =>
 export const generateAgentPrompt = (input: AgentPromptInput, signal: AbortSignal) =>
     request.post<unknown, AgentPromptResult>('/settings/agents/generate-prompt/', input, {signal, timeout: 185000});
 
-export const organizeAgentRole = (input: {name: string; prompt: string; roleProfile: Partial<import('@/types/api/agentPrompt').RoleProfile>; modelId: string}, signal: AbortSignal) =>
+export const organizeAgentRole = (input: {name: string; prompt: string; roleProfile: Partial<import('@/types/api/agentPrompt').RoleProfile>}, signal: AbortSignal) =>
     request.post<unknown, import('@/types/api/agentPrompt').RoleDraft>('/settings/agents/organize-role/', input, {signal, timeout: 185000});

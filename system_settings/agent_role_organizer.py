@@ -19,7 +19,6 @@ class OrganizeRoleSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=100)
     prompt = serializers.CharField(max_length=40000, allow_blank=True)
     role_profile = serializers.JSONField(required=False, default=dict)
-    model_id = serializers.CharField(max_length=40, allow_blank=True, required=False, default='')
 
     def validate_role_profile(self, value):
         try:
@@ -29,7 +28,9 @@ class OrganizeRoleSerializer(serializers.Serializer):
 
 
 def organize_role(data: dict) -> dict:
-    config = AIService.get_client_config_for_model(data.get('model_id') or None)
+    # Role organization is a system-level helper, so it always uses the
+    # configured default chat model instead of the Agent's assigned model.
+    config = AIService.get_client_config_for_model(None)
     raw = complete(config, INSTRUCTION + '\n素材：' + json.dumps({key: data[key] for key in ('name', 'prompt', 'role_profile')}, ensure_ascii=False),
                    json_output=True, extra_body=thinking_options(config), deadline_seconds=180)
     value = json.loads(AIService.strip_thinking(raw).strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())

@@ -34,7 +34,7 @@ export function AgentRoleEditor(props: Props) {
         const controller = new AbortController(); request.current = controller;
         setBusy(true); setError('');
         try {
-            const draft = await organizeAgentRole({name, prompt: source, roleProfile, modelId}, controller.signal);
+            const draft = await organizeAgentRole({name, prompt: source, roleProfile}, controller.signal);
             if (!controller.signal.aborted && latest.current === signature) setPreview({source: signature, draft});
         } catch (cause) {
             if (!controller.signal.aborted && latest.current === signature) setError(cause instanceof Error ? cause.message : '整理失败，原设定未修改');
