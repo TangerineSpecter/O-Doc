@@ -24,9 +24,43 @@ def context(run: Exploration) -> dict:
     from .queries import profile_view
     from ..market_spending import spending_context
     spending=spending_context(run.owner_id,agent.pk)
-    return {'constraints':run.snapshot['constraints'],'adventure':profile_view(run.owner_id,agent),
-        'dungeons':catalog.tables['dungeons'],'styles':catalog.tables['styles'],'potions':catalog.tables['potions'],
-        'balance':str(agent.money),'inventory':{r['id']:stock_quantity(agent.pk,run.owner_id,'combat.'+r['id']) for r in catalog.tables['potions']},
+    full = profile_view(run.owner_id,agent)
+    loadout = full.get('loadout') or {}
+    equipped_ids = set(loadout.values())
+    equipment = []
+    for row in full.get('equipment', []):
+        snapshot = row.get('snapshot') or {}
+        if row.get('sold') or ((row.get('bound') or row.get('locked')) and row.get('id') not in equipped_ids):
+            continue
+        equipment.append({
+            'id': row.get('id'), 'slot': snapshot.get('slot'), 'name': snapshot.get('name'),
+            'equipment_type': snapshot.get('equipment_type'), 'level': snapshot.get('level'),
+            'rarity': snapshot.get('rarity'), 'stats': snapshot.get('stats'),
+            'equipped': row.get('id') in equipped_ids, 'locked': row.get('locked'),
+        })
+    adventure = {
+        'progression': {key: full.get('progression', {})[key] for key in ('level', 'experience', 'job', 'stats') if key in full.get('progression', {})},
+        'attributes': full.get('attributes'),
+        'hp': full.get('hp'), 'mp': full.get('mp'),
+        'loadout': loadout,
+        'equipment': equipment,
+        'skills': [{key: row[key] for key in ('id', 'name', 'rank', 'kind', 'description', 'parameters', 'effects') if key in row}
+                   for row in full.get('skills', [])],
+    }
+    level = adventure['progression'].get('level', 1)
+    dungeons = [{key: row[key] for key in ('id', 'name', 'recommended_level_min', 'recommended_level_max',
+                'boss_id', 'boss_level_min', 'boss_level_max', 'boss_start_kills', 'boss_probability_step',
+                'boss_probability_cap', 'equipment_level_min', 'equipment_level_max') if key in row}
+                for row in catalog.tables['dungeons'] if row.get('enabled') == '1']
+    styles = [{key: row[key] for key in ('id', 'name', 'attack_weight', 'skill_weight', 'heal_threshold',
+              'mana_threshold', 'defend_factor') if key in row}
+              for row in catalog.tables['styles'] if row.get('enabled') == '1']
+    potions = [{key: row[key] for key in ('id', 'name', 'kind', 'restore_value', 'required_level',
+               'purchase_price', 'shared_cooldown_rounds') if key in row}
+               for row in catalog.tables['potions'] if row.get('enabled') == '1' and int(row['required_level']) <= level]
+    return {'constraints':run.snapshot['constraints'],'adventure':adventure,
+        'dungeons':dungeons,'styles':styles,'potions':potions,
+        'balance':str(agent.money),'inventory':{r['id']:stock_quantity(agent.pk,run.owner_id,'combat.'+r['id']) for r in potions},
         'purchase_funds':spending['spendable'],
         'energy_costs':{'30min':22,'60min':34,'120min':58,'market_entry':5}}
 
@@ -91,13 +125,13 @@ def prepare(run_id: str, *, planner=None) -> Exploration:
     from ..market_spending import MarketPurchaseBlocked
     from ..life_models import LifeItem
     from ..life_scope import life_scope, manual_combat_potion_scope
-    from ..life_context import build_context
+    from ..life_context import build_execution_context
     run=Exploration.objects.get(pk=run_id)
     if run.status!='preparing':return run
     from system_settings.agent_availability import require_active_agent
     agent=require_active_agent(run.actor_id)
     item=LifeItem.objects.filter(pk=run.life_item_id).first()
-    scope=life_scope(item,build_context(run.owner_id,agent,item)) if item else nullcontext()
+    scope=life_scope(item,build_execution_context(run.owner_id,agent,item)) if item else nullcontext()
     manual_potion_scope=manual_combat_potion_scope(run.owner_id,agent.pk) if not item else nullcontext()
     session=None
     try:
@@ -194,10 +228,13 @@ def _promotion(run_id: str, *, planner=None, require_permit: bool=False) -> bool
         options=attributes.promotion_options(catalog,profile.progression)
         if not options:break
         original_job=profile.progression['job']
+        result = run.result if isinstance(run.result, dict) else {}
+        outcome = {key: result[key] for key in ('energy', 'experience', 'kills', 'potions_used', 'returned_potions', 'rewards', 'growth') if key in result}
         with usage_scope(agent=agent,purpose='combat_promotion'):
             plan=(planner or ask)(agent,'你已达到战斗职业转职等级。请从 options 中选择一个直接分支并给出简短理由，返回 {job_id,reason}。完成转职前不得继续探索。',
-                {'progression':profile.progression,'options':options,'report':run.result.get('report'),
-                 'exploration':{'elapsed_seconds':run.elapsed_seconds,'result':run.result,
+                {'progression':{key: profile.progression[key] for key in ('level', 'job', 'stats', 'skills') if key in profile.progression},
+                 'options':options,'combat_result':outcome,
+                 'exploration':{'elapsed_seconds':run.elapsed_seconds,
                     'dungeon_id':run.snapshot.get('plan',{}).get('dungeon_id','')}})
         if not isinstance(plan,dict) or plan.get('job_id') not in {row['id'] for row in options}:raise ValueError('转职选择不符合可选直接分支')
         reason=plan.get('reason','')

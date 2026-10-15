@@ -7,7 +7,11 @@ from utils.ai_service import AIService
 from .life_budget_policy import remaining_reservation, validate_activity_budget
 from .life_models import LifeItem, LifeGoal
 from .life_schedule import OPEN, revise
-from .life_context import build_context
+from .life_context import (
+    build_planning_budget_context,
+    build_planning_farm_context,
+    build_planning_selection_context,
+)
 from .life_config import tasks_for
 from .life_budget import money, future_allocations
 from .farm_gate import guarded
@@ -204,9 +208,15 @@ def _plan_items(config, agent, items: list[LifeItem]) -> None:
     if not items:
         return
     check_goals(config.pk,agent)
-    context=build_context(config.pk,agent)
-    context['slots']=[{'id':i.pk,'time':i.scheduled_at.isoformat(),'current_activity':i.activity,'spent':str(i.spent)} for i in items]
+    context = build_planning_selection_context(config.pk, agent, items)
     from .life_plan_proposal import propose
-    proposal = propose(agent, context, ask, ask_detail)
+    proposal = propose(
+        agent,
+        context,
+        ask,
+        ask_detail,
+        load_budget_context=lambda paid: build_planning_budget_context(config.pk, agent, paid),
+        load_farm_context=lambda _farms: build_planning_farm_context(config.pk, agent),
+    )
     apply_plan(config.pk,agent,items,proposal)
     check_goals(config.pk,agent)

@@ -76,6 +76,40 @@ class TravelTests(TestCase):
             original_at=timezone.now(), scheduled_at=timezone.now(), activity='travel',
             status='running', budget=budget, spent=spent, context={'manual': True})
 
+    def test_budget_review_with_sufficient_funds_does_not_call_model(self):
+        from .life_travel_budget import review_travel_budget
+        row = self.journey('depart')
+        self.with_life_budget(row, budget=6000)
+        with patch('system_settings.agent_world.travel_ai.ask') as ask:
+            review_travel_budget(row, Decimal('5000'))
+        ask.assert_not_called()
+
+    def test_budget_review_reallocates_with_other_commitments(self):
+        from .life_models import LifeItem
+        from .life_travel_budget import review_travel_budget
+        row = self.journey('depart')
+        item = self.with_life_budget(row, budget=1000)
+        other = LifeItem.objects.create(
+            id='later-travel', owner_id='admin', actor_id=self.agent.pk,
+            original_at=timezone.now(), scheduled_at=timezone.now() + timedelta(hours=1),
+            activity='travel', budget=9000, context={'manual': True},
+        )
+        def reallocate(journey, instruction, context, validate, **kwargs):
+            self.assertEqual(context['required_payment'], '5000')
+            self.assertEqual(context['life']['reserved_for_others'], '9000.00')
+            self.assertEqual(context['life']['other_commitments'][0]['id'], other.pk)
+            return validate({'allocations': [
+                {'id': item.pk, 'budget': '5000'}, {'id': other.pk, 'budget': '5000'},
+            ], 'reason': '优先支付当前旅行路线费用'})
+        with patch('system_settings.agent_world.travel_ai.ask', side_effect=reallocate) as ask:
+            review_travel_budget(row, Decimal('5000'))
+        ask.assert_called_once()
+        item.refresh_from_db(); other.refresh_from_db()
+        self.agent.refresh_from_db()
+        self.assertEqual((item.budget, other.budget), (Decimal('5000'), Decimal('5000')))
+        self.assertEqual(item.spent, 0)
+        self.assertEqual(self.agent.money, 10000)
+
     def test_total_remaining_does_not_implicitly_become_shopping_budget(self):
         from .travel_shopping import shopping_limits
         row = self.journey('buy')

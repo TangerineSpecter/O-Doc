@@ -507,6 +507,7 @@ class AgentTaskScheduler:
                         previous_content=previous_content,
                         prompt_override=prompt_override,
                         tool_names=[entry.get('tool_name') for entry in tool_context['tool_map'].values()],
+                        mcp_errors=tool_context.get('errors'),
                     ),
                     tool_context['tools'],
                     execute_tool,
@@ -523,6 +524,7 @@ class AgentTaskScheduler:
                 content = AIService.chat_completion_messages(
                     [{"role": "user", "content": self._build_prompt(
                         task, agent=agent, previous_content=previous_content, prompt_override=prompt_override,
+                        mcp_errors=tool_context.get('errors'),
                     )}],
                     model_id=task_model_id(task, agent),
                 )
@@ -834,40 +836,76 @@ class AgentTaskScheduler:
         if not agent:
             return {'tools': [], 'tool_map': {}}
 
-        tool_context = {'agent': agent, 'tools': [], 'tool_map': {}}
+        tool_context = {'agent': agent, 'tools': [], 'tool_map': {}, 'errors': []}
+        task_tool_scope = task.mcp_tool_scope if task.task_kind == 'custom' else None
+        has_task_tool_scope = task_tool_scope is not None
+        scoped_server_tools = {
+            str(server_id): {name for name in names if isinstance(name, str)}
+            for server_id, names in task_tool_scope.items()
+            if isinstance(task_tool_scope, dict) and isinstance(names, list)
+        } if isinstance(task_tool_scope, dict) else {}
 
         if isinstance(agent.mcp_servers, list) and agent.mcp_servers:
-            mcp_servers = list(MCPServer.objects.filter(id__in=agent.mcp_servers))
+            bound_ids = list(dict.fromkeys(str(value).strip() for value in agent.mcp_servers if str(value or '').strip()))
+            if has_task_tool_scope:
+                bound_ids = [server_id for server_id in bound_ids if scoped_server_tools.get(server_id)]
+            mcp_servers = list(MCPServer.objects.filter(id__in=bound_ids))
+            found_ids = {str(server.pk) for server in mcp_servers}
+            missing_count = 0
+            for missing_id in bound_ids:
+                if missing_id not in found_ids:
+                    missing_count += 1
+                    detail = f'MCP 配置不存在：{missing_id}'
+                    self._append_agent_run_step(record, agent.id, 'info', 'MCP 未装载', detail)
+            if missing_count:
+                tool_context['errors'].append(f'{missing_count} 个绑定 MCP 配置不可用')
             if mcp_servers:
                 details = []
                 for server in mcp_servers:
                     if not server.enabled:
                         detail = f"{server.name} 已停用"
-                        self._append_agent_run_step(record, agent.id, 'failed', 'MCP 执行失败', detail)
-                        raise RuntimeError(detail)
+                        tool_context['errors'].append(f'{server.name}：服务已停用')
+                        self._append_agent_run_step(record, agent.id, 'info', 'MCP 未装载', detail)
+                        continue
                     self._append_agent_run_step(record, agent.id, 'running', '检查 MCP 连接', f"{server.name}：正在同步 Tool")
-                    tools, error_msg = fetch_mcp_tools(server)
+                    try:
+                        tools, error_msg = fetch_mcp_tools(server)
+                    except Exception as exc:
+                        logger.warning('Custom Agent MCP sync failed for %s', server.id, exc_info=True)
+                        tools, error_msg = [], str(exc) or type(exc).__name__
                     if error_msg:
                         detail = f"{server.name}：{error_msg}"
-                        self._append_agent_run_step(record, agent.id, 'failed', 'MCP 执行失败', detail)
-                        raise RuntimeError(detail)
+                        tool_context['errors'].append(f'{server.name}：连接失败，工具未装载')
+                        self._append_agent_run_step(record, agent.id, 'info', 'MCP 未装载', detail)
+                        continue
                     if not tools:
                         detail = f"{server.name}：未发现可用 Tool"
-                        self._append_agent_run_step(record, agent.id, 'failed', 'MCP 执行失败', detail)
-                        raise RuntimeError(detail)
+                        tool_context['errors'].append(f'{server.name}：没有提供可用工具')
+                        self._append_agent_run_step(record, agent.id, 'info', 'MCP 未装载', detail)
+                        continue
                     server.tools = self._merge_enabled_tools(tools, server.tools)
                     server.save(update_fields=['tools', 'updated_at'])
+                    allowed_tool_names = scoped_server_tools.get(str(server.pk), set())
                     enabled_tools = [
                         tool.get('name')
                         for tool in (server.tools or [])
-                        if isinstance(tool, dict) and tool.get('enabled', True)
+                        if isinstance(tool, dict)
+                        and tool.get('enabled', True)
+                        and (not has_task_tool_scope or tool.get('name') in allowed_tool_names)
                     ]
+                    if not enabled_tools:
+                        detail = f'{server.name}：没有启用的授权 Tool'
+                        tool_context['errors'].append(f'{server.name}：没有启用的授权工具')
+                        self._append_agent_run_step(record, agent.id, 'info', 'MCP 未装载', detail)
+                        continue
                     tool_text = f"（{', '.join(enabled_tools)}）" if enabled_tools else ''
                     details.append(f"{server.name}{tool_text}")
                     for tool in (server.tools or []):
                         if not isinstance(tool, dict) or not tool.get('enabled', True):
                             continue
                         original_name = tool.get('name')
+                        if has_task_tool_scope and original_name not in allowed_tool_names:
+                            continue
                         safe_name = self._build_safe_tool_name(server, original_name, tool_context['tool_map'])
                         tool_context['tool_map'][safe_name] = {
                             'server': server,
@@ -888,12 +926,17 @@ class AgentTaskScheduler:
                             }
                         })
                 self._append_agent_run_step(record, agent.id, 'info', '装载 MCP', '；'.join(details))
+            elif has_task_tool_scope and not bound_ids:
+                self._append_agent_run_step(record, agent.id, 'info', '装载 MCP', '任务白名单未授权当前 Agent 的 MCP 工具')
             else:
                 self._append_agent_run_step(record, agent.id, 'info', '装载 MCP', 'Agent 已绑定 MCP，但未找到对应配置')
         else:
             self._append_agent_run_step(record, agent.id, 'info', '装载 MCP', '未绑定 MCP')
 
-        skill_prompts = self._get_skill_prompts(agent)
+        registered_names = [entry.get('tool_name') for entry in tool_context['tool_map'].values()]
+        skill_prompts = self._get_skill_prompts(
+            agent, include_post_markdown='create_agent_post' in registered_names,
+        )
         if skill_prompts:
             self._append_agent_run_step(record, agent.id, 'info', '装载技能', f"已装载 {len(skill_prompts)} 个技能")
         else:
@@ -981,7 +1024,7 @@ class AgentTaskScheduler:
             outputs.append(f"## {agent_name}\n\n{content}")
         return "\n\n---\n\n".join(outputs)
 
-    def _build_prompt(self, task, has_mcp_tools=False, agent=None, previous_content='', prompt_override='', tool_names=None):
+    def _build_prompt(self, task, has_mcp_tools=False, agent=None, previous_content='', prompt_override='', tool_names=None, mcp_errors=None):
         agent = agent or task.agent
         now = _local_now()
         today = now.strftime('%Y-%m-%d')
@@ -998,7 +1041,9 @@ class AgentTaskScheduler:
             from .agent_world.memory.recall import memory_context
             parts.append(memory_context(agent, (prompt_override or task.prompt or task.name)[:2000]))
 
-        skill_prompts = self._get_skill_prompts(agent)
+        skill_prompts = self._get_skill_prompts(
+            agent, include_post_markdown='create_agent_post' in (tool_names or []),
+        )
         if skill_prompts:
             parts.append("你已装载以下 O-Doc 系统技能。请按技能边界使用它们：\n" + "\n\n".join(skill_prompts))
 
@@ -1009,12 +1054,18 @@ class AgentTaskScheduler:
             )
 
         agent_skill_ids = agent.skills if agent and isinstance(agent.skills, list) else []
-        post_markdown_guide = '' if self._has_agent_post_markdown_skill(agent_skill_ids) else read_agent_post_markdown_guide()
+        needs_post_markdown = 'create_agent_post' in (tool_names or [])
+        post_markdown_guide = ('' if self._has_agent_post_markdown_skill(agent_skill_ids)
+                               else read_agent_post_markdown_guide()) if needs_post_markdown else ''
         if post_markdown_guide:
             parts.append(post_markdown_guide)
 
         if "create_agent_post" in (tool_names or []):
             parts.append("发帖前必须先调用 list_agent_post_categories，选择启用的 category_id，再生成该类型内容；不能创建自由文本分类。")
+
+        if mcp_errors:
+            parts.append('以下已绑定 MCP 当前不可用；不要声称执行了这些能力，也不要因其他可用工具失败而编造结果：\n'
+                         + '\n'.join(f'- {str(error)[:300]}' for error in mcp_errors))
 
         if "get_agent_profession" in (tool_names or []):
             parts.append("需要了解自己的职业、帖子收益或农场产量加成时，调用 get_agent_profession；职业信息仅供选择参考，按分配任务执行。")
@@ -1050,7 +1101,7 @@ class AgentTaskScheduler:
         return '\n'.join(lines)
 
     @staticmethod
-    def _get_skill_prompts(agent):
+    def _get_skill_prompts(agent, *, include_post_markdown=True):
         if not agent or not isinstance(agent.skills, list) or not agent.skills:
             return []
 
@@ -1058,7 +1109,8 @@ class AgentTaskScheduler:
             id__in=agent.skills,
             enabled=True,
         )
-        return [f"### {skill.name}\n{skill.prompt}" for skill in skills if skill.prompt]
+        return [f"### {skill.name}\n{skill.prompt}" for skill in skills if skill.prompt
+                and (include_post_markdown or skill.skill_key != AGENT_POST_MARKDOWN_SKILL_KEY)]
 
     @staticmethod
     def _has_agent_post_markdown_skill(skill_ids):

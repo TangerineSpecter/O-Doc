@@ -26,13 +26,16 @@ def action_options(rows: list[dict]) -> dict:
         for row in available[:PREVIEW_SIZE]:
             detail = row['detail']
             source = detail.get('source') or detail.get('item', {}).get('source') or {}
-            examples.append({'label': row['label'], 'maximum': row['maximum'],
-                             'unit_price': row['unit_price'],
-                             'recovery_for_one': row.get('recovery', {}).get('1'),
-                             'recovery_for_maximum': row.get('recovery', {}).get(str(row['maximum'])),
-                             'current_listing_price': detail.get('unit_price'),
-                             'quality': source.get('stars', source.get('quality'))})
+            example = {'label': row['label'], 'maximum': row['maximum']}
+            optional = {
+                'unit_price': row['unit_price'],
+                'recovery_for_one': row.get('recovery', {}).get('1'),
+                'recovery_for_maximum': row.get('recovery', {}).get(str(row['maximum'])),
+                'current_listing_price': detail.get('unit_price'),
+                'quality': source.get('stars', source.get('quality')),
+            }
+            example.update({key: value for key, value in optional.items() if value is not None})
+            examples.append(example)
         result[action] = {'label': label, 'feasible_items': len(available),
-                          'examples': examples, 'has_more': len(available) > PREVIEW_SIZE,
-                          'detail_access': '选择该动作后按每页20项查看全部候选'}
+                          'examples': examples, 'has_more': len(available) > PREVIEW_SIZE}
     return result

@@ -8,7 +8,7 @@ from .life_models import LifeConfig, LifeItem
 from .life_config import tasks_for
 from .life_schedule import OPEN, SHANGHAI, ensure_cycle, recover, revise, window, execution_key
 from .life_scope import life_scope, CURRENT
-from .life_context import build_context
+from .life_context import build_execution_context
 from .life_planner import plan_items, check_goals
 from .life_market import ensure_daily_market, execute_daily_market
 from .life_time import local_time,storage_time
@@ -129,7 +129,7 @@ def execute_item(item: LifeItem, scheduler) -> None:
             locked.status='running';locked.context={**locked.context,'execution_started':timezone.now().isoformat()};locked.save()
         marker=defer_when_world_busy.set(True)
         try:
-            with life_scope(item,build_context(item.owner_id,agent,item)):
+            with life_scope(item,build_execution_context(item.owner_id,agent,item)):
                 from .life_budget_policy import allows_spending
                 if allows_spending(item.activity) and item.context.get('needs_market'):
                     market=next((t for t in tasks_for(item.owner_id) if t.enabled and t.task_kind=='market'),None)
@@ -138,7 +138,7 @@ def execute_item(item: LifeItem, scheduler) -> None:
                         from .life_schedule import stable_id
                         run_market_opportunity(market,scheduler,key=stable_id(execution_key(item),'supplies'))
                         item.refresh_from_db();agent.refresh_from_db()
-                        CURRENT.get()['context']=build_context(item.owner_id,agent,item)
+                        CURRENT.get()['context']=build_execution_context(item.owner_id,agent,item)
                 if item.activity=='exploration':
                     from .combat.schedule import run_opportunity as run
                 elif item.activity=='cooking':

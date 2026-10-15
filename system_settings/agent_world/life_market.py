@@ -71,7 +71,7 @@ def recover_daily_market(item: LifeItem, config: LifeConfig, now: datetime) -> N
 
 
 def execute_daily_market(config: LifeConfig, agent: Agent, item: LifeItem, scheduler) -> None:
-    from .life_context import build_context
+    from .life_context import build_execution_context
     from .life_planner import check_goals
     from .life_scope import life_scope
     from .market_runner import run_market_opportunity
@@ -109,7 +109,7 @@ def execute_daily_market(config: LifeConfig, agent: Agent, item: LifeItem, sched
     marker = defer_when_world_busy.set(True)
     try:
         # 市场执行器本身会决定去不去，并可用预算工具申请实际采购额度。
-        with life_scope(item, build_context(config.pk, agent, item)):
+        with life_scope(item, build_execution_context(config.pk, agent, item)):
             record = run_market_opportunity(task, scheduler, key=execution_key(item))
         item.refresh_from_db()
         action = WorldAction.objects.filter(pk=execution_key(item)).first()

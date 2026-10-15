@@ -27,13 +27,20 @@ TOOLS=[BUDGET_TOOL,
 ]
 
 
+def tools_for(*, allow_budget_adjustment: bool) -> list[dict]:
+    """Expose only capabilities valid in this life-scope; investment choices stay open."""
+    return [row for row in TOOLS
+            if row['function']['name'] != 'adjust_life_budget' or allow_budget_adjustment]
+
+
 class Finished(Exception):
     expected_tool_stop = True
 
 
 class InvestmentTools:
-    def __init__(self,decision,agent,token,manual,deadline):
+    def __init__(self,decision,agent,token,manual,deadline,*,allowed_tools=None):
         self.decision,self.agent,self.token,self.manual,self.deadline=decision,agent,token,manual,deadline
+        self.allowed_tools=set(allowed_tools or (row['function']['name'] for row in TOOLS))
         self.analyses={}; self.analyzed=set(); self.call_count=0
 
     def execute(self,name,args):
@@ -43,6 +50,8 @@ class InvestmentTools:
         self.call_count+=1
         if self.call_count>20 or time.monotonic()>=self.deadline:
             raise Finished('投资机会达到时间或工具调用上限')
+        if name not in self.allowed_tools:
+            raise ValueError('当前投资阶段未开放该工具')
         check_authorization(self.decision,self.agent,self.token,self.manual)
         from .investment_lifecycle import progress
         progress(self.decision.record_id, '调用投资工具', f'工具：{name}；第 {self.call_count} 次')
@@ -73,8 +82,15 @@ class InvestmentTools:
     def dispatch(self,name,args):
         d=self.decision
         if name=='adjust_life_budget':return budget_tool(args)
-        if name=='account':return overview(d.owner_id,self.agent.pk)
-        if name=='positions':return page(positions(InvestmentAccount.objects.get(pk=self.agent.pk,owner_id=d.owner_id)),args.get('page',1))
+        if name=='account':
+            from .investment_context import account_projection
+            return account_projection(overview(d.owner_id,self.agent.pk))
+        if name=='positions':
+            from .investment_context import position_page_projection
+            return position_page_projection(page(
+                positions(InvestmentAccount.objects.get(pk=self.agent.pk,owner_id=d.owner_id)),
+                args.get('page',1),
+            ))
         if name=='market_news':return news(d.owner_id,d.task.investment_config,self.deadline)
         if name=='find_stocks':
             q=str(args.get('query','')).strip().lower()

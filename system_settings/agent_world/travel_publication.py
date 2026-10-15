@@ -120,7 +120,13 @@ def recover_photo(journey):
             def validate(v):
                 return {'prompt': text(v, 'prompt', 8000)}
             prompt = decide(journey, node, '只生成生图提示词，返回 {"prompt":"..."}。按参考图顺序说明用途。角色默认采用旅行场景照的统一画风：Q版大头短身（约2–3头身）、圆润简化的四肢和五官、粗而清晰的深褐近黑手绘描边、干净色块、轻柔明暗和少量纸感纹理；避免修长成人比例、细线稿和写实人物。头像固定角色身份、发型和五官特征；全身图补充服装配饰。只有任务明确指定另一种画风时才覆盖默认画风。提示词整理模型未看到参考图片时不要猜测具体外形，直接要求生图模型按头像还原。默认横向16:9，使用能同时表现角色动作和地点环境的中景或环境人像，背景细致、有层次并让地标可辨认。只表现已发生片段，输出单张完整画面。表情按角色性格和经历决定，不要求温柔、活泼或总是开心。角色卡只摘外观，不发送完整人格。',
-                {'scene': state['draft']['photo_scene'], 'journey': {key: state[key] for key in ('selected', 'visits', 'encounters', 'food', 'draft') if key in state}, 'reference_images': options.get('agent_reference_images', {}), 'appearance': {'avatar': journey.agent.avatar, 'full_body': journey.agent.full_body_image}}, validate, skill.prompt)
+                {'scene': state['draft']['photo_scene'], 'journey': {
+                    'destination': state.get('selected'),
+                    'visits': state.get('visits', []), 'encounters': state.get('encounters', []),
+                    'food': state.get('food'), 'shopping': state.get('shopping'),
+                    'draft': {'title': state['draft'].get('title'), 'photo_scene': state['draft'].get('photo_scene')},
+                }, 'reference_images': options.get('agent_reference_images', {}),
+                 'appearance': {'avatar': journey.agent.avatar, 'full_body': journey.agent.full_body_image}}, validate, skill.prompt)
             if not photo.get('request'):
                 sizes = [s['value'] for s in options.get('image_size_options', [])]
                 requested_size = state.get('config', {}).get('image_size', '1K')

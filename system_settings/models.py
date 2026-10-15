@@ -631,6 +631,13 @@ class AgentTask(models.Model):
     investment_config = models.JSONField(default=dict, blank=True)
     travel_config = models.JSONField(default=dict, blank=True)
     exploration_config = models.JSONField(default=dict, blank=True)
+    mcp_tool_scope = models.JSONField(
+        default=None,
+        null=True,
+        blank=True,
+        verbose_name='任务 MCP 工具范围',
+        db_comment='自定义任务允许装载的 MCP 工具；空值兼容 Agent 绑定工具，空对象表示不开放 MCP',
+    )
     post_collection_ids = models.JSONField(default=list, blank=True)
     post_category_ids = models.JSONField(default=list, blank=True)
     world_state = models.JSONField(default=dict, blank=True)

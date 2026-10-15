@@ -1,7 +1,7 @@
 """长流程扣费前复核预留；预算调整不创造资金或重复扣款。"""
 from decimal import Decimal
 
-from .life_budget_policy import remaining_reservation
+from .life_budget_policy import allows_spending, remaining_reservation
 from .life_models import LifeItem
 from .life_schedule import OPEN
 from .life_budget import adjust_budget, money
@@ -20,7 +20,6 @@ def review_travel_budget(journey, amount):
     if amount <= item.budget-item.spent and agent.money-amount >= reserved:
         return
     from .travel_ai import ask, text
-    from .life_context import build_context
 
     def validate(value):
         if not isinstance(value.get('allocations'), list):
@@ -31,8 +30,22 @@ def review_travel_budget(journey, amount):
             money(entry.get('budget'))
         return {'allocations': value['allocations'], 'reason': text(value, 'reason', 1000)}
 
+    others = list(LifeItem.objects.filter(owner_id=item.owner_id, actor_id=item.actor_id, status__in=OPEN)
+                  .exclude(pk=item.pk).order_by('scheduled_at'))
+    reserved = sum((remaining_reservation(row) for row in others), Decimal(0))
+    life_projection = {
+        'balance': str(agent.money),
+        'current': {'id': item.pk, 'activity': item.activity, 'budget': str(item.budget),
+                    'spent': str(item.spent), 'remaining': str(remaining_reservation(item))},
+        'reserved_for_others': str(reserved),
+        'other_commitments': [
+            {'id': row.pk, 'activity': row.activity, 'budget': str(row.budget),
+             'spent': str(row.spent), 'remaining': str(remaining_reservation(row))}
+            for row in others if allows_spending(row.activity)
+        ],
+    }
     decision = ask(journey, '实际费用超出当前预留，请根据后续安排重新分配预算，可缩减后续可选购物。'
                    '返回 {"allocations":[{"id":"安排ID","budget":"总预算"}],"reason":"实际费用及调整原因"}。'
                    '预算不能小于已支出，不能突破真实余额。',
-                   {'required_payment': str(amount), 'life': build_context(item.owner_id, agent, item)}, validate)
+                   {'required_payment': str(amount), 'life': life_projection}, validate)
     adjust_budget(item.owner_id, item.actor_id, decision['allocations'], decision['reason'])

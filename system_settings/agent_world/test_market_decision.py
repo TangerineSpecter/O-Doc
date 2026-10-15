@@ -42,6 +42,79 @@ class MarketDecisionTests(TestCase):
         self.assertFalse(MarketSession.objects.filter(record=record).exists())
         self.assertEqual(model.call_count, 0)
 
+    def test_text_session_can_buy_after_selling_from_zero_cash(self):
+        from .inventory_stock import add_stock
+        close_session(self.sa, 'fixture finished')
+        close_session(self.sb, 'fixture finished')
+        item = add_stock(self.a.pk, 'admin', self.a.name, 'crop.radish', 2, '萝卜', 'farm_crop', 18)
+        self.a.money = 0
+        self.a.save(update_fields=['money'])
+        self.assertNotIn('buy_market_shop', {row['tool'] for row in candidates('admin', self.a)})
+        def text(messages, tools, execute, **kwargs):
+            self.assertIn('buy_market_shop', {tool['function']['name'] for tool in tools})
+            execute('enter_market', {'request_id': 'sell-then-buy-enter'})
+            sold = execute('sell_to_market_shop', {'request_id': 'sell-crops', 'item_id': item.pk, 'quantity': 1})
+            self.assertNotIn('error', sold)
+            bought = execute('buy_market_shop', {'request_id': 'buy-feed', 'batch_id': self.shop.pk,
+                                                'slot_id': 'feed', 'quantity': 1})
+            self.assertNotIn('error', bought)
+            execute('leave_market', {'reason': '卖出作物后购买饲料'})
+        record, _ = self.run_with(None, text)
+        self.assertEqual(record.status, 'success', record.summary)
+        self.assertEqual(stock_quantity(self.a.pk, 'admin', 'feed'), 1)
+        self.assertEqual(MarketTransaction.objects.filter(session__record=record).count(), 2)
+
+    def test_text_session_can_reprice_and_withdraw_new_listing(self):
+        from .inventory_stock import add_stock
+        from .market_models import MarketListing
+        close_session(self.sa, 'fixture finished')
+        close_session(self.sb, 'fixture finished')
+        item = add_stock(self.a.pk, 'admin', self.a.name, 'crop.radish', 2, '萝卜', 'farm_crop', 18)
+        self.assertNotIn('reprice_market_listing', {row['tool'] for row in candidates('admin', self.a)})
+        def text(messages, tools, execute, **kwargs):
+            names = {tool['function']['name'] for tool in tools}
+            self.assertTrue({'reprice_market_listing', 'withdraw_market_listing'} <= names)
+            execute('enter_market', {'request_id': 'new-listing-enter'})
+            created = execute('create_market_listing', {'request_id': 'create-listing', 'item_id': item.pk,
+                                                       'quantity': 1, 'unit_price': '30'})
+            self.assertNotIn('error', created)
+            listing = MarketListing.objects.get(seller_id=self.a.pk)
+            changed = execute('reprice_market_listing', {'request_id': 'reprice-new', 'listing_id': listing.pk,
+                                                        'version': listing.version, 'unit_price': '25'})
+            self.assertNotIn('error', changed)
+            listing.refresh_from_db()
+            withdrawn = execute('withdraw_market_listing', {'request_id': 'withdraw-new',
+                                'listing_id': listing.pk, 'version': listing.version})
+            self.assertNotIn('error', withdrawn)
+            execute('leave_market', {'reason': '撤回本次挂牌'})
+        record, _ = self.run_with(None, text)
+        self.assertEqual(record.status, 'success', record.summary)
+        self.assertEqual(stock_quantity(self.a.pk, 'admin', 'crop.radish'), 2)
+        self.assertEqual(MarketTransaction.objects.filter(session__record=record).count(), 3)
+
+    def test_selected_listing_helper_keeps_tool_and_argument_restrictions(self):
+        from .inventory_stock import add_stock
+        from .market_model_execution import MarketExecution
+        from system_settings.models import AgentRunRecord
+        from utils.ai_service import AIService
+        item = add_stock(self.a.pk, 'admin', self.a.name, 'crop.radish', 2, '萝卜', 'farm_crop', 18)
+        record = AgentRunRecord.objects.create(task=self.task, agent=self.a)
+        runtime = MarketExecution(self.task, self.a, record, 'selected-listing', 'manual')
+        selected = {'tool': 'create_market_listing', 'arguments': {'item_id': item.pk, 'quantity': 1}}
+        def text(messages, tools, execute, **kwargs):
+            self.assertEqual({tool['function']['name'] for tool in tools},
+                             {'list_market_listings', 'leave_market', 'create_market_listing'})
+            self.assertIn('error', execute('buy_market_shop', {}))
+            self.assertIn('error', execute('observe_market_detail', {'topic': 'inventory'}))
+            self.assertIn('error', execute('create_market_listing', {
+                'item_id': item.pk, 'quantity': 2, 'unit_price': '30', 'request_id': 'changed-selection',
+            }))
+        with patch('system_settings.agent_world.market_runner.AIService.chat_completion_messages_with_tools',
+                   side_effect=text) as model:
+            runtime.text(AIService, helper=True, selected=selected)
+        model.assert_called_once()
+        self.assertFalse(MarketTransaction.objects.exists())
+
     def test_world_policy_can_disable_future_choices_in_active_session(self):
         self.prepare()
         from .life_models import LifeConfig

@@ -70,12 +70,19 @@ def run_capture(task, trigger, agents_override=None, random_context=None):
             if not receipt:
                 from .memory.recall import memory_context
                 memories = memory_context(agent, '近期真实经历、阅读和社交中值得提炼的具体观点、总结、思路或问题')
-                recent = list(Memo.objects.filter(user_id=owner, creator_type='agent', creator_id=str(agent.pk)).order_by('-created_at').values_list('content', flat=True)[:20])
+                recent = [str(value)[:120] for value in Memo.objects.filter(
+                    user_id=owner, creator_type='agent', creator_id=str(agent.pk)
+                ).order_by('-created_at').values_list('content', flat=True)[:20]]
                 from article.models import Article
                 from article.annotation_service import get_agent_identity
                 identity = get_agent_identity(agent, stable=True)
-                posts = list(Article.objects.filter(author=owner, agent_post_creator_id=identity['creator_id'], is_valid=True).order_by('-created_at').values_list('content', flat=True)[:5])
-                tags = list(Memo.objects.filter(user_id=owner).exclude(tag='').values_list('tag', flat=True).distinct()[:80])
+                posts = list(Article.objects.filter(
+                    author=owner, agent_post_creator_id=identity['creator_id'], is_valid=True,
+                ).order_by('-created_at').values('title', 'post_summary', 'content')[:5])
+                posts = [{'title': row['title'], 'summary': (row['post_summary'] or '')[:240],
+                          'excerpt': (row['content'] or '')[:400] if index < 2 else ''}
+                         for index, row in enumerate(posts)]
+                tags = list(Memo.objects.filter(user_id=owner).exclude(tag='').values_list('tag', flat=True).distinct()[:30])
                 prompt = '''你要从素材中提炼一条闪念：一个简短、能独立理解的思想碎片。
 只留下一个具体观点、总结、思路或问题，直接写这个点本身。通常一句话、10～60字，尽量更短，不为凑字数扩写。
 不写故事经过、角色小剧场、对话或朋友圈式的情绪表达；不加“我发现”“我觉得”等自我叙述，不写标题、铺垫、解释段落或“下次试试”式收尾。

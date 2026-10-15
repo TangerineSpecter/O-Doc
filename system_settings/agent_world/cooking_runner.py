@@ -28,9 +28,14 @@ logger = logging.getLogger(__name__)
 
 
 def decide(task, agent, options):
-    from .life_scope import enrich
-    context = enrich({'skill': overview(task.cooking_config['owner_id'], agent.pk),
-                      'stamina': str(stamina(agent)), 'recipes': options})
+    context = {'skill': overview(task.cooking_config['owner_id'], agent.pk),
+               'stamina': str(stamina(agent)),
+               'recipes': [project_recipe(row) for row in options]}
+    from .life_scope import CURRENT
+    scope = CURRENT.get()
+    preferences = (scope or {}).get('context', {}).get('preferences')
+    if preferences:
+        context['preferences'] = preferences
     prompt = role_text(agent, 'planning')
     from .memory.recall import memory_context
     prompt += '\n' + memory_context(agent, '美食 制作 厨艺 ' + task.prompt)
@@ -43,6 +48,29 @@ def decide(task, agent, options):
         return decision
     return complete_json(agent, prompt + '\n' + messages[1]['content'], validate,
                          task=task, decision=True, scene='制作计划')
+
+
+def project_recipe(row):
+    """Keep decision evidence while dropping display assets and full probability tables."""
+    fields = ('id', 'name', 'required_level', 'sale_price', 'experience', 'energy_cost',
+              'max_portions', 'ingredient_value', 'processing_gain')
+    result = {key: row[key] for key in fields if key in row}
+    result['ingredients'] = [
+        {key: item[key] for key in ('sku', 'name', 'quantity', 'owned') if key in item}
+        for item in row.get('ingredients', [])
+    ]
+    previews = []
+    for preview in row.get('quality_previews', []):
+        portions = []
+        for portion in preview.get('portions', []):
+            portions.append({key: portion[key] for key in (
+                'material_stars', 'ingredient_value', 'expected_revenue',
+                'expected_experience', 'expected_processing_gain',
+            ) if key in portion})
+        previews.append({'ingredient_strategy': preview.get('ingredient_strategy'), 'portions': portions})
+    if previews:
+        result['quality_previews'] = previews
+    return result
 
 
 def validate_decision(value, options):

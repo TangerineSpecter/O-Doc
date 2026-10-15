@@ -551,6 +551,26 @@ class FarmTests(TestCase):
         self.assertEqual(item.budget, 500)
         self.assertFalse(FarmOperation.objects.exists())
 
+    def test_stage_limit_is_visible_and_enforced_after_earlier_operations(self):
+        from .farm_runner import decide
+        from .farm_plan import stage_options
+        farm = AgentFarm.objects.get(pk=self.agent.pk)
+        options = stage_options(farm, candidates(farm, self.agent.money), 'manage', 1)
+        self.assertGreaterEqual(len(options), 2)
+        def respond(config, prompt, **kwargs):
+            context = json.loads(prompt.split('\n资料：', 1)[1].split('\n补充经营偏好：')[0])
+            self.assertEqual(context['remaining_operations'], 1)
+            return json.dumps({'choices': [row['id'] for row in options[:2]], 'reason': '建造农场设施'})
+        with patch('system_settings.decision.routing.complete', side_effect=respond) as call:
+            with self.assertRaisesRegex(ValueError, '经营候选无效'):
+                decide(self.task, self.agent, farm, options)
+            self.assertEqual(call.call_count, 2)
+        with patch('system_settings.decision.routing.complete',
+                   return_value=json.dumps({'choices': [options[0]['id']], 'reason': '只执行剩余的一项'})):
+            result = decide(self.task, self.agent, farm, options)
+        self.assertEqual(result['choices'], [options[0]['id']])
+        self.assertFalse(FarmOperation.objects.exists())
+
     def test_plan_checks_combined_cost_and_allows_explicit_budget_adjustment(self):
         from .farm_planning import validate_plan_budget
         from .life_scope import life_scope

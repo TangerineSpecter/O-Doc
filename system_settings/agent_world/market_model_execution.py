@@ -1,5 +1,5 @@
-from system_settings.agent_role import role_text
 """One market session shared by text decisions, JEV and the single-operation helper."""
+from system_settings.agent_role import role_text
 import hashlib
 import json
 import time
@@ -10,18 +10,18 @@ from utils.token_usage import usage_scope
 from .market_models import MarketSession
 from .market_sessions import owner_for, invalid_reason, close_session
 from .market_tools import MARKET_TOOLS, KINDS, call_market_tool
-from .market_model_context import DETAIL_TOOL, READ_TOOLS, compact_messages, model_context, observe, projection
+from .market_model_context import DETAIL_TOOL, MARKET_DETAIL_TOPICS, READ_TOOLS, compact_messages, model_context, observe, projection
 from .run_diagnostics import progress
 from .market_shopping import SEED_GUIDANCE
 from .market_narrative import public_leave_reason
 
 RULES = '''你获得一次市场机会。可选择不去；进入扣5体力，仅一次。最多5分钟、20次市场调用、24次工具执行。
-以真实成交为准，不必花光钱。采购前查看spending的实时预算、商品格额度；不足时调整生活预算、减少数量或离场。后续活动预留不能擅自动用。
+以真实成交为准，不必花光钱。采购前查看当前实时预算与商品格额度；后续活动预留不能擅自动用。
 市场操作包括购买、回收出售、上架、管理自己的挂牌和离场，应按偏好、库存与实际需求选择。查看已有可交易物品，区分留用、立即回收与挂牌等待；不能把逛市场当成必须购买，也不能为凑操作强制出售。种子、肥料和饲料按现有规则不能回收或挂牌，纪念品可挂牌但不能商店回收。
 每次交易使用唯一request_id，重试同一操作必须复用；成交后不要重复购买。常驻饲料和肥料不占格，肥料报价每小时变化，不保证下次降价。挂牌溢价未成交不算收入。
 采购只需判断想买什么、已有多少、商品作用、价格、库存和可买数量；肥料只看作用与需求，不制定施肥组合或比较作物概率、预期收益。
-初始状态已提供当前预算、背包首屏、自有挂牌首屏、空地、成熟作物及种子总量，足够判断时不重复查询。仅为具体买卖补查必要细节；没有食材采购或成品出售需求时不用查询食谱，也不用为离场核对历史成交。详情按需分页，不把第一页当作全部。
-买种子不要求修改种植队列。只有主动调整已有播种安排时，才使用提供的计划ID和版本修改尚未播种的项目，保留已播种事实；没有当天安排时无需做这一步。无货可等待，不额外启动第二次市场。
+初始状态已提供当前预算、背包首屏、自有挂牌首屏、空地、成熟作物及种子总量，足够判断时不重复查询。仅为具体买卖补查必要细节；分页详情不把第一页当作全部。
+买种子不要求修改种植队列。无货可等待，不额外启动第二次市场。
 完成后leave_market。结束说明用简短自然中文，说清已做的操作或离场原因，不展示工具名、字段名或提示词中的规则。摘要只陈述真实操作。''' + '\n' + SEED_GUIDANCE
 WRITE_TOOLS = {*KINDS, 'adjust_life_budget', 'update_farm_queue'}
 
@@ -81,8 +81,7 @@ class MarketExecution:
         query = ''
         if name == 'observe_market_detail':
             labels = {'inventory': '背包', 'inventory_lots': '逐批成本', 'listing_history': '挂牌历史',
-                      'planting': '种子与肥料', 'farm': '农场畜牧', 'combat': '装备物资',
-                      'cooking': '食谱列表', 'recipe': '食谱详情', 'life': '生活安排', 'experiences': '历史经历'}
+                      'planting': '种子与肥料', 'farm': '农场畜牧', 'combat': '装备物资'}
             query = f"查询：{labels.get(arguments.get('topic'), '未知主题')}；第{arguments.get('page', 1)}页"
         progress(self.record, self.phase, query)
         if name == 'enter_market':
@@ -139,40 +138,75 @@ class MarketExecution:
         if selected and not helper:
             raise ValueError('指定挂牌定价须使用单步子流程')
         context = model_context(self.owner, self.agent)
-        tools = [{'type': 'function', 'function': {'name': t['name'], 'description': t['description'], 'parameters': t['inputSchema']}}
-                 for t in MARKET_TOOLS if (t['name'] != 'update_farm_queue' or context['farm_queue'])
-                 and (not selected or t['name'] in READ_TOOLS | {'leave_market', selected['tool']})]
-        tools.append(DETAIL_TOOL)
+        from .market_decision_candidates import candidates
+        from .market_decision_options import action_options
+        candidate_rows = [] if selected else candidates(self.owner, self.agent)
         from .life_scope import CURRENT
-        if CURRENT.get() and not selected:
+        budget_adjustment = bool(CURRENT.get()) and not selected
+        detail_topics = list(MARKET_DETAIL_TOPICS)
+        if selected:
+            allowed = {'list_market_listings', 'leave_market', selected['tool']}
+            detail_topics = ['listing_history'] if selected['tool'] == 'reprice_market_listing' else []
+            if detail_topics:
+                allowed.add('observe_market_detail')
+        else:
+            allowed = READ_TOOLS | {'enter_market', 'leave_market'}
+            # A sale can fund a purchase and a new listing can be repriced in
+            # this same tool loop. Transaction services check live feasibility.
+            allowed.update(KINDS)
+            if budget_adjustment:
+                allowed.add('adjust_life_budget')
+            if context['farm_queue']:
+                allowed.add('update_farm_queue')
+        tools = [{'type': 'function', 'function': {'name': t['name'], 'description': t['description'], 'parameters': t['inputSchema']}}
+                 for t in MARKET_TOOLS if t['name'] in allowed]
+        if 'observe_market_detail' in allowed:
+            detail_tool = json.loads(json.dumps(DETAIL_TOOL))
+            detail_tool['function']['parameters']['properties']['topic']['enum'] = detail_topics
+            tools.append(detail_tool)
+        from .life_scope import CURRENT
+        if budget_adjustment:
             from .life_budget import BUDGET_TOOL
             tools.append(BUDGET_TOOL)
         self.phase = phase
         progress(self.record, phase)
-        prompt = RULES + '\n' + role_text(self.agent, 'planning') + '\n' + self.memory
+        prompt = RULES
+        prompt += ('\n资金不足时可减少数量、放弃，或先说明理由调整本项预算。' if budget_adjustment
+                   else '\n资金不足时减少数量或放弃；无法满足则离场。')
+        if 'update_farm_queue' in allowed:
+            prompt += '\n只有主动调整已有播种安排时，才使用计划ID和版本修改尚未播种的项目，并保留已播种事实。'
+        prompt += '\n' + role_text(self.agent, 'market')
+        if self.memory:
+            prompt += '\n' + self.memory
         if helper:
             prompt += '\n本次仅协助一个复杂操作。可查询必要细节、进入现有市场；成功完成一次交易/预算修改/队列修改后立即返回决策流程。不要连续提交多个写操作。'
-        payload = {'market_state': context, '经营偏好': self.task.prompt,
-                   'session': projection(self.session_payload()), 'completed_operations': self.effects, 'objective': objective}
+        payload = {'market_state': context,
+                   'session': projection(self.session_payload())}
+        if self.task.prompt and self.task.prompt.strip():
+            payload['经营偏好'] = self.task.prompt.strip()
+        if self.effects:
+            payload['completed_operations'] = self.effects
+        if objective and objective.strip():
+            payload['objective'] = objective.strip()
         if selected:
             payload['selected_operation'] = selected
             prompt += '\nJEV已选定挂牌操作、物品和数量或挂牌版本，只需决定unit_price并提交selected_operation指定操作；不能改变其arguments，不能改买其他商品。也可选择离场。'
         else:
-            from .market_decision_candidates import candidates
-            from .market_decision_options import action_options
-            payload['available_actions'] = action_options(candidates(self.owner, self.agent))
+            payload['available_actions'] = action_options(candidate_rows)
         self.helper, self.helper_completed = helper, False
         self.helper_failure = None
-        allowed = {t['function']['name'] for t in tools}
 
         prior_effects = []
         def execute(name: str, arguments: dict) -> dict:
             self.check()
+            if name not in allowed:
+                return {'error': '当前市场决策阶段未开放该工具'}
+            if not isinstance(arguments, dict):
+                return {'error': '市场工具参数须为对象'}
+            if name == 'observe_market_detail':
+                if arguments.get('topic') not in detail_topics:
+                    return {'error': '当前市场阶段不开放该详情主题'}
             if selected:
-                if name not in allowed:
-                    return {'error': '定价子流程只能查询、提交指定挂牌操作或离场'}
-                if not isinstance(arguments, dict):
-                    return {'error': '挂牌操作参数须为对象'}
                 if name == selected['tool'] and any(arguments.get(k) != v for k, v in selected['arguments'].items()):
                     return {'error': '不能改变JEV已选定的操作参数，请使用selected_operation.arguments'}
             for effect in prior_effects:
@@ -196,7 +230,10 @@ class MarketExecution:
                     self.check()
                     prior_effects = list(self.effects)
                     payload['market_state'] = model_context(self.owner, self.agent)
-                    payload['completed_operations'] = self.effects
+                    if self.effects:
+                        payload['completed_operations'] = self.effects
+                    else:
+                        payload.pop('completed_operations', None)
                     payload['session'] = projection(self.session_payload())
                     return ai_service.chat_completion_messages_with_tools(
                     [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': json.dumps(payload, cls=DjangoJSONEncoder, ensure_ascii=False)}],

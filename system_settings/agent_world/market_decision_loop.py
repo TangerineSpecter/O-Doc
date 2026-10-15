@@ -41,9 +41,15 @@ def decide(runtime, ai_service) -> str:
         progress(runtime.record, runtime.phase, f'候选 {selection}，置信度 {confidence:.3f}', 'info')
         return selection
 
-    state = {'resident': {'name': runtime.agent.name, 'persona': role_text(runtime.agent, 'decision'),
-                         'preferences': runtime.task.prompt, 'memory': runtime.memory,
-                         'shopping_guidance': SEED_GUIDANCE},
+    resident = {'shopping_guidance': SEED_GUIDANCE}
+    persona = role_text(runtime.agent, 'market')
+    if persona:
+        resident['persona'] = persona
+    if runtime.task.prompt and runtime.task.prompt.strip():
+        resident['preferences'] = runtime.task.prompt.strip()
+    if runtime.memory:
+        resident['memory'] = runtime.memory
+    state = {'resident': resident,
              'market': model_context(runtime.owner, runtime.agent),
              'available_actions': action_options(candidates(runtime.owner, runtime.agent))}
     entering = question(state, {'enter': '进入市场扣5体力，按需购买、回收出售、上架或管理挂牌；不必购买', 'wait': '本次不逛市场'})

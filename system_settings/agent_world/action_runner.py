@@ -53,12 +53,12 @@ def choose_post(task, agent):
 def evaluate(task, agent, post) -> dict:
     if len(post.content) > 60000:
         return {'action': 'rest', 'reason': '帖子正文过长，本次跳过，避免截断后评价'}
-    from .life_scope import enrich
     from .social_discussion import post_owner, post_author
     from .social_relations import context_for
     owner = post_owner(post)
     relationship = context_for(owner, agent.pk, post_author(post, owner))
-    context = json.dumps(enrich({'relationship': relationship, 'title': post.title, 'content': post.content, 'stamina': str(stamina(agent)), 'extra': task.prompt}), ensure_ascii=False,default=str)
+    context = json.dumps({'relationship': relationship, 'title': post.title, 'content': post.content,
+                          'stamina': str(stamina(agent)), 'extra': task.prompt}, ensure_ascii=False,default=str)
     prompt = build_agent_system_prompt(role_text(agent, 'expression'), conversation=False)
     from .memory.recall import memory_context
     prompt += '\n' + memory_context(agent, post.title + '\n' + post.content[:1000] + '\n' + post_author(post, owner))

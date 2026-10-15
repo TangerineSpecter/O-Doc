@@ -120,7 +120,9 @@ def normalize_slot_time_aliases(rows: object, farms: list[dict], slots: dict[str
             for row in rows]
 
 
-def propose(agent, context: dict, ask: Callable, ask_detail: Callable | None = None) -> dict:
+def propose(agent, context: dict, ask: Callable, ask_detail: Callable | None = None,
+            load_budget_context: Callable | None = None,
+            load_farm_context: Callable | None = None) -> dict:
     ask_detail = ask_detail or ask
     from .life_activity_decision import select_activities
     selection_input = selection_context(context)
@@ -160,13 +162,15 @@ def propose(agent, context: dict, ask: Callable, ask_detail: Callable | None = N
     proposal = {'plans': plans, 'goal_updates': choice.get('goal_updates', [])}
     paid = [row for row in plans if allows_spending(row['activity']) and row['activity'] != 'farm']
     if paid:
-        funds = {key: deepcopy(context[key]) for key in
-                 ('balance', 'goals') if key in context}
+        budget_context = load_budget_context(paid) if load_budget_context else context
+        funds = {key: deepcopy(budget_context[key]) for key in
+                 ('balance', 'goals') if key in budget_context}
         # 本轮安排由slots统一分配，不能再当作其他承诺重复预留。
-        funds['upcoming'] = [deepcopy(row) for row in context.get('upcoming', [])
-                             if row['id'] not in slots]
+        funds['upcoming'] = [deepcopy(row) for row in budget_context.get('upcoming', [])
+                             if row['id'] not in slots
+                             and allows_spending(row.get('activity'))]
         if any(row['activity'] == 'travel' for row in paid):
-            funds['travel_costs'] = deepcopy(context.get('travel_costs'))
+            funds['travel_costs'] = deepcopy(budget_context.get('travel_costs'))
         funds['slots'] = [{**row, 'time': slots[row['id']]['time'],
                            'spent': slots[row['id']]['spent']} for row in paid]
         response = ask_detail(agent,
@@ -188,7 +192,8 @@ def propose(agent, context: dict, ask: Callable, ask_detail: Callable | None = N
                 proposal[key] = response[key]
     farms = [row for row in plans if row['activity'] == 'farm']
     if farms:
-        farming = farm_planning_context(context, farms, slots)
+        farm_context = load_farm_context(farms) if load_farm_context else context
+        farming = farm_planning_context(farm_context, farms, slots)
         response = ask_detail(agent,
             '已选择农场开工，现在单独准备种植队列，不得换活动。'
             '只从planting.crops中选择有库存的seed_sku，数量不能超过seed_quantity；'
@@ -207,5 +212,5 @@ def propose(agent, context: dict, ask: Callable, ask_detail: Callable | None = N
         from .farm_plan_inventory import inventory_plan
         for row in farms:
             row['farm_plan'] = inventory_plan(specifications[row['id']].get('farm_plan'),
-                                             context.get('planting', {}).get('crop_comparisons', []))
+                                             farm_context.get('planting', {}).get('crop_comparisons', []))
     return proposal

@@ -8,19 +8,20 @@ from .farm_gate import guarded
 from .market_shopping import planting_summary, seed_inventory, farm_summary, recipe_summary
 
 PAGE_SIZE = 20
+MARKET_DETAIL_TOPICS = ('inventory', 'inventory_lots', 'listing_history', 'planting', 'farm', 'combat')
 READ_TOOLS = {'get_market_context', 'get_market_shop', 'list_market_listings',
-              'get_my_market_listings', 'get_my_market_transactions', 'observe_market_detail'}
+              'get_my_market_listings', 'observe_market_detail'}
 OMIT = {'icon_url', 'icon_asset_id', 'image_url', 'image_asset_id', 'avatar',
         'operation_keys', 'purchase_keys', 'hashes', 'lots', 'history', 'owner_id',
         'crop_comparisons', 'star_probabilities', 'final_star_probabilities',
         'without_fertilizer', 'with_fertilizer', 'estimate'}
 DETAIL_TOOL = {'type': 'function', 'function': {
     'name': 'observe_market_detail',
-    'description': '按需读取采购相关细节，每页20条。planting含种子库存和肥料作用、报价，farm含农场畜牧，cooking含食谱名称与所需材料，recipe含指定食谱完整详情，inventory含来源，inventory_lots含逐批成本，listing_history含改价历史，combat含装备，life含后续安排，experiences含历史经历。逐批详情须item_id，挂牌历史须listing_id，食谱详情须recipe_id。',
+    'description': '按需读取市场交易所需细节，每页20条。planting含种子库存和肥料报价，farm含农场畜牧，inventory含物品来源，inventory_lots含逐批成本，listing_history含改价历史，combat含装备物资。逐批详情须item_id，挂牌历史须listing_id。',
     'parameters': {'type': 'object', 'properties': {
-        'topic': {'type': 'string', 'enum': ['inventory', 'inventory_lots', 'listing_history', 'planting', 'farm', 'combat', 'cooking', 'recipe', 'life', 'experiences']},
+        'topic': {'type': 'string', 'enum': list(MARKET_DETAIL_TOPICS)},
         'page': {'type': 'integer', 'minimum': 1}, 'search': {'type': 'string'},
-        'item_id': {'type': 'string'}, 'listing_id': {'type': 'string'}, 'recipe_id': {'type': 'string'}},
+        'item_id': {'type': 'string'}, 'listing_id': {'type': 'string'}},
         'required': ['topic'], 'additionalProperties': False}}}
 
 
@@ -46,10 +47,16 @@ def life_context() -> dict:
     scope = CURRENT.get()
     if not scope:
         return {}
-    # Current budget and cash come from spending_context, never this cached snapshot.
     context = scope['context']
-    return projection({k: context[k] for k in ('preferences', 'direction', 'goals', 'current',
-        'goals_total', 'upcoming', 'upcoming_total', 'farm_queue_rules') if k in context})
+    result = projection({k: context[k] for k in ('preferences', 'direction', 'current') if k in context})
+    for key in ('preferences', 'direction'):
+        if not result.get(key):
+            result.pop(key, None)
+    current = result.get('current')
+    if isinstance(current, dict):
+        # The budget and item ID are already present in the authoritative spending snapshot.
+        result['current'] = {key: current[key] for key in ('activity', 'intent') if current.get(key)}
+    return result
 
 
 @guarded
@@ -58,16 +65,16 @@ def model_context(owner: str, agent) -> dict:
     context = actor_context(owner, agent)
     planting = context.get('planting', {})
     result = projection({k: context[k] for k in ('balance', 'stamina', 'spending', 'farm_queue')})
-    result['resident'] = {'id': agent.pk, 'name': agent.name, 'profession_id': agent.profession_id}
     result['inventory'] = page(context['inventory'])
     result['listings'] = projection(context['listings'])
     result['farm'] = farm_summary(context)
     result['planting'] = planting_summary(planting)
     result['life'] = life_context()
-    if 'current' in result['life'] and 'budget' in context['spending']:
-        result['life']['current'] = {**result['life']['current'],
-            'budget': context['spending']['budget'], 'spent': context['spending']['spent']}
-    result['detail_access'] = '种子库存、肥料作用、农场畜牧、战斗物资可用observe_market_detail分页查询；其他挂牌与成交可用原市场查询工具。'
+    scope = CURRENT.get()
+    if result['farm_queue'] and scope:
+        rules = scope['context'].get('farm_queue_rules')
+        if rules:
+            result['life']['farm_queue_rules'] = projection(rules)
     return result
 
 
@@ -120,9 +127,10 @@ def observe(owner: str, agent, arguments: dict) -> dict:
             return {'recipe': projection(recipe)}
         return {'skill': overview(owner, agent.pk), 'recipes': page([recipe_summary(row) for row in rows], number, search),
                 'detail_access': '仅在确需食谱完整详情时，用topic=recipe和recipe_id查询。'}
-    from .market_detail_queries import life_details, experiences
     if topic == 'experiences':
+        from .market_detail_queries import experiences
         return page(experiences(agent), number, search)
+    from .market_detail_queries import life_details
     fresh = life_details(owner, agent)
     return {key: page(fresh.get(key, []), number, search) for key in ('goals', 'upcoming', 'today')} | {
         'spending': context['spending'], 'preferences': fresh.get('preferences'), 'direction': fresh.get('direction')}
@@ -134,7 +142,14 @@ def compact_messages(messages: list[dict]) -> list[dict]:
     calls = {}
     for message in result:
         if message.get('role') == 'assistant':
-            for call in message.get('tool_calls') or []:
+            tool_calls = message.get('tool_calls') or []
+            if tool_calls:
+                # Intermediate reasoning and prose are not needed to replay the tool
+                # protocol; keeping them makes every later provider request grow.
+                message.pop('reasoning_content', None)
+                message.pop('reasoning_details', None)
+                message['content'] = None
+            for call in tool_calls:
                 function = call.get('function', {})
                 if function.get('name') in READ_TOOLS:
                     try:

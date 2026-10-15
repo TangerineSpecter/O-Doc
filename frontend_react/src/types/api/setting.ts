@@ -178,6 +178,7 @@ export type SaveAgentLongTermMemoryParams = Pick<AgentLongTermMemoryConfig, 'mem
 
 export type AgentTaskScheduleType = 'daily' | 'weekly' | 'monthly' | 'interval';
 export type AgentTaskRandomPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type AgentTaskMcpToolScope = Record<string, string[]> | null;
 export interface AgentTaskRandomProgress {
     captureCounts?: {recorded: number; skipped: number} | null;
     periodStart: string;
@@ -196,6 +197,7 @@ export type AgentRunStatus = 'success' | 'failed' | 'running';
 export type AgentRunStepStatus = AgentRunStatus | 'info';
 
 export interface AgentTaskConfig {
+    mcpToolScope?: AgentTaskMcpToolScope;
     marketConfig?: import('./decision').MarketDecisionConfig;
     memoConfig?: {ownerId: string};
     model?: string | null;

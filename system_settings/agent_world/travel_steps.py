@@ -208,8 +208,24 @@ def advance(journey):
         def validate(v):
             return {'title': text(v, 'title', 180), 'content': text(v, 'content', 30000),
                     'reflection': text(v, 'reflection', 2000), 'photo_scene': text(v, 'photo_scene', 2000)}
+        journal_facts = {
+            'destination': state.get('selected'),
+            'plan': state.get('plan'),
+            'visits': [
+                {'site': row.get('site', {}).get('name') if isinstance(row.get('site'), dict) else row.get('site'),
+                 'choice': row.get('choice'), 'reaction': row.get('reaction')}
+                for row in state.get('visits', [])
+            ],
+            'encounters': [
+                {key: row[key] for key in ('type', 'description', 'choice', 'reaction') if key in row}
+                for row in state.get('encounters', [])
+            ],
+            'food': state.get('food'),
+            'shopping': state.get('shopping'),
+            'ended_early': state.get('ended_early', False),
+        }
         state['draft'] = decide(journey, node, '为这次已经发生的旅行写日记，不能拒绝写作，不能把未选美食、未买物品或未游览景点写成经历。返回 {"title":"...","content":"Markdown正文，不放图片占位符","reflection":"心得","photo_scene":"一个已经发生的配图片段"}。',
-                                {'journey': state, 'ended_early': state.get('ended_early', False)}, validate, skill.prompt)
+                                {'journey': journal_facts}, validate, skill.prompt)
         next_phase = 'publish'
     elif phase == 'publish':
         from .travel_publication import publish_journal

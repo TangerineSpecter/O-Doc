@@ -415,6 +415,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
     world_progress = serializers.SerializerMethodField()
     random_allocations = AgentRandomAllocationsField(required=False)
     random_count = serializers.IntegerField(min_value=1, max_value=10000, required=False)
+    mcp_tool_scope = serializers.JSONField(required=False, allow_null=True)
     random_progress = serializers.SerializerMethodField()
     agent_name = serializers.CharField(source='agent.name', read_only=True)
     agents = serializers.ListField(
@@ -431,6 +432,7 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             'id',
             'name',
             'memo_config', 'cooking_config', 'exploration_config', 'task_kind', 'publish_config', 'travel_config', 'farm_config', 'market_config', 'investment_config', 'post_collection_ids', 'post_category_ids', 'world_progress',
+            'mcp_tool_scope',
             'agent',
             'agent_name',
             'agents',
@@ -596,6 +598,31 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
             raise serializers.ValidationError('执行次数必须为正整数')
         return value
 
+    def validate_mcp_tool_scope(self, value):
+        if value is None:
+            return None
+        if not isinstance(value, dict) or len(value) > 100:
+            raise serializers.ValidationError('MCP 工具范围必须是服务 ID 到工具名称数组的对象')
+        normalized = {}
+        total_tools = 0
+        for server_id, names in value.items():
+            if not isinstance(server_id, str) or not server_id.strip() or len(server_id) > 40:
+                raise serializers.ValidationError('MCP 服务 ID 无效')
+            if not isinstance(names, list) or len(names) > 200:
+                raise serializers.ValidationError('每个 MCP 服务的工具范围必须是名称数组')
+            normalized_server_id = server_id.strip()
+            if normalized_server_id in normalized:
+                raise serializers.ValidationError('MCP 服务 ID 不能重复')
+            if any(not isinstance(name, str) or not name.strip() or len(name) > 255 for name in names):
+                raise serializers.ValidationError('MCP 工具名称无效')
+            if len(set(names)) != len(names):
+                raise serializers.ValidationError('MCP 工具范围不能包含重复名称')
+            total_tools += len(names)
+            if total_tools > 1000:
+                raise serializers.ValidationError('MCP 工具范围最多包含 1000 个工具')
+            normalized[normalized_server_id] = names
+        return normalized
+
     def validate_random_allocations(self, value):
         if not isinstance(value, dict) or any(type(count) is not int or count < 0 for count in value.values()):
             raise serializers.ValidationError('Agent 分配次数必须为非负整数')
@@ -621,6 +648,11 @@ class AgentTaskSerializer(PostScopeValidation, serializers.ModelSerializer):
         kind = attrs.get('task_kind', getattr(self.instance, 'task_kind', 'custom'))
         if self.instance and kind != self.instance.task_kind:
             raise serializers.ValidationError({'task_kind': '已有任务不能改变类型，请新建任务'})
+        if kind == 'custom':
+            if self.instance is None and 'mcp_tool_scope' not in attrs:
+                attrs['mcp_tool_scope'] = {}
+        elif attrs.get('mcp_tool_scope') is not None:
+            raise serializers.ValidationError({'mcp_tool_scope': '只有自定义任务可以配置 MCP 工具范围'})
         if kind in ('post_interaction', 'post_publish', 'travel', 'farm', 'market', 'investment', 'cooking', 'exploration'):
             from .agent_world.builtin_tasks import POST_INTERACTION_NAME, POST_PUBLISH_NAME, TRAVEL_NAME, FARM_NAME, MARKET_NAME, INVESTMENT_NAME, COOKING_NAME, EXPLORATION_NAME
             attrs['name'] = {'post_publish': POST_PUBLISH_NAME, 'post_interaction': POST_INTERACTION_NAME, 'travel': TRAVEL_NAME, 'farm': FARM_NAME, 'market': MARKET_NAME, 'investment': INVESTMENT_NAME, 'cooking': COOKING_NAME, 'exploration': EXPLORATION_NAME}[kind]

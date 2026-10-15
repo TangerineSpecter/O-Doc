@@ -150,8 +150,8 @@ def run_publish_opportunity(task, scheduler, *, key=None, manual=False, locked=F
     if key and not scope:
         agent=Agent.objects.filter(pk=item.actor_id).first() if item else None
         if item and agent:
-            from .life_context import build_context
-            with life_scope(item,build_context(item.owner_id,agent,item)):
+            from .life_context import build_execution_context
+            with life_scope(item,build_execution_context(item.owner_id,agent,item)):
                 return run_publish_opportunity(task,scheduler,key=key,manual=manual,locked=locked)
     key = key or hashlib.sha256(f'manual:{uuid.uuid4()}'.encode()).hexdigest()
     if not locked:

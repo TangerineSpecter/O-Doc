@@ -287,10 +287,15 @@ def _build_agent_mcp_tool_context(agent):
             tool_context['errors'].append(f"{server.name} 已停用")
             continue
 
-        tools, error_msg = fetch_mcp_tools(server)
+        try:
+            tools, error_msg = fetch_mcp_tools(server)
+        except Exception:
+            logger.warning("Feishu IM MCP sync failed for %s", server.name, exc_info=True)
+            tool_context['errors'].append(f"{server.name}：连接失败，工具未装载")
+            continue
         if error_msg:
             logger.warning("Feishu IM MCP sync failed for %s: %s", server.name, error_msg)
-            tool_context['errors'].append(f"{server.name}：{error_msg}")
+            tool_context['errors'].append(f"{server.name}：连接失败，工具未装载")
             continue
         if tools:
             server.tools = _merge_enabled_mcp_tools(tools, server.tools)

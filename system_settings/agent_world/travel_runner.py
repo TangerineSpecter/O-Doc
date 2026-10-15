@@ -63,8 +63,8 @@ def process_journey(journey):
     from .life_scope import check_item_authorization,CURRENT,life_scope
     item=LifeItem.objects.filter(pk=journey.pk).first()
     if item and journey.agent and not CURRENT.get():
-        from .life_context import build_context
-        with life_scope(item,build_context(item.owner_id,journey.agent,item)):
+        from .life_context import build_execution_context
+        with life_scope(item,build_execution_context(item.owner_id,journey.agent,item)):
             return process_journey(journey)
     if item:
         try:check_item_authorization(item)

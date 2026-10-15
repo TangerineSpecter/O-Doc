@@ -68,21 +68,95 @@ def farm_inventory(farm):
 
 
 def decide(task, agent, farm, options):
-    # 同步审计链与库存批次不属于决策输入，不能随经营历史扩大模型上下文。
+    stage = options[0].get('stage', 'manage') if options else 'manage'
+    remaining_operations = options[0].get('remaining_operations', 6) if options else 6
     from .market_visibility import visible_farm_state
     state = visible_farm_state(farm.state)
-    context = {'balance': str(agent.money), 'stamina': str(stamina(agent)), 'farm': state,
-               'inventory': [{'name': i.name, 'quantity': i.quantity, 'sku': i.source.get('sku'), 'stars': i.source.get('stars'), 'value': str(i.value)} for i in farm_inventory(farm)], 'candidates': options}
-    from .farm_bonus import yield_bonus
-    context['farm_bonus'] = yield_bonus(agent)
+    crop_by_plot = {}
+    for plot in state.get('plots', []):
+        crop = plot.get('crop')
+        if not crop:
+            crop_by_plot[plot.get('id')] = None
+            continue
+        rule = crop.get('rules') or {}
+        crop_by_plot[plot.get('id')] = {
+            'kind': crop.get('kind'), 'name': rule.get('name'), 'grown_seconds': crop.get('grown'),
+            'growth_seconds': rule.get('growth_seconds'), 'yield': rule.get('yield'),
+            'sale_price': rule.get('sale_price'), 'fertilizer': crop.get('fertilizer'),
+        }
+    farm_projection = {
+        'plots': [{'id': row.get('id'), 'crop': crop_by_plot.get(row.get('id'))} for row in state.get('plots', [])],
+    }
+    if stage == 'manage':
+        farm_projection['buildings'] = {
+            key: {field: value[field] for field in ('level', 'capacity') if field in value}
+            for key, value in (state.get('buildings') or {}).items()
+        }
+        farm_projection['animals'] = [
+            {'id': row.get('id'), 'kind': row.get('kind'), 'fed_until': row.get('fed_until'),
+             'has_collectable_product': bool((row.get('cycle') or {}).get('result'))}
+            for row in state.get('animals', [])
+        ]
+    elif stage in ('plant', 'fertilize'):
+        farm_projection['plots'] = [
+            {'id': row.get('id'), 'crop': ({key: crop_by_plot[row.get('id')][key]
+                                            for key in ('kind', 'name', 'grown_seconds', 'growth_seconds')
+                                            if key in (crop_by_plot.get(row.get('id')) or {})}
+                       if crop_by_plot.get(row.get('id')) else None)}
+            for row in state.get('plots', [])
+        ]
+    candidate_crops = {row.get('operation', {}).get('crop') for row in options if row.get('operation', {}).get('kind') == 'plant'}
+    def estimate_projection(value):
+        return {key: value[key] for key in ('expected_stars', 'expected_quantity', 'expected_revenue') if key in value}
+    candidates_projection = []
+    for row in options:
+        candidate = {key: row[key] for key in ('id', 'stage', 'description', 'cost', 'inventory_cost') if key in row}
+        if row.get('expected_outcomes'):
+            candidate['expected_outcomes'] = [
+                {'plot_id': result.get('plot_id'),
+                 'without_fertilizer': estimate_projection(result.get('without_fertilizer') or {}),
+                 'with_fertilizer': estimate_projection(result.get('with_fertilizer') or {})}
+                for result in row['expected_outcomes']
+            ]
+        candidates_projection.append(candidate)
+    context = {'balance': str(agent.money), 'stamina': str(stamina(agent)),
+               'remaining_operations': remaining_operations,
+               'farm': farm_projection, 'candidates': candidates_projection}
+    from .life_scope import CURRENT
+    scope = CURRENT.get()
+    preferences = (scope or {}).get('context', {}).get('preferences')
+    if preferences:
+        context['preferences'] = preferences
     from .farm_economics import planting_context
-    from .market_shop import shop_payload
-    shop = shop_payload(farm.owner_id)
-    context['planting'] = planting_context(farm, catalog_for(farm.owner_id).rules, shop['supplies'], context['farm_bonus'], shop['expires_at'])
-    context['yield_remainders'] = farm.state.get('yield_remainders', {})
+    if stage == 'plant' and candidate_crops:
+        from .market_shop import shop_payload
+        from .farm_bonus import yield_bonus
+        shop = shop_payload(farm.owner_id)
+        planting = planting_context(farm, catalog_for(farm.owner_id).rules, shop['supplies'], yield_bonus(agent), shop['expires_at'])
+        context['planting'] = [
+            {'name': row.get('name'), 'seed_sku': row.get('seed_sku'), 'seed_quantity': row.get('seed_quantity'),
+             'growth_seconds': row.get('growth_seconds'), 'without_fertilizer': {
+                 key: (row.get('without_fertilizer') or {})[key]
+                 for key in ('expected_stars', 'expected_quantity', 'expected_revenue')
+                 if key in (row.get('without_fertilizer') or {})}}
+            for row in planting.get('crop_comparisons', [])
+            if row.get('sku', '').removeprefix('crop.') in candidate_crops and row.get('seed_quantity', 0) > 0
+        ]
+    needed_skus = set()
+    for row in options:
+        operation = row.get('operation') or {}
+        if operation.get('kind') == 'plant':
+            needed_skus.add('seed.' + operation['crop'])
+        elif operation.get('kind') == 'fertilize':
+            needed_skus.add('fertilizer.' + operation['fertilizer'])
+        elif operation.get('kind') == 'feed':
+            needed_skus.add('feed')
+    context['inventory'] = [
+        {'name': item.name, 'quantity': item.quantity, 'sku': item.source.get('sku'),
+         'stars': item.source.get('stars'), 'value': str(item.value)}
+        for item in farm_inventory(farm) if item.source.get('sku') in needed_skus
+    ]
     context['spending'] = spending_context(agent)
-    from .life_scope import enrich
-    context=enrich(context)
     prompt = role_text(agent, 'planning')
     from .memory.recall import memory_context
     prompt += '\n' + memory_context(agent, '农场 种植 收获 ' + task.prompt)
@@ -93,7 +167,7 @@ def decide(task, agent, farm, options):
     from system_settings.decision.routing import complete_json
     def validate(value):
         choices = value['choices']
-        if not isinstance(choices, list) or len(choices) > (options[0].get('remaining_operations', 6) if options else 6) or any(not isinstance(i, str) or i not in {o['id'] for o in options} for i in choices) or len(set(choices)) != len(choices):
+        if not isinstance(choices, list) or len(choices) > remaining_operations or any(not isinstance(i, str) or i not in {o['id'] for o in options} for i in choices) or len(set(choices)) != len(choices):
             raise ValueError('经营候选无效')
         if not isinstance(value.get('reason'), str) or not value['reason'].strip() or len(value['reason']) > 500:
             raise ValueError('经营理由无效')

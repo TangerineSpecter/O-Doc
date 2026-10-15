@@ -65,7 +65,7 @@ def social_decision_context(context: dict) -> dict:
     relations = context.get('relations') or []
 
     if any(action in allowed for action in ('reply', 'read', 'publish')):
-        projected_life = {key: life[key] for key in ('preferences', 'direction', 'goals') if life.get(key)}
+        projected_life = {key: life[key] for key in ('preferences', 'direction') if life.get(key)}
         experiences = life.get('recent_experiences') or []
         if experiences:
             projected_life['recent_experiences'] = [

@@ -6,6 +6,7 @@ FIELDS = {'age': '年龄', 'mbti': '人格参考', 'identity': '身份与背景'
           'expression': '表达与相处方式', 'appearance': '外貌与服饰'}
 SCENES = {
     'decision': ('identity', 'personality', 'preferences'),
+    'market': ('identity', 'personality', 'preferences'),
     'social': ('identity', 'personality', 'preferences', 'expression'),
     'planning': ('personality', 'preferences'),
     'expression': ('age', 'identity', 'personality', 'preferences', 'expression'),
@@ -36,7 +37,7 @@ def role_text(agent, scene: str = 'expression') -> str:
     """Never mutate the source or silently truncate legacy instructions."""
     keys = SCENES[scene]
     profile = getattr(agent, 'role_profile', {}) or {}
-    parts = [f'当前 Agent：{agent.name}']
+    parts = [] if scene == 'market' else [f'当前 Agent：{agent.name}']
     for key in keys:
         value = profile.get(key)
         if isinstance(value, str) and value.strip():

@@ -26,6 +26,7 @@
 - [Agent 周期随机任务说明](./agents/Agent周期随机任务说明.md)
 - [Agent 角色提示词生成说明](./agents/Agent角色提示词生成说明.md)
 - [Agent 角色设定与决策路由说明](./agents/Agent角色设定与决策路由说明.md)
+- [Agent 场景输入与工具治理方案](./agents/Agent场景输入与工具治理方案.md)
 - [Agent 世界统一生活执行说明](./agents/Agent世界统一生活执行说明.md)
 - [Agent 世界每日活动时间线说明](./agents/Agent世界每日活动时间线说明.md)
 - [Agent 世界生活模拟规划方案](./agents/Agent世界生活模拟规划方案.md)

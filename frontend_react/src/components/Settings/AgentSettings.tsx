@@ -78,6 +78,7 @@ import {PostPublishFields} from './agent/PostPublishFields';
 import {PostPublishPreviewModal} from './agent/PostPublishPreviewModal';
 import {emptyPublishConfig} from './agent/publishDefaults';
 import type {AgentPublishConfig} from '@/types/api/agentPublish';
+import {McpTaskScopeFields} from './agent/McpTaskScopeFields';
 
 interface AgentSettingsProps {
     agents: AgentConfig[];
@@ -121,6 +122,7 @@ type AgentTaskForm = {
     marketConfig?: import('../../types/api/decision').MarketDecisionConfig;
     model: string;
     taskKind?: 'custom' | 'post_interaction' | 'post_publish' | 'travel' | 'farm' | 'market' | 'investment' | 'cooking' | 'exploration' | 'memo_capture';
+    mcpToolScope: import('@/types/api/setting').AgentTaskMcpToolScope;
     investmentConfig?: import('../../types/api/investment').InvestmentConfig;
     publishConfig?: AgentPublishConfig;
     travelConfig?: TravelConfig;
@@ -240,6 +242,8 @@ export const AgentSettings = ({
     const getDefaultAgentId = () => agents[0]?.id || '';
     const [taskForm, setTaskForm] = useState<AgentTaskForm>({
         model: '',
+        taskKind: 'custom',
+        mcpToolScope: {},
         name: '',
         agents: getDefaultAgentId() ? [getDefaultAgentId()] : [],
         executionMode: 'parallel',
@@ -407,6 +411,8 @@ export const AgentSettings = ({
         const defaultAgentId = taskAgentOptions[0]?.value || getDefaultAgentId();
         setTaskForm({
             model: '',
+            taskKind: 'custom',
+            mcpToolScope: {},
             name: '',
             agents: defaultAgentId ? [defaultAgentId] : [],
             executionMode: 'parallel',
@@ -440,6 +446,7 @@ export const AgentSettings = ({
             id: task.id,
             model: task.model || '',
             taskKind: task.taskKind || 'custom',
+            mcpToolScope: task.mcpToolScope ?? null,
             investmentConfig: task.investmentConfig || {},
             marketConfig: task.marketConfig || {decisionEnabled: false, decisionProvider: 'jev'},
             publishConfig: task.publishConfig || emptyPublishConfig(),
@@ -593,10 +600,19 @@ export const AgentSettings = ({
             return;
         }
 
+        const boundMcpIds = new Set(allResidents
+            .filter(agent => selectedAgents.includes(agent.id))
+            .flatMap(agent => agent.mcpServers || []));
+        const mcpToolScope = taskForm.mcpToolScope === null
+            ? null
+            : Object.fromEntries(Object.entries(taskForm.mcpToolScope || {})
+                .filter(([serverId, toolNames]) => boundMcpIds.has(serverId) && toolNames.length > 0));
+
         const success = await onSaveTask({
             id: taskForm.id,
             model: taskForm.model || null,
             taskKind: taskForm.taskKind || 'custom',
+            mcpToolScope: (taskForm.taskKind || 'custom') === 'custom' ? mcpToolScope : undefined,
             investmentConfig: isInvestmentTask ? taskForm.investmentConfig || {} : undefined,
             marketConfig: isMarketTask ? taskForm.marketConfig || {decisionEnabled: false, decisionProvider: 'jev'} : undefined,
             publishConfig: isPublishTask ? taskForm.publishConfig : undefined,
@@ -1150,6 +1166,14 @@ export const AgentSettings = ({
                                     />
                                 </div>}
                             </div>
+
+                            {!isSystemTask && taskForm.taskKind === 'custom' && <McpTaskScopeFields
+                                value={taskForm.mcpToolScope}
+                                selectedAgentIds={taskForm.agents}
+                                agents={allResidents}
+                                servers={mcpServers}
+                                onChange={mcpToolScope => setTaskForm({...taskForm, mcpToolScope})}
+                            />}
 
                             {!isSystemTask && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
