@@ -1,10 +1,12 @@
 from django.urls import path
-from .views import LogsView, OverviewView, DetailView, DeleteView, ClearView, PolicyView, DownloadView, ReportView
+from .views import (LogsView, OverviewView, DetailView, DeleteView, DeleteFilteredView,
+                    ClearView, PolicyView, DownloadView, ReportView)
 
 urlpatterns = [
     path('', LogsView.as_view()),
     path('overview/', OverviewView.as_view()),
     path('delete/', DeleteView.as_view()),
+    path('delete-filtered/', DeleteFilteredView.as_view()),
     path('clear/', ClearView.as_view()),
     path('policy/', PolicyView.as_view()),
     path('download/', DownloadView.as_view()),

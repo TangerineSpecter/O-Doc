@@ -17,8 +17,25 @@ import ConfirmationModal from '@/components/common/ConfirmationModal';
 import { Select } from '@/components/common/Select';
 import { Checkbox } from '@/components/common/Checkbox';
 import { DateRangePicker, type DateRange } from '@/components/common/DateRangePicker';
+import type { LogFilters } from '@/types/systemLogs';
 
 const time = (value: number | null) => (value ? new Date(value * 1000).toLocaleString() : '暂无');
+const filterSummary = (filters: LogFilters) => {
+    const parts: string[] = [];
+    if (filters.q) parts.push(`关键词“${filters.q}”`);
+    if (filters.module) parts.push(`模块“${filters.module}”`);
+    if (filters.since !== undefined || filters.until !== undefined) {
+        const since = filters.since === undefined ? '不限' : dayjs.unix(filters.since).format('YYYY-MM-DD HH:mm');
+        const until = filters.until === undefined ? '不限' : dayjs.unix(filters.until).format('YYYY-MM-DD HH:mm');
+        parts.push(`时间 ${since} 至 ${until}`);
+    }
+    return parts.join('、');
+};
+
+type LogConfirmation =
+    | { type: 'selected'; ids: string[] }
+    | { type: 'filtered'; filters: LogFilters; count: number }
+    | { type: 'all' };
 
 export function SystemLogs() {
     const logs = useSystemLogs();
@@ -27,7 +44,7 @@ export function SystemLogs() {
         ids: [],
     });
     const selected = selection.page === logs.page ? selection.ids : [];
-    const [confirmation, setConfirmation] = useState<{ ids: string[] | null } | null>(null);
+    const [confirmation, setConfirmation] = useState<LogConfirmation | null>(null);
     const [policyDraft, setPolicyDraft] = useState<{ days: number; mb: number } | null>(null);
 
     const days = policyDraft?.days ?? logs.overview?.policy.days ?? 30;
@@ -69,6 +86,13 @@ export function SystemLogs() {
     };
 
     const totalPages = Math.max(1, Math.ceil(logs.page.total / 20));
+    const hasActiveFilters = Boolean(logs.query.q || logs.query.module || logs.query.since !== undefined || logs.query.until !== undefined);
+    const currentFilters: LogFilters = {
+        module: logs.query.module,
+        q: logs.query.q,
+        ...(logs.query.since !== undefined ? { since: logs.query.since } : {}),
+        ...(logs.query.until !== undefined ? { until: logs.query.until } : {}),
+    };
 
     return (
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -293,7 +317,7 @@ export function SystemLogs() {
                                 type="button"
                                 className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50/50 px-2.5 py-1 text-xs font-medium text-red-600 shadow-2xs transition-colors hover:bg-red-50 disabled:opacity-40 whitespace-nowrap shrink-0"
                                 disabled={!selected.length || logs.busy}
-                                onClick={() => setConfirmation({ ids: selected })}
+                                onClick={() => setConfirmation({ type: 'selected', ids: selected })}
                             >
                                 <Trash2 className="h-3.5 w-3.5 text-red-500" />
                                 删除选中
@@ -301,9 +325,20 @@ export function SystemLogs() {
 
                             <button
                                 type="button"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 shadow-2xs transition-colors hover:bg-red-50 disabled:opacity-40 whitespace-nowrap shrink-0"
+                                disabled={!hasActiveFilters || !logs.page.total || logs.loading || logs.busy}
+                                onClick={() => setConfirmation({ type: 'filtered', filters: currentFilters, count: logs.page.total })}
+                                title="删除当前关键词、模块和日期筛选条件匹配的全部日志"
+                            >
+                                <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                                删除筛选结果 {logs.page.total > 0 && `(${logs.page.total})`}
+                            </button>
+
+                            <button
+                                type="button"
                                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-40 whitespace-nowrap shrink-0"
                                 disabled={!logs.overview?.total || logs.busy}
-                                onClick={() => setConfirmation({ ids: null })}
+                                onClick={() => setConfirmation({ type: 'all' })}
                             >
                                 清空全部
                             </button>
@@ -402,7 +437,7 @@ export function SystemLogs() {
                                             aria-label="删除日志"
                                             className="rounded-lg border border-transparent p-1.5 text-slate-400 transition-all hover:border-slate-200 hover:bg-white hover:text-red-600 hover:shadow-xs disabled:opacity-40"
                                             disabled={logs.busy}
-                                            onClick={() => setConfirmation({ ids: [log.id] })}
+                                            onClick={() => setConfirmation({ type: 'selected', ids: [log.id] })}
                                             title="删除该条日志"
                                         >
                                             <Trash2 className="h-4 w-4" />
@@ -453,20 +488,29 @@ export function SystemLogs() {
             <ConfirmationModal
                 isOpen={Boolean(confirmation)}
                 onClose={() => setConfirmation(null)}
-                title="删除异常日志"
+                title={confirmation?.type === 'filtered' ? '删除筛选结果' : '删除异常日志'}
                 description={
                     <div>
-                        {confirmation?.ids === null
+                        {confirmation?.type === 'all'
                             ? '确认清空全部异常日志？该操作无法恢复。'
-                            : `确认删除选中的 ${confirmation?.ids?.length || 0} 条异常日志？该操作无法恢复。`}
+                            : confirmation?.type === 'filtered'
+                                ? `将删除当前筛选条件（${filterSummary(confirmation.filters)}）命中的全部 ${confirmation.count} 条异常日志，其他日志会保留。该操作无法恢复。`
+                                : `确认删除选中的 ${confirmation?.type === 'selected' ? confirmation.ids.length : 0} 条异常日志？该操作无法恢复。`}
                         {logs.error && <p role="alert" className="mt-2 text-xs text-red-600">{logs.error}</p>}
                     </div>
                 }
-                confirmText={confirmation?.ids === null ? '确认清空' : '确认删除'}
+                confirmText={confirmation?.type === 'all' ? '确认清空' : '确认删除'}
                 type="danger"
                 isLoading={logs.busy}
                 onConfirm={async () => {
-                    if (confirmation && (await logs.remove(confirmation.ids))) {
+                    const succeeded = confirmation?.type === 'all'
+                        ? await logs.remove(null)
+                        : confirmation?.type === 'filtered'
+                            ? await logs.removeFiltered(confirmation.filters)
+                            : confirmation?.type === 'selected'
+                                ? await logs.remove(confirmation.ids)
+                                : false;
+                    if (succeeded) {
                         setConfirmation(null);
                     }
                 }}

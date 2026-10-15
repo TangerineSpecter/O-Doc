@@ -109,7 +109,7 @@ def write(event):
     maintain()
 
 
-def list_events(params):
+def _filter_clause(params):
     clauses, args = [], []
     for field in ('module',):
         if params.get(field):
@@ -123,6 +123,11 @@ def list_events(params):
             clauses.append(f'created {op} ?')
             args.append(params[name])
     where = ' WHERE ' + ' AND '.join(clauses) if clauses else ''
+    return where, args
+
+
+def list_events(params):
+    where, args = _filter_clause(params)
     page = params.get('page', 1)
     with connection() as db:
         total = db.execute('SELECT COUNT(*) FROM events' + where, args).fetchone()[0]
@@ -152,6 +157,16 @@ def delete(ids=None):
         elif ids:
             db.execute('DELETE FROM events WHERE id IN (' + ','.join('?' for _ in ids) + ')', ids)
         reclaim(db)
+
+
+def delete_matching(params):
+    where, args = _filter_clause(params)
+    if not where:
+        raise ValueError('At least one system log filter is required')
+    with connection() as db:
+        deleted = db.execute('DELETE FROM events' + where, args).rowcount
+        reclaim(db)
+    return deleted
 
 
 def set_policy(days, max_mb):

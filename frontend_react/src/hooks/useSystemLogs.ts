@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getLogs, getLogOverview, getLogDetail, deleteLogs, clearLogs, saveLogPolicy, downloadLogs } from '@/api/systemLogs';
-import type { LogDetail, LogOverview, LogPage, LogQuery } from '@/types/systemLogs';
+import { getLogs, getLogOverview, getLogDetail, deleteLogs, deleteFilteredLogs, clearLogs, saveLogPolicy, downloadLogs } from '@/api/systemLogs';
+import type { LogDetail, LogFilters, LogOverview, LogPage, LogQuery } from '@/types/systemLogs';
 
 export function useSystemLogs() {
     const [query, setQuery] = useState<LogQuery>({ page: 1, module: '', q: '' });
@@ -55,6 +55,7 @@ export function useSystemLogs() {
     const closeDetail = () => { detailSequence.current++; setDetail(null); setDetailLoading(false); };
     return { query, setQuery, page, overview, detail, detailLoading, loading, busy, error, refresh, openDetail, closeDetail,
         remove: (ids: string[] | null) => run(async () => { if (ids === null) await clearLogs(); else await deleteLogs(ids); closeDetail(); }),
+        removeFiltered: (filters: LogFilters) => run(() => deleteFilteredLogs(filters)),
         savePolicy: (days: number, mb: number) => run(() => saveLogPolicy(days, mb)),
         download: (ids: string[]) => run(() => downloadLogs(ids)) };
 }

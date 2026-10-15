@@ -10,7 +10,8 @@ from utils.response_utils import success_result
 from . import store
 from .capture import capture
 from .parsers import DiagnosticReportParser
-from .serializers import QuerySerializer, SelectionSerializer, PolicySerializer, ReportSerializer
+from .serializers import (QuerySerializer, SelectionSerializer, PolicySerializer,
+                          ReportSerializer, FilteredDeleteSerializer)
 
 
 class Administrator(BasePermission):
@@ -58,6 +59,14 @@ class DeleteView(AdminView):
         serializer.is_valid(raise_exception=True)
         store.delete(serializer.validated_data['ids'])
         return success_result(store.overview())
+
+
+class DeleteFilteredView(AdminView):
+    def post(self, request):
+        serializer = FilteredDeleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        deleted = store.delete_matching(serializer.validated_data)
+        return success_result({'deleted': deleted, **store.overview()})
 
 
 class ClearView(AdminView):

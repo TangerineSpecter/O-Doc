@@ -1,8 +1,7 @@
 from rest_framework import serializers
 
 
-class QuerySerializer(serializers.Serializer):
-    page = serializers.IntegerField(min_value=1, max_value=100000, default=1)
+class LogFilterSerializer(serializers.Serializer):
     module = serializers.CharField(max_length=100, required=False, allow_blank=True)
     q = serializers.CharField(max_length=200, required=False, allow_blank=True)
     since = serializers.FloatField(required=False, min_value=0)
@@ -15,6 +14,19 @@ class QuerySerializer(serializers.Serializer):
                 raise serializers.ValidationError('时间范围无效')
         if data.get('since', 0) > data.get('until', float('inf')):
             raise serializers.ValidationError('开始时间不能晚于结束时间')
+        return data
+
+
+class QuerySerializer(LogFilterSerializer):
+    page = serializers.IntegerField(min_value=1, max_value=100000, default=1)
+
+
+class FilteredDeleteSerializer(LogFilterSerializer):
+    def validate(self, data):
+        data = super().validate(data)
+        if not any((data.get('module'), data.get('q'), data.get('since') is not None,
+                    data.get('until') is not None)):
+            raise serializers.ValidationError('请至少指定一个筛选条件')
         return data
 
 

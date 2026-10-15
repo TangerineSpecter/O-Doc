@@ -1,10 +1,11 @@
 import request from '@/utils/request';
-import type { LogDetail, LogOverview, LogPage, LogQuery } from '@/types/systemLogs';
+import type { FilteredLogDeleteResult, LogDetail, LogFilters, LogOverview, LogPage, LogQuery } from '@/types/systemLogs';
 const base = '/system/logs/';
 export const getLogs = (params: LogQuery) => request.get<never, LogPage>(base, { params });
 export const getLogOverview = () => request.get<never, LogOverview>(`${base}overview/`);
 export const getLogDetail = (id: string) => request.get<never, LogDetail>(`${base}${id}/`);
 export const deleteLogs = (ids: string[]) => request.post<never, LogOverview>(`${base}delete/`, { ids });
+export const deleteFilteredLogs = (filters: LogFilters) => request.post<never, FilteredLogDeleteResult>(`${base}delete-filtered/`, filters);
 export const clearLogs = () => request.post<never, LogOverview>(`${base}clear/`);
 export const saveLogPolicy = (days: number, maxMb: number) => request.put<never, LogOverview>(`${base}policy/`, { days, maxMb });
 export async function downloadLogs(ids: string[]) {
