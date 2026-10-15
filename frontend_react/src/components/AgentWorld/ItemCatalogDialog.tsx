@@ -25,6 +25,7 @@ import {ItemIconLibraryDialog} from './ItemIconLibraryDialog';
 import {CropRuleEditor} from './CropRuleEditor';
 import {uploadItemIcon} from '../../api/itemIcons';
 import {setCatalogItemIcon, setCatalogInventoryIcon} from '../../api/itemCatalog';
+import DataExportButton from '../common/DataExportButton';
 
 function cropKindFor(item: CatalogItem): CropKind | null {
     if (item.category !== 'crop' && item.category !== 'seed') return null;
@@ -46,6 +47,7 @@ const categoryDefs: {value: 'all' | ItemCategory; label: string}[] = [
 export function ItemCatalogContent({active = true}: {active?: boolean}) {
     const {items, loading, error, reload} = useItemCatalog();
     const catalogItems = useMemo(() => items.filter(item => item.category !== 'dish'), [items]);
+    const exportSheets = useMemo(() => [{name: '物品', rows: catalogItems}], [catalogItems]);
     const [category, setCategory] = useState<'all' | ItemCategory>('all');
     const [search, setSearch] = useState('');
     const [selectedId, setSelectedId] = useState('');
@@ -178,6 +180,7 @@ export function ItemCatalogContent({active = true}: {active?: boolean}) {
                                 </button>
                             )}
                         </label>
+                        <DataExportButton sheets={exportSheets} fileName="物品图鉴" disabled={loading || Boolean(error) || catalogItems.length === 0}/>
                         <button
                             type="button"
                             onClick={() => setLibraryOpen(true)}

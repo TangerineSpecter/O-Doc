@@ -104,7 +104,7 @@ export function SystemLogs() {
                     </div>
                     <div>
                         <h3 className="font-bold text-slate-800">系统日志</h3>
-                        <p className="mt-1 text-xs text-slate-500">汇总本机运行异常，日志仅保存在本机，不参与云端同步。</p>
+                        <p className="mt-1 text-xs text-slate-500">同一天的相同异常会合并显示出现次数和首末时间；日志仅保存在本机，不参与云端同步。</p>
                     </div>
                 </div>
 
@@ -130,11 +130,11 @@ export function SystemLogs() {
                             <AlertTriangle className="h-4 w-4" />
                         </div>
                         <div className="min-w-0">
-                            <p className="text-[11px] font-medium text-slate-400">最近 24 小时异常</p>
+                            <p className="text-[11px] font-medium text-slate-400">最近 24 小时异常类型</p>
                             <p className="text-sm font-bold text-slate-800 tracking-tight">
                                 {logs.overview?.recent ?? '—'}
                                 {typeof logs.overview?.recent === 'number' && logs.overview.recent > 0 && (
-                                    <span className="ml-1 text-xs font-normal text-red-500">次</span>
+                                    <span className="ml-1 text-xs font-normal text-red-500">类</span>
                                 )}
                             </p>
                         </div>
@@ -380,6 +380,8 @@ export function SystemLogs() {
                     {!logs.loading &&
                         logs.page.list.map(log => {
                             const isChecked = selected.includes(log.id);
+                            const occurrenceCount = log.occurrenceCount ?? 1;
+                            const lastSeen = log.lastSeen ?? log.created;
                             return (
                                 <div
                                     key={log.id}
@@ -409,7 +411,13 @@ export function SystemLogs() {
                                             {log.title}
                                         </p>
                                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                                            <span className="font-mono text-slate-500">{time(log.created)}</span>
+                                            <span className="inline-flex items-center rounded bg-orange-50 px-1.5 py-0.5 font-medium text-orange-700">
+                                                出现 {occurrenceCount} 次
+                                            </span>
+                                            <span>·</span>
+                                            <span className="font-mono text-slate-500">首次 {time(log.created)}</span>
+                                            <span>·</span>
+                                            <span className="font-mono text-slate-500">最近 {time(lastSeen)}</span>
                                             <span>·</span>
                                             <span className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">
                                                 {log.module}

@@ -301,18 +301,18 @@ def build() -> dict[str, list[dict]]:
         ('sword','长剑','weapon','warrior',10,30,'long_sword','','one_handed'),
         ('axe','战斧','weapon','warrior',10,30,'axe','','one_handed'),
         ('bow','长弓','weapon','ranger',10,30,'bow','','one_handed'),
-        ('dagger','匕首','weapon','ranger',10,30,'dagger','','one_handed'),
+        ('dagger','猎手短刃','weapon','ranger',10,30,'dagger','','one_handed'),
         ('mage_staff','法杖','weapon','mage',10,30,'mage_staff','','one_handed'),
-        ('staff','双手杖','weapon','mage',30,50,'two_handed_staff','skill.player.069','two_handed'),
-        ('holy_staff','圣杖','weapon','priest',30,50,'holy_staff','skill.player.070','one_handed'),
+        ('staff','秘法杖','weapon','mage',30,50,'two_handed_staff','skill.player.069','two_handed'),
+        ('holy_staff','晨祷权杖','weapon','priest',30,50,'holy_staff','skill.player.070','one_handed'),
         ('body','新手护甲','body','',1,10,'','',''),
         ('hands','新手手套','hands','',1,10,'','',''),
         ('feet','新手靴子','feet','',1,10,'','',''),
         ('charm','吊坠','accessory','',10,30,'pendant','',''),
         ('ring','戒指','accessory','',1,30,'ring','',''),
-        ('offhand.magic_shield','魔法盾','offhand','',10,30,'magic_shield','skill.player.067',''),
-        ('offhand.small_shield','小盾','offhand','',30,50,'small_shield','skill.player.068',''),
-        ('offhand.large_shield','大盾','offhand','',50,70,'large_shield','skill.player.071',''),
+        ('offhand.magic_shield','符文法盾','offhand','',10,30,'magic_shield','skill.player.067',''),
+        ('offhand.small_shield','橡木圆盾','offhand','',30,50,'small_shield','skill.player.068',''),
+        ('offhand.large_shield','壁垒塔盾','offhand','',50,70,'large_shield','skill.player.071',''),
         ('two_handed_sword','双手剑','weapon','',50,70,'two_handed_sword','skill.player.072;skill.player.073','two_handed'),
     ]
     armor_types=[
@@ -322,12 +322,35 @@ def build() -> dict[str, list[dict]]:
         ('light','轻甲','light_armor','skill.player.065',30),
         ('plate','板甲','plate_armor','skill.player.066',30),
     ]
+    # Names belong to individual level-band templates. Equipment type remains
+    # a separate tag shown by the atlas, so one family does not look duplicated.
+    head_names=('旅者发饰','羽饰冠带','秘纹冠饰','星辉冠冕','苍穹冠冕')
     armor_names={
-        'cloth':('布甲长袍','布甲手套','布甲软靴'),
-        'heavy':('重甲胸铠','重甲护手','重甲战靴'),
-        'leather':('皮甲背心','皮甲护腕','皮靴'),
-        'light':('轻甲外衣','轻甲手套','轻甲短靴'),
-        'plate':('板甲胸甲','板甲护手','板甲战靴'),
+        'cloth':(
+            ('学徒法袍','织纹法袍','秘纹长袍','奥术法袍','星辉法袍'),
+            ('织纹手套','精织手套','秘纹手套','奥术手套','星辉手套'),
+            ('软底布靴','轻织软靴','秘纹布靴','奥术长靴','星辉法靴'),
+        ),
+        'heavy':(
+            ('铆钉胸甲','重钢胸甲','玄铁胸铠','秘银重铠','泰坦胸甲'),
+            ('重型护手','重钢护手','玄铁臂铠','秘银护臂','泰坦护手'),
+            ('铁底战靴','重钢战靴','玄铁战靴','秘银战靴','泰坦战靴'),
+        ),
+        'leather':(
+            ('猎行皮甲','精鞣皮甲','兽纹皮甲','影豹皮甲','龙鳞皮甲'),
+            ('皮革护腕','猎行护腕','兽纹护手','影豹臂甲','龙鳞护腕'),
+            ('轻行皮靴','猎行短靴','兽纹长靴','影豹战靴','龙鳞疾靴'),
+        ),
+        'light':(
+            ('影行短衣','疾风轻衣','流云轻甲','月影轻甲'),
+            ('轻甲护手','疾风护手','流云护腕','月影手甲'),
+            ('疾风短靴','追风轻靴','流云战靴','月影长靴'),
+        ),
+        'plate':(
+            ('板甲胸铠','精钢板甲','符文板甲','泰坦重甲'),
+            ('板甲护手','精钢臂甲','符文臂铠','泰坦臂甲'),
+            ('板甲战靴','精钢重靴','符文战靴','泰坦战靴'),
+        ),
     }
     def level_tiers(start: int) -> list[tuple[int,int]]:
         result=[]
@@ -340,11 +363,12 @@ def build() -> dict[str, list[dict]]:
 
     # Basic headwear and mastered armor progress in 20-level bands. A mastery
     # tier starts at the level where its equipment skill becomes available.
-    for low,high in level_tiers(10):
-        gear.append((f'head{("."+str(low)) if low>10 else ""}','头饰','head','',low,high,'','',''))
+    for (low,high),name in zip(level_tiers(10),head_names,strict=True):
+        gear.append((f'head{("."+str(low)) if low>10 else ""}',name,'head','',low,high,'','',''))
     for key,label,equipment_type,mastery,level_min in armor_types:
-        for slot,name in zip(('body','hands','feet'),armor_names[key]):
-            for low,high in level_tiers(level_min):
+        tiers=level_tiers(level_min)
+        for slot,names in zip(('body','hands','feet'),armor_names[key],strict=True):
+            for (low,high),name in zip(tiers,names,strict=True):
                 suffix=f'.{low}' if low>level_min else ''
                 gear.append((f'armor.{key}.{slot}{suffix}',name,slot,'',low,high,equipment_type,mastery,''))
 
@@ -465,7 +489,7 @@ def main() -> None:
         with path.open('w',newline='',encoding='utf-8') as stream:
             writer=csv.DictWriter(stream,fieldnames=list(values[0]));writer.writeheader();writer.writerows(values)
         files[path.name]={'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'rows':len(values)}
-    (OUTPUT/'manifest.json').write_text(json.dumps(dict(version='design-0.13',status='design_only',engine_schema=5,files=files),ensure_ascii=False,indent=2)+'\n')
+    (OUTPUT/'manifest.json').write_text(json.dumps(dict(version='design-0.16',status='design_only',engine_schema=5,files=files),ensure_ascii=False,indent=2)+'\n')
     print(json.dumps({key:len(value) for key,value in rows.items()},ensure_ascii=False))
 
 

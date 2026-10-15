@@ -36,7 +36,8 @@ const labels: Record<string, string> = {
     agentId: 'Agent ID',
     bookId: '图书 ID',
     userId: '用户 ID',
-    captures: '关联记录次数',
+    occurrenceCount: '当天出现次数',
+    captures: '关联采集次数',
     lostEvents: '未能采集的事件数',
     logger: '记录模块',
 };
@@ -53,6 +54,9 @@ export function SystemLogDetail({
     onDownload: () => void;
 }) {
     useEscapeDismissal(true, onClose);
+    const firstSeen = Number(detail.firstSeen ?? detail.created);
+    const lastSeen = Number(detail.lastSeen ?? detail.created);
+    const occurrenceCount = Number(detail.occurrenceCount ?? 1);
 
     return (
         <div data-modal-scroll-lock
@@ -81,7 +85,9 @@ export function SystemLogDetail({
                                 {detail.title}
                             </h3>
                             <p className="mt-1 text-xs text-slate-400 font-mono">
-                                记录时间：{new Date(detail.created * 1000).toLocaleString()}
+                                <span>出现 {occurrenceCount} 次</span>
+                                <span> · 首次 {new Date(firstSeen * 1000).toLocaleString()}</span>
+                                <span> · 最近 {new Date(lastSeen * 1000).toLocaleString()}</span>
                             </p>
                         </div>
                     </div>

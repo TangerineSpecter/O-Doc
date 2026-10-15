@@ -36,8 +36,8 @@ def validate_source(data,meta=None):
             from .catalog_validation import validate_tables
             # Keep legacy immutable catalogs readable while requiring the expanded
             # player skill set for the newly released equipment/mastery catalog.
-            expected_skills = 74 if row['id'] == 'combat-1.0.13' else 73 if row['id'] in {'combat-1.0.11','combat-1.0.12'} else 71 if row['id'] in {'combat-1.0.4', 'combat-1.0.5', 'combat-1.0.6', 'combat-1.0.7', 'combat-1.0.8', 'combat-1.0.9', 'combat-1.0.10'} else None
-            expected_promotion_level = 50 if row['id'] in {'combat-1.0.10','combat-1.0.11','combat-1.0.12','combat-1.0.13'} else 70
+            expected_skills = 74 if row['id'] in {'combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16'} else 73 if row['id'] in {'combat-1.0.11','combat-1.0.12'} else 71 if row['id'] in {'combat-1.0.4', 'combat-1.0.5', 'combat-1.0.6', 'combat-1.0.7', 'combat-1.0.8', 'combat-1.0.9', 'combat-1.0.10'} else None
+            expected_promotion_level = 50 if row['id'] in {'combat-1.0.10','combat-1.0.11','combat-1.0.12','combat-1.0.13','combat-1.0.14','combat-1.0.15','combat-1.0.16'} else 70
             try:validate_tables(row['tables'], expected_player_skills=expected_skills,
                                 expected_promotion_level=expected_promotion_level,
                                 catalog_version=row['id'])

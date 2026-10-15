@@ -3,6 +3,7 @@ import rangerSheet from '../../../assets/combat/player-ranger-concept-v1.png';
 import priestSheet from '../../../assets/combat/player-priest-concept-v1.png';
 import mageSheet from '../../../assets/combat/player-mage-concept-v1.png';
 import weaponSheet from '../../../assets/combat/player-weapons-concept-v1.png';
+import mageStaffIcon from '../../../assets/combat/equipment-mage-staff-v1.svg';
 import {playerSheetUrl, playerSheetSize, playerPortraitRegion, crystalStaffRegion} from './playerVisuals';
 import type {PlayerArtRegion, PlayerJob} from './playerVisuals';
 
@@ -66,9 +67,9 @@ const weaponOutfits = [
     ['axe','战斧','厚实的双刃钢斧，红色绑带与木柄。'],
     ['bow','长弓','深色木弓与苔绿握把，保留清楚的弓弦。'],
     ['dagger','匕首','短银刃、紫色握柄与小型金护手。'],
-    ['holy_staff','圣杖','金色日轮杖头与翠玉，白色缠带。'],
+    ['holy_staff','晨祷权杖','金色日轮杖头与翠玉，白色缠带。'],
 ] as const;
 const weaponRegions = [[29,165,409,469],[539,188,382,440],[1014,84,251,576],[1375,296,266,338],[1758,115,400,534]];
 export const weaponConcepts: WeaponConcept[] = weaponOutfits.map(([id,name,description],i)=>({id:`equip.${id}`,name,description,art:sheetArt(weaponSheet,2172,724,weaponRegions[i])}));
-weaponConcepts.splice(4,0,{id:'equip.staff',name:'双手杖',description:'已确认的青色水晶双手杖，沿用原素材。',approved:true,art:{url:playerSheetUrl,size:playerSheetSize,region:crystalStaffRegion}});
-weaponConcepts.splice(4,0,{id:'equip.mage_staff',name:'法杖',description:'法师路线单手法杖，沿用青色水晶杖素材。',approved:true,art:{url:playerSheetUrl,size:playerSheetSize,region:crystalStaffRegion}});
+weaponConcepts.splice(4,0,{id:'equip.staff',name:'秘法杖',description:'元素师路线双手水晶杖，青色晶石与深色木柄。',approved:true,art:{url:playerSheetUrl,size:playerSheetSize,region:crystalStaffRegion}});
+weaponConcepts.splice(4,0,{id:'equip.mage_staff',name:'法杖',description:'法师路线单手法杖，紫晶月牙杖头与深色木柄。',approved:true,art:sheetArt(mageStaffIcon,32,56,[0,0,32,56])});

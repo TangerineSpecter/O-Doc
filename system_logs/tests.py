@@ -44,6 +44,85 @@ class IsolatedStore(unittest.TestCase):
 
 
 class StoreTests(IsolatedStore):
+    def test_interleaved_delayed_captures_keep_all_correlations(self):
+        first = self.event(created=2000000000, fault_key='A', source='backend',
+                           exception_class='ValueError', stack='backend location')
+        store.write(first)
+        store.write(self.event(created=2000000001, fault_key='B', source='backend',
+                               exception_class='ValueError', stack='backend location'))
+        # Late reports have a different signature but describe the original faults.
+        store.write(self.event(created=2000000002, fault_key='A', source='frontend',
+                               title='浏览器操作异常', error_type='http', stack='browser location'))
+        store.write(self.event(created=2000000003, fault_key='B', source='backend',
+                               title='外层捕获', stack='outer location'))
+        rows = store.list_events({})
+        self.assertEqual(rows['total'], 1)
+        detail = store.detail(first['id'])
+        self.assertEqual(detail['occurrence_count'], 2)
+        self.assertEqual(detail['captures'], 4)
+        self.assertEqual(detail['source'], 'backend')
+        self.assertEqual(detail['first_seen'], 2000000000)
+        self.assertEqual(detail['last_seen'], 2000000003)
+
+    def test_version_one_upgrade_restores_old_correlation_mappings(self):
+        first = self.event(created=2000000000, fault_key='A', source='backend')
+        store.write(first)
+        store.write(self.event(created=2000000001, fault_key='B', source='backend'))
+        with store.connection() as db:
+            db.execute('DROP TABLE event_correlations')
+            db.execute('PRAGMA user_version=1')
+        store.write(self.event(created=2000000002, fault_key='A', source='frontend',
+                               title='延迟上报', error_type='http'))
+        self.assertEqual(store.list_events({})['total'], 1)
+        self.assertEqual(store.detail(first['id'])['occurrence_count'], 2)
+        with store.connection() as db:
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 2)
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM event_correlations').fetchone()[0], 2)
+
+    def test_legacy_compaction_preserves_each_fault_mapping(self):
+        first = self.event(created=2000000000, fault_key='A', source='backend')
+        second = self.event(created=2000000001, fault_key='B', source='backend')
+        with sqlite3.connect(Path(self.temp.name) / 'events.sqlite3') as db:
+            db.execute('''CREATE TABLE events (
+                id TEXT PRIMARY KEY, created REAL NOT NULL, request_id TEXT NOT NULL,
+                fault_key TEXT NOT NULL UNIQUE, module TEXT NOT NULL, title TEXT NOT NULL,
+                error_type TEXT NOT NULL, detail TEXT NOT NULL
+            )''')
+            for event in (first, second):
+                db.execute('INSERT INTO events VALUES(?,?,?,?,?,?,?,?)', (
+                    event['id'], event['created'], '', event['fault_key'], event['module'],
+                    event['title'], event['error_type'], json.dumps(event),
+                ))
+        store.write(self.event(created=2000000002, fault_key='A', source='frontend',
+                               title='延迟上报', error_type='http'))
+        self.assertEqual(store.list_events({})['total'], 1)
+        self.assertEqual(store.detail(first['id'])['occurrence_count'], 2)
+        self.assertEqual(store.detail(first['id'])['captures'], 3)
+
+    def test_correlation_mapping_is_scoped_to_day_and_deleted_with_logs(self):
+        for removal in ('selected', 'filtered', 'all', 'expired'):
+            with self.subTest(removal=removal):
+                store.delete()
+                now = time.time()
+                first = self.event(created=now - 2 * 86400, fault_key='A')
+                store.set_policy(30, 100)
+                store.write(first)
+                store.write(self.event(created=now - 86400, fault_key='A'))
+                self.assertEqual(store.list_events({})['total'], 2)
+                if removal == 'selected':
+                    store.delete([row['id'] for row in store.list_events({})['list']])
+                elif removal == 'filtered':
+                    store.delete_matching({'module': 'article'})
+                elif removal == 'all':
+                    store.delete()
+                else:
+                    store.set_policy(1, 100)
+                with store.connection() as db:
+                    self.assertEqual(db.execute('SELECT COUNT(*) FROM event_correlations').fetchone()[0], 0)
+                store.write(self.event(fault_key='A'))
+                self.assertEqual(store.list_events({})['total'], 1)
+                self.assertEqual(store.list_events({})['list'][0]['occurrence_count'], 1)
+
     def test_merge_independent_events_query_and_restart(self):
         original = self.event(fault_key='request:0', http_status=502)
         store.write(original)
@@ -206,7 +285,7 @@ class ApiTests(IsolatedStore):
 
     def test_api_permissions_list_detail_exports_and_delete(self):
         from .views import LogsView, DetailView, DownloadView, DeleteView, ClearView, OverviewView, PolicyView
-        first, second = self.event(), self.event()
+        first, second = self.event(), self.event(error_type='timeout')
         store.write(first); store.write(second)
         self.assertEqual(self.request(LogsView, admin=False).status_code, 403)
         self.assertEqual(self.request(LogsView).data['data']['total'], 2)
@@ -311,7 +390,7 @@ class DelayedDiagnosticCursor(sqlite3.Cursor):
 
 class DelayedDiagnosticConnection(sqlite3.Connection):
     def execute(self, sql, parameters=()):
-        if sql.startswith('SELECT id,detail FROM events WHERE fault_key='):
+        if 'JOIN event_correlations' in sql:
             return self.cursor(factory=DelayedDiagnosticCursor).execute(sql, parameters)
         return super().execute(sql, parameters)
 
@@ -389,7 +468,7 @@ class ReviewRegressionTests(IsolatedStore):
                 self.assertEqual(detail['provider_code'], 'authentication_failed')
                 self.assertEqual(detail['user_id'], 17)
 
-    def test_separate_bounded_calls_in_same_task_keep_their_failures(self):
+    def test_repeated_bounded_failures_roll_up_with_distinct_occurrences(self):
         from utils.bounded_completion import complete
         config = {'provider_name': 'test', 'model_name': 'test'}
         token = request_context.set({'request_id': 'a' * 32, 'task_id': 'task-1'})
@@ -402,9 +481,10 @@ class ReviewRegressionTests(IsolatedStore):
         finally:
             request_context.reset(token)
         rows = store.list_events({})
-        self.assertEqual(rows['total'], 2)
+        self.assertEqual(rows['total'], 1)
         details = [store.detail(row['id']) for row in rows['list']]
-        self.assertEqual(len({detail['model_request_id'] for detail in details}), 2)
+        self.assertEqual(details[0]['occurrence_count'], 2)
+        self.assertEqual(details[0]['captures'], 2)
         self.assertEqual({detail['request_id'] for detail in details}, {'a' * 32})
         self.assertEqual({detail['task_id'] for detail in details}, {'task-1'})
 
@@ -424,9 +504,11 @@ class ReviewRegressionTests(IsolatedStore):
         finally:
             request_context.reset(token)
         rows = store.list_events({})
-        self.assertEqual(rows['total'], 2)
+        self.assertEqual(rows['total'], 1)
         for row in rows['list']:
-            self.assertEqual(store.detail(row['id'])['captures'], 2)
+            detail = store.detail(row['id'])
+            self.assertEqual(detail['captures'], 4)
+            self.assertEqual(detail['occurrence_count'], 2)
 
     def test_image_adapters_keep_upstream_http_status_after_normalization(self):
         import sys

@@ -181,6 +181,10 @@ Node 22 TypeScript、正式应用生产构建通过；新增文件 ESLint 无警
 保留已有 Hook 依赖告警。记录 `player-route-atlas.png`、`player-route-atlas-mobile.png`、
 `crystal-staff-atlas.png`、`crystal-staff-atlas-detail.png` 位于 `docs/agents/assets/combat/`。
 
+## 装备图鉴像素图标补齐（2026-10-16）
+
+`EquipmentPortrait` 为没有专属素材的装备按部位、类型和等级段绘制像素图标；新手装备与 Boss 饰品沿用已有素材。10～30 级单手法杖使用独立紫晶月牙杖头素材，30～50 级双手秘法杖保留青色水晶杖造型；圣杖类型的物品名改为晨祷权杖。目录版本更新至 `combat-1.0.16`，不新增数据库字段或 WebDAV 同步数据。
+
 
 ## 全职业与武器首版外观（2026-10-11）
 
@@ -234,7 +238,7 @@ Node 22 TypeScript、正式应用生产构建通过；新增文件 ESLint 无警
 
 `frontend_react/combat-atlas-preview.html` 已保存，可在 Node 22 Vite 服务中打开 `/combat-atlas-preview.html`。
 入口 `previews/combatAtlasPreview.tsx` 仅负责挂载，`CombatAtlasPreviewApp.tsx` 展示实际职业、装备与材料图鉴组件，以及形象/技能总览。
-`combatAtlasFixture.json` 是生产 CSV 目录 combat-1.0.13 的只读驼峰快照，不是居民数据；正式图鉴继续读取现有接口，生产组件不依赖预览 fixture。默认应用构建不包含独立预览 HTML。
+`combatAtlasFixture.json` 是生产 CSV 目录 combat-1.0.16 的只读驼峰快照，不是居民数据；正式图鉴继续读取现有接口，生产组件不依赖预览 fixture。装备图鉴缺少专属素材时使用 `art/equipmentPixelArt.tsx` 按部位、类型与等级绘制像素图标。默认应用构建不包含独立预览 HTML。
 
 - 29 个职业共享原新手头部、靴子、身体框架与统一手掌，各有独立服装和职业氛围。静态列表由 `Combat/art/playerStillArt.ts` 生成缓存 PNG，详情用 `PlayerPortraitRenderer` 复用相同装配，列表不逐卡创建 WebGL。
 - 6 件已确认武器绘制素材继续由 `EquipmentPortrait` 展示，法杖与双手杖共用水晶杖裁片，原源图未重画；副手装备按目录类型显示槽位图标，换武器与职业外观解耦。

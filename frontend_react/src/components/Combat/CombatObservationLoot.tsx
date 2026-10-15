@@ -8,7 +8,7 @@ import type {ObservationLoot} from './observationRecords';
 import type {CombatReward} from '../../types/api/combat';
 
 function LootPortrait({reward,className}:{reward:CombatReward;className:string}) {
-    return isEquipmentReward(reward)?<EquipmentPortrait equipmentId={reward.item.templateId} name={reward.item.name} slot={reward.item.slot} decorative className={className} fallbackClassName="h-7 w-7"/>:
+    return isEquipmentReward(reward)?<EquipmentPortrait equipmentId={reward.item.templateId} name={reward.item.name} slot={reward.item.slot} equipmentType={reward.item.equipmentType} decorative className={className} fallbackClassName="h-7 w-7"/>:
         <MaterialPortrait materialId={'id' in reward.item?reward.item.id||'':''} name={reward.item.name} decorative className={className}/>;
 }
 

@@ -1,5 +1,5 @@
 {
-  "version": "design-0.13",
+  "version": "design-0.16",
   "status": "design_only",
   "engine_schema": 5,
   "files": {
@@ -44,7 +44,7 @@
       "rows": 48
     },
     "equipment_templates.csv": {
-      "sha256": "90e82ed6a59d6c9dc9e0701f1ed4097c14bf15e1776c7c19c10d88a76c90be3a",
+      "sha256": "d3c7922063f783377ec1daf9fbeb3d1d0b2ebb8298dbfb8fd7f5839d8e706ff8",
       "rows": 97
     },
     "boss_drops.csv": {

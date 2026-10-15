@@ -220,7 +220,7 @@ export function getMaterialVisual(id: string, name: string = ''): VisualConfig {
 }
 
 /** 装备视觉外观配置 */
-export function getEquipmentVisual(slot: string, name: string = '', isBossOnly = false): VisualConfig {
+export function getEquipmentVisual(slot: string, name: string = '', isBossOnly = false, equipmentType: string = ''): VisualConfig {
     let icon = Shield;
     if (slot === 'weapon') {
         if (name.includes('斧')) icon = Axe;
@@ -228,13 +228,13 @@ export function getEquipmentVisual(slot: string, name: string = '', isBossOnly =
         else if (name.includes('杖')) icon = Wand2;
         else icon = Sword;
     } else if (slot === 'offhand') {
-        icon = name.includes('魔法') ? Wand2 : Shield;
+        icon = equipmentType === 'magic_shield' || name.includes('魔法') || name.includes('法盾') ? Wand2 : Shield;
     } else if (slot === 'head') {
         icon = Crown;
     } else if (slot === 'body') {
-        if (name.includes('布甲')) icon = BookOpen;
-        else if (name.includes('皮甲')) icon = Feather;
-        else if (name.includes('轻甲')) icon = Footprints;
+        if (equipmentType === 'cloth_armor' || name.includes('布甲')) icon = BookOpen;
+        else if (equipmentType === 'leather_armor' || name.includes('皮甲')) icon = Feather;
+        else if (equipmentType === 'light_armor' || name.includes('轻甲')) icon = Footprints;
         else icon = Shield;
     } else if (slot === 'hands') {
         icon = Hand;

@@ -165,7 +165,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
     }, [selected, discoveries, equipmentAffixes, equipmentProfessions, affixes, professions, skills]);
 
     const visual = selected
-        ? getEquipmentVisual(selected.slot || '', selected.name, selectedDetails?.isBossOnly)
+        ? getEquipmentVisual(selected.slot || '', selected.name, selectedDetails?.isBossOnly, selected.equipmentType)
         : null;
 
     return (
@@ -282,7 +282,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                             {visibleEquipment.map(equip => {
                                 const isSelected = selected?.id === equip.id;
                                 const isBossOnly = equip.bossOnly === '1' || equip.id.includes('boss');
-                                const eqVisual = getEquipmentVisual(equip.slot || '', equip.name, isBossOnly);
+                                const eqVisual = getEquipmentVisual(equip.slot || '', equip.name, isBossOnly, equip.equipmentType);
                                 const isAcquired = discoveries?.equipment.includes(equip.id);
 
                                 return (
@@ -293,7 +293,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                         title={`${equip.name} · ${equipmentSlotLabel(equip.slot || '', String(equip.equipmentType || ''))}${equip.equipmentType ? ` · ${equipmentTypeLabels[equip.equipmentType] || equip.equipmentType}` : !equip.rootJob && !equip.requiredMastery ? ` · ${equipmentTypeLabels.generic}` : ''} · Lv.${equip.levelMin}–${equip.levelMax}${isAcquired ? ' (已获得)' : ''}`}
                                         selected={isSelected}
                                         onClick={() => setSelectedId(equip.id)}
-                                        icon={<EquipmentPortrait equipmentId={equip.id} name={equip.name} slot={equip.slot} bossOnly={isBossOnly} decorative className="h-full w-full" fallbackClassName="h-8 w-8" />}
+                                        icon={<EquipmentPortrait equipmentId={equip.id} name={equip.name} slot={equip.slot} equipmentType={equip.equipmentType} bossOnly={isBossOnly} decorative className="h-full w-full" fallbackClassName="h-8 w-8" />}
                                         bgGradient={eqVisual.bgGradient}
                                         topLeftBadge={
                                             <span className="rounded-full bg-slate-900/60 px-1 py-0.2 text-[8px] font-semibold text-white backdrop-blur-xs">
@@ -358,7 +358,7 @@ export function EquipmentAtlasView({catalog, discoveries}: EquipmentAtlasViewPro
                                 </div>
 
                                 <div className="my-2 flex h-24 w-24 items-center justify-center rounded-2xl border border-white/80 bg-white/90 shadow-sm">
-                                    <EquipmentPortrait equipmentId={selected.id} name={selected.name} slot={selected.slot} bossOnly={selectedDetails.isBossOnly} className="h-full w-full" />
+                                    <EquipmentPortrait equipmentId={selected.id} name={selected.name} slot={selected.slot} equipmentType={selected.equipmentType} bossOnly={selectedDetails.isBossOnly} className="h-full w-full" />
                                 </div>
 
                                 <h3 className="text-base font-bold text-slate-800">{selected.name}</h3>

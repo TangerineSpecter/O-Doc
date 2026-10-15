@@ -1,5 +1,5 @@
 {
-  "version": "combat-1.0.13",
+  "version": "combat-1.0.16",
   "tables": {
     "affixSlots": [
       {
@@ -16953,7 +16953,7 @@
       },
       {
         "id": "equip.dagger",
-        "name": "匕首",
+        "name": "猎手短刃",
         "slot": "weapon",
         "rootJob": "ranger",
         "levelMin": "10",
@@ -17009,7 +17009,7 @@
       },
       {
         "id": "equip.staff",
-        "name": "双手杖",
+        "name": "秘法杖",
         "slot": "weapon",
         "rootJob": "mage",
         "levelMin": "30",
@@ -17037,7 +17037,7 @@
       },
       {
         "id": "equip.holy_staff",
-        "name": "圣杖",
+        "name": "晨祷权杖",
         "slot": "weapon",
         "rootJob": "priest",
         "levelMin": "30",
@@ -17205,7 +17205,7 @@
       },
       {
         "id": "equip.offhand.magic_shield",
-        "name": "魔法盾",
+        "name": "符文法盾",
         "slot": "offhand",
         "rootJob": "",
         "levelMin": "10",
@@ -17233,7 +17233,7 @@
       },
       {
         "id": "equip.offhand.small_shield",
-        "name": "小盾",
+        "name": "橡木圆盾",
         "slot": "offhand",
         "rootJob": "",
         "levelMin": "30",
@@ -17261,7 +17261,7 @@
       },
       {
         "id": "equip.offhand.large_shield",
-        "name": "大盾",
+        "name": "壁垒塔盾",
         "slot": "offhand",
         "rootJob": "",
         "levelMin": "50",
@@ -17317,7 +17317,7 @@
       },
       {
         "id": "equip.head",
-        "name": "头饰",
+        "name": "旅者发饰",
         "slot": "head",
         "rootJob": "",
         "levelMin": "10",
@@ -17345,7 +17345,7 @@
       },
       {
         "id": "equip.head.30",
-        "name": "头饰",
+        "name": "羽饰冠带",
         "slot": "head",
         "rootJob": "",
         "levelMin": "30",
@@ -17373,7 +17373,7 @@
       },
       {
         "id": "equip.head.50",
-        "name": "头饰",
+        "name": "秘纹冠饰",
         "slot": "head",
         "rootJob": "",
         "levelMin": "50",
@@ -17401,7 +17401,7 @@
       },
       {
         "id": "equip.head.70",
-        "name": "头饰",
+        "name": "星辉冠冕",
         "slot": "head",
         "rootJob": "",
         "levelMin": "70",
@@ -17429,7 +17429,7 @@
       },
       {
         "id": "equip.head.90",
-        "name": "头饰",
+        "name": "苍穹冠冕",
         "slot": "head",
         "rootJob": "",
         "levelMin": "90",
@@ -17457,7 +17457,7 @@
       },
       {
         "id": "equip.armor.cloth.body",
-        "name": "布甲长袍",
+        "name": "学徒法袍",
         "slot": "body",
         "rootJob": "",
         "levelMin": "10",
@@ -17485,7 +17485,7 @@
       },
       {
         "id": "equip.armor.cloth.body.30",
-        "name": "布甲长袍",
+        "name": "织纹法袍",
         "slot": "body",
         "rootJob": "",
         "levelMin": "30",
@@ -17513,7 +17513,7 @@
       },
       {
         "id": "equip.armor.cloth.body.50",
-        "name": "布甲长袍",
+        "name": "秘纹长袍",
         "slot": "body",
         "rootJob": "",
         "levelMin": "50",
@@ -17541,7 +17541,7 @@
       },
       {
         "id": "equip.armor.cloth.body.70",
-        "name": "布甲长袍",
+        "name": "奥术法袍",
         "slot": "body",
         "rootJob": "",
         "levelMin": "70",
@@ -17569,7 +17569,7 @@
       },
       {
         "id": "equip.armor.cloth.body.90",
-        "name": "布甲长袍",
+        "name": "星辉法袍",
         "slot": "body",
         "rootJob": "",
         "levelMin": "90",
@@ -17597,7 +17597,7 @@
       },
       {
         "id": "equip.armor.cloth.hands",
-        "name": "布甲手套",
+        "name": "织纹手套",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "10",
@@ -17625,7 +17625,7 @@
       },
       {
         "id": "equip.armor.cloth.hands.30",
-        "name": "布甲手套",
+        "name": "精织手套",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "30",
@@ -17653,7 +17653,7 @@
       },
       {
         "id": "equip.armor.cloth.hands.50",
-        "name": "布甲手套",
+        "name": "秘纹手套",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "50",
@@ -17681,7 +17681,7 @@
       },
       {
         "id": "equip.armor.cloth.hands.70",
-        "name": "布甲手套",
+        "name": "奥术手套",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "70",
@@ -17709,7 +17709,7 @@
       },
       {
         "id": "equip.armor.cloth.hands.90",
-        "name": "布甲手套",
+        "name": "星辉手套",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "90",
@@ -17737,7 +17737,7 @@
       },
       {
         "id": "equip.armor.cloth.feet",
-        "name": "布甲软靴",
+        "name": "软底布靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "10",
@@ -17765,7 +17765,7 @@
       },
       {
         "id": "equip.armor.cloth.feet.30",
-        "name": "布甲软靴",
+        "name": "轻织软靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "30",
@@ -17793,7 +17793,7 @@
       },
       {
         "id": "equip.armor.cloth.feet.50",
-        "name": "布甲软靴",
+        "name": "秘纹布靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "50",
@@ -17821,7 +17821,7 @@
       },
       {
         "id": "equip.armor.cloth.feet.70",
-        "name": "布甲软靴",
+        "name": "奥术长靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "70",
@@ -17849,7 +17849,7 @@
       },
       {
         "id": "equip.armor.cloth.feet.90",
-        "name": "布甲软靴",
+        "name": "星辉法靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "90",
@@ -17877,7 +17877,7 @@
       },
       {
         "id": "equip.armor.heavy.body",
-        "name": "重甲胸铠",
+        "name": "铆钉胸甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "10",
@@ -17905,7 +17905,7 @@
       },
       {
         "id": "equip.armor.heavy.body.30",
-        "name": "重甲胸铠",
+        "name": "重钢胸甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "30",
@@ -17933,7 +17933,7 @@
       },
       {
         "id": "equip.armor.heavy.body.50",
-        "name": "重甲胸铠",
+        "name": "玄铁胸铠",
         "slot": "body",
         "rootJob": "",
         "levelMin": "50",
@@ -17961,7 +17961,7 @@
       },
       {
         "id": "equip.armor.heavy.body.70",
-        "name": "重甲胸铠",
+        "name": "秘银重铠",
         "slot": "body",
         "rootJob": "",
         "levelMin": "70",
@@ -17989,7 +17989,7 @@
       },
       {
         "id": "equip.armor.heavy.body.90",
-        "name": "重甲胸铠",
+        "name": "泰坦胸甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "90",
@@ -18017,7 +18017,7 @@
       },
       {
         "id": "equip.armor.heavy.hands",
-        "name": "重甲护手",
+        "name": "重型护手",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "10",
@@ -18045,7 +18045,7 @@
       },
       {
         "id": "equip.armor.heavy.hands.30",
-        "name": "重甲护手",
+        "name": "重钢护手",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "30",
@@ -18073,7 +18073,7 @@
       },
       {
         "id": "equip.armor.heavy.hands.50",
-        "name": "重甲护手",
+        "name": "玄铁臂铠",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "50",
@@ -18101,7 +18101,7 @@
       },
       {
         "id": "equip.armor.heavy.hands.70",
-        "name": "重甲护手",
+        "name": "秘银护臂",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "70",
@@ -18129,7 +18129,7 @@
       },
       {
         "id": "equip.armor.heavy.hands.90",
-        "name": "重甲护手",
+        "name": "泰坦护手",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "90",
@@ -18157,7 +18157,7 @@
       },
       {
         "id": "equip.armor.heavy.feet",
-        "name": "重甲战靴",
+        "name": "铁底战靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "10",
@@ -18185,7 +18185,7 @@
       },
       {
         "id": "equip.armor.heavy.feet.30",
-        "name": "重甲战靴",
+        "name": "重钢战靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "30",
@@ -18213,7 +18213,7 @@
       },
       {
         "id": "equip.armor.heavy.feet.50",
-        "name": "重甲战靴",
+        "name": "玄铁战靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "50",
@@ -18241,7 +18241,7 @@
       },
       {
         "id": "equip.armor.heavy.feet.70",
-        "name": "重甲战靴",
+        "name": "秘银战靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "70",
@@ -18269,7 +18269,7 @@
       },
       {
         "id": "equip.armor.heavy.feet.90",
-        "name": "重甲战靴",
+        "name": "泰坦战靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "90",
@@ -18297,7 +18297,7 @@
       },
       {
         "id": "equip.armor.leather.body",
-        "name": "皮甲背心",
+        "name": "猎行皮甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "10",
@@ -18325,7 +18325,7 @@
       },
       {
         "id": "equip.armor.leather.body.30",
-        "name": "皮甲背心",
+        "name": "精鞣皮甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "30",
@@ -18353,7 +18353,7 @@
       },
       {
         "id": "equip.armor.leather.body.50",
-        "name": "皮甲背心",
+        "name": "兽纹皮甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "50",
@@ -18381,7 +18381,7 @@
       },
       {
         "id": "equip.armor.leather.body.70",
-        "name": "皮甲背心",
+        "name": "影豹皮甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "70",
@@ -18409,7 +18409,7 @@
       },
       {
         "id": "equip.armor.leather.body.90",
-        "name": "皮甲背心",
+        "name": "龙鳞皮甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "90",
@@ -18437,7 +18437,7 @@
       },
       {
         "id": "equip.armor.leather.hands",
-        "name": "皮甲护腕",
+        "name": "皮革护腕",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "10",
@@ -18465,7 +18465,7 @@
       },
       {
         "id": "equip.armor.leather.hands.30",
-        "name": "皮甲护腕",
+        "name": "猎行护腕",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "30",
@@ -18493,7 +18493,7 @@
       },
       {
         "id": "equip.armor.leather.hands.50",
-        "name": "皮甲护腕",
+        "name": "兽纹护手",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "50",
@@ -18521,7 +18521,7 @@
       },
       {
         "id": "equip.armor.leather.hands.70",
-        "name": "皮甲护腕",
+        "name": "影豹臂甲",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "70",
@@ -18549,7 +18549,7 @@
       },
       {
         "id": "equip.armor.leather.hands.90",
-        "name": "皮甲护腕",
+        "name": "龙鳞护腕",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "90",
@@ -18577,7 +18577,7 @@
       },
       {
         "id": "equip.armor.leather.feet",
-        "name": "皮靴",
+        "name": "轻行皮靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "10",
@@ -18605,7 +18605,7 @@
       },
       {
         "id": "equip.armor.leather.feet.30",
-        "name": "皮靴",
+        "name": "猎行短靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "30",
@@ -18633,7 +18633,7 @@
       },
       {
         "id": "equip.armor.leather.feet.50",
-        "name": "皮靴",
+        "name": "兽纹长靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "50",
@@ -18661,7 +18661,7 @@
       },
       {
         "id": "equip.armor.leather.feet.70",
-        "name": "皮靴",
+        "name": "影豹战靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "70",
@@ -18689,7 +18689,7 @@
       },
       {
         "id": "equip.armor.leather.feet.90",
-        "name": "皮靴",
+        "name": "龙鳞疾靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "90",
@@ -18717,7 +18717,7 @@
       },
       {
         "id": "equip.armor.light.body",
-        "name": "轻甲外衣",
+        "name": "影行短衣",
         "slot": "body",
         "rootJob": "",
         "levelMin": "30",
@@ -18745,7 +18745,7 @@
       },
       {
         "id": "equip.armor.light.body.50",
-        "name": "轻甲外衣",
+        "name": "疾风轻衣",
         "slot": "body",
         "rootJob": "",
         "levelMin": "50",
@@ -18773,7 +18773,7 @@
       },
       {
         "id": "equip.armor.light.body.70",
-        "name": "轻甲外衣",
+        "name": "流云轻甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "70",
@@ -18801,7 +18801,7 @@
       },
       {
         "id": "equip.armor.light.body.90",
-        "name": "轻甲外衣",
+        "name": "月影轻甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "90",
@@ -18829,7 +18829,7 @@
       },
       {
         "id": "equip.armor.light.hands",
-        "name": "轻甲手套",
+        "name": "轻甲护手",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "30",
@@ -18857,7 +18857,7 @@
       },
       {
         "id": "equip.armor.light.hands.50",
-        "name": "轻甲手套",
+        "name": "疾风护手",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "50",
@@ -18885,7 +18885,7 @@
       },
       {
         "id": "equip.armor.light.hands.70",
-        "name": "轻甲手套",
+        "name": "流云护腕",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "70",
@@ -18913,7 +18913,7 @@
       },
       {
         "id": "equip.armor.light.hands.90",
-        "name": "轻甲手套",
+        "name": "月影手甲",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "90",
@@ -18941,7 +18941,7 @@
       },
       {
         "id": "equip.armor.light.feet",
-        "name": "轻甲短靴",
+        "name": "疾风短靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "30",
@@ -18969,7 +18969,7 @@
       },
       {
         "id": "equip.armor.light.feet.50",
-        "name": "轻甲短靴",
+        "name": "追风轻靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "50",
@@ -18997,7 +18997,7 @@
       },
       {
         "id": "equip.armor.light.feet.70",
-        "name": "轻甲短靴",
+        "name": "流云战靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "70",
@@ -19025,7 +19025,7 @@
       },
       {
         "id": "equip.armor.light.feet.90",
-        "name": "轻甲短靴",
+        "name": "月影长靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "90",
@@ -19053,7 +19053,7 @@
       },
       {
         "id": "equip.armor.plate.body",
-        "name": "板甲胸甲",
+        "name": "板甲胸铠",
         "slot": "body",
         "rootJob": "",
         "levelMin": "30",
@@ -19081,7 +19081,7 @@
       },
       {
         "id": "equip.armor.plate.body.50",
-        "name": "板甲胸甲",
+        "name": "精钢板甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "50",
@@ -19109,7 +19109,7 @@
       },
       {
         "id": "equip.armor.plate.body.70",
-        "name": "板甲胸甲",
+        "name": "符文板甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "70",
@@ -19137,7 +19137,7 @@
       },
       {
         "id": "equip.armor.plate.body.90",
-        "name": "板甲胸甲",
+        "name": "泰坦重甲",
         "slot": "body",
         "rootJob": "",
         "levelMin": "90",
@@ -19193,7 +19193,7 @@
       },
       {
         "id": "equip.armor.plate.hands.50",
-        "name": "板甲护手",
+        "name": "精钢臂甲",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "50",
@@ -19221,7 +19221,7 @@
       },
       {
         "id": "equip.armor.plate.hands.70",
-        "name": "板甲护手",
+        "name": "符文臂铠",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "70",
@@ -19249,7 +19249,7 @@
       },
       {
         "id": "equip.armor.plate.hands.90",
-        "name": "板甲护手",
+        "name": "泰坦臂甲",
         "slot": "hands",
         "rootJob": "",
         "levelMin": "90",
@@ -19305,7 +19305,7 @@
       },
       {
         "id": "equip.armor.plate.feet.50",
-        "name": "板甲战靴",
+        "name": "精钢重靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "50",
@@ -19333,7 +19333,7 @@
       },
       {
         "id": "equip.armor.plate.feet.70",
-        "name": "板甲战靴",
+        "name": "符文战靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "70",
@@ -19361,7 +19361,7 @@
       },
       {
         "id": "equip.armor.plate.feet.90",
-        "name": "板甲战靴",
+        "name": "泰坦战靴",
         "slot": "feet",
         "rootJob": "",
         "levelMin": "90",

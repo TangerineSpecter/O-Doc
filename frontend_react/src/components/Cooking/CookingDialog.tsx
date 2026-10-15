@@ -11,6 +11,7 @@ import type {RecipeState} from './recipePresentation';
 import {useCooking} from '../../hooks/useCooking';
 import type {CookingRecipe} from '../../types/api/cooking';
 import type {CatalogItem} from '../../types/api/itemCatalog';
+import DataExportButton from '../common/DataExportButton';
 
 export interface CookingDialogProps {
     residents: {id: string; name: string}[];
@@ -34,7 +35,14 @@ export function CookingCatalogContent({
     const [image, setImage] = useState<CatalogItem | null>(null);
 
     const recipes = useMemo(() => state.data?.recipes || [], [state.data?.recipes]);
-    const currentResident = residents.find(r => r.id === agentId);
+    const ingredientOptions = state.data?.ingredientOptions;
+    const currentResident = residents.find(resident => resident.id === agentId);
+    const skill = state.data?.skill;
+    const exportSheets = useMemo(() => [
+        {name: '食谱', rows: recipes},
+        {name: '可用食材', rows: ingredientOptions || []},
+        {name: '当前居民', rows: skill ? [{residentId: agentId, residentName: currentResident?.name || '', ...skill}] : []},
+    ], [recipes, ingredientOptions, skill, agentId, currentResident?.name]);
 
     // 统计各筛选状态下的食谱数量
     const filterCounts = useMemo(() => {
@@ -67,8 +75,6 @@ export function CookingCatalogContent({
     const selected = useMemo(() => {
         return visible.find(recipe => recipe.id === selectedId) || visible[0] || null;
     }, [visible, selectedId]);
-
-    const skill = state.data?.skill;
 
     // 打开图标选择器模态
     const openImage = (recipe: CookingRecipe) =>
@@ -147,8 +153,8 @@ export function CookingCatalogContent({
                     </div>
 
                     {/* 右侧搜索框 */}
-                    <div className="relative flex w-full items-center gap-2 sm:w-56 shrink-0">
-                        <label className="relative flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-2xs transition-all focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-500/20">
+                    <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
+                        <label className="relative flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-2xs transition-all focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-500/20 sm:w-56 sm:flex-none">
                             <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                             <input
                                 aria-label="搜索食谱"
@@ -168,6 +174,7 @@ export function CookingCatalogContent({
                                 </button>
                             )}
                         </label>
+                        <DataExportButton sheets={exportSheets} fileName="美食图鉴" disabled={state.loading || Boolean(state.error) || recipes.length === 0}/>
                     </div>
                 </div>
 
